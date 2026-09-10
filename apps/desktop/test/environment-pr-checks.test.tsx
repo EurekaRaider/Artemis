@@ -43,7 +43,6 @@ function renderSummary(overrides: Record<string, unknown> = {}) {
         checkSummary="pending"
         checksOpen={false}
         chevronIcon={<span aria-hidden="true">›</span>}
-        externalIcon={<span aria-hidden="true">↗</span>}
         onBlurredOut={onBlurredOut}
         onOpenUrl={onOpenUrl}
         onShowChecks={vi.fn()}
@@ -69,6 +68,70 @@ function renderSummary(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PullRequestChecksSummary", () => {
+  it.each(["passed", "pending", "failed", "none", "cancelled", "skipped"])(
+    "uses the %s summary state for the PR icon",
+    (checkSummary) => {
+      renderSummary({ checkSummary });
+      expect(document.querySelector(".environment-pr-icon")).toHaveAttribute(
+        "data-status",
+        checkSummary,
+      );
+    },
+  );
+
+  it("shows proportional passed, failed and pending segments even when the summary is failed", () => {
+    renderSummary({
+      checkSummary: "failed",
+      pullRequest: {
+        ...pullRequest,
+        checks: ["passed", "passed", "failed", "pending"].map((status, i) => ({
+          name: `check-${i}`,
+          status,
+        })),
+      },
+    });
+    const ring = document.querySelector(".environment-check-ring")!;
+    expect(ring.children).toHaveLength(3);
+    expect(ring.querySelector('[data-status="passed"]')).toHaveStyle({
+      backgroundImage:
+        "conic-gradient(transparent 0% 0%, currentColor 0% 50%, transparent 50% 100%)",
+    });
+    expect(ring.querySelector('[data-status="failed"]')).toHaveStyle({
+      backgroundImage:
+        "conic-gradient(transparent 0% 50%, currentColor 50% 75%, transparent 75% 100%)",
+    });
+    expect(ring.querySelector('[data-status="pending"]')).toHaveStyle({
+      backgroundImage:
+        "conic-gradient(transparent 0% 75%, currentColor 75% 100%, transparent 100% 100%)",
+    });
+  });
+
+  it.each([
+    [[], []],
+    [["passed", "passed"], ["passed"]],
+    [["failed"], ["failed"]],
+    [["pending"], ["pending"]],
+    [["skipped", "cancelled"], ["neutral"]],
+    [
+      ["passed", "skipped"],
+      ["passed", "neutral"],
+    ],
+  ])(
+    "handles terminal, empty and neutral check sets %j",
+    (statuses, expected) => {
+      renderSummary({
+        pullRequest: {
+          ...pullRequest,
+          checks: statuses.map((status, i) => ({ name: `check-${i}`, status })),
+        },
+      });
+      const segments = document.querySelectorAll(".environment-check-segment");
+      expect(
+        [...segments].map((segment) => segment.getAttribute("data-status")),
+      ).toEqual(expected);
+    },
+  );
+
   it("exposes the dialog semantics on the trigger", () => {
     renderSummary();
     const trigger = screen.getByRole("button", { name: /checks pending/i });
@@ -150,7 +213,12 @@ describe("PullRequestChecksPopover", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("build")).toBeInTheDocument();
     expect(screen.getByText("lint")).toBeInTheDocument();
-    expect(screen.getByText("CI · Passed")).toBeInTheDocument();
+    expect(screen.queryByText("CI · Passed")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Passed" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /build/i })).toHaveAttribute(
+      "title",
+      "build · CI · Passed",
+    );
   });
 
   it("opens a check detail url exactly once when it has one", async () => {

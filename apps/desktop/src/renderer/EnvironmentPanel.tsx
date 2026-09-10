@@ -43,6 +43,7 @@ import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
 import { EnvironmentWorkspaceMenu } from "./EnvironmentWorkspaceMenu.js";
+import { EnvironmentPullRequestError } from "./EnvironmentPullRequestError.js";
 import { ImGroupMembers } from "./ImGroupMembers.js";
 import {
   EnvironmentAddIcon,
@@ -555,7 +556,17 @@ function ChangesIcon() {
 }
 
 function PushIcon() {
-  return <ArtemisIcon name="push" />;
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      data-environment-tone="mint"
+    >
+      <path d="M7 17a5 5 0 0 1-1-10 6 6 0 0 1 11 0 5 5 0 0 1 1 10M12 21V11m-4 4 4-4 4 4" />
+    </svg>
+  );
 }
 
 function PullRequestIcon() {
@@ -566,7 +577,6 @@ export function PullRequestChecksSummary({
   checkSummary,
   checksOpen,
   chevronIcon,
-  externalIcon,
   onBlurredOut,
   onOpenUrl,
   onShowChecks,
@@ -585,7 +595,6 @@ export function PullRequestChecksSummary({
   checkSummary: ProjectPullRequestCheckSummary;
   checksOpen: boolean;
   chevronIcon: ReactNode;
-  externalIcon: ReactNode;
   onBlurredOut: () => void;
   onOpenUrl: (url: string) => void;
   onShowChecks: () => void;
@@ -601,6 +610,22 @@ export function PullRequestChecksSummary({
   triggerRef: RefObject<HTMLButtonElement | null>;
   warningLabel?: string | undefined;
 }) {
+  const counts = { passed: 0, failed: 0, pending: 0, neutral: 0 };
+  for (const check of pullRequest.checks) {
+    const status =
+      check.status === "cancelled" || check.status === "skipped"
+        ? "neutral"
+        : check.status;
+    counts[status] += 1;
+  }
+  let offset = 0;
+  const segments = Object.entries(counts).map(([status, count]) => {
+    const start = offset;
+    offset += pullRequest.checks.length
+      ? (count / pullRequest.checks.length) * 100
+      : 0;
+    return { status, count, start, end: offset };
+  });
   return (
     <div className="environment-pr-card">
       <button
@@ -608,15 +633,17 @@ export function PullRequestChecksSummary({
         onClick={() => onOpenUrl(pullRequest.url)}
         type="button"
       >
-        <span className="environment-row-icon">{prIcon}</span>
+        <span
+          className="environment-row-icon environment-pr-icon"
+          data-status={checkSummary}
+        >
+          {prIcon}
+        </span>
         <span>
-          <strong>{pullRequest.title}</strong>
+          <strong title={pullRequest.title}>{pullRequest.title}</strong>
           <small>
             #{pullRequest.number} · {stateLabel}
           </small>
-        </span>
-        <span aria-hidden="true" className="environment-external">
-          {externalIcon}
         </span>
       </button>
       <button
@@ -650,9 +677,22 @@ export function PullRequestChecksSummary({
       >
         <span
           aria-hidden="true"
-          className="environment-check-indicator"
+          className="environment-check-ring"
           data-status={checkSummary}
-        />
+        >
+          {segments
+            .filter((segment) => segment.count > 0)
+            .map((segment) => (
+              <span
+                key={segment.status}
+                className="environment-check-segment"
+                data-status={segment.status}
+                style={{
+                  backgroundImage: `conic-gradient(transparent 0% ${segment.start}%, currentColor ${segment.start}% ${segment.end}%, transparent ${segment.end}% 100%)`,
+                }}
+              />
+            ))}
+        </span>
         <span>{summaryLabel}</span>
         {chevronIcon}
       </button>
@@ -733,19 +773,17 @@ export function PullRequestChecksPopover({
           <p>{noneLabel}</p>
         ) : (
           checks.map((check, index) => {
+            const description = `${check.name} · ${check.workflowName ? `${check.workflowName} · ` : ""}${checkSummaryLabels[check.status]}`;
             const content = (
               <>
                 <span
-                  aria-hidden="true"
+                  aria-label={checkSummaryLabels[check.status]}
                   className="environment-check-indicator"
                   data-status={check.status}
+                  role="img"
                 />
                 <span>
                   <strong>{check.name}</strong>
-                  <small>
-                    {check.workflowName ? `${check.workflowName} · ` : ""}
-                    {checkSummaryLabels[check.status]}
-                  </small>
                 </span>
                 {check.detailsUrl && <i aria-hidden="true">{externalIcon}</i>}
               </>
@@ -754,12 +792,15 @@ export function PullRequestChecksPopover({
               <button
                 key={`${check.name}:${index}`}
                 onClick={() => onOpenUrl(check.detailsUrl!)}
+                title={description}
                 type="button"
               >
                 {content}
               </button>
             ) : (
-              <div key={`${check.name}:${index}`}>{content}</div>
+              <div key={`${check.name}:${index}`} title={description}>
+                {content}
+              </div>
             );
           })
         )}
@@ -1101,13 +1142,13 @@ export function EnvironmentPanel({
   const loadPullRequest = useCallback(async () => {
     const id = ++pullRequestRequest.current;
     setPullRequestLoading(true);
-    setPullRequestError(undefined);
     try {
       const lookup = await window.artemis.getProjectPullRequest(
         project.id,
         threadId,
       );
       if (pullRequestRequest.current !== id) return;
+      setPullRequestError(undefined);
       setPullRequestLookup(lookup);
       if (lookup.status !== "found") setChecksOpen(false);
     } catch (error) {
@@ -1228,8 +1269,9 @@ export function EnvironmentPanel({
       }
       closeBranchMenu();
     };
-    document.addEventListener("pointerdown", closeOutside);
-    return () => document.removeEventListener("pointerdown", closeOutside);
+    document.addEventListener("pointerdown", closeOutside, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOutside, true);
   }, [branchOpen, closeBranchMenu]);
 
   useEffect(() => {
@@ -1765,20 +1807,21 @@ export function EnvironmentPanel({
                   <EnvironmentCommitIcon />
                   <span>{t.commitOrPush}</span>
                 </button>
-                {pullRequestLoading && !pullRequestLookup && (
-                  <div className="environment-pr-notice" role="status">
-                    <span className="environment-row-icon">
-                      <PullRequestIcon />
-                    </span>
-                    <span>{t.githubChecking}</span>
-                  </div>
-                )}
+                {pullRequestLoading &&
+                  !pullRequestLookup &&
+                  !pullRequestError && (
+                    <div className="environment-pr-notice" role="status">
+                      <span className="environment-row-icon">
+                        <PullRequestIcon />
+                      </span>
+                      <span>{t.githubChecking}</span>
+                    </div>
+                  )}
                 {pullRequest && (
                   <PullRequestChecksSummary
                     checkSummary={checkSummary}
                     checksOpen={checksOpen}
                     chevronIcon={<EnvironmentChevronIcon aria-hidden="true" />}
-                    externalIcon={<EnvironmentExternalIcon />}
                     onBlurredOut={scheduleChecksClose}
                     onOpenUrl={onOpenUrl}
                     onShowChecks={showChecks}
@@ -1800,15 +1843,13 @@ export function EnvironmentPanel({
                   />
                 )}
                 {pullRequestError && !pullRequest && (
-                  <div className="environment-pr-notice error" role="alert">
-                    <span>{pullRequestError}</span>
-                    <button
-                      onClick={() => void loadPullRequest()}
-                      type="button"
-                    >
-                      {t.retry}
-                    </button>
-                  </div>
+                  <EnvironmentPullRequestError
+                    key={`${project.id}:${threadId ?? ""}:${pullRequestError}`}
+                    error={pullRequestError}
+                    loading={pullRequestLoading}
+                    locale={locale}
+                    onRetry={() => void loadPullRequest()}
+                  />
                 )}
                 {gitError && (
                   <div className="environment-inline-error" role="alert">
@@ -1939,7 +1980,10 @@ export function EnvironmentPanel({
                 className="environment-branch-create-form"
                 onSubmit={(event) => void createBranchFromMenu(event)}
               >
-                <label htmlFor="environment-new-branch">{t.branchName}</label>
+                <label htmlFor="environment-new-branch">
+                  <BranchIcon />
+                  {t.branchName}
+                </label>
                 <input
                   autoFocus
                   disabled={Boolean(gitBusy)}

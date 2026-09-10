@@ -170,6 +170,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           command.goal,
           command.memoryContext,
           command.collaborationContext,
+          command.recovery,
         );
         break;
       }

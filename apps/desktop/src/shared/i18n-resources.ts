@@ -34,6 +34,9 @@ const en = {
     next: "Next",
   },
   app: {
+    hostRecovering: "Resuming the task…",
+    hostRestart:
+      "The previous Artemis process stopped before this turn completed.",
     projects: "Projects",
     automations: "Automations",
     tasks: "Tasks",
@@ -198,6 +201,8 @@ const zhCN: NamespaceCatalog = {
     next: "下一步",
   },
   app: {
+    hostRecovering: "正在恢复任务…",
+    hostRestart: "上次 Artemis 进程在本轮任务完成前已停止。",
     projects: "项目",
     automations: "定时任务",
     tasks: "任务",
@@ -358,6 +363,8 @@ const zhTW: NamespaceCatalog = {
     next: "下一步",
   },
   app: {
+    hostRecovering: "正在恢復任務…",
+    hostRestart: "上次 Artemis 程序在本輪任務完成前已停止。",
     projects: "專案",
     automations: "自動化",
     tasks: "任務",
@@ -520,6 +527,8 @@ const translations = {
       "次へ",
     ],
     app: [
+      "タスクを再開しています…",
+      "このターンが完了する前に、前回の Artemis プロセスが停止しました。",
       "プロジェクト",
       "自動化",
       "タスク",
@@ -675,6 +684,8 @@ const translations = {
       "다음",
     ],
     app: [
+      "작업을 재개하는 중…",
+      "이번 턴이 완료되기 전에 이전 Artemis 프로세스가 중지되었습니다.",
       "프로젝트",
       "자동화",
       "작업",
@@ -830,6 +841,8 @@ const translations = {
       "Siguiente",
     ],
     app: [
+      "Reanudando la tarea…",
+      "El proceso anterior de Artemis se detuvo antes de que se completara este turno.",
       "Proyectos",
       "Automatizaciones",
       "Tareas",
@@ -985,6 +998,8 @@ const translations = {
       "Suivant",
     ],
     app: [
+      "Reprise de la tâche…",
+      "Le processus Artemis précédent s’est arrêté avant la fin de ce tour.",
       "Projets",
       "Automatisations",
       "Tâches",
@@ -1140,6 +1155,8 @@ const translations = {
       "Weiter",
     ],
     app: [
+      "Aufgabe wird fortgesetzt…",
+      "Der vorherige Artemis-Prozess wurde beendet, bevor dieser Durchlauf abgeschlossen war.",
       "Projekte",
       "Automatisierungen",
       "Aufgaben",
@@ -1295,6 +1312,8 @@ const translations = {
       "Próximo",
     ],
     app: [
+      "Retomando a tarefa…",
+      "O processo anterior do Artemis parou antes de concluir este turno.",
       "Projetos",
       "Automações",
       "Tarefas",
@@ -1450,6 +1469,8 @@ const translations = {
       "Avanti",
     ],
     app: [
+      "Ripresa dell’attività…",
+      "Il processo precedente di Artemis si è arrestato prima del completamento di questo turno.",
       "Progetti",
       "Automazioni",
       "Attività",
@@ -1605,6 +1626,8 @@ const translations = {
       "Далее",
     ],
     app: [
+      "Возобновление задачи…",
+      "Предыдущий процесс Artemis остановился до завершения этого хода.",
       "Проекты",
       "Автоматизации",
       "Задачи",
@@ -1760,6 +1783,8 @@ const translations = {
       "التالي",
     ],
     app: [
+      "جارٍ استئناف المهمة…",
+      "توقفت عملية Artemis السابقة قبل اكتمال هذه الجولة.",
       "المشاريع",
       "عمليات التشغيل الآلي",
       "المهام",
@@ -1915,6 +1940,8 @@ const translations = {
       "अगला",
     ],
     app: [
+      "कार्य फिर से शुरू हो रहा है…",
+      "यह टर्न पूरा होने से पहले पिछली Artemis प्रक्रिया बंद हो गई थी।",
       "प्रोजेक्ट",
       "ऑटोमेशन",
       "कार्य",
@@ -2070,6 +2097,8 @@ const translations = {
       "Berikutnya",
     ],
     app: [
+      "Melanjutkan tugas…",
+      "Proses Artemis sebelumnya berhenti sebelum giliran ini selesai.",
       "Proyek",
       "Otomatisasi",
       "Tugas",

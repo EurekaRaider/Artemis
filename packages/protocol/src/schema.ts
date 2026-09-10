@@ -273,7 +273,13 @@ export const turnActivityPayloadSchema = z.object({
   queueDepth: z.number().int().nonnegative().optional(),
   toolCount: z.number().int().nonnegative().optional(),
   kind: z
-    .enum(["connection", "stream-stalled", "rate-limit", "provider"])
+    .enum([
+      "connection",
+      "stream-stalled",
+      "rate-limit",
+      "provider",
+      "process-restart",
+    ])
     .optional(),
   attempt: z.number().int().positive().optional(),
   maxAttempts: z.number().int().positive().optional(),

@@ -31,6 +31,7 @@ import {
 } from "@artemis/protocol";
 
 import type { ReviewComment, ReviewCommentAnchor } from "../shared/api.js";
+import type { TurnCheckpoint } from "./turn-recovery.js";
 
 interface ProjectRow {
   id: string;
@@ -425,6 +426,12 @@ export class AppStore {
         body TEXT NOT NULL,
         created_at TEXT NOT NULL,
         UNIQUE(thread_id, seq)
+      );
+
+      CREATE TABLE IF NOT EXISTS turn_checkpoints (
+        thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE,
+        turn_id TEXT NOT NULL,
+        body TEXT NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS ix_threads_project
@@ -1993,27 +2000,31 @@ export class AppStore {
   ): { run: AutomationRun; deletedAutomationId?: string } | undefined {
     this.database.exec("BEGIN IMMEDIATE");
     try {
-      const current = this.getAutomationRunForThread(threadId);
-      if (!current) {
-        this.database.exec("ROLLBACK");
-        return undefined;
-      }
-      const run = this.updateAutomationRun(current.id, { state: "completed" });
-      const automation = this.getAutomation(run.automationId);
-      const shouldDelete =
-        automation?.schedule.kind === "once" &&
-        !automation.nextRunAt &&
-        !automation.deletedAt;
-      if (shouldDelete) this.softDeleteAutomation(run.automationId);
+      const result = this.completeAutomationRunForThreadCore(threadId);
       this.database.exec("COMMIT");
-      return {
-        run,
-        ...(shouldDelete ? { deletedAutomationId: run.automationId } : {}),
-      };
+      return result;
     } catch (error) {
       this.database.exec("ROLLBACK");
       throw error;
     }
+  }
+
+  private completeAutomationRunForThreadCore(
+    threadId: string,
+  ): { run: AutomationRun; deletedAutomationId?: string } | undefined {
+    const current = this.getAutomationRunForThread(threadId);
+    if (!current) return undefined;
+    const run = this.updateAutomationRun(current.id, { state: "completed" });
+    const automation = this.getAutomation(run.automationId);
+    const shouldDelete =
+      automation?.schedule.kind === "once" &&
+      !automation.nextRunAt &&
+      !automation.deletedAt;
+    if (shouldDelete) this.softDeleteAutomation(run.automationId);
+    return {
+      run,
+      ...(shouldDelete ? { deletedAutomationId: run.automationId } : {}),
+    };
   }
 
   hasActiveAutomationRun(automationId: string): boolean {
@@ -2097,11 +2108,17 @@ export class AppStore {
     changes: Partial<
       Pick<Thread, "title" | "mode" | "target" | "status" | "sessionFile">
     >,
+    checkpoint?: TurnCheckpoint,
   ): { events: AgentEvent[]; thread: Thread } {
     this.database.exec("BEGIN IMMEDIATE");
     try {
       const events = this.appendEventsCore(threadId, inputs);
       const thread = this.updateThread(threadId, changes);
+      if (checkpoint) {
+        if (checkpoint.threadId !== threadId)
+          throw new Error("Turn checkpoint belongs to another task.");
+        this.saveTurnCheckpoint(checkpoint);
+      }
       this.database.exec("COMMIT");
       return { events, thread };
     } catch (error) {
@@ -2141,6 +2158,12 @@ export class AppStore {
         JSON.stringify(event),
         event.timestamp,
       );
+      if (
+        event.payload.type === "turn.completed" ||
+        event.payload.type === "turn.failed"
+      ) {
+        this.clearTurnCheckpoint(threadId, event.turnId);
+      }
       return event;
     });
   }
@@ -2151,6 +2174,40 @@ export class AppStore {
         .prepare("SELECT body FROM events WHERE thread_id = ? ORDER BY seq ASC")
         .all(threadId) as unknown as Array<{ body: string }>
     ).map((row) => agentEventFromBody(row.body));
+  }
+
+  getTurnCheckpoint(threadId: string): TurnCheckpoint | undefined {
+    const row = this.database
+      .prepare("SELECT body FROM turn_checkpoints WHERE thread_id = ?")
+      .get(threadId) as { body: string } | undefined;
+    if (!row) return undefined;
+    const record = JSON.parse(row.body) as {
+      version: number;
+      checkpoint: TurnCheckpoint;
+    };
+    if (record.version !== 1)
+      throw new Error("Unsupported turn checkpoint version.");
+    return record.checkpoint;
+  }
+
+  saveTurnCheckpoint(checkpoint: TurnCheckpoint): void {
+    this.database
+      .prepare(
+        "INSERT OR REPLACE INTO turn_checkpoints (thread_id, turn_id, body) VALUES (?, ?, ?)",
+      )
+      .run(
+        checkpoint.threadId,
+        checkpoint.turnId,
+        JSON.stringify({ version: 1, checkpoint }),
+      );
+  }
+
+  clearTurnCheckpoint(threadId: string, turnId: string | undefined): void {
+    this.database
+      .prepare(
+        "DELETE FROM turn_checkpoints WHERE thread_id = ? AND turn_id = ?",
+      )
+      .run(threadId, turnId ?? "");
   }
 
   getTokenUsageEvents(): AgentEvent[] {
@@ -2373,7 +2430,31 @@ export class AppStore {
         const events = eventRows.map((eventRow) =>
           agentEventFromBody(eventRow.body),
         );
-        const turnId = events.at(-1)?.turnId;
+        const turnId =
+          events.findLast((event) => event.payload.type === "turn.started")
+            ?.turnId ?? events.findLast((event) => event.turnId)?.turnId;
+        const terminal = events.findLast(
+          (event) =>
+            event.turnId === turnId &&
+            (event.payload.type === "turn.completed" ||
+              event.payload.type === "turn.failed"),
+        );
+        if (terminal) {
+          this.clearTurnCheckpoint(row.id, turnId);
+          this.updateThread(row.id, {
+            status: terminal.payload.type === "turn.failed" ? "failed" : "idle",
+          });
+          if (terminal.payload.type === "turn.failed") {
+            this.updateAutomationRunForThread(
+              row.id,
+              "failed",
+              terminal.payload.message,
+            );
+          } else {
+            this.completeAutomationRunForThreadCore(row.id);
+          }
+          continue;
+        }
         const unresolvedApprovals = new Map<
           string,
           { nonce: string; turnId?: string }
@@ -2472,6 +2553,21 @@ export class AppStore {
             }),
           );
         }
+        const checkpoint = this.getTurnCheckpoint(row.id);
+        if (checkpoint && checkpoint.turnId === turnId && !row.archived) {
+          recovered.push(
+            this.appendEvent(randomUUID(), row.id, turnId, {
+              type: "turn.activity",
+              phase: "reconnecting",
+              kind: "process-restart",
+              attempt: 1,
+              delayMs: 0,
+            }),
+          );
+          this.updateThread(row.id, { status: "running" });
+          this.updateAutomationRunForThread(row.id, "running");
+          continue;
+        }
         recovered.push(
           this.appendEvent(randomUUID(), row.id, turnId, {
             type: "turn.failed",
@@ -2488,11 +2584,11 @@ export class AppStore {
         );
       }
       this.database.exec("COMMIT");
-      return recovered;
     } catch (error) {
       this.database.exec("ROLLBACK");
       throw error;
     }
+    return recovered;
   }
 
   snapshot(

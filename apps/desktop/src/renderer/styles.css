@@ -1250,25 +1250,100 @@ button.environment-activity-row:focus-visible {
   padding: 4px 6px;
 }
 
-.environment-pr-notice.error {
-  color: var(--danger);
-  grid-template-columns: minmax(0, 1fr) auto;
+/* PR lookup failures stay local; technical details use a compact, arrowless popover. */
+.environment-pr-error {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 6px;
+  color: var(--text);
+  font-size: 12px;
 }
 
-.environment-pr-notice > button {
+.environment-pr-error-icon {
+  color: #b58b45;
+  width: 16px;
+  height: 16px;
+}
+.environment-pr-error p {
+  margin: 0 0 4px;
+}
+.environment-pr-error small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.environment-pr-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.environment-pr-error-actions button,
+.environment-pr-error-popover button {
   background: transparent;
   border: 0;
   border-radius: 6px;
-  color: currentColor;
+  color: var(--muted);
   cursor: pointer;
-  font-size: 10px;
+  font: inherit;
   padding: 4px 6px;
 }
-
-.environment-pr-notice > button:hover,
-.environment-pr-notice > button:focus-visible {
+.environment-pr-error-actions button:first-child {
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.environment-pr-error-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.environment-pr-error-actions button:hover:not(:disabled),
+.environment-pr-error-popover button:hover {
   background: var(--hover);
   color: var(--text);
+}
+.environment-pr-error-popover {
+  width: min(260px, calc(100vw - 16px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  font-size: 12px;
+}
+.environment-pr-error-popover header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.environment-pr-error-popover strong {
+  flex: 1;
+  font-weight: 500;
+}
+.environment-pr-error-popover button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+}
+.environment-pr-error-popover button svg {
+  width: 16px;
+  height: 16px;
+}
+.environment-pr-error-popover small {
+  color: var(--muted);
+}
+.environment-pr-error-popover pre {
+  margin: 0;
+  max-height: 64px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .environment-pr-card {
@@ -1286,10 +1361,10 @@ button.environment-activity-row:focus-visible {
   color: var(--text);
   cursor: pointer;
   display: grid;
-  gap: 8px;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  min-height: 48px;
-  padding: 6px 8px;
+  gap: 6px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  min-height: 28px;
+  padding: 4px 8px;
   text-align: start;
   width: 100%;
 }
@@ -1323,11 +1398,25 @@ button.environment-activity-row:focus-visible {
   white-space: nowrap;
 }
 
-.environment-pr-title small,
-.environment-check-list small {
+.environment-pr-title small {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.4;
+}
+
+.environment-pr-title > span:nth-child(2) {
+  align-items: baseline;
+  flex-direction: row;
+  gap: 6px;
+}
+
+.environment-pr-title strong {
+  min-width: 0;
+}
+
+.environment-pr-title small {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .environment-pr-check-summary {
@@ -1339,10 +1428,10 @@ button.environment-activity-row:focus-visible {
   cursor: pointer;
   display: grid;
   font-size: 11px;
-  gap: 8px;
+  gap: 6px;
   grid-template-columns: 14px minmax(0, 1fr) auto;
-  min-height: 34px;
-  padding: 5px 10px;
+  min-height: 28px;
+  padding: 3px 9px;
   text-align: start;
   width: 100%;
 }
@@ -1377,6 +1466,63 @@ button.environment-activity-row:focus-visible {
   border-color: #d9a441;
 }
 
+.environment-check-ring {
+  background: var(--muted-2);
+  border-radius: 50%;
+  display: inline-block;
+  height: 14px;
+  width: 14px;
+  position: relative;
+  mask-image: radial-gradient(transparent 4px, #000 4.5px);
+}
+
+.environment-check-ring:has(.environment-check-segment) {
+  background: transparent;
+}
+
+.environment-check-segment {
+  position: absolute;
+  inset: 0;
+  color: var(--muted-2);
+}
+
+.environment-row-icon.environment-pr-icon {
+  color: var(--muted-2);
+}
+
+.environment-check-segment[data-status="passed"],
+.environment-pr-icon[data-status="passed"] {
+  color: #42c878;
+}
+
+.environment-check-segment[data-status="failed"],
+.environment-pr-icon[data-status="failed"] {
+  color: #ef6464;
+}
+
+.environment-check-segment[data-status="pending"],
+.environment-pr-icon[data-status="pending"] {
+  color: #d9a441;
+}
+
+.environment-check-segment[data-status="pending"],
+.environment-check-indicator[data-status="pending"] {
+  animation: environment-check-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes environment-check-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .environment-check-segment[data-status="pending"],
+  .environment-check-indicator[data-status="pending"] {
+    animation: none;
+  }
+}
+
 .environment-check-indicator[data-status="cancelled"],
 .environment-check-indicator[data-status="skipped"] {
   border-color: var(--muted-2);
@@ -1398,20 +1544,22 @@ button.environment-activity-row:focus-visible {
 .environment-checks-popover {
   background: color-mix(in srgb, var(--panel-2) 98%, transparent);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 10px;
   box-shadow: 0 18px 48px rgb(0 0 0 / 35%);
   color: var(--text);
   max-height: min(340px, calc(100vh - 24px));
   overflow: auto;
-  padding: 10px;
-  width: min(360px, calc(100vw - 24px));
+  padding: 7px;
+  width: min(300px, calc(100vw - 24px));
 }
 
 .environment-checks-popover > [data-part="content"] > header {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 2px 4px 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  padding: 2px 4px 5px;
 }
 
 .environment-checks-popover > [data-part="content"] > header > strong,
@@ -1443,10 +1591,10 @@ button.environment-activity-row:focus-visible {
   border-radius: 9px;
   color: var(--text);
   display: grid;
-  gap: 9px;
+  gap: 7px;
   grid-template-columns: 14px minmax(0, 1fr) auto;
-  min-height: 44px;
-  padding: 6px 7px;
+  min-height: 28px;
+  padding: 3px 5px;
   text-align: start;
   width: 100%;
 }
@@ -1525,15 +1673,13 @@ button.environment-row:disabled {
   font-weight: 500;
 }
 
-.environment-chevron,
-.environment-external {
+.environment-chevron {
   color: var(--muted);
   font-size: 18px;
   font-style: normal;
 }
 
-.environment-chevron,
-.environment-external {
+.environment-chevron {
   align-items: center;
   display: inline-flex;
   justify-content: center;
@@ -1541,7 +1687,6 @@ button.environment-row:disabled {
 }
 
 .environment-chevron svg,
-.environment-external svg,
 .environment-branch-list > button > svg,
 .environment-branch-list > button > i > svg {
   height: var(--icon-size-base);
@@ -1705,33 +1850,41 @@ button.environment-row:disabled {
 .environment-branch-create-form {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 14px;
+  gap: 4px;
+  padding: 8px;
 }
 
 .environment-branch-create-form > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.environment-branch-create-form > small {
+  line-height: 16px;
 }
 
 .environment-branch-create-form > input {
   background: var(--panel-3);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 7px;
   color: var(--text);
   font: inherit;
   font-size: 13px;
-  height: 36px;
+  height: 30px;
   min-width: 0;
-  padding: 0 10px;
+  padding: 0 8px;
   width: 100%;
 }
 
 .environment-branch-create-form > input:focus {
   border-color: color-mix(in srgb, var(--blue) 68%, var(--border));
-  outline: 2px solid color-mix(in srgb, var(--blue) 28%, transparent);
-  outline-offset: 1px;
+  outline: 1px solid color-mix(in srgb, var(--blue) 28%, transparent);
+  outline-offset: 0;
 }
 
 .environment-branch-create-form > small,
@@ -1751,9 +1904,9 @@ button.environment-row:disabled {
 
 .environment-branch-create-form > div {
   display: flex;
-  gap: 7px;
+  gap: 4px;
   justify-content: flex-end;
-  margin-top: 3px;
+  margin-top: 0;
 }
 
 .environment-git-dialog-backdrop {
@@ -1768,7 +1921,7 @@ button.environment-row:disabled {
 }
 
 .environment-git-dialog {
-  background: color-mix(in srgb, var(--panel-2) 98%, transparent);
+  background: var(--environment-menu-bg);
   border: 1px solid var(--border);
   border-radius: 20px;
   box-shadow: 0 24px 72px rgb(0 0 0 / 46%);
@@ -1797,7 +1950,8 @@ button.environment-row:disabled {
   display: grid;
   font: inherit;
   gap: 9px;
-  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  grid-template-columns: 20px minmax(0, auto) 14px;
+  justify-content: start;
   min-height: 40px;
   padding: 0 10px;
   text-align: start;
@@ -1911,14 +2065,14 @@ button.environment-row:disabled {
 
 .environment-git-message {
   display: block;
-  min-height: 132px;
+  min-height: 96px;
   padding: 12px 10px 6px;
 }
 
 .environment-git-message textarea {
   font-size: 14px;
   line-height: 1.5;
-  min-height: 112px;
+  min-height: 72px;
   resize: none;
 }
 
@@ -1959,8 +2113,9 @@ button.environment-row:disabled {
 }
 
 .environment-git-include input:checked + span {
-  background: color-mix(in srgb, var(--text) 13%, transparent);
-  color: var(--text);
+  background: #287be8;
+  border-color: #287be8;
+  color: #fff;
 }
 
 .environment-git-include input:focus-visible + span {
@@ -1993,7 +2148,7 @@ button.environment-row:disabled {
   font: inherit;
   gap: 10px;
   grid-template-columns: 22px minmax(0, 1fr) auto;
-  min-height: 42px;
+  min-height: 34px;
   padding: 0 10px;
   text-align: start;
   width: 100%;
@@ -2004,12 +2159,12 @@ button.environment-row:disabled {
 }
 
 .environment-git-actions button.primary:not(:disabled) {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--environment-selected-bg);
+  color: var(--text);
 }
 
 .environment-git-actions button.primary:not(:disabled) kbd {
-  background: transparent;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   color: inherit;
 }
 
@@ -2026,6 +2181,59 @@ button.environment-row:disabled {
   font: inherit;
   font-size: 11px;
   padding: 3px 8px;
+}
+
+.environment-branch-create-form > label > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.environment-branch-create-form > div > button {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 6px;
+}
+
+.environment-branch-create-form .primary-button {
+  background: var(--environment-selected-bg);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.environment-branch-create-form .primary-button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.environment-branch-create-form .primary-button > svg {
+  color: light-dark(#3978bc, #77acee);
+}
+
+.environment-branch-create-form .secondary-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.environment-git-destination-trigger > svg:first-child,
+.environment-branch-create-form > label > svg[data-environment-tone] {
+  color: light-dark(#7862b8, #a59be5);
+}
+
+.environment-git-actions svg {
+  color: light-dark(#31846f, #72c4ae);
+}
+
+.environment-git-actions button:disabled > svg {
+  color: light-dark(#617782, #91a6b1);
+}
+
+.environment-git-actions button.primary > svg {
+  color: light-dark(#3978bc, #77acee);
 }
 
 .environment-git-dialog-error {
@@ -10351,7 +10559,6 @@ kbd {
   opacity: var(--artemis-opacity-disabled);
 }
 
-.environment-pr-notice.error > span,
 .environment-inline-error > span {
   min-width: 0;
   overflow-wrap: anywhere;

@@ -9,6 +9,11 @@ import type {
   RemoteOperation,
 } from "@artemis/protocol";
 import { randomUUID, createHash } from "node:crypto";
+import {
+  processRecoveryPrompt,
+  reconcileInterruptedTools,
+} from "./turn-recovery.js";
+import type { TurnRecovery } from "@artemis/protocol";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, relative, resolve, sep, isAbsolute } from "node:path";
@@ -5359,6 +5364,7 @@ export class ArtemisAgentHost {
     goal?: ThreadGoal,
     memoryContext?: string,
     collaborationContext?: string,
+    recovery?: TurnRecovery,
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -5379,7 +5385,9 @@ export class ArtemisAgentHost {
       : undefined;
     hosted.team = undefined;
     hosted.deferredTurnCompletion = undefined;
-    hosted.adapter = new PiAdapter(turnId);
+    hosted.adapter = new PiAdapter(
+      recovery ? `${turnId}:recovery:${recovery.attemptId}` : turnId,
+    );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
     hosted.session.agent.state.tools =
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
@@ -5387,7 +5395,7 @@ export class ArtemisAgentHost {
     const prompt = appendPromptFiles(
       buildTurnPrompt(
         mode,
-        text,
+        recovery ? processRecoveryPrompt(text, recovery) : text,
         goal,
         memoryContext,
         interruptedTeamContext,
@@ -5400,11 +5408,12 @@ export class ArtemisAgentHost {
       hosted.resourceLoader.getSkills().skills,
     );
     const images = toSessionImages(attachments);
+    if (recovery) reconcileInterruptedTools(hosted.session, recovery);
     this.promptCache.updateParentTurnCount(
       hosted.session.sessionId,
       hosted.topLevelUserTurns,
     );
-    hosted.topLevelUserTurns += 1;
+    if (!recovery) hosted.topLevelUserTurns += 1;
     try {
       const concurrency = this.concurrency.snapshot;
       if (
@@ -5451,14 +5460,26 @@ export class ArtemisAgentHost {
             const stopWatching = hosted.session.subscribe(watchdog.observe);
             try {
               await Promise.race([
-                images || expandedPrompt.expanded
-                  ? hosted.session.prompt(expandedPrompt.text, {
-                      ...(images ? { images } : {}),
-                      ...(expandedPrompt.expanded
-                        ? { expandPromptTemplates: false }
-                        : {}),
-                    })
-                  : hosted.session.prompt(expandedPrompt.text),
+                recovery
+                  ? hosted.session.sendCustomMessage(
+                      {
+                        customType: "artemis.process-recovery",
+                        content: [
+                          { type: "text", text: expandedPrompt.text },
+                          ...(images ?? []),
+                        ],
+                        display: false,
+                      },
+                      { triggerTurn: true },
+                    )
+                  : images || expandedPrompt.expanded
+                    ? hosted.session.prompt(expandedPrompt.text, {
+                        ...(images ? { images } : {}),
+                        ...(expandedPrompt.expanded
+                          ? { expandPromptTemplates: false }
+                          : {}),
+                      })
+                    : hosted.session.prompt(expandedPrompt.text),
                 watchdog.stalled,
               ]);
             } finally {

@@ -123,6 +123,12 @@ export interface AgentConcurrencyRuntimeStatus {
   limit: number;
 }
 
+export interface TurnRecovery {
+  attemptId: string;
+  evidence: string;
+  toolResults: Array<{ toolCallId: string; output: string; isError: boolean }>;
+}
+
 export type AgentHostCommand =
   | {
       type: "task.generate-summary";
@@ -192,6 +198,7 @@ export type AgentHostCommand =
       goal?: ThreadGoal;
       memoryContext?: string;
       collaborationContext?: string;
+      recovery?: TurnRecovery;
     }
   | {
       type: "turn.cancel";

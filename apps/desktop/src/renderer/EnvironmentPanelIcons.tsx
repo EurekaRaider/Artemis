@@ -119,12 +119,11 @@ export function EnvironmentCompareIcon(props: IconProps) {
 
 export function EnvironmentPullRequestIcon(props: IconProps) {
   return (
-    <EnvironmentGitIcon {...props} data-environment-tone="purple">
+    <EnvironmentGitIcon {...props}>
       <circle cx="6" cy="5.5" r="1.75" />
       <circle cx="6" cy="18.5" r="1.75" />
-      <circle cx="18" cy="5.5" r="1.75" />
-      <path d="M6 7.25v9.5M18 7.25v2.25a5.5 5.5 0 0 1-5.5 5.5H9" />
-      <path d="m14.25 18 1.75 1.75 3.75-4" />
+      <circle cx="18" cy="18.5" r="1.75" />
+      <path d="M6 7.25v9.5M18 16.75V8a3 3 0 0 0-3-3h-3m2.5-2.5L12 5l2.5 2.5" />
     </EnvironmentGitIcon>
   );
 }

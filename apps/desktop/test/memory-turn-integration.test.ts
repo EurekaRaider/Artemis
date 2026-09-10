@@ -69,8 +69,13 @@ describe("memory turn integration contract", () => {
     );
     const agentCommand = sourceBlock(
       turnStart,
-      'type: "turn.prompt"',
-      ".catch((error)",
+      "function dispatchCheckpoint",
+      "async function resumeInterruptedTurns",
+    );
+    const checkpoint = sourceBlock(
+      turnStart,
+      "const checkpoint: TurnCheckpoint",
+      "await emitInitialTurn",
     );
 
     expect(turnStart).toContain("recallMemoryForTurn");
@@ -87,8 +92,11 @@ describe("memory turn integration contract", () => {
     expect(userEvent).not.toContain("memoryContext");
     expect(turnStart).toContain("emitInitialTurn(\n      thread.id,");
     expect(turnStart).toContain("requestText,\n      input.mode,");
-    expect(agentCommand).toContain("text: requestText");
-    expect(agentCommand).toContain("memoryContext");
+    expect(checkpoint).toContain("text: requestText");
+    expect(checkpoint).toContain("memoryContext");
+    expect(turnStart).toContain("dispatchCheckpoint(checkpoint)");
+    expect(agentCommand).toContain("...command");
+    expect(agentCommand).toContain("} = checkpoint");
   });
 
   it("resolves brokered appends to fixed project or global memory paths", () => {

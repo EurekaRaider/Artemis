@@ -1,3 +1,4 @@
+import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
 import { ImMemberMentionMenu, useImMemberMentions } from "./ImMemberMentions";
 import {
@@ -642,6 +643,9 @@ const copy = {
     noProject: "Open a project first.",
     taskError: "The task could not be started.",
     turnError: "The task failed.",
+    hostRestart:
+      "The previous Artemis process stopped before this turn completed.",
+    hostRecovering: "Resuming the task…",
     streamInterrupted:
       "Streaming stopped after output began. Automatic replay was disabled to avoid duplicate text or tool side effects; confirm before continuing.",
     agentHostInterrupted:
@@ -924,6 +928,8 @@ const copy = {
     noProject: "请先打开一个项目。",
     taskError: "任务无法启动。",
     turnError: "任务执行失败。",
+    hostRestart: "上次 Artemis 进程在本轮任务完成前已停止。",
+    hostRecovering: "正在恢复任务…",
     streamInterrupted:
       "输出开始后连接中断；为避免重复文本或工具副作用，已停止自动重放，请确认后再继续。",
     agentHostInterrupted:
@@ -1244,6 +1250,7 @@ function statusLabel(
     case "running": {
       const activity = state.activity;
       if (activity?.phase === "reconnecting") {
+        if (activity.kind === "process-restart") return t.hostRecovering;
         const scheduledAt = activity.scheduledAt
           ? Date.parse(activity.scheduledAt)
           : clockMs;
@@ -1264,7 +1271,10 @@ function statusLabel(
           .replace("{{maximum}}", String(activity.maxAttempts))
           .replace("{{seconds}}", String(seconds));
       }
-      if (activity?.phase === "recovered") return t.connectionRecovered;
+      if (activity?.phase === "recovered")
+        return activity.kind === "process-restart"
+          ? t.hostRecovering
+          : t.connectionRecovered;
       if (activity?.phase === "interrupted") return t.taskInterrupted;
       return activity?.phase === "queued"
         ? t.queuedForAgent
@@ -1281,17 +1291,6 @@ function statusLabel(
     default:
       return t.ready;
   }
-}
-
-function localizedTurnFailure(
-  copy: ReturnType<typeof appCopy>,
-  message: string,
-  code?: string,
-): string {
-  if (code === "MODEL_STREAM_STALLED") return copy.modelStreamStalled;
-  if (code === "STREAM_INTERRUPTED") return copy.streamInterrupted;
-  if (code === "AGENT_HOST_INTERRUPTED") return copy.agentHostInterrupted;
-  return message;
 }
 
 function thinkingLevelLabel(level: ThinkingLevel, locale: Locale): string {

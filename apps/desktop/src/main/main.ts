@@ -1,5 +1,7 @@
 import { ImService } from "./im-service.js";
-import { imManagementSchema } from "@artemis/protocol";
+import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
+import type { TurnRecovery } from "@artemis/protocol";
+import { imManagementSchema, reduceAgentEvents } from "@artemis/protocol";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
@@ -713,7 +715,8 @@ const projectGitWatchers = new Map<
   }
 >();
 const projectGitWatcherSenders = new Set<number>();
-const interruptedAgentHostTurns = new Set<string>();
+const activeTurnDispatches = new Map<string, string>();
+let shuttingDown = false;
 const recoverableTurnQueues = new RecoverableTurnQueues();
 let agentHostRestart: Promise<void> | undefined;
 
@@ -1229,9 +1232,11 @@ async function resolveModelSelection(
 function agentProcessHandlers(): AgentProcessHandlers {
   return {
     onEvent(threadId, turnId, payload) {
+      if (shuttingDown) return;
       emitPayload(threadId, turnId, payload);
     },
     onEvents(events) {
+      if (shuttingDown) return;
       emitPayloadBatch(events);
     },
     onTurnTelemetry(event) {
@@ -1241,6 +1246,7 @@ function agentProcessHandlers(): AgentProcessHandlers {
       }
     },
     onThreadSession(threadId, sessionFile) {
+      if (shuttingDown) return;
       if (store?.getThread(threadId)) {
         store.updateThread(threadId, { sessionFile });
       }
@@ -1259,7 +1265,7 @@ function agentProcessHandlers(): AgentProcessHandlers {
         severity: expected ? "info" : "fatal",
         message: `Agent host exited with code ${code ?? "unknown"}${expected ? " during shutdown" : ""}.`,
       });
-      if (!expected) restartAgentHost(code);
+      if (!expected && !shuttingDown) restartAgentHost(code);
     },
   };
 }
@@ -1328,7 +1334,17 @@ function interruptTurnsAfterAgentHostExit(): void {
     );
   }
   for (const [threadId, turnId] of [...activeTurns]) {
-    interruptedAgentHostTurns.add(turnId);
+    activeTurnDispatches.delete(threadId);
+    if (store?.getTurnCheckpoint(threadId)?.turnId === turnId) {
+      emitPayload(threadId, turnId, {
+        type: "turn.activity",
+        phase: "reconnecting",
+        kind: "process-restart",
+        attempt: 1,
+        delayMs: 0,
+      });
+      continue;
+    }
     const recoveredItems = recoverableTurnQueues.recover(threadId);
     if (recoveredItems.length > 0) {
       emitPayload(threadId, turnId, {
@@ -1366,16 +1382,25 @@ function restartAgentHost(code: number | null): void {
       const context = await resolveThreadWorkspace(thread);
       await openAgentThread(thread, context.workspacePath);
     }
+    await resumeInterruptedTurns();
     diagnosticBundleService?.record({
       source: "agent-host",
       severity: "info",
-      message: `Agent host recovered after unexpected exit ${code ?? "unknown"}; persisted sessions were reopened without replaying active prompts.`,
+      message: `Agent host recovered after unexpected exit ${code ?? "unknown"}; active tasks resumed from persisted checkpoints.`,
     });
   })();
   agentHostRestart = restart;
   agentRuntimeReady = restart;
   void restart
     .catch((error) => {
+      if (shuttingDown) return;
+      for (const [threadId, turnId] of [...activeTurns]) {
+        emitPayload(threadId, turnId, {
+          type: "turn.failed",
+          code: "HOST_RESTART",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
       diagnosticBundleService?.record({
         source: "agent-host",
         severity: "fatal",
@@ -2970,6 +2995,7 @@ async function emitInitialTurn(
   mode: StartTurnInput["mode"],
   attachments: PromptAttachment[],
   visibleUserMessage = true,
+  checkpoint?: TurnCheckpoint,
 ): Promise<AgentEvent[]> {
   if (!store) throw new Error("Application store is not ready.");
   const attachmentPayloads = attachments.map((attachment) => ({
@@ -3022,6 +3048,7 @@ async function emitInitialTurn(
         payload,
       })),
       { mode, status: "running" },
+      checkpoint,
     );
   } catch (error) {
     await Promise.allSettled(
@@ -5633,6 +5660,24 @@ async function startTaskTurnUnchecked(
     throw error;
   }
 
+  const goalCreationAuthorized =
+    source === "user" &&
+    /(?:\b(?:create|set|start)\b[^\n]{0,80}\bgoal\b|\bgoal\b[^\n]{0,80}\b(?:create|set|start)\b|(?:创建|设置|开始|建立).{0,40}(?:目标|Goal))/iu.test(
+      requestText,
+    );
+  const checkpoint: TurnCheckpoint = {
+    threadId: thread.id,
+    turnId,
+    text: requestText,
+    mode: input.mode,
+    source,
+    remote: !!imService?.profile(thread.id),
+    ...(goalCreationAuthorized ? { goalCreationAuthorized } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
+    ...(thread.goal ? { goal: thread.goal } : {}),
+    ...(memoryContext ? { memoryContext } : {}),
+    ...(collaborationContext ? { collaborationContext } : {}),
+  };
   try {
     await emitInitialTurn(
       thread.id,
@@ -5641,6 +5686,7 @@ async function startTaskTurnUnchecked(
       input.mode,
       attachments,
       source === "user",
+      checkpoint,
     );
   } catch (error) {
     trace.completedAt = Date.now();
@@ -5649,12 +5695,7 @@ async function startTaskTurnUnchecked(
     throw error;
   }
   activeTurns.set(thread.id, turnId);
-  if (
-    source === "user" &&
-    /(?:\b(?:create|set|start)\b[^\n]{0,80}\bgoal\b|\bgoal\b[^\n]{0,80}\b(?:create|set|start)\b|(?:创建|设置|开始|建立).{0,40}(?:目标|Goal))/iu.test(
-      requestText,
-    )
-  ) {
+  if (goalCreationAuthorized) {
     goalCreationAuthorizations.add(turnId);
   }
   if (thread.goal?.status === "active" && input.mode === "execute") {
@@ -5668,32 +5709,157 @@ async function startTaskTurnUnchecked(
   }
 
   trace.hostDispatchedAt = Date.now();
-  void agentProcess
+  dispatchCheckpoint(checkpoint);
+  return { turnId, thread: store.getThread(thread.id) ?? thread };
+}
+
+function dispatchCheckpoint(
+  checkpoint: TurnCheckpoint,
+  recovery?: TurnRecovery,
+): void {
+  if (!agentProcess) throw new Error("Agent process is not ready.");
+  const {
+    threadId,
+    turnId,
+    source: _source,
+    remote: _remote,
+    goalCreationAuthorized: _goalCreationAuthorized,
+    ...command
+  } = checkpoint;
+  const process = agentProcess;
+  const dispatchId = randomUUID();
+  activeTurns.set(threadId, turnId);
+  activeTurnDispatches.set(threadId, dispatchId);
+  void process
     .request({
-      type: "turn.prompt",
-      requestId: randomUUID(),
-      threadId: thread.id,
+      ...command,
+      threadId,
       turnId,
-      text: requestText,
-      mode: input.mode,
-      ...(attachments.length > 0 ? { attachments } : {}),
-      ...(thread.goal ? { goal: thread.goal } : {}),
-      ...(memoryContext ? { memoryContext } : {}),
-      ...(collaborationContext ? { collaborationContext } : {}),
+      type: "turn.prompt",
+      requestId: dispatchId,
+      ...(recovery ? { recovery } : {}),
     })
     .catch((error) => {
-      if (interruptedAgentHostTurns.delete(turnId)) return;
-      emitPayload(thread.id, turnId, {
+      if (
+        shuttingDown ||
+        activeTurnDispatches.get(threadId) !== dispatchId ||
+        agentProcess !== process
+      )
+        return;
+      emitPayload(threadId, turnId, {
         type: "turn.failed",
         message: error instanceof Error ? error.message : String(error),
       });
     })
     .finally(() => {
-      if (activeTurns.get(thread.id) === turnId) {
-        activeTurns.delete(thread.id);
+      if (activeTurnDispatches.get(threadId) === dispatchId) {
+        activeTurnDispatches.delete(threadId);
+        if (activeTurns.get(threadId) === turnId) activeTurns.delete(threadId);
       }
     });
-  return { turnId, thread: store.getThread(thread.id) ?? thread };
+}
+
+async function resumeInterruptedTurns(): Promise<void> {
+  for (const [threadId, turnId] of [...activeTurns]) {
+    const thread = store?.getThread(threadId);
+    const checkpoint = store?.getTurnCheckpoint(threadId);
+    if (
+      shuttingDown ||
+      activeTurnDispatches.has(threadId) ||
+      !thread ||
+      thread.archived ||
+      checkpoint?.turnId !== turnId ||
+      cancellingTurns.has(threadId)
+    )
+      continue;
+    try {
+      if (checkpoint.remote && !imService?.profile(threadId))
+        throw new Error(
+          "Remote execution context is unavailable for recovery.",
+        );
+      if (imService?.profile(threadId))
+        imService.authorizeThread(threadId, checkpoint.mode);
+      const context = await resolveThreadWorkspace(thread);
+      await openAgentThread(thread, context.workspacePath);
+      // Stop/archive/new input can arrive while the workspace or runtime opens.
+      if (
+        shuttingDown ||
+        activeTurnDispatches.has(threadId) ||
+        store?.getThread(threadId)?.archived ||
+        store?.getTurnCheckpoint(threadId)?.turnId !== turnId ||
+        cancellingTurns.has(threadId)
+      )
+        continue;
+      const events = store.getThreadEvents(threadId);
+      const recovery = {
+        attemptId: randomUUID(),
+        ...turnRecoveryContext(events, turnId),
+      };
+      if (checkpoint.recovery) {
+        const previous = JSON.parse(checkpoint.recovery.evidence) as {
+          originalEvidence?: unknown;
+        };
+        recovery.evidence = JSON.stringify({
+          originalEvidence: previous.originalEvidence ?? previous,
+          latestEvidence: JSON.parse(recovery.evidence),
+        });
+      }
+      const resumed = {
+        ...checkpoint,
+        ...(thread.goal ? { goal: thread.goal } : {}),
+        recovery,
+      };
+      store.saveTurnCheckpoint(resumed);
+      if (checkpoint.goalCreationAuthorized)
+        goalCreationAuthorizations.add(turnId);
+      const view = reduceAgentEvents(threadId, events, checkpoint.mode);
+      for (const tool of Object.values(view.tools)) {
+        if (
+          tool.status === "running" &&
+          view.entryTurnIds[`tool:${tool.id}`] === turnId
+        )
+          emitPayload(threadId, turnId, {
+            type: "tool.completed",
+            toolCallId: tool.id,
+            isError: true,
+            output: I18N_RESOURCES[currentLocale()].app.hostRestart,
+          });
+      }
+      if (
+        thread.goal?.status === "active" &&
+        checkpoint.mode === "execute" &&
+        !goalTurnContexts.has(turnId)
+      ) {
+        goalTurnContexts.set(turnId, {
+          threadId,
+          goalId: thread.goal.goalId,
+          mode: checkpoint.mode,
+          source: checkpoint.source ?? "user",
+          startedAt: Date.now(),
+        });
+      }
+      recoverableTurnQueues.discard(threadId);
+      emitPayload(threadId, turnId, {
+        type: "queue.updated",
+        steering: [],
+        followUp: [],
+      });
+      emitPayload(threadId, turnId, {
+        type: "turn.activity",
+        phase: "recovered",
+        kind: "process-restart",
+        attemptId: recovery.attemptId,
+      });
+      dispatchCheckpoint(resumed, recovery);
+    } catch (error) {
+      if (shuttingDown) return;
+      emitPayload(threadId, turnId, {
+        type: "turn.failed",
+        code: "HOST_RESTART",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 }
 
 function publishCompactionQueue(threadId: string): void {
@@ -6141,6 +6307,8 @@ async function cancelTaskTurn(threadId: string): Promise<void> {
     (pending) => pending.request.threadId === thread.id,
   );
   cancellingTurns.add(thread.id);
+  // Persist the user's Stop before awaiting the worker, including during restart.
+  store.clearTurnCheckpoint(thread.id, turnId);
   for (const cancelled of cancelledApprovals) {
     emitPayload(
       cancelled.value.request.threadId,
@@ -6230,11 +6398,13 @@ async function cancelTaskTurn(threadId: string): Promise<void> {
     });
   }
   try {
-    await agentProcess.request({
-      type: "turn.cancel",
-      requestId: randomUUID(),
-      threadId: command.threadId,
-    });
+    if (activeTurnDispatches.has(thread.id)) {
+      await agentProcess.request({
+        type: "turn.cancel",
+        requestId: randomUUID(),
+        threadId: command.threadId,
+      });
+    }
   } finally {
     cancellingTurns.delete(command.threadId);
   }
@@ -20218,7 +20388,10 @@ app
       join(app.getPath("userData"), "turn-changes"),
       store,
     );
-    store.recoverInterruptedThreads();
+    for (const event of store.recoverInterruptedThreads()) {
+      if (event.turnId && event.payload.type === "turn.activity")
+        activeTurns.set(event.threadId, event.turnId);
+    }
     store.recoverInterruptedAutomationRuns();
     settingsStore = new EncryptedSettingsStore(
       join(app.getPath("userData"), "settings.json"),
@@ -20515,6 +20688,18 @@ app
     await seedSmokeMultiQuestionUiFixture();
     mainWindow = createMainWindow();
     markStartupStage("window-created");
+    void optionalCapabilitiesReady
+      .then(() => resumeInterruptedTurns())
+      .catch((error) => {
+        if (shuttingDown) return;
+        for (const [threadId, turnId] of [...activeTurns]) {
+          emitPayload(threadId, turnId, {
+            type: "turn.failed",
+            code: "HOST_RESTART",
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      });
     releaseUpdateReady = releaseUpdateManager.initialize();
     void releaseUpdateReady.then(
       () => markStartupStage("update-ready"),
@@ -20575,6 +20760,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  shuttingDown = true;
   imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     if (pending.value.timeout !== undefined) {

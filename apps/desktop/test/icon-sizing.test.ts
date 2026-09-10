@@ -178,7 +178,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     // The trigger overrides the shared row rule with the v69 16px glyph.
     [".environment-row-icon svg:not(.child-agent-mark)", "lg", 18],
     [".environment-header-action svg", "lg", 18],
-    [".environment-chevron svg,\n.environment-external svg", "base", 16],
+    [".environment-chevron svg", "base", 16],
     [".environment-branch-search > svg", "sm", 14],
     [".environment-branch-list > button > svg", "base", 16],
     [".environment-branch-list > button > i > svg", "base", 16],
