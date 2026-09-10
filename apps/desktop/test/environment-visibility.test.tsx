@@ -248,8 +248,11 @@ describe("environment agent activity", () => {
     expect(screen.queryByText("Main agent")).toBeNull();
     const group = screen.getByRole("group", { name: team.mission });
     expect(
-      within(group).getByRole("button", { name: new RegExp(team.mission) }),
-    ).toHaveClass("environment-agent-team-trigger");
+      screen.getByRole("button", { name: "Details", exact: true }),
+    ).toBeVisible();
+    expect(
+      document.querySelector(".environment-agent-team-trigger"),
+    ).toBeNull();
     expect(screen.queryByText(nested.label)).toBeNull();
     expect(
       screen.getByRole("button", { name: /cxx-plan-wrapper/ }),
@@ -278,7 +281,7 @@ describe("environment agent activity", () => {
     });
   });
 
-  it("opens each team from its own group header, including teams with no loaded children", async () => {
+  it("opens the latest team from header details, including teams with no loaded children", async () => {
     const teams = ["First team", "Second team"].map((mission) => ({
       type: "agent-team.status" as const,
       teamId: mission,
@@ -294,15 +297,12 @@ describe("environment agent activity", () => {
     expect(
       screen.queryByRole("button", { name: "View all", exact: true }),
     ).toBeNull();
-    for (const team of teams) {
-      expect(
-        within(screen.getByRole("group", { name: team.mission })).getByRole(
-          "button",
-          { name: new RegExp(team.mission) },
-        ),
-      ).toBeVisible();
-    }
-    await userEvent.click(screen.getByRole("button", { name: /Second team/ }));
+    expect(
+      document.querySelector(".environment-agent-team-trigger"),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Details", exact: true }),
+    );
     expect(onOpenTeam).toHaveBeenCalledWith(teams[1]);
   });
 });

@@ -238,7 +238,7 @@ try {
   await capture("goal");
   for (const [name, selector] of [
     ["sources", ".environment-view-all"],
-    ["team", '.environment-activity-row:has-text("UI 实现团队")'],
+    ["team", '.environment-section-actions button:has-text("详情")'],
     ["agent", '.environment-activity-row:has-text("布局检查")'],
   ]) {
     await product.locator(".environment-trigger").click();

@@ -167,7 +167,9 @@ describe("task environment panel state", () => {
 
   it("shows stable identity marks instead of generic person icons", () => {
     expect(panelSource).toContain("<ChildAgentIcon");
-    expect(panelSource).toContain('className="environment-agent-team-trigger"');
+    expect(panelSource).not.toContain(
+      'className="environment-agent-team-trigger"',
+    );
     expect(panelSource).toContain("identity={agent.agentId}");
     expect(panelSource).not.toContain("function AgentIcon(");
     expect(stylesSource).toContain(
@@ -200,7 +202,7 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("t.commitOrPush");
     expect(panelSource).not.toContain("commitChanges:");
     expect(panelSource).toContain("onOpenAgent(agent)");
-    expect(panelSource).toContain("onOpenTeam(team)");
+    expect(panelSource).toContain("onOpenTeam(latestTeam)");
     expect(panelSource).toContain("onClick={onAddProject}");
     expect(appSource).toContain("onAddProject={() => void openProject()}");
     expect(panelSource).toContain("onClick={onAddSources}");

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it } from "vitest";
 import { ImSpaceBuilder } from "../src/renderer/ImSpaceBuilder.js";
@@ -49,9 +49,12 @@ it("keeps the form editable when member names are empty or indistinguishable", a
   const name = screen.getByRole("textbox", { name: "成员显示名称 · alice" });
   await user.clear(name);
   expect(name).toHaveValue("");
-  await user.click(screen.getByRole("button", { name: /^谁来确认群接入/ }));
+  const approver = screen.getByRole("button", { name: /^谁来确认群接入/ });
+  await user.click(approver);
   expect(screen.getAllByRole("option")).toHaveLength(3);
+  await waitFor(() => expect(screen.getByRole("listbox")).toHaveFocus());
   await user.keyboard("{Escape}");
+  await waitFor(() => expect(approver).toHaveFocus());
   await user.type(name, " lark ");
   expect(name).toHaveValue(" lark ");
   await user.clear(name);

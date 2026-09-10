@@ -162,6 +162,7 @@ const labels = {
     blocked: "Blocked",
     completed: "Completed",
     viewAll: "View all",
+    details: "Details",
     showLess: "Show less",
     sources: "Sources",
     addSources: "Add sources",
@@ -267,6 +268,7 @@ const labels = {
     blocked: "阻塞",
     completed: "完成",
     viewAll: "查看全部",
+    details: "详情",
     showLess: "收起",
     sources: "来源",
     addSources: "添加来源",
@@ -1281,14 +1283,6 @@ export function EnvironmentPanel({
     failed: t.agentFailed,
     cancelled: t.agentCancelled,
   };
-  const teamStatusLabels: Record<AgentTeamState["status"], string> = {
-    forming: t.teamForming,
-    running: t.teamRunning,
-    blocked: t.teamBlocked,
-    integrating: t.teamIntegrating,
-    completed: t.teamCompleted,
-    aborted: t.teamAborted,
-  };
   const pullRequest =
     pullRequestLookup?.status === "found"
       ? pullRequestLookup.pullRequest
@@ -1379,6 +1373,7 @@ export function EnvironmentPanel({
       })
     : ({ kind: "idle", disabledReason: t.loading } as const);
   const activityPreviewLimit = 2;
+  const latestTeam = teams.at(-1);
   const visibleAgents = showAllAgents
     ? displayAgents
     : displayAgents.slice(0, activityPreviewLimit);
@@ -1838,15 +1833,29 @@ export function EnvironmentPanel({
           {(displayAgents.length > 0 || teams.length > 0) && (
             <EnvironmentSection
               action={
-                displayAgents.length > activityPreviewLimit ? (
-                  <button
-                    className="environment-text-action"
-                    onClick={() => setShowAllAgents((current) => !current)}
-                    type="button"
-                  >
-                    {showAllAgents ? t.showLess : t.viewAll}
-                  </button>
-                ) : undefined
+                <div className="environment-section-actions">
+                  {latestTeam && (
+                    <button
+                      className="environment-text-action"
+                      onClick={() => {
+                        hidePanel();
+                        onOpenTeam(latestTeam);
+                      }}
+                      type="button"
+                    >
+                      {t.details}
+                    </button>
+                  )}
+                  {displayAgents.length > activityPreviewLimit && (
+                    <button
+                      className="environment-text-action"
+                      onClick={() => setShowAllAgents((current) => !current)}
+                      type="button"
+                    >
+                      {showAllAgents ? t.showLess : t.viewAll}
+                    </button>
+                  )}
+                </div>
               }
               title={
                 <>
@@ -1863,24 +1872,6 @@ export function EnvironmentPanel({
                     key={team.teamId}
                     role="group"
                   >
-                    <button
-                      className="environment-agent-team-trigger"
-                      onClick={() => {
-                        hidePanel();
-                        onOpenTeam(team);
-                      }}
-                      title={`${team.mission} · ${teamStatusLabels[team.status]}`}
-                      type="button"
-                    >
-                      <span className="environment-row-icon">
-                        <EnvironmentAgentsIcon />
-                      </span>
-                      <span className="environment-team-copy">
-                        <strong>{t.teams}</strong>
-                        <small>{team.mission}</small>
-                      </span>
-                      <EnvironmentChevronIcon />
-                    </button>
                     <div className="environment-agent-team-children">
                       {members.map(renderAgentRow)}
                     </div>

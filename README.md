@@ -1239,6 +1239,8 @@ manually resized widths across reopening and restart. Project, project-task
 and temporary-task menus pair each action with a semantic icon and aligned
 left-aligned text. The compact “Remove project” (“移除项目”) action retains
 regular text weight, active-task protection and its existing confirmation.
+Agent activity replaces the team summary row with a “Details” action before
+“View all”; it opens the latest team in the right-hand Agent team panel.
 
 This release gives model/provider and archive deletion neutral trash icons,
 softens plugin uninstall and automation delete actions, pairs automation actions
