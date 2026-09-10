@@ -420,7 +420,7 @@ const copy = {
     tasks: "Tasks",
     newTask: "New task",
     openProject: "Open project",
-    removeProject: "Remove from sidebar",
+    removeProject: "Remove project",
     removeProjectConfirm:
       "Remove this project from the sidebar? Files and task history will not be deleted.",
     moreProjectActions: "More project actions",
@@ -711,7 +711,7 @@ const copy = {
     tasks: "任务",
     newTask: "新任务",
     openProject: "打开项目",
-    removeProject: "从侧栏移除",
+    removeProject: "移除项目",
     removeProjectConfirm: "从侧栏移除这个项目？不会删除磁盘文件和任务历史。",
     moreProjectActions: "更多项目操作",
     stopTasksBeforeRemove: "请先停止项目中正在执行的任务",

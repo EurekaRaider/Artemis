@@ -715,6 +715,10 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   text-align: left;
 }
 
+.project-menu button {
+  font-weight: 400;
+}
+
 .project-menu button:hover,
 .thread-menu button:hover {
   background: var(--selected);
