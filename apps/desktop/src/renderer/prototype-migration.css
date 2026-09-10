@@ -353,6 +353,7 @@
 }
 .goal-bar .goal-bar-main > [data-part="label"] {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 5px;
   min-inline-size: 0;
@@ -708,11 +709,19 @@ textarea:focus {
 }
 .goal-bar:not([data-goal-state="active"]) .goal-bar-status {
   position: static;
+  flex: 0 1 auto;
+  min-inline-size: 0;
   inline-size: auto;
   block-size: auto;
   clip-path: none;
   padding: 0 3px;
   font-size: 10px;
+}
+.goal-bar .goal-bar-status > [data-part="label"] {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
   .thread-title[data-overflowing="true"]:hover .thread-title-text {
