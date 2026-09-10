@@ -14,6 +14,7 @@ import type {
   UserInputOption,
 } from "./schema.js";
 import type { OfficeDocumentRequest } from "./office.js";
+import type { CustomAgentDefinition } from "./custom-agents.js";
 
 export const AGENT_CONCURRENCY_MINIMUM = 2;
 export const AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM = 16;
@@ -97,6 +98,13 @@ export interface AgentRuntimeConfiguration {
   disabledSkillFiles?: string[];
   mcpTools?: McpRuntimeTool[];
   extensionTools?: ExtensionRuntimeTool[];
+  /**
+   * Effective custom sub-agent definitions for the current project,
+   * resolved and pushed by the main process. Full definitions (including
+   * dedicated instructions) travel only on this main→worker channel;
+   * renderers only ever receive catalog metadata.
+   */
+  customAgents?: CustomAgentDefinition[];
 }
 
 export interface AgentModelInfo {

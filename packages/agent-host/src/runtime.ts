@@ -52,6 +52,13 @@ import {
   AGENT_TEAM_MAXIMUM_DEPTH,
   AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
   AGENT_TEAM_SPAWN_BUDGET,
+  computeEffectiveCapabilities,
+  freezeInstanceSnapshot,
+  normalizeAgentToken,
+  type CapabilityClass,
+  type CustomAgentDefinition,
+  type CustomAgentInstanceSnapshot,
+  type CustomAgentToolRef,
   MAX_USER_INPUT_QUESTIONS,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   USER_INPUT_QUESTION_ID_MAX_LENGTH,
@@ -882,6 +889,13 @@ interface LaunchChildAgentInput {
   required: boolean;
   attempt: number;
   replacesAgentId?: string;
+  /**
+   * Immutable per-instance configuration frozen at dispatch-accept time
+   * (D#152): definition content, resolved model, and the capability
+   * ceiling. Later edits or parent model switches never widen an accepted
+   * instance.
+   */
+  customAgentSnapshot?: CustomAgentInstanceSnapshot;
 }
 
 interface ChildAgentExecution extends LaunchChildAgentInput {
@@ -1143,6 +1157,35 @@ function terminalAgentStopReason(
       : undefined;
   }
   return undefined;
+}
+
+/** Capability classes the child-agent runtime baseline can ever allow. */
+const CUSTOM_AGENT_CHILD_BASELINE: ReadonlySet<CapabilityClass> = new Set([
+  "shell",
+  "filesystem-write",
+  "mcp",
+  "spawn-agent",
+  "business-read",
+]);
+
+/** Stable builtin tool ids mapped to capability classes for allowlists. */
+function resolveCustomAgentToolCapabilities(
+  ref: CustomAgentToolRef,
+): ReadonlySet<CapabilityClass> {
+  if (ref.kind === "mcp") {
+    return new Set<CapabilityClass>(["mcp", "business-read"]);
+  }
+  switch (ref.toolId) {
+    case "shell":
+    case "shell_wait":
+    case "shell_cancel":
+      return new Set<CapabilityClass>(["shell"]);
+    case "write":
+    case "office_document":
+      return new Set<CapabilityClass>(["filesystem-write", "business-read"]);
+    default:
+      return new Set<CapabilityClass>(["business-read"]);
+  }
 }
 
 function isTerminalChildStatus(status: ChildAgentPayload["status"]): boolean {
@@ -1571,6 +1614,7 @@ export class ArtemisAgentHost {
         getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
     }
     this.configuration = resolvedConfiguration;
+    this.reconcileCustomAgentChildren(resolvedConfiguration.customAgents);
     for (const hosted of this.threads.values()) {
       if (hosted.selection) {
         const threadModel = modelRuntime.getModel(
@@ -2233,6 +2277,16 @@ export class ArtemisAgentHost {
       }
       this.emitTeam(hosted);
     }
+    if (child.customAgentSnapshot) {
+      const definition = this.configuration.customAgents?.find(
+        (candidate) => candidate.id === child.customAgentSnapshot?.definitionId,
+      );
+      if (!definition || !definition.enabled) {
+        throw new Error(
+          "CUSTOM_AGENT_DISABLED: the definition was disabled or deleted; retrying would bypass the current authorization.",
+        );
+      }
+    }
     const retried = hosted.launchChildAgent({
       turnId: hosted.currentTurnId,
       mode: hosted.currentMode,
@@ -2246,6 +2300,9 @@ export class ArtemisAgentHost {
       parentAgentId: child.parentAgentId,
       depth: child.depth,
       replacesAgentId: child.agentId,
+      ...(child.customAgentSnapshot
+        ? { customAgentSnapshot: child.customAgentSnapshot }
+        : {}),
     });
     if (notifyParent) {
       void hosted.session
@@ -2265,6 +2322,155 @@ export class ArtemisAgentHost {
         .catch(() => undefined);
     }
     return this.childSnapshot(hosted, retried);
+  }
+
+  /**
+   * Resolve and freeze a custom-agent dispatch, or enforce the P1 lexical
+   * contract for free-text roles (D#152 plan sections 4 and 7). Runs
+   * BEFORE instance allocation and spawn-budget deduction so rejections
+   * never consume budget or create half-registered members.
+   */
+  private resolveCustomAgentDispatch(
+    hosted: HostedThread,
+    senderAgentId: string,
+    agentId: string | undefined,
+    role: string | undefined,
+  ): CustomAgentInstanceSnapshot | undefined {
+    const definitions = this.configuration.customAgents ?? [];
+    if (agentId === undefined) {
+      if (!role) return undefined;
+      const normalizedRole = normalizeAgentToken(role);
+      const matches = definitions.filter(
+        (definition) =>
+          definition.enabled &&
+          normalizeAgentToken(definition.name) === normalizedRole,
+      );
+      if (matches.length === 1) {
+        const candidate = matches[0]!;
+        throw new Error(
+          `CUSTOM_AGENT_REFERENCE_REQUIRED: role "${role}" exactly names the custom sub-agent "${candidate.name}"; retry with the explicit agent parameter "${candidate.id}".`,
+        );
+      }
+      return undefined;
+    }
+    const definition = definitions.find(
+      (candidate) => candidate.id === agentId,
+    );
+    if (!definition) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: no effective custom sub-agent definition "${agentId}" for this project.`,
+      );
+    }
+    if (!definition.enabled) {
+      throw new Error(
+        `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
+      );
+    }
+    const parentSelection = hosted.selection;
+    const resolvedProviderId =
+      definition.modelPolicy.kind === "fixed"
+        ? definition.modelPolicy.providerId
+        : parentSelection?.providerId;
+    const resolvedModelId =
+      definition.modelPolicy.kind === "fixed"
+        ? definition.modelPolicy.modelId
+        : parentSelection?.modelId;
+    if (!resolvedProviderId || !resolvedModelId) {
+      throw new Error(
+        "CUSTOM_AGENT_MODEL_UNAVAILABLE: no model is available to inherit from the parent session.",
+      );
+    }
+    const resolvedThinking =
+      definition.thinkingPolicy.kind === "fixed"
+        ? definition.thinkingPolicy.level
+        : (parentSelection?.thinkingLevel ?? null);
+    const supervisor =
+      senderAgentId === ROOT_AGENT_ID
+        ? undefined
+        : hosted.childAgents.get(senderAgentId);
+    const supervisorCaps: ReadonlySet<CapabilityClass> =
+      supervisor?.customAgentSnapshot
+        ? new Set(supervisor.customAgentSnapshot.effectiveCapabilities)
+        : CUSTOM_AGENT_CHILD_BASELINE;
+    const liveGrants = new Set(CUSTOM_AGENT_CHILD_BASELINE);
+    if ((this.configuration.mcpTools ?? []).length === 0) {
+      liveGrants.delete("mcp");
+    }
+    const effectiveCapabilities = computeEffectiveCapabilities(
+      {
+        runMode: hosted.currentMode ?? "plan",
+        childBaseline: CUSTOM_AGENT_CHILD_BASELINE,
+        parentDelegatable: supervisorCaps,
+        liveGrants,
+      },
+      definition.toolPolicy,
+      resolveCustomAgentToolCapabilities,
+    );
+    return freezeInstanceSnapshot({
+      definitionId: definition.id,
+      definitionRevision: definition.revision,
+      definitionName: definition.name,
+      instructions: definition.instructions,
+      catalogId: `turn:${hosted.currentTurnId ?? "unknown"}`,
+      projectId: null,
+      resolvedModel: {
+        providerId: resolvedProviderId,
+        modelId: resolvedModelId,
+        thinkingLevel: resolvedThinking,
+      },
+      effectiveCapabilities,
+      invocationSource: "model-explicit",
+      selectionBasis: "explicit-reference",
+      frozenAt: Date.now(),
+    });
+  }
+
+  /**
+   * Definition allowlists reference MCP tools by stable serverId + toolName;
+   * map the runtime piName back through the configured catalog.
+   */
+  private mcpToolAllowedByPolicy(
+    piName: string,
+    snapshot: CustomAgentInstanceSnapshot,
+  ): boolean {
+    const definition = this.configuration.customAgents?.find(
+      (candidate) => candidate.id === snapshot.definitionId,
+    );
+    if (!definition || definition.toolPolicy.kind === "inherit") return true;
+    const configured = (this.configuration.mcpTools ?? []).find(
+      (tool) => tool.piName === piName,
+    );
+    if (!configured) return false;
+    return definition.toolPolicy.tools.some(
+      (ref) =>
+        ref.kind === "mcp" &&
+        ref.serverId === configured.serverId &&
+        ref.toolName === configured.toolName,
+    );
+  }
+
+  /**
+   * Disable/delete revocations cancel not-yet-started custom instances and
+   * free their queue slots; running instances keep their frozen snapshot
+   * and remain stoppable through the existing cancellation entry points.
+   */
+  private reconcileCustomAgentChildren(
+    definitions: CustomAgentDefinition[] | undefined,
+  ): void {
+    for (const hosted of this.threads.values()) {
+      for (const child of hosted.childAgents.values()) {
+        const snapshot = child.customAgentSnapshot;
+        if (!snapshot || child.startedAt) continue;
+        if (isTerminalChildStatus(child.status)) continue;
+        if (child.status === "cancelling") continue;
+        const definition = definitions?.find(
+          (candidate) => candidate.id === snapshot.definitionId,
+        );
+        if (!definition || !definition.enabled) {
+          this.requestChildCancellation(hosted, child);
+        }
+      }
+    }
   }
 
   private ensureTeam(hosted: HostedThread): AgentTeamExecution {
@@ -3965,6 +4171,13 @@ export class ArtemisAgentHost {
               }),
             ),
             required: Type.Optional(Type.Boolean()),
+            agent: Type.Optional(
+              Type.String({
+                minLength: 1,
+                description:
+                  "Custom sub-agent definition ID. Prefer a listed custom agent over a free-text role whenever one matches the task; only use a free-text role when nothing matches.",
+              }),
+            ),
           },
           { additionalProperties: false },
         ),
@@ -3983,12 +4196,23 @@ export class ArtemisAgentHost {
           ) {
             throw new Error("Only an active agent may create child agents.");
           }
+          if (supervisor?.customAgentSnapshot) {
+            throw new Error(
+              "CUSTOM_AGENT_NESTED_DELEGATION_DENIED: custom sub-agent definitions cannot delegate further this term.",
+            );
+          }
           const depth = (supervisor?.depth ?? 0) + 1;
           if (depth > AGENT_TEAM_MAXIMUM_DEPTH) {
             throw new Error(
               `An agent tree may be at most ${AGENT_TEAM_MAXIMUM_DEPTH} levels deep.`,
             );
           }
+          const customAgentSnapshot = this.resolveCustomAgentDispatch(
+            hosted,
+            senderAgentId,
+            params.agent,
+            params.role,
+          );
           const team = this.ensureTeam(hosted);
           if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
             throw new Error(
@@ -4043,6 +4267,7 @@ export class ArtemisAgentHost {
             ),
             required: params.required ?? true,
             attempt: 1,
+            ...(customAgentSnapshot ? { customAgentSnapshot } : {}),
           });
           if (supervisor) this.emitChild(hosted, supervisor);
           return childToolResult(
@@ -4626,7 +4851,19 @@ export class ArtemisAgentHost {
               let pendingActivity = "";
               let activityUpdateTimer:
                 ReturnType<typeof setTimeout> | undefined;
-              const childProviderId = hosted.selection?.providerId;
+              const frozenSnapshot = input.customAgentSnapshot;
+              const frozenSelection: ModelSelection | undefined =
+                frozenSnapshot
+                  ? {
+                      providerId: frozenSnapshot.resolvedModel.providerId,
+                      modelId: frozenSnapshot.resolvedModel.modelId,
+                      thinkingLevel: (frozenSnapshot.resolvedModel
+                        .thinkingLevel ??
+                        "off") as ModelSelection["thinkingLevel"],
+                    }
+                  : undefined;
+              const childProviderId =
+                frozenSelection?.providerId ?? hosted.selection?.providerId;
               const childAdapter = new PiAdapter(
                 `${input.turnId}:child:${agentId}`,
               );
@@ -4653,39 +4890,60 @@ export class ArtemisAgentHost {
               };
 
               try {
+                const childOverrides = createResourceOverrides(
+                  () => ({
+                    ...this.configuration,
+                    ...(frozenSelection
+                      ? { selection: frozenSelection }
+                      : hosted.selection
+                        ? { selection: hosted.selection }
+                        : {}),
+                    // Frozen instances keep the resolved child model's own
+                    // context window instead of copying the parent's.
+                    ...(frozenSnapshot
+                      ? {}
+                      : hosted.contextWindow
+                        ? { contextWindow: hosted.contextWindow }
+                        : {}),
+                  }),
+                  "child",
+                );
+                if (frozenSnapshot) {
+                  const baseAppend = childOverrides.appendSystemPromptOverride;
+                  childOverrides.appendSystemPromptOverride = (base) => [
+                    ...(baseAppend ? baseAppend(base) : base),
+                    `## Dedicated instructions (custom sub-agent "${frozenSnapshot.definitionName}", revision ${frozenSnapshot.definitionRevision})\n${frozenSnapshot.instructions}`,
+                  ];
+                }
                 const childResourceLoader = new DefaultResourceLoader({
                   cwd: request.workspacePath,
                   agentDir: this.agentDir,
                   noExtensions: true,
-                  ...createResourceOverrides(
-                    () => ({
-                      ...this.configuration,
-                      ...(hosted.selection
-                        ? { selection: hosted.selection }
-                        : {}),
-                      ...(hosted.contextWindow
-                        ? { contextWindow: hosted.contextWindow }
-                        : {}),
-                    }),
-                    "child",
-                  ),
+                  ...childOverrides,
                   ...(request.remoteExecution
                     ? remoteResourceOverrides(request.remoteExecution)
                     : {}),
                 });
                 await childResourceLoader.reload();
                 const modelRuntime = await this.getModelRuntime();
-                const selection = hosted.selection;
+                const selection = frozenSelection ?? hosted.selection;
                 const catalogModel = selection
                   ? modelRuntime.getModel(
                       selection.providerId,
                       selection.modelId,
                     )
                   : undefined;
+                if (frozenSnapshot && !catalogModel) {
+                  // Fixed (or inherited-then-removed) models fail loudly;
+                  // never silently switch provider, model, or tier.
+                  throw new Error(
+                    `CUSTOM_AGENT_MODEL_UNAVAILABLE: ${frozenSnapshot.resolvedModel.providerId}/${frozenSnapshot.resolvedModel.modelId}`,
+                  );
+                }
                 const selectedModel = catalogModel
                   ? configureModelContextWindow(
                       catalogModel,
-                      hosted.contextWindow,
+                      frozenSnapshot ? undefined : hosted.contextWindow,
                     )
                   : undefined;
                 const childBashTools = createObservedBashTools(() => ({
@@ -4717,7 +4975,9 @@ export class ArtemisAgentHost {
                   }),
                 );
                 const childSendMessageTool = createSendMessageTool(agentId);
-                const childSpawnAgentTool = createSpawnAgentTool(agentId);
+                const childSpawnAgentTool = frozenSnapshot
+                  ? null
+                  : createSpawnAgentTool(agentId);
                 const childWaitAgentTool = createWaitAgentTool(agentId);
                 const childWaitTeamTool = createWaitTeamTool(agentId);
                 const childFinishSubteamTool = createFinishSubteamTool(agentId);
@@ -4726,9 +4986,28 @@ export class ArtemisAgentHost {
                     .filter((tool) => tool.readOnly)
                     .map((tool) => tool.piName),
                 );
-                const childMcpTools = createMcpTools(agentId).filter((tool) =>
-                  readOnlyMcpToolNames.has(tool.name),
-                );
+                const frozenCaps = frozenSnapshot
+                  ? new Set<CapabilityClass>(
+                      frozenSnapshot.effectiveCapabilities,
+                    )
+                  : null;
+                const allowToolClass = (
+                  ...classes: CapabilityClass[]
+                ): boolean =>
+                  !frozenCaps ||
+                  classes.some((capability) => frozenCaps.has(capability));
+                const childMcpTools = allowToolClass("mcp")
+                  ? createMcpTools(agentId).filter((tool) => {
+                      if (!readOnlyMcpToolNames.has(tool.name)) return false;
+                      if (
+                        frozenSnapshot &&
+                        !this.mcpToolAllowedByPolicy(tool.name, frozenSnapshot)
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    })
+                  : [];
                 const created = await createAgentSession({
                   cwd: request.workspacePath,
                   sessionManager: omitReasoningFromSession(
@@ -4748,18 +5027,23 @@ export class ArtemisAgentHost {
                     ...childRemoteTools,
                     readTool,
                     webSearchTool,
-                    childWriteTool,
-                    childOfficeDocumentTool,
+                    ...(allowToolClass("filesystem-write")
+                      ? [childWriteTool, childOfficeDocumentTool]
+                      : []),
                     loadWorkspaceDependenciesTool,
-                    childSpawnAgentTool,
+                    ...(childSpawnAgentTool ? [childSpawnAgentTool] : []),
                     listAgentsTool,
                     childWaitAgentTool,
                     childWaitTeamTool,
                     childSendMessageTool,
                     childFinishSubteamTool,
-                    childBashTools.bashTool,
-                    childBashTools.bashWaitTool,
-                    childBashTools.bashCancelTool,
+                    ...(allowToolClass("shell")
+                      ? [
+                          childBashTools.bashTool,
+                          childBashTools.bashWaitTool,
+                          childBashTools.bashCancelTool,
+                        ]
+                      : []),
                     ...childMcpTools,
                   ],
                   tools: [
@@ -4769,18 +5053,19 @@ export class ArtemisAgentHost {
                     "attachment_search",
                     "read",
                     "web_search",
-                    "write",
-                    "office_document",
+                    ...(allowToolClass("filesystem-write")
+                      ? ["write", "office_document"]
+                      : []),
                     "load_workspace_dependencies",
-                    "spawn_agent",
+                    ...(frozenSnapshot ? [] : ["spawn_agent"]),
                     "list_agents",
                     "wait_agent",
                     "wait_team",
                     "send_message",
                     "finish_subteam",
-                    "shell",
-                    "shell_wait",
-                    "shell_cancel",
+                    ...(allowToolClass("shell")
+                      ? ["shell", "shell_wait", "shell_cancel"]
+                      : []),
                     ...childMcpTools.map((tool) => tool.name),
                   ],
                 });
