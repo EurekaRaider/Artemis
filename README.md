@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2403 passing tests" src="https://img.shields.io/badge/Tests-2403_passing-2EA44F" />
+  <img alt="2406 passing tests" src="https://img.shields.io/badge/Tests-2406_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -1214,14 +1214,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.5.4`. After verification succeeds, native GitHub-hosted runners build
+`v1.5.5`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.5.4
-git push origin v1.5.4
+git tag v1.5.5
+git push origin v1.5.5
 ```
 
 ### Build and test matrix
@@ -1234,23 +1234,25 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-Version 1.5.4 shortens the project menu action to “Remove project” (“移除项目”)
-and centers regular-weight text inside a compact menu. Active-task protection
-and the existing removal confirmation remain in place.
+Version 1.5.5 opens the Dock at a compact 320px by default and preserves
+manually resized widths across reopening and restart. Project, project-task
+and temporary-task menus pair each action with a semantic icon and aligned
+left-aligned text. The compact “Remove project” (“移除项目”) action retains
+regular text weight, active-task protection and its existing confirmation.
 
 This release gives model/provider and archive deletion neutral trash icons,
 softens plugin uninstall and automation delete actions, pairs automation actions
 with icons and explicit Pause/Enable labels, and keeps a 2px gap between projects
 in the sidebar. Existing deletion confirmations remain in place.
 
-Version 1.5.4 retries a silent model request twice after 120 seconds without
+Version 1.5.5 retries a silent model request twice after 120 seconds without
 streaming activity, waiting 5 and 10 seconds between attempts. It preserves the
 same Pi turn and completed tool results; partial output still stops automatic
 replay. Retry status distinguishes model silence from network recovery. A
 persistent failure points to the composer model selector, and the error banner
 shares the composer's horizontal bounds in both layout directions.
 
-Version 1.5.4 adds consistent inset hover rows to the composer's project,
+Version 1.5.5 adds consistent inset hover rows to the composer's project,
 branch and mode menus, with 12px option labels and the mode menu opening above
 the composer. Plugin switches retain white thumbs in dark mode. Marketplace
 tabs stay on one line, truncate long names, and show horizontal scroll arrows
@@ -1270,14 +1272,14 @@ release version. Product screenshots retain their original capture provenance.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The full `npm test` run for **1.5.4**, verified on September 10, 2026,
-contains **2403 passing tests** (12 skipped).
+The full `npm test` run for **1.5.5**, verified on September 10, 2026,
+contains **2406 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      144 |       25 |        171 |             15 | 307 |             5 |        142 |    1480 |  **2403** |
+|     114 |      144 |       25 |        171 |             15 | 307 |             5 |        142 |    1483 |  **2406** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1307,13 +1309,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.5.4` packaging configuration produces:
+The `1.5.5` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.4.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.4.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.4.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.5.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.5.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.5.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

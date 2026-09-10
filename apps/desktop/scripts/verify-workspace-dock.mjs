@@ -587,7 +587,7 @@ try {
       const expectedHome = Math.round(
         Math.min(
           interaction.home.resizer.maximum,
-          Math.max(interaction.home.resizer.minimum, 360),
+          Math.max(interaction.home.resizer.minimum, 320),
         ),
       );
       assert(

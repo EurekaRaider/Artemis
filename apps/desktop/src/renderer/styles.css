@@ -710,6 +710,10 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .project-menu button,
 .thread-menu button {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 16px minmax(0, 1fr);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
@@ -721,7 +725,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   font-weight: 400;
   line-height: 18px;
   padding: 5px 10px;
-  text-align: center;
 }
 
 .project-menu button:hover,

@@ -252,6 +252,7 @@ import {
 } from "./workspace-tabs.js";
 import {
   clampWorkspaceDockWidth,
+  DEFAULT_WORKSPACE_DOCK_WIDTH,
   workspaceDockWidthAfterKey,
   workspaceDockWidthAfterPointer,
   workspaceDockWidthBounds,
@@ -3324,15 +3325,6 @@ export function App() {
     }
   }, [runtimeSettings?.workspaceDockWidth, workspaceDockResizing]);
 
-  useLayoutEffect(() => {
-    if (!workspaceDockOpen || workspaceDockWidth !== undefined) return;
-    const timer = window.setTimeout(() => {
-      const measured = workspaceDock.current?.getBoundingClientRect().width;
-      if (measured) setWorkspaceDockWidth(Math.round(measured));
-    }, 280);
-    return () => window.clearTimeout(timer);
-  }, [workspaceDockOpen, workspaceDockWidth]);
-
   useEffect(() => {
     if (!skillCommandMenuOpen) return;
     let mounted = true;
@@ -3776,7 +3768,7 @@ export function App() {
     window.innerWidth,
   );
   const dockWidthNow = clampWorkspaceDockWidth(
-    workspaceDockWidth ?? dockWidthBounds.min,
+    workspaceDockWidth ?? DEFAULT_WORKSPACE_DOCK_WIDTH,
     dockWidthBounds,
   );
   const filteredReviewFiles = useMemo(() => {
@@ -6126,7 +6118,8 @@ export function App() {
                                 : t.removeProject
                             }
                           >
-                            {t.removeProject}
+                            <ArtemisIcon name="trash" width={16} height={16} />
+                            <span>{t.removeProject}</span>
                           </button>
                         </div>
                       )}
@@ -6370,7 +6363,12 @@ export function App() {
                                       role="menuitem"
                                       onClick={() => beginRenameThread(thread)}
                                     >
-                                      {t.renameTask}
+                                      <ArtemisIcon
+                                        name="edit"
+                                        width={16}
+                                        height={16}
+                                      />
+                                      <span>{t.renameTask}</span>
                                     </button>
                                     <button
                                       role="menuitem"
@@ -6380,7 +6378,12 @@ export function App() {
                                       }
                                       onClick={() => void forkThread(thread)}
                                     >
-                                      {t.forkTask}
+                                      <ArtemisIcon
+                                        name="branch"
+                                        width={16}
+                                        height={16}
+                                      />
+                                      <span>{t.forkTask}</span>
                                     </button>
                                     <button
                                       role="menuitem"
@@ -6392,7 +6395,12 @@ export function App() {
                                         void setThreadArchived(thread, true)
                                       }
                                     >
-                                      {t.archiveTask}
+                                      <ArtemisIcon
+                                        name="archive"
+                                        width={16}
+                                        height={16}
+                                      />
+                                      <span>{t.archiveTask}</span>
                                     </button>
                                     <button
                                       role="menuitem"
@@ -6403,7 +6411,12 @@ export function App() {
                                       }
                                       onClick={() => void deleteThread(thread)}
                                     >
-                                      {t.deleteTask}
+                                      <ArtemisIcon
+                                        name="trash"
+                                        width={16}
+                                        height={16}
+                                      />
+                                      <span>{t.deleteTask}</span>
                                     </button>
                                   </Popover>
                                 )}
@@ -6630,7 +6643,8 @@ export function App() {
                             role="menuitem"
                             onClick={() => beginRenameThread(thread)}
                           >
-                            {t.renameTask}
+                            <ArtemisIcon name="edit" width={16} height={16} />
+                            <span>{t.renameTask}</span>
                           </button>
                           <button
                             role="menuitem"
@@ -6640,7 +6654,8 @@ export function App() {
                             }
                             onClick={() => void forkThread(thread)}
                           >
-                            {t.forkTask}
+                            <ArtemisIcon name="branch" width={16} height={16} />
+                            <span>{t.forkTask}</span>
                           </button>
                           <button
                             role="menuitem"
@@ -6650,7 +6665,12 @@ export function App() {
                             }
                             onClick={() => void setThreadArchived(thread, true)}
                           >
-                            {t.archiveTask}
+                            <ArtemisIcon
+                              name="archive"
+                              width={16}
+                              height={16}
+                            />
+                            <span>{t.archiveTask}</span>
                           </button>
                           <button
                             role="menuitem"
@@ -6661,7 +6681,8 @@ export function App() {
                             }
                             onClick={() => void deleteThread(thread)}
                           >
-                            {t.deleteTask}
+                            <ArtemisIcon name="trash" width={16} height={16} />
+                            <span>{t.deleteTask}</span>
                           </button>
                         </Popover>
                       )}
@@ -8262,11 +8283,9 @@ export function App() {
                     ref={workspaceDock}
                     resizing={workspaceDockResizing}
                     style={
-                      workspaceDockWidth === undefined
-                        ? undefined
-                        : ({
-                            "--workspace-dock-width": `${workspaceDockWidth}px`,
-                          } as CSSProperties)
+                      {
+                        "--workspace-dock-width": `${workspaceDockWidth ?? DEFAULT_WORKSPACE_DOCK_WIDTH}px`,
+                      } as CSSProperties
                     }
                   >
                     <WorkspaceTabBar
