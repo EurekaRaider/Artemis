@@ -12,12 +12,12 @@ describe("workspace dock layout", () => {
   it("uses a compact default and resets to it without narrowing saved widths", () => {
     const bounds = workspaceDockWidthBounds(1_400, 1_400);
     expect(clampWorkspaceDockWidth(DEFAULT_WORKSPACE_DOCK_WIDTH, bounds)).toBe(
-      320,
+      328,
     );
     expect(clampWorkspaceDockWidth(560, bounds)).toBe(560);
     expect(
       workspaceDockWidthAfterKey(560, "Home", "ltr", bounds, 1_400, 24),
-    ).toBe(320);
+    ).toBe(328);
   });
   it("allows compact panels while reserving conversation space", () => {
     expect(workspaceDockWidthBounds(1_400, 1_400)).toEqual({

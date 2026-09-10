@@ -1234,7 +1234,7 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-Version 1.5.5 opens the Dock at a compact 320px by default and preserves
+Version 1.5.5 opens the Dock at a compact 328px by default and preserves
 manually resized widths across reopening and restart. Project, project-task
 and temporary-task menus pair each action with a semantic icon and aligned
 left-aligned text. The compact “Remove project” (“移除项目”) action retains
