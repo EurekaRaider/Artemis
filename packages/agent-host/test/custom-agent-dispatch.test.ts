@@ -88,6 +88,21 @@ interface HostedStub {
     thinkingLevel: "off";
   };
   childAgents: Map<string, Record<string, unknown>>;
+  team?: {
+    teamId: string;
+    turnId: string;
+    status: string;
+    memberAgentIds: string[];
+    requiredAgentIds: Set<string>;
+    blockedAgentIds: Set<string>;
+    spawnCount: number;
+    [key: string]: unknown;
+  };
+  currentMission?: string;
+  interruptedTeamContext?: string;
+  turnCustomAgents?: CustomAgentDefinition[];
+  explicitCustomAgentInvocations?: Map<string, string>;
+  launchChildAgent?: (input: Record<string, unknown>) => Record<string, unknown>;
 }
 
 interface HostInternals {
@@ -99,6 +114,11 @@ interface HostInternals {
     agentId: string | undefined,
     role: string | undefined,
   ): { resolvedModel: { providerId: string; modelId: string }; effectiveCapabilities: readonly string[] } | undefined;
+  acceptExplicitCustomAgentInvocation(
+    hosted: HostedStub,
+    invocation: { invocationId: string; definitionId: string; revision: number },
+    taskText: string,
+  ): { agentId: string; definitionName: string; duplicate: boolean };
   reconcileCustomAgentChildren(
     definitions: CustomAgentDefinition[] | undefined,
   ): void;
@@ -388,5 +408,189 @@ describe("custom agent revocation", () => {
     expect(aborted).toBe(false);
 
     host.dispose();
+  });
+});
+
+describe("explicit user invocation acceptance", () => {
+  function explicitHosted(
+    launchLog: Array<Record<string, unknown>>,
+  ): HostedStub {
+    const hosted: HostedStub = {
+      currentTurnId: "turn-1",
+      currentMode: "execute",
+      currentMission: "review the diff",
+      selection: {
+        providerId: "kimi-coding",
+        modelId: "k3",
+        thinkingLevel: "off",
+      },
+      childAgents: new Map(),
+      explicitCustomAgentInvocations: new Map(),
+      turnCustomAgents: [definition()],
+    };
+    // Mirror the real accept step's bookkeeping (allocate, register, one
+    // budget deduction) without the async session machinery.
+    hosted.launchChildAgent = (input: Record<string, unknown>) => {
+      launchLog.push(input);
+      const agentId = `child-${launchLog.length}`;
+      const team = hosted.team!;
+      team.spawnCount += 1;
+      team.memberAgentIds.push(agentId);
+      team.requiredAgentIds.add(agentId);
+      const child = {
+        ...input,
+        agentId,
+        status: "queued",
+        controller: new AbortController(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lastActivityAt: Date.now(),
+        output: "",
+        pendingSteers: [],
+        recentObservationMilliseconds: [],
+        activityVersion: 0,
+        activityWaiters: new Set(),
+        subtreeIntegrated: false,
+        done: Promise.resolve(),
+        settle() {},
+      };
+      hosted.childAgents.set(agentId, child);
+      return child;
+    };
+    return hosted;
+  }
+
+  it("materializes exactly one user-explicit instance and deducts budget once", () => {
+    const { internals } = makeHost([definition()]);
+    const launchLog: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(launchLog);
+
+    const accepted = internals.acceptExplicitCustomAgentInvocation(
+      hosted,
+      { invocationId: "inv-1", definitionId: "def-1", revision: 2 },
+      "review the diff",
+    );
+
+    expect(accepted.duplicate).toBe(false);
+    expect(launchLog).toHaveLength(1);
+    expect(hosted.team?.spawnCount).toBe(1);
+    expect(hosted.team?.memberAgentIds).toEqual([accepted.agentId]);
+    expect(hosted.explicitCustomAgentInvocations?.get("inv-1")).toBe(
+      accepted.agentId,
+    );
+    const child = hosted.childAgents.get(accepted.agentId) as Record<
+      string,
+      unknown
+    >;
+    const snapshot = child.customAgentSnapshot as CustomAgentInstanceSnapshot;
+    expect(snapshot.invocationSource).toBe("user-explicit");
+    expect(snapshot.selectionBasis).toBe("explicit-reference");
+    expect(snapshot.invocationId).toBe("inv-1");
+    expect(snapshot.definitionName).toBe("code-reviewer");
+    expect(snapshot.resolvedModel.providerId).toBe("kimi-coding");
+    expect(child.task).toBe("review the diff");
+  });
+
+  it("duplicate delivery reuses the instance and never deducts budget twice", () => {
+    const { internals } = makeHost([definition()]);
+    const launchLog: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(launchLog);
+    const invocation = {
+      invocationId: "inv-1",
+      definitionId: "def-1",
+      revision: 2,
+    };
+
+    const first = internals.acceptExplicitCustomAgentInvocation(
+      hosted,
+      invocation,
+      "review the diff",
+    );
+    const second = internals.acceptExplicitCustomAgentInvocation(
+      hosted,
+      invocation,
+      "review the diff",
+    );
+
+    expect(second.duplicate).toBe(true);
+    expect(second.agentId).toBe(first.agentId);
+    expect(launchLog).toHaveLength(1);
+    expect(hosted.team?.spawnCount).toBe(1);
+    expect(hosted.childAgents.size).toBe(1);
+  });
+
+  it("a stale binding whose instance is gone fails outcome-unknown and never re-dispatches", () => {
+    const { internals } = makeHost([definition()]);
+    const launchLog: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(launchLog);
+    hosted.explicitCustomAgentInvocations?.set("inv-1", "child-missing");
+
+    expect(() =>
+      internals.acceptExplicitCustomAgentInvocation(
+        hosted,
+        { invocationId: "inv-1", definitionId: "def-1", revision: 2 },
+        "review the diff",
+      ),
+    ).toThrowError(/INVOCATION_OUTCOME_UNKNOWN/);
+    expect(launchLog).toHaveLength(0);
+    expect(hosted.childAgents.size).toBe(0);
+  });
+
+  it("rejects a stale reference revision as CUSTOM_AGENT_REVISION_CONFLICT", () => {
+    const { internals } = makeHost([definition()]);
+    const launchLog: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(launchLog);
+
+    expect(() =>
+      internals.acceptExplicitCustomAgentInvocation(
+        hosted,
+        { invocationId: "inv-1", definitionId: "def-1", revision: 99 },
+        "review the diff",
+      ),
+    ).toThrowError(/CUSTOM_AGENT_REVISION_CONFLICT/);
+    expect(launchLog).toHaveLength(0);
+    expect(hosted.team).toBeUndefined();
+  });
+
+  it("blocks dispatch when the definition was disabled after the turn catalog froze", () => {
+    // Turn catalog (frozen) still lists the definition as enabled; the
+    // latest global configuration has it disabled.
+    const { internals } = makeHost([definition({ enabled: false })]);
+    const launchLog: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(launchLog);
+
+    expect(() =>
+      internals.acceptExplicitCustomAgentInvocation(
+        hosted,
+        { invocationId: "inv-1", definitionId: "def-1", revision: 2 },
+        "review the diff",
+      ),
+    ).toThrowError(/CUSTOM_AGENT_DISABLED/);
+    expect(launchLog).toHaveLength(0);
+    expect(hosted.childAgents.size).toBe(0);
+  });
+
+  it("freezes the turn-catalog revision even when the global definition was edited", () => {
+    // Global config advanced to revision 3 with new instructions; the
+    // turn catalog still carries revision 2 and the reference pins it.
+    const { internals } = makeHost([
+      definition({ revision: 3, instructions: "Edited instructions." }),
+    ]);
+    const launchLog: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(launchLog);
+
+    const accepted = internals.acceptExplicitCustomAgentInvocation(
+      hosted,
+      { invocationId: "inv-1", definitionId: "def-1", revision: 2 },
+      "review the diff",
+    );
+
+    const child = hosted.childAgents.get(accepted.agentId) as Record<
+      string,
+      unknown
+    >;
+    const snapshot = child.customAgentSnapshot as CustomAgentInstanceSnapshot;
+    expect(snapshot.definitionRevision).toBe(2);
+    expect(snapshot.instructions).toBe("Review carefully.");
   });
 });

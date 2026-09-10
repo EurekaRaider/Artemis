@@ -865,6 +865,18 @@ interface HostedThread {
   executeTools: SessionTool[];
   childAgents: Map<string, ChildAgentExecution>;
   activeLeases: Map<string, AgentConcurrencyLease>;
+  /**
+   * Per-turn effective custom sub-agent definitions, frozen when the turn
+   * starts (D#152). Routing resolves against this catalog; falls back to
+   * the latest global configuration when unset.
+   */
+  turnCustomAgents?: CustomAgentDefinition[];
+  /**
+   * Explicit user invocation bindings (invocationId → agentId) for this
+   * thread. A duplicate delivery of the same invocation reuses the
+   * registered instance instead of creating a second one.
+   */
+  explicitCustomAgentInvocations: Map<string, string>;
   currentMission: string | undefined;
   team: AgentTeamExecution | undefined;
   interruptedTeamContext: string | undefined;
@@ -2346,14 +2358,25 @@ export class ArtemisAgentHost {
    * contract for free-text roles (D#152 plan sections 4 and 7). Runs
    * BEFORE instance allocation and spawn-budget deduction so rejections
    * never consume budget or create half-registered members.
+   *
+   * Routing resolves against the per-turn catalog frozen at turn start,
+   * but liveness is always cross-checked against the latest global
+   * configuration: a definition disabled or deleted mid-turn blocks NEW
+   * dispatches even when the frozen catalog still lists it.
+   *
+   * `explicit` marks a validated user invocation (structured @): the
+   * referenced revision must match, and the snapshot records the
+   * user-explicit source plus the idempotency key.
    */
   private resolveCustomAgentDispatch(
     hosted: HostedThread,
     senderAgentId: string,
     agentId: string | undefined,
     role: string | undefined,
+    explicit?: { invocationId: string; revision: number },
   ): CustomAgentInstanceSnapshot | undefined {
-    const definitions = this.configuration.customAgents ?? [];
+    const definitions =
+      hosted.turnCustomAgents ?? this.configuration.customAgents ?? [];
     if (agentId === undefined) {
       if (!role) return undefined;
       const normalizedRole = normalizeAgentToken(role);
@@ -2378,9 +2401,17 @@ export class ArtemisAgentHost {
         `CUSTOM_AGENT_NOT_FOUND: no effective custom sub-agent definition "${agentId}" for this project.`,
       );
     }
-    if (!definition.enabled) {
+    const liveDefinition = this.configuration.customAgents?.find(
+      (candidate) => candidate.id === agentId,
+    );
+    if (!liveDefinition || !liveDefinition.enabled || !definition.enabled) {
       throw new Error(
         `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
+      );
+    }
+    if (explicit && definition.revision !== explicit.revision) {
+      throw new Error(
+        `CUSTOM_AGENT_REVISION_CONFLICT: custom sub-agent "${definition.name}" was edited (now revision ${definition.revision}); refresh the reference and retry.`,
       );
     }
     const parentSelection = hosted.selection;
@@ -2436,10 +2467,108 @@ export class ArtemisAgentHost {
         thinkingLevel: resolvedThinking,
       },
       effectiveCapabilities,
-      invocationSource: "model-explicit",
+      invocationSource: explicit ? "user-explicit" : "model-explicit",
       selectionBasis: "explicit-reference",
+      ...(explicit ? { invocationId: explicit.invocationId } : {}),
       frozenAt: Date.now(),
     });
+  }
+
+  /**
+   * Materialize a validated explicit user invocation (structured @) into
+   * exactly one child instance (D#152 plan section 6). The host performs
+   * the dispatch — the model cannot forge this source. Acceptance order
+   * follows the plan: dedup → reference/revision validation → model and
+   * capability resolution → budget re-check → the indivisible accept step
+   * (allocate instance, register member, deduct budget once) → queue.
+   *
+   * Duplicate delivery of the same invocationId reuses the registered
+   * instance; a stale binding whose instance is gone is outcome-unknown
+   * and never silently re-dispatches.
+   */
+  private acceptExplicitCustomAgentInvocation(
+    hosted: HostedThread,
+    invocation: {
+      invocationId: string;
+      definitionId: string;
+      revision: number;
+    },
+    taskText: string,
+  ): { agentId: string; definitionName: string; duplicate: boolean } {
+    const boundAgentId = hosted.explicitCustomAgentInvocations.get(
+      invocation.invocationId,
+    );
+    if (boundAgentId !== undefined) {
+      const bound = hosted.childAgents.get(boundAgentId);
+      if (!bound) {
+        throw new Error(
+          `INVOCATION_OUTCOME_UNKNOWN: explicit invocation ${invocation.invocationId} was committed but its instance is gone; re-execute with a new invocation.`,
+        );
+      }
+      return {
+        agentId: boundAgentId,
+        definitionName:
+          bound.customAgentSnapshot?.definitionName ?? invocation.definitionId,
+        duplicate: true,
+      };
+    }
+    const customAgentSnapshot = this.resolveCustomAgentDispatch(
+      hosted,
+      ROOT_AGENT_ID,
+      invocation.definitionId,
+      undefined,
+      { invocationId: invocation.invocationId, revision: invocation.revision },
+    );
+    if (!customAgentSnapshot) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: no effective custom sub-agent definition "${invocation.definitionId}" for this project.`,
+      );
+    }
+    const team = this.ensureTeam(hosted);
+    if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
+      throw new Error(
+        `This turn exhausted its ${AGENT_TEAM_SPAWN_BUDGET}-spawn safety budget.`,
+      );
+    }
+    if (team.memberAgentIds.length >= AGENT_TEAM_LOGICAL_MAXIMUM) {
+      throw new Error(
+        `An agent team may contain at most ${AGENT_TEAM_LOGICAL_MAXIMUM} members.`,
+      );
+    }
+    if (
+      this.directChildren(hosted, ROOT_AGENT_ID).length >=
+      AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
+    ) {
+      throw new Error(
+        `An agent may have at most ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children.`,
+      );
+    }
+    if (!hosted.currentTurnId || !hosted.currentMode) {
+      throw new Error("No active turn is available for delegation.");
+    }
+    const child = hosted.launchChildAgent({
+      turnId: hosted.currentTurnId,
+      mode: hosted.currentMode,
+      parentAgentId: ROOT_AGENT_ID,
+      depth: 1,
+      label: customAgentSnapshot.definitionName,
+      role: customAgentSnapshot.definitionName,
+      task: taskText,
+      dependsOnAgentIds: [],
+      writePaths: [],
+      required: true,
+      attempt: 1,
+      customAgentSnapshot,
+    });
+    hosted.explicitCustomAgentInvocations.set(
+      invocation.invocationId,
+      child.agentId,
+    );
+    return {
+      agentId: child.agentId,
+      definitionName: customAgentSnapshot.definitionName,
+      duplicate: false,
+    };
   }
 
   /**
@@ -5635,6 +5764,7 @@ export class ArtemisAgentHost {
       executeTools,
       childAgents: new Map(),
       activeLeases: new Map(),
+      explicitCustomAgentInvocations: new Map(),
       currentMission: undefined,
       team: undefined,
       interruptedTeamContext: undefined,
@@ -5746,6 +5876,12 @@ export class ArtemisAgentHost {
     memoryContext?: string,
     collaborationContext?: string,
     recovery?: TurnRecovery,
+    customAgents?: CustomAgentDefinition[],
+    customAgentInvocation?: {
+      invocationId: string;
+      definitionId: string;
+      revision: number;
+    },
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -5758,6 +5894,12 @@ export class ArtemisAgentHost {
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
+    const turnCustomAgents = customAgents ?? this.configuration.customAgents;
+    if (turnCustomAgents === undefined) {
+      delete hosted.turnCustomAgents;
+    } else {
+      hosted.turnCustomAgents = turnCustomAgents;
+    }
     if (hosted.team?.status === "aborted") {
       hosted.interruptedTeamContext = this.interruptedTeamSummary(hosted);
     }
@@ -5773,20 +5915,39 @@ export class ArtemisAgentHost {
     hosted.session.agent.state.tools =
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
+    let explicitDispatchNote: string | undefined;
+    if (customAgentInvocation) {
+      // The host materializes exactly one instance for a validated
+      // explicit user reference; the model cannot forge this source.
+      // Failures throw coded errors so the turn fails loudly instead of
+      // silently degrading into a free-form role.
+      const accepted = this.acceptExplicitCustomAgentInvocation(
+        hosted,
+        customAgentInvocation,
+        text,
+      );
+      explicitDispatchNote = accepted.duplicate
+        ? `[Host dispatch] The explicit invocation of custom sub-agent "${accepted.definitionName}" was already materialized as instance ${accepted.agentId}; do not spawn a duplicate. Wait for its result and integrate it into your reply.`
+        : `[Host dispatch] The user explicitly invoked custom sub-agent "${accepted.definitionName}" for this task. Instance ${accepted.agentId} is already running with the user's message as its task; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
+    }
+
     const preparedAttachments = await this.prepareAttachments(
       hosted,
       attachments,
       text,
     );
+    const basePrompt = buildTurnPrompt(
+      mode,
+      recovery ? processRecoveryPrompt(text, recovery) : text,
+      goal,
+      memoryContext,
+      interruptedTeamContext,
+      collaborationContext,
+    );
     const prompt = appendPromptFiles(
-      buildTurnPrompt(
-        mode,
-        recovery ? processRecoveryPrompt(text, recovery) : text,
-        goal,
-        memoryContext,
-        interruptedTeamContext,
-        collaborationContext,
-      ),
+      explicitDispatchNote
+        ? `${basePrompt}\n\n${explicitDispatchNote}`
+        : basePrompt,
       preparedAttachments,
     );
     const expandedPrompt = await expandSkillInvocations(
