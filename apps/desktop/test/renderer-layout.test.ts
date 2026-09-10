@@ -624,7 +624,7 @@ describe("renderer layout contract", () => {
       publicUiCssRule('[data-artemis-component="select"] [data-part="menu"]'),
     ).toContain("inline-size: max-content");
     expect(cssRule(".composer-context-menu")).toMatch(
-      /\bdisplay:\s*flex[\s\S]*\bwidth:\s*min\(350px,\s*calc\(100cqi\s*-\s*64px\)\)/u,
+      /\bdisplay:\s*flex[\s\S]*\bwidth:\s*min\(280px,\s*calc\(100cqi\s*-\s*64px\)\)/u,
     );
     expect(cssRule(".composer-wrap")).toMatch(/\bz-index:\s*20/u);
     expect(composerContextSource).toContain(
@@ -661,9 +661,9 @@ describe("renderer layout contract", () => {
       width: 260,
     });
     expect(contextMenuLayout(500, 400, 500)).toEqual({
-      left: -250,
+      left: -180,
       maxHeight: 484,
-      width: 350,
+      width: 280,
     });
   });
 
@@ -1316,10 +1316,10 @@ describe("renderer layout contract", () => {
       /\bmax-height:[\s\S]*\bmargin-left:\s*-1px[\s\S]*\boverflow-y:\s*auto/u,
     );
     expect(cssRule(".model-picker-options > button")).toMatch(
-      /\bmin-height:\s*32px/u,
+      /\bmin-height:\s*28px/u,
     );
     expect(cssRule(".model-picker-options > button.ultra-mode-option")).toMatch(
-      /\bmin-height:\s*50px/u,
+      /\bmin-height:\s*44px/u,
     );
     expect(
       cssRule(".model-picker-options > button.ultra-mode-option small"),

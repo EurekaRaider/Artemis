@@ -386,12 +386,12 @@ describe("Select", () => {
       await userEvent.click(screen.getByRole("button"));
       const menu = container.querySelector<HTMLElement>('[data-part="menu"]')!;
       expect(menu.style.translate).toBe("-168px");
-      expect(menu.style.maxInlineSize).toBe("min(32rem, 484px)");
+      expect(menu.style.maxInlineSize).toBe("min(20rem, 484px)");
       expect(observed).toContain(screen.getByTestId("panel"));
       panelWidth = 400;
       resizePanel();
       expect(menu.style.translate).toBe("-268px");
-      expect(menu.style.minInlineSize).toBe("min(100%, 384px)");
+      expect(menu.style.minInlineSize).toBe("min(100%, 12rem, 384px)");
     } finally {
       bounds.mockRestore();
       client.mockRestore();
@@ -441,7 +441,7 @@ describe("Select", () => {
         const menu =
           container.querySelector<HTMLElement>('[data-part="menu"]')!;
         expect(menu.style.translate).toBe(`${offset}px`);
-        expect(menu.style.maxInlineSize).toBe(`min(32rem, ${1008 / scale}px)`);
+        expect(menu.style.maxInlineSize).toBe(`min(20rem, ${1008 / scale}px)`);
         await userEvent.keyboard("{Escape}");
         expect(container.querySelector('[data-part="menu"]')).toBeNull();
       } finally {

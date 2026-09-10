@@ -1022,8 +1022,8 @@ export function Select<Value extends string>({
         );
       }
       const available = Math.max(0, rightEdge - leftEdge - 16) / (scale || 1);
-      element.style.maxInlineSize = `min(32rem, ${available}px)`;
-      element.style.minInlineSize = `min(100%, ${available}px)`;
+      element.style.maxInlineSize = `min(20rem, ${available}px)`;
+      element.style.minInlineSize = `min(100%, 12rem, ${available}px)`;
       element.style.translate = "0px";
       const bounds = element.getBoundingClientRect();
       const left = Math.max(

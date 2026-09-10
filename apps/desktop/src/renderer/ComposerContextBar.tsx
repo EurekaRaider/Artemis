@@ -136,7 +136,7 @@ export function contextMenuLayout(
   anchorOffset: number,
   spaceAbove: number,
 ): ContextMenuLayout {
-  const width = Math.floor(Math.min(350, Math.max(0, rootWidth)));
+  const width = Math.floor(Math.min(280, Math.max(0, rootWidth)));
   const leftWithinRoot = Math.min(
     Math.max(0, anchorOffset),
     Math.max(0, rootWidth - width),

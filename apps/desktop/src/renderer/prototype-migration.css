@@ -439,7 +439,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 10px;
+  padding: 5px 8px;
   grid-column: 2;
   border-block-end: 1px solid var(--border-soft);
 }
@@ -453,6 +453,8 @@
   border: 0;
   background: transparent;
   color: var(--text);
+  font-size: var(--composer-menu-label-size);
+  line-height: 18px;
 }
 .context-usage-breakdown-bar {
   display: flex;
@@ -594,7 +596,7 @@ textarea:focus {
   margin-inline-start: -1px;
   background: var(--artemis-color-surface-popover);
   border: 1px solid var(--border);
-  border-radius: 13px 13px 0 0;
+  border-radius: 8px 8px 0 0;
 }
 .model-picker-menu[data-section="model"] .model-picker-options {
   grid-column: 2;
