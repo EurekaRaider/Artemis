@@ -37,6 +37,7 @@ export function navigatePromptHistory(
   direction: "previous" | "next",
 ): Required<PromptHistoryNavigation> | undefined {
   if (history.length === 0) return undefined;
+  if (state.index < 0 && currentValue.length > 0) return undefined;
 
   if (direction === "previous") {
     const index = Math.min(state.index + 1, history.length - 1);

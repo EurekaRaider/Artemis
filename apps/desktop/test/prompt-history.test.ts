@@ -17,13 +17,13 @@ describe("prompt history", () => {
   it("walks backward through history and stops at the oldest prompt", () => {
     const first = navigatePromptHistory(
       ["newest", "oldest"],
-      "draft",
+      "",
       { index: -1, draft: "" },
       "previous",
     );
     expect(first).toEqual({
       index: 0,
-      draft: "draft",
+      draft: "",
       value: "newest",
     });
 
@@ -35,7 +35,7 @@ describe("prompt history", () => {
     );
     expect(second).toEqual({
       index: 1,
-      draft: "draft",
+      draft: "",
       value: "oldest",
     });
 
@@ -49,16 +49,16 @@ describe("prompt history", () => {
     ).toEqual(second);
   });
 
-  it("walks forward and restores the draft after the newest prompt", () => {
+  it("walks forward and returns to empty input after the newest prompt", () => {
     const next = navigatePromptHistory(
       ["newest", "oldest"],
       "oldest",
-      { index: 1, draft: "unfinished draft" },
+      { index: 1, draft: "" },
       "next",
     );
     expect(next).toEqual({
       index: 0,
-      draft: "unfinished draft",
+      draft: "",
       value: "newest",
     });
 
@@ -66,9 +66,47 @@ describe("prompt history", () => {
       navigatePromptHistory(["newest", "oldest"], next!.value, next!, "next"),
     ).toEqual({
       index: -1,
-      draft: "unfinished draft",
-      value: "unfinished draft",
+      draft: "",
+      value: "",
     });
+  });
+
+  it.each(["draft", "newest", " ", "\n", "first line\nsecond line"])(
+    "preserves manually entered content %j for both arrow directions",
+    (value) => {
+      for (const direction of ["previous", "next"] as const) {
+        expect(
+          navigatePromptHistory(
+            ["newest", "oldest"],
+            value,
+            { index: -1, draft: value },
+            direction,
+          ),
+        ).toBeUndefined();
+      }
+    },
+  );
+
+  it("stops browsing after editing recalled text and resumes after clearing", () => {
+    const history = ["newest", "oldest"];
+    const recalled = navigatePromptHistory(
+      history,
+      "",
+      { index: -1, draft: "" },
+      "previous",
+    )!;
+    const edited = `${recalled.value} edited`;
+    // The composer's onChange resets navigation whenever the user edits.
+    const stateAfterEdit = { index: -1, draft: edited };
+    expect(
+      navigatePromptHistory(history, edited, stateAfterEdit, "previous"),
+    ).toBeUndefined();
+    expect(
+      navigatePromptHistory(history, edited, stateAfterEdit, "next"),
+    ).toBeUndefined();
+    expect(
+      navigatePromptHistory(history, "", { index: -1, draft: "" }, "previous"),
+    ).toEqual(recalled);
   });
 
   it("leaves arrow keys untouched when there is no history to browse", () => {
