@@ -8408,10 +8408,6 @@ button.sources-panel-entry.attachment:focus-visible {
   background: color-mix(in srgb, var(--blue) 54%, var(--panel-3));
 }
 
-.token-usage-composition-marker.cache-write {
-  background: color-mix(in srgb, var(--blue) 24%, var(--panel-3));
-}
-
 .token-usage-profile,
 .token-usage-summary,
 .token-usage-activity,

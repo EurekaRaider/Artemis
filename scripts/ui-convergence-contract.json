@@ -214,8 +214,7 @@
     {
       "classNameSets": [
         ["token-usage-composition-marker", "output"],
-        ["token-usage-composition-marker", "cache-read"],
-        ["token-usage-composition-marker", "cache-write"]
+        ["token-usage-composition-marker", "cache-read"]
       ],
       "owner": "Desktop token composition legend",
       "reason": "The finite token category tone is appended to each composition marker at runtime.",
@@ -269,6 +268,105 @@
     }
   ],
   "rawComponentOverrides": [
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"]",
+      "property": "padding",
+      "value": "24px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher keeps a 24px inset within the workspace pane."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"]",
+      "property": "background",
+      "value": "light-dark(#f7f7f7, #181818)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher uses the workspace pane surface in both themes."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] > [data-part=\"actions\"]",
+      "property": "gap",
+      "value": "6px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher keeps compact spacing between its action rows."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "gap",
+      "value": "12px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "padding",
+      "value": "10px 12px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "border-radius",
+      "value": "10px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "background",
+      "value": "light-dark(#ededed, #202020)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]:is(:hover, :focus-visible):not(:disabled)",
+      "property": "background",
+      "value": "light-dark(#e4e4e4, #292929)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher shares its highlighted surface between hover and keyboard focus."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
+      "property": "padding",
+      "value": "2px 8px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
+      "property": "border-radius",
+      "value": "999px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
+      "property": "background",
+      "value": "light-dark(#dedede, #2c2c2c)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
+    },
     {
       "atRules": [],
       "selector": ".im-settings :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",

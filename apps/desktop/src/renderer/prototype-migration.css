@@ -672,9 +672,6 @@ textarea:focus {
 .token-usage-composition-marker.cache-read {
   background: var(--artemis-color-usage-3);
 }
-.token-usage-composition-marker.cache-write {
-  background: var(--artemis-color-usage-4);
-}
 
 .thread-title-copy {
   display: none;

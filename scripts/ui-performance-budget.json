@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 363500,
+      "desktopCssBytes": 366000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -144,6 +144,15 @@
       "measuredDesktopCssBytes": 363119,
       "desktopCssIncreaseBytes": 1541,
       "reason": "Issues #170-176 add scoped composer menu insets, marketplace scrolling, prototype management button colors, and sources/Dock menu alignment (1541 bytes, 0.43%). The baseline uses the same dependencies and Vite pipeline with only the two desktop stylesheets replaced by HEAD sources in memory. The CSS ceiling increases by 1500 bytes to 363500; JavaScript, shared UI, gallery, startup and workload gates are unchanged."
+    },
+    {
+      "date": "2026-09-10",
+      "baseHead": "f52f497764c54330e3bf05474113686edef78b4d",
+      "measurementHead": "5737e087fc7454ba1d333feaecbc9240e16dc2c7",
+      "baseDesktopCssBytes": 363347,
+      "measuredDesktopCssBytes": 365230,
+      "desktopCssIncreaseBytes": 1883,
+      "reason": "Workspace launcher action rows and shortcut keycaps, rounded workspace tabs, and compact environment rows add 1967 bytes over the base. Removing the unused cache-write marker styles reduces the candidate by 84 bytes to 365230 bytes (+0.52%). Both references were measured with the same installed dependencies and Vite pipeline, substituting only styles.css and prototype-migration.css in memory. The 366000-byte CSS ceiling leaves 770 bytes of headroom; JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [
