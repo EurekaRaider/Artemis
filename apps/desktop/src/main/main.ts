@@ -18198,7 +18198,7 @@ function createMainWindow(): BrowserWindow {
                     : null,
                   environmentCheckStatuses: [
                     ...document.querySelectorAll(
-                      ".environment-check-indicator[data-status]",
+                      ".environment-check-indicator[data-status], .environment-check-ring[data-status]",
                     ),
                   ].map((indicator) => indicator.getAttribute("data-status")),
                   environmentPanel: environmentBounds
