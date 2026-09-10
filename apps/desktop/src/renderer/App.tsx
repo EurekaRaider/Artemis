@@ -168,6 +168,7 @@ import {
   userMessageAttachments,
 } from "./turn-timeline.js";
 import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
+import { WorkspaceLauncherIcon } from "./WorkspaceLauncherIcon.js";
 import {
   WorkspaceFileIcon,
   WorkspaceFilesPanel,
@@ -8426,25 +8427,25 @@ export function App() {
                         <WorkspaceLauncher label={t.rightSidebar}>
                           {activeProject && (
                             <WorkspaceLauncherAction
-                              icon={<ReviewIcon />}
+                              icon={<WorkspaceLauncherIcon kind="review" />}
                               label={t.reviewPanel}
                               onActivate={openReviewPanel}
                               shortcut="Ctrl+Alt+B"
                             />
                           )}
                           <WorkspaceLauncherAction
-                            icon={<TerminalIcon />}
+                            icon={<WorkspaceLauncherIcon kind="terminal" />}
                             label={t.terminal}
                             onActivate={openTerminalPanel}
                             shortcut="Ctrl+J"
                           />
                           <WorkspaceLauncherAction
-                            icon={<BrowserIcon />}
+                            icon={<WorkspaceLauncherIcon kind="browser" />}
                             label={t.browser}
                             onActivate={openBrowserPanel}
                           />
                           <WorkspaceLauncherAction
-                            icon={<FilesIcon />}
+                            icon={<WorkspaceLauncherIcon kind="files" />}
                             label={t.files}
                             onActivate={openFilesPanel}
                           />
@@ -9544,7 +9545,7 @@ export function AgentTeamPanel({
                   className={`agent-team-member ${member.status}`}
                   key={member.agentId}
                   style={{
-                    paddingInlineStart: ((member.depth ?? 1) - 1) * 16,
+                    paddingInlineStart: 12 + ((member.depth ?? 1) - 1) * 16,
                   }}
                 >
                   {childCount > 0 ? (

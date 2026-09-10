@@ -328,6 +328,7 @@
   margin: 0;
   min-inline-size: 0;
   max-inline-size: 150px;
+  min-block-size: 26px;
   block-size: 26px;
   border: 1px solid
     color-mix(in srgb, var(--artemis-color-goal) 45%, transparent);

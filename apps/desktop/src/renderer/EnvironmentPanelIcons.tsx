@@ -51,6 +51,14 @@ export function EnvironmentBranchIcon(props: IconProps) {
   );
 }
 
+export function EnvironmentWorktreeIcon(props: IconProps) {
+  return (
+    <EnvironmentGitIcon {...props} data-environment-tone="purple">
+      <path d="M4 12h4l12-9M14 3h6v6M12 15l8 6M14 21h6v-6" />
+    </EnvironmentGitIcon>
+  );
+}
+
 export function EnvironmentChangesIcon(props: IconProps) {
   return (
     <EnvironmentGitIcon {...props} data-environment-tone="blue">

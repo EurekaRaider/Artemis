@@ -7,7 +7,7 @@ import {
   EnvironmentCheckIcon,
   EnvironmentChevronIcon,
   EnvironmentLocalIcon,
-  EnvironmentBranchIcon,
+  EnvironmentWorktreeIcon,
 } from "./EnvironmentPanelIcons.js";
 
 export function EnvironmentWorkspaceMenu({
@@ -72,7 +72,7 @@ export function EnvironmentWorkspaceMenu({
         aria-controls={id}
         onClick={() => setOpen(!open)}
       >
-        <EnvironmentLocalIcon />
+        {worktree ? <EnvironmentWorktreeIcon /> : <EnvironmentLocalIcon />}
         <span>{label}</span>
         <EnvironmentChevronIcon />
       </button>
@@ -107,7 +107,7 @@ export function EnvironmentWorkspaceMenu({
             aria-checked
             onClick={() => setOpen(false)}
           >
-            <EnvironmentBranchIcon />
+            <EnvironmentWorktreeIcon />
             <span>{label}</span>
             <EnvironmentCheckIcon />
           </button>
@@ -119,7 +119,7 @@ export function EnvironmentWorkspaceMenu({
             disabled={disabled || pending || !onHandoff}
             onClick={() => void change("managed-worktree")}
           >
-            <EnvironmentBranchIcon />
+            <EnvironmentWorktreeIcon />
             <span>
               {pending
                 ? t("正在交接…", "Handing off…")
@@ -135,7 +135,7 @@ export function EnvironmentWorkspaceMenu({
             setManagerOpen(true);
           }}
         >
-          <EnvironmentBranchIcon />
+          <EnvironmentWorktreeIcon />
           <span>{t("管理工作树", "Manage worktrees")}</span>
         </button>
         {onOpenUsage && (

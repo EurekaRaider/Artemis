@@ -232,8 +232,8 @@ describe("reported screenshot regressions", () => {
             inputTokens: 100,
             outputTokens: 20,
             cacheReadTokens: 80,
-            cacheWriteTokens: 0,
-            totalTokens: 200,
+            cacheWriteTokens: 30,
+            totalTokens: 230,
           },
         },
       ],
@@ -248,6 +248,13 @@ describe("reported screenshot regressions", () => {
       screen.getByRole("columnheader", { name: "总 Token" }),
     ).toBeVisible();
     expect(button).toHaveAttribute("aria-pressed", "true");
+    const composition = screen.getByRole("heading", {
+      name: "Token 构成",
+    }).parentElement!;
+    expect(composition.querySelectorAll("dt")).toHaveLength(3);
+    expect(composition).toHaveTextContent("缓存命中 Token110");
+    expect(composition).not.toHaveTextContent("缓存读取");
+    expect(composition).not.toHaveTextContent("缓存写入");
   });
 
   it("lists every installed capability with a name, status, configuration action and working toggle", async () => {

@@ -267,14 +267,9 @@ export function TokenUsagePage({
     { label: t.inputTokens, tone: "input", value: usageTotals.input },
     { label: t.outputTokens, tone: "output", value: usageTotals.output },
     {
-      label: t.cacheReadTokens,
+      label: t.cacheHitTokens,
       tone: "cache-read",
-      value: usageTotals.cacheRead,
-    },
-    {
-      label: t.cacheWriteTokens,
-      tone: "cache-write",
-      value: usageTotals.cacheWrite,
+      value: usageTotals.cacheRead + usageTotals.cacheWrite,
     },
   ] as const;
   const modelLabel = (model: (typeof usageByModel)[number]) =>
