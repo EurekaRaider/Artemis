@@ -24,6 +24,7 @@ function validInput(overrides: Record<string, unknown> = {}) {
     name: "code-reviewer",
     description: "Reviews changes",
     color: "green",
+    enabled: true,
     instructions: "Review carefully.",
     scope: "selected",
     projectIds: ["proj-1"],

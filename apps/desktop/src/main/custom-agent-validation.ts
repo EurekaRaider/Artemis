@@ -42,6 +42,7 @@ export interface CustomAgentDefinitionInput {
   name: string;
   description: string;
   color: string;
+  enabled: boolean;
   instructions: string;
   scope: "all" | "selected";
   projectIds: string[];
@@ -236,11 +237,15 @@ export function validateCustomAgentInput(
   if (typeof input.allowAutomaticInvocation !== "boolean") {
     fail("allowAutomaticInvocation must be a boolean");
   }
+  if (typeof input.enabled !== "boolean") {
+    fail("enabled must be a boolean");
+  }
 
   return {
     name,
     description,
     color,
+    enabled: input.enabled,
     instructions,
     scope,
     projectIds: projectIds as string[],

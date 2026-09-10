@@ -987,8 +987,10 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("beginRenameThread(thread)");
     expect(appSource).toContain('event.key === "Escape"');
     expect(appSource).toContain("window.artemis.renameThread(");
+    // The dialog-based rename keeps a neutral border; accent-blue borders
+    // were retired with the monochrome accent direction.
     expect(cssRule(".thread-rename-input")).toMatch(
-      /\bborder:\s*1px solid var\(--blue\)/u,
+      /\bborder:\s*1px solid var\(--border\)/u,
     );
   });
 

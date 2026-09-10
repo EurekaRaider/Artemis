@@ -184,7 +184,9 @@ export interface TurnChangeSetRecord {
 const THREAD_SESSION_DATABASE_VERSION = 10;
 const THREAD_GOAL_DATABASE_VERSION = 11;
 const DATABASE_VERSION = 12;
-const CUSTOM_AGENTS_DATABASE_VERSION = 13;
+// Latest schema version; exported so migration tests assert against the
+// constant instead of a hardcoded number that goes stale on the next bump.
+export const CUSTOM_AGENTS_DATABASE_VERSION = 13;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -2763,6 +2765,7 @@ export class AppStore {
       name: string;
       description: string;
       color: string;
+      enabled?: boolean;
       instructions: string;
       scope: "all" | "selected";
       projectIds?: string[];
@@ -2789,7 +2792,7 @@ export class AppStore {
             instructions, scope, model_policy_json, thinking_policy_json,
             tool_policy_json, allow_automatic_invocation, triggers_json,
             created_at, updated_at
-          ) VALUES (?, 1, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -2797,6 +2800,7 @@ export class AppStore {
           normalizedName,
           input.description,
           input.color,
+          (input.enabled ?? true) ? 1 : 0,
           input.instructions,
           input.scope,
           JSON.stringify(modelPolicy),

@@ -106,6 +106,7 @@ export interface SaveCustomAgentInput {
   name: string;
   description: string;
   color: string;
+  enabled: boolean;
   instructions: string;
   scope: "all" | "selected";
   projectIds: string[];

@@ -9202,6 +9202,7 @@ export function App() {
             initialSettings={runtimeSettings}
             initialTab={settingsTab}
             locale={locale}
+            projects={projects}
             onClose={() => setSettingsOpen(false)}
             onOpenThread={async (threadId) => {
               await openAutomationThread(threadId);
