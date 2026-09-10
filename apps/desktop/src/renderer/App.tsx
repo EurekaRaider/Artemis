@@ -436,6 +436,11 @@ const copy = {
     showArchived: "Show archived",
     showActive: "Show active",
     renameTask: "Rename",
+    renameTaskTitle: "Rename task",
+    renameTaskHint: "Keep it short and easy to recognize",
+    renameSave: "Save",
+    renameCancel: "Cancel",
+    renameClose: "Close",
     forkTask: "Fork",
     archiveTask: "Archive",
     restoreTask: "Restore",
@@ -729,6 +734,11 @@ const copy = {
     showArchived: "查看已归档",
     showActive: "查看当前任务",
     renameTask: "重命名",
+    renameTaskTitle: "重命名任务",
+    renameTaskHint: "保持简短且易于识别",
+    renameSave: "保存",
+    renameCancel: "取消",
+    renameClose: "关闭",
     forkTask: "分叉",
     archiveTask: "归档",
     restoreTask: "恢复",
@@ -1541,6 +1551,7 @@ export function App() {
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const [threadMenuId, setThreadMenuId] = useState<string>();
   const threadMenuAnchor = useRef<HTMLButtonElement | null>(null);
+  const threadRenameInput = useRef<HTMLInputElement>(null);
   const [threadRename, setThreadRename] = useState<{
     threadId: string;
     title: string;
@@ -6292,195 +6303,156 @@ export function App() {
                               );
                             }}
                           >
-                            {threadRename?.threadId === thread.id ? (
-                              <form
-                                className="thread-rename-form"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  void renameThread(thread, threadRename.title);
+                            <>
+                              <button
+                                className="thread-select"
+                                onClick={() => {
+                                  discardNewConversationDraft();
+                                  setActiveView("workspace");
+                                  setActiveProjectId(project.id);
+                                  setActiveThreadId(thread.id);
+                                  setMode(thread.mode);
+                                  setThreadMenuId(undefined);
                                 }}
                               >
-                                <input
-                                  aria-label={t.taskNamePrompt}
-                                  autoFocus
-                                  className="thread-rename-input"
-                                  onBlur={(event) =>
-                                    void renameThread(
-                                      thread,
-                                      event.currentTarget.value,
-                                    )
-                                  }
-                                  onChange={(event) =>
-                                    setThreadRename((current) =>
-                                      current?.threadId === thread.id
-                                        ? {
-                                            ...current,
-                                            title: event.target.value,
-                                          }
-                                        : current,
-                                    )
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Escape") {
-                                      event.preventDefault();
-                                      setThreadRename(undefined);
-                                    }
-                                  }}
-                                  value={threadRename.title}
+                                <span
+                                  aria-hidden="true"
+                                  className={`status-dot ${thread.status}`}
                                 />
-                              </form>
-                            ) : (
-                              <>
-                                <button
-                                  className="thread-select"
-                                  onClick={() => {
-                                    discardNewConversationDraft();
-                                    setActiveView("workspace");
-                                    setActiveProjectId(project.id);
-                                    setActiveThreadId(thread.id);
-                                    setMode(thread.mode);
-                                    setThreadMenuId(undefined);
-                                  }}
-                                >
-                                  <span
-                                    aria-hidden="true"
-                                    className={`status-dot ${thread.status}`}
+                                {imThreadStatus[thread.id] && (
+                                  <ImThreadConnection
+                                    status={imThreadStatus[thread.id]!}
+                                    locale={locale}
                                   />
-                                  {imThreadStatus[thread.id] && (
-                                    <ImThreadConnection
-                                      status={imThreadStatus[thread.id]!}
-                                      locale={locale}
-                                    />
-                                  )}
-                                  <span
-                                    className="thread-title"
-                                    onPointerEnter={prepareThreadTitleScroll}
-                                    title={visibleThreadTitle(thread.title)}
-                                  >
-                                    <span className="thread-title-text">
-                                      <span>
-                                        {visibleThreadTitle(thread.title)}
-                                      </span>
-                                      <span
-                                        aria-hidden="true"
-                                        className="thread-title-copy"
-                                      >
-                                        {visibleThreadTitle(thread.title)}
-                                      </span>
+                                )}
+                                <span
+                                  className="thread-title"
+                                  onPointerEnter={prepareThreadTitleScroll}
+                                  title={visibleThreadTitle(thread.title)}
+                                >
+                                  <span className="thread-title-text">
+                                    <span>
+                                      {visibleThreadTitle(thread.title)}
+                                    </span>
+                                    <span
+                                      aria-hidden="true"
+                                      className="thread-title-copy"
+                                    >
+                                      {visibleThreadTitle(thread.title)}
                                     </span>
                                   </span>
-                                  <time
-                                    className="thread-time"
-                                    dateTime={thread.updatedAt}
-                                    title={new Date(
-                                      thread.updatedAt,
-                                    ).toLocaleString(locale)}
-                                  >
-                                    {formatSidebarTime(
-                                      thread.updatedAt,
-                                      clockMs,
-                                      locale,
-                                    )}
-                                  </time>
-                                </button>
-                                <button
-                                  aria-label={t.moreActions}
-                                  aria-haspopup="menu"
-                                  aria-expanded={threadMenuId === thread.id}
-                                  className="thread-action"
-                                  onClick={(event) => {
-                                    threadMenuAnchor.current =
-                                      event.currentTarget;
-                                    setProjectMenuId(undefined);
-                                    setThreadMenuId((current) =>
-                                      current === thread.id
-                                        ? undefined
-                                        : thread.id,
-                                    );
-                                  }}
-                                  title={t.moreActions}
+                                </span>
+                                <time
+                                  className="thread-time"
+                                  dateTime={thread.updatedAt}
+                                  title={new Date(
+                                    thread.updatedAt,
+                                  ).toLocaleString(locale)}
                                 >
-                                  <ArtemisIcon
-                                    name="more"
-                                    width={16}
-                                    height={16}
-                                  />
-                                </button>
-                                {threadMenuId === thread.id && (
-                                  <Popover
-                                    anchorRef={threadMenuAnchor}
-                                    align="end"
-                                    className="thread-menu"
-                                    label={t.moreActions}
-                                    onOpenChange={(open) => {
-                                      if (!open) setThreadMenuId(undefined);
-                                    }}
-                                    open
-                                    role="menu"
+                                  {formatSidebarTime(
+                                    thread.updatedAt,
+                                    clockMs,
+                                    locale,
+                                  )}
+                                </time>
+                              </button>
+                              <button
+                                aria-label={t.moreActions}
+                                aria-haspopup="menu"
+                                aria-expanded={threadMenuId === thread.id}
+                                className="thread-action"
+                                onClick={(event) => {
+                                  threadMenuAnchor.current =
+                                    event.currentTarget;
+                                  setProjectMenuId(undefined);
+                                  setThreadMenuId((current) =>
+                                    current === thread.id
+                                      ? undefined
+                                      : thread.id,
+                                  );
+                                }}
+                                title={t.moreActions}
+                              >
+                                <ArtemisIcon
+                                  name="more"
+                                  width={16}
+                                  height={16}
+                                />
+                              </button>
+                              {threadMenuId === thread.id && (
+                                <Popover
+                                  anchorRef={threadMenuAnchor}
+                                  align="end"
+                                  className="thread-menu"
+                                  label={t.moreActions}
+                                  onOpenChange={(open) => {
+                                    if (!open) setThreadMenuId(undefined);
+                                  }}
+                                  open
+                                  role="menu"
+                                >
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => beginRenameThread(thread)}
                                   >
-                                    <button
-                                      role="menuitem"
-                                      onClick={() => beginRenameThread(thread)}
-                                    >
-                                      <ArtemisIcon
-                                        name="edit"
-                                        width={16}
-                                        height={16}
-                                      />
-                                      <span>{t.renameTask}</span>
-                                    </button>
-                                    <button
-                                      role="menuitem"
-                                      disabled={
-                                        thread.status === "running" ||
-                                        thread.status === "waiting-approval"
-                                      }
-                                      onClick={() => void forkThread(thread)}
-                                    >
-                                      <ArtemisIcon
-                                        name="branch"
-                                        width={16}
-                                        height={16}
-                                      />
-                                      <span>{t.forkTask}</span>
-                                    </button>
-                                    <button
-                                      role="menuitem"
-                                      disabled={
-                                        thread.status === "running" ||
-                                        thread.status === "waiting-approval"
-                                      }
-                                      onClick={() =>
-                                        void setThreadArchived(thread, true)
-                                      }
-                                    >
-                                      <ArtemisIcon
-                                        name="archive"
-                                        width={16}
-                                        height={16}
-                                      />
-                                      <span>{t.archiveTask}</span>
-                                    </button>
-                                    <button
-                                      role="menuitem"
-                                      className="danger"
-                                      disabled={
-                                        thread.status === "running" ||
-                                        thread.status === "waiting-approval"
-                                      }
-                                      onClick={() => void deleteThread(thread)}
-                                    >
-                                      <ArtemisIcon
-                                        name="trash"
-                                        width={16}
-                                        height={16}
-                                      />
-                                      <span>{t.deleteTask}</span>
-                                    </button>
-                                  </Popover>
-                                )}
-                              </>
-                            )}
+                                    <ArtemisIcon
+                                      name="edit"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.renameTask}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    disabled={
+                                      thread.status === "running" ||
+                                      thread.status === "waiting-approval"
+                                    }
+                                    onClick={() => void forkThread(thread)}
+                                  >
+                                    <ArtemisIcon
+                                      name="branch"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.forkTask}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    disabled={
+                                      thread.status === "running" ||
+                                      thread.status === "waiting-approval"
+                                    }
+                                    onClick={() =>
+                                      void setThreadArchived(thread, true)
+                                    }
+                                  >
+                                    <ArtemisIcon
+                                      name="archive"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.archiveTask}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    className="danger"
+                                    disabled={
+                                      thread.status === "running" ||
+                                      thread.status === "waiting-approval"
+                                    }
+                                    onClick={() => void deleteThread(thread)}
+                                  >
+                                    <ArtemisIcon
+                                      name="trash"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.deleteTask}</span>
+                                  </button>
+                                </Popover>
+                              )}
+                            </>
                           </div>
                         ))}
                         {projectThreads.length >
@@ -6589,164 +6561,127 @@ export function App() {
                   role="treeitem"
                   tabIndex={treeActiveRowId === `thread:${thread.id}` ? 0 : -1}
                 >
-                  {threadRename?.threadId === thread.id ? (
-                    <form
-                      className="thread-rename-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void renameThread(thread, threadRename.title);
+                  <>
+                    <button
+                      className="thread-select"
+                      onClick={() => {
+                        discardNewConversationDraft();
+                        setActiveView("workspace");
+                        setActiveProjectId(undefined);
+                        setActiveThreadId(thread.id);
+                        setMode(thread.mode);
+                        setThreadMenuId(undefined);
                       }}
+                      type="button"
                     >
-                      <input
-                        aria-label={t.taskNamePrompt}
-                        autoFocus
-                        className="thread-rename-input"
-                        onBlur={(event) =>
-                          void renameThread(thread, event.currentTarget.value)
-                        }
-                        onChange={(event) =>
-                          setThreadRename((current) =>
-                            current?.threadId === thread.id
-                              ? { ...current, title: event.target.value }
-                              : current,
-                          )
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") {
-                            event.preventDefault();
-                            setThreadRename(undefined);
-                          }
-                        }}
-                        value={threadRename.title}
+                      <span
+                        aria-hidden="true"
+                        className={`status-dot ${thread.status}`}
                       />
-                    </form>
-                  ) : (
-                    <>
-                      <button
-                        className="thread-select"
-                        onClick={() => {
-                          discardNewConversationDraft();
-                          setActiveView("workspace");
-                          setActiveProjectId(undefined);
-                          setActiveThreadId(thread.id);
-                          setMode(thread.mode);
-                          setThreadMenuId(undefined);
-                        }}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`status-dot ${thread.status}`}
+                      {imThreadStatus[thread.id] && (
+                        <ImThreadConnection
+                          status={imThreadStatus[thread.id]!}
+                          locale={locale}
                         />
-                        {imThreadStatus[thread.id] && (
-                          <ImThreadConnection
-                            status={imThreadStatus[thread.id]!}
-                            locale={locale}
-                          />
-                        )}
-                        <span
-                          className="thread-title"
-                          onPointerEnter={prepareThreadTitleScroll}
-                          title={visibleThreadTitle(thread.title)}
-                        >
-                          <span className="thread-title-text">
-                            <span>{visibleThreadTitle(thread.title)}</span>
-                            <span
-                              aria-hidden="true"
-                              className="thread-title-copy"
-                            >
-                              {visibleThreadTitle(thread.title)}
-                            </span>
+                      )}
+                      <span
+                        className="thread-title"
+                        onPointerEnter={prepareThreadTitleScroll}
+                        title={visibleThreadTitle(thread.title)}
+                      >
+                        <span className="thread-title-text">
+                          <span>{visibleThreadTitle(thread.title)}</span>
+                          <span
+                            aria-hidden="true"
+                            className="thread-title-copy"
+                          >
+                            {visibleThreadTitle(thread.title)}
                           </span>
                         </span>
-                        <time
-                          className="thread-time"
-                          dateTime={thread.updatedAt}
-                          title={new Date(thread.updatedAt).toLocaleString(
-                            locale,
-                          )}
-                        >
-                          {formatSidebarTime(thread.updatedAt, clockMs, locale)}
-                        </time>
-                      </button>
-                      <button
-                        aria-label={t.moreActions}
-                        aria-haspopup="menu"
-                        aria-expanded={threadMenuId === thread.id}
-                        className="thread-action"
-                        onClick={(event) => {
-                          threadMenuAnchor.current = event.currentTarget;
-                          setProjectMenuId(undefined);
-                          setThreadMenuId((current) =>
-                            current === thread.id ? undefined : thread.id,
-                          );
-                        }}
-                        title={t.moreActions}
-                        type="button"
+                      </span>
+                      <time
+                        className="thread-time"
+                        dateTime={thread.updatedAt}
+                        title={new Date(thread.updatedAt).toLocaleString(
+                          locale,
+                        )}
                       >
-                        <ArtemisIcon name="more" width={16} height={16} />
-                      </button>
-                      {threadMenuId === thread.id && (
-                        <Popover
-                          anchorRef={threadMenuAnchor}
-                          align="end"
-                          className="thread-menu"
-                          label={t.moreActions}
-                          onOpenChange={(open) => {
-                            if (!open) setThreadMenuId(undefined);
-                          }}
-                          open
-                          role="menu"
+                        {formatSidebarTime(thread.updatedAt, clockMs, locale)}
+                      </time>
+                    </button>
+                    <button
+                      aria-label={t.moreActions}
+                      aria-haspopup="menu"
+                      aria-expanded={threadMenuId === thread.id}
+                      className="thread-action"
+                      onClick={(event) => {
+                        threadMenuAnchor.current = event.currentTarget;
+                        setProjectMenuId(undefined);
+                        setThreadMenuId((current) =>
+                          current === thread.id ? undefined : thread.id,
+                        );
+                      }}
+                      title={t.moreActions}
+                      type="button"
+                    >
+                      <ArtemisIcon name="more" width={16} height={16} />
+                    </button>
+                    {threadMenuId === thread.id && (
+                      <Popover
+                        anchorRef={threadMenuAnchor}
+                        align="end"
+                        className="thread-menu"
+                        label={t.moreActions}
+                        onOpenChange={(open) => {
+                          if (!open) setThreadMenuId(undefined);
+                        }}
+                        open
+                        role="menu"
+                      >
+                        <button
+                          role="menuitem"
+                          onClick={() => beginRenameThread(thread)}
                         >
-                          <button
-                            role="menuitem"
-                            onClick={() => beginRenameThread(thread)}
-                          >
-                            <ArtemisIcon name="edit" width={16} height={16} />
-                            <span>{t.renameTask}</span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            disabled={
-                              thread.status === "running" ||
-                              thread.status === "waiting-approval"
-                            }
-                            onClick={() => void forkThread(thread)}
-                          >
-                            <ArtemisIcon name="branch" width={16} height={16} />
-                            <span>{t.forkTask}</span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            disabled={
-                              thread.status === "running" ||
-                              thread.status === "waiting-approval"
-                            }
-                            onClick={() => void setThreadArchived(thread, true)}
-                          >
-                            <ArtemisIcon
-                              name="archive"
-                              width={16}
-                              height={16}
-                            />
-                            <span>{t.archiveTask}</span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            className="danger"
-                            disabled={
-                              thread.status === "running" ||
-                              thread.status === "waiting-approval"
-                            }
-                            onClick={() => void deleteThread(thread)}
-                          >
-                            <ArtemisIcon name="trash" width={16} height={16} />
-                            <span>{t.deleteTask}</span>
-                          </button>
-                        </Popover>
-                      )}
-                    </>
-                  )}
+                          <ArtemisIcon name="edit" width={16} height={16} />
+                          <span>{t.renameTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          disabled={
+                            thread.status === "running" ||
+                            thread.status === "waiting-approval"
+                          }
+                          onClick={() => void forkThread(thread)}
+                        >
+                          <ArtemisIcon name="branch" width={16} height={16} />
+                          <span>{t.forkTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          disabled={
+                            thread.status === "running" ||
+                            thread.status === "waiting-approval"
+                          }
+                          onClick={() => void setThreadArchived(thread, true)}
+                        >
+                          <ArtemisIcon name="archive" width={16} height={16} />
+                          <span>{t.archiveTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          className="danger"
+                          disabled={
+                            thread.status === "running" ||
+                            thread.status === "waiting-approval"
+                          }
+                          onClick={() => void deleteThread(thread)}
+                        >
+                          <ArtemisIcon name="trash" width={16} height={16} />
+                          <span>{t.deleteTask}</span>
+                        </button>
+                      </Popover>
+                    )}
+                  </>
                 </div>
               ))}
               {query.trim() && temporaryThreads.length === 0 && (
@@ -9178,6 +9113,73 @@ export function App() {
           </>
         )}
       </section>
+
+      {threadRename && (
+        <Dialog
+          className="thread-rename-dialog"
+          label={t.renameTaskTitle}
+          aria-describedby="thread-rename-hint"
+          initialFocusRef={threadRenameInput}
+          returnFocusRef={threadMenuAnchor}
+          onOpenChange={(open) => {
+            if (!open) setThreadRename(undefined);
+          }}
+          open
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const thread = snapshot?.threads.find(
+                (item) => item.id === threadRename.threadId,
+              );
+              if (thread && threadRename.title.trim())
+                void renameThread(thread, threadRename.title);
+            }}
+          >
+            <header>
+              <h2>{t.renameTaskTitle}</h2>
+              <button
+                aria-label={t.renameClose}
+                className="thread-rename-close"
+                onClick={() => setThreadRename(undefined)}
+                type="button"
+              >
+                <CloseIcon />
+              </button>
+            </header>
+            <p id="thread-rename-hint">{t.renameTaskHint}</p>
+            <input
+              aria-label={t.taskNamePrompt}
+              className="thread-rename-input"
+              ref={threadRenameInput}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => {
+                const title = event.currentTarget.value;
+                setThreadRename((current) =>
+                  current ? { ...current, title } : current,
+                );
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && event.nativeEvent.isComposing)
+                  event.preventDefault();
+              }}
+              value={threadRename.title}
+            />
+            <footer>
+              <button type="button" onClick={() => setThreadRename(undefined)}>
+                {t.renameCancel}
+              </button>
+              <button
+                className="thread-rename-save"
+                type="submit"
+                disabled={!threadRename.title.trim()}
+              >
+                {t.renameSave}
+              </button>
+            </footer>
+          </form>
+        </Dialog>
+      )}
 
       {settingsOpen && (
         <Suspense

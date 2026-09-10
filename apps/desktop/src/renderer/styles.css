@@ -613,26 +613,76 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   cursor: default;
 }
 
-.thread-rename-form {
+.thread-rename-dialog {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  color: var(--text);
+  padding: 28px;
+  width: min(480px, calc(100vw - 48px));
+}
+
+.thread-rename-dialog header,
+.thread-rename-dialog footer {
   align-items: center;
   display: flex;
-  flex: 1;
-  gap: 8px;
-  height: 100%;
-  min-width: 0;
-  padding: 0 6px 0 30px;
+  justify-content: space-between;
+}
+
+.thread-rename-dialog h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.thread-rename-dialog p {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 8px 0 24px;
+}
+
+.thread-rename-close {
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  height: 28px;
+  place-items: center;
+  width: 28px;
 }
 
 .thread-rename-input {
-  background: var(--panel-2);
-  border: 1px solid var(--blue);
-  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   color: var(--text);
   font: inherit;
-  min-width: 0;
-  outline: none;
-  padding: 3px 5px;
+  font-size: 15px;
+  padding: 12px;
   width: 100%;
+}
+
+.thread-rename-dialog footer {
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.thread-rename-dialog footer button {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 72px;
+  padding: 10px 18px;
+}
+
+.thread-rename-dialog .thread-rename-save {
+  background: var(--text);
+  color: var(--panel-2);
+}
+
+.thread-rename-dialog .thread-rename-save:disabled {
+  opacity: 0.4;
 }
 
 .project-action,
