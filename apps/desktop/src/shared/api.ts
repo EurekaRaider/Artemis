@@ -750,6 +750,12 @@ export interface ProjectGitPushResult {
   gitInfo: ProjectGitInfo;
 }
 
+export interface AttachmentImportResult {
+  attachments: PromptAttachment[];
+  errors: string[];
+}
+export type AttachmentImportResponse =
+  PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
   onImTaskCreated(listener: (thread: Thread) => void): () => void;
   getImStatus(): Promise<
@@ -793,8 +799,13 @@ export interface ArtemisApi {
     projectId: string,
     threadId?: string,
   ): Promise<ProjectGitPushResult>;
-  selectPromptAttachments(): Promise<PromptAttachment[] | undefined>;
-  readPromptAttachments(files: File[]): Promise<PromptAttachment[]>;
+  previewPromptAttachment(id: string): Promise<PromptImage>;
+  cancelPromptAttachment(id: string): Promise<void>;
+  preparePromptAttachment(
+    id: string,
+  ): Promise<import("@artemis/protocol").PromptAttachmentReference>;
+  selectPromptAttachments(): Promise<AttachmentImportResponse | undefined>;
+  readPromptAttachments(files: File[]): Promise<AttachmentImportResponse>;
   readTaskSourceImage(threadId: string, sourceId: string): Promise<PromptImage>;
   createThread(input: CreateThreadInput): Promise<Thread | undefined>;
   setThreadModelSelection(
@@ -1091,6 +1102,10 @@ export const IPC = {
   projectGitPush: "artemis:project-git-push",
   projectGitChanged: "artemis:project-git-changed",
   promptAttachmentsSelect: "artemis:prompt-attachments-select",
+  promptAttachmentPreview: "artemis:prompt-attachment-preview",
+  promptAttachmentCancel: "artemis:prompt-attachment-cancel",
+  promptAttachmentImport: "artemis:prompt-attachment-import",
+  promptAttachmentPrepare: "artemis:prompt-attachment-prepare",
   promptAttachmentsRead: "artemis:prompt-attachments-read",
   taskSourceImageRead: "artemis:task-source-image-read",
   threadCreate: "artemis:thread-create",

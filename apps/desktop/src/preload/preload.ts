@@ -62,14 +62,60 @@ const api: ArtemisApi = {
     ),
   pushProjectBranch: (projectId, threadId) =>
     ipcRenderer.invoke(IPC.projectGitPush, projectId, threadId),
+  preparePromptAttachment: (id) =>
+    ipcRenderer.invoke(IPC.promptAttachmentPrepare, id),
   selectPromptAttachments: () =>
     ipcRenderer.invoke(IPC.promptAttachmentsSelect),
-  readPromptAttachments: (files) =>
-    readPromptAttachmentsFromFiles(
-      files,
-      (file) => webUtils.getPathForFile(file),
-      (paths) => ipcRenderer.invoke(IPC.promptAttachmentsRead, paths),
-    ),
+  previewPromptAttachment: (id) =>
+    ipcRenderer.invoke(IPC.promptAttachmentPreview, id),
+  cancelPromptAttachment: (id) =>
+    ipcRenderer.invoke(IPC.promptAttachmentCancel, id),
+  readPromptAttachments: async (files) => {
+    const accepted: File[] = [],
+      errors: string[] = [];
+    let bytes = 0,
+      images = 0,
+      documents = 0;
+    for (const file of files.slice(0, 30)) {
+      const image = file.type.startsWith("image/");
+      if (
+        bytes + file.size > 200 * 1024 * 1024 ||
+        file.size > (image ? 10 : 100) * 1024 * 1024 ||
+        (image ? images >= 20 : documents >= 10)
+      ) {
+        errors.push(`Attachment exceeds the message limits: ${file.name}`);
+        continue;
+      }
+      accepted.push(file);
+      bytes += file.size;
+      if (image) images++;
+      else documents++;
+    }
+    const results = await Promise.allSettled(
+      accepted.map((file) =>
+        readPromptAttachmentsFromFiles(
+          [file],
+          (file) => webUtils.getPathForFile(file),
+          (paths) => ipcRenderer.invoke(IPC.promptAttachmentsRead, paths),
+          (item) => ipcRenderer.invoke(IPC.promptAttachmentImport, item),
+        ),
+      ),
+    );
+    return {
+      attachments: results.flatMap((result) =>
+        result.status === "fulfilled" ? result.value : [],
+      ),
+      errors: [
+        ...errors,
+        ...(files.length > 30
+          ? ["Only the first 30 attachments were imported."]
+          : []),
+        ...results.flatMap((result) =>
+          result.status === "rejected" ? [String(result.reason)] : [],
+        ),
+      ],
+    };
+  },
   readTaskSourceImage: (threadId, sourceId) =>
     ipcRenderer.invoke(IPC.taskSourceImageRead, threadId, sourceId),
   createThread: (input) => ipcRenderer.invoke(IPC.threadCreate, input),

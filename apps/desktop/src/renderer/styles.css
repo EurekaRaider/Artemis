@@ -5570,16 +5570,158 @@ button.environment-row:disabled {
   z-index: 20;
 }
 
-.composer-attachments,
+.composer-attachments {
+  margin: 8px 12px 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.composer-attachments-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  cursor: pointer;
+  list-style: none;
+}
+.composer-attachments-summary::-webkit-details-marker {
+  display: none;
+}
+.composer-attachments-summary strong {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.composer-attachments-thumbnails {
+  display: flex;
+  flex: none;
+  padding-right: 4px;
+}
+.composer-attachments-thumbnails > * {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border: 2px solid var(--artemis-color-surface-sunken);
+  border-radius: 6px;
+  margin-right: -4px;
+  background: var(--artemis-color-surface-sunken);
+  text-align: center;
+}
+.composer-attachments-status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.composer-attachments-chevron {
+  margin-left: auto;
+}
+.composer-attachments[open] .composer-attachments-chevron {
+  transform: rotate(180deg);
+}
+.composer-attachments-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 11px;
+}
+.composer-attachments-actions button {
+  flex: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.composer-attachments-list {
+  max-height: 160px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--border-soft);
+}
+.composer-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+.composer-attachment-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.composer-attachment-preview:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.composer-attachment-preview img {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex: none;
+}
+.composer-attachment-preview > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-attachment-state {
+  flex: none;
+  font-size: 11px;
+}
+.composer-attachment-remove {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.composer-attachment-remove:hover {
+  color: var(--danger);
+  background: var(--hover);
+}
+.composer-attachment-dialog {
+  max-width: 85vw;
+  max-height: 85vh;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--artemis-color-surface-sunken);
+  color: var(--text);
+}
+.composer-attachment-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.composer-attachment-dialog header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.composer-attachment-dialog header strong {
+  overflow-wrap: anywhere;
+}
+.composer-attachment-dialog button {
+  min-width: 28px;
+  cursor: pointer;
+}
+.composer-attachment-dialog > img {
+  display: block;
+  max-width: 78vw;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
 .message-attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-.composer-attachments {
-  margin: 8px 12px 0;
-}
-.composer-attachment,
 .user-message-attachment {
   display: inline-flex;
   align-items: center;
@@ -5595,40 +5737,6 @@ button.environment-row:disabled {
   font-family: var(--artemis-typography-mono-family);
   font-size: 10.5px;
 }
-.composer-attachment img {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  object-fit: cover;
-  flex: none;
-}
-.composer-file-preview {
-  display: flex;
-  align-items: center;
-  flex: none;
-}
-.composer-file-preview svg {
-  width: 14px;
-  height: 14px;
-}
-.composer-attachment button {
-  order: 2;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border-radius: 5px;
-  color: var(--muted-2);
-  font-size: 14px;
-  cursor: pointer;
-}
-.composer-attachment button:hover {
-  background: var(--hover);
-  color: var(--danger);
-}
-.composer-attachment figcaption,
 .user-message-attachment > span {
   min-width: 0;
   overflow: hidden;

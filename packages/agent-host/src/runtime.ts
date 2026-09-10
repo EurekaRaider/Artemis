@@ -1,3 +1,15 @@
+import { createAttachmentTools } from "./attachment-tools.js";
+import {
+  withAttachmentContextBudget,
+  attachmentTextTokens,
+  inputTokenLimit,
+  estimateRequestTokens,
+  attachmentImageTokens,
+} from "./attachment-context.js";
+import {
+  type AttachmentOperation,
+  isAttachmentReference,
+} from "@artemis/protocol";
 import {
   createRemoteTools,
   createRemoteChildTools,
@@ -761,6 +773,9 @@ function toSessionImages(
   }
   return images.map((attachment) => ({
     type: "image",
+    ...(attachment.attachmentId
+      ? { attachmentId: attachment.attachmentId }
+      : {}),
     data: attachment.data,
     mimeType: attachment.mimeType,
   }));
@@ -1494,7 +1509,10 @@ export class ArtemisAgentHost {
     }).then((runtime) => {
       registerArtemisBuiltinModels(runtime);
       return withConnectionRecovery(
-        withPromptCacheController(runtime, this.promptCache),
+        withPromptCacheController(
+          withAttachmentContextBudget(runtime),
+          this.promptCache,
+        ),
         (sessionId, update) => this.handleConnectionRecovery(sessionId, update),
         { idleTimeoutMs: this.modelStreamIdleTimeoutMs },
       );
@@ -2790,6 +2808,52 @@ export class ArtemisAgentHost {
             (tool) => tool.name === "collaborate",
           )
         : [];
+    const invokeAttachmentOperation = async (
+      operation: AttachmentOperation,
+      session?: HostedThread["session"],
+    ) => {
+      const hosted = this.requireActiveThread(request.threadId);
+      const targetSession = session ?? hosted.session;
+      const model = targetSession.model;
+      const remaining = model
+        ? inputTokenLimit(model) -
+          estimateRequestTokens(model, {
+            systemPrompt: targetSession.systemPrompt,
+            messages: targetSession.messages,
+            tools: targetSession.agent.state.tools,
+          })
+        : 0;
+      const result = await this.broker.request({
+        kind: "attachment.read",
+        approvalId: randomUUID(),
+        threadId: request.threadId,
+        turnId: hosted.currentTurnId!,
+        mode: hosted.currentMode!,
+        operation: {
+          ...operation,
+          maxTokens: Math.min(4000, Math.max(0, remaining - 256)),
+        },
+      });
+      if (!result.approved)
+        throw new Error(result.error ?? "Attachment read denied");
+      const image = result.data as {
+        data?: string;
+        width?: number;
+        height?: number;
+      };
+      if (typeof image?.data === "string" && model) {
+        if (!model.input.includes("image"))
+          throw new Error(
+            "The selected model cannot view images. Select a vision model.",
+          );
+        if (attachmentImageTokens(model, image.width, image.height) > remaining)
+          throw new Error(
+            "Compact the task before viewing another attachment image.",
+          );
+      }
+      return result.data;
+    };
+    const attachmentTools = createAttachmentTools(invokeAttachmentOperation);
     const readTool = defineTool({
       name: "read",
       label: "Read file",
@@ -4678,6 +4742,9 @@ export class ArtemisAgentHost {
                   resourceLoader: childResourceLoader,
                   noTools: "builtin",
                   customTools: [
+                    ...createAttachmentTools((operation) =>
+                      invokeAttachmentOperation(operation, child.session),
+                    ),
                     ...childRemoteTools,
                     readTool,
                     webSearchTool,
@@ -4697,6 +4764,9 @@ export class ArtemisAgentHost {
                   ],
                   tools: [
                     ...childRemoteTools.map((tool) => tool.name),
+                    "attachment_list",
+                    "attachment_read",
+                    "attachment_search",
                     "read",
                     "web_search",
                     "write",
@@ -4738,6 +4808,7 @@ export class ArtemisAgentHost {
                       childRemoteTools.some(
                         (candidate) => candidate.name === tool.name,
                       ) ||
+                      tool.name.startsWith("attachment_") ||
                       tool.name === "read" ||
                       tool.name === "web_search" ||
                       tool.name === "spawn_agent" ||
@@ -5018,6 +5089,7 @@ export class ArtemisAgentHost {
       resourceLoader,
       noTools: "builtin",
       customTools: [
+        ...attachmentTools,
         ...remoteTools,
         readTool,
         webSearchTool,
@@ -5054,6 +5126,9 @@ export class ArtemisAgentHost {
         ...remoteTools.map((tool) => tool.name),
         "read",
         "web_search",
+        "attachment_list",
+        "attachment_read",
+        "attachment_search",
         "local_file_read",
         "local_file_write",
         "request_user_input",
@@ -5196,6 +5271,7 @@ export class ArtemisAgentHost {
         remoteTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "read" ||
         tool.name === "web_search" ||
+        tool.name.startsWith("attachment_") ||
         tool.name === "local_file_read" ||
         tool.name === "local_file_write" ||
         tool.name === "request_user_input" ||
@@ -5242,6 +5318,9 @@ export class ArtemisAgentHost {
       ),
       mcpDirectToolNames,
       delegatedTools: [
+        ...session.agent.state.tools.filter((tool) =>
+          tool.name.startsWith("attachment_"),
+        ),
         readSessionTool,
         webSearchSessionTool,
         requestUserInputSessionTool,
@@ -5392,6 +5471,11 @@ export class ArtemisAgentHost {
     hosted.session.agent.state.tools =
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
+    const preparedAttachments = await this.prepareAttachments(
+      hosted,
+      attachments,
+      text,
+    );
     const prompt = appendPromptFiles(
       buildTurnPrompt(
         mode,
@@ -5401,13 +5485,13 @@ export class ArtemisAgentHost {
         interruptedTeamContext,
         collaborationContext,
       ),
-      attachments,
+      preparedAttachments,
     );
     const expandedPrompt = await expandSkillInvocations(
       prompt,
       hosted.resourceLoader.getSkills().skills,
     );
-    const images = toSessionImages(attachments);
+    const images = toSessionImages(preparedAttachments);
     if (recovery) reconcileInterruptedTools(hosted.session, recovery);
     this.promptCache.updateParentTurnCount(
       hosted.session.sessionId,
@@ -5604,6 +5688,102 @@ export class ArtemisAgentHost {
     } finally {
       hosted.compacting = false;
     }
+  }
+
+  private async prepareAttachments(
+    hosted: HostedThread,
+    attachments: PromptAttachment[] | undefined,
+    text: string,
+  ): Promise<PromptAttachment[] | undefined> {
+    if (!attachments?.some(isAttachmentReference)) return attachments;
+    const model = hosted.session.model;
+    if (!model) return attachments;
+    const requestContext = {
+      systemPrompt: hosted.session.systemPrompt,
+      messages: hosted.session.messages,
+      tools: hosted.session.agent.state.tools,
+    };
+    let remaining =
+      inputTokenLimit(model) -
+      estimateRequestTokens(model, requestContext) -
+      attachmentTextTokens(text) -
+      2048;
+    if (remaining < 1024 && hosted.session.messages.length) {
+      await hosted.session.compact();
+      remaining =
+        inputTokenLimit(model) -
+        estimateRequestTokens(model, {
+          ...requestContext,
+          messages: hosted.session.messages,
+        }) -
+        attachmentTextTokens(text) -
+        2048;
+    }
+    let documentBudget = Math.max(
+      0,
+      Math.min(8000, Math.floor(model.contextWindow * 0.05), remaining),
+    );
+    const result: PromptAttachment[] = [];
+    for (const item of attachments) {
+      result.push(item);
+      if (!isAttachmentReference(item) || item.status === "error") continue;
+      if (
+        item.kind === "image" &&
+        (!model.input.includes("image") ||
+          remaining < attachmentImageTokens(model))
+      )
+        continue;
+      if (
+        item.kind === "file" &&
+        (item.characters === undefined || item.characters > documentBudget)
+      )
+        continue;
+      const response = await this.broker.request({
+        kind: "attachment.read",
+        approvalId: randomUUID(),
+        threadId: hosted.threadId,
+        turnId: hosted.currentTurnId!,
+        mode: hosted.currentMode!,
+        operation: {
+          action: "read",
+          id: item.id,
+          maxTokens:
+            item.kind === "image" ? 4000 : Math.min(4000, documentBudget),
+        },
+      });
+      if (!response.approved) continue;
+      const value = response.data as {
+        data?: string;
+        mimeType?: string;
+        text?: string;
+        nextOffset?: number;
+        totalCharacters?: number;
+      };
+      if (value.data && value.mimeType) {
+        result.push({
+          attachmentId: item.id,
+          name: item.name,
+          mimeType: value.mimeType as PromptImage["mimeType"],
+          data: value.data,
+        });
+        remaining -= attachmentImageTokens(model);
+      } else if (
+        value.text &&
+        value.nextOffset === undefined &&
+        attachmentTextTokens(value.text) <= documentBudget
+      ) {
+        result.push({
+          type: "file",
+          name: item.name,
+          mimeType: item.mimeType,
+          content: value.text,
+        });
+        const cost = attachmentTextTokens(value.text);
+        documentBudget -= cost;
+        remaining -= cost;
+      }
+    }
+    return result;
   }
 
   async steer(

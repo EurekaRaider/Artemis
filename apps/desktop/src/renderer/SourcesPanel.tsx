@@ -1,3 +1,4 @@
+import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   type AppLocale,
@@ -501,7 +502,7 @@ export function SourcesPanel({
           </h2>
         )}
         {attachments.map((attachment, index) => {
-          const image = !("type" in attachment);
+          const image = attachmentIsImage(attachment);
           const imageKey = `draft:${index}:${attachment.name}`;
           const unavailable = unavailableImages.has(imageKey);
           const content = (
@@ -510,7 +511,13 @@ export function SourcesPanel({
                 <img
                   alt=""
                   onError={() => markUnavailable(imageKey)}
-                  src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                  src={
+                    isAttachmentReference(attachment)
+                      ? attachment.thumbnail
+                      : !("type" in attachment)
+                        ? `data:${attachment.mimeType};base64,${attachment.data}`
+                        : undefined
+                  }
                 />
               ) : (
                 <SourceEntryIcon>
@@ -531,7 +538,12 @@ export function SourcesPanel({
               label={`${t.openImage}: ${attachment.name}`}
               onClick={() => {
                 setPreviewError(undefined);
-                setPreview(attachment);
+                if (!("type" in attachment)) setPreview(attachment);
+                else if (isAttachmentReference(attachment))
+                  void window.artemis
+                    .previewPromptAttachment(attachment.id)
+                    .then(setPreview)
+                    .catch(() => setPreviewError(t.previewUnavailable));
               }}
             >
               {content}

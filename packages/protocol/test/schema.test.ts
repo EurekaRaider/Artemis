@@ -397,7 +397,7 @@ describe("prompt attachment schemas", () => {
       data: "aGVsbG8=",
     };
     expect(
-      promptAttachmentsSchema.safeParse(Array.from({ length: 5 }, () => image))
+      promptAttachmentsSchema.safeParse(Array.from({ length: 21 }, () => image))
         .success,
     ).toBe(false);
 

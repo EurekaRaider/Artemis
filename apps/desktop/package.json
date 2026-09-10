@@ -73,7 +73,9 @@
     "seti-file-icons": "0.0.8",
     "smol-toml": "^1.7.1",
     "tar": "7.5.22",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@napi-rs/canvas": "1.0.2",
+    "pdfjs-dist": "6.2.108"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

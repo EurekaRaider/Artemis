@@ -27,6 +27,10 @@ function fixture() {
   });
   let compactThread: (_event: unknown, threadId: string) => Promise<void>;
   const scope = {
+    attachmentStore: () => ({
+      bind: async (_thread: string, items: unknown[]) => items,
+    }),
+    attachmentScope: (id: string) => id,
     IPC: { threadCompact: "compact" },
     ipcMain: {
       handle: (_name: string, handler: typeof compactThread) => {

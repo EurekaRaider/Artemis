@@ -44,6 +44,19 @@ const shared = {
 await Promise.all([
   build({
     ...shared,
+    entryPoints: ["src/main/attachment-worker.ts"],
+    banner: esmRequireBridge,
+    external: [
+      ...shared.external,
+      "officeparser",
+      "pdfjs-dist",
+      "@napi-rs/canvas",
+    ],
+    format: "esm",
+    outfile: "dist-electron/attachment-worker.js",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/main/main.ts"],
     banner: esmRequireBridge,
     format: "esm",

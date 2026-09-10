@@ -1,13 +1,15 @@
 import {
   MAX_PROMPT_ATTACHMENTS,
+  MAX_PROMPT_FILE_BYTES,
+  MAX_PROMPT_IMAGE_BYTES,
+  MAX_PROMPT_TOTAL_BYTES,
+  attachmentIsImage,
   MAX_PROMPT_IMAGES,
   promptAttachmentsSchema,
   type PromptAttachment,
   type PromptImage,
 } from "@artemis/protocol";
 
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const supportedImageMimeTypes = new Set<PromptImage["mimeType"]>([
   "image/png",
   "image/jpeg",
@@ -45,6 +47,7 @@ export async function readPromptAttachmentsFromFiles(
   files: readonly File[],
   resolveFilePath: ResolveFilePath,
   loadPaths: LoadPaths,
+  importInline?: (item: PromptAttachment) => Promise<PromptAttachment>,
 ): Promise<PromptAttachment[]> {
   if (files.length === 0 || files.length > MAX_PROMPT_ATTACHMENTS) {
     throw new Error(
@@ -59,12 +62,17 @@ export async function readPromptAttachmentsFromFiles(
   let totalBytes = 0;
 
   for (const [index, file] of files.entries()) {
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      throw new Error(`Attachment is larger than 10 MiB: ${file.name}`);
+    if (
+      file.size >
+      (isSupportedImageMimeType(file.type)
+        ? MAX_PROMPT_IMAGE_BYTES
+        : MAX_PROMPT_FILE_BYTES)
+    ) {
+      throw new Error(`Attachment exceeds the file size limit: ${file.name}`);
     }
     totalBytes += file.size;
-    if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
-      throw new Error("Attachments exceed the 20 MiB total limit.");
+    if (totalBytes > MAX_PROMPT_TOTAL_BYTES) {
+      throw new Error("Attachments exceed the 200 MiB total limit.");
     }
 
     const path = resolveFilePath(file);
@@ -83,6 +91,8 @@ export async function readPromptAttachmentsFromFiles(
       mimeType: file.type,
       data: encodeBase64(await file.arrayBuffer()),
     };
+    if (importInline)
+      attachments[index] = await importInline(attachments[index]!);
   }
 
   if (localFiles.length > 0) {
@@ -101,10 +111,7 @@ export async function readPromptAttachmentsFromFiles(
   if (complete.length !== attachments.length) {
     throw new Error("Some pasted attachments could not be read.");
   }
-  if (
-    complete.filter((attachment) => !("type" in attachment)).length >
-    MAX_PROMPT_IMAGES
-  ) {
+  if (complete.filter(attachmentIsImage).length > MAX_PROMPT_IMAGES) {
     throw new Error(`Attach no more than ${MAX_PROMPT_IMAGES} images.`);
   }
   return promptAttachmentsSchema.parse(complete);

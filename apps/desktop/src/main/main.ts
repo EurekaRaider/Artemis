@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { AttachmentStore } from "./attachment-store.js";
+import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { ImService } from "./im-service.js";
 import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
@@ -162,7 +165,6 @@ import {
   deletePiSessionTranscript,
   piSessionsRoot,
 } from "./pi-session-delete.js";
-import { loadPromptAttachments } from "./prompt-attachments.js";
 import { RecoverableTurnQueues } from "./recoverable-turn-queue.js";
 import {
   GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
@@ -720,6 +722,20 @@ let shuttingDown = false;
 const recoverableTurnQueues = new RecoverableTurnQueues();
 let agentHostRestart: Promise<void> | undefined;
 
+let attachmentStoreInstance: AttachmentStore | undefined;
+function attachmentStore(): AttachmentStore {
+  return (attachmentStoreInstance ??= new AttachmentStore(
+    join(app.getPath("userData"), "attachments"),
+  ));
+}
+function attachmentScope(threadId: string): string {
+  const profile = imService?.profile(threadId);
+  return profile
+    ? `${threadId}_${createHash("sha256")
+        .update(JSON.stringify(profile.security ?? profile))
+        .digest("hex")}`
+    : threadId;
+}
 function taskSourceImages(): TaskSourceImageStore {
   taskSourceImageStore ??= new TaskSourceImageStore(
     join(app.getPath("userData"), "task-source-images"),
@@ -3003,7 +3019,9 @@ async function emitInitialTurn(
     sourceId: randomUUID(),
     name: attachment.name,
     mimeType: attachment.mimeType,
-    kind: "type" in attachment ? ("file" as const) : ("image" as const),
+    kind: attachmentIsImage(attachment)
+      ? ("image" as const)
+      : ("file" as const),
     attachment,
   }));
   const savedImages = attachmentPayloads.filter(
@@ -3032,9 +3050,10 @@ async function emitInitialTurn(
     ...(visibleUserMessage
       ? [{ type: "user.message" as const, messageId: randomUUID(), text }]
       : []),
-    ...attachmentPayloads.map(
-      ({ attachment: _attachment, ...payload }): AgentPayload => payload,
-    ),
+    ...attachmentPayloads.map(({ attachment, ...payload }): AgentPayload => ({
+      ...payload,
+      ...(isAttachmentReference(attachment) ? { attachment } : {}),
+    })),
     { type: "turn.started", mode },
   ];
   for (const payload of payloads) observeTurnPayload(turnId, payload);
@@ -3951,7 +3970,11 @@ async function handleBrokerRequest(
         cancellingTurns.has(request.threadId)
       )
         throw new Error("Remote operation requires the current active turn.");
-      if (request.kind !== "remote.operation" && request.kind !== "user.input")
+      if (
+        request.kind !== "remote.operation" &&
+        request.kind !== "user.input" &&
+        request.kind !== "attachment.read"
+      )
         throw new Error(
           "This tool is not in the owner's remote permission profile.",
         );
@@ -3965,6 +3988,39 @@ async function handleBrokerRequest(
     }
   }
   switch (request.kind) {
+    case "attachment.read": {
+      try {
+        if (
+          activeTurns.get(request.threadId) !== request.turnId ||
+          store.getThread(request.threadId)?.mode !== request.mode ||
+          cancellingTurns.has(request.threadId)
+        )
+          throw new Error("Attachment access requires the current active turn");
+        const result = await attachmentStore().operate(
+          attachmentScope(request.threadId),
+          request.operation,
+        );
+        agentProcess.post({
+          type: "broker.resolve",
+          requestId: workerRequestId,
+          resolution: {
+            approvalId: request.approvalId,
+            nonce: randomUUID(),
+            approved: true,
+            scope: "once",
+            source: "policy",
+          },
+          result,
+        });
+      } catch (error) {
+        rejectBrokerRequest(
+          workerRequestId,
+          request,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      return;
+    }
     case "remote.operation": {
       try {
         if (!imService) throw new Error("IM service is unavailable.");
@@ -5513,7 +5569,10 @@ async function startTaskTurnUnchecked(
     throw new Error("The Goal changed before its continuation could start.");
   }
   const text = input.text.trim();
-  const attachments = promptAttachmentsSchema.parse(input.attachments ?? []);
+  const attachments = await attachmentStore().bind(
+    attachmentScope(thread.id),
+    promptAttachmentsSchema.parse(input.attachments ?? []),
+  );
   if (!text && attachments.length === 0) {
     throw new Error("Prompt cannot be empty.");
   }
@@ -5913,6 +5972,11 @@ async function queueTurn(
   }
   const command = parseThreadCommand({ type, ...input });
   const thread = store.getThread(command.threadId);
+  if (thread && command.attachments?.length)
+    command.attachments = await attachmentStore().bind(
+      attachmentScope(thread.id),
+      command.attachments,
+    );
   if (thread && compactingThreads.has(thread.id) && !afterCompaction) {
     if (type !== "turn.follow-up")
       throw new Error("Wait for context compaction before steering this task.");
@@ -5963,7 +6027,8 @@ async function queueTurn(
       sourceId: randomUUID(),
       name: attachment.name,
       mimeType: attachment.mimeType,
-      kind: "type" in attachment ? "file" : "image",
+      kind: attachmentIsImage(attachment) ? "image" : "file",
+      ...(isAttachmentReference(attachment) ? { attachment } : {}),
     });
   }
 }
@@ -8926,7 +8991,9 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.promptAttachmentsSelect,
-    async (): Promise<PromptAttachment[] | undefined> => {
+    async (): Promise<
+      import("../shared/api.js").AttachmentImportResponse | undefined
+    > => {
       if (!mainWindow) {
         throw new Error("Application window is not ready.");
       }
@@ -8937,7 +9004,7 @@ function registerIpc(): void {
       if (result.canceled || result.filePaths.length === 0) {
         return undefined;
       }
-      return loadPromptAttachments(result.filePaths);
+      return attachmentStore().importPaths(result.filePaths);
     },
   );
   ipcMain.handle(
@@ -8949,9 +9016,41 @@ function registerIpc(): void {
       ) {
         throw new Error("Dropped attachment paths are invalid.");
       }
-      return loadPromptAttachments(paths);
+      if (paths.length > 30)
+        throw new Error("Attach no more than 30 files at a time");
+      return Promise.all(
+        paths.map((path) => attachmentStore().importPath(path)),
+      );
     },
   );
+  ipcMain.handle(IPC.promptAttachmentImport, async (_event, item: unknown) => {
+    const [attachment] = promptAttachmentsSchema.parse([item]);
+    return attachmentStore().importInline(attachment!);
+  });
+  const attachmentPreparations = new Map<
+    string,
+    { controller: AbortController; promise: Promise<unknown> }
+  >();
+  ipcMain.handle(IPC.promptAttachmentPrepare, async (_event, id: string) => {
+    const controller = new AbortController();
+    const promise = attachmentStore().prepare(id, controller.signal);
+    attachmentPreparations.set(id, { controller, promise });
+    try {
+      return await promise;
+    } finally {
+      if (attachmentPreparations.get(id)?.controller === controller)
+        attachmentPreparations.delete(id);
+    }
+  });
+  ipcMain.handle(IPC.promptAttachmentPreview, async (_event, id: string) =>
+    promptImageSchema.parse(await attachmentStore().preview(id)),
+  );
+  ipcMain.handle(IPC.promptAttachmentCancel, async (_event, id: string) => {
+    const preparation = attachmentPreparations.get(id);
+    preparation?.controller.abort();
+    await preparation?.promise.catch(() => undefined);
+    await attachmentStore().discardDraft(id);
+  });
   ipcMain.handle(
     IPC.taskSourceImageRead,
     async (
@@ -8977,6 +9076,17 @@ function registerIpc(): void {
         source.kind !== "image"
       ) {
         throw new Error("Task source image was not found.");
+      }
+      if (source.attachment && isAttachmentReference(source.attachment)) {
+        const image = await attachmentStore().preview(
+          source.attachment.id,
+          attachmentScope(thread.id),
+        );
+        return promptImageSchema.parse({
+          name: source.name,
+          mimeType: image.mimeType,
+          data: image.data,
+        });
       }
       let data: string;
       try {
@@ -9407,6 +9517,7 @@ function registerIpc(): void {
       await turnChangeSetCompletionTails.get(threadId);
       await turnChangeSetService?.deleteThread(threadId);
       await taskSourceImages().deleteThread(threadId);
+      await attachmentStore().deleteThread(attachmentScope(threadId));
       store.deleteThread(threadId);
       imService?.deleteThread(threadId);
       await cleanupGoalObjective(goalObjective);
@@ -9473,6 +9584,10 @@ function registerIpc(): void {
         create: () => ForkThreadResult,
       ): Promise<ForkThreadResult> => {
         await taskSourceImages().copyThread(source.id, forkedThread.id);
+        await attachmentStore().copyThread(
+          attachmentScope(source.id),
+          forkedThread.id,
+        );
         try {
           return create();
         } catch (error) {
@@ -20401,6 +20516,8 @@ app
       app.getPath("userData"),
       safeStorage,
       {
+        importAttachments: (paths) =>
+          Promise.all(paths.map((path) => attachmentStore().importPath(path))),
         projects: () =>
           store!.snapshot(
             currentLocale(),

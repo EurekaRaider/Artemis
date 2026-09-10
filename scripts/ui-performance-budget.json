@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 371000,
+      "desktopCssBytes": 374000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,

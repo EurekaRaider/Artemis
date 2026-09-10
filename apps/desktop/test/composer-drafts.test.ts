@@ -216,3 +216,43 @@ describe("conversation composer drafts", () => {
     expect(composerDraftFor(restored, secondKey).attachments).toEqual([]);
   });
 });
+
+it("accepts twenty images plus ten documents, then enforces aggregate bytes across additions", () => {
+  const image = {
+    name: "image.png",
+    mimeType: "image/png" as const,
+    data: "YWJj",
+  };
+  const images = Array.from({ length: 20 }, (_, i) => ({
+    ...image,
+    name: `image-${i}.png`,
+  }));
+  const files = Array.from({ length: 10 }, (_, i) => ({
+    type: "file" as const,
+    name: `file-${i}.txt`,
+    mimeType: "text/plain",
+    content: "text",
+  }));
+  const result = appendPromptAttachments(images, files);
+  expect(result.attachments).toHaveLength(30);
+  expect(result.limited).toBe(false);
+  const ref = {
+    type: "attachment" as const,
+    id: "00000000-0000-4000-8000-000000000000",
+    kind: "file" as const,
+    name: "large.txt",
+    mimeType: "text/plain",
+    size: 100 * 1024 * 1024,
+    status: "pending" as const,
+  };
+  const full = appendPromptAttachments(
+    [ref],
+    [{ ...ref, id: "00000000-0000-4000-8000-000000000001" }],
+  );
+  expect(full.attachments).toHaveLength(2);
+  const extra = appendPromptAttachments(full.attachments, [
+    { ...ref, size: 1 },
+  ]);
+  expect(extra.limited).toBe(true);
+  expect(extra.attachments).toHaveLength(2);
+});

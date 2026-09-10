@@ -150,6 +150,9 @@ export function isRemoteToolAllowed(
 ): boolean {
   return (
     remoteCommon.has(name) ||
+    ["attachment_list", "attachment_read", "attachment_search"].includes(
+      name,
+    ) ||
     (mode === "execute" &&
       (name === "remote_write" ||
         name === "collaborate" ||

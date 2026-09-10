@@ -67,7 +67,7 @@ describe("loadPromptAttachments", () => {
     );
 
     await expect(loadPromptAttachments(paths)).rejects.toThrow(
-      "Attach no more than 10 files",
+      "Attach no more than 10 documents",
     );
   });
 });

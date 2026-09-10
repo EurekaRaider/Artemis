@@ -71,6 +71,7 @@ import {
 } from "./im-sandbox.js";
 
 export interface ImTaskOperations {
+  importAttachments?(paths: string[]): Promise<PromptAttachment[]>;
   projects(): Project[];
   threads(): Thread[];
   thread(id: string): Thread | undefined;
@@ -2563,7 +2564,8 @@ export class ImService {
         await writeFile(path, bytes, { mode: 0o600 });
         paths.push(path);
       }
-      return await loadPromptAttachments(paths);
+      return await (this.ops.importAttachments?.(paths) ??
+        loadPromptAttachments(paths));
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

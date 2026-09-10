@@ -275,7 +275,26 @@ export type AgentHostCommand =
       error?: string;
     };
 
+export interface AttachmentOperation {
+  action: "list" | "read" | "search";
+  id?: string;
+  page?: number;
+  offset?: number;
+  query?: string;
+  visual?: boolean;
+  crop?: { x: number; y: number; width: number; height: number };
+  maxTokens?: number;
+}
+
 export type BrokerExecutionRequest =
+  | {
+      kind: "attachment.read";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      mode: RunMode;
+      operation: AttachmentOperation;
+    }
   | {
       kind: "remote.operation";
       approvalId: string;

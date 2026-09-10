@@ -1,3 +1,5 @@
+import { ComposerAttachments } from "./ComposerAttachments.js";
+import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
 import { ImMemberMentionMenu, useImMemberMentions } from "./ImMemberMentions";
@@ -616,7 +618,7 @@ const copy = {
     addAttachments: "Add files or images",
     removeAttachment: "Remove attachment",
     removeSelectedSkill: "Remove loaded Skill",
-    attachmentLimit: "You can attach up to 10 files, including 4 images.",
+    attachmentLimit: "Attach up to 20 images and 10 documents, 200 MiB total.",
     inspectAttachments: "Inspect the attached file(s).",
     dropAttachments: "Drop files to attach",
     dropAttachmentsDetail:
@@ -905,7 +907,7 @@ const copy = {
     addAttachments: "添加文件或图片",
     removeAttachment: "移除附件",
     removeSelectedSkill: "移除已加载 Skill",
-    attachmentLimit: "最多添加 10 个文件，其中图片不超过 4 张。",
+    attachmentLimit: "最多添加 20 张图片和 10 个文档，合计 200 MiB。",
     inspectAttachments: "请查看已附加的文件。",
     dropAttachments: "松开即可添加文件",
     dropAttachmentsDetail:
@@ -1071,10 +1073,6 @@ function CopyIcon() {
       />
     </Icon>
   );
-}
-
-function FileIcon() {
-  return <ArtemisIcon className="icon" height={24} name="file" width={24} />;
 }
 
 function isPromptImage(
@@ -4926,13 +4924,75 @@ export function App() {
   }, [activeThreadId, t.taskError]);
 
   const addPromptAttachments = useCallback(
-    (selected: PromptAttachment[]) => {
+    (response: import("../shared/api.js").AttachmentImportResponse) => {
+      const selected = Array.isArray(response)
+        ? response
+        : response.attachments;
+      if (!Array.isArray(response) && response.errors.length)
+        setToast(response.errors.join("\n"));
       const { attachments: next, limited } = appendPromptAttachments(
         draftAttachments.current.get(activeComposerDraftKey) ?? [],
         selected,
       );
       draftAttachments.current.set(activeComposerDraftKey, next);
       setAttachments(next);
+      for (const item of selected) {
+        if (!isAttachmentReference(item)) continue;
+        if (
+          !next.some(
+            (candidate) =>
+              isAttachmentReference(candidate) && candidate.id === item.id,
+          )
+        ) {
+          void window.artemis.cancelPromptAttachment(item.id);
+          continue;
+        }
+        if (item.status !== "pending") continue;
+        void pendingAttachmentReads.current.track(
+          activeComposerDraftKey,
+          window.artemis
+            .preparePromptAttachment(item.id)
+            .then((ready) => {
+              setComposerDrafts((drafts) =>
+                updateComposerDraft(
+                  drafts,
+                  activeComposerDraftKey,
+                  (draft) => ({
+                    ...draft,
+                    attachments: draft.attachments.map((candidate) =>
+                      isAttachmentReference(candidate) &&
+                      candidate.id === item.id
+                        ? { ...ready, name: candidate.name }
+                        : candidate,
+                    ),
+                  }),
+                ),
+              );
+              const current =
+                draftAttachments.current.get(activeComposerDraftKey) ?? [];
+              draftAttachments.current.set(
+                activeComposerDraftKey,
+                current.map((candidate) =>
+                  isAttachmentReference(candidate) && candidate.id === item.id
+                    ? { ...ready, name: candidate.name }
+                    : candidate,
+                ),
+              );
+            })
+            .catch((error) => {
+              if (
+                (
+                  draftAttachments.current.get(activeComposerDraftKey) ?? []
+                ).some(
+                  (candidate) =>
+                    isAttachmentReference(candidate) &&
+                    candidate.id === item.id,
+                )
+              )
+                setToast(String(error));
+            }),
+        );
+      }
       if (limited) {
         setToast(t.attachmentLimit);
       }
@@ -4947,7 +5007,7 @@ export function App() {
     }
     try {
       const selected = await window.artemis.selectPromptAttachments();
-      if (selected?.length) {
+      if (selected) {
         addPromptAttachments(selected);
       }
     } catch (error) {
@@ -7600,48 +7660,34 @@ export function App() {
                             );
                           })}
                         {attachments.length > 0 && (
-                          <div className="composer-attachments">
-                            {attachments.map((attachment, index) => (
-                              <figure
-                                className="composer-attachment"
-                                data-kind={
-                                  isPromptImage(attachment) ? "image" : "file"
-                                }
-                                key={`${attachment.name}-${index}`}
-                              >
-                                {isPromptImage(attachment) ? (
-                                  <img
-                                    alt={attachment.name}
-                                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                                  />
-                                ) : (
-                                  <div
-                                    aria-label={attachment.mimeType}
-                                    className="composer-file-preview"
-                                  >
-                                    <FileIcon />
-                                  </div>
-                                )}
-                                <button
-                                  aria-label={`${t.removeAttachment}: ${attachment.name}`}
-                                  onClick={() =>
-                                    setAttachments((current) =>
-                                      current.filter(
-                                        (_candidate, candidateIndex) =>
-                                          candidateIndex !== index,
-                                      ),
-                                    )
-                                  }
-                                  title={t.removeAttachment}
-                                >
-                                  ×
-                                </button>
-                                <figcaption title={attachment.name}>
-                                  {attachment.name}
-                                </figcaption>
-                              </figure>
-                            ))}
-                          </div>
+                          <ComposerAttachments
+                            key={activeComposerDraftKey}
+                            attachments={attachments}
+                            zh={locale.startsWith("zh")}
+                            onRemove={(index) => {
+                              const attachment = attachments[index];
+                              if (
+                                attachment &&
+                                isAttachmentReference(attachment)
+                              )
+                                void window.artemis.cancelPromptAttachment(
+                                  attachment.id,
+                                );
+                              setAttachments((current) =>
+                                current.filter(
+                                  (_item, itemIndex) => itemIndex !== index,
+                                ),
+                              );
+                            }}
+                            onClear={() => {
+                              for (const attachment of attachments)
+                                if (isAttachmentReference(attachment))
+                                  void window.artemis.cancelPromptAttachment(
+                                    attachment.id,
+                                  );
+                              setAttachments([]);
+                            }}
+                          />
                         )}
                         <ImMemberMentionMenu
                           mentions={groupMentions}

@@ -1,6 +1,10 @@
 import {
   MAX_PROMPT_ATTACHMENTS,
   MAX_PROMPT_IMAGES,
+  MAX_PROMPT_FILES,
+  MAX_PROMPT_TOTAL_BYTES,
+  attachmentIsImage,
+  attachmentBytes,
   type PromptAttachment,
 } from "@artemis/protocol";
 
@@ -19,7 +23,7 @@ const EMPTY_COMPOSER_DRAFT: ComposerDraft = {
 };
 
 function isPromptImage(attachment: PromptAttachment): boolean {
-  return !("type" in attachment);
+  return attachmentIsImage(attachment);
 }
 
 const GENERIC_CLIPBOARD_IMAGE_NAME =
@@ -72,7 +76,12 @@ export function appendPromptAttachments(
   for (const attachment of selected) {
     if (
       attachments.length >= MAX_PROMPT_ATTACHMENTS ||
-      (isPromptImage(attachment) && imageCount >= MAX_PROMPT_IMAGES)
+      (isPromptImage(attachment) && imageCount >= MAX_PROMPT_IMAGES) ||
+      (!isPromptImage(attachment) &&
+        attachments.length - imageCount >= MAX_PROMPT_FILES) ||
+      attachments.reduce((sum, item) => sum + attachmentBytes(item), 0) +
+        attachmentBytes(attachment) >
+        MAX_PROMPT_TOTAL_BYTES
     ) {
       limited = true;
       continue;
