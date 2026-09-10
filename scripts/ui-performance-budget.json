@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 366000,
+      "desktopCssBytes": 368000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -153,6 +153,14 @@
       "measuredDesktopCssBytes": 365230,
       "desktopCssIncreaseBytes": 1883,
       "reason": "Workspace launcher action rows and shortcut keycaps, rounded workspace tabs, and compact environment rows add 1967 bytes over the base. Removing the unused cache-write marker styles reduces the candidate by 84 bytes to 365230 bytes (+0.52%). Both references were measured with the same installed dependencies and Vite pipeline, substituting only styles.css and prototype-migration.css in memory. The 366000-byte CSS ceiling leaves 770 bytes of headroom; JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
+    {
+      "date": "2026-09-10",
+      "baseHead": "0386fe87d1fb08e53cbb494e2e615e01e63ce798",
+      "baseDesktopCssBytes": 366229,
+      "measuredDesktopCssBytes": 367772,
+      "desktopCssIncreaseBytes": 1543,
+      "reason": "Configuration import adds scoped compact checkboxes, header and footer actions, grouped source rows, and wrapping warning text (1543 bytes, 0.42%). The baseline uses the same installed dependencies and Vite pipeline with only styles.css replaced by HEAD in memory; it already exceeds the previous ceiling by 229 bytes. The 368000-byte CSS ceiling leaves 228 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [

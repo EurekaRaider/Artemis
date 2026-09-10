@@ -7720,10 +7720,106 @@ button.sources-panel-entry.attachment:focus-visible {
   margin-inline-start: 5px;
 }
 
+/* Keep configuration import at the same density as the surrounding settings. */
+.configuration-import-section > [data-part="header"] {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.configuration-import-section > [data-part="header"] > :first-child {
+  flex: 1 1 280px;
+}
+
+.configuration-import-section > [data-part="header"] > [data-part="actions"] {
+  margin-inline-start: auto;
+}
+
+.configuration-import {
+  gap: 12px;
+}
+
 .configuration-import-categories {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  gap: 8px 20px;
+}
+
+.configuration-import [data-artemis-component="checkbox"] {
+  gap: 8px;
+  min-block-size: 28px;
+  font-size: 12px;
+}
+
+.configuration-import
+  [data-artemis-component="checkbox"]
+  [data-part="indicator"] {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.configuration-import-sources {
+  border: 1px solid var(--artemis-color-border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.configuration-import-source {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.configuration-import-source + .configuration-import-source {
+  border-top: 1px solid var(--artemis-color-border-subtle);
+}
+
+.configuration-import-source > [data-part="leading"] {
+  align-self: start;
+}
+
+.configuration-import-source [data-part="title"] {
+  font-size: 12px;
+  line-height: 28px;
+}
+
+.configuration-import-source [data-part="description"] {
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.configuration-import-warning {
+  align-items: start;
+  gap: 6px;
+  padding: 0;
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.configuration-import-warning > [data-part="icon"] {
+  width: 14px;
+  height: 16px;
+}
+
+.configuration-import-warning > [data-part="icon"] svg {
+  width: 14px;
+  height: 14px;
+}
+
+.configuration-import-apply {
+  align-self: flex-end;
 }
 
 .catalog-progress {

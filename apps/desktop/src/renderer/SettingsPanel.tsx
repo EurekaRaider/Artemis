@@ -258,7 +258,7 @@ const labels = {
     configurationImport: "Import existing agent configuration",
     configurationImportHint:
       "Preview and selectively import global rules, Skills, and MCP servers. Existing named resources are kept.",
-    scanImports: "Scan Codex, OpenCode, and Claude Code",
+    scanImports: "Scan configuration",
     applyImports: "Import selected",
     importInstructions: "Global rules",
     importSkills: "Skills",
@@ -445,7 +445,7 @@ const labels = {
     configurationImport: "导入现有 Agent 配置",
     configurationImportHint:
       "先预览，再选择性导入全局约束、Skills 与 MCP；同名现有资源不会被覆盖。",
-    scanImports: "扫描 Codex、OpenCode 与 Claude Code",
+    scanImports: "扫描配置",
     applyImports: "导入所选内容",
     importInstructions: "全局约束",
     importSkills: "Skills",
@@ -1959,16 +1959,19 @@ export function SettingsPanel({
                     </Button>
                   </ManagementSection>
                   <ManagementSection
-                    className="settings-section"
+                    actions={
+                      <Button
+                        disabled={busy}
+                        onClick={() => void scanConfigurationImports()}
+                      >
+                        <ArtemisIcon name="refresh" />
+                        {t.scanImports}
+                      </Button>
+                    }
+                    className="settings-section configuration-import-section"
                     description={t.configurationImportHint}
                     title={t.configurationImport}
                   >
-                    <Button
-                      disabled={busy}
-                      onClick={() => void scanConfigurationImports()}
-                    >
-                      {t.scanImports}
-                    </Button>
                     {importPreview && (
                       <div className="configuration-import">
                         <div className="configuration-import-categories">
@@ -1990,58 +1993,62 @@ export function SettingsPanel({
                             />
                           ))}
                         </div>
-                        {importPreview.sources.map((source) => {
-                          const sourceLabel =
-                            source.source === "claude"
-                              ? "Claude Code"
-                              : source.source === "opencode"
-                                ? "OpenCode"
-                                : "Codex";
-                          return (
-                            <ManagementRow
-                              actions={
-                                <Checkbox
-                                  checked={importSources.includes(
-                                    source.source,
-                                  )}
-                                  disabled={busy || !source.detected}
-                                  label={`${sourceLabel}: ${source.detected ? t.detected : t.notDetected}`}
-                                  labelVisibility="hidden"
-                                  onCheckedChange={(checked) =>
-                                    toggleImportSource(source.source, checked)
-                                  }
-                                />
-                              }
-                              className="configuration-import-source"
-                              description={
-                                <>
-                                  <span>{`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}</span>
-                                  {source.warnings.map((warning, index) => (
-                                    <InlineNotice
-                                      className="configuration-import-warning"
-                                      key={`${source.source}-${index}`}
-                                      tone="warning"
-                                    >
-                                      {warning}
-                                    </InlineNotice>
-                                  ))}
-                                </>
-                              }
-                              key={source.source}
-                              state={source.detected ? "ready" : "disabled"}
-                              title={sourceLabel}
-                            />
-                          );
-                        })}
+                        <div className="configuration-import-sources">
+                          {importPreview.sources.map((source) => {
+                            const sourceLabel =
+                              source.source === "claude"
+                                ? "Claude Code"
+                                : source.source === "opencode"
+                                  ? "OpenCode"
+                                  : "Codex";
+                            return (
+                              <ManagementRow
+                                leading={
+                                  <Checkbox
+                                    checked={importSources.includes(
+                                      source.source,
+                                    )}
+                                    disabled={busy || !source.detected}
+                                    label={`${sourceLabel}: ${source.detected ? t.detected : t.notDetected}`}
+                                    labelVisibility="hidden"
+                                    onCheckedChange={(checked) =>
+                                      toggleImportSource(source.source, checked)
+                                    }
+                                  />
+                                }
+                                className="configuration-import-source"
+                                description={
+                                  <>
+                                    <span>{`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}</span>
+                                    {source.warnings.map((warning, index) => (
+                                      <InlineNotice
+                                        className="configuration-import-warning"
+                                        key={`${source.source}-${index}`}
+                                        tone="warning"
+                                      >
+                                        {warning}
+                                      </InlineNotice>
+                                    ))}
+                                  </>
+                                }
+                                key={source.source}
+                                state={source.detected ? "ready" : "disabled"}
+                                title={sourceLabel}
+                              />
+                            );
+                          })}
+                        </div>
                         <Button
                           disabled={
                             busy ||
                             importSources.length === 0 ||
                             importCategories.length === 0
                           }
+                          className="configuration-import-apply"
                           onClick={() => void importConfiguration()}
                           variant="primary"
                         >
+                          <ArtemisIcon name="download" />
                           {t.applyImports}
                         </Button>
                       </div>
