@@ -1,3 +1,7 @@
+import {
+  WorkspacePdfPreview,
+  WORKSPACE_PDF_SCHEME,
+} from "./workspace-pdf-preview.js";
 import { createHash } from "node:crypto";
 import { AttachmentStore } from "./attachment-store.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
@@ -42,6 +46,7 @@ import {
   net,
   Notification,
   safeStorage,
+  protocol,
   session as electronSession,
   shell,
   type WebContents,
@@ -153,6 +158,7 @@ import {
 } from "./user-input-policy.js";
 import {
   externalHttpUrl,
+  isPdfViewerStreamNavigationAllowed,
   isRendererNavigationAllowed,
 } from "./navigation-policy.js";
 import { OfficeDocumentService } from "./office-document-service.js";
@@ -1039,6 +1045,24 @@ function currentLocale(): AppLocale {
   }
   return resolvedLocalePreference;
 }
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: WORKSPACE_PDF_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+    },
+  },
+]);
+const workspacePdfPreview = new WorkspacePdfPreview(async (threadId, path) => {
+  const thread = store?.getThread(threadId);
+  if (!thread || thread.archived) throw new Error("Active task not found.");
+  const context = await resolveThreadWorkspace(thread);
+  return readWorkspaceFile(context.workspacePath, path);
+});
 
 function configureBrowserLocaleSession(): void {
   const browserSession = electronSession.fromPartition(
@@ -8435,6 +8459,18 @@ function registerIpc(): void {
   });
 
   ipcMain.handle(
+    IPC.workspacePdfOpen,
+    async (_event, threadId: string, path: string) => {
+      const file = await linkedWorkspaceFile(
+        String(threadId ?? ""),
+        String(path ?? ""),
+      );
+      if (!/\.pdf$/iu.test(file.path))
+        throw new Error("PDF preview requires a PDF file.");
+      return workspacePdfPreview.open(threadId, file.path);
+    },
+  );
+  ipcMain.handle(
     IPC.workspaceTextFileRead,
     async (
       _event,
@@ -10437,7 +10473,9 @@ function isEmbeddedBrowserNavigationAllowed(url: string): boolean {
       protocol === "http:" ||
       protocol === "https:" ||
       protocol === "data:" ||
-      protocol === "blob:"
+      protocol === "blob:" ||
+      (protocol === `${WORKSPACE_PDF_SCHEME}:` &&
+        new URL(url).hostname === "document")
     );
   } catch {
     return false;
@@ -15295,7 +15333,14 @@ function createMainWindow(): BrowserWindow {
       };
     }
     guest.on("will-frame-navigate", (details) => {
-      if (!isEmbeddedBrowserNavigationAllowed(details.url)) {
+      if (
+        !isEmbeddedBrowserNavigationAllowed(details.url) &&
+        !isPdfViewerStreamNavigationAllowed(
+          details.url,
+          details.frame?.parent?.url,
+          details.isMainFrame,
+        )
+      ) {
         details.preventDefault();
       }
     });
@@ -20452,6 +20497,11 @@ app
     );
     markStartupStage("core-state-ready");
     configureBrowserLocaleSession();
+    electronSession
+      .fromPartition(BROWSER_SESSION_PARTITION)
+      .protocol.handle(WORKSPACE_PDF_SCHEME, (request) =>
+        workspacePdfPreview.respond(request),
+      );
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
     await seedSmokeUserInputTransportFixture();

@@ -202,6 +202,8 @@ const api: ArtemisApi = {
   addReviewComment: (input) => ipcRenderer.invoke(IPC.reviewCommentAdd, input),
   deleteReviewComment: (threadId, commentId) =>
     ipcRenderer.invoke(IPC.reviewCommentDelete, threadId, commentId),
+  openWorkspacePdf: (threadId, path) =>
+    ipcRenderer.invoke(IPC.workspacePdfOpen, threadId, path),
   readWorkspaceTextFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.workspaceTextFileRead, threadId, path),
   readWorkspaceImage: (threadId, markdownPath, href) =>

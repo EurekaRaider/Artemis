@@ -66,3 +66,22 @@ describe("renderer navigation policy", () => {
     expect(mainSource).toContain('mainText(locale, "copyLink")');
   });
 });
+
+it("allows only the built-in PDF viewer's own child stream", async () => {
+  const { isPdfViewerStreamNavigationAllowed: allowed } =
+    await import("../src/main/navigation-policy.js");
+  const origin = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai";
+  const stream = `${origin}/89ca1d7b-9440-4cdf-841f-c1d2a865b770`;
+  expect(allowed(stream, `${origin}/index.html`, false)).toBe(true);
+  expect(allowed(stream, `${origin}/index.html`, true)).toBe(false);
+  expect(allowed(stream, "https://example.com", false)).toBe(false);
+  expect(allowed("file:///secret.pdf", `${origin}/index.html`, false)).toBe(
+    false,
+  );
+  expect(
+    allowed("chrome-extension://other/stream", `${origin}/index.html`, false),
+  ).toBe(false);
+  expect(allowed(`${origin}/index.html`, `${origin}/index.html`, false)).toBe(
+    false,
+  );
+});

@@ -7,7 +7,6 @@ import {
   type FormEvent,
 } from "react";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { Button } from "@artemis/ui/actions";
 import {
   BrowserAddressForm,
   BrowserAddressInput,
@@ -69,13 +68,15 @@ interface BrowserPanelProps extends WorkspacePreviewProps {
   locale: BrowserLocale;
 }
 
-function useWorkspaceTextFile({
+function useWorkspacePreviewFile({
   threadId,
   path,
   revision,
 }: Pick<WorkspacePreviewProps, "threadId" | "path" | "revision">) {
   const [reload, setReload] = useState(0);
-  const [file, setFile] = useState<WorkspaceTextFile>();
+  const [file, setFile] = useState<
+    WorkspaceTextFile | { path: string; kind: "pdf"; url: string }
+  >();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
 
@@ -90,8 +91,15 @@ function useWorkspaceTextFile({
 
     setLoading(true);
     setError(undefined);
-    void window.artemis
-      .readWorkspaceTextFile(threadId, path)
+    setFile(undefined);
+    const request = /\.pdf$/iu.test(path)
+      ? window.artemis.openWorkspacePdf(threadId, path).then((url) => ({
+          path,
+          kind: "pdf" as const,
+          url,
+        }))
+      : window.artemis.readWorkspaceTextFile(threadId, path);
+    void request
       .then((value) => {
         if (active) setFile(value);
       })
@@ -132,7 +140,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const [navigationError, setNavigationError] = useState<string>();
   const [pageLoading, setPageLoading] = useState(false);
   const [webviewReady, setWebviewReady] = useState(false);
-  const { error, file, loading, refresh } = useWorkspaceTextFile(props);
+  const { error, file, loading, refresh } = useWorkspacePreviewFile(props);
   const workspaceDocument = useMemo(
     () =>
       file?.kind === "html"
@@ -140,7 +148,12 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             label: file.path,
             url: `data:text/html;charset=utf-8,${encodeURIComponent(file.content)}`,
           }
-        : undefined,
+        : file?.kind === "pdf"
+          ? {
+              label: file.path,
+              url: `${file.url}#navpanes=0&view=FitH`,
+            }
+          : undefined,
     [file],
   );
   const browserSource =
@@ -299,19 +312,6 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             : "ready"
       }
     >
-      <header className="workspace-panel-toolbar">
-        <strong>{props.title}</strong>
-        <Button
-          variant="quiet"
-          size="compact"
-          className="text-button browser-refresh-button"
-          disabled={!webviewReady || (pageLoading && loading)}
-          onClick={reload}
-          type="button"
-        >
-          {props.refreshLabel}
-        </Button>
-      </header>
       <BrowserToolbar
         className="browser-toolbar"
         label={`${props.title}: ${props.addressPlaceholder}`}
@@ -348,6 +348,13 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
               runWhenWebviewReady((webview) => webview.goForward())
             }
           />
+          <BrowserNavigationButton
+            className="browser-refresh-button"
+            disabled={!webviewReady || (pageLoading && loading)}
+            icon={<ArtemisIcon name="refresh" />}
+            label={props.refreshLabel}
+            onClick={reload}
+          />
         </BrowserNavigation>
         <BrowserAddressForm
           className="browser-address-form"
@@ -381,6 +388,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         <webview
           className="browser-frame"
           partition={BROWSER_SESSION_PARTITION}
+          webpreferences="plugins=yes"
           ref={webviewRef}
           src={browserSource}
           title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
@@ -398,7 +406,7 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
   );
   const [saveError, setSaveError] = useState<string>();
   const { error, file, loading, refresh, replaceFile } =
-    useWorkspaceTextFile(props);
+    useWorkspacePreviewFile(props);
   const content = file?.kind === "markdown" ? file.content : undefined;
   const dirty = content !== undefined && draft !== content;
   const resolveImage = useCallback(

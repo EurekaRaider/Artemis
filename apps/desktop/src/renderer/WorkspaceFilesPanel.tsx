@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   WorkspaceContentState,
@@ -33,6 +34,7 @@ interface WorkspaceFilesPanelProps {
   editFileLabel: string;
   refreshLabel: string;
   richLabel: string;
+  previewLabel: string;
   saveLabel: string;
   savedLabel: string;
   savingLabel: string;
@@ -179,8 +181,8 @@ function DirectoryTree({
   );
 }
 
-function isHtmlPath(path: string): boolean {
-  return /\.html?$/iu.test(path);
+function isBrowserPath(path: string): boolean {
+  return /\.(?:html?|pdf)$/iu.test(path);
 }
 
 export function WorkspaceFilesPanel({
@@ -194,6 +196,7 @@ export function WorkspaceFilesPanel({
   editFileLabel,
   refreshLabel,
   richLabel,
+  previewLabel,
   saveLabel,
   savedLabel,
   savingLabel,
@@ -215,6 +218,8 @@ export function WorkspaceFilesPanel({
   const [filter, setFilter] = useState("");
   const [selectedFile, setSelectedFile] = useState<WorkspaceFileContent>();
   const [draft, setDraft] = useState("");
+  const [imageSource, setImageSource] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
@@ -303,7 +308,7 @@ export function WorkspaceFilesPanel({
 
   const openFile = (entry: WorkspaceDirectoryEntry) => {
     if (!threadId) return;
-    if (isHtmlPath(entry.path)) {
+    if (isBrowserPath(entry.path)) {
       onOpenHtml(entry.path);
       return;
     }
@@ -355,6 +360,11 @@ export function WorkspaceFilesPanel({
     setExpanded(new Set());
     void loadDirectory("");
   };
+  useEffect(() => {
+    setImageSource(false);
+    setImageFailed(false);
+  }, [selectedFile?.path, selectedFile?.preview?.data]);
+  const imageSelected = selectedFile?.preview?.mimeType.startsWith("image/");
   const markdownSelected =
     selectedFile !== undefined &&
     /\.(?:md|markdown)$/iu.test(selectedFile.path);
@@ -363,6 +373,15 @@ export function WorkspaceFilesPanel({
     <section className="workspace-files-panel">
       <header className="workspace-panel-toolbar">
         <strong>{title}</strong>
+        {imageSelected && selectedFile?.content !== undefined && (
+          <Button
+            variant="quiet"
+            size="compact"
+            onClick={() => setImageSource(!imageSource)}
+          >
+            {imageSource ? previewLabel : sourceLabel}
+          </Button>
+        )}
         {markdownSelected && selectedFile && onOpenReader && readerLabel && (
           <button
             className="environment-text-action"
@@ -377,7 +396,28 @@ export function WorkspaceFilesPanel({
         label={title}
         viewer={
           selectedFile ? (
-            markdownSelected && !selectedFile.binary ? (
+            imageSelected && !imageSource && selectedFile.preview ? (
+              <>
+                <WorkspaceFileHeader path={selectedFile.path} readOnly />
+                {imageFailed ? (
+                  <WorkspaceContentState
+                    label={imageFailureMessage}
+                    state="error"
+                  >
+                    {imageFailureMessage}
+                  </WorkspaceContentState>
+                ) : (
+                  <div className="workspace-image-preview">
+                    <img
+                      key={selectedFile.path}
+                      alt={selectedFile.path}
+                      src={`data:${selectedFile.preview.mimeType};base64,${selectedFile.preview.data}`}
+                      onError={() => setImageFailed(true)}
+                    />
+                  </div>
+                )}
+              </>
+            ) : markdownSelected && !selectedFile.binary ? (
               <WorkspaceMarkdownEditor
                 ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
                 content={draft}

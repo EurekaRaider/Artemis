@@ -80,7 +80,8 @@ function withLineSuffix(location: ParsedFileHref): ParsedFileHref | undefined {
 export function workspaceFileViewer(path: string): WorkspaceFileLink["viewer"] {
   const extension = extname(path).toLowerCase();
   if (extension === ".md" || extension === ".markdown") return "markdown";
-  if (extension === ".htm" || extension === ".html") return "browser";
+  if (extension === ".htm" || extension === ".html" || extension === ".pdf")
+    return "browser";
   return "file";
 }
 

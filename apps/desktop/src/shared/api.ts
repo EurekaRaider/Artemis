@@ -248,6 +248,8 @@ export interface WorkspaceTextFile {
 export interface WorkspaceImageFile {
   path: string;
   mimeType:
+    | "image/bmp"
+    | "image/x-icon"
     | "image/avif"
     | "image/gif"
     | "image/jpeg"
@@ -267,6 +269,10 @@ export interface WorkspaceFileContent {
   path: string;
   binary: boolean;
   content?: string;
+  preview?: {
+    mimeType: WorkspaceImageFile["mimeType"] | "application/pdf";
+    data: string;
+  };
 }
 
 export interface WorkspaceFileLink {
@@ -890,6 +896,7 @@ export interface ArtemisApi {
   listReviewComments(threadId: string): Promise<ReviewComment[]>;
   addReviewComment(input: AddReviewCommentInput): Promise<ReviewComment>;
   deleteReviewComment(threadId: string, commentId: string): Promise<void>;
+  openWorkspacePdf(threadId: string, path: string): Promise<string>;
   readWorkspaceTextFile(
     threadId: string,
     path: string,
@@ -1155,6 +1162,7 @@ export const IPC = {
   reviewCommentList: "artemis:review-comment-list",
   reviewCommentAdd: "artemis:review-comment-add",
   reviewCommentDelete: "artemis:review-comment-delete",
+  workspacePdfOpen: "artemis:workspace-pdf-open",
   workspaceTextFileRead: "artemis:workspace-text-file-read",
   workspaceImageRead: "artemis:workspace-image-read",
   workspaceDirectoryList: "artemis:workspace-directory-list",
