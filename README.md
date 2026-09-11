@@ -160,6 +160,40 @@ full size. [Capture details](docs/readme-visuals.md).
 Keep project tasks, conversation history and the composer together. Open a
 workspace tool alongside the conversation when it is time to inspect the work.
 
+### Environment information panel
+
+Open the environment control in the task header to inspect the current task's
+workspace and activity without leaving the conversation.
+
+![Artemis environment information panel in the light theme, showing the sample workspace, Git state and Agent activity](docs/images/screenshots/environment-panel-light.png)
+
+- **Workspace and Git:** see the Local or managed-worktree context, switch or
+  create branches, inspect changes, choose a comparison base, and access commit
+  and push actions. When a pull request is available, its status and CI checks
+  appear here too.
+- **Agents:** follow child-Agent activity and open individual tasks or team
+  details.
+- **Sources:** inspect attachment and source-call counts, open the full source
+  list, or add context when the task has source information.
+- **IM groups:** group tasks also show participating members and their computer
+  states, with member mention controls.
+
+The panel adapts to the task's available content. Non-Git projects retain Agent,
+source and group information; the Git section appears only for Git workspaces.
+The screenshots use the isolated Field Notes project and synthetic Agent records.
+
+<details>
+<summary>Dark theme · 深色模式与中文介绍</summary>
+
+![Artemis environment information panel in the dark theme](docs/images/screenshots/environment-panel-dark.png)
+
+环境信息面板可从任务顶部打开，可集中查看当前任务的本地工作区或工作树、分支与变更，
+进行比较、提交和推送，并在存在 PR 时查看其状态及 CI 检查。面板还展示子 Agent
+活动、团队详情和来源摘要；IM 群任务会显示成员及电脑状态，并支持提及成员。
+各区域按实际内容显示，非 Git 项目仍保留 Agent、来源和群成员信息。
+
+</details>
+
 ### Review, read and run
 
 <table>

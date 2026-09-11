@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "capturedAt": "2026-09-11T04:30:06.695Z",
+  "appVersion": "1.5.7",
+  "sourceHead": "03a77e279c253331e4818cbde15b9c27bd3865dd",
+  "sourceState": "Local working tree, including in-progress changes present at capture time.",
+  "platform": "macOS arm64",
+  "renderer": "Production Electron build",
+  "viewport": {
+    "width": 1440,
+    "height": 850
+  },
+  "data": "Isolated synthetic project, conversation, usage, agent, IM roster/status and disabled automation fixtures. IM transport responses are synthetic; no real IM service was contacted. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Application viewport captured without cropping.",
+  "privacy": {
+    "displayName": "Artemis",
+    "visiblePersonalNames": false,
+    "visibleHomePaths": false
+  },
+  "security": {
+    "sandbox": true,
+    "contextIsolation": true,
+    "nodeIntegration": false
+  },
+  "errors": [],
+  "screenshots": [
+    {
+      "file": "environment-panel-light.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 129544,
+      "sha256": "a235af84a158790ba8030ad70d8094020870a015e17539cfd4bc5e16b9cfb740"
+    },
+    {
+      "file": "environment-panel-dark.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 119804,
+      "sha256": "7e8a1e8d11c5c61e2709bcc2b5e6f9ed1a52765062796dfff047a5659da9c149"
+    }
+  ]
+}
