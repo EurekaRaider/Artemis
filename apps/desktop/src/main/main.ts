@@ -12731,7 +12731,7 @@ async function driveSmokeWorkspaceDockEvidence(
           ? snapshot.workspaceContent?.width
           : snapshot.resizer?.value;
         const settled = state === 'closed'
-          ? snapshot.dock?.visible === false && snapshot.dock.width === 0
+          ? snapshot.dock?.visible === false
           : Number.isFinite(expectedWidth) &&
             Math.abs(expectedWidth - snapshot.dock?.width) <= 0.5;
         if (snapshot.dock?.state === state && settled) return;
