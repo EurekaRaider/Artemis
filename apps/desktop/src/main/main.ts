@@ -12507,7 +12507,18 @@ async function driveSmokeWorkspaceDockEvidence(
       ...parameters,
       type: "keyUp",
     });
-    await wait(420);
+    // Wait for the rendered width to catch up with the accessible value;
+    // a fixed delay can capture an in-flight layout transition on busy CI.
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await wait(50);
+      const settled = await evaluate<boolean>(`(() => {
+        const snapshot = window.__workspaceDockCapture();
+        return Number.isFinite(snapshot.resizer?.value) &&
+          Math.abs(snapshot.resizer.value - snapshot.dock?.width) <= 0.5;
+      })()`);
+      if (settled) return;
+    }
+    throw new Error(`Workspace Dock width did not settle after ${keyCode}.`);
   };
 
   if (process.platform === "darwin") app.focus({ steal: true });
