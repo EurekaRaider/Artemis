@@ -1,814 +1,670 @@
 {
- "dynamicClassConsumers": [
-  {
-   "classNameSets": [
-    [
-     "nested-project",
-     "drop-before"
-    ],
-    [
-     "nested-project",
-     "drop-after"
-    ],
-    [
-     "project-thread-row",
-     "drop-before"
-    ],
-    [
-     "project-thread-row",
-     "drop-after"
-    ]
-   ],
-   "owner": "Desktop project and task drag ordering",
-   "reason": "The finite before/after edge is appended to both draggable row class lists at runtime.",
-   "sources": [
+  "dynamicClassConsumers": [
     {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "` drop-${projectDropTarget.edge}`"
+      "classNameSets": [
+        ["nested-project", "drop-before"],
+        ["nested-project", "drop-after"],
+        ["project-thread-row", "drop-before"],
+        ["project-thread-row", "drop-after"]
+      ],
+      "owner": "Desktop project and task drag ordering",
+      "reason": "The finite before/after edge is appended to both draggable row class lists at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "` drop-${projectDropTarget.edge}`"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "` drop-${threadDropTarget.edge}`"
+        },
+        {
+          "path": "apps/desktop/src/renderer/project-order.ts",
+          "contains": "export type ProjectDropEdge = \"before\" | \"after\";"
+        },
+        {
+          "path": "apps/desktop/src/renderer/thread-list-order.ts",
+          "contains": "export type ThreadDropEdge = \"before\" | \"after\";"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "` drop-${threadDropTarget.edge}`"
+      "classNameSets": [["composer-notice"], ["view-notice"]],
+      "owner": "Desktop transient notices",
+      "reason": "TransientNotice appends the finite composer/view placement to the shared notice class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "placement: \"composer\" | \"view\";"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "${placement}-notice"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/project-order.ts",
-     "contains": "export type ProjectDropEdge = \"before\" | \"after\";"
+      "classNameSets": [
+        ["automation-run-dot", "starting"],
+        ["automation-run-dot", "running"],
+        ["automation-run-dot", "waiting-approval"],
+        ["automation-run-dot", "completed"],
+        ["automation-run-dot", "failed"],
+        ["automation-run-dot", "skipped"]
+      ],
+      "owner": "Desktop automation run status",
+      "reason": "Automation rows append the protocol-owned finite run state to the status dot class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/AutomationPage.tsx",
+          "contains": "`automation-run-dot ${run.state}`"
+        },
+        {
+          "path": "packages/protocol/src/automation.ts",
+          "contains": "export const automationRunStateSchema = z.enum(["
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/thread-list-order.ts",
-     "contains": "export type ThreadDropEdge = \"before\" | \"after\";"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "composer-notice"
-    ],
-    [
-     "view-notice"
-    ]
-   ],
-   "owner": "Desktop transient notices",
-   "reason": "TransientNotice appends the finite composer/view placement to the shared notice class.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "placement: \"composer\" | \"view\";"
+      "classNameSets": [
+        ["agent-team-message", "blocker"],
+        ["agent-team-message", "handoff"]
+      ],
+      "owner": "Desktop agent-team collaboration log",
+      "reason": "Agent-team messages append the protocol-owned finite message kind to the collaboration row class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`agent-team-message ${message.kind}`}"
+        },
+        {
+          "path": "packages/protocol/src/schema.ts",
+          "contains": "kind: z.enum([\"finding\", \"request\", \"blocker\", \"handoff\"]),"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "${placement}-notice"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "automation-run-dot",
-     "starting"
-    ],
-    [
-     "automation-run-dot",
-     "running"
-    ],
-    [
-     "automation-run-dot",
-     "waiting-approval"
-    ],
-    [
-     "automation-run-dot",
-     "completed"
-    ],
-    [
-     "automation-run-dot",
-     "failed"
-    ],
-    [
-     "automation-run-dot",
-     "skipped"
-    ]
-   ],
-   "owner": "Desktop automation run status",
-   "reason": "Automation rows append the protocol-owned finite run state to the status dot class.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/AutomationPage.tsx",
-     "contains": "`automation-run-dot ${run.state}`"
+      "classNameSets": [
+        ["status-dot", "idle"],
+        ["status-dot", "completed"],
+        ["status-dot", "running"],
+        ["status-dot", "queued"],
+        ["status-dot", "waiting-approval"],
+        ["status-dot", "waiting-user-input"],
+        ["status-dot", "failed"]
+      ],
+      "owner": "Desktop task status indicators",
+      "reason": "Task and presentation status unions are appended to the shared status-dot class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`status-dot ${thread.status}`}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`status-dot ${statusDotStatus}`}"
+        }
+      ]
     },
     {
-     "path": "packages/protocol/src/automation.ts",
-     "contains": "export const automationRunStateSchema = z.enum(["
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "agent-team-message",
-     "blocker"
-    ],
-    [
-     "agent-team-message",
-     "handoff"
-    ]
-   ],
-   "owner": "Desktop agent-team collaboration log",
-   "reason": "Agent-team messages append the protocol-owned finite message kind to the collaboration row class.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`agent-team-message ${message.kind}`}"
+      "classNameSets": [
+        ["tool-card", "running"],
+        ["tool-card", "failed"]
+      ],
+      "owner": "Desktop tool activity presentation",
+      "reason": "Tool-card state is a finite presentation state appended at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`tool-card ${view.state}${open ? \" open\" : \"\"}`}"
+        }
+      ]
     },
     {
-     "path": "packages/protocol/src/schema.ts",
-     "contains": "kind: z.enum([\"finding\", \"request\", \"blocker\", \"handoff\"]),"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "status-dot",
-     "idle"
-    ],
-    [
-     "status-dot",
-     "completed"
-    ],
-    [
-     "status-dot",
-     "running"
-    ],
-    [
-     "status-dot",
-     "queued"
-    ],
-    [
-     "status-dot",
-     "waiting-approval"
-    ],
-    [
-     "status-dot",
-     "waiting-user-input"
-    ],
-    [
-     "status-dot",
-     "failed"
-    ]
-   ],
-   "owner": "Desktop task status indicators",
-   "reason": "Task and presentation status unions are appended to the shared status-dot class at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`status-dot ${thread.status}`}"
+      "classNameSets": [["turn-status", "running"]],
+      "owner": "Desktop active turn status",
+      "reason": "The finite run presentation status is appended to the turn-status class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`turn-status ${runPresentation.status}`}"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`status-dot ${statusDotStatus}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "tool-card",
-     "running"
-    ],
-    [
-     "tool-card",
-     "failed"
-    ]
-   ],
-   "owner": "Desktop tool activity presentation",
-   "reason": "Tool-card state is a finite presentation state appended at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`tool-card ${view.state}${open ? \" open\" : \"\"}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "turn-status",
-     "running"
-    ]
-   ],
-   "owner": "Desktop active turn status",
-   "reason": "The finite run presentation status is appended to the turn-status class at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`turn-status ${runPresentation.status}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "user-input-card",
-     "pending"
-    ]
-   ],
-   "owner": "Desktop user-input cards",
-   "reason": "The protocol-owned input status is appended to the user-input-card class at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`user-input-card ${input.status}`}"
+      "classNameSets": [["user-input-card", "pending"]],
+      "owner": "Desktop user-input cards",
+      "reason": "The protocol-owned input status is appended to the user-input-card class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`user-input-card ${input.status}`}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/MultiQuestionUserInputCard.tsx",
+          "contains": "className={`user-input-card multi-question ${input.status}`}"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/MultiQuestionUserInputCard.tsx",
-     "contains": "className={`user-input-card multi-question ${input.status}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "child-agent-card",
-     "suspect"
-    ],
-    [
-     "child-agent-card",
-     "stalled"
-    ],
-    [
-     "child-agent-card",
-     "cancelled"
-    ]
-   ],
-   "owner": "Desktop child-agent status surfaces",
-   "reason": "Child status and health finite domains are appended to card and panel classes at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`child-agent-card ${child.status} ${child.health ?? \"healthy\"}`}"
+      "classNameSets": [
+        ["child-agent-card", "suspect"],
+        ["child-agent-card", "stalled"],
+        ["child-agent-card", "cancelled"]
+      ],
+      "owner": "Desktop child-agent status surfaces",
+      "reason": "Child status and health finite domains are appended to card and panel classes at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`child-agent-card ${child.status} ${child.health ?? \"healthy\"}`}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`child-agent-panel ${child?.status ?? \"unavailable\"} ${health}`}"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`child-agent-panel ${child?.status ?? \"unavailable\"} ${health}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "review-line",
-     "addition"
-    ],
-    [
-     "review-line",
-     "deletion"
-    ]
-   ],
-   "owner": "Public Review diff lines",
-   "reason": "ReviewDiffLine appends its finite line kind to the review-line class at runtime.",
-   "sources": [
-    {
-     "path": "packages/ui/src/workflow.tsx",
-     "contains": "className={classes(`review-line ${kind}`, className)}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "syntax-token",
-     "keyword"
-    ],
-    [
-     "syntax-token",
-     "type"
-    ],
-    [
-     "syntax-token",
-     "function"
-    ],
-    [
-     "syntax-token",
-     "string"
-    ],
-    [
-     "syntax-token",
-     "comment"
-    ],
-    [
-     "syntax-token",
-     "number"
-    ],
-    [
-     "syntax-token",
-     "variable"
-    ],
-    [
-     "syntax-token",
-     "operator"
-    ],
-    [
-     "syntax-token",
-     "punctuation"
-    ]
-   ],
-   "owner": "Desktop workspace syntax preview",
-   "reason": "The finite tokenizer kind is appended to syntax-token spans at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/WorkspaceFileEditor.tsx",
-     "contains": "className={`syntax-token ${token.kind}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "confirmation-dialog",
-     "danger"
-    ]
-   ],
-   "owner": "Desktop confirmation dialog",
-   "reason": "The finite confirmation tone is appended to the dialog class at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "className={`confirmation-dialog ${confirmation.tone}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "token-usage-composition-marker",
-     "output"
-    ],
-    [
-     "token-usage-composition-marker",
-     "cache-read"
-    ]
-   ],
-   "owner": "Desktop token composition legend",
-   "reason": "The finite token category tone is appended to each composition marker at runtime.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/TokenUsagePage.tsx",
-     "contains": "className={`token-usage-composition-marker ${item.tone}`}"
-    }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "sources-panel-entry",
-     "attachment"
-    ],
-    [
-     "sources-panel-icon",
-     "web"
-    ]
-   ],
-   "owner": "Public Sources surface composition",
-   "reason": "Desktop caller classes are composed with the public Source entry and icon base classes.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/SourcesPanel.tsx",
-     "contains": "<SourceEntryIcon className=\"web\">"
+      "classNameSets": [
+        ["review-line", "addition"],
+        ["review-line", "deletion"]
+      ],
+      "owner": "Public Review diff lines",
+      "reason": "ReviewDiffLine appends its finite line kind to the review-line class at runtime.",
+      "sources": [
+        {
+          "path": "packages/ui/src/workflow.tsx",
+          "contains": "className={classes(`review-line ${kind}`, className)}"
+        }
+      ]
     },
     {
-     "path": "apps/desktop/src/renderer/SourcesPanel.tsx",
-     "contains": "className=\"attachment\""
+      "classNameSets": [
+        ["syntax-token", "keyword"],
+        ["syntax-token", "type"],
+        ["syntax-token", "function"],
+        ["syntax-token", "string"],
+        ["syntax-token", "comment"],
+        ["syntax-token", "number"],
+        ["syntax-token", "variable"],
+        ["syntax-token", "operator"],
+        ["syntax-token", "punctuation"]
+      ],
+      "owner": "Desktop workspace syntax preview",
+      "reason": "The finite tokenizer kind is appended to syntax-token spans at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/WorkspaceFileEditor.tsx",
+          "contains": "className={`syntax-token ${token.kind}`}"
+        }
+      ]
     },
     {
-     "path": "packages/ui/src/workflow.tsx",
-     "contains": "className={classes(\"sources-panel-entry\", className)}"
+      "classNameSets": [["confirmation-dialog", "danger"]],
+      "owner": "Desktop confirmation dialog",
+      "reason": "The finite confirmation tone is appended to the dialog class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`confirmation-dialog ${confirmation.tone}`}"
+        }
+      ]
     },
     {
-     "path": "packages/ui/src/workflow.tsx",
-     "contains": "className={classes(\"sources-panel-icon\", className)}"
+      "classNameSets": [
+        ["token-usage-composition-marker", "output"],
+        ["token-usage-composition-marker", "cache-read"]
+      ],
+      "owner": "Desktop token composition legend",
+      "reason": "The finite token category tone is appended to each composition marker at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/TokenUsagePage.tsx",
+          "contains": "className={`token-usage-composition-marker ${item.tone}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["sources-panel-entry", "attachment"],
+        ["sources-panel-icon", "web"]
+      ],
+      "owner": "Public Sources surface composition",
+      "reason": "Desktop caller classes are composed with the public Source entry and icon base classes.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/SourcesPanel.tsx",
+          "contains": "<SourceEntryIcon className=\"web\">"
+        },
+        {
+          "path": "apps/desktop/src/renderer/SourcesPanel.tsx",
+          "contains": "className=\"attachment\""
+        },
+        {
+          "path": "packages/ui/src/workflow.tsx",
+          "contains": "className={classes(\"sources-panel-entry\", className)}"
+        },
+        {
+          "path": "packages/ui/src/workflow.tsx",
+          "contains": "className={classes(\"sources-panel-icon\", className)}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [["external-link-icon", "favicon-loaded"]],
+      "owner": "Desktop Markdown external-link icons",
+      "reason": "The favicon-loaded state is added to the generated external-link icon after its image loads.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/MarkdownContent.tsx",
+          "contains": "class=\"external-link-icon\" data-external-link-icon"
+        },
+        {
+          "path": "apps/desktop/src/renderer/MarkdownContent.tsx",
+          "contains": "iconRoot.classList.add(\"favicon-loaded\")"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["custom-agent-color-gray"],
+        ["custom-agent-color-red"],
+        ["custom-agent-color-orange"],
+        ["custom-agent-color-yellow"],
+        ["custom-agent-color-green"],
+        ["custom-agent-color-teal"],
+        ["custom-agent-color-blue"],
+        ["custom-agent-color-purple"],
+        ["custom-agent-color-pink"]
+      ],
+      "owner": "Desktop custom sub-agent identity dots (D#152)",
+      "reason": "The definition color is one of nine fixed tokens appended to the shared dot class at runtime; the token set is pinned by customAgentColorToken.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/CustomAgentMention.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(customAgentReference.color)}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/CustomAgentsSettingsSection.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
+        }
+      ]
     }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "external-link-icon",
-     "favicon-loaded"
-    ]
-   ],
-   "owner": "Desktop Markdown external-link icons",
-   "reason": "The favicon-loaded state is added to the generated external-link icon after its image loads.",
-   "sources": [
+  ],
+  "rawComponentOverrides": [
     {
-     "path": "apps/desktop/src/renderer/MarkdownContent.tsx",
-     "contains": "class=\"external-link-icon\" data-external-link-icon"
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"]",
+      "property": "padding",
+      "value": "24px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher keeps a 24px inset within the workspace pane."
     },
     {
-     "path": "apps/desktop/src/renderer/MarkdownContent.tsx",
-     "contains": "iconRoot.classList.add(\"favicon-loaded\")"
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"]",
+      "property": "background",
+      "value": "light-dark(#f7f7f7, #181818)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher uses the workspace pane surface in both themes."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] > [data-part=\"actions\"]",
+      "property": "gap",
+      "value": "6px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher keeps compact spacing between its action rows."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "gap",
+      "value": "12px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "padding",
+      "value": "10px 12px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "border-radius",
+      "value": "10px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
+      "property": "background",
+      "value": "light-dark(#ededed, #202020)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]:is(:hover, :focus-visible):not(:disabled)",
+      "property": "background",
+      "value": "light-dark(#e4e4e4, #292929)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher shares its highlighted surface between hover and keyboard focus."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
+      "property": "padding",
+      "value": "2px 8px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
+      "property": "border-radius",
+      "value": "999px",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
+    },
+    {
+      "atRules": [],
+      "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
+      "property": "background",
+      "value": "light-dark(#dedede, #2c2c2c)",
+      "important": false,
+      "owner": "Desktop workspace launcher",
+      "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
+    },
+    {
+      "atRules": [],
+      "selector": ".im-settings :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "IM settings",
+      "reason": "IM setup text fields and select triggers share the existing compact 32px control geometry with aligned text insets."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "z-index",
+      "value": "80",
+      "important": false,
+      "owner": "Desktop composer overlay stacking",
+      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+    },
+    {
+      "atRules": [],
+      "selector": ".review-scope-select [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "z-index",
+      "value": "80",
+      "important": false,
+      "owner": "Desktop review overlay stacking",
+      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"browser-viewport\"] > [data-part=\"content\"] > .browser-frame",
+      "property": "background",
+      "value": "#ffffff",
+      "important": false,
+      "owner": "Desktop embedded browser viewport",
+      "reason": "The isolated web-content canvas intentionally starts white and is not a skin surface."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
+      "property": "padding",
+      "value": "0 9px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Context selector matches the frozen v69 26px context row with a separate leading icon. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
+      "property": "gap",
+      "value": "6px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Context selector indicator spacing from v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
+      "property": "padding-inline-start",
+      "value": "27px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Reserve the measured 13px context icon and its spacing in v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-header [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "4px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "The settings close action uses the v69 28px toolbar control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Settings row actions follow the v69 compact 28px control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section > [data-part=\"content\"] > [data-artemis-component=\"button\"]",
+      "property": "margin-block",
+      "value": "9px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Settings section actions use v69 row separation. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Settings controls align with the v69 29px field geometry. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".im-setup-steps p, .settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
+      "property": "margin-block",
+      "value": "6px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Multiline settings content follows v69 section spacing. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section [data-artemis-component=\"textarea-field\"] [data-part=\"control\"]",
+      "property": "padding",
+      "value": "6px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "The settings editor uses the frozen v69 internal text inset. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".queued-message-steer, .token-usage-summary > [data-artemis-component=\"data-stat\"]",
+      "property": "gap",
+      "value": "5px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "The five-column v69 summary uses 5px between the value and label. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".automation-actions [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Automation card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".plugin-market-card-footer [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Catalogue card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
+      "property": "border-bottom",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Model rows use a single divider to match the supplied settings reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
+      "property": "padding",
+      "value": "10px 0",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Flat model rows align their metadata and trailing text action. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".resource-installed-row[data-artemis-component=\"management-row\"]",
+      "property": "border-bottom",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Installed capabilities share a divided container matching the management reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".resource-installed-row[data-artemis-component=\"management-row\"]",
+      "property": "padding",
+      "value": "14px 4px",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Capability rows align the icon, name, status, settings action and switch. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
+      "property": "gap",
+      "value": "6px",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Grouped calls separate their disclosure from the divided operation list. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
+      "property": "padding",
+      "value": "6px 12px 0",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Grouped calls use a shared inset and flush final operation row. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
+      "property": "border",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Grouped calls share one quiet outline matching the supplied conversation reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card:not(.open)[data-artemis-component=\"tool-activity\"]",
+      "property": "padding-bottom",
+      "value": "6px",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "A collapsed tool group restores balanced vertical padding. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"workspace-dock\"]",
+      "property": "border-inline-start",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "Desktop 9556fac Dock composition",
+      "reason": "The frozen prototype uses a one CSS-pixel divider between conversation and Dock."
+    },
+    {
+      "atRules": [],
+      "selector": ":is(.resource-page, .settings-panel) [data-artemis-component=\"switch\"] [data-part=\"thumb\"]",
+      "property": "background",
+      "value": "#fff",
+      "important": false,
+      "owner": "Issues #171 and #175 management switch prototype parity",
+      "reason": "The approved prototype in docs/ui-prototype/ui/primitives/controls.css uses a white thumb in both themes. Existing inverse/surface/status tokens change by theme; scope this exact color to resource and settings switches. Verified in real Electron in dark and light modes."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "inset-block-end",
+      "value": "calc( 100% + var(--artemis-space-2) + var(--artemis-border-width-default) )",
+      "important": false,
+      "owner": "Issue #170 composer mode menu placement",
+      "reason": "Place the mode menu above its bottom-anchored composer trigger with the same gap as project and branch menus, preventing bottom-window clipping."
+    },
+    {
+      "atRules": [],
+      "selector": ".im-member-action[data-artemis-component=\"icon-button\"]",
+      "property": "padding",
+      "value": "4px",
+      "important": false,
+      "owner": "IM group member controls",
+      "reason": "Preserve the existing 24px member action buttons with 16px icons in the compact environment roster."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"tooltip\"].goal-objective-tooltip",
+      "property": "border",
+      "value": "1px solid var(--artemis-color-border-default)",
+      "important": false,
+      "owner": "Goal objective preview",
+      "reason": "Preserve the existing one-pixel theme-token border on the full-objective tooltip."
+    },
+    {
+      "atRules": [],
+      "selector": ".custom-agents-section [data-artemis-component=\"management-row\"] [data-part=\"leading\"]",
+      "property": "padding-top",
+      "value": "5px",
+      "important": false,
+      "owner": "Desktop custom sub-agent management (D#152 PR4)",
+      "reason": "Align the 10px color dot with the management-row title baseline in the custom sub-agent settings list."
     }
-   ]
-  },
-  {
-   "classNameSets": [
-    [
-     "custom-agent-color-gray"
-    ],
-    [
-     "custom-agent-color-red"
-    ],
-    [
-     "custom-agent-color-orange"
-    ],
-    [
-     "custom-agent-color-yellow"
-    ],
-    [
-     "custom-agent-color-green"
-    ],
-    [
-     "custom-agent-color-teal"
-    ],
-    [
-     "custom-agent-color-blue"
-    ],
-    [
-     "custom-agent-color-purple"
-    ],
-    [
-     "custom-agent-color-pink"
-    ]
-   ],
-   "owner": "Desktop custom sub-agent identity dots (D#152)",
-   "reason": "The definition color is one of nine fixed tokens appended to the shared dot class at runtime; the token set is pinned by customAgentColorToken.",
-   "sources": [
-    {
-     "path": "apps/desktop/src/renderer/CustomAgentMention.tsx",
-     "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
-    },
-    {
-     "path": "apps/desktop/src/renderer/App.tsx",
-     "contains": "custom-agent-color-${customAgentColorToken(customAgentReference.color)}"
-    },
-    {
-     "path": "apps/desktop/src/renderer/CustomAgentsSettingsSection.tsx",
-     "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
-    }
-   ]
-  }
- ],
- "rawComponentOverrides": [
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"]",
-   "property": "padding",
-   "value": "24px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher keeps a 24px inset within the workspace pane."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"]",
-   "property": "background",
-   "value": "light-dark(#f7f7f7, #181818)",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher uses the workspace pane surface in both themes."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] > [data-part=\"actions\"]",
-   "property": "gap",
-   "value": "6px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher keeps compact spacing between its action rows."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
-   "property": "gap",
-   "value": "12px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
-   "property": "padding",
-   "value": "10px 12px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
-   "property": "border-radius",
-   "value": "10px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]",
-   "property": "background",
-   "value": "light-dark(#ededed, #202020)",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher action rows retain their compact icon, label and shortcut geometry."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]:is(:hover, :focus-visible):not(:disabled)",
-   "property": "background",
-   "value": "light-dark(#e4e4e4, #292929)",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher shares its highlighted surface between hover and keyboard focus."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
-   "property": "padding",
-   "value": "2px 8px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
-   "property": "border-radius",
-   "value": "999px",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
-  },
-  {
-   "atRules": [],
-   "selector": ".workspace-tab-content [data-artemis-component=\"workspace-launcher\"] [data-part=\"shortcut\"]",
-   "property": "background",
-   "value": "light-dark(#dedede, #2c2c2c)",
-   "important": false,
-   "owner": "Desktop workspace launcher",
-   "reason": "The desktop launcher displays shortcuts as compact rounded keycaps."
-  },
-  {
-   "atRules": [],
-   "selector": ".im-settings :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
-   "property": "padding",
-   "value": "5px 10px",
-   "important": false,
-   "owner": "IM settings",
-   "reason": "IM setup text fields and select triggers share the existing compact 32px control geometry with aligned text insets."
-  },
-  {
-   "atRules": [],
-   "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-   "property": "z-index",
-   "value": "80",
-   "important": false,
-   "owner": "Desktop composer overlay stacking",
-   "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
-  },
-  {
-   "atRules": [],
-   "selector": ".review-scope-select [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-   "property": "z-index",
-   "value": "80",
-   "important": false,
-   "owner": "Desktop review overlay stacking",
-   "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
-  },
-  {
-   "atRules": [],
-   "selector": "[data-artemis-component=\"browser-viewport\"] > [data-part=\"content\"] > .browser-frame",
-   "property": "background",
-   "value": "#ffffff",
-   "important": false,
-   "owner": "Desktop embedded browser viewport",
-   "reason": "The isolated web-content canvas intentionally starts white and is not a skin surface."
-  },
-  {
-   "atRules": [],
-   "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
-   "property": "padding",
-   "value": "0 9px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Context selector matches the frozen v69 26px context row with a separate leading icon. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
-   "property": "gap",
-   "value": "6px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Context selector indicator spacing from v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
-   "property": "padding-inline-start",
-   "value": "27px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Reserve the measured 13px context icon and its spacing in v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".settings-header [data-artemis-component=\"button\"]",
-   "property": "padding",
-   "value": "4px 10px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "The settings close action uses the v69 28px toolbar control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".settings-section [data-artemis-component=\"button\"]",
-   "property": "padding",
-   "value": "5px 10px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Settings row actions follow the v69 compact 28px control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".settings-section > [data-part=\"content\"] > [data-artemis-component=\"button\"]",
-   "property": "margin-block",
-   "value": "9px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Settings section actions use v69 row separation. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".settings-section :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
-   "property": "padding",
-   "value": "5px 10px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Settings controls align with the v69 29px field geometry. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".im-setup-steps p, .settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
-   "property": "margin-block",
-   "value": "6px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Multiline settings content follows v69 section spacing. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".settings-section [data-artemis-component=\"textarea-field\"] [data-part=\"control\"]",
-   "property": "padding",
-   "value": "6px 10px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "The settings editor uses the frozen v69 internal text inset. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".queued-message-steer, .token-usage-summary > [data-artemis-component=\"data-stat\"]",
-   "property": "gap",
-   "value": "5px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "The five-column v69 summary uses 5px between the value and label. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".automation-actions [data-artemis-component=\"button\"]",
-   "property": "padding",
-   "value": "5px 10px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Automation card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".plugin-market-card-footer [data-artemis-component=\"button\"]",
-   "property": "padding",
-   "value": "5px 10px",
-   "important": false,
-   "owner": "Discussion 151 v69 Desktop composition",
-   "reason": "Catalogue card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-  },
-  {
-   "atRules": [],
-   "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
-   "property": "border-bottom",
-   "value": "1px solid var(--border-soft)",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Model rows use a single divider to match the supplied settings reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
-   "property": "padding",
-   "value": "10px 0",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Flat model rows align their metadata and trailing text action. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".resource-installed-row[data-artemis-component=\"management-row\"]",
-   "property": "border-bottom",
-   "value": "1px solid var(--border-soft)",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Installed capabilities share a divided container matching the management reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".resource-installed-row[data-artemis-component=\"management-row\"]",
-   "property": "padding",
-   "value": "14px 4px",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Capability rows align the icon, name, status, settings action and switch. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
-   "property": "gap",
-   "value": "6px",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Grouped calls separate their disclosure from the divided operation list. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
-   "property": "padding",
-   "value": "6px 12px 0",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Grouped calls use a shared inset and flush final operation row. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
-   "property": "border",
-   "value": "1px solid var(--border-soft)",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "Grouped calls share one quiet outline matching the supplied conversation reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": ".tool-card:not(.open)[data-artemis-component=\"tool-activity\"]",
-   "property": "padding-bottom",
-   "value": "6px",
-   "important": false,
-   "owner": "September 6 screenshot alignment",
-   "reason": "A collapsed tool group restores balanced vertical padding. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-  },
-  {
-   "atRules": [],
-   "selector": "[data-artemis-component=\"workspace-dock\"]",
-   "property": "border-inline-start",
-   "value": "1px solid var(--border-soft)",
-   "important": false,
-   "owner": "Desktop 9556fac Dock composition",
-   "reason": "The frozen prototype uses a one CSS-pixel divider between conversation and Dock."
-  },
-  {
-   "atRules": [],
-   "selector": ":is(.resource-page, .settings-panel) [data-artemis-component=\"switch\"] [data-part=\"thumb\"]",
-   "property": "background",
-   "value": "#fff",
-   "important": false,
-   "owner": "Issues #171 and #175 management switch prototype parity",
-   "reason": "The approved prototype in docs/ui-prototype/ui/primitives/controls.css uses a white thumb in both themes. Existing inverse/surface/status tokens change by theme; scope this exact color to resource and settings switches. Verified in real Electron in dark and light modes."
-  },
-  {
-   "atRules": [],
-   "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-   "property": "inset-block-end",
-   "value": "calc( 100% + var(--artemis-space-2) + var(--artemis-border-width-default) )",
-   "important": false,
-   "owner": "Issue #170 composer mode menu placement",
-   "reason": "Place the mode menu above its bottom-anchored composer trigger with the same gap as project and branch menus, preventing bottom-window clipping."
-  },
-  {
-   "atRules": [],
-   "selector": ".custom-agents-section [data-artemis-component=\"management-row\"] [data-part=\"leading\"]",
-   "property": "padding-top",
-   "value": "5px",
-   "important": false,
-   "owner": "Desktop custom sub-agent management (D#152 PR4)",
-   "reason": "Align the 10px color dot with the management-row title baseline in the custom sub-agent settings list."
-  }
- ]
+  ]
 }

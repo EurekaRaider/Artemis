@@ -5,7 +5,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ThreadGoal } from "@artemis/protocol";
 
-import "./renderer-test-utils.js";
+import { stubWindowArtemis } from "./renderer-test-utils.js";
 
 import {
   displayGoalObjective,
@@ -166,5 +166,60 @@ describe("GoalBar interactions (jsdom)", () => {
     expect(pause).toBeDisabled();
     await userEvent.setup().click(pause);
     expect(onPause).not.toHaveBeenCalled();
+  });
+});
+
+describe("Goal objective preview", () => {
+  it("shows the complete multiline objective on hover and keeps edit available", async () => {
+    const objective = "完善资料库的搜索与标签筛选体验。\n".repeat(20);
+    const onEdit = vi.fn();
+    render(
+      <GoalBar
+        clockMs={0}
+        goal={goal({ objective })}
+        locale="zh-CN"
+        onEdit={onEdit}
+        onClear={vi.fn()}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.hover(
+      screen.getByText(objective, { normalizer: (text) => text }),
+    );
+    expect(screen.getByRole("tooltip").textContent).toBe(objective);
+    expect(screen.getByRole("button", { name: /运行中/ })).toHaveAttribute(
+      "aria-describedby",
+      screen.getByRole("tooltip").id,
+    );
+    await user.click(screen.getByRole("button", { name: "编辑目标" }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads the full managed objective instead of presenting the stored preview as complete", async () => {
+    const objective = "Complete goal content beyond the inline preview";
+    const getThreadGoalObjective = vi
+      .fn()
+      .mockResolvedValue({ goalId: "goal-1", objective });
+    stubWindowArtemis({ getThreadGoalObjective });
+    render(
+      <GoalBar
+        clockMs={0}
+        goal={goal({
+          objective:
+            "Follow the objective in the Artemis-managed file at /tmp/goal.md\n\nObjective preview:\nShort preview",
+        })}
+        locale="en"
+        onEdit={vi.fn()}
+        onClear={vi.fn()}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+      />,
+    );
+    expect(getThreadGoalObjective).not.toHaveBeenCalled();
+    await userEvent.setup().hover(screen.getByText("Short preview"));
+    expect(await screen.findByText(objective)).toBeInTheDocument();
+    expect(getThreadGoalObjective).toHaveBeenCalledWith("thread-1");
   });
 });

@@ -1,4 +1,5 @@
 import { createAttachmentTools } from "./attachment-tools.js";
+import { installCompactionBudget } from "./compaction-budget.js";
 import {
   withAttachmentContextBudget,
   attachmentTextTokens,
@@ -1695,6 +1696,7 @@ export class ArtemisAgentHost {
   }
 
   private configureSessionCompaction(session: AgentSession): void {
+    installCompactionBudget(session);
     const contextWindow = session.model?.contextWindow;
     if (!contextWindow) {
       return;
@@ -1708,6 +1710,10 @@ export class ArtemisAgentHost {
     hosted: HostedThread,
     compacting: boolean,
     estimatedTokens?: number,
+    compactionResult?: Extract<
+      AgentPayload,
+      { type: "context.usage" }
+    >["compactionResult"],
   ): void {
     const usage = hosted.session.getContextUsage();
     const contextWindow =
@@ -1746,6 +1752,7 @@ export class ArtemisAgentHost {
       tokens,
       contextWindow,
       compacting,
+      ...(compactionResult ? { compactionResult } : {}),
       source,
       ...(source === "provider" ? {} : { estimated: true }),
       ...(providerInput ? { providerInputTokens: providerInput.tokens } : {}),
@@ -1771,7 +1778,14 @@ export class ArtemisAgentHost {
     } else if (event.type === "compaction_start") {
       this.emitContextUsage(hosted, true);
     } else if (event.type === "compaction_end") {
-      this.emitContextUsage(hosted, false, event.result?.estimatedTokensAfter);
+      this.emitContextUsage(hosted, false, event.result?.estimatedTokensAfter, {
+        status: event.aborted
+          ? "cancelled"
+          : event.result
+            ? "completed"
+            : "failed",
+        ...(event.errorMessage ? { error: event.errorMessage } : {}),
+      });
     }
   }
 
@@ -6384,7 +6398,7 @@ export class ArtemisAgentHost {
     let remaining =
       inputTokenLimit(model) -
       estimateRequestTokens(model, requestContext) -
-      attachmentTextTokens(text) -
+      estimateTextTokens(text) -
       2048;
     if (remaining < 1024 && hosted.session.messages.length) {
       await hosted.session.compact();
@@ -6394,7 +6408,7 @@ export class ArtemisAgentHost {
           ...requestContext,
           messages: hosted.session.messages,
         }) -
-        attachmentTextTokens(text) -
+        estimateTextTokens(text) -
         2048;
     }
     let documentBudget = Math.max(

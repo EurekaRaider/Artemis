@@ -289,14 +289,9 @@ try {
       audit.goalBar.right > contextRow.right + 1 ||
       audit.goalBar.top < contextRow.top - 1 ||
       audit.goalBar.bottom > contextRow.bottom + 1 ||
-      audit.goalBar.width < Math.min(92, contextRow.width) - 1 ||
-      audit.goalBar.width >
-        Math.min(
-          audit.windowInnerWidth <= 820 ? contextRow.width : 360,
-          contextRow.width,
-        ) +
-          1 ||
-      audit.goalBar.height < 26 ||
+      audit.goalBar.width < Math.min(300, contextRow.width) - 1 ||
+      audit.goalBar.width > contextRow.width + 1 ||
+      audit.goalBar.height < 28 ||
       contextRow.top < audit.goalComposer.top
     ) {
       throw new Error(
@@ -335,7 +330,8 @@ try {
     };
     const capsuleMainStyle = {
       ...railActionStyle,
-      borderColor: quietStyle?.color,
+      color: shared.contractStyles?.secondary?.color,
+      borderColor: shared.contractStyles?.secondary?.color,
       borderStyle: "none",
       borderWidth: "0px",
     };
@@ -353,7 +349,7 @@ try {
       shared.main.size !== "compact" ||
       shared.main.variant !== "quiet" ||
       shared.main.display !== "flex" ||
-      shared.main.minBlockSize !== "24px" ||
+      shared.main.minBlockSize !== "26px" ||
       shared.main.justifyContent !== "flex-start" ||
       !visualMatches(shared.main, capsuleMainStyle) ||
       shared?.badge?.component !== "badge" ||
@@ -371,8 +367,8 @@ try {
           action.size !== "compact" ||
           action.variant !== "quiet" ||
           action.display !== "flex" ||
-          action.inlineSize !== "22px" ||
-          action.minBlockSize !== "22px" ||
+          action.inlineSize !== "24px" ||
+          action.minBlockSize !== "24px" ||
           !visualMatches(action, railActionStyle),
       ) ||
       !focusMatches
@@ -421,8 +417,8 @@ try {
     }
     for (const geometry of audit.goalActionGeometry ?? []) {
       if (
-        Math.abs(geometry.width - 22) > 0.1 ||
-        Math.abs(geometry.height - 22) > 0.1 ||
+        Math.abs(geometry.width - 24) > 0.1 ||
+        Math.abs(geometry.height - 24) > 0.1 ||
         Math.abs(geometry.iconWidth - 14) > 0.1 ||
         Math.abs(geometry.iconHeight - 14) > 0.1
       ) {

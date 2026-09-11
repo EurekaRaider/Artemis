@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { Tooltip } from "@artemis/ui/feedback";
 import { PauseIcon, PlayIcon } from "@phosphor-icons/react";
 import type { AppLocale, ThreadGoal } from "@artemis/protocol";
 import {
@@ -106,35 +108,90 @@ export function GoalBar({
   const resumable = ["paused", "blocked", "usageLimited"].includes(goal.status);
   const tone = GOAL_TONES[goal.status];
   const progress = formatGoalProgress(goal, locale, clockMs);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [fullObjective, setFullObjective] = useState<string>();
+  const [loadFailed, setLoadFailed] = useState(false);
+  const managed = goal.objective.includes(GOAL_OBJECTIVE_PREVIEW_MARKER);
+  useEffect(() => {
+    setFullObjective(undefined);
+    setLoadFailed(false);
+    if (!previewOpen || !managed) return;
+    let cancelled = false;
+    void window.artemis.getThreadGoalObjective(goal.threadId).then(
+      (result) => {
+        if (cancelled) return;
+        if (result.goalId === goal.goalId) setFullObjective(result.objective);
+        else setLoadFailed(true);
+      },
+      () => {
+        if (!cancelled) setLoadFailed(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [previewOpen, managed, goal.threadId, goal.goalId, goal.objective]);
+  const chinese = locale.startsWith("zh");
+  const preview = !managed
+    ? objective
+    : (fullObjective ??
+      (loadFailed
+        ? chinese
+          ? "无法载入完整目标，请点击编辑重试。"
+          : "Unable to load the full goal. Open the editor to retry."
+        : chinese
+          ? "正在载入完整目标…"
+          : "Loading full goal…"));
+  const status =
+    goal.status === "active"
+      ? chinese
+        ? "运行中"
+        : "Running"
+      : goal.status === "paused"
+        ? chinese
+          ? "已暂停"
+          : "Paused"
+        : copy[goal.status];
   return (
     <section
       aria-busy={disabled || undefined}
       aria-label={copy[goal.status]}
       className="goal-bar"
       data-goal-state={goal.status}
-      title={`${copy[goal.status]} · ${objective}`}
+      onMouseEnter={() => setPreviewOpen(true)}
+      onMouseLeave={() => setPreviewOpen(false)}
+      onFocus={() => setPreviewOpen(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setPreviewOpen(false);
+      }}
     >
-      <Button
-        align="start"
-        className="goal-bar-main"
-        disabled={disabled}
-        label={`${copy[goal.status]} ${objective} ${progress} — ${copy.edit}`}
-        onClick={onEdit}
-        title={objective}
-        variant="quiet"
+      <Tooltip
+        label={preview || copy[goal.status]}
+        align="end"
+        className="goal-objective-tooltip"
       >
-        <ArtemisIcon className="goal-bar-icon" name="target" />
-        <Badge className="goal-bar-status" tone={tone}>
-          {copy[goal.status]}
-        </Badge>
-        <span className="goal-bar-objective">{objective}</span>
-        <span className="goal-bar-progress">{progress}</span>
-      </Button>
+        <Button
+          align="start"
+          className="goal-bar-main"
+          disabled={disabled}
+          label={`${status} ${objective} ${progress} — ${copy.edit}`}
+          onClick={onEdit}
+          variant="quiet"
+        >
+          <ArtemisIcon className="goal-bar-icon" name="target" />
+          <Badge className="goal-bar-status" tone={tone}>
+            {status}
+          </Badge>
+          <span className="goal-bar-objective">{objective}</span>
+          <span className="goal-bar-progress">{progress}</span>
+        </Button>
+      </Tooltip>
       <div className="goal-bar-actions">
         {goal.status === "active" && (
           <IconButton
             disabled={disabled}
-            icon={<PauseIcon />}
+            icon={<PauseIcon weight="regular" />}
             iconSize="sm"
             label={copy.pause}
             onClick={onPause}
@@ -144,7 +201,7 @@ export function GoalBar({
         {resumable && (
           <IconButton
             disabled={disabled}
-            icon={<PlayIcon />}
+            icon={<PlayIcon weight="regular" />}
             iconSize="sm"
             label={copy.resume}
             onClick={onResume}

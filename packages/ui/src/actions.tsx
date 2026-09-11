@@ -371,6 +371,7 @@ interface CommonActionProps {
 }
 
 export interface ButtonProps extends CommonActionProps {
+  readonly "aria-describedby"?: string | undefined;
   readonly align?: "center" | "start" | undefined;
   readonly children: ReactNode;
   readonly icon?: ReactNode | undefined;
@@ -380,6 +381,7 @@ export interface ButtonProps extends CommonActionProps {
 }
 
 export function Button({
+  "aria-describedby": describedBy,
   align = "center",
   children,
   className,
@@ -406,6 +408,7 @@ export function Button({
       aria-label={label}
       aria-pressed={selected === undefined ? undefined : selected}
       className={className}
+      aria-describedby={describedBy}
       data-align={align}
       data-artemis-component="button"
       data-part="root"
@@ -430,6 +433,7 @@ export function Button({
 }
 
 export interface IconButtonProps extends CommonActionProps {
+  readonly "aria-describedby"?: string | undefined;
   readonly "aria-expanded"?: boolean | undefined;
   readonly icon: ReactNode;
   readonly iconSize?: ActionIconSize | undefined;
@@ -438,6 +442,7 @@ export interface IconButtonProps extends CommonActionProps {
 }
 
 export function IconButton({
+  "aria-describedby": describedBy,
   "aria-expanded": expanded,
   className,
   disabled,
@@ -458,6 +463,7 @@ export function IconButton({
   const state = actionState({ disabled, error, loading, selected });
   return (
     <button
+      aria-describedby={describedBy}
       aria-busy={loading || undefined}
       aria-invalid={error || undefined}
       aria-label={label}

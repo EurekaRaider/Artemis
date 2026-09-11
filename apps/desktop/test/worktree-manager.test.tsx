@@ -45,6 +45,11 @@ it("defaults only to recommended worktrees and requires explicit deletion confir
       listWorktreeCleanupCandidates: vi
         .fn()
         .mockResolvedValue([
+          row("local", { recommended: false, pushedToGitHub: false }),
+          row("running", { recommended: false, busy: true }),
+          row("dirty", { recommended: false, clean: false }),
+        ])
+        .mockResolvedValueOnce([
           row("old"),
           row("local", { recommended: false, pushedToGitHub: false }),
           row("running", { recommended: false, busy: true }),
@@ -93,4 +98,33 @@ it("retains failed selections and shows deletion errors", async () => {
     "Worktree became dirty",
   );
   expect(screen.getByRole("checkbox")).toBeChecked();
+});
+
+it("refreshes on focus without reselecting worktrees and drops unsafe selections", async () => {
+  const list = vi
+    .fn()
+    .mockResolvedValue([row("keep"), row("dirty-later"), row("unchecked")]);
+  Object.defineProperty(window, "artemis", {
+    configurable: true,
+    value: { listWorktreeCleanupCandidates: list },
+  });
+  render(<WorktreeManager locale="en-US" onClose={vi.fn()} />);
+  const user = userEvent.setup();
+  const boxes = await screen.findAllByRole("checkbox");
+  await waitFor(() => expect(boxes[0]).toBeEnabled());
+  await user.click(boxes[2]!);
+  list.mockResolvedValue([
+    row("keep"),
+    row("dirty-later", { clean: false, recommended: false }),
+    row("unchecked"),
+    row("new"),
+  ]);
+  window.dispatchEvent(new Event("focus"));
+  await waitFor(() => expect(screen.getAllByRole("checkbox")).toHaveLength(4));
+  const refreshed = screen.getAllByRole("checkbox");
+  expect(refreshed[0]).toBeChecked();
+  expect(refreshed[1]).not.toBeChecked();
+  expect(refreshed[1]).toBeDisabled();
+  expect(refreshed[2]).not.toBeChecked();
+  expect(refreshed[3]).not.toBeChecked();
 });

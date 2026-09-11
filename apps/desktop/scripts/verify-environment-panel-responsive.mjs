@@ -81,7 +81,7 @@ try {
   for (const view of [
     "environment-new-conversation",
     "environment-unstarted",
-    "environment-non-git",
+    "environment-non-git-empty",
   ]) {
     const snapshot = await runCase(view, 1420, view);
     assert(
@@ -89,6 +89,19 @@ try {
       `${view} unexpectedly opened the environment panel.`,
     );
   }
+  const nonGit = await runCase("non-git-content", 1420, "environment-non-git");
+  assert(
+    nonGit.environmentPanelOpen,
+    "Non-Git task content did not open the panel.",
+  );
+  assert(
+    !nonGit.environmentSectionHeadings.includes("Git"),
+    "Non-Git task still displays the Git section.",
+  );
+  assert(
+    nonGit.environmentSectionHeadings.length >= 2,
+    "Non-Git task lost its agent activity or sources section.",
+  );
   const started = await runCase("started-git", 1420, "environment");
   assert(
     started.environmentPanelOpen,

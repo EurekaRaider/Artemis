@@ -1011,9 +1011,11 @@ const CL3_EXPECTED_CSS_RULES = [
     {
       "z-index": "80",
       padding: "var(--artemis-space-1) var(--artemis-space-2)",
-      color: "var(--artemis-color-surface-base)",
-      background: "var(--artemis-color-text-primary)",
-      border: "0",
+      color:
+        "color-mix(in srgb, var(--artemis-color-text-primary) 85%, var(--artemis-color-surface-base))",
+      background: "var(--artemis-color-surface-user)",
+      "border-color": "var(--artemis-color-border-default)",
+      "box-shadow": "0 4px 12px rgb(0 0 0 / 12%)",
       "border-radius": "var(--artemis-radius-control)",
       "pointer-events": "none",
     },

@@ -253,6 +253,53 @@ describe("group collaboration UI", () => {
     await userEvent.click(screen.getByRole("button", { name: "@ Bob" }));
     expect(mention).toHaveBeenCalledWith("@Bob");
   });
+  it("keeps compact removal behind confirmation and preserves mention actions", async () => {
+    const remove = vi.fn(async () => true);
+    render(
+      <ImGroupMembers
+        group={{ ...group, targetDeviceIds: ["bob-device"] }}
+        locale="zh-CN"
+        onRemove={remove}
+        onMention={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole("button", {
+      name: "从本对话移除：Bob · Bob desktop",
+    });
+    expect(button).toHaveAttribute("data-artemis-component", "icon-button");
+    expect(screen.getByRole("button", { name: "@ Bob" })).toHaveAttribute(
+      "data-artemis-component",
+      "icon-button",
+    );
+    await userEvent.hover(button);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "从本对话移除：Bob · Bob desktop",
+    );
+    expect(button).toHaveAccessibleDescription(
+      "从本对话移除：Bob · Bob desktop",
+    );
+    await userEvent.unhover(button);
+    const mentionButton = screen.getByRole("button", { name: "@ Bob" });
+    await userEvent.hover(mentionButton);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("提及 Bob");
+    await userEvent.unhover(mentionButton);
+    const computer = screen.getByRole("img", { name: "电脑在线" });
+    await userEvent.hover(computer);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("电脑在线");
+    await userEvent.unhover(computer);
+    act(() => mentionButton.focus());
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("提及 Bob");
+    act(() => mentionButton.blur());
+    await userEvent.click(button);
+    expect(remove).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(remove).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "从本对话移除：Bob · Bob desktop" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "确认移除成员" }));
+    expect(remove).toHaveBeenCalledWith("bob-device");
+  });
   it("shows actual member platforms, devices, executor and stale state", () => {
     const { rerender } = render(
       <ImGroupMembers group={group} locale="zh-CN" />,
@@ -260,7 +307,12 @@ describe("group collaboration UI", () => {
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent("Alice laptop");
-    expect(rows[0]).toHaveTextContent("电脑离线或暂停");
+    expect(
+      within(rows[0]!).getByRole("img", { name: "电脑离线或暂停" }),
+    ).toHaveAttribute("data-state", "offline");
+    expect(
+      within(rows[1]!).getByRole("img", { name: "电脑在线" }),
+    ).toHaveAttribute("data-state", "online");
     expect(
       within(rows[1]!).getByTitle("Bob · Slack · Bob desktop"),
     ).toBeVisible();
@@ -273,7 +325,16 @@ describe("group collaboration UI", () => {
       <ImGroupMembers group={{ ...group, stale: true }} locale="zh-CN" />,
     );
     expect(screen.queryByText("电脑在线")).not.toBeInTheDocument();
-    expect(screen.getAllByText("状态未知")).toHaveLength(2);
+    expect(screen.getAllByRole("img", { name: "状态未知" })).toHaveLength(2);
+    for (const icon of screen.getAllByRole("img")) {
+      expect(icon).toHaveAttribute("data-state", "offline");
+    }
+    rerender(
+      <ImGroupMembers group={{ ...group, confirmed: false }} locale="zh-CN" />,
+    );
+    for (const icon of screen.getAllByRole("img")) {
+      expect(icon).toHaveAttribute("data-state", "offline");
+    }
   });
   it("refreshes the selected thread's roster and never infers membership from a task title or private chat", async () => {
     vi.useFakeTimers();

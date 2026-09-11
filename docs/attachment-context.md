@@ -35,12 +35,22 @@ text reads are limited to a conservative 4000-token ceiling. Text estimates use
 UTF-8 bytes to avoid undercounting Chinese and dense data; image estimates are
 provider-dependent and conservative, not provider-reported usage.
 
-The final model request includes a budget check for system instructions, tools,
-history and new content, with output and safety reserves. Replaceable attachment
-images can be omitted from the request view while retaining retrieval references.
-Ordinary user text is never silently truncated. Pi remains responsible for history
-compaction; a request that still exceeds the local budget fails before reaching
-the provider. Estimates cannot establish exact provider token usage.
+The final model request estimates ordinary text using Pi's characters-per-token
+heuristic, with conservative image estimates, output and safety reserves. The
+UTF-8 byte ceiling applies to attachment extraction, not whole conversations.
+Replaceable attachment images can be omitted from the request view while retaining
+retrieval references. Ordinary user text is never silently truncated. Local
+overflow includes the estimated input and available budget and enters Pi's existing
+single compact-and-retry recovery path. Estimates are not provider token counts.
+
+Manual and automatic compaction use the same bounded summary stream. Oversized
+summary inputs are split at serialized message/line boundaries (or within a single
+oversized result), summarized, and merged with Pi's original summary instructions.
+Only a complete summary is returned to Pi for persistence. Failure or cancellation
+preserves history and is shown as such in the timeline; it is not displayed as a
+successful compaction. Model changes recompute budgets for the new model without
+discarding history. Fixed summary instructions that cannot fit require shorter
+instructions or a larger model window.
 
 The composer defaults to a single 34-pixel attachment summary, including up to
 three thumbnails and an aggregate processing status. Expanding it shows an

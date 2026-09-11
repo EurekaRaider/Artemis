@@ -102,7 +102,8 @@ export interface AssistantUsageState {
 
 export interface ContextCompactionState {
   id: string;
-  status: "running" | "completed";
+  status: "running" | "completed" | "failed" | "cancelled";
+  error?: string;
   completedAt?: string;
 }
 
@@ -902,7 +903,10 @@ function applyAgentPayload(
         if (runningCompaction) {
           state.contextCompactions[runningCompaction.id] = {
             ...runningCompaction,
-            status: "completed",
+            status: payload.compactionResult?.status ?? "completed",
+            ...(payload.compactionResult?.error
+              ? { error: payload.compactionResult.error }
+              : {}),
             completedAt: event.timestamp,
           };
         }

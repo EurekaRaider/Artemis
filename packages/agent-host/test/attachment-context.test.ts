@@ -49,7 +49,7 @@ describe("attachment request boundary", () => {
         small,
         {
           messages: [
-            { role: "user", content: "x".repeat(20000), timestamp: 1 },
+            { role: "user", content: "x".repeat(80000), timestamp: 1 },
           ],
         },
         { maxTokens: 16000 },
@@ -67,11 +67,51 @@ describe("attachment request boundary", () => {
         { ...model, contextWindow: 2048 },
         {
           messages: [
-            { role: "user", content: "中".repeat(2000), timestamp: 1 },
+            { role: "user", content: "中".repeat(8000), timestamp: 1 },
           ],
         },
       ),
     ).toThrow(/before sending/);
     expect(streamSimple).not.toHaveBeenCalled();
+  });
+  it("does not reject ordinary history by treating bytes as tokens", () => {
+    const streamSimple = vi.fn();
+    const runtime = withAttachmentContextBudget({
+      streamSimple,
+    } as unknown as ModelRuntime);
+    const context: Context = {
+      messages: [
+        {
+          role: "user",
+          content: "The quick brown fox jumps over the lazy dog. ".repeat(5000),
+          timestamp: 1,
+        },
+      ],
+    };
+    runtime.streamSimple({ ...model, contextWindow: 128000 }, context);
+    expect(streamSimple).toHaveBeenCalledOnce();
+    expect(streamSimple.mock.calls[0]![1]).toEqual(context);
+  });
+  it("lets Pi recognize local overflow and recomputes the budget after a model switch", async () => {
+    const { isContextOverflow } = await import("@earendil-works/pi-ai/compat");
+    const context: Context = {
+      messages: [{ role: "user", content: "a".repeat(160000), timestamp: 1 }],
+    };
+    let failure: Error | undefined;
+    try {
+      fitAttachmentContext({ ...model, contextWindow: 32000 }, context);
+    } catch (error) {
+      failure = error as Error;
+    }
+    expect(failure).toBeDefined();
+    expect(
+      isContextOverflow(
+        { stopReason: "error", errorMessage: failure!.message } as never,
+        32000,
+      ),
+    ).toBe(true);
+    expect(
+      fitAttachmentContext({ ...model, contextWindow: 128000 }, context),
+    ).toEqual(context);
   });
 });

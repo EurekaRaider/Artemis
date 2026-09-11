@@ -5,9 +5,12 @@ import type {
   Model,
   SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  estimateTokens,
+  type ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
 
-// A UTF-8 byte ceiling avoids chars/4 undercounting Chinese, code and arbitrary data.
+// Conservative ceiling for bounded attachment reads, not whole-conversation tokens.
 export function attachmentTextTokens(value: string): number {
   return Buffer.byteLength(value, "utf8");
 }
@@ -51,8 +54,8 @@ export function estimateRequestTokens(
   },
 ): number {
   let tokens =
-    attachmentTextTokens(context.systemPrompt ?? "") +
-    attachmentTextTokens(JSON.stringify(context.tools ?? []));
+    Math.ceil((context.systemPrompt ?? "").length / 4) +
+    Math.ceil(JSON.stringify(context.tools ?? []).length / 4);
   for (const message of context.messages) {
     tokens += 16;
     const content =
@@ -60,19 +63,38 @@ export function estimateRequestTokens(
         ? (message as { content?: unknown }).content
         : undefined;
     if (typeof content === "string") {
-      tokens += attachmentTextTokens(content);
+      tokens += Math.ceil(content.length / 4);
       continue;
     }
     if (!Array.isArray(content)) {
-      tokens += attachmentTextTokens(JSON.stringify(message) ?? "");
+      tokens += estimateTokens(message as Parameters<typeof estimateTokens>[0]);
       continue;
     }
     for (const block of content) {
       if (block?.type === "image") tokens += attachmentImageTokens(model);
-      else tokens += attachmentTextTokens(JSON.stringify(block) ?? "");
+      else if (block?.type === "text")
+        tokens += Math.ceil(block.text.length / 4);
+      else if (block?.type === "thinking")
+        tokens += Math.ceil(block.thinking.length / 4);
+      else tokens += Math.ceil((JSON.stringify(block) ?? "").length / 4);
     }
   }
   return tokens;
+}
+export class ContextBudgetExceededError extends Error {
+  readonly code = "ARTEMIS_CONTEXT_BUDGET_EXCEEDED";
+
+  constructor(
+    readonly estimatedTokens: number,
+    readonly inputLimit: number,
+  ) {
+    // Pi's stream boundary transports error text, not custom Error properties.
+    // The standard overflow marker connects this typed error to Pi's bounded recovery.
+    super(
+      `context_length_exceeded: Local context estimate (${estimatedTokens} tokens) exceeds the input budget (${inputLimit} tokens) before sending. Output and safety reserves are excluded from this budget. Compact this task or select a larger-context model. Attachment originals are preserved.`,
+    );
+    this.name = "ContextBudgetExceededError";
+  }
 }
 /** Only discard replaceable attachment image payloads, never ordinary conversation text. */
 export function fitAttachmentContext(
@@ -131,8 +153,9 @@ export function fitAttachmentContext(
       }
     }
   }
-  throw new Error(
-    "Context budget exceeded before sending. Compact this task, shorten the request, or select a larger-context model. Attachment originals are preserved.",
+  throw new ContextBudgetExceededError(
+    estimateRequestTokens(model, result),
+    inputTokenLimit(model, requestedOutput),
   );
 }
 export function withAttachmentContextBudget(

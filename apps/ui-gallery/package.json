@@ -1,6 +1,6 @@
 {
   "name": "@artemis/ui-gallery",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,9 +10,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/theme-artemis": "1.5.6",
-    "@artemis/theme-contract": "1.5.6",
-    "@artemis/ui": "1.5.6",
+    "@artemis/theme-artemis": "1.5.7",
+    "@artemis/theme-contract": "1.5.7",
+    "@artemis/ui": "1.5.7",
     "@phosphor-icons/react": "^2.1.10",
     "react": "19.2.8",
     "react-dom": "19.2.8"

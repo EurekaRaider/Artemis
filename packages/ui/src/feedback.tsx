@@ -71,6 +71,7 @@ export const FEEDBACK_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-surface-base",
   "--artemis-color-surface-raised",
   "--artemis-color-surface-sunken",
+  "--artemis-color-surface-user",
   "--artemis-color-overlay-scrim",
   "--artemis-color-interaction-hover",
   "--artemis-color-text-primary",
@@ -497,6 +498,7 @@ function useAnchoredPosition(
 }
 
 export interface TooltipProps {
+  readonly className?: string | undefined;
   readonly align?: OverlayAlignment | undefined;
   readonly children: ReactElement<Record<string, unknown>>;
   readonly label: string;
@@ -506,6 +508,7 @@ export interface TooltipProps {
 
 export function Tooltip({
   align = "center",
+  className,
   children,
   label,
   placement = "block-start",
@@ -570,6 +573,7 @@ export function Tooltip({
       {open && target
         ? createPortal(
             <div
+              className={className}
               data-artemis-component="tooltip"
               data-part="root"
               data-state="visible"

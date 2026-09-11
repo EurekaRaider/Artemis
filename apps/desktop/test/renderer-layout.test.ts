@@ -978,11 +978,14 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain("window.artemis.restoreWorktreeSnapshot");
   });
 
-  it("renames sidebar tasks inline without relying on a browser prompt", () => {
+  it("renames sidebar tasks in a focused dialog without a browser prompt", () => {
     expect(appSource).not.toContain("window.prompt(t.taskNamePrompt");
     expect(appSource).toContain(
       "const [threadRename, setThreadRename] = useState",
     );
+    expect(appSource).toContain('className="thread-rename-dialog"');
+    expect(appSource).toContain("initialFocusRef={threadRenameInput}");
+    expect(appSource).toContain("returnFocusRef={threadMenuAnchor}");
     expect(appSource).toContain('className="thread-rename-input"');
     expect(appSource).toContain("beginRenameThread(thread)");
     expect(appSource).toContain('event.key === "Escape"');

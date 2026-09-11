@@ -697,6 +697,8 @@ const copy = {
     compactCommandDetail: "Summarize older context now",
     contextCompacting: "Compacting context",
     contextCompacted: "Compact completed",
+    contextCompactionFailed: "Context compaction failed",
+    contextCompactionCancelled: "Context compaction cancelled",
     compactRequiresTask: "Open an existing task before compacting context.",
     compactWhileRunning: "Wait for the active turn before compacting context.",
     compactFailed: "Context could not be compacted.",
@@ -989,6 +991,8 @@ const copy = {
     compactCommandDetail: "立即压缩较早的上下文",
     contextCompacting: "正在压缩上下文",
     contextCompacted: "Compact 已完成",
+    contextCompactionFailed: "上下文压缩失败",
+    contextCompactionCancelled: "上下文压缩已取消",
     compactRequiresTask: "请先打开已有任务，再压缩上下文。",
     compactWhileRunning: "请等待当前任务执行结束后再压缩上下文。",
     compactFailed: "上下文压缩失败。",
@@ -4014,6 +4018,18 @@ export function App() {
       }),
     [threadState?.taskSourceOrder, threadState?.taskSources],
   );
+  const environmentWorktree = snapshot?.worktrees.find(
+    (worktree) =>
+      worktree.threadId === activeThread?.id && worktree.status === "active",
+  );
+  const environmentWorkspaceKey = JSON.stringify([
+    activeProject?.id,
+    activeThread?.id,
+    activeThread?.target,
+    activeProject?.path,
+    environmentWorktree?.id,
+    environmentWorktree?.path,
+  ]);
   const environmentRefreshKey = useMemo(() => {
     for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
       const event = activeEvents[index];
@@ -6883,6 +6899,7 @@ export function App() {
                   </span>
                   {activeProject && (
                     <EnvironmentPanel
+                      key={environmentWorkspaceKey}
                       actionsDisabled={
                         projectBranchActionsDisabled ||
                         Boolean(activeThread?.archived)
@@ -6948,7 +6965,6 @@ export function App() {
                       attachments={attachments}
                       defaultOpen={Boolean(threadState?.turnOrder.length)}
                       dockOpen={workspaceDockOpen}
-                      key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                       locale={locale}
                       mcpUsages={environmentMcpUsages}
                       onAddProject={() => void openProject()}
@@ -7367,6 +7383,8 @@ export function App() {
                         context={
                           <div className="composer-context-row">
                             <ComposerContextBar
+                              key={environmentWorkspaceKey}
+                              threadId={activeThread?.id}
                               {...(activeProject ? { activeProject } : {})}
                               branchActionsDisabled={
                                 projectBranchActionsDisabled
@@ -11440,11 +11458,11 @@ function ContextCompactionStatus({
       COMPACTION_COMPLETION_NOTICE_MILLISECONDS
     : 0;
   const [visible, setVisible] = useState(
-    () => compaction.status === "running" || completionDeadline > Date.now(),
+    () => compaction.status !== "completed" || completionDeadline > Date.now(),
   );
 
   useEffect(() => {
-    if (compaction.status === "running") {
+    if (compaction.status !== "completed") {
       setVisible(true);
       return;
     }
@@ -11462,20 +11480,20 @@ function ContextCompactionStatus({
   }, [compaction.id, compaction.status, completionDeadline]);
 
   if (!visible) return null;
+  const label =
+    compaction.status === "running"
+      ? t.contextCompacting
+      : compaction.status === "failed"
+        ? t.contextCompactionFailed
+        : compaction.status === "cancelled"
+          ? t.contextCompactionCancelled
+          : t.contextCompacted;
   return (
     <TurnStatus
       className={`turn-status compaction-status ${compaction.status}`}
-      label={
-        compaction.status === "running"
-          ? t.contextCompacting
-          : t.contextCompacted
-      }
-      state={compaction.status}
-      statusLabel={
-        compaction.status === "running"
-          ? t.contextCompacting
-          : t.contextCompacted
-      }
+      label={label}
+      state={compaction.status === "cancelled" ? "idle" : compaction.status}
+      statusLabel={compaction.error ?? label}
     />
   );
 }

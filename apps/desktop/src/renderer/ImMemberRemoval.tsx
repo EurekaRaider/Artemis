@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { Button } from "@artemis/ui/actions";
-import { InlineNotice } from "@artemis/ui/feedback";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import { Button, IconButton } from "@artemis/ui/actions";
+import { InlineNotice, Tooltip } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation";
 
 export function ImMemberRemoval({
   name,
+  compact = false,
   scope,
   disabled,
   remove,
   t,
 }: {
   name: string;
+  compact?: boolean;
   scope: "conversation" | "space";
   disabled: boolean;
   remove(): Promise<boolean>;
@@ -22,6 +25,18 @@ export function ImMemberRemoval({
     scope === "space"
       ? t("从整个空间移除", "Remove from entire space")
       : t("从本对话移除", "Remove from this conversation");
+  if (!confirming && compact)
+    return (
+      <Tooltip label={`${label}：${name}`} align="end">
+        <IconButton
+          className="im-member-action im-member-remove"
+          icon={<ArtemisIcon name="unlink" width={14} height={14} />}
+          label={`${label}：${name}`}
+          disabled={disabled}
+          onClick={() => setConfirming(true)}
+        />
+      </Tooltip>
+    );
   if (!confirming)
     return (
       <Button
