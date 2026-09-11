@@ -62,7 +62,6 @@ import {
   type CustomAgentCatalogEntry,
   type CustomAgentDefinition,
   type CustomAgentInstanceSnapshot,
-  type CustomAgentToolRef,
   MAX_USER_INPUT_QUESTIONS,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   USER_INPUT_QUESTION_ID_MAX_LENGTH,
@@ -1176,35 +1175,12 @@ function terminalAgentStopReason(
   return undefined;
 }
 
-/** Capability classes the child-agent runtime baseline can ever allow. */
-export const CUSTOM_AGENT_CHILD_BASELINE: ReadonlySet<CapabilityClass> =
-  new Set([
-    "shell",
-    "filesystem-write",
-    "mcp",
-    "spawn-agent",
-    "business-read",
-  ]);
+import {
+  CUSTOM_AGENT_CHILD_BASELINE,
+  resolveCustomAgentToolCapabilities,
+} from "./custom-agent-capabilities.js";
 
-/** Stable builtin tool ids mapped to capability classes for allowlists. */
-export function resolveCustomAgentToolCapabilities(
-  ref: CustomAgentToolRef,
-): ReadonlySet<CapabilityClass> {
-  if (ref.kind === "mcp") {
-    return new Set<CapabilityClass>(["mcp", "business-read"]);
-  }
-  switch (ref.toolId) {
-    case "shell":
-    case "shell_wait":
-    case "shell_cancel":
-      return new Set<CapabilityClass>(["shell"]);
-    case "write":
-    case "office_document":
-      return new Set<CapabilityClass>(["filesystem-write", "business-read"]);
-    default:
-      return new Set<CapabilityClass>(["business-read"]);
-  }
-}
+export { CUSTOM_AGENT_CHILD_BASELINE, resolveCustomAgentToolCapabilities };
 
 function isTerminalChildStatus(status: ChildAgentPayload["status"]): boolean {
   return (
@@ -2387,7 +2363,8 @@ export class ArtemisAgentHost {
       hosted.turnCustomAgents ?? this.configuration.customAgents ?? [];
     const entries: CustomAgentCatalogEntry[] = definitions
       .filter(
-        (definition) => definition.enabled && definition.allowAutomaticInvocation,
+        (definition) =>
+          definition.enabled && definition.allowAutomaticInvocation,
       )
       .map((definition) => ({
         definitionId: definition.id,
@@ -4591,8 +4568,7 @@ export class ArtemisAgentHost {
             });
           } else {
             this.emitCustomAgentRoute(hosted, {
-              decision:
-                triggerCandidates.length > 0 ? "advisory" : "free-role",
+              decision: triggerCandidates.length > 0 ? "advisory" : "free-role",
               invocationSource: "none",
               selectionBasis:
                 triggerCandidates.length > 0 ? "trigger-words" : "none",
@@ -5199,16 +5175,15 @@ export class ArtemisAgentHost {
               let activityUpdateTimer:
                 ReturnType<typeof setTimeout> | undefined;
               const frozenSnapshot = input.customAgentSnapshot;
-              const frozenSelection: ModelSelection | undefined =
-                frozenSnapshot
-                  ? {
-                      providerId: frozenSnapshot.resolvedModel.providerId,
-                      modelId: frozenSnapshot.resolvedModel.modelId,
-                      thinkingLevel: (frozenSnapshot.resolvedModel
-                        .thinkingLevel ??
-                        "off") as ModelSelection["thinkingLevel"],
-                    }
-                  : undefined;
+              const frozenSelection: ModelSelection | undefined = frozenSnapshot
+                ? {
+                    providerId: frozenSnapshot.resolvedModel.providerId,
+                    modelId: frozenSnapshot.resolvedModel.modelId,
+                    thinkingLevel: (frozenSnapshot.resolvedModel
+                      .thinkingLevel ??
+                      "off") as ModelSelection["thinkingLevel"],
+                  }
+                : undefined;
               const childProviderId =
                 frozenSelection?.providerId ?? hosted.selection?.providerId;
               const childAdapter = new PiAdapter(

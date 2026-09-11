@@ -56,12 +56,10 @@ export const CUSTOM_AGENT_REFERENCES_PER_MESSAGE_MAX = 1;
 export type CustomAgentScope = "all" | "selected";
 
 export type CustomAgentModelPolicy =
-  | { kind: "inherit" }
-  | { kind: "fixed"; providerId: string; modelId: string };
+  { kind: "inherit" } | { kind: "fixed"; providerId: string; modelId: string };
 
 export type CustomAgentThinkingPolicy =
-  | { kind: "inherit" }
-  | { kind: "fixed"; level: string };
+  { kind: "inherit" } | { kind: "fixed"; level: string };
 
 /**
  * Tool references are stable identifiers, never display labels:
@@ -72,8 +70,7 @@ export type CustomAgentToolRef =
   | { kind: "mcp"; serverId: string; toolName: string };
 
 export type CustomAgentToolPolicy =
-  | { kind: "inherit" }
-  | { kind: "allowlist"; tools: CustomAgentToolRef[] };
+  { kind: "inherit" } | { kind: "allowlist"; tools: CustomAgentToolRef[] };
 
 export interface CustomAgentDefinition {
   /** Permanent identity; never reused after deletion. */
@@ -184,7 +181,9 @@ export function runModeCapabilities(mode: RunMode): Set<CapabilityClass> {
 function capabilityAllowedByToolPolicy(
   capability: CapabilityClass,
   policy: CustomAgentToolPolicy,
-  resolveToolCapabilities: (ref: CustomAgentToolRef) => ReadonlySet<CapabilityClass>,
+  resolveToolCapabilities: (
+    ref: CustomAgentToolRef,
+  ) => ReadonlySet<CapabilityClass>,
 ): boolean {
   if (policy.kind === "inherit") return true;
   // allowlist — including the empty list, which allows NOTHING.
@@ -207,7 +206,9 @@ function capabilityAllowedByToolPolicy(
 export function computeEffectiveCapabilities(
   context: CapabilityContext,
   toolPolicy: CustomAgentToolPolicy,
-  resolveToolCapabilities: (ref: CustomAgentToolRef) => ReadonlySet<CapabilityClass>,
+  resolveToolCapabilities: (
+    ref: CustomAgentToolRef,
+  ) => ReadonlySet<CapabilityClass>,
 ): Set<CapabilityClass> {
   const modeAllowed = runModeCapabilities(context.runMode);
   const result = new Set<CapabilityClass>();
@@ -259,7 +260,8 @@ export interface CustomAgentInstanceSnapshot {
   effectiveCapabilities: readonly CapabilityClass[];
   /** P0-user | P0-model | P1-lexical | P2-semantic (never for explicit). */
   invocationSource: "user-explicit" | "model-explicit" | "model-automatic";
-  selectionBasis: "explicit-reference" | "lexical-name" | "lexical-trigger" | "semantic";
+  selectionBasis:
+    "explicit-reference" | "lexical-name" | "lexical-trigger" | "semantic";
   /** Stable idempotency key for explicit user invocations (plan section 6). */
   invocationId?: string;
   frozenAt: number;
@@ -322,8 +324,14 @@ export interface CustomAgentInvocationRecord {
 }
 
 export type InvocationTransition =
-  | { from: "pending"; to: "dispatch-committed" | "cancelled" | "outcome-unknown" }
-  | { from: "dispatch-committed"; to: "finished" | "cancelled" | "outcome-unknown" }
+  | {
+      from: "pending";
+      to: "dispatch-committed" | "cancelled" | "outcome-unknown";
+    }
+  | {
+      from: "dispatch-committed";
+      to: "finished" | "cancelled" | "outcome-unknown";
+    }
   | { from: "outcome-unknown"; to: "finished" | "cancelled" };
 
 const ALLOWED_INVOCATION_TRANSITIONS: ReadonlyMap<
@@ -408,8 +416,7 @@ export function hasLatinWordBoundaryHit(text: string, needle: string): boolean {
   if (needle.length === 0) return false;
   let index = text.indexOf(needle);
   while (index !== -1) {
-    const before: string | undefined =
-      index > 0 ? text[index - 1] : undefined;
+    const before: string | undefined = index > 0 ? text[index - 1] : undefined;
     const after: string | undefined =
       index + needle.length < text.length
         ? text[index + needle.length]

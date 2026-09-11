@@ -7690,7 +7690,9 @@ export function App() {
                         {!skillCommandMenuOpen && customAgentReference && (
                           <div
                             className="composer-selected-skill composer-selected-agent"
-                            data-custom-agent={customAgentReference.definitionId}
+                            data-custom-agent={
+                              customAgentReference.definitionId
+                            }
                           >
                             <span
                               aria-hidden="true"

@@ -105,7 +105,9 @@ interface HostedStub {
   interruptedTeamContext?: string;
   turnCustomAgents?: CustomAgentDefinition[];
   explicitCustomAgentInvocations?: Map<string, string>;
-  launchChildAgent?: (input: Record<string, unknown>) => Record<string, unknown>;
+  launchChildAgent?: (
+    input: Record<string, unknown>,
+  ) => Record<string, unknown>;
 }
 
 interface HostInternals {
@@ -116,10 +118,19 @@ interface HostInternals {
     senderAgentId: string,
     agentId: string | undefined,
     role: string | undefined,
-  ): { resolvedModel: { providerId: string; modelId: string }; effectiveCapabilities: readonly string[] } | undefined;
+  ):
+    | {
+        resolvedModel: { providerId: string; modelId: string };
+        effectiveCapabilities: readonly string[];
+      }
+    | undefined;
   acceptExplicitCustomAgentInvocation(
     hosted: HostedStub,
-    invocation: { invocationId: string; definitionId: string; revision: number },
+    invocation: {
+      invocationId: string;
+      definitionId: string;
+      revision: number;
+    },
     taskText: string,
   ): { agentId: string; definitionName: string; duplicate: boolean };
   reconcileCustomAgentChildren(
@@ -246,7 +257,12 @@ describe("custom agent dispatch resolution", () => {
       childAgents: new Map(),
     };
     expect(() =>
-      internals.resolveCustomAgentDispatch(hosted, "root", "def-404", undefined),
+      internals.resolveCustomAgentDispatch(
+        hosted,
+        "root",
+        "def-404",
+        undefined,
+      ),
     ).toThrowError(/CUSTOM_AGENT_NOT_FOUND/);
   });
 
@@ -351,9 +367,7 @@ describe("custom agent revocation", () => {
     );
     hosted.childAgents.set("child-1", child);
 
-    internals.reconcileCustomAgentChildren([
-      definition({ enabled: false }),
-    ]);
+    internals.reconcileCustomAgentChildren([definition({ enabled: false })]);
     expect(cancelled).toEqual(["child-1"]);
 
     host.dispose();

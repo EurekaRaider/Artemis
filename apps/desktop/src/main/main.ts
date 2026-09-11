@@ -98,7 +98,7 @@ import { canTransitionInvocation } from "@artemis/protocol";
 import {
   CUSTOM_AGENT_CHILD_BASELINE,
   resolveCustomAgentToolCapabilities,
-} from "@artemis/agent-host";
+} from "@artemis/agent-host/custom-agent-capabilities";
 
 import {
   AGENT_CONCURRENCY_FALLBACK,
@@ -5706,9 +5706,7 @@ async function startTaskTurnUnchecked(
         `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
       );
     }
-    if (
-      !turnCustomAgents.some((candidate) => candidate.id === definition.id)
-    ) {
+    if (!turnCustomAgents.some((candidate) => candidate.id === definition.id)) {
       throw new Error(
         `CUSTOM_AGENT_OUT_OF_SCOPE: the referenced custom sub-agent is not effective for this project.`,
       );
@@ -5797,10 +5795,7 @@ async function startTaskTurnUnchecked(
       throw new Error(
         "INVOCATION_OUTCOME_UNKNOWN: this invocation was left ambiguous after a crash; send a new message to re-execute it.",
       );
-    } else if (
-      record.status === "finished" ||
-      record.status === "cancelled"
-    ) {
+    } else if (record.status === "finished" || record.status === "cancelled") {
       throw new Error(
         "INVOCATION_CONFLICT: this invocation already completed; send a new message for a new execution.",
       );
@@ -7512,11 +7507,7 @@ function registerIpc(): void {
   );
   ipcMain.handle(
     IPC.customAgentsPreviewCapabilities,
-    (
-      _event,
-      raw: unknown,
-      mode: RunMode,
-    ): CustomAgentCapabilityPreview => {
+    (_event, raw: unknown, mode: RunMode): CustomAgentCapabilityPreview => {
       if (mode !== "execute" && mode !== "plan" && mode !== "review") {
         throw new Error("CUSTOM_AGENT_INVALID: unknown run mode");
       }

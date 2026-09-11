@@ -10399,7 +10399,9 @@ kbd {
 }
 
 /* Custom sub-agent management (D#152 PR4). */
-.custom-agents-section [data-artemis-component="management-row"] [data-part="leading"] {
+.custom-agents-section
+  [data-artemis-component="management-row"]
+  [data-part="leading"] {
   align-self: flex-start;
   padding-top: 5px;
 }
@@ -10411,15 +10413,33 @@ kbd {
   border-radius: 50%;
 }
 
-.custom-agent-color-gray { background: var(--custom-agent-gray); }
-.custom-agent-color-red { background: var(--custom-agent-red); }
-.custom-agent-color-orange { background: var(--custom-agent-orange); }
-.custom-agent-color-yellow { background: var(--custom-agent-yellow); }
-.custom-agent-color-green { background: var(--custom-agent-green); }
-.custom-agent-color-teal { background: var(--custom-agent-teal); }
-.custom-agent-color-blue { background: var(--custom-agent-blue); }
-.custom-agent-color-purple { background: var(--custom-agent-purple); }
-.custom-agent-color-pink { background: var(--custom-agent-pink); }
+.custom-agent-color-gray {
+  background: var(--custom-agent-gray);
+}
+.custom-agent-color-red {
+  background: var(--custom-agent-red);
+}
+.custom-agent-color-orange {
+  background: var(--custom-agent-orange);
+}
+.custom-agent-color-yellow {
+  background: var(--custom-agent-yellow);
+}
+.custom-agent-color-green {
+  background: var(--custom-agent-green);
+}
+.custom-agent-color-teal {
+  background: var(--custom-agent-teal);
+}
+.custom-agent-color-blue {
+  background: var(--custom-agent-blue);
+}
+.custom-agent-color-purple {
+  background: var(--custom-agent-purple);
+}
+.custom-agent-color-pink {
+  background: var(--custom-agent-pink);
+}
 
 .custom-agent-description {
   display: block;

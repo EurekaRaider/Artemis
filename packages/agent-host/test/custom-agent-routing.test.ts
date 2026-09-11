@@ -25,10 +25,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type {
-  AgentPayload,
-  CustomAgentDefinition,
-} from "@artemis/protocol";
+import type { AgentPayload, CustomAgentDefinition } from "@artemis/protocol";
 
 import { ArtemisAgentHost } from "../src/runtime.js";
 
@@ -290,7 +287,9 @@ describe("custom agent automatic routing (release-blocking)", () => {
     });
     // Ambiguity never auto-picks: the child runs as the free role.
     const ambiguousId = String(ambiguous.details?.agentId);
-    expect(thread.childAgents.get(ambiguousId)?.customAgentSnapshot).toBeUndefined();
+    expect(
+      thread.childAgents.get(ambiguousId)?.customAgentSnapshot,
+    ).toBeUndefined();
     expect(ambiguous.content[0]!.text).toContain("def-sec");
     expect(ambiguous.content[0]!.text).toContain("def-comp");
 
@@ -363,7 +362,9 @@ describe("custom agent automatic routing controls", () => {
     ).toBeUndefined();
     // Its trigger words produce no advisory either.
     expect(named.content[0]!.text).not.toContain("[Routing]");
-    expect(routes().find((route) => route.decision === "advisory")).toBeUndefined();
+    expect(
+      routes().find((route) => route.decision === "advisory"),
+    ).toBeUndefined();
 
     // The model cannot target a manual-only definition by id.
     await expect(
@@ -420,7 +421,9 @@ describe("custom agent automatic routing controls", () => {
       thread.childAgents.get(agentId)?.customAgentSnapshot,
     ).toBeUndefined();
     expect(result.content[0]!.text).not.toContain("[Routing]");
-    expect(routes().find((route) => route.decision === "advisory")).toBeUndefined();
+    expect(
+      routes().find((route) => route.decision === "advisory"),
+    ).toBeUndefined();
 
     host.dispose();
   });

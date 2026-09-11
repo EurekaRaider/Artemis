@@ -14,6 +14,10 @@
       "types": "./dist/builtin-models.d.ts",
       "import": "./dist/builtin-models.js"
     },
+    "./custom-agent-capabilities": {
+      "types": "./dist/custom-agent-capabilities.d.ts",
+      "import": "./dist/custom-agent-capabilities.js"
+    },
     "./turn-prompt": {
       "types": "./dist/turn-prompt.d.ts",
       "import": "./dist/turn-prompt.js"

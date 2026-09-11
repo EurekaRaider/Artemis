@@ -150,9 +150,7 @@ describe("CustomAgentsSettingsSection", () => {
     expect(scoped.getByText("Reviews diffs")).toBeInTheDocument();
     expect(scoped.getByText("All projects")).toBeInTheDocument();
     expect(scoped.getByText("Manual only")).toBeInTheDocument();
-    expect(
-      row?.querySelector(".custom-agent-color-blue"),
-    ).not.toBeNull();
+    expect(row?.querySelector(".custom-agent-color-blue")).not.toBeNull();
     // Enabled definitions keep the disabled badge hidden.
     expect(scoped.queryByText("Disabled")).toBeNull();
   });
@@ -233,9 +231,7 @@ describe("CustomAgentsSettingsSection", () => {
     await waitFor(() =>
       expect(api.customAgentsGet).toHaveBeenCalledWith("def-1"),
     );
-    const instructions = await screen.findByLabelText(
-      "Dedicated instructions",
-    );
+    const instructions = await screen.findByLabelText("Dedicated instructions");
     expect(instructions).toHaveValue("Focus on correctness.");
 
     await user.click(screen.getByRole("button", { name: "Save sub-agent" }));

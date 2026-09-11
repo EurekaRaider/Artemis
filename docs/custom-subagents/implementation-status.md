@@ -4,13 +4,13 @@
 
 ## 交付记录
 
-| PR | 内容 | 提交 | 验证 |
-| --- | --- | --- | --- |
-| PR1 协议与策略契约 | 定义/引用/快照类型、错误码、目录预算（20 定义 / 4096 字符）、P1 规范化（NFC + 大小写折叠 + 拉丁词边界 / CJK 子串）、调用状态机 | `b418ca1` | `packages/protocol/test/custom-agents.test.ts`（策略回归先行） |
-| PR2 存储与项目目录 | SQLite 迁移 v13（定义、项目关联、调用去重记录）、CRUD、revision 冲突、projectId 过滤 | `1070605` | `apps/desktop/test/store.test.ts`（旧库升级、删除最后关联、无项目 selected 拒绝） |
-| PR3 运行时定义执行 | 统一接受入口、模型/思考解析、能力交集（plan/review 收窄）、快照冻结、撤销取消、重试复检 | `f75e249`、`8c00622` | `packages/agent-host/test/custom-agent-dispatch.test.ts` |
-| PR4 管理与手动闭环 | 设置管理区块、结构化 @（光标跟踪、IME 安全）、幂等派发（同 ID 同文复用 / 异内容拒绝）、实例身份展示、能力预览 | `a0b2767`、`5d64f9f`、`3a9f814`、`0f285ed`、`5255ef0` | `apps/desktop/test/custom-agents-settings.test.tsx`、`custom-agent-mention.test.tsx`、`custom-agent-identity.test.ts` |
-| PR5 自动委派 | 轮内自动目录注入、P1 精确名称纠偏（零实例/零预算）、P2 触发词建议、P3 `custom-agent.route` 持久审计（invocationSource 与 selectionBasis 分列）、目录溢出停用自动路由 + 设置页预算提示 | `8f1dca8` | 三个发布阻断测试经真实工具入口：`packages/agent-host/test/custom-agent-routing.test.ts`；评估：`eval/custom-agent-routing-report.md`（确定性门禁 100%，可复现） |
+| PR                 | 内容                                                                                                                                                                                  | 提交                                                  | 验证                                                                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR1 协议与策略契约 | 定义/引用/快照类型、错误码、目录预算（20 定义 / 4096 字符）、P1 规范化（NFC + 大小写折叠 + 拉丁词边界 / CJK 子串）、调用状态机                                                        | `b418ca1`                                             | `packages/protocol/test/custom-agents.test.ts`（策略回归先行）                                                                                                  |
+| PR2 存储与项目目录 | SQLite 迁移 v13（定义、项目关联、调用去重记录）、CRUD、revision 冲突、projectId 过滤                                                                                                  | `1070605`                                             | `apps/desktop/test/store.test.ts`（旧库升级、删除最后关联、无项目 selected 拒绝）                                                                               |
+| PR3 运行时定义执行 | 统一接受入口、模型/思考解析、能力交集（plan/review 收窄）、快照冻结、撤销取消、重试复检                                                                                               | `f75e249`、`8c00622`                                  | `packages/agent-host/test/custom-agent-dispatch.test.ts`                                                                                                        |
+| PR4 管理与手动闭环 | 设置管理区块、结构化 @（光标跟踪、IME 安全）、幂等派发（同 ID 同文复用 / 异内容拒绝）、实例身份展示、能力预览                                                                         | `a0b2767`、`5d64f9f`、`3a9f814`、`0f285ed`、`5255ef0` | `apps/desktop/test/custom-agents-settings.test.tsx`、`custom-agent-mention.test.tsx`、`custom-agent-identity.test.ts`                                           |
+| PR5 自动委派       | 轮内自动目录注入、P1 精确名称纠偏（零实例/零预算）、P2 触发词建议、P3 `custom-agent.route` 持久审计（invocationSource 与 selectionBasis 分列）、目录溢出停用自动路由 + 设置页预算提示 | `8f1dca8`                                             | 三个发布阻断测试经真实工具入口：`packages/agent-host/test/custom-agent-routing.test.ts`；评估：`eval/custom-agent-routing-report.md`（确定性门禁 100%，可复现） |
 
 ## 已知限制（本阶段）
 

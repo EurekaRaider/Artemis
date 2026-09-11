@@ -84,7 +84,10 @@ describe("validateCustomAgentInput", () => {
 
   it("enforces the protocol budgets for name, description, instructions, triggers", () => {
     expect(() =>
-      validateCustomAgentInput(validInput({ name: "x".repeat(65) }), projectExists),
+      validateCustomAgentInput(
+        validInput({ name: "x".repeat(65) }),
+        projectExists,
+      ),
     ).toThrowError(/CUSTOM_AGENT_INVALID.*name/);
     expect(() =>
       validateCustomAgentInput(
@@ -157,7 +160,10 @@ describe("validateCustomAgentInput", () => {
     expect(() =>
       validateCustomAgentInput(
         validInput({
-          toolPolicy: { kind: "allowlist", tools: [{ kind: "mcp", serverId: "s" }] },
+          toolPolicy: {
+            kind: "allowlist",
+            tools: [{ kind: "mcp", serverId: "s" }],
+          },
         }),
         projectExists,
       ),
@@ -184,9 +190,7 @@ describe("customAgentRequestFingerprint", () => {
     expect(
       customAgentRequestFingerprint({ ...base, text: "review it again" }),
     ).not.toBe(a);
-    expect(
-      customAgentRequestFingerprint({ ...base, revision: 3 }),
-    ).not.toBe(a);
+    expect(customAgentRequestFingerprint({ ...base, revision: 3 })).not.toBe(a);
     expect(
       customAgentRequestFingerprint({ ...base, threadId: "thread-2" }),
     ).not.toBe(a);
@@ -206,7 +210,11 @@ describe("validateCustomAgentSendReference", () => {
 
   it("rejects missing ids and non-integer revisions", () => {
     expect(() =>
-      validateCustomAgentSendReference({ definitionId: "", revision: 2, invocationId: "i" }),
+      validateCustomAgentSendReference({
+        definitionId: "",
+        revision: 2,
+        invocationId: "i",
+      }),
     ).toThrowError(/CUSTOM_AGENT_INVALID/);
     expect(() =>
       validateCustomAgentSendReference({

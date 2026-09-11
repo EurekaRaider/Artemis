@@ -90,9 +90,9 @@ describe("custom agent store", () => {
       scope: "selected",
       projectIds: [projectId],
     });
-    expect(
-      store.listEffectiveCustomAgents(projectId).map((a) => a.id),
-    ).toEqual([agent.id]);
+    expect(store.listEffectiveCustomAgents(projectId).map((a) => a.id)).toEqual(
+      [agent.id],
+    );
 
     // Remove the only link via an update.
     store.updateCustomAgent(agent.id, agent.revision, { projectIds: [] });
@@ -145,9 +145,9 @@ describe("custom agent store", () => {
     });
     expect(store.getProject(projectId)?.path).toBe("/tmp/gamma");
     expect(store.listCustomAgentProjectIds(agent.id)).toEqual([projectId]);
-    expect(
-      store.listEffectiveCustomAgents(projectId).map((a) => a.id),
-    ).toEqual([agent.id]);
+    expect(store.listEffectiveCustomAgents(projectId).map((a) => a.id)).toEqual(
+      [agent.id],
+    );
     store.close();
   });
 
@@ -428,7 +428,9 @@ describe("custom agent store", () => {
     const bound = store.getCustomAgentInvocation("thread-bind", "inv-bind");
     expect(bound?.instanceId).toBe("instance-a");
     expect(bound?.turnId).toBe("turn-1");
-    expect(store.listCustomAgentInvocationsForThread("thread-bind")).toHaveLength(1);
+    expect(
+      store.listCustomAgentInvocationsForThread("thread-bind"),
+    ).toHaveLength(1);
     store.close();
   });
 

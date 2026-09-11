@@ -321,11 +321,7 @@ describe("P1 lexical matching", () => {
   });
 
   it("multiple trigger hits are ambiguous candidates, never auto-picked", () => {
-    const result = matchCatalogLexically(
-      entries,
-      null,
-      "review this PR",
-    );
+    const result = matchCatalogLexically(entries, null, "review this PR");
     expect(result.exactNameMatch).toBeNull();
     expect(result.ambiguous).toBe(true);
     expect(result.triggerCandidates).toHaveLength(2);

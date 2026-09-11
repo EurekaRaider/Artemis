@@ -1327,8 +1327,7 @@ export const IPC = {
   customAgentsCreate: "artemis:custom-agents-create",
   customAgentsUpdate: "artemis:custom-agents-update",
   customAgentsDelete: "artemis:custom-agents-delete",
-  customAgentsPreviewCapabilities:
-    "artemis:custom-agents-preview-capabilities",
+  customAgentsPreviewCapabilities: "artemis:custom-agents-preview-capabilities",
   diagnosticsExport: "artemis:diagnostics-export",
   diagnosticsRendererError: "artemis:diagnostics-renderer-error",
   updateStatus: "artemis:update-status",

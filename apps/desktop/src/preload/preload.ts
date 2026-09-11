@@ -290,8 +290,7 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.customAgentsCreate, input),
   customAgentsUpdate: (id, expectedRevision, input) =>
     ipcRenderer.invoke(IPC.customAgentsUpdate, id, expectedRevision, input),
-  customAgentsDelete: (id) =>
-    ipcRenderer.invoke(IPC.customAgentsDelete, id),
+  customAgentsDelete: (id) => ipcRenderer.invoke(IPC.customAgentsDelete, id),
   customAgentsPreviewCapabilities: (input, mode) =>
     ipcRenderer.invoke(IPC.customAgentsPreviewCapabilities, input, mode),
   scanConfigurationImports: () => ipcRenderer.invoke(IPC.settingsImportScan),

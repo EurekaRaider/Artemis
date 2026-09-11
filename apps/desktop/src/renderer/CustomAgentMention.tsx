@@ -37,9 +37,7 @@ const COLOR_TOKEN_SET: ReadonlySet<string> = new Set(COLOR_TOKENS);
 
 /** Controlled color token for a chip dot; unknown values fall back to gray. */
 export function customAgentColorToken(color: string): CustomAgentColorToken {
-  return COLOR_TOKEN_SET.has(color)
-    ? (color as CustomAgentColorToken)
-    : "gray";
+  return COLOR_TOKEN_SET.has(color) ? (color as CustomAgentColorToken) : "gray";
 }
 
 /** A definition is a candidate when enabled and effective for the project. */
@@ -182,7 +180,9 @@ export function CustomAgentMentionMenu({
       role="listbox"
     >
       <div className="slash-command-heading">
-        {zh ? "@ 子智能体 · 绑定到这条消息" : "@ Sub-agent · bind to this message"}
+        {zh
+          ? "@ 子智能体 · 绑定到这条消息"
+          : "@ Sub-agent · bind to this message"}
       </div>
       {mention.candidates.map((definition, index) => (
         <div

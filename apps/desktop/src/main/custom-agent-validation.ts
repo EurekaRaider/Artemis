@@ -109,7 +109,10 @@ function validateToolRef(ref: unknown): CustomAgentToolRef {
     toolName?: unknown;
   };
   if (candidate.kind === "builtin") {
-    if (typeof candidate.toolId !== "string" || candidate.toolId.trim().length === 0) {
+    if (
+      typeof candidate.toolId !== "string" ||
+      candidate.toolId.trim().length === 0
+    ) {
       fail("builtin tool reference requires a stable toolId");
     }
     return { kind: "builtin", toolId: candidate.toolId.trim() };
@@ -183,13 +186,18 @@ export function validateCustomAgentInput(
   if (typeof input.description !== "string") fail("description is required");
   const description = input.description.trim();
   if (description.length > CUSTOM_AGENT_DESCRIPTION_MAX_LENGTH) {
-    fail(`description exceeds ${CUSTOM_AGENT_DESCRIPTION_MAX_LENGTH} characters`);
+    fail(
+      `description exceeds ${CUSTOM_AGENT_DESCRIPTION_MAX_LENGTH} characters`,
+    );
   }
 
   if (typeof input.instructions !== "string") fail("instructions are required");
   const instructions = input.instructions;
   if (instructions.trim().length === 0) fail("instructions are required");
-  if (Buffer.byteLength(instructions, "utf8") > CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES) {
+  if (
+    Buffer.byteLength(instructions, "utf8") >
+    CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES
+  ) {
     fail(`instructions exceed ${CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES} bytes`);
   }
 
@@ -229,7 +237,9 @@ export function validateCustomAgentInput(
     const normalized = trigger.trim().replace(/\s+/g, " ");
     if (normalized.length === 0) fail("trigger phrases cannot be empty");
     if (normalized.length > CUSTOM_AGENT_TRIGGER_MAX_LENGTH) {
-      fail(`trigger phrases hold at most ${CUSTOM_AGENT_TRIGGER_MAX_LENGTH} characters`);
+      fail(
+        `trigger phrases hold at most ${CUSTOM_AGENT_TRIGGER_MAX_LENGTH} characters`,
+      );
     }
     return normalized;
   });

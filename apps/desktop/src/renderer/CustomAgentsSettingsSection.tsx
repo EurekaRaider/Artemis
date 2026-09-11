@@ -24,10 +24,7 @@ import {
   TextField,
 } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import {
-  ManagementRow,
-  ManagementSection,
-} from "@artemis/ui/management";
+import { ManagementRow, ManagementSection } from "@artemis/ui/management";
 
 import type {
   CustomAgentSummary,
@@ -147,7 +144,8 @@ const labels = {
     triggersHint: "逗号分隔，用于自动路由候选。",
     save: "保存子智能体",
     cancelEdit: "取消",
-    revisionConflict: "该定义已在其他地方被修改，已载入最新版本，请确认后重新保存。",
+    revisionConflict:
+      "该定义已在其他地方被修改，已载入最新版本，请确认后重新保存。",
     capabilityPreview: "有效能力预览（{mode} 模式）",
     scopeBadgeAll: "全部项目",
     scopeBadgeSelected: "{count} 个项目",
@@ -210,7 +208,11 @@ function formToInput(form: CustomAgentFormState): SaveCustomAgentInput {
     projectIds: form.scope === "selected" ? form.projectIds : [],
     modelPolicy:
       form.modelKind === "fixed"
-        ? { kind: "fixed", providerId: form.modelProviderId, modelId: form.modelId }
+        ? {
+            kind: "fixed",
+            providerId: form.modelProviderId,
+            modelId: form.modelId,
+          }
         : { kind: "inherit" },
     thinkingPolicy:
       form.thinkingKind === "fixed"
@@ -455,7 +457,10 @@ export function CustomAgentsSettingsSection({
     }
   };
 
-  const toggleEnabled = async (summary: CustomAgentSummary, enabled: boolean) => {
+  const toggleEnabled = async (
+    summary: CustomAgentSummary,
+    enabled: boolean,
+  ) => {
     setBusy(true);
     setError(undefined);
     try {
@@ -574,7 +579,9 @@ export function CustomAgentsSettingsSection({
                         )}
                   </span>
                   {!definition.enabled && (
-                    <span className="custom-agent-badge">{t.disabledBadge}</span>
+                    <span className="custom-agent-badge">
+                      {t.disabledBadge}
+                    </span>
                   )}
                   <span className="custom-agent-badge">
                     {definition.allowAutomaticInvocation
@@ -681,7 +688,11 @@ export function CustomAgentsSettingsSection({
               label={t.modelFixed}
               onValueChange={(value) => {
                 const [providerId = "", modelId = ""] = value.split("/");
-                setForm((f) => ({ ...f, modelProviderId: providerId, modelId }));
+                setForm((f) => ({
+                  ...f,
+                  modelProviderId: providerId,
+                  modelId,
+                }));
               }}
               options={modelOptions}
               value={`${form.modelProviderId}/${form.modelId}`}
@@ -747,7 +758,9 @@ export function CustomAgentsSettingsSection({
                   }
                 />
               ))}
-              {settings.mcpServers.some((server) => server.tools.length > 0) && (
+              {settings.mcpServers.some(
+                (server) => server.tools.length > 0,
+              ) && (
                 <>
                   <legend>{t.mcpTools}</legend>
                   {settings.mcpServers.flatMap((server) =>

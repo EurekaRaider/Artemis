@@ -99,7 +99,9 @@ async function runCase(evalCase: EvalCase): Promise<EvalCaseResult> {
     const internals = host as unknown as {
       configuration: { customAgents?: unknown };
       threads: Map<string, ThreadStub>;
-      concurrency: { run<T>(kind: "child", task: () => Promise<T>): Promise<T> };
+      concurrency: {
+        run<T>(kind: "child", task: () => Promise<T>): Promise<T>;
+      };
     };
     internals.configuration.customAgents = EVAL_CATALOG;
     const thread = internals.threads.get("thread-1")!;
@@ -204,7 +206,8 @@ export async function runRoutingEvaluation(): Promise<{
   );
   const ambiguous = results.filter((result) => result.label === "ambiguous");
   const referenceRequired = results.filter(
-    (result) => result.decision === "reference-required" ||
+    (result) =>
+      result.decision === "reference-required" ||
       EVAL_CASES.find((c) => c.id === result.caseId)?.expect.decision ===
         "reference-required",
   );
@@ -213,8 +216,7 @@ export async function runRoutingEvaluation(): Promise<{
     caseCount: results.length,
     correctSelectionRate: rate(
       shouldPick.filter(
-        (result) =>
-          result.decision === "advisory" && result.expectedOutcome,
+        (result) => result.decision === "advisory" && result.expectedOutcome,
       ).length,
       shouldPick.length,
     ),
@@ -264,10 +266,7 @@ function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function renderReport(
-  results: EvalCaseResult[],
-  metrics: EvalMetrics,
-): string {
+function renderReport(results: EvalCaseResult[], metrics: EvalMetrics): string {
   const lines: string[] = [
     "# Custom sub-agent automatic-delegation evaluation",
     "",

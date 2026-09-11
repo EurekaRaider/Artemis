@@ -43,17 +43,11 @@ describe("customAgentInstanceIdentity", () => {
 
   it("labels every invocation source in both locales", () => {
     expect(customAgentSourceLabel("user-explicit", "en")).toBe("via @");
-    expect(customAgentSourceLabel("model-explicit", "en")).toBe(
-      "model-chosen",
-    );
+    expect(customAgentSourceLabel("model-explicit", "en")).toBe("model-chosen");
     expect(customAgentSourceLabel("model-automatic", "en")).toBe("automatic");
     expect(customAgentSourceLabel("user-explicit", "zh-CN")).toBe("@ 调用");
-    expect(customAgentSourceLabel("model-explicit", "zh-CN")).toBe(
-      "模型指定",
-    );
-    expect(customAgentSourceLabel("model-automatic", "zh-CN")).toBe(
-      "自动路由",
-    );
+    expect(customAgentSourceLabel("model-explicit", "zh-CN")).toBe("模型指定");
+    expect(customAgentSourceLabel("model-automatic", "zh-CN")).toBe("自动路由");
   });
 });
 

@@ -2760,22 +2760,20 @@ export class AppStore {
   // Custom sub-agent definitions (D#152 PR2)
   // ---------------------------------------------------------------------
 
-  createCustomAgent(
-    input: {
-      name: string;
-      description: string;
-      color: string;
-      enabled?: boolean;
-      instructions: string;
-      scope: "all" | "selected";
-      projectIds?: string[];
-      modelPolicy?: CustomAgentModelPolicy;
-      thinkingPolicy?: CustomAgentThinkingPolicy;
-      toolPolicy?: CustomAgentToolPolicy;
-      allowAutomaticInvocation?: boolean;
-      triggers?: string[];
-    },
-  ): CustomAgentDefinition {
+  createCustomAgent(input: {
+    name: string;
+    description: string;
+    color: string;
+    enabled?: boolean;
+    instructions: string;
+    scope: "all" | "selected";
+    projectIds?: string[];
+    modelPolicy?: CustomAgentModelPolicy;
+    thinkingPolicy?: CustomAgentThinkingPolicy;
+    toolPolicy?: CustomAgentToolPolicy;
+    allowAutomaticInvocation?: boolean;
+    triggers?: string[];
+  }): CustomAgentDefinition {
     const now = new Date().toISOString();
     const id = randomUUID();
     const normalizedName = normalizeAgentToken(input.name);
@@ -2934,8 +2932,7 @@ export class AppStore {
           JSON.stringify(patch.modelPolicy ?? current.modelPolicy),
           JSON.stringify(patch.thinkingPolicy ?? current.thinkingPolicy),
           JSON.stringify(patch.toolPolicy ?? current.toolPolicy),
-          (patch.allowAutomaticInvocation ??
-          current.allowAutomaticInvocation)
+          (patch.allowAutomaticInvocation ?? current.allowAutomaticInvocation)
             ? 1
             : 0,
           JSON.stringify(patch.triggers ?? current.triggers),
@@ -3030,8 +3027,7 @@ export class AppStore {
          WHERE thread_id = ? AND invocation_id = ?`,
       )
       .get(threadId, invocationId) as unknown as
-      | CustomAgentInvocationRow
-      | undefined;
+      CustomAgentInvocationRow | undefined;
     return row ? customAgentInvocationFromRow(row) : undefined;
   }
 
@@ -3097,9 +3093,7 @@ export class AppStore {
     const current = this.getCustomAgentInvocation(threadId, invocationId);
     if (!current) throw new Error("INVOCATION_NOT_FOUND");
     if (!canTransitionInvocation(current.status, to)) {
-      throw new Error(
-        `INVOCATION_ILLEGAL_TRANSITION:${current.status}->${to}`,
-      );
+      throw new Error(`INVOCATION_ILLEGAL_TRANSITION:${current.status}->${to}`);
     }
     const now = new Date().toISOString();
     const updated = this.database
