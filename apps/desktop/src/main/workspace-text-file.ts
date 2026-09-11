@@ -24,6 +24,9 @@ const fileKinds = new Map<string, WorkspaceTextFile["kind"]>([
 
 const imageMimeTypes = new Map<string, WorkspaceImageFile["mimeType"]>([
   [".avif", "image/avif"],
+  [".apng", "image/png"],
+  [".bmp", "image/bmp"],
+  [".ico", "image/x-icon"],
   [".gif", "image/gif"],
   [".jpeg", "image/jpeg"],
   [".jpg", "image/jpeg"],
@@ -184,8 +187,31 @@ export async function readWorkspaceFile(
   if (!metadata.isFile()) {
     throw new Error("Workspace path is not a file.");
   }
-  if (metadata.size > MAX_WORKSPACE_TEXT_FILE_BYTES) {
-    throw new Error("Workspace file exceeds 4 MiB.");
+  const extension = extname(requestedPath).toLowerCase();
+  const imageMimeType = imageMimeTypes.get(extension);
+  const mimeType = extension === ".pdf" ? "application/pdf" : imageMimeType;
+  const limit =
+    mimeType === "application/pdf"
+      ? 64 * 1024 * 1024
+      : imageMimeType
+        ? MAX_WORKSPACE_IMAGE_BYTES
+        : MAX_WORKSPACE_TEXT_FILE_BYTES;
+  if (metadata.size > limit) {
+    throw new Error(`Workspace file exceeds ${limit / (1024 * 1024)} MiB.`);
+  }
+  if (mimeType) {
+    const bytes = await readFile(absolutePath);
+    return {
+      path: requestedPath,
+      binary: extension !== ".svg",
+      ...(extension === ".svg" ? { content: bytes.toString("utf8") } : {}),
+      preview: {
+        mimeType: imageMimeType
+          ? detectedImageMimeType(bytes, imageMimeType)
+          : mimeType,
+        data: bytes.toString("base64"),
+      },
+    };
   }
 
   const bytes = await readFile(absolutePath);
@@ -216,9 +242,8 @@ export async function writeWorkspaceFile(
   }
 
   await writeFile(absolutePath, content, "utf8");
-  return {
-    path: requestedPath,
-    binary: false,
-    content,
-  };
+  if (/\.svg$/iu.test(requestedPath)) {
+    return readWorkspaceFile(workspacePath, requestedPath);
+  }
+  return { path: requestedPath, binary: false, content };
 }

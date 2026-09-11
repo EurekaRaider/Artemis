@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/verify-pre-push.mjs --hook

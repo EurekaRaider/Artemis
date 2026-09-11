@@ -33,21 +33,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Run tests
-        run: npm test
-
-      - name: Run typecheck
-        run: npm run typecheck
-
-      - name: Build production bundles
-        run: npm run build
-
-      - name: Audit production dependencies
-        if: vars.ARTEMIS_SKIP_PRODUCTION_AUDIT != 'true'
-        run: npm run audit:production
+      - name: Run portable CI checks
+        run: npm run verify:ci
+        env:
+          ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
 
   windows-native-sandbox:
     name: Windows native sandbox integration

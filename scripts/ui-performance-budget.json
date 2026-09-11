@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 378000,
+      "desktopCssBytes": 382000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -161,6 +161,14 @@
       "measuredDesktopCssBytes": 367772,
       "desktopCssIncreaseBytes": 1543,
       "reason": "Configuration import adds scoped compact checkboxes, header and footer actions, grouped source rows, and wrapping warning text (1543 bytes, 0.42%). The baseline uses the same installed dependencies and Vite pipeline with only styles.css replaced by HEAD in memory; it already exceeds the previous ceiling by 229 bytes. The 368000-byte CSS ceiling leaves 228 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
+    {
+      "date": "2026-09-11",
+      "measurementHead": "edce3854056a9a6b6b5a447ad9af6cf06e6b58de",
+      "measuredDesktopCssBytes": 374125,
+      "previousDesktopCssMaximumBytes": 374000,
+      "desktopCssMaximumBytes": 382000,
+      "reason": "The image preview adds real UI CSS; the production bundle is 374125 bytes, reproduced locally and in CI run 34613150010. Reserve approximately 2% measured headroom instead of repeatedly moving the ceiling by a few hundred bytes. The 382000-byte hard cap remains enforced. Main pushes now run this gate after a clean installation in an isolated checkout, before remote publication. JavaScript, shared UI, gallery and runtime budgets are unchanged."
     }
   ],
   "startupBudgetRevisions": [

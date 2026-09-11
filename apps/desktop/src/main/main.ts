@@ -1,3 +1,7 @@
+import {
+  WorkspacePdfPreview,
+  WORKSPACE_PDF_SCHEME,
+} from "./workspace-pdf-preview.js";
 import { createHash } from "node:crypto";
 import { AttachmentStore } from "./attachment-store.js";
 import {
@@ -48,6 +52,7 @@ import {
   net,
   Notification,
   safeStorage,
+  protocol,
   session as electronSession,
   shell,
   type WebContents,
@@ -167,6 +172,7 @@ import {
 } from "./user-input-policy.js";
 import {
   externalHttpUrl,
+  isPdfViewerStreamNavigationAllowed,
   isRendererNavigationAllowed,
 } from "./navigation-policy.js";
 import { OfficeDocumentService } from "./office-document-service.js";
@@ -1054,6 +1060,24 @@ function currentLocale(): AppLocale {
   }
   return resolvedLocalePreference;
 }
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: WORKSPACE_PDF_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+    },
+  },
+]);
+const workspacePdfPreview = new WorkspacePdfPreview(async (threadId, path) => {
+  const thread = store?.getThread(threadId);
+  if (!thread || thread.archived) throw new Error("Active task not found.");
+  const context = await resolveThreadWorkspace(thread);
+  return readWorkspaceFile(context.workspacePath, path);
+});
 
 function configureBrowserLocaleSession(): void {
   const browserSession = electronSession.fromPartition(
@@ -8796,6 +8820,18 @@ function registerIpc(): void {
   });
 
   ipcMain.handle(
+    IPC.workspacePdfOpen,
+    async (_event, threadId: string, path: string) => {
+      const file = await linkedWorkspaceFile(
+        String(threadId ?? ""),
+        String(path ?? ""),
+      );
+      if (!/\.pdf$/iu.test(file.path))
+        throw new Error("PDF preview requires a PDF file.");
+      return workspacePdfPreview.open(threadId, file.path);
+    },
+  );
+  ipcMain.handle(
     IPC.workspaceTextFileRead,
     async (
       _event,
@@ -10798,7 +10834,9 @@ function isEmbeddedBrowserNavigationAllowed(url: string): boolean {
       protocol === "http:" ||
       protocol === "https:" ||
       protocol === "data:" ||
-      protocol === "blob:"
+      protocol === "blob:" ||
+      (protocol === `${WORKSPACE_PDF_SCHEME}:` &&
+        new URL(url).hostname === "document")
     );
   } catch {
     return false;
@@ -12830,7 +12868,7 @@ async function driveSmokeWorkspaceDockEvidence(
       ...parameters,
       type: "keyUp",
     });
-    await wait(420);
+    await evaluate(`window.__workspaceDockWaitForLayout('open')`);
   };
 
   if (process.platform === "darwin") app.focus({ steal: true });
@@ -13002,9 +13040,9 @@ async function driveSmokeWorkspaceDockEvidence(
                 browserViewport !== null &&
                 document.querySelectorAll(
                   '[data-artemis-component="browser-navigation-button"]',
-                ).length === 2 &&
+                ).length === 3 &&
                 document.querySelector(
-                  '.workspace-panel-toolbar .browser-refresh-button[data-artemis-component="button"]',
+                  '.browser-toolbar .browser-refresh-button[data-artemis-component="browser-navigation-button"]',
                 ) instanceof HTMLButtonElement &&
                 document.querySelector(
                   '[data-artemis-component="browser-go-button"]',
@@ -13046,6 +13084,28 @@ async function driveSmokeWorkspaceDockEvidence(
         tabs,
       };
     };
+    const waitForLayout = async (state) => {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await wait(50);
+        const snapshot = capture();
+        const expectedWidth = snapshot.viewport.compactMedia
+          ? snapshot.workspaceContent?.width
+          : snapshot.resizer?.value;
+        const settled = state === 'closed'
+          ? snapshot.dock?.visible === false
+          : Number.isFinite(expectedWidth) &&
+            Math.abs(expectedWidth - snapshot.dock?.width) <= 0.5;
+        if (snapshot.dock?.state === state && settled) return;
+      }
+      throw new Error('Workspace Dock layout did not settle: ' + state + ' ' +
+        JSON.stringify({ snapshot: capture(), animations:
+          document.querySelector(dockSelector)?.getAnimations().map((animation) => ({
+            state: animation.playState, time: animation.currentTime,
+            timing: animation.effect?.getComputedTiming(),
+          })),
+        }));
+    };
+    window.__workspaceDockWaitForLayout = waitForLayout;
     const addTab = async (position) => {
       const add = document.querySelector('.workspace-tab-add');
       if (!(add instanceof HTMLButtonElement)) {
@@ -13102,7 +13162,7 @@ async function driveSmokeWorkspaceDockEvidence(
     ) {
       throw new Error('Workspace Dock did not open before capture.');
     }
-    await wait(520);
+    await waitForLayout('open');
     const initial = capture();
     await addTab(0);
     await addTab(2);
@@ -13413,7 +13473,7 @@ async function driveSmokeWorkspaceDockEvidence(
       x: Math.round(releasePoint.x * inputScale),
       y: Math.round(releasePoint.y * inputScale),
     });
-    await wait(320);
+    await evaluate(`window.__workspaceDockWaitForLayout('open')`);
     await evaluate(`window.__workspaceDockInteraction.mouse =
       window.__workspaceDockCapture();
       window.__workspaceDockInteraction.pointerProbe =
@@ -13444,11 +13504,11 @@ async function driveSmokeWorkspaceDockEvidence(
   }
 
   await evaluate(`document.querySelector('.right-sidebar-toggle')?.click()`);
-  await wait(520);
+  await evaluate(`window.__workspaceDockWaitForLayout('closed')`);
   await evaluate(`window.__workspaceDockInteraction.closed =
     window.__workspaceDockCapture()`);
   await evaluate(`document.querySelector('.right-sidebar-toggle')?.click()`);
-  await wait(520);
+  await evaluate(`window.__workspaceDockWaitForLayout('open')`);
   await evaluate(`window.__workspaceDockInteraction.reopened =
     window.__workspaceDockCapture()`);
 }
@@ -15656,7 +15716,14 @@ function createMainWindow(): BrowserWindow {
       };
     }
     guest.on("will-frame-navigate", (details) => {
-      if (!isEmbeddedBrowserNavigationAllowed(details.url)) {
+      if (
+        !isEmbeddedBrowserNavigationAllowed(details.url) &&
+        !isPdfViewerStreamNavigationAllowed(
+          details.url,
+          details.frame?.parent?.url,
+          details.isMainFrame,
+        )
+      ) {
         details.preventDefault();
       }
     });
@@ -20824,6 +20891,11 @@ app
     );
     markStartupStage("core-state-ready");
     configureBrowserLocaleSession();
+    electronSession
+      .fromPartition(BROWSER_SESSION_PARTITION)
+      .protocol.handle(WORKSPACE_PDF_SCHEME, (request) =>
+        workspacePdfPreview.respond(request),
+      );
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
     await seedSmokeUserInputTransportFixture();

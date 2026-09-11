@@ -30,3 +30,21 @@ export function isRendererNavigationAllowed(
     return false;
   }
 }
+
+// Chromium's built-in PDF viewer loads its private PDF stream in a child frame.
+// Keep this exception separate from ordinary browser navigation permissions.
+export function isPdfViewerStreamNavigationAllowed(
+  targetUrl: string,
+  parentUrl: string | undefined,
+  isMainFrame: boolean,
+): boolean {
+  const viewerOrigin = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai";
+  return (
+    !isMainFrame &&
+    parentUrl === `${viewerOrigin}/index.html` &&
+    targetUrl.startsWith(`${viewerOrigin}/`) &&
+    /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/iu.test(
+      targetUrl.slice(viewerOrigin.length + 1),
+    )
+  );
+}

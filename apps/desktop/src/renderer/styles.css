@@ -12405,3 +12405,21 @@ kbd {
 .im-group-members [data-artemis-component="tooltip-anchor"] {
   flex: none;
 }
+
+.workspace-image-preview {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: var(--artemis-space-4);
+}
+
+.workspace-image-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}

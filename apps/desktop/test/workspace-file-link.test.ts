@@ -149,3 +149,8 @@ describe("workspace file links", () => {
     expect(mainSource).toContain("spawn(file.absolutePath, []");
   });
 });
+
+it("opens PDF links in the browser, including uppercase extensions", () => {
+  expect(workspaceFileViewer("report.pdf")).toBe("browser");
+  expect(workspaceFileViewer("report.PDF")).toBe("browser");
+});

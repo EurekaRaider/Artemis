@@ -322,6 +322,8 @@ try {
   )
     await page.locator(".right-sidebar-toggle").click();
   await capture("workspace-light");
+  await page.locator(".environment-trigger").click();
+  await capture("environment-panel-light", { keepEnvironment: true });
   await page.evaluate(() => window.artemis.setTheme("dark"));
   await page.reload();
   await page.waitForSelector(".composer");
@@ -330,6 +332,8 @@ try {
     .first()
     .click();
   await capture("workspace-dark");
+  await page.locator(".environment-trigger").click();
+  await capture("environment-panel-dark", { keepEnvironment: true });
   await page.evaluate(() => window.artemis.setTheme("light"));
   await page.reload();
   await page.waitForSelector(".composer");
