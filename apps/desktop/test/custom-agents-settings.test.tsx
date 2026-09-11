@@ -157,6 +157,30 @@ describe("CustomAgentsSettingsSection", () => {
     expect(scoped.queryByText("Disabled")).toBeNull();
   });
 
+  it("warns when the automatic set exceeds the per-turn catalog budget", () => {
+    const overflow = Array.from({ length: 21 }, (_, index) => ({
+      ...summary,
+      id: `def-${index}`,
+      name: `Agent ${index}`,
+      allowAutomaticInvocation: true,
+    }));
+    renderSection({ snapshotOverrides: { customAgents: overflow } });
+    expect(
+      screen.getByText(/Automatic routing is paused for over-budget turns/u),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the budget warning hidden when the automatic set fits", () => {
+    renderSection({
+      snapshotOverrides: {
+        customAgents: [{ ...summary, allowAutomaticInvocation: true }],
+      },
+    });
+    expect(
+      screen.queryByText(/Automatic routing is paused for over-budget turns/u),
+    ).toBeNull();
+  });
+
   it("creates a definition from the validated form", async () => {
     const user = userEvent.setup();
     const { api, applySettings, snapshot } = renderSection();

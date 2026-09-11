@@ -2673,6 +2673,11 @@ function applyPayloadSideEffects(
       }
       activeTurns.delete(threadId);
       break;
+    case "custom-agent.route":
+      // Routing audits (D#152 PR5) are durable event-log records only;
+      // projectId enrichment happened before append, and there is no
+      // thread-status side effect.
+      break;
     case "child-agent.status": {
       // Bind custom-agent invocation records to their materialized
       // instance and close them out on terminal status (D#152 section 6).
@@ -2946,6 +2951,23 @@ function accountGoalPayload(
   }
 }
 
+/**
+ * Routing audits (D#152 PR5) carry the trusted projectId from the thread
+ * record; the runtime emits null and no model-visible field can supply it.
+ */
+function enrichCustomAgentRoutePayload(
+  threadId: string,
+  payload: AgentPayload,
+): AgentPayload {
+  if (payload.type !== "custom-agent.route" || payload.projectId !== null) {
+    return payload;
+  }
+  return {
+    ...payload,
+    projectId: store?.getThread(threadId)?.projectId ?? null,
+  };
+}
+
 function emitPayload(
   threadId: string,
   turnId: string | undefined,
@@ -2959,9 +2981,12 @@ function emitPayload(
   if (!store) {
     throw new Error("Application store is not ready.");
   }
-  const preparedPayload = withPersistedTurnDuration(
-    turnId,
-    prepareRecoverableQueuePayload(threadId, payload, turnId),
+  const preparedPayload = enrichCustomAgentRoutePayload(
+    threadId,
+    withPersistedTurnDuration(
+      turnId,
+      prepareRecoverableQueuePayload(threadId, payload, turnId),
+    ),
   );
   observeTurnPayload(turnId, preparedPayload);
   const event = store.appendEvent(
@@ -2983,12 +3008,15 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   if (!store || events.length === 0) return [];
   const preparedEvents = events.map((event) => ({
     ...event,
-    payload: withPersistedTurnDuration(
-      event.turnId,
-      prepareRecoverableQueuePayload(
-        event.threadId,
-        event.payload,
+    payload: enrichCustomAgentRoutePayload(
+      event.threadId,
+      withPersistedTurnDuration(
         event.turnId,
+        prepareRecoverableQueuePayload(
+          event.threadId,
+          event.payload,
+          event.turnId,
+        ),
       ),
     ),
   }));
@@ -5836,17 +5864,27 @@ async function startTaskTurnUnchecked(
     const reference = validateCustomAgentSendReference(
       input.customAgentReference,
     );
-    const definition = turnCustomAgents.find(
-      (candidate) => candidate.id === reference.definitionId,
-    );
+    // Resolve against the full catalog so a definition disabled between
+    // chip selection and send reports CUSTOM_AGENT_DISABLED, not
+    // NOT_FOUND; scope effectiveness is checked separately.
+    const definition = store
+      .listCustomAgents()
+      .find((candidate) => candidate.id === reference.definitionId);
     if (!definition) {
       throw new Error(
-        `CUSTOM_AGENT_NOT_FOUND: the referenced custom sub-agent is not effective for this project.`,
+        `CUSTOM_AGENT_NOT_FOUND: the referenced custom sub-agent does not exist.`,
       );
     }
     if (!definition.enabled) {
       throw new Error(
         `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
+      );
+    }
+    if (
+      !turnCustomAgents.some((candidate) => candidate.id === definition.id)
+    ) {
+      throw new Error(
+        `CUSTOM_AGENT_OUT_OF_SCOPE: the referenced custom sub-agent is not effective for this project.`,
       );
     }
     if (definition.revision !== reference.revision) {

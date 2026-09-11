@@ -9,6 +9,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import type { AppLocale } from "@artemis/protocol";
+import {
+  CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS,
+  CUSTOM_AGENT_CATALOG_TEXT_BUDGET,
+  checkCatalogBudget,
+} from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { EmptyState, InlineNotice } from "@artemis/ui/feedback";
 import {
@@ -100,6 +105,8 @@ const labels = {
     disabledBadge: "Disabled",
     automaticBadge: "Auto",
     manualBadge: "Manual only",
+    automaticBudgetExceeded:
+      "Automatic routing is paused for over-budget turns: {count} sub-agents allow automatic invocation, exceeding the per-turn catalog budget ({max} definitions / {chars} characters). Turn off automatic invocation on some definitions to re-enable routing.",
   },
   "zh-CN": {
     title: "自定义子智能体",
@@ -146,6 +153,8 @@ const labels = {
     disabledBadge: "已停用",
     automaticBadge: "自动",
     manualBadge: "仅手动",
+    automaticBudgetExceeded:
+      "已启用自动调用的子智能体达 {count} 个，超出单轮目录预算（{max} 个定义 / {chars} 字符文本），超预算的轮次将停用自动路由。请关闭部分定义的自动调用以恢复路由。",
   },
 } as const;
 
@@ -261,6 +270,31 @@ export function CustomAgentsSettingsSection({
   // yet; treat it as empty rather than crashing the settings panel.
   const definitions = settings.customAgents ?? [];
   const editing = formOpen;
+
+  // Per-turn automatic catalog budget (D#152 PR5): the runtime disables
+  // automatic routing for over-budget turns instead of silently
+  // truncating, so surface that here. The enabled+automatic set is the
+  // superset of every per-project catalog — if it fits, every turn fits.
+  const automaticBudget = useMemo(
+    () =>
+      checkCatalogBudget(
+        definitions
+          .filter(
+            (definition) =>
+              definition.enabled && definition.allowAutomaticInvocation,
+          )
+          .map((definition) => ({
+            definitionId: definition.id,
+            revision: definition.revision,
+            name: definition.name,
+            description: definition.description,
+            scope: definition.scope,
+            allowAutomaticInvocation: definition.allowAutomaticInvocation,
+            triggers: definition.triggers,
+          })),
+      ),
+    [definitions],
+  );
 
   // Effective-capability preview reuses the runtime intersection (mode:
   // execute is the widest a definition can ever get; plan/review only
@@ -462,6 +496,14 @@ export function CustomAgentsSettingsSection({
     >
       <p className="settings-hint">{t.hint}</p>
       {error && <InlineNotice tone="warning">{error}</InlineNotice>}
+      {!automaticBudget.withinBudget && (
+        <InlineNotice tone="warning">
+          {t.automaticBudgetExceeded
+            .replace("{count}", String(automaticBudget.definitionCount))
+            .replace("{max}", String(CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS))
+            .replace("{chars}", String(CUSTOM_AGENT_CATALOG_TEXT_BUDGET))}
+        </InlineNotice>
+      )}
       {definitions.length === 0 && !editing ? (
         <EmptyState title={t.empty} />
       ) : (

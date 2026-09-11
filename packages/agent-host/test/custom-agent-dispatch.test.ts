@@ -48,7 +48,10 @@ function definition(
     modelPolicy: { kind: "inherit" },
     thinkingPolicy: { kind: "inherit" },
     toolPolicy: { kind: "inherit" },
-    allowAutomaticInvocation: false,
+    // Automatic invocation is on so model-supplied ids may target the
+    // definition (PR5 gate); the manual-only rejection is covered through
+    // the real tool entry in custom-agent-routing.test.ts.
+    allowAutomaticInvocation: true,
     triggers: [],
     createdAt: 0,
     updatedAt: 0,

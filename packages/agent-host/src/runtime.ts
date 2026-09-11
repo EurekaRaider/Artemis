@@ -53,9 +53,12 @@ import {
   AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
   AGENT_TEAM_SPAWN_BUDGET,
   computeEffectiveCapabilities,
+  checkCatalogBudget,
   freezeInstanceSnapshot,
+  matchCatalogLexically,
   normalizeAgentToken,
   type CapabilityClass,
+  type CustomAgentCatalogEntry,
   type CustomAgentDefinition,
   type CustomAgentInstanceSnapshot,
   type CustomAgentToolRef,
@@ -2355,6 +2358,75 @@ export class ArtemisAgentHost {
   }
 
   /**
+   * Per-turn automatic routing catalog (D#152 PR5): enabled definitions
+   * that opted into automatic invocation, in the frozen turn-catalog
+   * order (main sorts selected-scope first). The manual candidate set
+   * (@ mention) is a superset and lives on the renderer side; the model
+   * only ever sees this automatic slice.
+   */
+  private turnAutoCatalog(hosted: HostedThread): {
+    entries: CustomAgentCatalogEntry[];
+    catalogId: string;
+    overflow: boolean;
+  } {
+    const definitions =
+      hosted.turnCustomAgents ?? this.configuration.customAgents ?? [];
+    const entries: CustomAgentCatalogEntry[] = definitions
+      .filter(
+        (definition) => definition.enabled && definition.allowAutomaticInvocation,
+      )
+      .map((definition) => ({
+        definitionId: definition.id,
+        revision: definition.revision,
+        name: definition.name,
+        description: definition.description,
+        scope: definition.scope,
+        allowAutomaticInvocation: definition.allowAutomaticInvocation,
+        triggers: [...definition.triggers],
+      }));
+    const catalogId = `auto:${createHash("sha256")
+      .update(
+        entries
+          .map((entry) => `${entry.definitionId}@${entry.revision}`)
+          .sort()
+          .join("\0"),
+      )
+      .digest("hex")
+      .slice(0, 16)}`;
+    return {
+      entries,
+      catalogId,
+      overflow: !checkCatalogBudget(entries).withinBudget,
+    };
+  }
+
+  /**
+   * Durable routing audit (D#152 PR5 section 8): one event per dispatch
+   * decision so automatic routing stays explainable and closable. The
+   * record carries catalog identity and candidates, never instructions
+   * or task text. invocationSource and selectionBasis are separate on
+   * purpose — a model's semantic choice must not be miscounted as a
+   * deterministic user invocation.
+   */
+  private emitCustomAgentRoute(
+    hosted: HostedThread,
+    payload: Omit<
+      Extract<AgentPayload, { type: "custom-agent.route" }>,
+      "type" | "schemaVersion" | "projectId"
+    >,
+  ): void {
+    if (!hosted.currentTurnId) return;
+    this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+      type: "custom-agent.route",
+      schemaVersion: 1,
+      // The main process enriches the trusted projectId from the thread
+      // record; the runtime never accepts one from the model.
+      projectId: null,
+      ...payload,
+    });
+  }
+
+  /**
    * Resolve and freeze a custom-agent dispatch, or enforce the P1 lexical
    * contract for free-text roles (D#152 plan sections 4 and 7). Runs
    * BEFORE instance allocation and spawn-budget deduction so rejections
@@ -2381,13 +2453,35 @@ export class ArtemisAgentHost {
     if (agentId === undefined) {
       if (!role) return undefined;
       const normalizedRole = normalizeAgentToken(role);
+      // P1 correction scope is the automatic catalog only: definitions
+      // that disabled automatic invocation never hijack a free-text role
+      // (D#152 plan section 7 — the model's catalog is the automatic
+      // slice, manual-only definitions are @-invoked by users).
       const matches = definitions.filter(
         (definition) =>
           definition.enabled &&
+          definition.allowAutomaticInvocation &&
           normalizeAgentToken(definition.name) === normalizedRole,
       );
       if (matches.length === 1) {
         const candidate = matches[0]!;
+        const catalog = this.turnAutoCatalog(hosted);
+        this.emitCustomAgentRoute(hosted, {
+          decision: "reference-required",
+          invocationSource: "model-automatic",
+          selectionBasis: "role-exact",
+          parentAgentId: senderAgentId,
+          catalogId: catalog.catalogId,
+          catalogSize: catalog.entries.length,
+          candidates: [
+            {
+              definitionId: candidate.id,
+              revision: candidate.revision,
+              name: candidate.name,
+            },
+          ],
+          errorCode: "CUSTOM_AGENT_REFERENCE_REQUIRED",
+        });
         throw new Error(
           `CUSTOM_AGENT_REFERENCE_REQUIRED: role "${role}" exactly names the custom sub-agent "${candidate.name}"; retry with the explicit agent parameter "${candidate.id}".`,
         );
@@ -2408,6 +2502,14 @@ export class ArtemisAgentHost {
     if (!liveDefinition || !liveDefinition.enabled || !definition.enabled) {
       throw new Error(
         `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
+      );
+    }
+    // A model-supplied id may only target the automatic catalog; a
+    // manual-only definition is invisible to the model and cannot be
+    // invoked by it (the model can never forge the user-explicit source).
+    if (!explicit && !definition.allowAutomaticInvocation) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: custom sub-agent "${definition.name}" is not available for automatic invocation.`,
       );
     }
     if (explicit && definition.revision !== explicit.revision) {
@@ -2565,6 +2667,24 @@ export class ArtemisAgentHost {
       invocation.invocationId,
       child.agentId,
     );
+    const autoCatalog = this.turnAutoCatalog(hosted);
+    this.emitCustomAgentRoute(hosted, {
+      decision: "accepted",
+      invocationSource: "user-explicit",
+      selectionBasis: "explicit-id",
+      parentAgentId: ROOT_AGENT_ID,
+      catalogId: autoCatalog.catalogId,
+      catalogSize: autoCatalog.entries.length,
+      candidates: [],
+      selectedDefinitionId: customAgentSnapshot.definitionId,
+      selectedRevision: customAgentSnapshot.definitionRevision,
+      instanceId: child.agentId,
+      model: {
+        providerId: customAgentSnapshot.resolvedModel.providerId,
+        modelId: customAgentSnapshot.resolvedModel.modelId,
+      },
+      capabilities: [...customAgentSnapshot.effectiveCapabilities],
+    });
     return {
       agentId: child.agentId,
       definitionName: customAgentSnapshot.definitionName,
@@ -4360,6 +4480,20 @@ export class ArtemisAgentHost {
             params.agent,
             params.role,
           );
+          // P1 trigger pass (D#152 PR5): task-text hits against the
+          // automatic catalog are advisory candidates only. A lexical hit
+          // is certainty about text, not about task fit — the spawn
+          // proceeds as a free role and the result lists candidates; an
+          // explicit model choice above is never overridden by a trigger.
+          const autoCatalog = this.turnAutoCatalog(hosted);
+          const triggerCandidates =
+            customAgentSnapshot || autoCatalog.overflow
+              ? []
+              : matchCatalogLexically(
+                  autoCatalog.entries,
+                  params.role ?? null,
+                  params.task,
+                ).triggerCandidates;
           const team = this.ensureTeam(hosted);
           if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
             throw new Error(
@@ -4417,9 +4551,61 @@ export class ArtemisAgentHost {
             ...(customAgentSnapshot ? { customAgentSnapshot } : {}),
           });
           if (supervisor) this.emitChild(hosted, supervisor);
+          // Routing audit (D#152 PR5): exactly one durable record per
+          // spawn decision, emitted after the indivisible accept so the
+          // instanceId is real.
+          if (customAgentSnapshot) {
+            this.emitCustomAgentRoute(hosted, {
+              decision: "accepted",
+              invocationSource:
+                customAgentSnapshot.invocationSource === "user-explicit"
+                  ? "user-explicit"
+                  : "model-explicit",
+              selectionBasis: "explicit-id",
+              parentAgentId: senderAgentId,
+              catalogId: autoCatalog.catalogId,
+              catalogSize: autoCatalog.entries.length,
+              candidates: [],
+              selectedDefinitionId: customAgentSnapshot.definitionId,
+              selectedRevision: customAgentSnapshot.definitionRevision,
+              instanceId: child.agentId,
+              model: {
+                providerId: customAgentSnapshot.resolvedModel.providerId,
+                modelId: customAgentSnapshot.resolvedModel.modelId,
+              },
+              capabilities: [...customAgentSnapshot.effectiveCapabilities],
+            });
+          } else {
+            this.emitCustomAgentRoute(hosted, {
+              decision:
+                triggerCandidates.length > 0 ? "advisory" : "free-role",
+              invocationSource: "none",
+              selectionBasis:
+                triggerCandidates.length > 0 ? "trigger-words" : "none",
+              parentAgentId: senderAgentId,
+              catalogId: autoCatalog.catalogId,
+              catalogSize: autoCatalog.entries.length,
+              candidates: triggerCandidates.map((candidate) => ({
+                definitionId: candidate.definitionId,
+                revision: candidate.revision,
+                name: candidate.name,
+              })),
+              instanceId: child.agentId,
+            });
+          }
+          const guidance = [
+            "The child is running asynchronously. Wait for it only when you need its result; collaboration waits release your active execution slot.",
+            ...(triggerCandidates.length > 0
+              ? [
+                  triggerCandidates.length > 1
+                    ? `[Routing] The task text lexically matches multiple custom sub-agents: ${triggerCandidates.map((candidate) => `${candidate.name} (id: ${candidate.definitionId})`).join(", ")}. None was chosen automatically, so the child runs as a free role. To delegate to one, spawn again with the agent parameter set to its id.`
+                    : `[Routing] The task text lexically matches custom sub-agent ${triggerCandidates[0]!.name} (id: ${triggerCandidates[0]!.definitionId}). The child runs as a free role; to use the custom sub-agent instead, spawn again with the agent parameter set to its id.`,
+                ]
+              : []),
+          ];
           return childToolResult(
             this.childSnapshot(hosted, child),
-            "The child is running asynchronously. Wait for it only when you need its result; collaboration waits release your active execution slot.",
+            guidance.join("\n\n"),
           );
         },
       });
@@ -5932,6 +6118,34 @@ export class ArtemisAgentHost {
         : `[Host dispatch] The user explicitly invoked custom sub-agent "${accepted.definitionName}" for this task. Instance ${accepted.agentId} is already running with the user's message as its task; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
     }
 
+    // Automatic routing catalog (D#152 PR5): the model-visible slice is
+    // exactly the enabled, automatic-invocation definitions of the frozen
+    // turn catalog. Over budget means NO silent truncation — automatic
+    // routing is disabled for the turn and the overflow is audited so the
+    // user can narrow the automatic set in Settings.
+    const autoCatalog = this.turnAutoCatalog(hosted);
+    let autoCatalogNote: string | undefined;
+    if (autoCatalog.overflow) {
+      this.emitCustomAgentRoute(hosted, {
+        decision: "catalog-disabled",
+        invocationSource: "none",
+        selectionBasis: "none",
+        parentAgentId: ROOT_AGENT_ID,
+        catalogId: autoCatalog.catalogId,
+        catalogSize: autoCatalog.entries.length,
+        candidates: [],
+      });
+    } else if (autoCatalog.entries.length > 0) {
+      autoCatalogNote = [
+        "[Custom sub-agents] These custom sub-agents are available for delegation this turn:",
+        ...autoCatalog.entries.map(
+          (entry) =>
+            `- ${entry.name} (id: ${entry.definitionId}) — ${entry.description}`,
+        ),
+        "When the user's task matches one, delegate with spawn_agent's agent parameter set to its id instead of a free-text role. Never invent ids. A role that exactly names a listed sub-agent without the id is rejected with CUSTOM_AGENT_REFERENCE_REQUIRED.",
+      ].join("\n");
+    }
+
     const preparedAttachments = await this.prepareAttachments(
       hosted,
       attachments,
@@ -5946,9 +6160,9 @@ export class ArtemisAgentHost {
       collaborationContext,
     );
     const prompt = appendPromptFiles(
-      explicitDispatchNote
-        ? `${basePrompt}\n\n${explicitDispatchNote}`
-        : basePrompt,
+      [basePrompt, autoCatalogNote, explicitDispatchNote]
+        .filter((note): note is string => note !== undefined)
+        .join("\n\n"),
       preparedAttachments,
     );
     const expandedPrompt = await expandSkillInvocations(

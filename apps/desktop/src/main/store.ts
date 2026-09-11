@@ -2858,11 +2858,22 @@ export class AppStore {
    * `all` definitions. Disabled definitions are excluded.
    */
   listEffectiveCustomAgents(projectId: string | null): CustomAgentDefinition[] {
-    return this.listCustomAgents().filter((definition) => {
+    const effective = this.listCustomAgents().filter((definition) => {
       if (!definition.enabled) return false;
       if (definition.scope === "all") return true;
       if (projectId === null) return false;
       return this.listCustomAgentProjectIds(definition.id).includes(projectId);
+    });
+    // Catalog ordering (D#152 section 7): project-selected definitions
+    // first, then stable name/id. Recency ordering is deliberately absent
+    // to avoid routing drift; the runtime preserves this order when it
+    // injects the per-turn catalog.
+    return effective.sort((a, b) => {
+      const aSelected = a.scope === "selected" ? 0 : 1;
+      const bSelected = b.scope === "selected" ? 0 : 1;
+      if (aSelected !== bSelected) return aSelected - bSelected;
+      const byName = a.name.localeCompare(b.name);
+      return byName !== 0 ? byName : a.id.localeCompare(b.id);
     });
   }
 
