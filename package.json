@@ -71,10 +71,13 @@
     "verify:ui-gallery-conformance": "npm run verify:skin-conformance && npm run typecheck -w @artemis/ui-gallery && npm run build -w @artemis/ui-gallery",
     "verify:skin-package": "npm run build:ui-libraries && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs",
     "verify:skin-conformance": "npm run build:ui-foundation && npm run test -w @artemis/ui && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs",
-    "test": "npm run test:audit-production && npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/gateway && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && npm run verify:skin-package && npm run verify:skin-conformance && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && npm run build -w @artemis/desktop && npm run verify:ui-performance && node scripts/verify-ui-gallery.mjs && npm run test -w @artemis/desktop",
+    "test": "node --test scripts/test-pre-push.mjs && npm run test:audit-production && npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/gateway && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && npm run verify:skin-package && npm run verify:skin-conformance && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && npm run build -w @artemis/desktop && npm run verify:ui-performance && node scripts/verify-ui-gallery.mjs && npm run test -w @artemis/desktop",
     "test:audit-production": "node scripts/test-audit-production-dependencies.mjs",
     "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop",
-    "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify-latest-dock.mjs"
+    "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify-latest-dock.mjs",
+    "verify:ci": "node scripts/verify-ci.mjs",
+    "verify:prepush": "node scripts/verify-pre-push.mjs",
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "devDependencies": {
     "@types/node": "26.1.1",

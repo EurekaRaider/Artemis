@@ -1335,6 +1335,16 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
+Direct pushes to `main` run a pre-push check after `npm install` installs the
+repository hooks. The check uses a temporary checkout of the exact commit,
+runs `npm ci`, the same `npm run verify:ci` command as GitHub Actions, and the
+full native `npm run verify:visual-convergence` suite on the current platform.
+A failure or concurrent workspace change blocks the push. Run
+`npm run verify:prepush` to check explicitly; the checkout must be clean and a
+working native desktop environment is required. Existing custom Git hooks are
+preserved and must invoke `.githooks/pre-push` themselves. Other platforms still
+require the remote CI matrix to pass.
+
 Version 1.5.7 keeps stopped Goal status labels and elapsed time inside the
 compact capsule. Long status text truncates within the available width;
 hover and keyboard focus still reveal the existing Goal actions.

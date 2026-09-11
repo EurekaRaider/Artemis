@@ -12679,9 +12679,9 @@ async function driveSmokeWorkspaceDockEvidence(
                 browserViewport !== null &&
                 document.querySelectorAll(
                   '[data-artemis-component="browser-navigation-button"]',
-                ).length === 2 &&
+                ).length === 3 &&
                 document.querySelector(
-                  '.workspace-panel-toolbar .browser-refresh-button[data-artemis-component="button"]',
+                  '.browser-toolbar .browser-refresh-button[data-artemis-component="browser-navigation-button"]',
                 ) instanceof HTMLButtonElement &&
                 document.querySelector(
                   '[data-artemis-component="browser-go-button"]',
