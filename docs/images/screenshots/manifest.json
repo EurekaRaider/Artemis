@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "capturedAt": "2026-09-09T05:33:32.593Z",
-  "appVersion": "1.5.0",
-  "sourceHead": "e180fe2f1a03dfcac4c082c1da58ccf80c64fb77",
+  "capturedAt": "2026-09-11T03:13:01.499Z",
+  "appVersion": "1.5.7",
+  "sourceHead": "e78db18d83fd3cf8c27e501149210c911bbc51f6",
   "sourceState": "Local working tree, including in-progress changes present at capture time.",
   "platform": "macOS arm64",
   "renderer": "Production Electron build",
@@ -10,7 +10,7 @@
     "width": 1440,
     "height": 850
   },
-  "data": "Isolated synthetic project, conversation, usage, agent and disabled automation fixtures. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Application viewport captured without cropping.",
+  "data": "Isolated synthetic project, conversation, usage, agent, IM roster/status and disabled automation fixtures. IM transport responses are synthetic; no real IM service was contacted. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Application viewport captured without cropping.",
   "privacy": {
     "displayName": "Artemis",
     "visiblePersonalNames": false,
@@ -27,78 +27,106 @@
       "file": "workspace-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 107704,
-      "sha256": "155aea8493c9ff0d0e0df34046082e240cdc7ff4f29312c76417519f2ef8f64c"
+      "bytes": 103592,
+      "sha256": "74018d2b5f4dcbe9a5dae1a25ace15f86a55208b9426813425ac55a4113d603e"
     },
     {
       "file": "workspace-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 100696,
-      "sha256": "54d9ad09d1b1c7b2fb35d56f6ed6eeb27e22e508973d3eeedc83b8f241a902aa"
+      "bytes": 97188,
+      "sha256": "7f8709274c5669059be442446dee5d71c020d00748c77beb2554b0d0fca96684"
     },
     {
       "file": "git-review.png",
       "width": 1440,
       "height": 850,
-      "bytes": 159878,
-      "sha256": "a2d776fd8aafd1939aff5abdfa43d14085b49f6203565b029497ff3fa6944537"
+      "bytes": 151092,
+      "sha256": "163749f98df59ff0f1f88e4c7f218d211562207d816bf5b09d56b80d90fab247"
     },
     {
       "file": "markdown-files.png",
       "width": 1440,
       "height": 850,
-      "bytes": 174983,
-      "sha256": "e3fc41559f2cf51699d3d6970efabc5796243385d48717087d114e42764bb3b4"
+      "bytes": 168068,
+      "sha256": "af1a24ade37bd169b81b183a12bfbe1c6d075f99e10562f36625a09847768529"
     },
     {
       "file": "terminal.png",
       "width": 1440,
       "height": 850,
-      "bytes": 118874,
-      "sha256": "8227658729fdcecd2abc70cb04695dbb0da78f34a0a3343e5d990b10fa6d0229"
+      "bytes": 112397,
+      "sha256": "9ea7249c59a92034cbe7c7fa8abeec03907a3a2b4916cd3b1d245a6cc308f073"
     },
     {
       "file": "agent-team.png",
       "width": 1440,
       "height": 850,
-      "bytes": 129614,
-      "sha256": "4d232c07daf5a5a5a43ee495cb9aefecde508e3340700053235eb4a150d3f731"
+      "bytes": 123046,
+      "sha256": "c62da6e8d227a24d2968173be4fae0653e534ca221813ed9e9bacd949e64f32a"
     },
     {
       "file": "settings-general.png",
       "width": 1440,
       "height": 850,
-      "bytes": 100942,
-      "sha256": "a522ffd1184efd31f9d9dcc9ee23595a772906692b61ae46f0475d3bf5ea86c9"
+      "bytes": 101982,
+      "sha256": "ecd796f3ad51a0b1b0f0d0ea554be9a879494c70fb36d9cdb01bec227e413435"
+    },
+    {
+      "file": "im-connections.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 129094,
+      "sha256": "d6b8ba4b0ff6661c1fdf9349516607c47cbcf8cf3030a6b43869923eb35d7dd8"
+    },
+    {
+      "file": "im-spaces.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 138168,
+      "sha256": "1ab228c7cf53c5070d664a8142a47891bef69da03f56cfe52f69f1ef0abc0e4e"
     },
     {
       "file": "resources.png",
       "width": 1440,
       "height": 850,
-      "bytes": 114555,
-      "sha256": "d7213e6b8c6ae30b88a61f7a83cc30b61800f26e12d14290b9a22b39dc23dd20"
+      "bytes": 113049,
+      "sha256": "c300fce93f388352f71285086d82b2852263c26d86ed51d85aef6ff18ccb1851"
     },
     {
       "file": "token-usage.png",
       "width": 1440,
       "height": 850,
-      "bytes": 91237,
-      "sha256": "c4ba7f92e3126c7d15fd0f21a3d1878130cd2e27e3bf1f0ec9503aa69b6c871c"
+      "bytes": 89918,
+      "sha256": "c848beb90891bc4ba1273fcc3883bd0be50249743131ccf1d6aa83cab8aa7821"
     },
     {
       "file": "automations.png",
       "width": 1440,
       "height": 850,
-      "bytes": 89514,
-      "sha256": "71ff41d37706c3578d2c7aff64705aa010093f935fddab8ce7d66717ccfa9e10"
+      "bytes": 94453,
+      "sha256": "5f11ef11ece5f4e232613435c1265ec07537b8ffae9c922b37235ed1a7ca3276"
+    },
+    {
+      "file": "im-group-chat.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 106149,
+      "sha256": "6e2dc415aa7c74020348dc9110f5f4671c43daba0e526d999567581c221fb6d6"
+    },
+    {
+      "file": "im-group-chat-dark.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 98289,
+      "sha256": "f4caa0d5fdb3d211dbb3d18c0adf180c1741507711c6bc3819ff05115c96e750"
     },
     {
       "file": "workspace-zh-CN.png",
       "width": 1440,
       "height": 850,
-      "bytes": 107099,
-      "sha256": "4e12adc14ae7d4e5206756875518fc0678165b174c3bf8d6f0c124b4ab2e66b1"
+      "bytes": 102560,
+      "sha256": "987ce0ff5fa23d5afc92ee408c15ebeae1859209c68abe40c94ad01fdbb96ad3"
     }
   ]
 }

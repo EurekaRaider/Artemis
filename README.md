@@ -7,7 +7,7 @@
 ### Local Agent workflows for software development and everyday work.
 
 **A Windows and macOS desktop Agent powered by Pi for coding, research, documents, connected services, and recurring work:\
-persistent tasks, guarded execution modes, Git-native Review, real terminals, automations, reusable memory, Skills, MCP, and parallel Agents.**
+persistent tasks, guarded execution modes, Git-native Review, real terminals, automations, reusable memory, Skills, MCP, parallel Agents, and IM private/group collaboration.**
 
 <p>
   <a href="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml/badge.svg" /></a>
@@ -19,11 +19,11 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2475 passing tests" src="https://img.shields.io/badge/Tests-2475_passing-2EA44F" />
+  <img alt="2498 passing tests" src="https://img.shields.io/badge/Tests-2498_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
-[Product preview](#product-preview) · [Plugins](#plugin-marketplace-and-capability-center) · [Quick start](#quick-start) · [Workspace](#desktop-workspace-and-task-lifecycle) · [Permissions](#execution-permissions-and-trust-boundary) · [Architecture](#architecture) · [Documentation](#documentation)
+[Product preview](#product-preview) · [Plugins](#plugin-marketplace-and-capability-center) · [IM & group chat](#im-access-and-cross-platform-collaboration) · [Quick start](#quick-start) · [Workspace](#desktop-workspace-and-task-lifecycle) · [Permissions](#execution-permissions-and-trust-boundary) · [Architecture](#architecture) · [Documentation](#documentation)
 
 </div>
 
@@ -110,7 +110,7 @@ credentials are protected with operating-system encryption.
     </td>
     <td width="50%" valign="top">
       <p><strong>06</strong>&nbsp;&nbsp;/&nbsp;&nbsp;MODELS &amp; RESOURCES</p>
-      <p>Pi model catalog, thinking/context controls, model-aware Prompt Cache policy, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, full-permission MCP stdio/HTTP with OAuth 2.1 + PKCE, and trusted Pi extensions.</p>
+      <p>Pi model catalog, thinking/context controls, model-aware Prompt Cache policy, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, MCP stdio/HTTP with per-server permissions and OAuth 2.1 + PKCE, and trusted Pi extensions.</p>
     </td>
   </tr>
   <tr>
@@ -146,9 +146,11 @@ recurring follow-up alongside the same coding and Git workflows.
 
 ## Product preview
 
+[IM connections and group collaboration previews](#im-access-and-cross-platform-collaboration)
+
 The screenshots below show the running Artemis desktop on macOS, using a
 sample **Field Notes** project. Conversations, Agent activity, usage totals and
-paused automations use demonstration data. Click a screenshot to view it at
+paused automations use demonstration data. IM screens use synthetic connections and member rosters, without contacting personal accounts. Click a screenshot to view it at
 full size. [Capture details](docs/readme-visuals.md).
 
 ### The project workspace
@@ -1078,31 +1080,96 @@ bounded subteam and must integrate it before completing.
 
 ### IM access and cross-platform collaboration
 
-Settings → **IM connections** presents first-time setup as a six-step wizard and
-daily operation as a two-column channel manager that collapses for compact
-windows. Start the bundled Gateway and register this device without source code,
-Node.js, npm or terminal commands, then connect WeCom, Feishu or Slack, pair your
-account and choose project permissions. Slack uses Socket Mode, an importable app
-manifest and automatic workspace/bot discovery.
+Give Artemis a task from **WeCom, Feishu / Lark or Slack**, then follow its
+progress and results in your bot conversation. Private chats connect to your
+paired computer; group spaces let independently authorized members work together
+from their own IM platforms and Artemis desktops.
 
-A single status header and master switch control the service. The switch remains
-guarded until a device and connected bot exist, and pausing preserves the saved
-configuration. Saved credentials stay redacted and use an explicit replacement
-flow. New pairing codes expire after five minutes, and incoming pair requests
-must be approved or rejected before an identity becomes active. The management
-view also exposes channel delivery/member/group diagnostics, account removal with
-inline confirmation and shared-space JSON editing.
+| Capability                     | How it works                                                                                                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Private bot chat**           | Pair your IM account, select an authorized project, send a task and continue the same conversation. Receive results, answer questions and handle one-time approvals privately.               |
+| **Group collaboration**        | Link one or more existing IM groups/channels into an Artemis space. Each group administrator confirms the space, and each member grants access to their own project.                         |
+| **Desktop group conversation** | Confirmed, authorized spaces appear as group conversations. Inspect members and computer connection states, choose target members, and use `@` mentions to address their Agents.             |
+| **Targeted assignments**       | Mention the bot with `/agents` to list available members, then `/ask member-id task`. Comma-separated IDs address up to 16 members; Slack uses `agents` and `ask` without the leading slash. |
+| **Shared progress and files**  | Bot-directed tasks, public progress and results reach the linked groups. Files are shared only through explicit publication with temporary download links.                                   |
 
-Advanced setup can export a prebuilt Gateway for a shared server (Node.js 24+).
-Feishu callbacks and public file-download links require a reachable HTTPS Gateway.
-The feature is disabled by default and requires Artemis to be running. Dedicated
-remote sessions use local grants and native sandboxed tools; existing desktop
-tasks and Terminal keep their current permission contracts.
+![Artemis group collaboration conversation with synthetic members and computer states](docs/images/screenshots/im-group-chat.png)
 
-The Gateway supports durable delivery, private approvals, explicitly shared group
-spaces and assignments between independently authorized Artemis devices. See
-[IM deployment and collaboration](docs/im-gateway.md) for configuration, commands,
-verification and the remaining real-platform acceptance checks.
+<details>
+<summary><strong>Group collaboration in dark mode</strong></summary>
+
+![Artemis dark group conversation with the same demonstration member roster](docs/images/screenshots/im-group-chat-dark.png)
+
+</details>
+
+#### Connect an IM account
+
+1. Open **Settings → Messaging** and follow the six-step guide. Start the
+   bundled Gateway and register this computer, or join a team Gateway.
+2. Connect a bot for your platform. WeCom and Feishu long connections and Slack
+   Socket Mode can receive messages without a public callback endpoint.
+3. Send the pairing command in your private bot chat and approve the incoming
+   request in Artemis. Pairing codes expire after five minutes.
+4. Choose the project, mode, allowed paths, command/network access and approval
+   policy, then enable the connection. Keep the computer awake and Artemis running.
+
+The installed desktop includes the local Gateway runtime. A team administrator
+can also export the standalone Gateway for a shared server with Node.js 24+.
+Remote Gateway access, Feishu HTTPS callbacks and public artifact download links
+require reachable HTTPS endpoints.
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/images/screenshots/im-connections.png"><img src="docs/images/screenshots/im-connections.png" alt="Artemis IM connection manager with synthetic Feishu and Slack connections" /></a></td>
+    <td width="50%"><a href="docs/images/screenshots/im-spaces.png"><img src="docs/images/screenshots/im-spaces.png" alt="Artemis group spaces setup and saved demonstration collaboration space" /></a></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Message integrations</strong><br /><sub>Manage bots, pairing and project permissions.</sub></td>
+    <td align="center"><strong>Group spaces</strong><br /><sub>Connect existing groups and choose participating members.</sub></td>
+  </tr>
+</table>
+
+#### What a shared space includes
+
+All participating computers and bots must use the same reachable Gateway.
+Create each native group/channel in its IM platform first. In Artemis, discover
+and select the groups and paired members, save the space, then have the designated
+administrator of **every** group mention the bot with `/space-confirm space-id`
+(`space-confirm space-id` in Slack). Each member must also authorize that space
+for a local project. Changing the groups or members requires confirmation again.
+
+Ordinary group chatter is not relayed. Joining a space does not open a member's
+computer: the target desktop rechecks its own project, path and operation grants.
+Approvals stay with the owner in private chat. Paused or offline devices queue
+requests with an expiry; group computer indicators describe Artemis availability,
+not whether someone is using a phone or desktop IM client.
+
+![IM collaboration flow from existing groups through the Gateway to independently authorized desktops](docs/images/artemis-im-collaboration.svg)
+
+<details>
+<summary><strong>中文介绍：IM 接入与群聊协作</strong></summary>
+
+通过**企业微信、飞书 / Lark、Slack** 的机器人单聊，把任务交给已配对的
+Artemis 电脑，在 IM 中接收进度、结果，处理澄清和本人审批。
+设置 → **IM 连接**提供内置 Gateway 启动、机器人接入、账号配对和项目授权引导。
+
+**群聊协作**关联各平台已有的群或频道；既支持同平台群，也支持跨平台空间。
+每个群由指定管理员确认，每位成员独立授权自己的项目。完成确认与授权后，
+桌面会同步群协作对话，可查看成员与电脑状态，选择目标成员或用 `@` 定向交办。
+在 IM 群中先 @机器人发送 `/agents` 查看成员，再用 `/ask 成员编号 任务内容`
+派发；多个编号用英文逗号分隔，Slack 指令去掉开头的 `/`。
+
+空间共享发给机器人的任务、公开进度和成果，普通闲聊不会转发。
+文件须明确发布，审批仍由本人单聊处理；加入群不会自动开放电脑或其他项目。
+远程执行需要电脑保持唤醒、Artemis 开启且 IM 连接已启用。
+
+</details>
+
+IM is disabled by default. Remote sessions use scoped tools and native sandbox
+boundaries. The screenshots show the current production UI with demonstration
+transport data; they do not establish delivery in a real IM tenant. See
+[IM deployment and collaboration](docs/im-gateway.md) for configuration, command
+reference, security details and deployment acceptance checks.
 
 ### Diagnostics and update recovery
 
@@ -1135,7 +1202,7 @@ lifecycle, policy and local state; the utility process hosts Pi's single Agent
 loop. Raw Pi events pass through `PiAdapter` before reaching the Artemis
 protocol. Durable UI events receive authoritative IDs and sequences before
 persistence and publication; live child-Agent activity uses coalesced IPC
-batches. Model providers and the optional Feishu/Slack gateway remain separate
+batches. Model providers and the optional WeCom/Feishu/Lark/Slack gateway remain separate
 integrations. IM-originated tasks use scoped remote tools with a host file
 broker and native sandbox, never the desktop Shell fallback. Desktop Shell
 commands support observation windows, continued execution, waiting and cancellation.
@@ -1146,7 +1213,7 @@ commands support observation windows, continued execution, waiting and cancellat
 | **Electron Main**              | Typed IPC, project/task lifecycle, mode and approval policy, Git, native PTY, MCP, automations and OS-encrypted settings.                               |
 | **Pi Agent Host**              | Pi SDK sessions, model-aware prompt caching, in-memory child sessions and scheduling. Root sessions retain Pi JSONL persistence.                        |
 | **Protocol and local state**   | `PiAdapter` normalizes events and usage; `@artemis/protocol` defines the UI contracts; SQLite WAL stores local projections for replay.                  |
-| **Optional IM gateway**        | `@artemis/gateway` connects Feishu/Slack conversations to paired Artemis devices through the desktop IM service.                                        |
+| **Optional IM gateway**        | `@artemis/gateway` connects WeCom, Feishu / Lark and Slack conversations to paired Artemis devices through the desktop IM service.                      |
 
 Shell, Terminal, local stdio MCP and executable extensions have distinct
 permission boundaries, summarized beneath the diagram and detailed in
@@ -1285,13 +1352,13 @@ The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
 The full `npm test` run for **1.5.7**, verified on September 11, 2026,
-contains **2475 passing tests** (12 skipped).
+contains **2498 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      144 |       25 |        180 |             15 | 307 |             5 |        142 |    1543 |  **2475** |
+|     114 |      145 |       25 |        192 |             15 | 307 |             5 |        142 |    1553 |  **2498** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory

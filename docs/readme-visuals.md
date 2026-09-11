@@ -2,8 +2,8 @@
 
 ## Desktop screenshots
 
-The README screenshots were captured on September 9, 2026 from a locally built
-Artemis 1.5.0 desktop running on macOS arm64. They show the production Electron
+The README screenshots were captured on September 11, 2026 from a locally built
+Artemis 1.5.7 desktop running on macOS arm64. They show the production Electron
 renderer, not the UI prototype or component Gallery.
 
 Each capture is 1440 × 850 CSS pixels at 100% zoom, with the full application viewport
@@ -20,21 +20,25 @@ harness substitutes **Artemis** for the OS profile name in the isolated
 process's snapshot response; this also renders the matching avatar initials
 and Token Usage identity. Personal names, home-directory paths and credentials
 are not shown. Chinese screenshots localize the UI while retaining the English
-sample conversation.
+sample conversation. The IM views use synthetic Feishu/Slack connection responses and a two-member roster in the isolated main-process handlers. No real Gateway, IM account or bot is contacted. The same fixture supplies a no-PR response to avoid personal GitHub access.
 
-| Screenshot                                                   | Surface                                                |
-| ------------------------------------------------------------ | ------------------------------------------------------ |
-| [Light workspace](images/screenshots/workspace-light.png)    | Projects, persistent tasks and Markdown conversation   |
-| [Dark workspace](images/screenshots/workspace-dark.png)      | The same task in the dark theme                        |
-| [Git Review](images/screenshots/git-review.png)              | Real unstaged TypeScript diff in the sample repository |
-| [Files and Markdown](images/screenshots/markdown-files.png)  | Project documentation in the Markdown reader           |
-| [Terminal](images/screenshots/terminal.png)                  | Native PTY with real Git output                        |
-| [Agent team](images/screenshots/agent-team.png)              | Two completed sample member tasks                      |
-| [Resource Center](images/screenshots/resources.png)          | Bundled plugins and capability management              |
-| [General settings](images/screenshots/settings-general.png)  | Profile picture, language and theme                    |
-| [Automations](images/screenshots/automations.png)            | Two disabled weekly project automations                |
-| [Token usage](images/screenshots/token-usage.png)            | Synthetic usage totals, heatmap and composition        |
-| [Simplified Chinese](images/screenshots/workspace-zh-CN.png) | Localized navigation and composer                      |
+| Screenshot                                                           | Surface                                                |
+| -------------------------------------------------------------------- | ------------------------------------------------------ |
+| [Light workspace](images/screenshots/workspace-light.png)            | Projects, persistent tasks and Markdown conversation   |
+| [Dark workspace](images/screenshots/workspace-dark.png)              | The same task in the dark theme                        |
+| [Git Review](images/screenshots/git-review.png)                      | Real unstaged TypeScript diff in the sample repository |
+| [Files and Markdown](images/screenshots/markdown-files.png)          | Project documentation in the Markdown reader           |
+| [Terminal](images/screenshots/terminal.png)                          | Native PTY with real Git output                        |
+| [Agent team](images/screenshots/agent-team.png)                      | Two completed sample member tasks                      |
+| [Resource Center](images/screenshots/resources.png)                  | Bundled plugins and capability management              |
+| [General settings](images/screenshots/settings-general.png)          | Profile picture, language and theme                    |
+| [Automations](images/screenshots/automations.png)                    | Two disabled weekly project automations                |
+| [Token usage](images/screenshots/token-usage.png)                    | Synthetic usage totals, heatmap and composition        |
+| [IM connections](images/screenshots/im-connections.png)              | Bot manager with synthetic connected channels          |
+| [Group spaces](images/screenshots/im-spaces.png)                     | Saved demonstration collaboration space                |
+| [Group conversation](images/screenshots/im-group-chat.png)           | Group task with synthetic members and computer states  |
+| [Dark group conversation](images/screenshots/im-group-chat-dark.png) | The same group task in the dark theme                  |
+| [Simplified Chinese](images/screenshots/workspace-zh-CN.png)         | Localized navigation and composer                      |
 
 To refresh the screenshots on macOS, build the desktop and run the
 [capture script](scripts/capture-readme.mjs) with an available Playwright module:
@@ -99,3 +103,18 @@ These tokens are scoped to this documentation figure. The installed Diagram
 Design style guide and shared profiles are unchanged. When editing the HTML,
 update the standalone SVG from its inline `<svg>` block, preserve its accessible
 title and description, and inspect the rendered labels and connector geometry.
+
+## IM collaboration architecture
+
+[HTML source](diagrams/artemis-im-collaboration.html) · [SVG](images/artemis-im-collaboration.svg)
+
+The 1280 × 560 companion diagram separates existing IM groups, the Gateway and
+independently authorized desktops. Solid arrows show task delivery; the dashed
+route summarizes public replies through the Gateway to linked groups. It is a
+routing overview, not a direct desktop-to-platform network connection. Pairing,
+group confirmation, expiring delivery, private approvals and explicit file
+publication follow the Gateway router and desktop IM service contracts.
+
+Both diagrams retain the existing Artemis system font stacks and palette, with
+no remote resources. The Gateway labels are checked against their containing
+boxes as well as the full SVG frame.

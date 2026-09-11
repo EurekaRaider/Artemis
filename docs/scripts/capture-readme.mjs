@@ -51,6 +51,7 @@ for (const [id, title] of [
   ["demo-thread", "Build a searchable research library"],
   ["demo-report", "Prepare the weekly research brief"],
   ["demo-review", "Review the search experience"],
+  ["demo-group", "Research team · Group collaboration"],
 ]) {
   store.createThread({
     id,
@@ -160,6 +161,18 @@ for (const [i, name] of [
     createdAt: now,
     updatedAt: now,
   });
+store.appendEvent("demo-group-user", "demo-group", "demo-group-turn", {
+  type: "user.message",
+  messageId: "demo-group-message",
+  text: "Compare the research sources and prepare a shared summary for the team.",
+});
+store.appendEvent("demo-group-answer", "demo-group", "demo-group-turn", {
+  type: "message.part.delta",
+  partId: "demo-group-result",
+  partType: "text",
+  delta:
+    "### Research team update\n\nThe shared brief is ready for review.\n\n- **Research Agent** checked the source notes.\n- **Review Agent** reviewed the summary and follow-up questions.\n\nPublic progress and results belong to this collaboration space. Each member works within their own project permissions.\n\nChoose a member from the panel to address the next task.",
+});
 store.close();
 const git = (args) =>
   execFileSync("git", args, { cwd: project, stdio: "ignore" });
@@ -211,12 +224,13 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const screenshots = [];
 let viewport;
-async function capture(name) {
+async function capture(name, { keepEnvironment = false } = {}) {
   await page.waitForTimeout(700);
   const closeEnvironment = page.locator(
     ".environment-panel-header .environment-header-action",
   );
-  if (await closeEnvironment.isVisible()) await closeEnvironment.click();
+  if (!keepEnvironment && (await closeEnvironment.isVisible()))
+    await closeEnvironment.click();
   await page.mouse.move(300, 20);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(350);
@@ -267,6 +281,10 @@ try {
     const original = ipcMain._invokeHandlers.get(channel);
     if (!original)
       throw new Error("Snapshot handler unavailable for demo identity.");
+    ipcMain.removeHandler("artemis:project-pull-request");
+    ipcMain.handle("artemis:project-pull-request", () => ({
+      status: "not-found",
+    }));
     ipcMain.removeHandler(channel);
     ipcMain.handle(channel, async (...args) => ({
       ...(await original(...args)),
@@ -343,8 +361,8 @@ try {
   await capture("terminal");
   await page.locator(".environment-trigger").click();
   await page
-    .locator(".environment-agent-team-trigger")
-    .filter({ hasText: "Research library" })
+    .locator(".environment-popover")
+    .getByRole("button", { name: "Details", exact: true })
     .click();
   await capture("agent-team");
   await page
@@ -353,6 +371,100 @@ try {
     .click();
   await page.locator("#settings-tab-general-button").click();
   await capture("settings-general");
+  // Synthetic transport responses exercise the real IM views without accounts or network calls.
+  await app.evaluate(({ ipcMain }) => {
+    const members = ["Dev", "QA"].map((name, index) => ({
+      deviceId: `demo-device-${index}`,
+      name,
+      deviceName: index ? "Mac B" : "Mac A",
+      state: "online",
+      identity: {
+        channel: index ? "slack" : "feishu",
+        connectionId: index ? "demo-slack" : "demo-feishu",
+        tenantId: "demo-team",
+        appId: "demo-bot",
+        userId: `demo-member-${index}`,
+      },
+    }));
+    const space = {
+      id: "demo-space",
+      name: "Research team",
+      confirmed: true,
+      endpoints: members.map((m, i) => ({
+        connectionId: m.identity.connectionId,
+        id: `demo-group-${i}`,
+        kind: "group",
+      })),
+      participants: members,
+      administrators: members.map((m) => m.identity),
+    };
+    const status = {
+      state: "connected",
+      scopedShellSupported: true,
+      scopedFileCreationSupported: true,
+      settings: {
+        enabled: true,
+        gatewayUrl: "https://gateway.example.invalid",
+        deviceId: "demo-device-0",
+        deviceName: "Research workstation",
+        defaultProjectId: "demo-project",
+        grants: [
+          {
+            projectId: "demo-project",
+            mode: "plan",
+            approval: "ask",
+            network: false,
+            shell: false,
+            tokenBudget: 100000,
+            groups: ["space:demo-space"],
+            expiresAt: Date.now() + 86400000,
+          },
+        ],
+      },
+      identities: members.map((m) => m.identity),
+      pairingRequests: [],
+      spaces: [space],
+      connections: members.map((m) => ({
+        id: m.identity.connectionId,
+        name: m.identity.channel === "slack" ? "Team Slack" : "Research Feishu",
+        channel: m.identity.channel,
+        state: "connected",
+        configuration: { transport: "websocket", domain: "feishu" },
+      })),
+      remoteTasks: [
+        {
+          threadId: "demo-group",
+          channel: "feishu",
+          kind: "group",
+          connectionState: "connected",
+          group: {
+            spaceId: space.id,
+            name: space.name,
+            confirmed: true,
+            executingDeviceId: "demo-device-0",
+            stale: false,
+            members,
+          },
+        },
+      ],
+    };
+    ipcMain.removeHandler("artemis:im-status");
+    ipcMain.handle("artemis:im-status", () => status);
+    ipcMain.removeHandler("artemis:im-manage");
+    ipcMain.handle("artemis:im-manage", (_event, request) => {
+      if (request.action !== "refresh")
+        throw new Error("Documentation capture permits status refresh only.");
+      return status;
+    });
+  });
+  await page.locator("#settings-tab-im-button").click();
+  await page.waitForSelector(".im-settings[data-mode=manage]");
+  await capture("im-connections");
+  await page.locator("#im-nav-spaces").click();
+  await page
+    .getByRole("heading", { name: "Saved collaboration spaces", exact: true })
+    .scrollIntoViewIfNeeded();
+  await capture("im-spaces");
   await page.locator(".settings-header").getByRole("button").click();
   for (const [view, name] of [
     ["resources", "resources"],
@@ -363,6 +475,42 @@ try {
     await page.waitForTimeout(600);
     await capture(name);
   }
+  await page
+    .getByText("Research team · Group collaboration", { exact: true })
+    .first()
+    .click();
+  if (
+    (await page
+      .locator(".right-sidebar-toggle")
+      .getAttribute("aria-expanded")) === "true"
+  )
+    await page.locator(".right-sidebar-toggle").click();
+  await page.waitForTimeout(800);
+  if (
+    (await page
+      .locator(".environment-trigger")
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await page.locator(".environment-trigger").click();
+  await page.waitForSelector(".im-group-members");
+  await capture("im-group-chat", { keepEnvironment: true });
+  await page.evaluate(() => window.artemis.setTheme("dark"));
+  await page.reload();
+  await page.waitForSelector(".composer");
+  await page
+    .getByText("Research team · Group collaboration", { exact: true })
+    .first()
+    .click();
+  await page.waitForTimeout(800);
+  if (
+    (await page
+      .locator(".environment-trigger")
+      .getAttribute("aria-expanded")) !== "true"
+  )
+    await page.locator(".environment-trigger").click();
+  await page.waitForSelector(".im-group-members");
+  await capture("im-group-chat-dark", { keepEnvironment: true });
+  await page.evaluate(() => window.artemis.setTheme("light"));
   await page.evaluate(() => window.artemis.setLanguage("zh-CN"));
   await page.reload();
   await page.waitForSelector(".composer");
@@ -401,7 +549,7 @@ try {
     platform: "macOS " + process.arch,
     renderer: "Production Electron build",
     viewport,
-    data: "Isolated synthetic project, conversation, usage, agent and disabled automation fixtures. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Application viewport captured without cropping.",
+    data: "Isolated synthetic project, conversation, usage, agent, IM roster/status and disabled automation fixtures. IM transport responses are synthetic; no real IM service was contacted. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Application viewport captured without cropping.",
     privacy: {
       displayName: "Artemis",
       visiblePersonalNames: false,

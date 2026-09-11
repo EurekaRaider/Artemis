@@ -609,6 +609,24 @@
       "important": false,
       "owner": "Issue #170 composer mode menu placement",
       "reason": "Place the mode menu above its bottom-anchored composer trigger with the same gap as project and branch menus, preventing bottom-window clipping."
+    },
+    {
+      "atRules": [],
+      "selector": ".im-member-action[data-artemis-component=\"icon-button\"]",
+      "property": "padding",
+      "value": "4px",
+      "important": false,
+      "owner": "IM group member controls",
+      "reason": "Preserve the existing 24px member action buttons with 16px icons in the compact environment roster."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"tooltip\"].goal-objective-tooltip",
+      "property": "border",
+      "value": "1px solid var(--artemis-color-border-default)",
+      "important": false,
+      "owner": "Goal objective preview",
+      "reason": "Preserve the existing one-pixel theme-token border on the full-objective tooltip."
     }
   ]
 }
