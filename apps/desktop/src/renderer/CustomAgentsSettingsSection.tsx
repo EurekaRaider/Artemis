@@ -35,6 +35,7 @@ import type {
   SettingsSnapshot,
 } from "../shared/api.js";
 import { legacyLocale } from "../shared/locales.js";
+import { customAgentColorToken } from "./CustomAgentMention.js";
 
 const BUILTIN_TOOL_CHOICES = [
   { toolId: "shell", capability: "shell" },
@@ -586,7 +587,7 @@ export function CustomAgentsSettingsSection({
             leading={
               <span
                 aria-hidden="true"
-                className={`custom-agent-color custom-agent-color-${definition.color}`}
+                className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
               />
             }
             title={definition.name}

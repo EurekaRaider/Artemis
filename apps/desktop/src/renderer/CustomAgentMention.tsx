@@ -19,7 +19,7 @@ import { Button } from "@artemis/ui/actions";
 import type { CustomAgentSummary } from "../shared/api.js";
 import type { CustomAgentDraftReference } from "./composer-drafts.js";
 
-const COLOR_TOKENS = new Set([
+const COLOR_TOKENS = [
   "gray",
   "red",
   "orange",
@@ -29,11 +29,17 @@ const COLOR_TOKENS = new Set([
   "blue",
   "purple",
   "pink",
-]);
+] as const;
+
+export type CustomAgentColorToken = (typeof COLOR_TOKENS)[number];
+
+const COLOR_TOKEN_SET: ReadonlySet<string> = new Set(COLOR_TOKENS);
 
 /** Controlled color token for a chip dot; unknown values fall back to gray. */
-export function customAgentColorToken(color: string): string {
-  return COLOR_TOKENS.has(color) ? color : "gray";
+export function customAgentColorToken(color: string): CustomAgentColorToken {
+  return COLOR_TOKEN_SET.has(color)
+    ? (color as CustomAgentColorToken)
+    : "gray";
 }
 
 /** A definition is a candidate when enabled and effective for the project. */
