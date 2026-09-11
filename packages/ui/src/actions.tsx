@@ -433,6 +433,7 @@ export function Button({
 }
 
 export interface IconButtonProps extends CommonActionProps {
+  readonly "aria-describedby"?: string | undefined;
   readonly "aria-expanded"?: boolean | undefined;
   readonly icon: ReactNode;
   readonly iconSize?: ActionIconSize | undefined;
@@ -441,6 +442,7 @@ export interface IconButtonProps extends CommonActionProps {
 }
 
 export function IconButton({
+  "aria-describedby": describedBy,
   "aria-expanded": expanded,
   className,
   disabled,
@@ -461,6 +463,7 @@ export function IconButton({
   const state = actionState({ disabled, error, loading, selected });
   return (
     <button
+      aria-describedby={describedBy}
       aria-busy={loading || undefined}
       aria-invalid={error || undefined}
       aria-label={label}

@@ -11656,7 +11656,7 @@ kbd {
   flex-wrap: wrap;
 }
 .im-group-members .environment-setting-row > .environment-setting-copy {
-  flex-basis: 100%;
+  flex: 1 1 0;
 }
 
 .im-security-scope,
@@ -11924,25 +11924,27 @@ kbd {
   width: 1.785em;
 }
 
-.im-member-heading,
-.im-member-status {
+.im-member-heading {
+  min-width: 0;
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 .im-member-heading > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.im-member-device {
+.im-member-device,
+.im-member-executor {
   color: var(--artemis-color-text-tertiary);
   font-size: 11px;
   font-weight: 400;
 }
-.im-member-status {
-  flex-wrap: wrap;
-  column-gap: 8px;
+.im-member-heading > [data-artemis-component="tooltip-anchor"],
+.im-member-executor {
+  flex: none;
 }
 .environment-branch-row .environment-row {
   display: grid;
@@ -12163,4 +12165,27 @@ kbd {
 .worktree-manager-actions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.im-group-members .environment-setting-row {
+  gap: 4px;
+}
+.im-member-action[data-artemis-component="icon-button"] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+  border: 0;
+}
+.im-member-remove[data-artemis-component="icon-button"] {
+  color: var(--danger);
+}
+.im-member-mention[data-artemis-component="icon-button"] {
+  color: var(--artemis-color-status-info);
+}
+
+.im-group-members [data-artemis-component="tooltip-anchor"] {
+  flex: none;
 }
