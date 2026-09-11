@@ -12736,7 +12736,13 @@ async function driveSmokeWorkspaceDockEvidence(
             Math.abs(expectedWidth - snapshot.dock?.width) <= 0.5;
         if (snapshot.dock?.state === state && settled) return;
       }
-      throw new Error('Workspace Dock layout did not settle: ' + state);
+      throw new Error('Workspace Dock layout did not settle: ' + state + ' ' +
+        JSON.stringify({ snapshot: capture(), animations:
+          document.querySelector(dockSelector)?.getAnimations().map((animation) => ({
+            state: animation.playState, time: animation.currentTime,
+            timing: animation.effect?.getComputedTiming(),
+          })),
+        }));
     };
     window.__workspaceDockWaitForLayout = waitForLayout;
     const addTab = async (position) => {
