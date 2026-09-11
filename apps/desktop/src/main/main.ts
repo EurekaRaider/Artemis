@@ -12507,18 +12507,7 @@ async function driveSmokeWorkspaceDockEvidence(
       ...parameters,
       type: "keyUp",
     });
-    // Wait for the rendered width to catch up with the accessible value;
-    // a fixed delay can capture an in-flight layout transition on busy CI.
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      await wait(50);
-      const settled = await evaluate<boolean>(`(() => {
-        const snapshot = window.__workspaceDockCapture();
-        return Number.isFinite(snapshot.resizer?.value) &&
-          Math.abs(snapshot.resizer.value - snapshot.dock?.width) <= 0.5;
-      })()`);
-      if (settled) return;
-    }
-    throw new Error(`Workspace Dock width did not settle after ${keyCode}.`);
+    await evaluate(`window.__workspaceDockWaitForLayout('open')`);
   };
 
   if (process.platform === "darwin") app.focus({ steal: true });
@@ -12734,6 +12723,22 @@ async function driveSmokeWorkspaceDockEvidence(
         tabs,
       };
     };
+    const waitForLayout = async (state) => {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await wait(50);
+        const snapshot = capture();
+        const expectedWidth = snapshot.viewport.compactMedia
+          ? snapshot.workspaceContent?.width
+          : snapshot.resizer?.value;
+        const settled = state === 'closed'
+          ? snapshot.dock?.visible === false && snapshot.dock.width === 0
+          : Number.isFinite(expectedWidth) &&
+            Math.abs(expectedWidth - snapshot.dock?.width) <= 0.5;
+        if (snapshot.dock?.state === state && settled) return;
+      }
+      throw new Error('Workspace Dock layout did not settle: ' + state);
+    };
+    window.__workspaceDockWaitForLayout = waitForLayout;
     const addTab = async (position) => {
       const add = document.querySelector('.workspace-tab-add');
       if (!(add instanceof HTMLButtonElement)) {
@@ -12790,7 +12795,7 @@ async function driveSmokeWorkspaceDockEvidence(
     ) {
       throw new Error('Workspace Dock did not open before capture.');
     }
-    await wait(520);
+    await waitForLayout('open');
     const initial = capture();
     await addTab(0);
     await addTab(2);
@@ -13101,7 +13106,7 @@ async function driveSmokeWorkspaceDockEvidence(
       x: Math.round(releasePoint.x * inputScale),
       y: Math.round(releasePoint.y * inputScale),
     });
-    await wait(320);
+    await evaluate(`window.__workspaceDockWaitForLayout('open')`);
     await evaluate(`window.__workspaceDockInteraction.mouse =
       window.__workspaceDockCapture();
       window.__workspaceDockInteraction.pointerProbe =
@@ -13132,11 +13137,11 @@ async function driveSmokeWorkspaceDockEvidence(
   }
 
   await evaluate(`document.querySelector('.right-sidebar-toggle')?.click()`);
-  await wait(520);
+  await evaluate(`window.__workspaceDockWaitForLayout('closed')`);
   await evaluate(`window.__workspaceDockInteraction.closed =
     window.__workspaceDockCapture()`);
   await evaluate(`document.querySelector('.right-sidebar-toggle')?.click()`);
-  await wait(520);
+  await evaluate(`window.__workspaceDockWaitForLayout('open')`);
   await evaluate(`window.__workspaceDockInteraction.reopened =
     window.__workspaceDockCapture()`);
 }
