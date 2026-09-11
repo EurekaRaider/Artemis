@@ -10462,8 +10462,104 @@ kbd {
   color: var(--muted-2);
 }
 
+.custom-agent-count {
+  align-self: center;
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+/* Two-state editor (list ↔ form, ZCode-style): the editor replaces the
+   list so a save always lands back on the visible list. */
+.custom-agent-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-agent-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.custom-agent-editor-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.custom-agent-editor-heading-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.custom-agent-editor-heading-copy strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.custom-agent-editor-heading-copy small {
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.custom-agent-editor-header [data-artemis-component="select"] {
+  flex: none;
+  width: 180px;
+}
+
+.custom-agent-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.custom-agent-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.custom-agent-color-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.custom-agent-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.custom-agent-color-picker .custom-agent-color {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  cursor: pointer;
+  transition: box-shadow var(--artemis-motion-duration-fast)
+    var(--artemis-motion-easing-standard);
+}
+
+.custom-agent-color-picker .custom-agent-color.selected {
+  box-shadow:
+    0 0 0 2px var(--artemis-color-surface-base),
+    0 0 0 4px var(--artemis-color-border-strong);
+}
+
+.custom-agent-color-picker .custom-agent-color:disabled {
+  cursor: default;
+  opacity: var(--artemis-opacity-disabled);
+}
+
 .custom-agent-form-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
 }
 

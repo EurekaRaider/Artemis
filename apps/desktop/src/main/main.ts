@@ -1875,6 +1875,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     },
     agentConcurrency,
     // Metadata only — dedicated instructions stay off snapshots (D#152).
+    // Policies ride along so the settings list can badge model/tool state.
     customAgents: (store?.listCustomAgents() ?? []).map((definition) => ({
       id: definition.id,
       revision: definition.revision,
@@ -1884,6 +1885,9 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       enabled: definition.enabled,
       scope: definition.scope,
       projectIds: store?.listCustomAgentProjectIds(definition.id) ?? [],
+      modelPolicy: definition.modelPolicy,
+      thinkingPolicy: definition.thinkingPolicy,
+      toolPolicy: definition.toolPolicy,
       allowAutomaticInvocation: definition.allowAutomaticInvocation,
       triggers: definition.triggers,
       createdAt: definition.createdAt,

@@ -95,6 +95,9 @@ export interface CustomAgentSummary {
   enabled: boolean;
   scope: "all" | "selected";
   projectIds: string[];
+  modelPolicy: CustomAgentModelPolicy;
+  thinkingPolicy: CustomAgentThinkingPolicy;
+  toolPolicy: CustomAgentToolPolicy;
   allowAutomaticInvocation: boolean;
   triggers: string[];
   createdAt: number;

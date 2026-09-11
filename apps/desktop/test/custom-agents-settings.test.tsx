@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 // Renderer coverage for the custom sub-agent settings section (D#152 PR4):
-// catalog rendering, validated create/edit round-trips, enable toggle,
-// two-step delete, revision-conflict handling, and the capability preview
-// wiring that reuses the runtime intersection.
+// two-state list ↔ editor interaction, catalog rendering with policy
+// badges, validated create/edit round-trips, enable toggle, two-step
+// delete, revision-conflict handling, and the capability preview wiring
+// that reuses the runtime intersection.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -72,6 +73,12 @@ const summary: CustomAgentSummary = {
   enabled: true,
   scope: "all",
   projectIds: [],
+  modelPolicy: { kind: "inherit" },
+  thinkingPolicy: { kind: "inherit" },
+  toolPolicy: {
+    kind: "allowlist",
+    tools: [{ kind: "builtin", toolId: "write" }],
+  },
   allowAutomaticInvocation: false,
   triggers: ["review"],
   createdAt: 1,
@@ -89,7 +96,10 @@ const definition: CustomAgentDefinition = {
   scope: "all",
   modelPolicy: { kind: "inherit" },
   thinkingPolicy: { kind: "inherit" },
-  toolPolicy: { kind: "inherit" },
+  toolPolicy: {
+    kind: "allowlist",
+    tools: [{ kind: "builtin", toolId: "write" }],
+  },
   allowAutomaticInvocation: false,
   triggers: ["review"],
   createdAt: 1,
@@ -135,12 +145,17 @@ function renderSection(options: RenderOptions = {}) {
 }
 
 describe("CustomAgentsSettingsSection", () => {
-  it("shows the empty state until a definition exists", () => {
+  it("shows the empty state with a create call to action", () => {
     renderSection({ snapshotOverrides: { customAgents: [] } });
     expect(screen.getByText("No custom sub-agents yet")).toBeInTheDocument();
+    expect(screen.getByText(/Create a specialist role once/u)).toBeVisible();
+    // Header and empty state both offer creation.
+    expect(
+      screen.getAllByRole("button", { name: "New sub-agent" }).length,
+    ).toBe(2);
   });
 
-  it("lists definitions with scope, state, and routing badges", () => {
+  it("lists definitions with policy, scope, state, and routing badges", () => {
     renderSection();
     const row = screen
       .getByText("Reviewer", { selector: '[data-part="title"]' })
@@ -148,11 +163,29 @@ describe("CustomAgentsSettingsSection", () => {
     expect(row).not.toBeNull();
     const scoped = within(row as HTMLElement);
     expect(scoped.getByText("Reviews diffs")).toBeInTheDocument();
+    expect(scoped.getByText("Inherit")).toBeInTheDocument();
+    expect(scoped.getByText("1 tools")).toBeInTheDocument();
     expect(scoped.getByText("All projects")).toBeInTheDocument();
     expect(scoped.getByText("Manual only")).toBeInTheDocument();
     expect(row?.querySelector(".custom-agent-color-blue")).not.toBeNull();
     // Enabled definitions keep the disabled badge hidden.
     expect(scoped.queryByText("Disabled")).toBeNull();
+    expect(screen.getByText("1 item(s)")).toBeInTheDocument();
+  });
+
+  it("labels the fixed model with its configured model id", () => {
+    renderSection({
+      snapshotOverrides: {
+        models: [{ providerId: "p1", modelId: "m1", name: "Model One" }],
+        customAgents: [
+          {
+            ...summary,
+            modelPolicy: { kind: "fixed", providerId: "p1", modelId: "m1" },
+          },
+        ],
+      },
+    });
+    expect(screen.getByText("Model One")).toBeInTheDocument();
   });
 
   it("warns when the automatic set exceeds the per-turn catalog budget", () => {
@@ -179,10 +212,17 @@ describe("CustomAgentsSettingsSection", () => {
     ).toBeNull();
   });
 
-  it("creates a definition from the validated form", async () => {
+  it("creates a definition from the editor and returns to the list", async () => {
     const user = userEvent.setup();
     const { api, applySettings, snapshot } = renderSection();
     await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+
+    // The editor replaces the list — rows disappear while editing.
+    expect(screen.queryByText("Reviews diffs")).toBeNull();
+    expect(
+      screen.getByText("New sub-agent", { selector: "strong" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/saving returns to the list/u)).toBeInTheDocument();
 
     // Opening the editor asks the main process for the effective-capability
     // preview with the widest mode.
@@ -215,12 +255,25 @@ describe("CustomAgentsSettingsSection", () => {
       triggers: [],
     });
     expect(applySettings).toHaveBeenCalledWith(snapshot);
-    // Form closes after a successful save.
+    // A successful save closes the editor and puts the list back on screen.
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "Save sub-agent" }),
       ).toBeNull(),
     );
+    expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
+  });
+
+  it("closes the editor from the back button without saving", async () => {
+    const user = userEvent.setup();
+    const { api } = renderSection();
+    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.type(screen.getByLabelText("Name"), "Discarded");
+    await user.click(screen.getByRole("button", { name: "Back to list" }));
+
+    expect(api.customAgentsCreate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
   it("loads the full definition for editing and saves with its revision", async () => {
@@ -231,6 +284,9 @@ describe("CustomAgentsSettingsSection", () => {
     await waitFor(() =>
       expect(api.customAgentsGet).toHaveBeenCalledWith("def-1"),
     );
+    expect(
+      screen.getByText("Edit: Reviewer", { selector: "strong" }),
+    ).toBeInTheDocument();
     const instructions = await screen.findByLabelText("Dedicated instructions");
     expect(instructions).toHaveValue("Focus on correctness.");
 
@@ -249,6 +305,10 @@ describe("CustomAgentsSettingsSection", () => {
       name: "Reviewer",
       instructions: "Focus on correctness.",
       triggers: ["review"],
+      toolPolicy: {
+        kind: "allowlist",
+        tools: [{ kind: "builtin", toolId: "write" }],
+      },
     });
   });
 
@@ -284,7 +344,7 @@ describe("CustomAgentsSettingsSection", () => {
     expect(applySettings).toHaveBeenCalledWith(snapshot);
   });
 
-  it("keeps the form open and refreshes the snapshot on revision conflict", async () => {
+  it("keeps the editor open and refreshes the snapshot on revision conflict", async () => {
     const user = userEvent.setup();
     const getSettings = vi.fn(async () => settingsSnapshot());
     const api = {
