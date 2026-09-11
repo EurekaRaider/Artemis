@@ -1156,9 +1156,7 @@ describe("renderer layout contract", () => {
     );
     expect(runtimeSource).toContain("const childAdapter = new PiAdapter(");
     expect(runtimeSource).toContain("scheduleActivityUpdate");
-    const childSessionStart = runtimeSource.indexOf(
-      "const created = await createAgentSession({",
-    );
+    const childSessionStart = runtimeSource.indexOf("const childTools = [");
     const childSessionEnd = runtimeSource.indexOf(
       "await child.session.prompt(",
       childSessionStart,

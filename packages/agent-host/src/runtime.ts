@@ -54,6 +54,7 @@ import {
   AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
   AGENT_TEAM_SPAWN_BUDGET,
   computeEffectiveCapabilities,
+  isDefinitionEffectiveForProject,
   checkCatalogBudget,
   freezeInstanceSnapshot,
   matchCatalogLexically,
@@ -874,6 +875,7 @@ interface HostedThread {
    * the latest global configuration when unset.
    */
   turnCustomAgents?: CustomAgentDefinition[];
+  customAgentProjectId?: string | null;
   /**
    * Explicit user invocation bindings (invocationId → agentId) for this
    * thread. A duplicate delivery of the same invocation reuses the
@@ -2309,6 +2311,17 @@ export class ArtemisAgentHost {
           "CUSTOM_AGENT_DISABLED: the definition was disabled or deleted; retrying would bypass the current authorization.",
         );
       }
+      if (
+        !isDefinitionEffectiveForProject(
+          definition,
+          this.configuration.customAgentProjectIds?.[definition.id] ?? [],
+          child.customAgentSnapshot.projectId,
+        )
+      ) {
+        throw new Error(
+          "CUSTOM_AGENT_OUT_OF_SCOPE: the definition is no longer effective for this project.",
+        );
+      }
     }
     const retried = hosted.launchChildAgent({
       turnId: hosted.currentTurnId,
@@ -2441,6 +2454,14 @@ export class ArtemisAgentHost {
   ): CustomAgentInstanceSnapshot | undefined {
     const definitions =
       hosted.turnCustomAgents ?? this.configuration.customAgents ?? [];
+    if (!explicit && this.turnAutoCatalog(hosted).overflow) {
+      if (agentId !== undefined) {
+        throw new Error(
+          "CUSTOM_AGENT_NOT_FOUND: automatic routing is disabled because this turn's catalog exceeds its budget.",
+        );
+      }
+      return undefined;
+    }
     if (agentId === undefined) {
       if (!role) return undefined;
       const normalizedRole = normalizeAgentToken(role);
@@ -2508,6 +2529,17 @@ export class ArtemisAgentHost {
         `CUSTOM_AGENT_REVISION_CONFLICT: custom sub-agent "${definition.name}" was edited (now revision ${definition.revision}); refresh the reference and retry.`,
       );
     }
+    if (
+      !isDefinitionEffectiveForProject(
+        liveDefinition,
+        this.configuration.customAgentProjectIds?.[agentId] ?? [],
+        hosted.customAgentProjectId ?? null,
+      )
+    ) {
+      throw new Error(
+        "CUSTOM_AGENT_OUT_OF_SCOPE: the definition is no longer effective for this project.",
+      );
+    }
     const parentSelection = hosted.selection;
     const resolvedProviderId =
       definition.modelPolicy.kind === "fixed"
@@ -2554,13 +2586,14 @@ export class ArtemisAgentHost {
       definitionName: definition.name,
       instructions: definition.instructions,
       catalogId: `turn:${hosted.currentTurnId ?? "unknown"}`,
-      projectId: null,
+      projectId: hosted.customAgentProjectId ?? null,
       resolvedModel: {
         providerId: resolvedProviderId,
         modelId: resolvedModelId,
         thinkingLevel: resolvedThinking,
       },
       effectiveCapabilities,
+      toolPolicy: definition.toolPolicy,
       invocationSource: explicit ? "user-explicit" : "model-explicit",
       selectionBasis: "explicit-reference",
       ...(explicit ? { invocationId: explicit.invocationId } : {}),
@@ -2683,27 +2716,78 @@ export class ArtemisAgentHost {
     };
   }
 
-  /**
-   * Definition allowlists reference MCP tools by stable serverId + toolName;
-   * map the runtime piName back through the configured catalog.
-   */
-  private mcpToolAllowedByPolicy(
-    piName: string,
+  private customAgentToolAllowed(
+    name: string,
     snapshot: CustomAgentInstanceSnapshot,
+    mode: RunMode,
   ): boolean {
-    const definition = this.configuration.customAgents?.find(
-      (candidate) => candidate.id === snapshot.definitionId,
+    // Host lifecycle tools remain available even after business access is revoked.
+    if (
+      [
+        "list_agents",
+        "wait_agent",
+        "wait_team",
+        "send_message",
+        "finish_subteam",
+        "shell_cancel",
+      ].includes(name)
+    )
+      return true;
+    if (name === "spawn_agent") return false;
+    const configured = this.configuration.mcpTools?.find(
+      (tool) => tool.piName === name,
     );
-    if (!definition || definition.toolPolicy.kind === "inherit") return true;
-    const configured = (this.configuration.mcpTools ?? []).find(
-      (tool) => tool.piName === piName,
+    const ref = configured
+      ? {
+          kind: "mcp" as const,
+          serverId: configured.serverId,
+          toolName: configured.toolName,
+        }
+      : { kind: "builtin" as const, toolId: name };
+    const allows = (policy: CustomAgentDefinition["toolPolicy"]) =>
+      policy.kind === "inherit" ||
+      policy.tools.some((candidate) =>
+        candidate.kind === "builtin" && ref.kind === "builtin"
+          ? candidate.toolId === ref.toolId
+          : candidate.kind === "mcp" &&
+            ref.kind === "mcp" &&
+            candidate.serverId === ref.serverId &&
+            candidate.toolName === ref.toolName,
+      );
+    const live = this.configuration.customAgents?.find(
+      (definition) => definition.id === snapshot.definitionId,
     );
-    if (!configured) return false;
-    return definition.toolPolicy.tools.some(
-      (ref) =>
-        ref.kind === "mcp" &&
-        ref.serverId === configured.serverId &&
-        ref.toolName === configured.toolName,
+    if (
+      live &&
+      !isDefinitionEffectiveForProject(
+        { ...live, enabled: true },
+        this.configuration.customAgentProjectIds?.[live.id] ?? [],
+        snapshot.projectId,
+      )
+    )
+      return false;
+    if (!allows(snapshot.toolPolicy) || (live && !allows(live.toolPolicy)))
+      return false;
+    if (configured && !configured.readOnly) return false;
+    // Unknown/removed MCP tools must not fall through as business reads.
+    const classes = resolveCustomAgentToolCapabilities(ref);
+    const modeCaps = computeEffectiveCapabilities(
+      {
+        runMode: mode,
+        childBaseline: CUSTOM_AGENT_CHILD_BASELINE,
+        parentDelegatable: CUSTOM_AGENT_CHILD_BASELINE,
+        liveGrants: CUSTOM_AGENT_CHILD_BASELINE,
+      },
+      { kind: "inherit" },
+      resolveCustomAgentToolCapabilities,
+    );
+    return (
+      classes.size > 0 &&
+      [...classes].every(
+        (capability) =>
+          snapshot.effectiveCapabilities.includes(capability) &&
+          modeCaps.has(capability),
+      )
     );
   }
 
@@ -2724,7 +2808,14 @@ export class ArtemisAgentHost {
         const definition = definitions?.find(
           (candidate) => candidate.id === snapshot.definitionId,
         );
-        if (!definition || !definition.enabled) {
+        if (
+          !definition ||
+          !isDefinitionEffectiveForProject(
+            definition,
+            this.configuration.customAgentProjectIds?.[definition.id] ?? [],
+            snapshot.projectId,
+          )
+        ) {
           this.requestChildCancellation(hosted, child);
         }
       }
@@ -5067,6 +5158,17 @@ export class ArtemisAgentHost {
       if (!hosted) {
         throw new Error(`Thread is not open: ${request.threadId}`);
       }
+      if (input.customAgentSnapshot) {
+        const selection = input.customAgentSnapshot.resolvedModel;
+        const model = modelRuntime.getModel(
+          selection.providerId,
+          selection.modelId,
+        );
+        if (!model)
+          throw new Error(
+            `CUSTOM_AGENT_MODEL_UNAVAILABLE: ${selection.providerId}/${selection.modelId}`,
+          );
+      }
       const agentId = randomUUID();
       const controller = new AbortController();
       let settle!: () => void;
@@ -5323,13 +5425,72 @@ export class ArtemisAgentHost {
                       if (!readOnlyMcpToolNames.has(tool.name)) return false;
                       if (
                         frozenSnapshot &&
-                        !this.mcpToolAllowedByPolicy(tool.name, frozenSnapshot)
+                        !this.customAgentToolAllowed(
+                          tool.name,
+                          frozenSnapshot,
+                          input.mode,
+                        )
                       ) {
                         return false;
                       }
                       return true;
                     })
                   : [];
+                const childTools = [
+                  ...createAttachmentTools((operation) =>
+                    invokeAttachmentOperation(operation, child.session),
+                  ),
+                  ...childRemoteTools,
+                  readTool,
+                  webSearchTool,
+                  ...(allowToolClass("filesystem-write")
+                    ? [childWriteTool, childOfficeDocumentTool]
+                    : []),
+                  loadWorkspaceDependenciesTool,
+                  ...(childSpawnAgentTool ? [childSpawnAgentTool] : []),
+                  listAgentsTool,
+                  childWaitAgentTool,
+                  childWaitTeamTool,
+                  childSendMessageTool,
+                  childFinishSubteamTool,
+                  ...(allowToolClass("shell")
+                    ? [
+                        childBashTools.bashTool,
+                        childBashTools.bashWaitTool,
+                        childBashTools.bashCancelTool,
+                      ]
+                    : []),
+                  ...childMcpTools,
+                ];
+                const guardedChildTools = frozenSnapshot
+                  ? childTools
+                      .filter((tool) =>
+                        this.customAgentToolAllowed(
+                          tool.name,
+                          frozenSnapshot,
+                          input.mode,
+                        ),
+                      )
+                      .map((tool) => ({
+                        ...tool,
+                        execute: async (
+                          ...args: Parameters<typeof tool.execute>
+                        ) => {
+                          if (
+                            !this.customAgentToolAllowed(
+                              tool.name,
+                              frozenSnapshot,
+                              hosted.currentMode ?? "plan",
+                            )
+                          ) {
+                            throw new Error(
+                              `CUSTOM_AGENT_TOOL_DENIED: ${tool.name} is outside this instance's current authorization.`,
+                            );
+                          }
+                          return tool.execute(...args);
+                        },
+                      }))
+                  : childTools;
                 const created = await createAgentSession({
                   cwd: request.workspacePath,
                   sessionManager: omitReasoningFromSession(
@@ -5342,54 +5503,8 @@ export class ArtemisAgentHost {
                     : {}),
                   resourceLoader: childResourceLoader,
                   noTools: "builtin",
-                  customTools: [
-                    ...createAttachmentTools((operation) =>
-                      invokeAttachmentOperation(operation, child.session),
-                    ),
-                    ...childRemoteTools,
-                    readTool,
-                    webSearchTool,
-                    ...(allowToolClass("filesystem-write")
-                      ? [childWriteTool, childOfficeDocumentTool]
-                      : []),
-                    loadWorkspaceDependenciesTool,
-                    ...(childSpawnAgentTool ? [childSpawnAgentTool] : []),
-                    listAgentsTool,
-                    childWaitAgentTool,
-                    childWaitTeamTool,
-                    childSendMessageTool,
-                    childFinishSubteamTool,
-                    ...(allowToolClass("shell")
-                      ? [
-                          childBashTools.bashTool,
-                          childBashTools.bashWaitTool,
-                          childBashTools.bashCancelTool,
-                        ]
-                      : []),
-                    ...childMcpTools,
-                  ],
-                  tools: [
-                    ...childRemoteTools.map((tool) => tool.name),
-                    "attachment_list",
-                    "attachment_read",
-                    "attachment_search",
-                    "read",
-                    "web_search",
-                    ...(allowToolClass("filesystem-write")
-                      ? ["write", "office_document"]
-                      : []),
-                    "load_workspace_dependencies",
-                    ...(frozenSnapshot ? [] : ["spawn_agent"]),
-                    "list_agents",
-                    "wait_agent",
-                    "wait_team",
-                    "send_message",
-                    "finish_subteam",
-                    ...(allowToolClass("shell")
-                      ? ["shell", "shell_wait", "shell_cancel"]
-                      : []),
-                    ...childMcpTools.map((tool) => tool.name),
-                  ],
+                  customTools: guardedChildTools,
+                  tools: guardedChildTools.map((tool) => tool.name),
                 });
                 if (request.remoteExecution)
                   created.session.setActiveToolsByName(
@@ -6058,6 +6173,7 @@ export class ArtemisAgentHost {
       definitionId: string;
       revision: number;
     },
+    customAgentProjectId?: string | null,
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -6070,6 +6186,7 @@ export class ArtemisAgentHost {
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
+    hosted.customAgentProjectId = customAgentProjectId ?? null;
     const turnCustomAgents = customAgents ?? this.configuration.customAgents;
     if (turnCustomAgents === undefined) {
       delete hosted.turnCustomAgents;

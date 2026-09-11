@@ -530,3 +530,74 @@ describe("custom agent turn catalog injection", () => {
     host.dispose();
   });
 });
+
+it("rejects an unavailable fixed model before registering a child or spending budget", async () => {
+  const { host, thread, spawn } = await setup([
+    definition({
+      modelPolicy: {
+        kind: "fixed",
+        providerId: "missing-provider",
+        modelId: "missing-model",
+      },
+    }),
+  ]);
+  try {
+    await expect(
+      spawn.execute("missing", {
+        agent: "def-1",
+        task: "review",
+        label: "review",
+      }),
+    ).rejects.toThrow(/CUSTOM_AGENT_MODEL_UNAVAILABLE/);
+    expect(thread.childAgents.size).toBe(0);
+    expect(thread.team?.spawnCount ?? 0).toBe(0);
+  } finally {
+    host.dispose();
+  }
+});
+
+it("rejects a definition removed from this project after the catalog froze", async () => {
+  const { host, thread, spawn } = await setup([
+    definition({ scope: "selected" }),
+  ]);
+  try {
+    await expect(
+      spawn.execute("scope", {
+        agent: "def-1",
+        task: "review",
+        label: "review",
+      }),
+    ).rejects.toThrow(/CUSTOM_AGENT_OUT_OF_SCOPE/);
+    expect(thread.childAgents.size).toBe(0);
+    expect(thread.team?.spawnCount ?? 0).toBe(0);
+  } finally {
+    host.dispose();
+  }
+});
+
+it("catalog overflow disables both model IDs and exact-role correction", async () => {
+  const { host, thread, spawn } = await setup(
+    Array.from({ length: 21 }, (_, index) =>
+      definition({ id: `def-${index}`, name: `reviewer-${index}` }),
+    ),
+  );
+  try {
+    await spawn.execute("free", {
+      role: "reviewer-0",
+      task: "review",
+      label: "review",
+    });
+    expect(thread.childAgents.size).toBe(1);
+    await expect(
+      spawn.execute("explicit", {
+        agent: "def-0",
+        task: "review",
+        label: "review",
+      }),
+    ).rejects.toThrow(/automatic routing is disabled/);
+    expect(thread.childAgents.size).toBe(1);
+    expect(thread.team?.spawnCount).toBe(1);
+  } finally {
+    host.dispose();
+  }
+});

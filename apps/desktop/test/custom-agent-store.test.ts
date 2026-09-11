@@ -494,3 +494,42 @@ describe("custom agent store", () => {
     store.close();
   });
 });
+
+it("does not persist dedicated instructions in turn recovery checkpoints", async () => {
+  const store = await openStore();
+  const projectId = makeProject(store, "/tmp/checkpoint");
+  const now = new Date().toISOString();
+  store.createThread({
+    id: "checkpoint-thread",
+    projectId,
+    title: "t",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const definition = store.createCustomAgent({
+    name: "private",
+    description: "",
+    color: "green",
+    instructions: "private dedicated instructions",
+    scope: "all",
+  });
+  store.saveTurnCheckpoint({
+    threadId: "checkpoint-thread",
+    turnId: "turn-1",
+    text: "review",
+    mode: "execute",
+    customAgents: [definition],
+  });
+  const checkpoint = store.getTurnCheckpoint("checkpoint-thread");
+  expect(JSON.stringify(checkpoint)).not.toContain(definition.instructions);
+  expect(checkpoint?.customAgents).toEqual([]);
+  expect(store.getCustomAgent(definition.id)?.instructions).toBe(
+    definition.instructions,
+  );
+  store.close();
+});

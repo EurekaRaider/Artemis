@@ -2331,7 +2331,17 @@ export class AppStore {
       .run(
         checkpoint.threadId,
         checkpoint.turnId,
-        JSON.stringify({ version: 1, checkpoint }),
+        JSON.stringify({
+          version: 1,
+          checkpoint: {
+            ...checkpoint,
+            // Definitions stay in memory. Recovery must not reload private
+            // instructions or silently route against a different revision.
+            ...(checkpoint.customAgents === undefined
+              ? {}
+              : { customAgents: [] }),
+          },
+        }),
       );
   }
 

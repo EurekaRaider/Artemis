@@ -74,6 +74,7 @@ function frozenSnapshot(
       modelId: "k3",
       thinkingLevel: "off",
     },
+    toolPolicy: { kind: "inherit" },
     effectiveCapabilities: ["shell", "filesystem-write", "business-read"],
     invocationSource: "model-explicit",
     selectionBasis: "explicit-reference",

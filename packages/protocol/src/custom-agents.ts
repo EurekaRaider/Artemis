@@ -258,6 +258,7 @@ export interface CustomAgentInstanceSnapshot {
   projectId: string | null;
   resolvedModel: ResolvedCustomAgentModel;
   effectiveCapabilities: readonly CapabilityClass[];
+  toolPolicy: CustomAgentToolPolicy;
   /** P0-user | P0-model | P1-lexical | P2-semantic (never for explicit). */
   invocationSource: "user-explicit" | "model-explicit" | "model-automatic";
   selectionBasis:
@@ -273,9 +274,17 @@ export function freezeInstanceSnapshot(
   },
 ): CustomAgentInstanceSnapshot {
   const capabilities = Object.freeze([...input.effectiveCapabilities]);
+  const toolPolicy = structuredClone(input.toolPolicy);
+  if (toolPolicy.kind === "allowlist") {
+    toolPolicy.tools.forEach(Object.freeze);
+    Object.freeze(toolPolicy.tools);
+  }
+  Object.freeze(toolPolicy);
   return Object.freeze({
     ...input,
     effectiveCapabilities: capabilities,
+    resolvedModel: Object.freeze({ ...input.resolvedModel }),
+    toolPolicy,
   });
 }
 

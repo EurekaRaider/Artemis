@@ -36,6 +36,15 @@ import { legacyLocale } from "../shared/locales.js";
 import { customAgentColorToken } from "./CustomAgentMention.js";
 
 const BUILTIN_TOOL_CHOICES = [
+  { toolId: "read", capability: "business-read" },
+  { toolId: "web_search", capability: "business-read" },
+  { toolId: "attachment_list", capability: "business-read" },
+  { toolId: "attachment_read", capability: "business-read" },
+  { toolId: "attachment_search", capability: "business-read" },
+  { toolId: "load_workspace_dependencies", capability: "business-read" },
+  { toolId: "remote_read", capability: "business-read" },
+  { toolId: "remote_write", capability: "filesystem-write" },
+  { toolId: "shell_wait", capability: "shell" },
   { toolId: "shell", capability: "shell" },
   { toolId: "write", capability: "filesystem-write" },
   { toolId: "office_document", capability: "filesystem-write" },

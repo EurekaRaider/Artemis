@@ -1446,6 +1446,12 @@ async function applyAgentRuntime(
   // travel only on this trusted main→worker channel; renderers receive
   // catalog metadata without instructions (D#152 plan section 3).
   resolved.customAgents = store?.listCustomAgents() ?? [];
+  resolved.customAgentProjectIds = Object.fromEntries(
+    resolved.customAgents.map((definition) => [
+      definition.id,
+      store?.listCustomAgentProjectIds(definition.id) ?? [],
+    ]),
+  );
   await agentProcess.request(
     {
       type: "runtime.configure",
@@ -5746,25 +5752,9 @@ async function startTaskTurnUnchecked(
     ...(memoryContext ? { memoryContext } : {}),
     ...(collaborationContext ? { collaborationContext } : {}),
     customAgents: turnCustomAgents,
+    customAgentProjectId: thread.projectId ?? null,
     ...(customAgentInvocation ? { customAgentInvocation } : {}),
   };
-  try {
-    await emitInitialTurn(
-      thread.id,
-      turnId,
-      requestText,
-      input.mode,
-      attachments,
-      source === "user",
-      checkpoint,
-    );
-  } catch (error) {
-    trace.completedAt = Date.now();
-    trace.outcome = "failed";
-    finalizeTurnLatency(trace);
-    throw error;
-  }
-  activeTurns.set(thread.id, turnId);
   if (customAgentInvocation && customAgentInvocationFingerprint) {
     // Persist the dedup record BEFORE the dispatch can start a child
     // instance. The unique key is (threadId, invocationId); a same-id
@@ -5788,6 +5778,13 @@ async function startTaskTurnUnchecked(
       instanceId: null,
       status: "pending",
     });
+    if (record.status === "dispatch-committed" && record.turnId) {
+      turnLatencyTraces.delete(turnId);
+      return {
+        turnId: record.turnId,
+        thread: store.getThread(thread.id) ?? thread,
+      };
+    }
     if (record.status === "pending") {
       store.transitionCustomAgentInvocation(
         thread.id,
@@ -5805,6 +5802,30 @@ async function startTaskTurnUnchecked(
       );
     }
   }
+  try {
+    await emitInitialTurn(
+      thread.id,
+      turnId,
+      requestText,
+      input.mode,
+      attachments,
+      source === "user",
+      checkpoint,
+    );
+  } catch (error) {
+    if (customAgentInvocation) {
+      store.transitionCustomAgentInvocation(
+        thread.id,
+        customAgentInvocation.invocationId,
+        "cancelled",
+      );
+    }
+    trace.completedAt = Date.now();
+    trace.outcome = "failed";
+    finalizeTurnLatency(trace);
+    throw error;
+  }
+  activeTurns.set(thread.id, turnId);
   if (goalCreationAuthorized) {
     goalCreationAuthorizations.add(turnId);
   }

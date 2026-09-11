@@ -206,6 +206,7 @@ describe("frozen instance snapshots", () => {
         modelId: "k3",
         thinkingLevel: null,
       },
+      toolPolicy: { kind: "inherit" },
       effectiveCapabilities: ["business-read"],
       invocationSource: "user-explicit",
       selectionBasis: "explicit-reference",

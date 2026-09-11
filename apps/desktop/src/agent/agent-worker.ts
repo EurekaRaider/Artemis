@@ -173,6 +173,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           command.recovery,
           command.customAgents,
           command.customAgentInvocation,
+          command.customAgentProjectId,
         );
         break;
       }

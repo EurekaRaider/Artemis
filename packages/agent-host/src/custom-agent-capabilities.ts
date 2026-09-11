@@ -27,8 +27,17 @@ export function resolveCustomAgentToolCapabilities(
       return new Set<CapabilityClass>(["shell"]);
     case "write":
     case "office_document":
+    case "remote_write":
       return new Set<CapabilityClass>(["filesystem-write", "business-read"]);
-    default:
+    case "read":
+    case "web_search":
+    case "attachment_list":
+    case "attachment_read":
+    case "attachment_search":
+    case "load_workspace_dependencies":
+    case "remote_read":
       return new Set<CapabilityClass>(["business-read"]);
+    default:
+      return new Set<CapabilityClass>();
   }
 }

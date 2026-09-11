@@ -105,6 +105,7 @@ export interface AgentRuntimeConfiguration {
    * renderers only ever receive catalog metadata.
    */
   customAgents?: CustomAgentDefinition[];
+  customAgentProjectIds?: Record<string, string[]>;
 }
 
 export interface AgentModelInfo {
@@ -214,6 +215,7 @@ export type AgentHostCommand =
        * the running turn.
        */
       customAgents?: CustomAgentDefinition[];
+      customAgentProjectId?: string | null;
       /**
        * A validated explicit user invocation (structured @ reference).
        * The host must materialize exactly one instance for it; the model
