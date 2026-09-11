@@ -10486,6 +10486,15 @@ kbd {
   min-width: 0;
 }
 
+/* Instance identity line (D#152 PR4): small, light, no backplate. */
+.child-agent-panel-identity {
+  margin: 0;
+  padding: 4px 16px 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--muted-2);
+}
+
 .agent-concurrency-hardware > div {
   display: flex;
   align-items: center;

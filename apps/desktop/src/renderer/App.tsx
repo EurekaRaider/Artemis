@@ -231,6 +231,7 @@ import {
   customAgentColorToken,
   useCustomAgentMention,
 } from "./CustomAgentMention.js";
+import { customAgentInstanceIdentity } from "./custom-agent-identity.js";
 import { groupApprovedApprovals } from "./approval-groups.js";
 import { parseGoalCommand } from "./goal-command.js";
 import {
@@ -9754,13 +9755,18 @@ export function AgentTeamPanel({
                     <span className="agent-team-member-summary">
                       <strong>{member.label}</strong>
                       <small>
-                        {member.status === "completed"
-                          ? agentMemberStatus(member.status, locale)
-                          : (member.currentTool ??
-                            member.activity
-                              ?.split("\n")
-                              .find((line) => line.trim()) ??
-                            agentMemberStatus(member.status, locale))}
+                        {member.customAgent
+                          ? customAgentInstanceIdentity(
+                              member.customAgent,
+                              locale,
+                            )
+                          : member.status === "completed"
+                            ? agentMemberStatus(member.status, locale)
+                            : (member.currentTool ??
+                              member.activity
+                                ?.split("\n")
+                                .find((line) => line.trim()) ??
+                              agentMemberStatus(member.status, locale))}
                       </small>
                     </span>
                     {member.status === "completed" ? (
@@ -10010,6 +10016,11 @@ export function ChildAgentPanel({
           </div>
         )}
       </header>
+      {child?.customAgent && (
+        <p className="child-agent-panel-identity">
+          {customAgentInstanceIdentity(child.customAgent, locale)}
+        </p>
+      )}
       {child && child.status !== "completed" && (
         <details className="child-agent-panel-runtime-bar">
           <summary>{labels.runtimeDetails}</summary>
