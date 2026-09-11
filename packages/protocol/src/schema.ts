@@ -785,6 +785,12 @@ export const contextUsagePayloadSchema = z.object({
   tokens: z.number().int().nonnegative().nullable(),
   contextWindow: contextWindowSchema,
   compacting: z.boolean(),
+  compactionResult: z
+    .object({
+      status: z.enum(["completed", "failed", "cancelled"]),
+      error: z.string().optional(),
+    })
+    .optional(),
   estimated: z.boolean().optional(),
   source: z
     .enum(["provider", "local-estimate", "compaction-estimate"])

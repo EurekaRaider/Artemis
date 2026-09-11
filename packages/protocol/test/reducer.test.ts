@@ -708,6 +708,35 @@ describe("reduceAgentEvent", () => {
       },
     });
   });
+  it("preserves failed and cancelled compaction outcomes across later usage snapshots", () => {
+    for (const status of ["failed", "cancelled"] as const) {
+      const state = reduceAgentEvents("thread-1", [
+        event("start", 1, {
+          type: "context.usage",
+          tokens: 1000,
+          contextWindow: 32000,
+          compacting: true,
+        }),
+        event("end", 2, {
+          type: "context.usage",
+          tokens: 1000,
+          contextWindow: 32000,
+          compacting: false,
+          compactionResult: { status, error: "Summary unavailable" },
+        }),
+        event("later", 3, {
+          type: "context.usage",
+          tokens: 1000,
+          contextWindow: 32000,
+          compacting: false,
+        }),
+      ]);
+      expect(state.contextCompactions.start).toMatchObject({
+        status,
+        error: "Summary unavailable",
+      });
+    }
+  });
 
   it("ignores events for another thread", () => {
     const state = createThreadViewState("thread-1");

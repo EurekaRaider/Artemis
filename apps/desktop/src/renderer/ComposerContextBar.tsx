@@ -20,6 +20,7 @@ type Locale = AppLocale;
 
 interface ComposerContextBarProps {
   activeProject?: Project;
+  threadId?: string | undefined;
   branchActionsDisabled: boolean;
   locale: Locale;
   mode: RunMode;
@@ -150,6 +151,7 @@ export function contextMenuLayout(
 
 export function ComposerContextBar({
   activeProject,
+  threadId,
   branchActionsDisabled,
   locale,
   mode,
@@ -192,7 +194,10 @@ export function ComposerContextBar({
     setGitLoading(true);
     setGitError(undefined);
     try {
-      const info = await window.artemis.getProjectGitInfo(activeProject.id);
+      const info = await window.artemis.getProjectGitInfo(
+        activeProject.id,
+        threadId,
+      );
       if (request !== branchRequest.current) return;
       setGitInfo(info);
     } catch (error) {
@@ -202,7 +207,7 @@ export function ComposerContextBar({
     } finally {
       if (request === branchRequest.current) setGitLoading(false);
     }
-  }, [activeProject?.id]);
+  }, [activeProject?.id, threadId]);
 
   useEffect(() => {
     setGitInfo(undefined);
@@ -216,6 +221,23 @@ export function ComposerContextBar({
       branchRequest.current += 1;
     };
   }, [loadGitInfo]);
+
+  useEffect(() => {
+    const unsubscribe = window.artemis.onProjectGitChanged((context) => {
+      if (
+        context.projectId === activeProject?.id &&
+        context.threadId === threadId
+      ) {
+        void loadGitInfo();
+      }
+    });
+    const refreshOnFocus = () => void loadGitInfo();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [activeProject?.id, loadGitInfo, threadId]);
 
   const updateMenuLayout = useCallback(() => {
     const root = rootRef.current;
@@ -333,7 +355,10 @@ export function ComposerContextBar({
       const info = await window.artemis.switchProjectBranch(
         activeProject.id,
         branchName,
+        threadId,
       );
+      ++branchRequest.current;
+      setGitLoading(false);
       setGitInfo(info);
       setBranchMenuOpen(false);
     } catch (error) {
@@ -358,7 +383,10 @@ export function ComposerContextBar({
       const info = await window.artemis.createProjectBranch(
         activeProject.id,
         newBranchName,
+        threadId,
       );
+      ++branchRequest.current;
+      setGitLoading(false);
       setGitInfo(info);
       setCreatingBranch(false);
       setNewBranchName("");

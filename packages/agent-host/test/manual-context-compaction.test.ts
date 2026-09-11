@@ -152,6 +152,7 @@ describe("context usage updates", () => {
       tokens: 31_500,
       contextWindow: 128_000,
       compacting: false,
+      compactionResult: { status: "completed" },
       estimated: true,
       source: "compaction-estimate",
       footprint: {

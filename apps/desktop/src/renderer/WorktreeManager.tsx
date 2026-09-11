@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog } from "@artemis/ui/feedback";
 import type { AppLocale } from "@artemis/protocol";
 import type { WorktreeCleanupCandidate } from "../shared/api.js";
@@ -18,30 +18,51 @@ export function WorktreeManager({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    void window.artemis
-      .listWorktreeCleanupCandidates()
-      .then((rows) => {
-        if (cancelled) return;
-        setItems(rows);
-        setSelected(
-          rows
-            .filter((row) => row.recommended)
-            .map((row) => row.worktree.threadId),
-        );
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(String(reason));
-      })
-      .finally(() => {
-        if (!cancelled) setBusy(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const request = useRef(0);
+  const loaded = useRef(false);
+  const removing = useRef(false);
+  const refresh = useCallback(async () => {
+    const id = ++request.current;
+    setBusy(true);
+    setConfirming(false);
+    try {
+      const rows = await window.artemis.listWorktreeCleanupCandidates();
+      if (request.current !== id) return;
+      const initial = !loaded.current;
+      loaded.current = true;
+      setItems(rows);
+      setSelected((current) =>
+        rows
+          .filter(
+            (row) =>
+              !row.busy &&
+              row.clean &&
+              (initial
+                ? row.recommended
+                : current.includes(row.worktree.threadId)),
+          )
+          .map((row) => row.worktree.threadId),
+      );
+    } catch (reason) {
+      if (request.current === id) setError(String(reason));
+    } finally {
+      if (request.current === id) setBusy(false);
+    }
   }, []);
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (!removing.current) void refresh();
+    };
+    void refresh();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => {
+      ++request.current;
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [refresh]);
   const remove = async () => {
+    removing.current = true;
+    ++request.current;
     setBusy(true);
     setError("");
     try {
@@ -58,8 +79,8 @@ export function WorktreeManager({
       } catch (reason) {
         setError(String(reason));
       }
-      setConfirming(false);
-      setBusy(false);
+      await refresh();
+      removing.current = false;
     }
   };
   return (

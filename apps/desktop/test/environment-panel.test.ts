@@ -33,6 +33,7 @@ const panelSource = source("../src/renderer/EnvironmentPanel.tsx");
 const stylesSource = source("../src/renderer/styles.css");
 const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 const mainSource = source("../src/main/main.ts");
+const watcherSource = source("../src/main/project-git-watcher.ts");
 
 const copy = {
   stopTasks: "stop tasks",
@@ -137,9 +138,13 @@ describe("task environment panel state", () => {
   });
 
   it("keeps loaded Git information mounted while the workspace dock toggles", () => {
-    expect(appSource).toContain(
-      'key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}',
-    );
+    const key = appSource.match(
+      /const environmentWorkspaceKey = JSON.stringify\(\[([\s\S]*?)\]\)/u,
+    )?.[1];
+    expect(key).toContain("activeProject?.path");
+    expect(key).toContain("environmentWorktree?.id");
+    expect(key).toContain("environmentWorktree?.path");
+    expect(key).not.toContain("workspaceDockOpen");
     expect(appSource).not.toContain(
       '${workspaceDockOpen ? "dock-open" : "dock-closed"}',
     );
@@ -213,13 +218,13 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("onProjectGitChanged((context)");
     expect(panelSource).toContain("context.threadId !== threadId");
     expect(mainSource).toContain("workspaceForGitRequest(projectId, threadId)");
-    expect(mainSource).toContain("gitRepositoryWatchPaths(workspacePath)");
-    expect(mainSource).toContain("gitRepositoryMetadataSignature(plan)");
-    expect(mainSource).toContain('changed("metadata")');
-    expect(mainSource).toContain('changed("worktree")');
-    expect(mainSource).toContain("pendingKinds");
-    expect(mainSource).toContain("}, 1_000);");
-    expect(mainSource).toContain("IPC.projectGitChanged");
+    expect(watcherSource).toContain("gitRepositoryWatchPaths(workspacePath)");
+    expect(watcherSource).toContain("gitRepositoryMetadataSignature(plan)");
+    expect(watcherSource).toContain('changed("metadata")');
+    expect(watcherSource).toContain('changed("worktree")');
+    expect(watcherSource).toContain("pendingKinds");
+    expect(watcherSource).toContain("}, 1_000);");
+    expect(watcherSource).toContain("IPC.projectGitChanged");
     expect(appSource).toContain("{ threadId: activeThreadId } : {})");
   });
 

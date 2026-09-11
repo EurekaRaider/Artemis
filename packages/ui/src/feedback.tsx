@@ -497,6 +497,7 @@ function useAnchoredPosition(
 }
 
 export interface TooltipProps {
+  readonly className?: string | undefined;
   readonly align?: OverlayAlignment | undefined;
   readonly children: ReactElement<Record<string, unknown>>;
   readonly label: string;
@@ -506,6 +507,7 @@ export interface TooltipProps {
 
 export function Tooltip({
   align = "center",
+  className,
   children,
   label,
   placement = "block-start",
@@ -570,6 +572,7 @@ export function Tooltip({
       {open && target
         ? createPortal(
             <div
+              className={className}
               data-artemis-component="tooltip"
               data-part="root"
               data-state="visible"

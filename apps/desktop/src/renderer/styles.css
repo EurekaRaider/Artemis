@@ -9027,12 +9027,28 @@ kbd {
 .transient-notice {
   background: var(--panel-3);
   border-color: var(--border);
+  border-inline-start-width: 1px;
+  border-radius: 8px;
   box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
   color: var(--text);
+  font-size: 12px;
+  gap: 8px;
   line-height: 1.45;
+  min-block-size: 32px;
   opacity: 1;
+  padding: 4px 10px;
   transition: opacity 600ms ease;
   width: 100%;
+}
+
+.transient-notice > [data-part="message"] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.transient-notice > [data-part="action"] {
+  min-block-size: 22px;
+  padding: 0 4px;
 }
 
 .composer-notice {

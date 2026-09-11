@@ -320,34 +320,36 @@
   align-items: center;
   gap: 8px;
   min-inline-size: 0;
+  flex-wrap: wrap;
 }
 .composer-context-row .composer-context {
   flex: 0 1 auto;
   min-inline-size: 0;
 }
+/* Keep the goal in the composer row; only its objective yields space. */
 .composer-context-row .goal-bar {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 0 3px;
-  margin: 0;
-  min-inline-size: 0;
-  max-inline-size: 150px;
-  min-block-size: 26px;
-  block-size: 26px;
-  border: 1px solid
-    color-mix(in srgb, var(--artemis-color-goal) 45%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--artemis-color-goal) 9%, var(--surface));
+  gap: 4px;
+  padding: 0;
+  margin: 0 0 0 auto;
+  min-inline-size: min(300px, 100%);
+  max-inline-size: 100%;
+  min-block-size: 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
-  flex: 0 1 auto;
+  flex: 1 1 300px;
+}
+.goal-bar > [data-artemis-component="tooltip-anchor"] {
+  flex: 1;
+  min-inline-size: 0;
 }
 .goal-bar .goal-bar-main {
   min-inline-size: 0;
-  min-block-size: 24px;
-  padding: 0 5px;
-  gap: 5px;
-  font-size: 11px;
+  min-block-size: 26px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--text);
   border: 0;
   background: transparent;
 }
@@ -355,54 +357,57 @@
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   min-inline-size: 0;
 }
 .goal-bar .goal-bar-icon {
-  color: var(--artemis-color-goal);
+  color: var(--muted);
   flex: none;
-  inline-size: 12px;
-  block-size: 12px;
+  inline-size: 14px;
+  block-size: 14px;
 }
 .goal-bar .goal-bar-status {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+  flex: none;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.goal-bar .goal-bar-status > [data-part="indicator"] {
+  display: none;
 }
 .goal-bar .goal-bar-objective {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-inline-size: 0;
 }
+[data-artemis-component="tooltip"].goal-objective-tooltip {
+  color: var(--artemis-color-text-primary);
+  background: var(--artemis-color-surface-popover);
+  border: 1px solid var(--artemis-color-border-default);
+}
 .goal-bar .goal-bar-progress {
-  font-size: 10px;
-  color: var(--muted-2);
+  border-inline-start: 1px solid var(--border);
+  padding-inline-start: 8px;
+  font-size: 12px;
+  color: var(--muted);
   white-space: nowrap;
 }
 .goal-bar .goal-bar-actions {
   display: flex;
   gap: 0;
-  max-inline-size: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition:
-    max-inline-size 320ms ease,
-    opacity 180ms;
-}
-.goal-bar:hover .goal-bar-actions,
-.goal-bar:focus-within .goal-bar-actions {
-  max-inline-size: 80px;
-  opacity: 1;
 }
 .goal-bar .goal-bar-actions button {
-  min-inline-size: 22px;
-  min-block-size: 22px;
-  inline-size: 22px;
-  block-size: 22px;
-  padding: 3px;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  inline-size: 24px;
+  block-size: 24px;
+  padding: 5px;
+  color: var(--muted);
+}
+.goal-bar .goal-bar-actions svg {
+  inline-size: 14px;
+  block-size: 14px;
 }
 .composer-wrap .task-plan-progress {
   position: absolute;
@@ -620,17 +625,6 @@ textarea:focus {
   box-shadow: var(--artemis-shadow-overlay);
 }
 
-.composer-context-row .goal-bar:hover,
-.composer-context-row .goal-bar:focus-within {
-  max-inline-size: 360px;
-}
-.composer-context-row .goal-bar {
-  transition: max-inline-size 360ms var(--artemis-motion-easing-standard);
-  min-inline-size: min(92px, 100%);
-}
-.goal-bar .goal-bar-main {
-  color: var(--muted);
-}
 .task-plan-progress [data-part="marker"][data-status="in_progress"] {
   border-color: color-mix(in srgb, var(--success) 46%, transparent);
   background: color-mix(in srgb, var(--success) 10%, transparent);
@@ -706,22 +700,6 @@ textarea:focus {
   to {
     transform: translateX(var(--thread-title-scroll-distance));
   }
-}
-.goal-bar:not([data-goal-state="active"]) .goal-bar-status {
-  position: static;
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  inline-size: auto;
-  block-size: auto;
-  clip-path: none;
-  padding: 0 3px;
-  font-size: 10px;
-}
-.goal-bar .goal-bar-status > [data-part="label"] {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
   .thread-title[data-overflowing="true"]:hover .thread-title-text {

@@ -1467,6 +1467,15 @@ export function EnvironmentPanel({
     setCommitMessage("");
   };
 
+  const applyGitMutation = (info: ProjectGitInfo) => {
+    ++gitRequest.current;
+    ++pullRequestRequest.current;
+    setPullRequestLookup(undefined);
+    setPullRequestLoading(false);
+    setChecksOpen(false);
+    setGitInfo(info);
+  };
+
   const createCommitDestination = async (): Promise<
     ProjectGitInfo | undefined
   > => {
@@ -1477,7 +1486,7 @@ export function EnvironmentPanel({
       newCommitBranch,
       threadId,
     );
-    setGitInfo(info);
+    applyGitMutation(info);
     setCreatingCommitBranch(false);
     return info;
   };
@@ -1502,7 +1511,7 @@ export function EnvironmentPanel({
             threadId,
           )
         : result.gitInfo;
-      setGitInfo(afterCommit);
+      applyGitMutation(afterCommit);
       setPendingSwitchBranch(undefined);
       closeCommitDialog();
       onMessage(t.commitCreated(result.commit.slice(0, 7)));
@@ -1533,7 +1542,7 @@ export function EnvironmentPanel({
         project.id,
         threadId,
       );
-      setGitInfo(result.gitInfo);
+      applyGitMutation(result.gitInfo);
       closeCommitDialog();
       onMessage(t.pushCompleted(result.upstream));
       void loadPullRequest();
@@ -1568,12 +1577,12 @@ export function EnvironmentPanel({
         includeUnstaged,
         threadId,
       );
-      setGitInfo(committed.gitInfo);
+      applyGitMutation(committed.gitInfo);
       const pushed = await window.artemis.pushProjectBranch(
         project.id,
         threadId,
       );
-      setGitInfo(pushed.gitInfo);
+      applyGitMutation(pushed.gitInfo);
       closeCommitDialog();
       onMessage(t.pushCompleted(pushed.upstream));
       void loadPullRequest();
@@ -1596,7 +1605,7 @@ export function EnvironmentPanel({
     setGitBusy("branch");
     setGitError(undefined);
     try {
-      setGitInfo(
+      applyGitMutation(
         await window.artemis.switchProjectBranch(project.id, branch, threadId),
       );
       closeBranchMenu();
@@ -1625,7 +1634,7 @@ export function EnvironmentPanel({
     setGitBusy("branch");
     setGitError(undefined);
     try {
-      setGitInfo(
+      applyGitMutation(
         await window.artemis.createProjectBranch(
           project.id,
           menuBranchName.trim(),
