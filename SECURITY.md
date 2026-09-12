@@ -1,8 +1,7 @@
 # Security
 
 Artemis is pre-release software. Do not use it for untrusted or unattended
-work until the native executor rows in
-[`docs/projects/p0-acceptance-matrix/README.md`](docs/projects/p0-acceptance-matrix/README.md) pass.
+work until the native execution security boundaries have been verified.
 
 The current slice provides:
 
