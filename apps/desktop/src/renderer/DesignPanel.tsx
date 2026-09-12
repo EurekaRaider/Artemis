@@ -84,11 +84,13 @@ export function DesignPanel({
         !(await confirmDesignLeave(threadId))
       )
         return;
+      if (scope.current !== threadId) return;
       setBusy(true);
       setError("");
       try {
         const next = await window.artemis.designAction(threadId, input);
-        if (scope.current === threadId) accept(next);
+        if (scope.current !== threadId) return;
+        accept(next);
         return next;
       } catch (error) {
         if (scope.current === threadId) setError(String(error));
@@ -100,6 +102,7 @@ export function DesignPanel({
   );
 
   useEffect(() => {
+    setBusy(false);
     setState(undefined);
     setRevision(undefined);
     setVariantId("");
