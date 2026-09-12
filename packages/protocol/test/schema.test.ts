@@ -882,3 +882,86 @@ describe("worktree schemas", () => {
     ).toBe(false);
   });
 });
+
+describe("custom-agent route audit schema", () => {
+  const acceptedRoute = {
+    type: "custom-agent.route",
+    schemaVersion: 1,
+    decision: "accepted",
+    invocationSource: "model-explicit",
+    selectionBasis: "explicit-id",
+    parentAgentId: "parent",
+    projectId: null,
+    catalogId: "auto:0123456789abcdef",
+    catalogSize: 1,
+    candidates: [],
+    selectedDefinitionId: "def-1",
+    selectedRevision: 2,
+    instanceId: "child-1",
+    model: { providerId: "kimi-coding", modelId: "k3" },
+    capabilities: ["shell", "filesystem-write"],
+  };
+
+  it("accepts every routing decision shape", () => {
+    expect(agentPayloadSchema.safeParse(acceptedRoute).success).toBe(true);
+    expect(
+      agentPayloadSchema.safeParse({
+        ...acceptedRoute,
+        decision: "reference-required",
+        invocationSource: "model-automatic",
+        selectionBasis: "role-exact",
+        candidates: [
+          { definitionId: "def-1", revision: 2, name: "code-reviewer" },
+        ],
+        selectedDefinitionId: undefined,
+        selectedRevision: undefined,
+        instanceId: undefined,
+        model: undefined,
+        capabilities: undefined,
+        errorCode: "CUSTOM_AGENT_REFERENCE_REQUIRED",
+      }).success,
+    ).toBe(true);
+    for (const decision of ["advisory", "free-role", "catalog-disabled"]) {
+      expect(
+        agentPayloadSchema.safeParse({ ...acceptedRoute, decision }).success,
+      ).toBe(true);
+    }
+  });
+
+  it("requires the schema version and a nullable projectId", () => {
+    expect(
+      agentPayloadSchema.safeParse({ ...acceptedRoute, schemaVersion: 2 })
+        .success,
+    ).toBe(false);
+    const { projectId: _omitted, ...missingProjectId } = acceptedRoute;
+    expect(agentPayloadSchema.safeParse(missingProjectId).success).toBe(false);
+    expect(
+      agentPayloadSchema.safeParse({ ...acceptedRoute, projectId: "proj-1" })
+        .success,
+    ).toBe(true);
+  });
+
+  it("bounds candidate lists and strips instructions or task text", () => {
+    const tooMany = {
+      ...acceptedRoute,
+      decision: "advisory",
+      selectionBasis: "trigger-words",
+      candidates: Array.from({ length: 33 }, (_, index) => ({
+        definitionId: `def-${index}`,
+        revision: 1,
+        name: `agent-${index}`,
+      })),
+    };
+    expect(agentPayloadSchema.safeParse(tooMany).success).toBe(false);
+
+    // The audit carries catalog identity only — never instructions or
+    // task text, so the durable log stays privacy-safe.
+    const parsed = agentPayloadSchema.parse({
+      ...acceptedRoute,
+      instructions: "must-not-be-persisted",
+      taskText: "must-not-be-persisted",
+    });
+    expect("instructions" in parsed).toBe(false);
+    expect("taskText" in parsed).toBe(false);
+  });
+});

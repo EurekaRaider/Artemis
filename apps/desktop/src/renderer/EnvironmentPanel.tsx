@@ -42,6 +42,7 @@ import type {
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
+import { customAgentInstanceIdentity } from "./custom-agent-identity.js";
 import { EnvironmentWorkspaceMenu } from "./EnvironmentWorkspaceMenu.js";
 import { EnvironmentPullRequestError } from "./EnvironmentPullRequestError.js";
 import { ImGroupMembers } from "./ImGroupMembers.js";
@@ -1672,6 +1673,9 @@ export function EnvironmentPanel({
         <strong title={agent.label}>{agent.label}</strong>
         <small>
           {agentStatusLabels[agent.status]}
+          {agent.customAgent
+            ? ` · ${customAgentInstanceIdentity(agent.customAgent, locale)}`
+            : ""}
           {agent.currentTool ? ` · ${agent.currentTool}` : ""}
         </small>
       </span>

@@ -1,6 +1,6 @@
 {
   "name": "@artemis/agent-host",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -13,6 +13,10 @@
     "./builtin-models": {
       "types": "./dist/builtin-models.d.ts",
       "import": "./dist/builtin-models.js"
+    },
+    "./custom-agent-capabilities": {
+      "types": "./dist/custom-agent-capabilities.d.ts",
+      "import": "./dist/custom-agent-capabilities.js"
     },
     "./turn-prompt": {
       "types": "./dist/turn-prompt.d.ts",
@@ -31,8 +35,8 @@
     "@ai-sdk/openai": "3.0.84",
     "@earendil-works/pi-ai": "0.85.1",
     "@earendil-works/pi-coding-agent": "0.85.1",
-    "@artemis/platform": "1.5.7",
-    "@artemis/protocol": "1.5.7",
+    "@artemis/platform": "1.5.8",
+    "@artemis/protocol": "1.5.8",
     "@sinclair/typebox": "0.34.52",
     "ai": "6.0.168"
   }

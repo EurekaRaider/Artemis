@@ -1,4 +1,5 @@
 export * from "./automation.js";
+export * from "./custom-agents.js";
 export * from "./host-messages.js";
 export * from "./internal-messages.js";
 export * from "./office.js";

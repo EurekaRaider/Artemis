@@ -813,6 +813,11 @@ function applyAgentPayload(
       appendOnce(state.order, orderedItems, `child:${payload.agentId}`);
       return;
     }
+    case "custom-agent.route":
+      // Routing audit records (D#152 PR5) persist in the durable event
+      // log; they intentionally carry no UI projection so replay can never
+      // double-count instances or usage.
+      return;
     case "agent-team.status": {
       state.agentTeams[payload.teamId] = {
         ...state.agentTeams[payload.teamId],

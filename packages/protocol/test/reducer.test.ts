@@ -797,3 +797,37 @@ describe("reduceAgentEvent", () => {
     expect(original.seenEventIds.second).toBeUndefined();
   });
 });
+
+describe("custom-agent route audit replay", () => {
+  const routePayload: AgentEvent["payload"] = {
+    type: "custom-agent.route",
+    schemaVersion: 1,
+    decision: "accepted",
+    invocationSource: "user-explicit",
+    selectionBasis: "explicit-id",
+    parentAgentId: "parent",
+    projectId: "proj-1",
+    catalogId: "auto:0123456789abcdef",
+    catalogSize: 1,
+    candidates: [],
+    selectedDefinitionId: "def-1",
+    selectedRevision: 2,
+    instanceId: "child-1",
+  };
+
+  it("carries no UI projection and replays idempotently", () => {
+    const state = reduceAgentEvents("thread-1", [
+      event("route", 1, routePayload),
+    ]);
+
+    // Durable log entry only: nothing is projected into the view state,
+    // so replay can never double-count instances or usage.
+    expect(state.order).toEqual([]);
+    expect(state.childAgents).toEqual({});
+    expect(state.agentTeams).toEqual({});
+    expect(state.seenEventIds.route).toBe(true);
+
+    const replayed = reduceAgentEvent(state, event("route", 1, routePayload));
+    expect(replayed).toBe(state);
+  });
+});

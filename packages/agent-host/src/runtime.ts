@@ -53,6 +53,16 @@ import {
   AGENT_TEAM_MAXIMUM_DEPTH,
   AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
   AGENT_TEAM_SPAWN_BUDGET,
+  computeEffectiveCapabilities,
+  isDefinitionEffectiveForProject,
+  checkCatalogBudget,
+  freezeInstanceSnapshot,
+  matchCatalogLexically,
+  normalizeAgentToken,
+  type CapabilityClass,
+  type CustomAgentCatalogEntry,
+  type CustomAgentDefinition,
+  type CustomAgentInstanceSnapshot,
   MAX_USER_INPUT_QUESTIONS,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   USER_INPUT_QUESTION_ID_MAX_LENGTH,
@@ -859,6 +869,19 @@ interface HostedThread {
   executeTools: SessionTool[];
   childAgents: Map<string, ChildAgentExecution>;
   activeLeases: Map<string, AgentConcurrencyLease>;
+  /**
+   * Per-turn effective custom sub-agent definitions, frozen when the turn
+   * starts (D#152). Routing resolves against this catalog; falls back to
+   * the latest global configuration when unset.
+   */
+  turnCustomAgents?: CustomAgentDefinition[];
+  customAgentProjectId?: string | null;
+  /**
+   * Explicit user invocation bindings (invocationId → agentId) for this
+   * thread. A duplicate delivery of the same invocation reuses the
+   * registered instance instead of creating a second one.
+   */
+  explicitCustomAgentInvocations: Map<string, string>;
   currentMission: string | undefined;
   team: AgentTeamExecution | undefined;
   interruptedTeamContext: string | undefined;
@@ -883,6 +906,13 @@ interface LaunchChildAgentInput {
   required: boolean;
   attempt: number;
   replacesAgentId?: string;
+  /**
+   * Immutable per-instance configuration frozen at dispatch-accept time
+   * (D#152): definition content, resolved model, and the capability
+   * ceiling. Later edits or parent model switches never widen an accepted
+   * instance.
+   */
+  customAgentSnapshot?: CustomAgentInstanceSnapshot;
 }
 
 interface ChildAgentExecution extends LaunchChildAgentInput {
@@ -962,6 +992,7 @@ export interface ChildAgentSnapshot {
   currentToolStartedAt?: string;
   output?: string;
   error?: string;
+  customAgent?: NonNullable<ChildAgentPayload["customAgent"]>;
 }
 
 const CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS = 60_000;
@@ -1145,6 +1176,13 @@ function terminalAgentStopReason(
   }
   return undefined;
 }
+
+import {
+  CUSTOM_AGENT_CHILD_BASELINE,
+  resolveCustomAgentToolCapabilities,
+} from "./custom-agent-capabilities.js";
+
+export { CUSTOM_AGENT_CHILD_BASELINE, resolveCustomAgentToolCapabilities };
 
 function isTerminalChildStatus(status: ChildAgentPayload["status"]): boolean {
   return (
@@ -1572,6 +1610,7 @@ export class ArtemisAgentHost {
         getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
     }
     this.configuration = resolvedConfiguration;
+    this.reconcileCustomAgentChildren(resolvedConfiguration.customAgents);
     for (const hosted of this.threads.values()) {
       if (hosted.selection) {
         const threadModel = modelRuntime.getModel(
@@ -1886,6 +1925,21 @@ export class ArtemisAgentHost {
         : {}),
       ...(child.output ? { output: child.output } : {}),
       ...(child.error ? { error: child.error } : {}),
+      ...(child.customAgentSnapshot
+        ? {
+            customAgent: {
+              definitionId: child.customAgentSnapshot.definitionId,
+              definitionRevision: child.customAgentSnapshot.definitionRevision,
+              name: child.customAgentSnapshot.definitionName,
+              providerId: child.customAgentSnapshot.resolvedModel.providerId,
+              modelId: child.customAgentSnapshot.resolvedModel.modelId,
+              invocationSource: child.customAgentSnapshot.invocationSource,
+              ...(child.customAgentSnapshot.invocationId
+                ? { invocationId: child.customAgentSnapshot.invocationId }
+                : {}),
+            },
+          }
+        : {}),
     };
   }
 
@@ -1928,6 +1982,7 @@ export class ArtemisAgentHost {
       updatedAt: snapshot.updatedAt,
       lastActivityAt: snapshot.lastActivityAt,
       ...(snapshot.startedAt ? { startedAt: snapshot.startedAt } : {}),
+      ...(snapshot.customAgent ? { customAgent: snapshot.customAgent } : {}),
       ...(snapshot.currentTool ? { currentTool: snapshot.currentTool } : {}),
       ...(snapshot.currentToolStartedAt
         ? { currentToolStartedAt: snapshot.currentToolStartedAt }
@@ -2247,6 +2302,27 @@ export class ArtemisAgentHost {
       }
       this.emitTeam(hosted);
     }
+    if (child.customAgentSnapshot) {
+      const definition = this.configuration.customAgents?.find(
+        (candidate) => candidate.id === child.customAgentSnapshot?.definitionId,
+      );
+      if (!definition || !definition.enabled) {
+        throw new Error(
+          "CUSTOM_AGENT_DISABLED: the definition was disabled or deleted; retrying would bypass the current authorization.",
+        );
+      }
+      if (
+        !isDefinitionEffectiveForProject(
+          definition,
+          this.configuration.customAgentProjectIds?.[definition.id] ?? [],
+          child.customAgentSnapshot.projectId,
+        )
+      ) {
+        throw new Error(
+          "CUSTOM_AGENT_OUT_OF_SCOPE: the definition is no longer effective for this project.",
+        );
+      }
+    }
     const retried = hosted.launchChildAgent({
       turnId: hosted.currentTurnId,
       mode: hosted.currentMode,
@@ -2260,6 +2336,9 @@ export class ArtemisAgentHost {
       parentAgentId: child.parentAgentId,
       depth: child.depth,
       replacesAgentId: child.agentId,
+      ...(child.customAgentSnapshot
+        ? { customAgentSnapshot: child.customAgentSnapshot }
+        : {}),
     });
     if (notifyParent) {
       void hosted.session
@@ -2279,6 +2358,468 @@ export class ArtemisAgentHost {
         .catch(() => undefined);
     }
     return this.childSnapshot(hosted, retried);
+  }
+
+  /**
+   * Per-turn automatic routing catalog (D#152 PR5): enabled definitions
+   * that opted into automatic invocation, in the frozen turn-catalog
+   * order (main sorts selected-scope first). The manual candidate set
+   * (@ mention) is a superset and lives on the renderer side; the model
+   * only ever sees this automatic slice.
+   */
+  private turnAutoCatalog(hosted: HostedThread): {
+    entries: CustomAgentCatalogEntry[];
+    catalogId: string;
+    overflow: boolean;
+  } {
+    const definitions =
+      hosted.turnCustomAgents ?? this.configuration.customAgents ?? [];
+    const entries: CustomAgentCatalogEntry[] = definitions
+      .filter(
+        (definition) =>
+          definition.enabled && definition.allowAutomaticInvocation,
+      )
+      .map((definition) => ({
+        definitionId: definition.id,
+        revision: definition.revision,
+        name: definition.name,
+        description: definition.description,
+        scope: definition.scope,
+        allowAutomaticInvocation: definition.allowAutomaticInvocation,
+        triggers: [...definition.triggers],
+      }));
+    const catalogId = `auto:${createHash("sha256")
+      .update(
+        entries
+          .map((entry) => `${entry.definitionId}@${entry.revision}`)
+          .sort()
+          .join("\0"),
+      )
+      .digest("hex")
+      .slice(0, 16)}`;
+    return {
+      entries,
+      catalogId,
+      overflow: !checkCatalogBudget(entries).withinBudget,
+    };
+  }
+
+  /**
+   * Durable routing audit (D#152 PR5 section 8): one event per dispatch
+   * decision so automatic routing stays explainable and closable. The
+   * record carries catalog identity and candidates, never instructions
+   * or task text. invocationSource and selectionBasis are separate on
+   * purpose — a model's semantic choice must not be miscounted as a
+   * deterministic user invocation.
+   */
+  private emitCustomAgentRoute(
+    hosted: HostedThread,
+    payload: Omit<
+      Extract<AgentPayload, { type: "custom-agent.route" }>,
+      "type" | "schemaVersion" | "projectId"
+    >,
+  ): void {
+    if (!hosted.currentTurnId) return;
+    this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+      type: "custom-agent.route",
+      schemaVersion: 1,
+      // The main process enriches the trusted projectId from the thread
+      // record; the runtime never accepts one from the model.
+      projectId: null,
+      ...payload,
+    });
+  }
+
+  /**
+   * Resolve and freeze a custom-agent dispatch, or enforce the P1 lexical
+   * contract for free-text roles (D#152 plan sections 4 and 7). Runs
+   * BEFORE instance allocation and spawn-budget deduction so rejections
+   * never consume budget or create half-registered members.
+   *
+   * Routing resolves against the per-turn catalog frozen at turn start,
+   * but liveness is always cross-checked against the latest global
+   * configuration: a definition disabled or deleted mid-turn blocks NEW
+   * dispatches even when the frozen catalog still lists it.
+   *
+   * `explicit` marks a validated user invocation (structured @): the
+   * referenced revision must match, and the snapshot records the
+   * user-explicit source plus the idempotency key.
+   */
+  private resolveCustomAgentDispatch(
+    hosted: HostedThread,
+    senderAgentId: string,
+    agentId: string | undefined,
+    role: string | undefined,
+    explicit?: { invocationId: string; revision: number },
+  ): CustomAgentInstanceSnapshot | undefined {
+    const definitions =
+      hosted.turnCustomAgents ?? this.configuration.customAgents ?? [];
+    if (!explicit && this.turnAutoCatalog(hosted).overflow) {
+      if (agentId !== undefined) {
+        throw new Error(
+          "CUSTOM_AGENT_NOT_FOUND: automatic routing is disabled because this turn's catalog exceeds its budget.",
+        );
+      }
+      return undefined;
+    }
+    if (agentId === undefined) {
+      if (!role) return undefined;
+      const normalizedRole = normalizeAgentToken(role);
+      // P1 correction scope is the automatic catalog only: definitions
+      // that disabled automatic invocation never hijack a free-text role
+      // (D#152 plan section 7 — the model's catalog is the automatic
+      // slice, manual-only definitions are @-invoked by users).
+      const matches = definitions.filter(
+        (definition) =>
+          definition.enabled &&
+          definition.allowAutomaticInvocation &&
+          normalizeAgentToken(definition.name) === normalizedRole,
+      );
+      if (matches.length === 1) {
+        const candidate = matches[0]!;
+        const catalog = this.turnAutoCatalog(hosted);
+        this.emitCustomAgentRoute(hosted, {
+          decision: "reference-required",
+          invocationSource: "model-automatic",
+          selectionBasis: "role-exact",
+          parentAgentId: senderAgentId,
+          catalogId: catalog.catalogId,
+          catalogSize: catalog.entries.length,
+          candidates: [
+            {
+              definitionId: candidate.id,
+              revision: candidate.revision,
+              name: candidate.name,
+            },
+          ],
+          errorCode: "CUSTOM_AGENT_REFERENCE_REQUIRED",
+        });
+        throw new Error(
+          `CUSTOM_AGENT_REFERENCE_REQUIRED: role "${role}" exactly names the custom sub-agent "${candidate.name}"; retry with the explicit agent parameter "${candidate.id}".`,
+        );
+      }
+      return undefined;
+    }
+    const definition = definitions.find(
+      (candidate) => candidate.id === agentId,
+    );
+    if (!definition) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: no effective custom sub-agent definition "${agentId}" for this project.`,
+      );
+    }
+    const liveDefinition = this.configuration.customAgents?.find(
+      (candidate) => candidate.id === agentId,
+    );
+    if (!liveDefinition || !liveDefinition.enabled || !definition.enabled) {
+      throw new Error(
+        `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
+      );
+    }
+    // A model-supplied id may only target the automatic catalog; a
+    // manual-only definition is invisible to the model and cannot be
+    // invoked by it (the model can never forge the user-explicit source).
+    if (!explicit && !definition.allowAutomaticInvocation) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: custom sub-agent "${definition.name}" is not available for automatic invocation.`,
+      );
+    }
+    if (explicit && definition.revision !== explicit.revision) {
+      throw new Error(
+        `CUSTOM_AGENT_REVISION_CONFLICT: custom sub-agent "${definition.name}" was edited (now revision ${definition.revision}); refresh the reference and retry.`,
+      );
+    }
+    if (
+      !isDefinitionEffectiveForProject(
+        liveDefinition,
+        this.configuration.customAgentProjectIds?.[agentId] ?? [],
+        hosted.customAgentProjectId ?? null,
+      )
+    ) {
+      throw new Error(
+        "CUSTOM_AGENT_OUT_OF_SCOPE: the definition is no longer effective for this project.",
+      );
+    }
+    const parentSelection = hosted.selection;
+    const resolvedProviderId =
+      definition.modelPolicy.kind === "fixed"
+        ? definition.modelPolicy.providerId
+        : parentSelection?.providerId;
+    const resolvedModelId =
+      definition.modelPolicy.kind === "fixed"
+        ? definition.modelPolicy.modelId
+        : parentSelection?.modelId;
+    if (!resolvedProviderId || !resolvedModelId) {
+      throw new Error(
+        "CUSTOM_AGENT_MODEL_UNAVAILABLE: no model is available to inherit from the parent session.",
+      );
+    }
+    const resolvedThinking =
+      definition.thinkingPolicy.kind === "fixed"
+        ? definition.thinkingPolicy.level
+        : (parentSelection?.thinkingLevel ?? null);
+    const supervisor =
+      senderAgentId === ROOT_AGENT_ID
+        ? undefined
+        : hosted.childAgents.get(senderAgentId);
+    const supervisorCaps: ReadonlySet<CapabilityClass> =
+      supervisor?.customAgentSnapshot
+        ? new Set(supervisor.customAgentSnapshot.effectiveCapabilities)
+        : CUSTOM_AGENT_CHILD_BASELINE;
+    const liveGrants = new Set(CUSTOM_AGENT_CHILD_BASELINE);
+    if ((this.configuration.mcpTools ?? []).length === 0) {
+      liveGrants.delete("mcp");
+    }
+    const effectiveCapabilities = computeEffectiveCapabilities(
+      {
+        runMode: hosted.currentMode ?? "plan",
+        childBaseline: CUSTOM_AGENT_CHILD_BASELINE,
+        parentDelegatable: supervisorCaps,
+        liveGrants,
+      },
+      definition.toolPolicy,
+      resolveCustomAgentToolCapabilities,
+    );
+    return freezeInstanceSnapshot({
+      definitionId: definition.id,
+      definitionRevision: definition.revision,
+      definitionName: definition.name,
+      instructions: definition.instructions,
+      catalogId: `turn:${hosted.currentTurnId ?? "unknown"}`,
+      projectId: hosted.customAgentProjectId ?? null,
+      resolvedModel: {
+        providerId: resolvedProviderId,
+        modelId: resolvedModelId,
+        thinkingLevel: resolvedThinking,
+      },
+      effectiveCapabilities,
+      toolPolicy: definition.toolPolicy,
+      invocationSource: explicit ? "user-explicit" : "model-explicit",
+      selectionBasis: "explicit-reference",
+      ...(explicit ? { invocationId: explicit.invocationId } : {}),
+      frozenAt: Date.now(),
+    });
+  }
+
+  /**
+   * Materialize a validated explicit user invocation (structured @) into
+   * exactly one child instance (D#152 plan section 6). The host performs
+   * the dispatch — the model cannot forge this source. Acceptance order
+   * follows the plan: dedup → reference/revision validation → model and
+   * capability resolution → budget re-check → the indivisible accept step
+   * (allocate instance, register member, deduct budget once) → queue.
+   *
+   * Duplicate delivery of the same invocationId reuses the registered
+   * instance; a stale binding whose instance is gone is outcome-unknown
+   * and never silently re-dispatches.
+   */
+  private acceptExplicitCustomAgentInvocation(
+    hosted: HostedThread,
+    invocation: {
+      invocationId: string;
+      definitionId: string;
+      revision: number;
+    },
+    taskText: string,
+  ): { agentId: string; definitionName: string; duplicate: boolean } {
+    const boundAgentId = hosted.explicitCustomAgentInvocations.get(
+      invocation.invocationId,
+    );
+    if (boundAgentId !== undefined) {
+      const bound = hosted.childAgents.get(boundAgentId);
+      if (!bound) {
+        throw new Error(
+          `INVOCATION_OUTCOME_UNKNOWN: explicit invocation ${invocation.invocationId} was committed but its instance is gone; re-execute with a new invocation.`,
+        );
+      }
+      return {
+        agentId: boundAgentId,
+        definitionName:
+          bound.customAgentSnapshot?.definitionName ?? invocation.definitionId,
+        duplicate: true,
+      };
+    }
+    const customAgentSnapshot = this.resolveCustomAgentDispatch(
+      hosted,
+      ROOT_AGENT_ID,
+      invocation.definitionId,
+      undefined,
+      { invocationId: invocation.invocationId, revision: invocation.revision },
+    );
+    if (!customAgentSnapshot) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: no effective custom sub-agent definition "${invocation.definitionId}" for this project.`,
+      );
+    }
+    const team = this.ensureTeam(hosted);
+    if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
+      throw new Error(
+        `This turn exhausted its ${AGENT_TEAM_SPAWN_BUDGET}-spawn safety budget.`,
+      );
+    }
+    if (team.memberAgentIds.length >= AGENT_TEAM_LOGICAL_MAXIMUM) {
+      throw new Error(
+        `An agent team may contain at most ${AGENT_TEAM_LOGICAL_MAXIMUM} members.`,
+      );
+    }
+    if (
+      this.directChildren(hosted, ROOT_AGENT_ID).length >=
+      AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
+    ) {
+      throw new Error(
+        `An agent may have at most ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children.`,
+      );
+    }
+    if (!hosted.currentTurnId || !hosted.currentMode) {
+      throw new Error("No active turn is available for delegation.");
+    }
+    const child = hosted.launchChildAgent({
+      turnId: hosted.currentTurnId,
+      mode: hosted.currentMode,
+      parentAgentId: ROOT_AGENT_ID,
+      depth: 1,
+      label: customAgentSnapshot.definitionName,
+      role: customAgentSnapshot.definitionName,
+      task: taskText,
+      dependsOnAgentIds: [],
+      writePaths: [],
+      required: true,
+      attempt: 1,
+      customAgentSnapshot,
+    });
+    hosted.explicitCustomAgentInvocations.set(
+      invocation.invocationId,
+      child.agentId,
+    );
+    const autoCatalog = this.turnAutoCatalog(hosted);
+    this.emitCustomAgentRoute(hosted, {
+      decision: "accepted",
+      invocationSource: "user-explicit",
+      selectionBasis: "explicit-id",
+      parentAgentId: ROOT_AGENT_ID,
+      catalogId: autoCatalog.catalogId,
+      catalogSize: autoCatalog.entries.length,
+      candidates: [],
+      selectedDefinitionId: customAgentSnapshot.definitionId,
+      selectedRevision: customAgentSnapshot.definitionRevision,
+      instanceId: child.agentId,
+      model: {
+        providerId: customAgentSnapshot.resolvedModel.providerId,
+        modelId: customAgentSnapshot.resolvedModel.modelId,
+      },
+      capabilities: [...customAgentSnapshot.effectiveCapabilities],
+    });
+    return {
+      agentId: child.agentId,
+      definitionName: customAgentSnapshot.definitionName,
+      duplicate: false,
+    };
+  }
+
+  private customAgentToolAllowed(
+    name: string,
+    snapshot: CustomAgentInstanceSnapshot,
+    mode: RunMode,
+  ): boolean {
+    // Host lifecycle tools remain available even after business access is revoked.
+    if (
+      [
+        "list_agents",
+        "wait_agent",
+        "wait_team",
+        "send_message",
+        "finish_subteam",
+        "shell_cancel",
+      ].includes(name)
+    )
+      return true;
+    if (name === "spawn_agent") return false;
+    const configured = this.configuration.mcpTools?.find(
+      (tool) => tool.piName === name,
+    );
+    const ref = configured
+      ? {
+          kind: "mcp" as const,
+          serverId: configured.serverId,
+          toolName: configured.toolName,
+        }
+      : { kind: "builtin" as const, toolId: name };
+    const allows = (policy: CustomAgentDefinition["toolPolicy"]) =>
+      policy.kind === "inherit" ||
+      policy.tools.some((candidate) =>
+        candidate.kind === "builtin" && ref.kind === "builtin"
+          ? candidate.toolId === ref.toolId
+          : candidate.kind === "mcp" &&
+            ref.kind === "mcp" &&
+            candidate.serverId === ref.serverId &&
+            candidate.toolName === ref.toolName,
+      );
+    const live = this.configuration.customAgents?.find(
+      (definition) => definition.id === snapshot.definitionId,
+    );
+    if (
+      live &&
+      !isDefinitionEffectiveForProject(
+        { ...live, enabled: true },
+        this.configuration.customAgentProjectIds?.[live.id] ?? [],
+        snapshot.projectId,
+      )
+    )
+      return false;
+    if (!allows(snapshot.toolPolicy) || (live && !allows(live.toolPolicy)))
+      return false;
+    if (configured && !configured.readOnly) return false;
+    // Unknown/removed MCP tools must not fall through as business reads.
+    const classes = resolveCustomAgentToolCapabilities(ref);
+    const modeCaps = computeEffectiveCapabilities(
+      {
+        runMode: mode,
+        childBaseline: CUSTOM_AGENT_CHILD_BASELINE,
+        parentDelegatable: CUSTOM_AGENT_CHILD_BASELINE,
+        liveGrants: CUSTOM_AGENT_CHILD_BASELINE,
+      },
+      { kind: "inherit" },
+      resolveCustomAgentToolCapabilities,
+    );
+    return (
+      classes.size > 0 &&
+      [...classes].every(
+        (capability) =>
+          snapshot.effectiveCapabilities.includes(capability) &&
+          modeCaps.has(capability),
+      )
+    );
+  }
+
+  /**
+   * Disable/delete revocations cancel not-yet-started custom instances and
+   * free their queue slots; running instances keep their frozen snapshot
+   * and remain stoppable through the existing cancellation entry points.
+   */
+  private reconcileCustomAgentChildren(
+    definitions: CustomAgentDefinition[] | undefined,
+  ): void {
+    for (const hosted of this.threads.values()) {
+      for (const child of hosted.childAgents.values()) {
+        const snapshot = child.customAgentSnapshot;
+        if (!snapshot || child.startedAt) continue;
+        if (isTerminalChildStatus(child.status)) continue;
+        if (child.status === "cancelling") continue;
+        const definition = definitions?.find(
+          (candidate) => candidate.id === snapshot.definitionId,
+        );
+        if (
+          !definition ||
+          !isDefinitionEffectiveForProject(
+            definition,
+            this.configuration.customAgentProjectIds?.[definition.id] ?? [],
+            snapshot.projectId,
+          )
+        ) {
+          this.requestChildCancellation(hosted, child);
+        }
+      }
+    }
   }
 
   private ensureTeam(hosted: HostedThread): AgentTeamExecution {
@@ -3979,6 +4520,13 @@ export class ArtemisAgentHost {
               }),
             ),
             required: Type.Optional(Type.Boolean()),
+            agent: Type.Optional(
+              Type.String({
+                minLength: 1,
+                description:
+                  "Custom sub-agent definition ID. Prefer a listed custom agent over a free-text role whenever one matches the task; only use a free-text role when nothing matches.",
+              }),
+            ),
           },
           { additionalProperties: false },
         ),
@@ -3997,12 +4545,37 @@ export class ArtemisAgentHost {
           ) {
             throw new Error("Only an active agent may create child agents.");
           }
+          if (supervisor?.customAgentSnapshot) {
+            throw new Error(
+              "CUSTOM_AGENT_NESTED_DELEGATION_DENIED: custom sub-agent definitions cannot delegate further this term.",
+            );
+          }
           const depth = (supervisor?.depth ?? 0) + 1;
           if (depth > AGENT_TEAM_MAXIMUM_DEPTH) {
             throw new Error(
               `An agent tree may be at most ${AGENT_TEAM_MAXIMUM_DEPTH} levels deep.`,
             );
           }
+          const customAgentSnapshot = this.resolveCustomAgentDispatch(
+            hosted,
+            senderAgentId,
+            params.agent,
+            params.role,
+          );
+          // P1 trigger pass (D#152 PR5): task-text hits against the
+          // automatic catalog are advisory candidates only. A lexical hit
+          // is certainty about text, not about task fit — the spawn
+          // proceeds as a free role and the result lists candidates; an
+          // explicit model choice above is never overridden by a trigger.
+          const autoCatalog = this.turnAutoCatalog(hosted);
+          const triggerCandidates =
+            customAgentSnapshot || autoCatalog.overflow
+              ? []
+              : matchCatalogLexically(
+                  autoCatalog.entries,
+                  params.role ?? null,
+                  params.task,
+                ).triggerCandidates;
           const team = this.ensureTeam(hosted);
           if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
             throw new Error(
@@ -4057,11 +4630,63 @@ export class ArtemisAgentHost {
             ),
             required: params.required ?? true,
             attempt: 1,
+            ...(customAgentSnapshot ? { customAgentSnapshot } : {}),
           });
           if (supervisor) this.emitChild(hosted, supervisor);
+          // Routing audit (D#152 PR5): exactly one durable record per
+          // spawn decision, emitted after the indivisible accept so the
+          // instanceId is real.
+          if (customAgentSnapshot) {
+            this.emitCustomAgentRoute(hosted, {
+              decision: "accepted",
+              invocationSource:
+                customAgentSnapshot.invocationSource === "user-explicit"
+                  ? "user-explicit"
+                  : "model-explicit",
+              selectionBasis: "explicit-id",
+              parentAgentId: senderAgentId,
+              catalogId: autoCatalog.catalogId,
+              catalogSize: autoCatalog.entries.length,
+              candidates: [],
+              selectedDefinitionId: customAgentSnapshot.definitionId,
+              selectedRevision: customAgentSnapshot.definitionRevision,
+              instanceId: child.agentId,
+              model: {
+                providerId: customAgentSnapshot.resolvedModel.providerId,
+                modelId: customAgentSnapshot.resolvedModel.modelId,
+              },
+              capabilities: [...customAgentSnapshot.effectiveCapabilities],
+            });
+          } else {
+            this.emitCustomAgentRoute(hosted, {
+              decision: triggerCandidates.length > 0 ? "advisory" : "free-role",
+              invocationSource: "none",
+              selectionBasis:
+                triggerCandidates.length > 0 ? "trigger-words" : "none",
+              parentAgentId: senderAgentId,
+              catalogId: autoCatalog.catalogId,
+              catalogSize: autoCatalog.entries.length,
+              candidates: triggerCandidates.map((candidate) => ({
+                definitionId: candidate.definitionId,
+                revision: candidate.revision,
+                name: candidate.name,
+              })),
+              instanceId: child.agentId,
+            });
+          }
+          const guidance = [
+            "The child is running asynchronously. Wait for it only when you need its result; collaboration waits release your active execution slot.",
+            ...(triggerCandidates.length > 0
+              ? [
+                  triggerCandidates.length > 1
+                    ? `[Routing] The task text lexically matches multiple custom sub-agents: ${triggerCandidates.map((candidate) => `${candidate.name} (id: ${candidate.definitionId})`).join(", ")}. None was chosen automatically, so the child runs as a free role. To delegate to one, spawn again with the agent parameter set to its id.`
+                    : `[Routing] The task text lexically matches custom sub-agent ${triggerCandidates[0]!.name} (id: ${triggerCandidates[0]!.definitionId}). The child runs as a free role; to use the custom sub-agent instead, spawn again with the agent parameter set to its id.`,
+                ]
+              : []),
+          ];
           return childToolResult(
             this.childSnapshot(hosted, child),
-            "The child is running asynchronously. Wait for it only when you need its result; collaboration waits release your active execution slot.",
+            guidance.join("\n\n"),
           );
         },
       });
@@ -4533,6 +5158,17 @@ export class ArtemisAgentHost {
       if (!hosted) {
         throw new Error(`Thread is not open: ${request.threadId}`);
       }
+      if (input.customAgentSnapshot) {
+        const selection = input.customAgentSnapshot.resolvedModel;
+        const model = modelRuntime.getModel(
+          selection.providerId,
+          selection.modelId,
+        );
+        if (!model)
+          throw new Error(
+            `CUSTOM_AGENT_MODEL_UNAVAILABLE: ${selection.providerId}/${selection.modelId}`,
+          );
+      }
       const agentId = randomUUID();
       const controller = new AbortController();
       let settle!: () => void;
@@ -4640,7 +5276,18 @@ export class ArtemisAgentHost {
               let pendingActivity = "";
               let activityUpdateTimer:
                 ReturnType<typeof setTimeout> | undefined;
-              const childProviderId = hosted.selection?.providerId;
+              const frozenSnapshot = input.customAgentSnapshot;
+              const frozenSelection: ModelSelection | undefined = frozenSnapshot
+                ? {
+                    providerId: frozenSnapshot.resolvedModel.providerId,
+                    modelId: frozenSnapshot.resolvedModel.modelId,
+                    thinkingLevel: (frozenSnapshot.resolvedModel
+                      .thinkingLevel ??
+                      "off") as ModelSelection["thinkingLevel"],
+                  }
+                : undefined;
+              const childProviderId =
+                frozenSelection?.providerId ?? hosted.selection?.providerId;
               const childAdapter = new PiAdapter(
                 `${input.turnId}:child:${agentId}`,
               );
@@ -4667,39 +5314,60 @@ export class ArtemisAgentHost {
               };
 
               try {
+                const childOverrides = createResourceOverrides(
+                  () => ({
+                    ...this.configuration,
+                    ...(frozenSelection
+                      ? { selection: frozenSelection }
+                      : hosted.selection
+                        ? { selection: hosted.selection }
+                        : {}),
+                    // Frozen instances keep the resolved child model's own
+                    // context window instead of copying the parent's.
+                    ...(frozenSnapshot
+                      ? {}
+                      : hosted.contextWindow
+                        ? { contextWindow: hosted.contextWindow }
+                        : {}),
+                  }),
+                  "child",
+                );
+                if (frozenSnapshot) {
+                  const baseAppend = childOverrides.appendSystemPromptOverride;
+                  childOverrides.appendSystemPromptOverride = (base) => [
+                    ...(baseAppend ? baseAppend(base) : base),
+                    `## Dedicated instructions (custom sub-agent "${frozenSnapshot.definitionName}", revision ${frozenSnapshot.definitionRevision})\n${frozenSnapshot.instructions}`,
+                  ];
+                }
                 const childResourceLoader = new DefaultResourceLoader({
                   cwd: request.workspacePath,
                   agentDir: this.agentDir,
                   noExtensions: true,
-                  ...createResourceOverrides(
-                    () => ({
-                      ...this.configuration,
-                      ...(hosted.selection
-                        ? { selection: hosted.selection }
-                        : {}),
-                      ...(hosted.contextWindow
-                        ? { contextWindow: hosted.contextWindow }
-                        : {}),
-                    }),
-                    "child",
-                  ),
+                  ...childOverrides,
                   ...(request.remoteExecution
                     ? remoteResourceOverrides(request.remoteExecution)
                     : {}),
                 });
                 await childResourceLoader.reload();
                 const modelRuntime = await this.getModelRuntime();
-                const selection = hosted.selection;
+                const selection = frozenSelection ?? hosted.selection;
                 const catalogModel = selection
                   ? modelRuntime.getModel(
                       selection.providerId,
                       selection.modelId,
                     )
                   : undefined;
+                if (frozenSnapshot && !catalogModel) {
+                  // Fixed (or inherited-then-removed) models fail loudly;
+                  // never silently switch provider, model, or tier.
+                  throw new Error(
+                    `CUSTOM_AGENT_MODEL_UNAVAILABLE: ${frozenSnapshot.resolvedModel.providerId}/${frozenSnapshot.resolvedModel.modelId}`,
+                  );
+                }
                 const selectedModel = catalogModel
                   ? configureModelContextWindow(
                       catalogModel,
-                      hosted.contextWindow,
+                      frozenSnapshot ? undefined : hosted.contextWindow,
                     )
                   : undefined;
                 const childBashTools = createObservedBashTools(() => ({
@@ -4731,7 +5399,9 @@ export class ArtemisAgentHost {
                   }),
                 );
                 const childSendMessageTool = createSendMessageTool(agentId);
-                const childSpawnAgentTool = createSpawnAgentTool(agentId);
+                const childSpawnAgentTool = frozenSnapshot
+                  ? null
+                  : createSpawnAgentTool(agentId);
                 const childWaitAgentTool = createWaitAgentTool(agentId);
                 const childWaitTeamTool = createWaitTeamTool(agentId);
                 const childFinishSubteamTool = createFinishSubteamTool(agentId);
@@ -4740,9 +5410,87 @@ export class ArtemisAgentHost {
                     .filter((tool) => tool.readOnly)
                     .map((tool) => tool.piName),
                 );
-                const childMcpTools = createMcpTools(agentId).filter((tool) =>
-                  readOnlyMcpToolNames.has(tool.name),
-                );
+                const frozenCaps = frozenSnapshot
+                  ? new Set<CapabilityClass>(
+                      frozenSnapshot.effectiveCapabilities,
+                    )
+                  : null;
+                const allowToolClass = (
+                  ...classes: CapabilityClass[]
+                ): boolean =>
+                  !frozenCaps ||
+                  classes.some((capability) => frozenCaps.has(capability));
+                const childMcpTools = allowToolClass("mcp")
+                  ? createMcpTools(agentId).filter((tool) => {
+                      if (!readOnlyMcpToolNames.has(tool.name)) return false;
+                      if (
+                        frozenSnapshot &&
+                        !this.customAgentToolAllowed(
+                          tool.name,
+                          frozenSnapshot,
+                          input.mode,
+                        )
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    })
+                  : [];
+                const childTools = [
+                  ...createAttachmentTools((operation) =>
+                    invokeAttachmentOperation(operation, child.session),
+                  ),
+                  ...childRemoteTools,
+                  readTool,
+                  webSearchTool,
+                  ...(allowToolClass("filesystem-write")
+                    ? [childWriteTool, childOfficeDocumentTool]
+                    : []),
+                  loadWorkspaceDependenciesTool,
+                  ...(childSpawnAgentTool ? [childSpawnAgentTool] : []),
+                  listAgentsTool,
+                  childWaitAgentTool,
+                  childWaitTeamTool,
+                  childSendMessageTool,
+                  childFinishSubteamTool,
+                  ...(allowToolClass("shell")
+                    ? [
+                        childBashTools.bashTool,
+                        childBashTools.bashWaitTool,
+                        childBashTools.bashCancelTool,
+                      ]
+                    : []),
+                  ...childMcpTools,
+                ];
+                const guardedChildTools = frozenSnapshot
+                  ? childTools
+                      .filter((tool) =>
+                        this.customAgentToolAllowed(
+                          tool.name,
+                          frozenSnapshot,
+                          input.mode,
+                        ),
+                      )
+                      .map((tool) => ({
+                        ...tool,
+                        execute: async (
+                          ...args: Parameters<typeof tool.execute>
+                        ) => {
+                          if (
+                            !this.customAgentToolAllowed(
+                              tool.name,
+                              frozenSnapshot,
+                              hosted.currentMode ?? "plan",
+                            )
+                          ) {
+                            throw new Error(
+                              `CUSTOM_AGENT_TOOL_DENIED: ${tool.name} is outside this instance's current authorization.`,
+                            );
+                          }
+                          return tool.execute(...args);
+                        },
+                      }))
+                  : childTools;
                 const created = await createAgentSession({
                   cwd: request.workspacePath,
                   sessionManager: omitReasoningFromSession(
@@ -4755,48 +5503,8 @@ export class ArtemisAgentHost {
                     : {}),
                   resourceLoader: childResourceLoader,
                   noTools: "builtin",
-                  customTools: [
-                    ...createAttachmentTools((operation) =>
-                      invokeAttachmentOperation(operation, child.session),
-                    ),
-                    ...childRemoteTools,
-                    readTool,
-                    webSearchTool,
-                    childWriteTool,
-                    childOfficeDocumentTool,
-                    loadWorkspaceDependenciesTool,
-                    childSpawnAgentTool,
-                    listAgentsTool,
-                    childWaitAgentTool,
-                    childWaitTeamTool,
-                    childSendMessageTool,
-                    childFinishSubteamTool,
-                    childBashTools.bashTool,
-                    childBashTools.bashWaitTool,
-                    childBashTools.bashCancelTool,
-                    ...childMcpTools,
-                  ],
-                  tools: [
-                    ...childRemoteTools.map((tool) => tool.name),
-                    "attachment_list",
-                    "attachment_read",
-                    "attachment_search",
-                    "read",
-                    "web_search",
-                    "write",
-                    "office_document",
-                    "load_workspace_dependencies",
-                    "spawn_agent",
-                    "list_agents",
-                    "wait_agent",
-                    "wait_team",
-                    "send_message",
-                    "finish_subteam",
-                    "shell",
-                    "shell_wait",
-                    "shell_cancel",
-                    ...childMcpTools.map((tool) => tool.name),
-                  ],
+                  customTools: guardedChildTools,
+                  tools: guardedChildTools.map((tool) => tool.name),
                 });
                 if (request.remoteExecution)
                   created.session.setActiveToolsByName(
@@ -5347,6 +6055,7 @@ export class ArtemisAgentHost {
       executeTools,
       childAgents: new Map(),
       activeLeases: new Map(),
+      explicitCustomAgentInvocations: new Map(),
       currentMission: undefined,
       team: undefined,
       interruptedTeamContext: undefined,
@@ -5458,6 +6167,13 @@ export class ArtemisAgentHost {
     memoryContext?: string,
     collaborationContext?: string,
     recovery?: TurnRecovery,
+    customAgents?: CustomAgentDefinition[],
+    customAgentInvocation?: {
+      invocationId: string;
+      definitionId: string;
+      revision: number;
+    },
+    customAgentProjectId?: string | null,
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -5470,6 +6186,13 @@ export class ArtemisAgentHost {
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
+    hosted.customAgentProjectId = customAgentProjectId ?? null;
+    const turnCustomAgents = customAgents ?? this.configuration.customAgents;
+    if (turnCustomAgents === undefined) {
+      delete hosted.turnCustomAgents;
+    } else {
+      hosted.turnCustomAgents = turnCustomAgents;
+    }
     if (hosted.team?.status === "aborted") {
       hosted.interruptedTeamContext = this.interruptedTeamSummary(hosted);
     }
@@ -5485,20 +6208,67 @@ export class ArtemisAgentHost {
     hosted.session.agent.state.tools =
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
+    let explicitDispatchNote: string | undefined;
+    if (customAgentInvocation) {
+      // The host materializes exactly one instance for a validated
+      // explicit user reference; the model cannot forge this source.
+      // Failures throw coded errors so the turn fails loudly instead of
+      // silently degrading into a free-form role.
+      const accepted = this.acceptExplicitCustomAgentInvocation(
+        hosted,
+        customAgentInvocation,
+        text,
+      );
+      explicitDispatchNote = accepted.duplicate
+        ? `[Host dispatch] The explicit invocation of custom sub-agent "${accepted.definitionName}" was already materialized as instance ${accepted.agentId}; do not spawn a duplicate. Wait for its result and integrate it into your reply.`
+        : `[Host dispatch] The user explicitly invoked custom sub-agent "${accepted.definitionName}" for this task. Instance ${accepted.agentId} is already running with the user's message as its task; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
+    }
+
+    // Automatic routing catalog (D#152 PR5): the model-visible slice is
+    // exactly the enabled, automatic-invocation definitions of the frozen
+    // turn catalog. Over budget means NO silent truncation — automatic
+    // routing is disabled for the turn and the overflow is audited so the
+    // user can narrow the automatic set in Settings.
+    const autoCatalog = this.turnAutoCatalog(hosted);
+    let autoCatalogNote: string | undefined;
+    if (autoCatalog.overflow) {
+      this.emitCustomAgentRoute(hosted, {
+        decision: "catalog-disabled",
+        invocationSource: "none",
+        selectionBasis: "none",
+        parentAgentId: ROOT_AGENT_ID,
+        catalogId: autoCatalog.catalogId,
+        catalogSize: autoCatalog.entries.length,
+        candidates: [],
+      });
+    } else if (autoCatalog.entries.length > 0) {
+      autoCatalogNote = [
+        "[Custom sub-agents] These custom sub-agents are available for delegation this turn:",
+        ...autoCatalog.entries.map(
+          (entry) =>
+            `- ${entry.name} (id: ${entry.definitionId}) — ${entry.description}`,
+        ),
+        "When the user's task matches one, delegate with spawn_agent's agent parameter set to its id instead of a free-text role. Never invent ids. A role that exactly names a listed sub-agent without the id is rejected with CUSTOM_AGENT_REFERENCE_REQUIRED.",
+      ].join("\n");
+    }
+
     const preparedAttachments = await this.prepareAttachments(
       hosted,
       attachments,
       text,
     );
+    const basePrompt = buildTurnPrompt(
+      mode,
+      recovery ? processRecoveryPrompt(text, recovery) : text,
+      goal,
+      memoryContext,
+      interruptedTeamContext,
+      collaborationContext,
+    );
     const prompt = appendPromptFiles(
-      buildTurnPrompt(
-        mode,
-        recovery ? processRecoveryPrompt(text, recovery) : text,
-        goal,
-        memoryContext,
-        interruptedTeamContext,
-        collaborationContext,
-      ),
+      [basePrompt, autoCatalogNote, explicitDispatchNote]
+        .filter((note): note is string => note !== undefined)
+        .join("\n\n"),
       preparedAttachments,
     );
     const expandedPrompt = await expandSkillInvocations(

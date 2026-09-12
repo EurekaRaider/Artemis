@@ -1,4 +1,5 @@
 import { ImSettingsPanel } from "./ImSettingsPanel.js";
+import { CustomAgentsSettingsSection } from "./CustomAgentsSettingsSection.js";
 import {
   useEffect,
   useMemo,
@@ -63,6 +64,8 @@ interface SettingsPanelProps {
   initialSettings?: SettingsSnapshot | undefined;
   initialTab?: SettingsTab;
   locale: AppLocale;
+  /** Project list for scoped custom sub-agent definitions (D#152). */
+  projects?: ReadonlyArray<{ id: string; name: string }> | undefined;
   onClose(): void;
   onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
   returnFocusRef?: RefObject<HTMLElement | null> | undefined;
@@ -542,6 +545,7 @@ export function SettingsPanel({
   initialSettings,
   initialTab = "general",
   locale,
+  projects = [],
   onClose,
   onOpenThread,
   onSettingsChange,
@@ -2054,6 +2058,17 @@ export function SettingsPanel({
                       </div>
                     )}
                   </ManagementSection>
+                  <CustomAgentsSettingsSection
+                    applySettings={(updated) => {
+                      setSettings(updated);
+                      onSettingsChange(updated);
+                    }}
+                    busy={busy}
+                    locale={locale}
+                    projects={projects}
+                    setBusy={setBusy}
+                    settings={settings}
+                  />
                 </>
               )}
 

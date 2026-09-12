@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2498 passing tests" src="https://img.shields.io/badge/Tests-2498_passing-2EA44F" />
+  <img alt="2639 passing tests" src="https://img.shields.io/badge/Tests-2639_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -41,6 +41,21 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 </p>
 
 <br />
+
+## New in 1.5.8: custom sub-agents
+
+Create reusable sub-agents in Settings with dedicated instructions, model
+preferences, project associations and tool allowlists. Select a definition with
+`@` in an idle task's composer to invoke it, or enable automatic delegation for
+eligible definitions. Running tasks do not accept new structured `@` references.
+
+Each accepted instance freezes its definition and tool policy. Effective access
+is limited by the task mode, parent permissions and definition; later revocation
+blocks further tool calls. Explicit requests for unavailable definitions return
+an error instead of silently falling back to a generic agent.
+
+See the [custom sub-agent implementation notes](docs/custom-subagents/implementation-status.md)
+for validation evidence and current limitations.
 
 ## 01 / System overview
 
@@ -1315,14 +1330,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.5.7`. After verification succeeds, native GitHub-hosted runners build
+`v1.5.8`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.5.7
-git push origin v1.5.7
+git tag v1.5.8
+git push origin v1.5.8
 ```
 
 ### Build and test matrix
@@ -1345,17 +1360,17 @@ working native desktop environment is required. Existing custom Git hooks are
 preserved and must invoke `.githooks/pre-push` themselves. Other platforms still
 require the remote CI matrix to pass.
 
-Version 1.5.7 keeps stopped Goal status labels and elapsed time inside the
+Version 1.5.8 keeps stopped Goal status labels and elapsed time inside the
 compact capsule. Long status text truncates within the available width;
 hover and keyboard focus still reveal the existing Goal actions.
 
-Version 1.5.7 keeps conversation menu triggers visible while their menus are
+Version 1.5.8 keeps conversation menu triggers visible while their menus are
 open, including after the pointer leaves the row. Clicking the trigger again,
 Escape and outside clicks close the menu. Conversation history and the composer
 share horizontal bounds and responsive padding, including with the environment
 panel open, stable scrollbar gutters and right-to-left layout.
 
-Version 1.5.7 opens the Dock at a compact 328px by default and preserves
+Version 1.5.8 opens the Dock at a compact 328px by default and preserves
 manually resized widths across reopening and restart. Project, project-task
 and temporary-task menus pair each action with a semantic icon and aligned
 left-aligned text. The compact “Remove project” (“移除项目”) action retains
@@ -1368,14 +1383,14 @@ softens plugin uninstall and automation delete actions, pairs automation actions
 with icons and explicit Pause/Enable labels, and keeps a 2px gap between projects
 in the sidebar. Existing deletion confirmations remain in place.
 
-Version 1.5.7 retries a silent model request twice after 120 seconds without
+Version 1.5.8 retries a silent model request twice after 120 seconds without
 streaming activity, waiting 5 and 10 seconds between attempts. It preserves the
 same Pi turn and completed tool results; partial output still stops automatic
 replay. Retry status distinguishes model silence from network recovery. A
 persistent failure points to the composer model selector, and the error banner
 shares the composer's horizontal bounds in both layout directions.
 
-Version 1.5.7 adds consistent inset hover rows to the composer's project,
+Version 1.5.8 adds consistent inset hover rows to the composer's project,
 branch and mode menus, with 12px option labels and the mode menu opening above
 the composer. Plugin switches retain white thumbs in dark mode. Marketplace
 tabs stay on one line, truncate long names, and show horizontal scroll arrows
@@ -1395,14 +1410,14 @@ release version. Product screenshots retain their original capture provenance.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The full `npm test` run for **1.5.7**, verified on September 11, 2026,
-contains **2498 passing tests** (12 skipped).
+The full `npm test` run for **1.5.8**, verified on September 12, 2026,
+contains **2639 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      145 |       25 |        192 |             15 | 307 |             5 |        142 |    1553 |  **2498** |
+|     114 |      174 |       25 |        226 |             15 | 307 |             5 |        142 |    1631 |  **2639** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1432,13 +1447,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.5.7` packaging configuration produces:
+The `1.5.8` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.7.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.7.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.7.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.8.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.8.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.8.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

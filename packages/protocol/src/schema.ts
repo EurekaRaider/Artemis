@@ -669,8 +669,89 @@ export const childAgentPayloadSchema = z.object({
     .string()
     .max(4 * 1024)
     .optional(),
+  /**
+   * Custom sub-agent instance identity (D#152): which definition/revision
+   * this instance runs, its resolved model, and the invocation id for
+   * explicit user references. Metadata only — never the instructions.
+   */
+  customAgent: z
+    .object({
+      definitionId: z.string().min(1),
+      definitionRevision: z.number().int().positive(),
+      name: z.string().min(1),
+      providerId: z.string().min(1),
+      modelId: z.string().min(1),
+      invocationSource: z.enum([
+        "user-explicit",
+        "model-explicit",
+        "model-automatic",
+      ]),
+      invocationId: z.string().min(1).optional(),
+    })
+    .optional(),
 });
 export type ChildAgentPayload = z.infer<typeof childAgentPayloadSchema>;
+
+/**
+ * Routing audit record (D#152 PR5): one durable event per custom-agent
+ * dispatch decision — acceptance, P1 correction, trigger advisory,
+ * free-role fallback, and catalog overflow. invocationSource (who asked)
+ * and selectionBasis (why this definition) are recorded separately so a
+ * model's semantic choice is never miscounted as a deterministic user
+ * invocation. Never carries instructions or task text.
+ */
+export const customAgentRoutePayloadSchema = z.object({
+  type: z.literal("custom-agent.route"),
+  schemaVersion: z.literal(1),
+  decision: z.enum([
+    "accepted",
+    "reference-required",
+    "advisory",
+    "free-role",
+    "catalog-disabled",
+  ]),
+  invocationSource: z.enum([
+    "user-explicit",
+    "model-explicit",
+    "model-automatic",
+    "none",
+  ]),
+  selectionBasis: z.enum([
+    "explicit-id",
+    "role-exact",
+    "trigger-words",
+    "none",
+  ]),
+  parentAgentId: z.string().min(1),
+  projectId: z.string().min(1).nullable(),
+  /** Stable hash of the turn catalog's sorted definitionId@revision pairs. */
+  catalogId: z.string().min(1),
+  catalogSize: z.number().int().nonnegative(),
+  candidates: z
+    .array(
+      z.object({
+        definitionId: z.string().min(1),
+        revision: z.number().int().positive(),
+        name: z.string().min(1),
+      }),
+    )
+    .max(32),
+  selectedDefinitionId: z.string().min(1).optional(),
+  selectedRevision: z.number().int().positive().optional(),
+  instanceId: z.string().min(1).optional(),
+  /** A CustomAgentErrorCode when the decision rejected the request. */
+  errorCode: z.string().min(1).optional(),
+  model: z
+    .object({
+      providerId: z.string().min(1),
+      modelId: z.string().min(1),
+    })
+    .optional(),
+  capabilities: z.array(z.string().min(1)).max(64).optional(),
+});
+export type CustomAgentRoutePayload = z.infer<
+  typeof customAgentRoutePayloadSchema
+>;
 
 export const agentTeamStatusPayloadSchema = z.object({
   type: z.literal("agent-team.status"),
@@ -950,6 +1031,7 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   turnChangeSetUpdatedPayloadSchema,
   terminalOutputPayloadSchema,
   childAgentPayloadSchema,
+  customAgentRoutePayloadSchema,
   agentTeamStatusPayloadSchema,
   agentTeamMessagePayloadSchema,
   mcpToolUsedPayloadSchema,

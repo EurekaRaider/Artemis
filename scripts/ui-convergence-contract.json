@@ -265,6 +265,35 @@
           "contains": "iconRoot.classList.add(\"favicon-loaded\")"
         }
       ]
+    },
+    {
+      "classNameSets": [
+        ["custom-agent-color-gray"],
+        ["custom-agent-color-red"],
+        ["custom-agent-color-orange"],
+        ["custom-agent-color-yellow"],
+        ["custom-agent-color-green"],
+        ["custom-agent-color-teal"],
+        ["custom-agent-color-blue"],
+        ["custom-agent-color-purple"],
+        ["custom-agent-color-pink"]
+      ],
+      "owner": "Desktop custom sub-agent identity dots (D#152)",
+      "reason": "The definition color is one of nine fixed tokens appended to the shared dot class at runtime; the token set is pinned by customAgentColorToken.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/CustomAgentMention.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(customAgentReference.color)}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/CustomAgentsSettingsSection.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
+        }
+      ]
     }
   ],
   "rawComponentOverrides": [
@@ -627,6 +656,15 @@
       "important": false,
       "owner": "Goal objective preview",
       "reason": "Preserve the existing one-pixel theme-token border on the full-objective tooltip."
+    },
+    {
+      "atRules": [],
+      "selector": ".custom-agents-section [data-artemis-component=\"management-row\"] [data-part=\"leading\"]",
+      "property": "padding-top",
+      "value": "5px",
+      "important": false,
+      "owner": "Desktop custom sub-agent management (D#152 PR4)",
+      "reason": "Align the 10px color dot with the management-row title baseline in the custom sub-agent settings list."
     }
   ]
 }

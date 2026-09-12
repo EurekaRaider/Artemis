@@ -12,6 +12,24 @@ export interface ComposerDraft {
   prompt: string;
   selectedSkillNames: string[];
   attachments: PromptAttachment[];
+  /**
+   * Structured @ sub-agent reference (D#152). Rides the draft so per-thread
+   * composition keeps it; the send path mints the invocationId per
+   * submission. Absent when no chip is attached.
+   */
+  customAgentReference?: CustomAgentDraftReference;
+}
+
+/**
+ * Renderer-side @ chip state. revision is pinned at selection time so the
+ * main process can reject a stale reference with CUSTOM_AGENT_REVISION_CONFLICT;
+ * name/color are display caches for the chip only.
+ */
+export interface CustomAgentDraftReference {
+  definitionId: string;
+  revision: number;
+  name: string;
+  color: string;
 }
 
 export type ComposerDrafts = Record<string, ComposerDraft>;

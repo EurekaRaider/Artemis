@@ -6,3 +6,4 @@ release
 coverage
 package-lock.json
 docs/ui-prototype/
+packages/agent-host/eval/*.md

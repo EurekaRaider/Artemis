@@ -14,6 +14,7 @@ import type {
   UserInputOption,
 } from "./schema.js";
 import type { OfficeDocumentRequest } from "./office.js";
+import type { CustomAgentDefinition } from "./custom-agents.js";
 
 export const AGENT_CONCURRENCY_MINIMUM = 2;
 export const AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM = 16;
@@ -97,6 +98,14 @@ export interface AgentRuntimeConfiguration {
   disabledSkillFiles?: string[];
   mcpTools?: McpRuntimeTool[];
   extensionTools?: ExtensionRuntimeTool[];
+  /**
+   * Effective custom sub-agent definitions for the current project,
+   * resolved and pushed by the main process. Full definitions (including
+   * dedicated instructions) travel only on this main→worker channel;
+   * renderers only ever receive catalog metadata.
+   */
+  customAgents?: CustomAgentDefinition[];
+  customAgentProjectIds?: Record<string, string[]>;
 }
 
 export interface AgentModelInfo {
@@ -199,6 +208,24 @@ export type AgentHostCommand =
       memoryContext?: string;
       collaborationContext?: string;
       recovery?: TurnRecovery;
+      /**
+       * Per-turn effective custom sub-agent definitions for this thread's
+       * project, resolved by the main process at dispatch time (D#152).
+       * This is the per-turn catalog snapshot; later edits do not affect
+       * the running turn.
+       */
+      customAgents?: CustomAgentDefinition[];
+      customAgentProjectId?: string | null;
+      /**
+       * A validated explicit user invocation (structured @ reference).
+       * The host must materialize exactly one instance for it; the model
+       * cannot forge this source.
+       */
+      customAgentInvocation?: {
+        invocationId: string;
+        definitionId: string;
+        revision: number;
+      };
     }
   | {
       type: "turn.cancel";
