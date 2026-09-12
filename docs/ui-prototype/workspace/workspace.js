@@ -1968,9 +1968,22 @@
       });
     });
 
-    /* 「更多」汇聚菜单：版本历史 / 设备预设 / 评论面板 / 缩放（对照 open-design viewer-toolbar-more） */
+    /* 「更多」汇聚菜单：版本历史 / 设备预设 / 注释·标记·编辑·评论 / 缩放（对照 viewer-toolbar-more） */
+    function dzSyncMoreTools() {
+      var map = [
+        ['[data-dz-more="comment"]', "#dzCommentBtn"],
+        ['[data-dz-more="draw"]', "#dzDrawBtn"],
+        ['[data-dz-more="edit"]', "#dzEditBtn"],
+        ['[data-dz-more="comments"]', "#dzCommentListBtn"],
+      ];
+      map.forEach(function (pair) {
+        var item = document.querySelector(pair[0]);
+        if (item) item.classList.toggle("active", $(pair[1]).classList.contains("active"));
+      });
+    }
     $("#dzMoreBtn").addEventListener("click", function () {
       dzToggleMenu($("#dzMoreBtn"), $("#dzMoreMenu"));
+      if (!$("#dzMoreMenu").hidden) dzSyncMoreTools();
     });
     $("#dzMoreMenu").addEventListener("click", function (e) {
       var item = e.target.closest(".dz-menu-item");
@@ -1981,10 +1994,14 @@
         /* 阻止冒泡：避免 document 层的「点外关历史」把刚打开的浮层又关掉 */
         e.stopPropagation();
         $("#dzHistory").hidden = !$("#dzHistory").hidden;
+      } else if (item.dataset.dzMore === "comment") {
+        $("#dzCommentBtn").click();
+      } else if (item.dataset.dzMore === "draw") {
+        $("#dzDrawBtn").click();
+      } else if (item.dataset.dzMore === "edit") {
+        $("#dzEditBtn").click();
       } else if (item.dataset.dzMore === "comments") {
-        $("#dzCommentPanel").hidden = false;
-        $("#dzCommentListBtn").classList.add("active");
-        $("#dzCommentListBtn").setAttribute("aria-pressed", "true");
+        $("#dzCommentListBtn").click();
       } else if (item.dataset.dzDevice) {
         dzSetDevice(item.dataset.dzDevice);
       } else if (item.dataset.dzZoom) {
