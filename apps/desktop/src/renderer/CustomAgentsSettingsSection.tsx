@@ -785,309 +785,312 @@ export function CustomAgentsSettingsSection({
                 onClick={requestClose}
               />
             </header>
-            {error && <InlineNotice tone="warning">{error}</InlineNotice>}
-            <fieldset className="custom-agent-dialog-section">
-              <legend>{t.sectionIdentity}</legend>
-              <TextField
-                disabled={busy}
-                error={nameError ? t.nameRequired : undefined}
-                inputRef={nameInputRef}
-                label={t.name}
-                onValueChange={(name) => {
-                  setNameError(false);
-                  setForm((f) => ({ ...f, name }));
-                }}
-                value={form.name}
-              />
-              <div className="custom-agent-color-field">
-                <span className="custom-agent-color-label">{t.color}</span>
-                <div
-                  aria-label={t.color}
-                  className="custom-agent-color-picker"
-                  role="radiogroup"
-                >
-                  {COLOR_TOKENS.map((token) => (
-                    <button
-                      key={token}
-                      aria-checked={form.color === token}
-                      aria-label={token}
-                      className={`custom-agent-color custom-agent-color-${customAgentColorToken(token)}${
-                        form.color === token ? " selected" : ""
-                      }`}
-                      disabled={busy}
-                      onClick={() => setForm((f) => ({ ...f, color: token }))}
-                      role="radio"
-                      type="button"
-                    />
-                  ))}
+            <div className="custom-agent-dialog-body">
+              {error && <InlineNotice tone="warning">{error}</InlineNotice>}
+              <fieldset className="custom-agent-dialog-section">
+                <legend>{t.sectionIdentity}</legend>
+                <TextField
+                  disabled={busy}
+                  error={nameError ? t.nameRequired : undefined}
+                  inputRef={nameInputRef}
+                  label={t.name}
+                  onValueChange={(name) => {
+                    setNameError(false);
+                    setForm((f) => ({ ...f, name }));
+                  }}
+                  value={form.name}
+                />
+                <div className="custom-agent-color-field">
+                  <span className="custom-agent-color-label">{t.color}</span>
+                  <div
+                    aria-label={t.color}
+                    className="custom-agent-color-picker"
+                    role="radiogroup"
+                  >
+                    {COLOR_TOKENS.map((token) => (
+                      <button
+                        key={token}
+                        aria-checked={form.color === token}
+                        aria-label={token}
+                        className={`custom-agent-color custom-agent-color-${customAgentColorToken(token)}${
+                          form.color === token ? " selected" : ""
+                        }`}
+                        disabled={busy}
+                        onClick={() => setForm((f) => ({ ...f, color: token }))}
+                        role="radio"
+                        type="button"
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <TextField
-                disabled={busy}
-                label={t.description}
-                onValueChange={(description) =>
-                  setForm((f) => ({ ...f, description }))
-                }
-                value={form.description}
-              />
-            </fieldset>
-            <fieldset className="custom-agent-dialog-section">
-              <legend>{t.sectionModel}</legend>
-              <Select
-                disabled={busy}
-                label={t.modelPolicy}
-                labelVisibility="hidden"
-                onValueChange={(kind) =>
-                  setForm((f) => ({
-                    ...f,
-                    modelKind: kind as "inherit" | "fixed",
-                  }))
-                }
-                options={[
-                  { value: "inherit", label: t.modelInherit },
-                  { value: "fixed", label: t.modelFixed },
-                ]}
-                value={form.modelKind}
-              />
-              {form.modelKind === "fixed" && (
+                <TextField
+                  disabled={busy}
+                  label={t.description}
+                  onValueChange={(description) =>
+                    setForm((f) => ({ ...f, description }))
+                  }
+                  value={form.description}
+                />
+              </fieldset>
+              <fieldset className="custom-agent-dialog-section">
+                <legend>{t.sectionModel}</legend>
                 <Select
                   disabled={busy}
-                  label={t.modelFixed}
-                  labelVisibility="visible"
-                  onValueChange={(value) => {
-                    const [providerId = "", modelId = ""] = value.split("/");
+                  label={t.modelPolicy}
+                  labelVisibility="hidden"
+                  onValueChange={(kind) =>
                     setForm((f) => ({
                       ...f,
-                      modelProviderId: providerId,
-                      modelId,
-                    }));
-                  }}
-                  options={modelOptions}
-                  value={`${form.modelProviderId}/${form.modelId}`}
+                      modelKind: kind as "inherit" | "fixed",
+                    }))
+                  }
+                  options={[
+                    { value: "inherit", label: t.modelInherit },
+                    { value: "fixed", label: t.modelFixed },
+                  ]}
+                  value={form.modelKind}
                 />
-              )}
-            </fieldset>
-            <fieldset className="custom-agent-dialog-section">
-              <legend>{t.sectionReasoning}</legend>
-              <Select
-                disabled={busy}
-                label={t.thinkingPolicy}
-                labelVisibility="hidden"
-                onValueChange={(kind) =>
-                  setForm((f) => ({
-                    ...f,
-                    thinkingKind: kind as "inherit" | "fixed",
-                  }))
-                }
-                options={[
-                  { value: "inherit", label: t.thinkingInherit },
-                  { value: "fixed", label: t.thinkingFixed },
-                ]}
-                value={form.thinkingKind}
-              />
-              {form.thinkingKind === "fixed" && (
+                {form.modelKind === "fixed" && (
+                  <Select
+                    disabled={busy}
+                    label={t.modelFixed}
+                    labelVisibility="visible"
+                    onValueChange={(value) => {
+                      const [providerId = "", modelId = ""] = value.split("/");
+                      setForm((f) => ({
+                        ...f,
+                        modelProviderId: providerId,
+                        modelId,
+                      }));
+                    }}
+                    options={modelOptions}
+                    value={`${form.modelProviderId}/${form.modelId}`}
+                  />
+                )}
+              </fieldset>
+              <fieldset className="custom-agent-dialog-section">
+                <legend>{t.sectionReasoning}</legend>
                 <Select
                   disabled={busy}
-                  label={t.thinkingFixed}
-                  labelVisibility="visible"
-                  onValueChange={(level) =>
-                    setForm((f) => ({ ...f, thinkingLevel: level }))
+                  label={t.thinkingPolicy}
+                  labelVisibility="hidden"
+                  onValueChange={(kind) =>
+                    setForm((f) => ({
+                      ...f,
+                      thinkingKind: kind as "inherit" | "fixed",
+                    }))
                   }
-                  options={THINKING_LEVELS.map((level) => ({
-                    value: level,
-                    label: level,
-                  }))}
-                  value={form.thinkingLevel}
+                  options={[
+                    { value: "inherit", label: t.thinkingInherit },
+                    { value: "fixed", label: t.thinkingFixed },
+                  ]}
+                  value={form.thinkingKind}
                 />
-              )}
-            </fieldset>
-            <fieldset className="custom-agent-dialog-section">
-              <legend>{t.sectionTools}</legend>
-              <Select
-                disabled={busy}
-                label={t.toolPolicy}
-                labelVisibility="hidden"
-                onValueChange={(kind) =>
-                  setForm((f) => ({
-                    ...f,
-                    toolKind: kind as "inherit" | "allowlist",
-                  }))
-                }
-                options={[
-                  { value: "inherit", label: t.toolInherit },
-                  { value: "allowlist", label: t.toolAllowlist },
-                ]}
-                value={form.toolKind}
-              />
-              {form.toolKind === "allowlist" && (
-                <fieldset className="custom-agent-tools">
-                  <legend>{t.builtinTools}</legend>
-                  {BUILTIN_TOOL_CHOICES.map((choice) => (
-                    <Checkbox
-                      key={choice.toolId}
-                      checked={form.builtinToolIds.includes(choice.toolId)}
-                      disabled={busy}
-                      label={choice.toolId}
-                      onCheckedChange={(checked) =>
-                        setForm((f) => ({
-                          ...f,
-                          builtinToolIds: checked
-                            ? [...f.builtinToolIds, choice.toolId]
-                            : f.builtinToolIds.filter(
-                                (id) => id !== choice.toolId,
+                {form.thinkingKind === "fixed" && (
+                  <Select
+                    disabled={busy}
+                    label={t.thinkingFixed}
+                    labelVisibility="visible"
+                    onValueChange={(level) =>
+                      setForm((f) => ({ ...f, thinkingLevel: level }))
+                    }
+                    options={THINKING_LEVELS.map((level) => ({
+                      value: level,
+                      label: level,
+                    }))}
+                    value={form.thinkingLevel}
+                  />
+                )}
+              </fieldset>
+              <fieldset className="custom-agent-dialog-section">
+                <legend>{t.sectionTools}</legend>
+                <Select
+                  disabled={busy}
+                  label={t.toolPolicy}
+                  labelVisibility="hidden"
+                  onValueChange={(kind) =>
+                    setForm((f) => ({
+                      ...f,
+                      toolKind: kind as "inherit" | "allowlist",
+                    }))
+                  }
+                  options={[
+                    { value: "inherit", label: t.toolInherit },
+                    { value: "allowlist", label: t.toolAllowlist },
+                  ]}
+                  value={form.toolKind}
+                />
+                {form.toolKind === "allowlist" && (
+                  <fieldset className="custom-agent-tools">
+                    <legend>{t.builtinTools}</legend>
+                    {BUILTIN_TOOL_CHOICES.map((choice) => (
+                      <Checkbox
+                        key={choice.toolId}
+                        checked={form.builtinToolIds.includes(choice.toolId)}
+                        disabled={busy}
+                        label={choice.toolId}
+                        onCheckedChange={(checked) =>
+                          setForm((f) => ({
+                            ...f,
+                            builtinToolIds: checked
+                              ? [...f.builtinToolIds, choice.toolId]
+                              : f.builtinToolIds.filter(
+                                  (id) => id !== choice.toolId,
+                                ),
+                          }))
+                        }
+                      />
+                    ))}
+                    {settings.mcpServers.some(
+                      (server) => server.tools.length > 0,
+                    ) && (
+                      <>
+                        <legend>{t.mcpTools}</legend>
+                        {settings.mcpServers
+                          .filter((server) => server.tools.length > 0)
+                          .map((server) => {
+                            // Server-dimension selection (issue #193 review):
+                            // checking a server grants every tool it exposes;
+                            // the stored refs still enumerate individual tools.
+                            const serverTools = server.tools.map((tool) => ({
+                              serverId: tool.serverId,
+                              toolName: tool.toolName,
+                            }));
+                            const selected = form.mcpToolRefs.filter((ref) =>
+                              serverTools.some(
+                                (tool) =>
+                                  tool.serverId === ref.serverId &&
+                                  tool.toolName === ref.toolName,
                               ),
-                        }))
-                      }
-                    />
-                  ))}
-                  {settings.mcpServers.some(
-                    (server) => server.tools.length > 0,
-                  ) && (
-                    <>
-                      <legend>{t.mcpTools}</legend>
-                      {settings.mcpServers
-                        .filter((server) => server.tools.length > 0)
-                        .map((server) => {
-                          // Server-dimension selection (issue #193 review):
-                          // checking a server grants every tool it exposes;
-                          // the stored refs still enumerate individual tools.
-                          const serverTools = server.tools.map((tool) => ({
-                            serverId: tool.serverId,
-                            toolName: tool.toolName,
-                          }));
-                          const selected = form.mcpToolRefs.filter((ref) =>
-                            serverTools.some(
-                              (tool) =>
-                                tool.serverId === ref.serverId &&
-                                tool.toolName === ref.toolName,
-                            ),
-                          ).length;
-                          const checked =
-                            selected > 0 && selected === serverTools.length;
-                          return (
-                            <Checkbox
-                              key={server.config.id}
-                              checked={checked}
-                              disabled={busy}
-                              label={`${server.config.name}（${t.mcpToolsCount.replace("{count}", String(server.tools.length))}）`}
-                              onCheckedChange={(next) =>
-                                setForm((f) => ({
-                                  ...f,
-                                  mcpToolRefs: next
-                                    ? [
-                                        ...f.mcpToolRefs.filter(
+                            ).length;
+                            const checked =
+                              selected > 0 && selected === serverTools.length;
+                            return (
+                              <Checkbox
+                                key={server.config.id}
+                                checked={checked}
+                                disabled={busy}
+                                label={`${server.config.name}（${t.mcpToolsCount.replace("{count}", String(server.tools.length))}）`}
+                                onCheckedChange={(next) =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    mcpToolRefs: next
+                                      ? [
+                                          ...f.mcpToolRefs.filter(
+                                            (ref) =>
+                                              !serverTools.some(
+                                                (tool) =>
+                                                  tool.serverId ===
+                                                  ref.serverId,
+                                              ),
+                                          ),
+                                          ...serverTools,
+                                        ]
+                                      : f.mcpToolRefs.filter(
                                           (ref) =>
                                             !serverTools.some(
                                               (tool) =>
                                                 tool.serverId === ref.serverId,
                                             ),
                                         ),
-                                        ...serverTools,
-                                      ]
-                                    : f.mcpToolRefs.filter(
-                                        (ref) =>
-                                          !serverTools.some(
-                                            (tool) =>
-                                              tool.serverId === ref.serverId,
-                                          ),
-                                      ),
-                                }))
-                              }
-                            />
-                          );
-                        })}
-                    </>
-                  )}
-                </fieldset>
-              )}
-            </fieldset>
-            <TextAreaField
-              description={t.instructionsHint}
-              disabled={busy}
-              error={instructionsError ? t.instructionsRequired : undefined}
-              label={t.instructions}
-              onValueChange={(instructions) => {
-                setInstructionsError(false);
-                setForm((f) => ({ ...f, instructions }));
-              }}
-              rows={6}
-              value={form.instructions}
-            />
-            <fieldset className="custom-agent-dialog-section">
-              <legend>{t.sectionDispatch}</legend>
-              <TextField
-                description={t.triggersHint}
+                                  }))
+                                }
+                              />
+                            );
+                          })}
+                      </>
+                    )}
+                  </fieldset>
+                )}
+              </fieldset>
+              <TextAreaField
+                description={t.instructionsHint}
                 disabled={busy}
-                label={t.triggers}
-                onValueChange={(triggersText) =>
-                  setForm((f) => ({ ...f, triggersText }))
-                }
-                value={form.triggersText}
+                error={instructionsError ? t.instructionsRequired : undefined}
+                label={t.instructions}
+                onValueChange={(instructions) => {
+                  setInstructionsError(false);
+                  setForm((f) => ({ ...f, instructions }));
+                }}
+                rows={6}
+                value={form.instructions}
               />
-              <Checkbox
-                checked={form.enabled}
-                disabled={busy}
-                label={t.enabledLabel}
-                onCheckedChange={(enabled) =>
-                  setForm((f) => ({ ...f, enabled }))
-                }
-              />
-              <Checkbox
-                checked={form.allowAutomaticInvocation}
-                description={t.allowAutomaticHint}
-                disabled={busy}
-                label={t.allowAutomatic}
-                onCheckedChange={(allowAutomaticInvocation) =>
-                  setForm((f) => ({ ...f, allowAutomaticInvocation }))
-                }
-              />
-              <Select
-                disabled={busy}
-                label={t.scope}
-                labelVisibility="visible"
-                onValueChange={(scope) =>
-                  setForm((f) => ({
-                    ...f,
-                    scope: scope as "all" | "selected",
-                  }))
-                }
-                options={[
-                  { value: "all", label: t.scopeAll },
-                  { value: "selected", label: t.scopeSelected },
-                ]}
-                value={form.scope}
-              />
-              {form.scope === "selected" && (
-                <fieldset className="custom-agent-projects">
-                  <legend>{t.projects}</legend>
-                  <p className="settings-hint">{t.scopeHint}</p>
-                  {projects.map((project) => (
-                    <Checkbox
-                      key={project.id}
-                      checked={form.projectIds.includes(project.id)}
-                      disabled={busy}
-                      label={project.name}
-                      onCheckedChange={(checked) =>
-                        setForm((f) => ({
-                          ...f,
-                          projectIds: checked
-                            ? [...f.projectIds, project.id]
-                            : f.projectIds.filter((id) => id !== project.id),
-                        }))
-                      }
-                    />
-                  ))}
-                </fieldset>
-              )}
-              {capabilityPreview && (
-                <p className="settings-hint custom-agent-capability-preview">
-                  {t.capabilityPreview.replace("{mode}", "execute")}:{" "}
-                  {capabilityPreview.length > 0
-                    ? capabilityPreview.join(", ")
-                    : "—"}
-                </p>
-              )}
-            </fieldset>
+              <fieldset className="custom-agent-dialog-section">
+                <legend>{t.sectionDispatch}</legend>
+                <TextField
+                  description={t.triggersHint}
+                  disabled={busy}
+                  label={t.triggers}
+                  onValueChange={(triggersText) =>
+                    setForm((f) => ({ ...f, triggersText }))
+                  }
+                  value={form.triggersText}
+                />
+                <Checkbox
+                  checked={form.enabled}
+                  disabled={busy}
+                  label={t.enabledLabel}
+                  onCheckedChange={(enabled) =>
+                    setForm((f) => ({ ...f, enabled }))
+                  }
+                />
+                <Checkbox
+                  checked={form.allowAutomaticInvocation}
+                  description={t.allowAutomaticHint}
+                  disabled={busy}
+                  label={t.allowAutomatic}
+                  onCheckedChange={(allowAutomaticInvocation) =>
+                    setForm((f) => ({ ...f, allowAutomaticInvocation }))
+                  }
+                />
+                <Select
+                  disabled={busy}
+                  label={t.scope}
+                  labelVisibility="visible"
+                  onValueChange={(scope) =>
+                    setForm((f) => ({
+                      ...f,
+                      scope: scope as "all" | "selected",
+                    }))
+                  }
+                  options={[
+                    { value: "all", label: t.scopeAll },
+                    { value: "selected", label: t.scopeSelected },
+                  ]}
+                  value={form.scope}
+                />
+                {form.scope === "selected" && (
+                  <fieldset className="custom-agent-projects">
+                    <legend>{t.projects}</legend>
+                    <p className="settings-hint">{t.scopeHint}</p>
+                    {projects.map((project) => (
+                      <Checkbox
+                        key={project.id}
+                        checked={form.projectIds.includes(project.id)}
+                        disabled={busy}
+                        label={project.name}
+                        onCheckedChange={(checked) =>
+                          setForm((f) => ({
+                            ...f,
+                            projectIds: checked
+                              ? [...f.projectIds, project.id]
+                              : f.projectIds.filter((id) => id !== project.id),
+                          }))
+                        }
+                      />
+                    ))}
+                  </fieldset>
+                )}
+                {capabilityPreview && (
+                  <p className="settings-hint custom-agent-capability-preview">
+                    {t.capabilityPreview.replace("{mode}", "execute")}:{" "}
+                    {capabilityPreview.length > 0
+                      ? capabilityPreview.join(", ")
+                      : "—"}
+                  </p>
+                )}
+              </fieldset>
+            </div>
             <footer className="custom-agent-dialog-footer">
               {confirmDiscard && dirty ? (
                 <>
