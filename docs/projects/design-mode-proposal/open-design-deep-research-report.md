@@ -1,7 +1,7 @@
 # Open Design 深度调研报告
 
 > **目的**：为 Artemis「在 composer 新增设计模式、进入设计面板」提案提供参考。调研覆盖功能全景、核心工作流、模式体系、UI 结构布局、数据契约与可借鉴的工程设计模式。
-> **调研对象**：`~/Documents/open-design`，版本 **0.16.1**（本地 checkout 截至 2026-07-31，commit `0c5f98e`；上游仍在演进，落地前建议再对照一次上游）。
+> **调研对象**：`~/Documents/open-design`。初版基线 **0.16.1**（commit `0c5f98e`，2026-07-31）；**2026-09-12 重核至 v0.22.1**（HEAD `ad9078b`，2026-09-11，较初版 559 提交 / 7491 文件变更）。增量结论集中在 **§0.5 版本重核更新**——正文其余部分仍按 0.16.1 基线撰写，凡与 §0.5 冲突处，以 §0.5 为准。
 > **调研方式**：四路并行深度代码调研（桌面 UI 结构 / agent 工作流与协议 / 设计系统与内容层 / 产物模型与渲染导出）+ 关键数值人工抽查验证（Studio 分栏宽度、chip rail 顺序、SessionModeToggle、modes.md 均已实读确认）。
 > **License**：Apache-2.0（机制与模式可自由借鉴；`design-systems/` 内的品牌包为 curated fixture，逐包再核）。
 
@@ -16,9 +16,56 @@ Open Design 是**"开源版 Claude Design"**：一个本地优先的 macOS/Windo
 1. **"设计模式"是提示栈，不是第二个编排框架。** OD 把整个设计循环（发现 brief → 锁方向 → 计划 → 流式产出 → 评审 → 交付）实现为**一个分层组装的系统提示 + assistant 文本内嵌的结构化标记（`<question-form>`、`<CRITIQUE_RUN>` 等）+ 宿主端解析器**，agent CLI 的原生循环完全不动。这与 Artemis "Pi is the only agent loop" 的不变量天然兼容。
 2. **模式入口长在 composer 底栏。** OD 的会话模式切换是 composer 底部的一个三档下拉（chat / plan / design），每档带成本信号条与悬停说明卡；**模式只影响后续 run，随下一条消息生效**。意图细分（原型/PPT/图片/视频……）则由 composer 下方的 **chip rail** 承担，选中 chip 后该场景的专属表单字段**内联展开在 composer 底栏**，而不是弹窗。
 3. **设计面板 = 左会话右工作台的可拖分栏。** 左栏对话流（默认 460px，可拖 345–720，可隐藏进入专注模式），右栏是**标签式工作台**：每个产物一个 tab，沙箱 iframe 预览 + 版本历史模态 + 手动微调检查器 + 导出菜单。消息流里的产物卡片一点即在右侧开 tab——多产物切换完全由 tab 系统承担。
-4. **品牌契约是三层文件包**：`DESIGN.md`（人/agent 可读散文）+ `tokens.css`（机器可粘贴的 `:root` 绑定契约，直接进产物第一个 `<style>`）+ `manifest.json`（发现与派生声明）。151 个内置品牌包，guard 防散文与 token 漂移。
+4. **品牌契约是三层文件包**：`DESIGN.md`（人/agent 可读散文）+ `tokens.css`（机器可粘贴的 `:root` 绑定契约，直接进产物第一个 `<style>`）+ `manifest.json`（发现与派生声明）。152 个内置品牌包（v0.22.1 实测；0.16.1 时为 151），guard 防散文与 token 漂移。
 5. **评审是一条 wire protocol**：`<CRITIQUE_RUN>` 标签流 + 五评委加权打分 + composite ≥ 8.0 且 MUST_FIX=0 才放行；轻量版是技能内置的 5 维自评（任一维 < 3/5 回修）。
 6. **产物即文件 + sidecar manifest**：`<entry>.artifact.json` 记录 kind/renderer/exports 三元组驱动前端渲染器注册表与导出菜单；版本史挂在文件维度、每版本存触发 prompt 原文，恢复写新版本（非破坏性）。
+
+---
+
+## 0.5 版本重核更新（v0.22.1，2026-09-12）
+
+> 发布说明位置：`docs/CHANGELOG/v<版本>/<locale>.md`（根 CHANGELOG.md 只更新到 0.9.0，勿被误导）。
+
+### 0.5.1 版本时间线（0.17 → 0.22.1，产品级影响）
+
+| 版本            | 日期          | 主题与关键变化                                                                                                                                                                                                                 |
+| --------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0.17.0          | 08-03         | **Manual Edit 完整落地**（画布选中/拖动/缩放、改字改色、图片替换裁剪、undo/redo 保留画布）；Codex 插件 `@open-design`（Codex 把 OD 当创作引擎调用）；brief 改版——信息足够则不再强制提问                                        |
+| 0.18.0          | 08-05         | **Team Workspace**（团队工作区与个人并列：项目共享=只读镜像自动同步 + presence + 双向评论，按工作区计费）；**Home 大改版**（hero/rail/详情页/消息中心/What's New）；**主题设置移除，回归 light-first**                         |
+| 0.19.0          | 08-11         | **图片生成解锁**：订阅内 Seedream 5.0 Pro / GPT Image 2.0 / Nano Banana 2.0（Vela 管线，视频同管线）+ 多参考图 i2i + 显式比例/分辨率/质量；查看器 Export/Share/Handoff 拆为三个直行动作                                        |
+| 0.19.1          | 08-14         | DeepSeek Harness（`dsh`）成为内置 agent；图像/视频生成完直接在预览打开、同名产物原位更新                                                                                                                                       |
+| 0.20.0          | 08-19         | **创建栏产品固定化**（见 0.5.2-1）；**可编辑 PPTX 保真增强**（字体内嵌/手工换行/分层背景）；deck 缩略图-舞台-备注-翻页联动修复；HyperFrames 运行时随 daemon 打包（弃 npx）；Website Clone 改用系统浏览器                       |
+| 0.21.0 / 0.21.1 | 08-25 / 08-31 | 可靠性大版本（预览白屏/导航竞态系统性修复）；PPTX 按 daemon 能力门控（headless/Docker 不再显示）；**免登录**（Home 直接选本地 CLI/BYOK，Cloud 变可选）；**Labs → OD Next 新一代生成策略入口**                                  |
+| 0.22.0 / 0.22.1 | 09-08 / 09-09 | OpenDesign Arena 评测站；**OD Next 成为 prototype/deck/marketing/hyperframes 的默认策略**（Labs 可关）；web 交付物终检语法门（可无 agent 轮次自动修复）；会话"证据链"保留；Standalone Terminal（新顶层目录 `shells/terminal`） |
+
+### 0.5.2 旧断言修正表（0.16.1 正文 → v0.22.1 现状）
+
+| #   | 旧结论                                      | v0.22.1 现状（证据）                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | chip rail create 组 13 枚、随插件漂移       | **产品固定 10 枚**：prototype → deck → image → document → hyperframes → web-clone → video → audio → live-artifact → webgl（`apps/web/src/components/home-hero/chips.ts:387-398`）；**wireframe/mobile 降为 Prototype 二级 sub-chip**（分别落 `fidelity:'wireframe'` / `platformTargets` 元数据，`sub-chips.ts:81-125`）；brand-kit 与 migrate 组不进 rail |
+| 2   | 系统提示 = 单一 ~19 层栈                    | **顶部出现分叉**：`odNextStrategyRecipe` 存在时走全新 `composeOdNextStrategyRequestPromptV2`（OD Next 策略，0.22.1 起为上述四类任务默认）；legacy 分层栈退为另一分支，且有 slim（默认）/classic 双核变体（`apps/daemon/src/prompts/system.ts:905-940`；`docs/prompt-composition.md` 记载 2×2 组合矩阵与 daemon/contracts 双镜像已漂移）                   |
+| 3   | HyperFrames：daemon 侧 npx + puppeteer 逐帧 | **随包 pinned runtime**（`apps/daemon/src/media/hyperframes-runtime.ts:12-38`，0.20 起按平台打包原生依赖）；默认帧捕获优先**桌面 Electron frame renderer**（`media/index.ts:3944-3951`）；超时仍 5 分钟；新增 `od media scaffold` 秒级脚手架（GSAP 3.14.2、`data-duration`、`window.__timelines["main"]`，`media/hyperframes-scaffold.ts:14-115`）        |
+| 4   | PPTX 双路随时可用                           | **按 daemon 能力门控**：headless/Docker 部署不再提供 PPTX 导出，桌面保留（0.21.0）；可编辑路保真增强；资源挂起时 1 分钟内降级交付（0.20.2）                                                                                                                                                                                                               |
+| 5   | 媒体 provider 5 家、音频"音乐暂缓"          | provider 扩到 **20+**（新增 vela、openrouter、google、replicate、kling、suno、midjourney、udio、fishaudio、bfl、leonardo、aihubmix…）；订阅制图像生成（Vela）为 0.19.0 主线；**音乐已可用**（music 默认 suno-v5，`daemon/src/media/models.ts:199-223`）                                                                                                   |
+| 6   | 设计系统 151 包                             | **152**（0.19.1 新增 Cloudflare Kumo UI）；包架构/契约未变                                                                                                                                                                                                                                                                                                |
+| 7   | 深浅双主题                                  | **主题设置已移除，回归 light-first**（0.18.0，#6168）                                                                                                                                                                                                                                                                                                     |
+| 8   | （无）                                      | **新增产品形态**：Team Workspace（0.18）、免登录 + Labs（0.21.1）、Codex 插件（0.17）、OD Next 默认策略（0.22.1）、Standalone Terminal（0.22）；`apps/landing-page` 已移出 monorepo、Nix 支持移除                                                                                                                                                         |
+
+其余核心断言——SessionModeToggle 三档带成本条、Studio 分栏 460/345/720 + 8px 拖条、渲染器注册表顺序、iframe 保活池（5）、Critique Theater（composite ≥ 8.0 且 MUST_FIX=0）、DESIGN.md 九段 + tokens 四层、artifact manifest kind/exports 枚举、MCP 工具集、SKILL.md `od:` 七值、question-form ≤5 题、方向库 5 向、apps/desktop 仅主进程——**逐一核验仍成立**，佐证行号略有位移。
+
+### 0.5.3 多类型设计项目的"管理闭环"边界（本次重核新增结论）
+
+**"完全管理（创建 → 生成 → 预览 → 迭代 → 版本 → 导出）"只在 HTML 系产物上成立；媒体类（image/video/audio/HyperFrames-MP4）是弱一档的"生成 → 看 → 下载"闭环**：
+
+| 能力     | prototype / deck / document / design-system 蒸馏产物（HTML 系）                 | live-artifact                                  | image / video / audio / hyperframes-mp4                             |
+| -------- | ------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
+| 创建向导 | chips + 二级 chip + 模板 Start-from                                             | 独立创建页签                                   | 模型/比例/分辨率/时长/音色表单                                      |
+| 生成     | LLM 写 HTML（场景插件种子）                                                     | LLM 写模板+数据                                | CLI 调 provider（`od media generate` → daemon 落二进制）            |
+| 迭代     | 对话再生成 **+ Manual Edit 元素级微调 + 演讲备注回写**                          | 换数据源刷新（不重设计）                       | **仅对话重跑**（换新文件名；i2i 参考图 ≤5、i2v 首帧）               |
+| 版本     | `.file-versions` 每文件版本链（ai/manual/restore 来源 + prompt 溯源 + 还原 UI） | 自有 refresh 审计日志，**不在** .file-versions | **无任何版本链**（`project-file-versions.ts:570` 显式只收 `.html`） |
+| 导出     | html / pdf / pptx（可编辑+截图）/ image / zip + Vercel/Cloudflare 部署 + 模板化 | 随项目 zip                                     | 原始文件下载，无转码/升分辨率                                       |
+
+projectKind 8 值自 0.16.1 **未变**（HyperFrames 是 `metadata.videoModel='hyperframes-html'` 的 video 项目，`contracts/src/api/projects.ts:12-33`）；0.17–0.22 的增量是**既有类型的质量升级**（场景种子、PPTX 保真、deck protocol v1、Manual Edit、Team Workspace），不是类型扩张。deck 侧新钉死了 **deck protocol v1**（postMessage 三消息 `od:slide` / `od:slide-state` / `od:deck-ready`，`contracts/src/runtime/deck-protocol.ts:1-90`）；多平台外框新增 OD Next `.od-frames/` 手机壳契约（三平台 shell + sha256 清单，`contracts/src/prompts/od-next-device-frame.ts`），与旧 `assets/frames ?screen=` 契约并存。
 
 ---
 
@@ -61,14 +108,14 @@ Open Design 是**"开源版 Claude Design"**：一个本地优先的 macOS/Windo
 
 ### 1.3 规模感
 
-| 资产           | 数量                    | 说明                                                    |
-| -------------- | ----------------------- | ------------------------------------------------------- |
-| 设计系统品牌包 | 151（+`_schema`）       | `design-systems/<slug>/`，含 apple/claude/airbnb/ant…   |
-| 渲染模板       | 114                     | `design-templates/`，每个含 `SKILL.md` + `example.html` |
-| 功能技能       | 160+                    | `skills/`，SKILL.md 形态，与模板同构、分属两个注册表    |
-| 官方场景插件   | 13 + 143 个 DS 镜像插件 | `plugins/_official/`                                    |
-| Agent 适配 def | 26                      | `apps/daemon/src/runtimes/registry.ts`                  |
-| craft 手艺文件 | 13                      | `craft/*.md`，品牌无关的普适设计规则                    |
+| 资产           | 数量                       | 说明                                                    |
+| -------------- | -------------------------- | ------------------------------------------------------- |
+| 设计系统品牌包 | 152（+`_schema`，v0.22.1） | `design-systems/<slug>/`，含 apple/claude/airbnb/ant…   |
+| 渲染模板       | 114                        | `design-templates/`，每个含 `SKILL.md` + `example.html` |
+| 功能技能       | 160+                       | `skills/`，SKILL.md 形态，与模板同构、分属两个注册表    |
+| 官方场景插件   | 13 + 143 个 DS 镜像插件    | `plugins/_official/`                                    |
+| Agent 适配 def | 26                         | `apps/daemon/src/runtimes/registry.ts`                  |
+| craft 手艺文件 | 13                         | `craft/*.md`，品牌无关的普适设计规则                    |
 
 ---
 
@@ -88,16 +135,16 @@ Open Design 是**"开源版 Claude Design"**：一个本地优先的 macOS/Windo
 
 ### 2.2 产物类型矩阵
 
-| 类型                                        | 形态                                                                                     | 预览                                      | 导出                         |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------- |
-| Prototype（网页/移动/桌面原型）             | 单页 HTML，读 DESIGN.md                                                                  | 沙箱 iframe                               | HTML / PDF / ZIP             |
-| Deck（PPT）                                 | HTML + `.slide` 约定                                                                     | iframe + 键盘翻页 + 缩略图栏 + 演讲者备注 | PPTX（截图式/可编辑式）/ PDF |
-| Image                                       | 媒体 provider 生成                                                                       | 原生 `<img>`                              | 文件下载                     |
-| Video                                       | provider 生成，MP4 直接落项目目录                                                        | 原生 `<video>`                            | MP4（生成即产物）            |
-| HyperFrames（HTML 动效）                    | agent 写 GSAP timeline 合成物，daemon 用 puppeteer 逐帧渲染 MP4（超时 5 分钟，进度回流） | 同 video                                  | MP4                          |
-| Audio                                       | speech/sfx（ElevenLabs 等），音乐暂缓                                                    | 原生 `<audio>`                            | 文件下载                     |
-| Live Artifact（活产物）                     | 模板 `template.html` + 数据 `data.json` 分离，可刷新                                     | 服务端水化预览（**CSP 禁脚本**）          | —                            |
-| React component / Markdown / SVG / mini-app | manifest kind 枚举                                                                       | 对应 viewer（Babel 编译/消毒渲染）        | JSX / MD / SVG               |
+| 类型                                        | 形态                                                                                                                                | 预览                                      | 导出                         |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------- |
+| Prototype（网页/移动/桌面原型）             | 单页 HTML，读 DESIGN.md                                                                                                             | 沙箱 iframe                               | HTML / PDF / ZIP             |
+| Deck（PPT）                                 | HTML + `.slide` 约定                                                                                                                | iframe + 键盘翻页 + 缩略图栏 + 演讲者备注 | PPTX（截图式/可编辑式）/ PDF |
+| Image                                       | 媒体 provider 生成                                                                                                                  | 原生 `<img>`                              | 文件下载                     |
+| Video                                       | provider 生成，MP4 直接落项目目录                                                                                                   | 原生 `<video>`                            | MP4（生成即产物）            |
+| HyperFrames（HTML 动效）                    | agent 写 GSAP timeline 合成物，daemon 用随包 pinned runtime 渲染 MP4（v0.20 起默认走桌面 Electron 帧渲染器；超时 5 分钟，进度回流） | 同 video                                  | MP4                          |
+| Audio                                       | speech/sfx/music（ElevenLabs、suno-v5 等；v0.19+ 音乐已可用）                                                                       | 原生 `<audio>`                            | 文件下载                     |
+| Live Artifact（活产物）                     | 模板 `template.html` + 数据 `data.json` 分离，可刷新                                                                                | 服务端水化预览（**CSP 禁脚本**）          | —                            |
+| React component / Markdown / SVG / mini-app | manifest kind 枚举                                                                                                                  | 对应 viewer（Babel 编译/消毒渲染）        | JSX / MD / SVG               |
 
 ### 2.3 能力清单（摘要）
 
@@ -229,8 +276,9 @@ home-view（垂直栈，滚动容器）
 │   │       └─ 右：SessionModeToggle（chat/plan/design）｜执行引擎切换｜Run 按钮（空文案禁用）
 │   ├─ 卡下一行：设计系统选择器 ｜ 工作目录选择器
 │   ├─ ★意图芯片 rail（"Start with template"，横向滚动场景卡：插图+标题+一行描述）
-│   │   └─ create 组 13 枚：web-clone → deck → prototype → wireframe → mobile → document
-│   │        → hyperframes → webgl → live-artifact → image → video → audio（+create-brand-kit）
+│   │   └─ create 组 10 枚（v0.20 起产品固定）：prototype → deck → image → document
+│   │        → hyperframes → web-clone → video → audio → live-artifact → webgl
+│   │        （wireframe/mobile 降为 Prototype 二级；brand-kit/migrate 不进 rail）
 │   │   └─ 末尾 ⋯ 菜单收纳 migrate 组
 │   ├─ 二级子类 chip 行
 │   └─ 选中 chip 后：提示词示例卡行（插件预设或站点 favicon 卡）＋插件表单字段
@@ -346,7 +394,7 @@ design-systems/<slug>/
 
 ## 7. 工程与交互设计模式提炼
 
-1. **提示栈分层组装**（`composeSystemPrompt()`，`system.ts:791-1359`）：注入顺序 ~19 层，从注入抗性 → 模式 override → 发现/方向 → 记忆 → 设计系统 → craft → 技能 → 元数据 → 评审面板 → 防伪造角色标记守卫。**冲突时后段/显式 override 段赢**；slim 变体按 **prompt-caching 前缀规则重排**（静态章程最前、会话稳定居中、轮次可变信号最后），意图信号只扫用户亲撰文本并 latch，避免中途翻转打爆缓存。
+1. **提示栈分层组装**（`composeSystemPrompt()`，`system.ts:791-1359`）：注入顺序 ~19 层，从注入抗性 → 模式 override → 发现/方向 → 记忆 → 设计系统 → craft → 技能 → 元数据 → 评审面板 → 防伪造角色标记守卫。**冲突时后段/显式 override 段赢**；slim 变体按 **prompt-caching 前缀规则重排**（静态章程最前、会话稳定居中、轮次可变信号最后），意图信号只扫用户亲撰文本并 latch，避免中途翻转打爆缓存。**（v0.22.1 重核：该栈已退为 legacy 分支——OD Next 策略成为受支持设计任务的默认，见 §0.5.2-2。）**
 2. **"assistant 文本内嵌标记 + 宿主解析"协议族**：`<question-form>`、`direction-cards`、`<CRITIQUE_RUN>`、`<od-card>`（task-brief/verify-scorecard/rule-proposal 三钩子）——结构化交互不依赖特定 agent 的工具能力，任何 CLI 都能走。
 3. **composer 状态机**：chip → 场景插件 → 字段集 → 示例卡，全部内联展开；表单渲染在底栏而非模态。
 4. **数据规格而非子类的适配器**：`RuntimeAgentDef` 是纯数据对象（argv 构建/流格式/解析器指针/超时），没有 `run()` 方法；新增 agent = 加一个 def + 数组一行。
