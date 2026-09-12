@@ -2719,8 +2719,8 @@ body[data-dock="open"] .dock-resizer {
   gap: 2px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border-soft);
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* 不可加 overflow-x:auto：会把 overflow-y 计算为 auto，42px 高的标签条将裁掉
+     所有向下弹出的下拉菜单（导出/新建/演示）。溢出由外层 dock 面板兜底。 */
 }
 .design-ws-tab {
   flex: none;
