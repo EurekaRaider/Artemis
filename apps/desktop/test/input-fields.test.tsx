@@ -740,14 +740,20 @@ describe("composer attachment chain guard (§5 链路防回归)", () => {
     expect(appFileInputs).toHaveLength(0);
   });
 
-  it("renders exactly one file input and one date input across the renderer", () => {
+  it("limits file inputs to avatar and raster design import and date inputs to automation", () => {
     const fileOwners = Object.entries(rendererSources).filter(([, source]) =>
       source.includes('type="file"'),
     );
     const dateOwners = Object.entries(rendererSources).filter(([, source]) =>
       source.includes('type="date"'),
     );
-    expect(fileOwners.map(([name]) => name)).toEqual(["SettingsPanel.tsx"]);
+    expect(fileOwners.map(([name]) => name).sort()).toEqual([
+      "DesignPanel.tsx",
+      "SettingsPanel.tsx",
+    ]);
+    expect(rendererSources["DesignPanel.tsx"]).toContain(
+      'accept="image/png,image/jpeg,image/webp"',
+    );
     expect(dateOwners.map(([name]) => name)).toEqual(["AutomationPage.tsx"]);
   });
 

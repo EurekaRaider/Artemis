@@ -825,6 +825,29 @@ export interface AttachmentImportResult {
 export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
+  setDesignMode(threadId: string, mode: RunMode): Promise<void>;
+  setDesignDraft(
+    threadId: string,
+    key: string,
+    draft: Extract<
+      import("@artemis/protocol").DesignPanelAction,
+      { action: "patch" }
+    > | null,
+  ): Promise<void>;
+  confirmDesignLeave(threadId?: string): Promise<boolean>;
+  getDesignState(
+    threadId: string,
+  ): Promise<import("@artemis/protocol").DesignPanelState>;
+  designAction(
+    threadId: string,
+    input: import("@artemis/protocol").DesignPanelAction,
+  ): Promise<import("@artemis/protocol").DesignPanelState>;
+  setDesignBounds(
+    threadId: string,
+    instanceId: string,
+    bounds: { x: number; y: number; width: number; height: number },
+    visible: boolean,
+  ): Promise<void>;
   onImTaskCreated(listener: (thread: Thread) => void): () => void;
   getImStatus(): Promise<
     ImStatus & { connections?: unknown[]; spaces?: unknown[] }
@@ -1169,6 +1192,12 @@ export interface ArtemisApi {
 }
 
 export const IPC = {
+  designMode: "artemis:design-mode",
+  designDraft: "artemis:design-draft",
+  designLeave: "artemis:design-leave",
+  designState: "artemis:design-state",
+  designAction: "artemis:design-action",
+  designBounds: "artemis:design-bounds",
   imTaskCreated: "artemis:im-task-created",
   imStatus: "artemis:im-status",
   imSave: "artemis:im-save",

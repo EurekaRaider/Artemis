@@ -1,3 +1,7 @@
+import { DesignService } from "./design-service.js";
+import { DesignRepository } from "./design-repository.js";
+import { DesignPreviewHost, DESIGN_SCHEME } from "./design-preview-host.js";
+import type { DesignQueuedRequest, DesignPanelAction } from "@artemis/protocol";
 import {
   WorkspacePdfPreview,
   WORKSPACE_PDF_SCHEME,
@@ -1062,6 +1066,10 @@ function currentLocale(): AppLocale {
 }
 
 protocol.registerSchemesAsPrivileged([
+  {
+    scheme: DESIGN_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
+  },
   {
     scheme: WORKSPACE_PDF_SCHEME,
     privileges: {
@@ -3972,7 +3980,77 @@ async function handleBrokerRequest(
       return;
     }
   }
+  const designCheckpoint = store.getTurnCheckpoint(request.threadId);
+  if (
+    designCheckpoint?.workflow === "design" &&
+    !["design.operation", "user.input", "attachment.read"].includes(
+      request.kind,
+    )
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "This operation is unavailable in Design workflow.",
+    );
+    return;
+  }
   switch (request.kind) {
+    case "design.operation": {
+      try {
+        if (
+          activeTurns.get(request.threadId) !== request.turnId ||
+          designCheckpoint?.turnId !== request.turnId ||
+          store.getThread(request.threadId)?.mode !== request.mode ||
+          cancellingTurns.has(request.threadId)
+        )
+          throw new Error(
+            "Design operation requires the current host turn and mode.",
+          );
+        if (designCheckpoint.designRequestId) {
+          const owned = designService()
+            .repository.requests(request.threadId)
+            .find(
+              (item) =>
+                item.requestId === designCheckpoint.designRequestId &&
+                item.turnId === request.turnId,
+            );
+          const context = await designContext(request.threadId);
+          if (
+            !owned ||
+            owned.status !== "dispatched" ||
+            owned.workspaceBinding !== context.workspaceBinding ||
+            owned.projectId !== context.projectId ||
+            owned.mode !== context.mode ||
+            owned.workflow !== designCheckpoint.workflow
+          )
+            throw new Error(
+              "Design host request identity or workspace changed.",
+            );
+        }
+        const result = await designService().tool(
+          request.threadId,
+          request.operation,
+          designCheckpoint.workflow ?? "code",
+          designCheckpoint.designRef,
+        );
+        agentProcess.post({
+          type: "broker.resolve",
+          requestId: workerRequestId,
+          resolution: {
+            approvalId: request.approvalId,
+            nonce: randomUUID(),
+            approved: true,
+            scope: "once",
+            source: "policy",
+          },
+          result,
+        });
+      } catch (error) {
+        rejectBrokerRequest(workerRequestId, request, String(error));
+      }
+      return;
+    }
+
     case "attachment.read": {
       try {
         if (
@@ -5497,6 +5575,135 @@ async function createTaskThread(
   }
 }
 
+let designs: DesignService | undefined;
+async function designContext(threadId: string) {
+  const thread = store?.getThread(threadId);
+  if (!thread || thread.archived) throw new Error("Active task not found.");
+  if (imService?.profile(threadId))
+    throw new Error("Design is available in local desktop tasks only.");
+  const resolved = await resolveThreadWorkspace(thread);
+  return {
+    threadId,
+    projectId: resolved.project.id,
+    workspaceBinding: resolved.workspacePath,
+    mode: thread.mode,
+  };
+}
+function designService(): DesignService {
+  if (!designs)
+    designs = new DesignService(
+      new DesignRepository(join(app.getPath("userData"), "design")),
+      new DesignPreviewHost(
+        () => mainWindow,
+        async (threadId) => {
+          const context = await designContext(threadId);
+          if (context.mode !== "execute")
+            throw new Error("Live preview requires Execute.");
+        },
+      ),
+      designContext,
+      pumpDesignRequests,
+    );
+  return designs;
+}
+const designPumps = new Set<string>();
+async function pumpDesignRequests(threadId: string): Promise<void> {
+  if (
+    shuttingDown ||
+    designPumps.has(threadId) ||
+    activeTurnDispatches.has(threadId) ||
+    activeTurns.has(threadId) ||
+    compactingThreads.has(threadId)
+  )
+    return;
+  designPumps.add(threadId);
+  let request: DesignQueuedRequest | undefined;
+  try {
+    request = designService().repository.claim(await designContext(threadId));
+    if (!request) return;
+    await startTaskTurnUnchecked(
+      {
+        threadId,
+        text: request.text,
+        mode: request.mode,
+        ...(request.attachments ? { attachments: request.attachments } : {}),
+      },
+      {
+        origin: "desktop",
+        designRequest: request,
+        ...(request.source ? { source: request.source } : {}),
+        ...(request.expectedGoalId
+          ? { expectedGoalId: request.expectedGoalId }
+          : {}),
+      },
+    );
+  } catch (error) {
+    if (request)
+      designService().repository.settle(
+        request.turnId,
+        "failed",
+        String(error),
+      );
+    else throw error;
+  } finally {
+    designPumps.delete(threadId);
+  }
+}
+function routesToDesignQueue(threadId: string, text: string) {
+  return (
+    /^\s*\/design(?:\s|$)/.test(text) ||
+    designService().repository.workflow(threadId) === "design" ||
+    designService()
+      .repository.requests(threadId)
+      .some((request) =>
+        ["pending", "dispatched", "paused", "needs-reconciliation"].includes(
+          request.status,
+        ),
+      )
+  );
+}
+async function enqueueDesignTurn(
+  input: StartTurnInput,
+  options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
+): Promise<StartTurnResult> {
+  if (input.customAgentReference)
+    throw new Error("Design workflow does not support sub-agent invocations.");
+  const context = await designContext(input.threadId);
+  const explicit = /^\s*\/design(?:\s|$)/.test(input.text);
+  const text = explicit
+    ? input.text.replace(/^\s*\/design(?:\s|$)/, "").trim() ||
+      "Explore a design for this project."
+    : input.text;
+  const attachments = await attachmentStore().bind(
+    attachmentScope(input.threadId),
+    promptAttachmentsSchema.parse(input.attachments ?? []),
+  );
+  if (
+    !activeTurnDispatches.has(input.threadId) &&
+    !activeTurns.has(input.threadId)
+  ) {
+    store!.updateThread(input.threadId, { mode: input.mode });
+    context.mode = input.mode;
+  }
+  const request = designService().repository.enqueue(
+    { ...context, mode: input.mode },
+    {
+      requestId: randomUUID(),
+      ...(options.source ? { source: options.source } : {}),
+      ...(options.expectedGoalId
+        ? { expectedGoalId: options.expectedGoalId }
+        : {}),
+      workflow: explicit
+        ? "design"
+        : designService().repository.workflow(input.threadId),
+      text,
+      ...(attachments.length ? { attachments } : {}),
+    },
+  );
+  await pumpDesignRequests(input.threadId);
+  return { turnId: request.turnId, thread: store!.getThread(input.threadId)! };
+}
+
 async function startTaskTurn(
   input: StartTurnInput,
   options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
@@ -5512,6 +5719,12 @@ async function startTaskTurn(
     options.origin === undefined ? undefined : options.origin === "im",
   );
   try {
+    if (
+      !options.designRequest &&
+      options.origin !== "im" &&
+      routesToDesignQueue(input.threadId, input.text)
+    )
+      return await enqueueDesignTurn(input, options);
     return await startTaskTurnUnchecked(input, options);
   } finally {
     release?.();
@@ -5525,6 +5738,7 @@ async function startTaskTurnUnchecked(
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
     afterCompaction?: boolean;
+    designRequest?: DesignQueuedRequest;
   } = {},
 ): Promise<StartTurnResult> {
   const mainReceivedAt = Date.now();
@@ -5561,7 +5775,8 @@ async function startTaskTurnUnchecked(
   if (!text && attachments.length === 0) {
     throw new Error("Prompt cannot be empty.");
   }
-  const turnId = randomUUID();
+  const turnId = options.designRequest?.turnId ?? randomUUID();
+  const workflow = options.designRequest?.workflow ?? "code";
   if (
     options.origin === "desktop" ||
     (options.origin !== "im" && !imService?.profile(thread.id))
@@ -5626,7 +5841,12 @@ async function startTaskTurnUnchecked(
     throw error;
   }
   await turnChangeSetCompletionTails.get(thread.id);
-  if (input.mode === "execute" && !context.temporary && turnChangeSetService) {
+  if (
+    workflow === "code" &&
+    input.mode === "execute" &&
+    !context.temporary &&
+    turnChangeSetService
+  ) {
     try {
       await turnChangeSetService.begin({
         threadId: thread.id,
@@ -5713,9 +5933,10 @@ async function startTaskTurnUnchecked(
   // dispatch time from the trusted projectId and frozen onto the
   // checkpoint; later edits apply to later turns only. The model can never
   // supply a projectId to widen this set.
-  const turnCustomAgents = store.listEffectiveCustomAgents(
-    thread.projectId ?? null,
-  );
+  const turnCustomAgents =
+    workflow === "design"
+      ? []
+      : store.listEffectiveCustomAgents(thread.projectId ?? null);
   let customAgentInvocation:
     | { invocationId: string; definitionId: string; revision: number }
     | undefined;
@@ -5764,6 +5985,15 @@ async function startTaskTurnUnchecked(
     };
   }
   const checkpoint: TurnCheckpoint = {
+    workflow,
+    ...(options.designRequest
+      ? {
+          designRequestId: options.designRequest.requestId,
+          ...(options.designRequest.designRef
+            ? { designRef: options.designRequest.designRef }
+            : {}),
+        }
+      : {}),
     threadId: thread.id,
     turnId,
     text: requestText,
@@ -5883,6 +6113,7 @@ function dispatchCheckpoint(
   } = checkpoint;
   const process = agentProcess;
   const dispatchId = randomUUID();
+  let dispatchFailed: string | undefined;
   activeTurns.set(threadId, turnId);
   activeTurnDispatches.set(threadId, dispatchId);
   void process
@@ -5895,6 +6126,7 @@ function dispatchCheckpoint(
       ...(recovery ? { recovery } : {}),
     })
     .catch((error) => {
+      dispatchFailed = String(error);
       if (
         shuttingDown ||
         activeTurnDispatches.get(threadId) !== dispatchId ||
@@ -5910,6 +6142,22 @@ function dispatchCheckpoint(
       if (activeTurnDispatches.get(threadId) === dispatchId) {
         activeTurnDispatches.delete(threadId);
         if (activeTurns.get(threadId) === turnId) activeTurns.delete(threadId);
+        if (
+          checkpoint.designRequestId &&
+          !shuttingDown &&
+          agentProcess === process
+        )
+          designService().repository.settle(
+            turnId,
+            dispatchFailed || store?.getThread(threadId)?.status === "failed"
+              ? "failed"
+              : "completed",
+            dispatchFailed,
+          );
+        if (!shuttingDown && agentProcess === process)
+          void pumpDesignRequests(threadId).catch((error) =>
+            console.error("Design queue:", error),
+          );
       }
     });
 }
@@ -5928,6 +6176,12 @@ async function resumeInterruptedTurns(): Promise<void> {
     )
       continue;
     try {
+      if (checkpoint.designRequestId) {
+        designService().repository.reconcile(turnId);
+        throw new Error(
+          "Design dispatch needs explicit reconciliation before retrying.",
+        );
+      }
       if (checkpoint.remote && !imService?.profile(threadId))
         throw new Error(
           "Remote execution context is unavailable for recovery.",
@@ -6084,6 +6338,17 @@ async function queueTurn(
 ): Promise<void> {
   if (!store || !agentProcess) {
     throw new Error("Agent process is not ready.");
+  }
+  if (routesToDesignQueue(input.threadId, input.text)) {
+    const current = store.getThread(input.threadId);
+    if (!current) throw new Error("Task not found.");
+    await enqueueDesignTurn({
+      threadId: input.threadId,
+      text: input.text,
+      mode: current.mode,
+      ...(input.attachments ? { attachments: input.attachments } : {}),
+    });
+    return;
   }
   const command = parseThreadCommand({ type, ...input });
   const thread = store.getThread(command.threadId);
@@ -9970,6 +10235,9 @@ function registerIpc(): void {
         throw error;
       } finally {
         compactingThreads.delete(thread.id);
+        void pumpDesignRequests(thread.id).catch((error) =>
+          console.error("Design queue after compaction", error),
+        );
         // The Pi queue owns successfully dispatched messages from here on.
         emitPayload(thread.id, `compaction-queue:${thread.id}`, {
           type: "queue.updated",
@@ -10321,6 +10589,53 @@ function registerIpc(): void {
     },
   );
 
+  ipcMain.handle(IPC.designMode, (_event, threadId: string, value: unknown) => {
+    const mode = runModeSchema.parse(value);
+    const thread = store?.getThread(threadId);
+    if (!thread || thread.archived || imService?.profile(threadId))
+      throw new Error("Active local task required.");
+    store!.updateThread(threadId, { mode });
+    if (mode !== "execute" && designService().preview.state(threadId))
+      designService().preview.stop();
+  });
+  ipcMain.handle(
+    IPC.designDraft,
+    (
+      _event,
+      threadId: string,
+      key: string,
+      input: Extract<DesignPanelAction, { action: "patch" }> | null,
+    ) => designService().draft(threadId, key, input),
+  );
+  ipcMain.handle(IPC.designLeave, (_event, threadId?: string) =>
+    designService().confirmLeave(threadId),
+  );
+  ipcMain.handle(IPC.designState, (_event, threadId: string) =>
+    designService().state(threadId),
+  );
+  ipcMain.handle(
+    IPC.designAction,
+    (_event, threadId: string, input: DesignPanelAction) =>
+      designService().action(threadId, input),
+  );
+  ipcMain.handle(
+    IPC.designBounds,
+    async (
+      _event,
+      threadId: string,
+      instanceId: string,
+      bounds: { x: number; y: number; width: number; height: number },
+      visible: boolean,
+    ) => {
+      const context = await designContext(threadId);
+      if (context.mode !== "execute") {
+        if (designService().preview.state(threadId))
+          designService().preview.stop();
+        return;
+      }
+      designService().preview.setBounds(threadId, instanceId, bounds, visible);
+    },
+  );
   ipcMain.handle(
     IPC.turnStart,
     (_event, input: StartTurnInput): Promise<StartTurnResult> =>
@@ -11396,7 +11711,9 @@ function seedSmokeTurnChangesFixture(): void {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   if (
     !store ||
-    (!view?.startsWith("turn-changes") && view !== "form-controls-composer")
+    (!view?.startsWith("turn-changes") &&
+      view !== "form-controls-composer" &&
+      view !== "design-workflow")
   ) {
     return;
   }
@@ -15574,6 +15891,15 @@ function createMainWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
+  window.on("close", (event) => {
+    if (designs?.hasDrafts()) {
+      event.preventDefault();
+      void designs.confirmLeave().then((allowed) => {
+        if (allowed && !window.isDestroyed()) window.close();
+      });
+    } else designs?.preview.stop();
+  });
+
   const smokeRendererConsoleEntries: Array<{
     level: "warning" | "error";
     message: string;
@@ -15598,6 +15924,7 @@ function createMainWindow(): BrowserWindow {
       if (smokeScreenshot) {
         const view = process.env.ARTEMIS_SMOKE_VIEW ?? "";
         const focusEvidenceView =
+          view === "design-workflow" ||
           view.startsWith("form-controls-") ||
           view === "mcp-editor-form-controls" ||
           view === "turn-changes-form-controls" ||
@@ -15813,12 +16140,17 @@ function createMainWindow(): BrowserWindow {
       ) {
         window.webContents.focus();
       }
-      const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
-        ? window.webContents.executeJavaScript(
-            "document.querySelector('.thread-select')?.click()",
-          )
-        : requestedSmokeView
-          ? window.webContents.executeJavaScript(`
+      const prepareSmokeView =
+        requestedSmokeView === "design-workflow"
+          ? import("./design-smoke.js").then((module) =>
+              module.runDesignSmoke(window, designService(), smokeScreenshot!),
+            )
+          : process.env.ARTEMIS_SMOKE_USER_INPUT
+            ? window.webContents.executeJavaScript(
+                "document.querySelector('.thread-select')?.click()",
+              )
+            : requestedSmokeView
+              ? window.webContents.executeJavaScript(`
               (async () => {
                 const wait = (milliseconds) =>
                   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -18132,7 +18464,7 @@ function createMainWindow(): BrowserWindow {
                 }
               })()
             `)
-          : Promise.resolve();
+              : Promise.resolve();
       const requestedSettleDelay = Number(
         process.env.ARTEMIS_SMOKE_SETTLE_DELAY,
       );
@@ -20783,6 +21115,30 @@ app
       join(app.getPath("userData"), "settings.json"),
       safeStorage,
     );
+    if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "design-workflow") {
+      await settingsStore.saveProviderConnection({
+        id: "design-fixture",
+        name: "Design fixture",
+        baseUrl: "https://example.invalid/v1",
+        api: "openai-completions",
+        models: ["A", "B", "C"].map((name) => ({
+          id: `fixture-${name}`,
+          name: `Fixture ${name}`,
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 128000,
+          maxTokens: 8000,
+        })),
+      });
+      await settingsStore.setModel(
+        {
+          providerId: "design-fixture",
+          modelId: "fixture-A",
+          thinkingLevel: "high",
+        },
+        128000,
+      );
+    }
     imService = new ImService(
       app.getPath("userData"),
       safeStorage,
@@ -21152,7 +21508,15 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (designs?.hasDrafts()) {
+    event.preventDefault();
+    void designs.confirmLeave().then((allowed) => {
+      if (allowed) app.quit();
+    });
+    return;
+  }
+  designs?.preview.stop();
   shuttingDown = true;
   imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {

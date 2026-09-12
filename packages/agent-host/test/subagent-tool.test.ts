@@ -570,8 +570,22 @@ describe("sub-agent control tools", () => {
     };
     const thread = internals.threads.get("thread-cancel")!;
     internals.concurrency = {
-      run: <T>(kind: "parent" | "child", task: () => Promise<T>) =>
-        kind === "parent" ? task() : new Promise<T>(() => undefined),
+      run: <T>(
+        kind: "parent" | "child",
+        task: () => Promise<T>,
+        signal?: AbortSignal,
+      ) =>
+        kind === "parent"
+          ? task()
+          : new Promise<T>((_resolve, reject) => {
+              if (signal?.aborted) reject(new Error("Cancelled queued child"));
+              else
+                signal?.addEventListener(
+                  "abort",
+                  () => reject(new Error("Cancelled queued child")),
+                  { once: true },
+                );
+            }),
     };
 
     const prompts: string[] = [];

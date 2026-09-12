@@ -748,10 +748,10 @@ describe("renderer layout contract", () => {
       /\.model-information\s*\{[^}]*\bdisplay:\s*none/isu,
     );
     expect(compactComposer).toMatch(
-      /\.model-picker-menu\s*\{[^}]*\bgrid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*\bwidth:\s*min\(320px,\s*calc\(100cqi\s*-\s*48px\)\)/isu,
+      /\.model-picker-menu\s*\{[^}]*\bgrid-template-columns:\s*minmax\(0,\s*96px\)\s*minmax\(0,\s*1fr\)[^}]*\bwidth:\s*min\(320px,\s*calc\(100cqi\s*-\s*48px\)\)/isu,
     );
     expect(compactComposer).toMatch(
-      /\.model-picker-navigation\s*\{[^}]*\balign-self:\s*stretch[^}]*\bgrid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/isu,
+      /\.model-picker-navigation\s*\{[^}]*\balign-self:\s*end/isu,
     );
     expect(compactComposer).toMatch(
       /\.model-picker-options\s*\{[^}]*\bmargin-left:\s*0[^}]*\bmargin-top:\s*-1px/isu,

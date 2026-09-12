@@ -27,6 +27,9 @@ function fixture() {
   });
   let compactThread: (_event: unknown, threadId: string) => Promise<void>;
   const scope = {
+    routesToDesignQueue: vi.fn(() => false),
+    enqueueDesignTurn: vi.fn(async () => undefined),
+    pumpDesignRequests: vi.fn(async () => undefined),
     attachmentStore: () => ({
       bind: async (_thread: string, items: unknown[]) => items,
     }),
@@ -213,4 +216,22 @@ describe("manual compaction IPC queue", () => {
     await f.resumeCompactionFollowUps(f.thread);
     expect(f.startTaskTurn).not.toHaveBeenCalled();
   });
+});
+
+it("routes Design follow-ups to the durable queue without steering the Pi session", async () => {
+  const f = fixture();
+  f.routesToDesignQueue.mockReturnValue(true);
+  await f.queueTurn("turn.steer", {
+    threadId: "b",
+    text: "/design explore",
+    attachments: [image],
+  });
+  expect(f.enqueueDesignTurn).toHaveBeenCalledWith({
+    threadId: "b",
+    text: "/design explore",
+    mode: "execute",
+    attachments: [image],
+  });
+  expect(f.agentProcess.request).not.toHaveBeenCalled();
+  expect(f.compactionFollowUps.snapshot("b").followUp).toEqual([]);
 });

@@ -78,6 +78,9 @@ it("restricts a design turn at execution, then restores code tools in the same P
             (tool) =>
               ordinaryTools.includes(tool.name) &&
               ![
+                "design_save_revision",
+                "design_document",
+                "design_preview_check",
                 "read",
                 "request_user_input",
                 "attachment_list",
@@ -109,6 +112,17 @@ it("restricts a design turn at execution, then restores code tools in the same P
     expect(broker.request).not.toHaveBeenCalled();
     spy.mockImplementation(async function () {
       expect(this).toBe(session);
+      const preview = this.agent.state.tools.find(
+        (tool) => tool.name === "design_preview_check",
+      )!;
+      await expect(
+        preview.execute("forged-preview", {
+          documentId: "d",
+          revisionId: "r",
+          variantId: "v",
+          pageId: "p",
+        }),
+      ).rejects.toThrow(/Design workflow and Execute/);
       expect(this.agent.state.tools.map((tool) => tool.name)).toEqual(
         ordinaryTools,
       );

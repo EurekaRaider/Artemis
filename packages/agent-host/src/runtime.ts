@@ -1,3 +1,5 @@
+import { createDesignTools } from "./design-tools.js";
+import { DESIGN_WORKFLOW_INSTRUCTIONS } from "@artemis/protocol";
 import { createAttachmentTools } from "./attachment-tools.js";
 import { installCompactionBudget } from "./compaction-budget.js";
 import {
@@ -850,6 +852,9 @@ export interface OpenThreadRequest {
 }
 
 const DESIGN_READ_TOOL_NAMES = new Set([
+  "design_save_revision",
+  "design_document",
+  "design_preview_check",
   "read",
   "request_user_input",
   "attachment_list",
@@ -3417,6 +3422,37 @@ export class ArtemisAgentHost {
       }
       return result.data;
     };
+    const designTools = createDesignTools(async (operation) => {
+      const hosted = this.requireActiveThread(request.threadId);
+      if (operation.action === "save" || operation.action === "inspect") {
+        if (
+          hosted.currentWorkflow !== "design" ||
+          hosted.currentMode !== "execute"
+        )
+          throw new Error(
+            "Design mutations require Design workflow and Execute.",
+          );
+      }
+      if (
+        (operation.action === "inspect" ||
+          (operation.action === "read" && operation.visual)) &&
+        !hosted.session.model?.input.includes("image")
+      )
+        throw new Error(
+          "Select a vision model to inspect the design screenshot.",
+        );
+      const result = await this.broker.request({
+        kind: "design.operation",
+        approvalId: randomUUID(),
+        threadId: request.threadId,
+        turnId: hosted.currentTurnId!,
+        mode: hosted.currentMode!,
+        operation,
+      });
+      if (!result.approved)
+        throw new Error(result.error ?? "Design operation denied.");
+      return result.data;
+    });
     const attachmentTools = createAttachmentTools(invokeAttachmentOperation);
     const readTool = defineTool({
       name: "read",
@@ -5820,6 +5856,7 @@ export class ArtemisAgentHost {
       resourceLoader,
       noTools: "builtin",
       customTools: [
+        ...designTools,
         ...attachmentTools,
         ...remoteTools,
         readTool,
@@ -5854,6 +5891,7 @@ export class ArtemisAgentHost {
         ...extensionTools,
       ],
       tools: [
+        ...designTools.map((tool) => tool.name),
         ...remoteTools.map((tool) => tool.name),
         "read",
         "web_search",
@@ -6014,6 +6052,7 @@ export class ArtemisAgentHost {
     }
     const executeTools = session.agent.state.tools.filter(
       (tool) =>
+        designTools.some((candidate) => candidate.name === tool.name) ||
         remoteTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "read" ||
         tool.name === "web_search" ||
@@ -6064,6 +6103,9 @@ export class ArtemisAgentHost {
       ),
       mcpDirectToolNames,
       delegatedTools: [
+        ...session.agent.state.tools.filter(
+          (tool) => tool.name === "design_document",
+        ),
         ...session.agent.state.tools.filter((tool) =>
           tool.name.startsWith("attachment_"),
         ),
@@ -6311,7 +6353,12 @@ export class ArtemisAgentHost {
         collaborationContext,
       );
       const prompt = appendPromptFiles(
-        [basePrompt, autoCatalogNote, explicitDispatchNote]
+        [
+          basePrompt,
+          workflow === "design" ? DESIGN_WORKFLOW_INSTRUCTIONS : undefined,
+          autoCatalogNote,
+          explicitDispatchNote,
+        ]
           .filter((note): note is string => note !== undefined)
           .join("\n\n"),
         preparedAttachments,
@@ -6461,6 +6508,12 @@ export class ArtemisAgentHost {
           this.requestChildCancellation(hosted, child);
         }
       }
+      await Promise.all(
+        [...hosted.childAgents.values()]
+          .filter((child) => child.turnId === turnId)
+          .map((child) => child.done),
+      );
+      await this.bashExecutions.drainTurn(threadId, turnId);
       hosted.currentTurnId = undefined;
       hosted.currentMode = undefined;
       delete hosted.currentWorkflow;

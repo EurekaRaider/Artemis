@@ -30,14 +30,21 @@ const base = process.env.ARTEMIS_DESIGN_P0_OUTPUT ?? tmpdir();
 await mkdir(base, { recursive: true });
 const output = await mkdtemp(join(base, "artemis-design-p0-"));
 await build({
-  entryPoints: ["design-source", "design-store", "design-watchdog"].map(
-    (name) => fileURLToPath(new URL(`../src/main/${name}.ts`, import.meta.url)),
+  entryPoints: [
+    "design-source",
+    "design-store",
+    "design-watchdog",
+    "design-preview-host",
+    "design-export",
+  ].map((name) =>
+    fileURLToPath(new URL(`../src/main/${name}.ts`, import.meta.url)),
   ),
   outdir: output,
   outExtension: { ".js": ".cjs" },
   bundle: true,
   platform: "node",
   format: "cjs",
+  external: ["electron"],
 });
 const env = {
   ...process.env,
@@ -72,3 +79,27 @@ try {
   console.error("Native probe did not produce a report.");
 }
 process.exitCode = code === 0 && passed ? 0 : 1;
+
+if (process.exitCode !== 1) {
+  const production = spawn(
+    createRequire(import.meta.url)("electron"),
+    [fileURLToPath(new URL("./design-p0/production.cjs", import.meta.url))],
+    { env, stdio: "inherit" },
+  );
+  const deadline = setTimeout(() => production.kill("SIGKILL"), 60000);
+  const exit = await new Promise((resolve, reject) => {
+    production.once("error", reject);
+    production.once("exit", resolve);
+  });
+  clearTimeout(deadline);
+  const result = JSON.parse(
+    await readFile(join(output, "production-report.json"), "utf8"),
+  );
+  console.log(JSON.stringify(result, null, 2));
+  process.exitCode =
+    exit === 0 &&
+    result.checks.length >= 14 &&
+    result.checks.every((item) => !item.error && item.passed !== false)
+      ? 0
+      : 1;
+}
