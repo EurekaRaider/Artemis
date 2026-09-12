@@ -40,6 +40,7 @@ import {
 
 import type { ReviewComment, ReviewCommentAnchor } from "../shared/api.js";
 import type { TurnCheckpoint } from "./turn-recovery.js";
+import { TaskNotificationStore } from "./task-notification-store.js";
 
 interface ProjectRow {
   id: string;
@@ -452,6 +453,7 @@ function persistentAgentPayload(payload: AgentPayload): AgentPayload {
 
 export class AppStore {
   private readonly database: DatabaseSync;
+  readonly notifications: TaskNotificationStore;
 
   constructor(databasePath: string) {
     this.database = new DatabaseSync(databasePath);
@@ -748,6 +750,7 @@ export class AppStore {
     if (customAgentsVersion.user_version < CUSTOM_AGENTS_DATABASE_VERSION) {
       this.advanceDatabaseVersion(CUSTOM_AGENTS_DATABASE_VERSION);
     }
+    this.notifications = new TaskNotificationStore(this.database);
   }
 
   private migrateRunModes(): void {
@@ -1163,7 +1166,12 @@ export class AppStore {
     const row = this.database
       .prepare("SELECT * FROM threads WHERE id = ?")
       .get(id) as ThreadRow | undefined;
-    return row ? threadFromRow(row, this.getThreadGoal(id)) : undefined;
+    return row
+      ? {
+          ...threadFromRow(row, this.getThreadGoal(id)),
+          notification: this.notifications.state(id),
+        }
+      : undefined;
   }
 
   getThreadGoal(threadId: string): ThreadGoal | undefined {
@@ -1180,7 +1188,10 @@ export class AppStore {
           "SELECT * FROM threads ORDER BY archived ASC, pinned DESC, updated_at DESC",
         )
         .all() as unknown as ThreadRow[]
-    ).map((row) => threadFromRow(row, this.getThreadGoal(row.id)));
+    ).map((row) => ({
+      ...threadFromRow(row, this.getThreadGoal(row.id)),
+      notification: this.notifications.state(row.id),
+    }));
   }
 
   deleteThread(threadId: string): void {

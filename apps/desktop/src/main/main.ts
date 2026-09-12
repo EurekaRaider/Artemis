@@ -19,6 +19,10 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ensureProjectGitWatcher } from "./project-git-watcher.js";
 import {
+  TaskNotifications,
+  registerTaskNotifications,
+} from "./task-notifications.js";
+import {
   copyFile,
   mkdir,
   readFile,
@@ -406,6 +410,9 @@ interface PendingMultiUserInput {
 
 let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
+let taskNotifications: TaskNotifications | undefined;
+let pendingNotificationThreadId: string | undefined;
+let notificationRendererReady = false;
 let turnChangeSetService: TurnChangeSetService | undefined;
 const turnChangeSetCompletionTails = new Map<string, Promise<void>>();
 let agentProcess: AgentProcess | undefined;
@@ -2861,6 +2868,7 @@ function emitPayload(
   applyPayloadSideEffects(threadId, preparedPayload);
   accountGoalPayload(turnId, preparedPayload);
   scheduleTurnChangeSetCompletion(threadId, turnId, preparedPayload);
+  observeTaskNotification(event);
   return event;
 }
 
@@ -2910,7 +2918,76 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
     accountGoalPayload(event.turnId, event.payload);
     scheduleTurnChangeSetCompletion(threadId, event.turnId, event.payload);
   }
+  const notificationUpdates = persisted.flatMap((event) => {
+    const update = observeTaskNotification(event, true);
+    return update ? [update] : [];
+  });
+  if (notificationUpdates.length > 0) {
+    taskNotifications?.refresh();
+    for (const update of notificationUpdates) {
+      if (update.notice) taskNotifications?.show(update.notice);
+    }
+  }
   return persisted;
+}
+
+function observeTaskNotification(
+  event: AgentEvent,
+  deferNative = false,
+): ReturnType<AppStore["notifications"]["observe"]> {
+  if (
+    ![
+      "turn.started",
+      "turn.completed",
+      "turn.failed",
+      "approval.requested",
+      "approval.resolved",
+      "user-input.requested",
+      "user-input.resolved",
+    ].includes(event.payload.type)
+  )
+    return;
+  if (!store || !taskNotifications) return;
+  const thread = store.getThread(event.threadId);
+  if (!thread) return;
+  const result = store.notifications.observe(event, {
+    viewed: taskNotifications.isViewing(thread.id),
+    suppressCompletion: !!thread.goal && thread.goal.status !== "complete",
+    approvalPending:
+      event.payload.type === "approval.requested" &&
+      pendingApprovals.hasWhere(
+        (pending) =>
+          pending.request.threadId === thread.id &&
+          event.payload.type === "approval.requested" &&
+          pending.request.approvalId === event.payload.approvalId,
+      ),
+  });
+  if (!result) return;
+  emitPayload(thread.id, undefined, {
+    type: "thread.notification.updated",
+    state: result.state,
+    threadStatus: thread.status,
+  });
+  if (!deferNative) {
+    taskNotifications.refresh();
+    if (result.notice) taskNotifications.show(result.notice);
+  }
+  return result;
+}
+
+function openTaskNotification(threadId: string): void {
+  pendingNotificationThreadId = threadId;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createMainWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  if (notificationRendererReady) {
+    mainWindow.webContents.send(IPC.automationThreadOpen, threadId);
+    pendingNotificationThreadId = undefined;
+  }
 }
 
 function scheduleTurnChangeSetCompletion(
@@ -6447,6 +6524,12 @@ function automationRunNotification(
   automation: Automation,
   run: AutomationRun,
 ): void {
+  // Task-backed terminal/interaction events use the shared unread notification path.
+  if (
+    run.threadId &&
+    ["completed", "failed", "waiting-approval"].includes(run.state)
+  )
+    return;
   if (!Notification.isSupported()) return;
   const title =
     run.state === "completed"
@@ -6604,6 +6687,42 @@ async function cancelRunningGoalContinuation(threadId: string): Promise<void> {
 }
 
 function registerIpc(): void {
+  ipcMain.on(IPC.taskView, (event, input: unknown) => {
+    if (
+      shuttingDown ||
+      event.sender !== mainWindow?.webContents ||
+      event.senderFrame !== mainWindow.webContents.mainFrame ||
+      !taskNotifications ||
+      !store
+    )
+      return;
+    if (!input || typeof input !== "object") return;
+    const { threadId, seenSeq } = input as {
+      threadId?: unknown;
+      seenSeq?: unknown;
+    };
+    if (
+      threadId !== undefined &&
+      (typeof threadId !== "string" || !store.getThread(threadId))
+    )
+      return;
+    taskNotifications.viewedThreadId = threadId as string | undefined;
+    if (
+      typeof threadId === "string" &&
+      taskNotifications.isViewing(threadId) &&
+      typeof seenSeq === "number" &&
+      Number.isSafeInteger(seenSeq)
+    ) {
+      const state = store.notifications.markRead(threadId, seenSeq);
+      if (state)
+        emitPayload(threadId, undefined, {
+          type: "thread.notification.updated",
+          state,
+          threadStatus: store.getThread(threadId)!.status,
+        });
+    }
+    taskNotifications.refresh();
+  });
   const taskSummaries = new Map<string, Promise<string | undefined>>();
   ipcMain.handle(IPC.threadTaskSummary, async (_event, threadId: string) => {
     const thread = store?.getThread(String(threadId ?? ""));
@@ -8990,6 +9109,7 @@ function registerIpc(): void {
       throw new Error("Application store is not ready.");
     }
     store.removeProject(projectId);
+    taskNotifications?.refresh();
   });
 
   const projectForGitRequest = (projectId: unknown): Project => {
@@ -9622,7 +9742,11 @@ function registerIpc(): void {
         });
         openedThreads.delete(thread.id);
       }
-      return store.updateThread(thread.id, { archived: command.archived });
+      const updated = store.updateThread(thread.id, {
+        archived: command.archived,
+      });
+      taskNotifications?.refresh();
+      return updated;
     },
   );
 
@@ -9748,6 +9872,7 @@ function registerIpc(): void {
       await taskSourceImages().deleteThread(threadId);
       await attachmentStore().deleteThread(attachmentScope(threadId));
       store.deleteThread(threadId);
+      taskNotifications?.refresh();
       imService?.deleteThread(threadId);
       await cleanupGoalObjective(goalObjective);
     },
@@ -15513,6 +15638,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
 }
 
 function createMainWindow(): BrowserWindow {
+  notificationRendererReady = false;
   const smokeScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT;
   const smokeAccessibility = process.env.ARTEMIS_SMOKE_ACCESSIBILITY;
   const smokeFocusedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_FOCUSED;
@@ -15574,6 +15700,22 @@ function createMainWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
+  window.on("closed", () => {
+    if (mainWindow === window) {
+      mainWindow = undefined;
+      if (taskNotifications) taskNotifications.viewedThreadId = undefined;
+    }
+  });
+  window.webContents.on(
+    "did-start-navigation",
+    (_event, _url, _inPlace, isMainFrame) => {
+      if (isMainFrame) {
+        notificationRendererReady = false;
+        if (taskNotifications) taskNotifications.viewedThreadId = undefined;
+      }
+    },
+  );
+  window.webContents.on("did-finish-load", () => taskNotifications?.refresh());
   const smokeRendererConsoleEntries: Array<{
     level: "warning" | "error";
     message: string;
@@ -15759,6 +15901,12 @@ function createMainWindow(): BrowserWindow {
         };
       }
       markStartupStage("renderer-ready");
+      notificationRendererReady = true;
+      if (pendingNotificationThreadId) {
+        const target = pendingNotificationThreadId;
+        pendingNotificationThreadId = undefined;
+        window.webContents.send(IPC.automationThreadOpen, target);
+      }
       if (!smokeMode) {
         for (const thread of store?.listThreads() ?? []) {
           if (thread.goal?.status === "active") {
@@ -20759,6 +20907,27 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+    taskNotifications = new TaskNotifications({
+      store,
+      window: () => mainWindow,
+      locale: currentLocale,
+      open: openTaskNotification,
+      disabled: smokeMode,
+      report: (error) =>
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "warning",
+          message: `Task notification: ${String(error)}`,
+        }),
+    });
+    if (!smokeMode)
+      await registerTaskNotifications().catch((error) => {
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "warning",
+          message: `Task notification registration: ${String(error)}`,
+        });
+      });
     // Boot sweep (D#152): pending invocation records are crash remnants —
     // they can never legitimately survive a restart. Mark them
     // outcome-unknown so they are never silently re-dispatched.
@@ -20775,6 +20944,7 @@ app
       store,
     );
     for (const event of store.recoverInterruptedThreads()) {
+      observeTaskNotification(event);
       if (event.turnId && event.payload.type === "turn.activity")
         activeTurns.set(event.threadId, event.turnId);
     }
@@ -21154,7 +21324,6 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   shuttingDown = true;
-  imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     if (pending.value.timeout !== undefined) {
       clearTimeout(pending.value.timeout);
@@ -21176,5 +21345,10 @@ app.on("before-quit", () => {
   }
   void mcpClientManager?.dispose();
   agentProcess?.dispose();
+});
+
+// Keep the store available while renderer IPC drains during window teardown.
+app.on("will-quit", () => {
+  imService?.stop();
   store?.close();
 });

@@ -825,6 +825,7 @@ export interface AttachmentImportResult {
 export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
+  reportTaskView(input: { threadId?: string; seenSeq?: number }): void;
   onImTaskCreated(listener: (thread: Thread) => void): () => void;
   getImStatus(): Promise<
     ImStatus & { connections?: unknown[]; spaces?: unknown[] }
@@ -1169,6 +1170,7 @@ export interface ArtemisApi {
 }
 
 export const IPC = {
+  taskView: "artemis:task-view",
   imTaskCreated: "artemis:im-task-created",
   imStatus: "artemis:im-status",
   imSave: "artemis:im-save",

@@ -294,12 +294,16 @@ describe("multi-question card keyboard navigation (decision M option 2)", () => 
 });
 
 describe("multi-question card answering (decision N option 1)", () => {
-  it("sends exactly one kind'd resolution with the full field set on option click", async () => {
+  it("sends one resolution only after submitting the selected option", async () => {
     const user = userEvent.setup();
     const onResolve = vi.fn();
     renderCard({ onResolve });
     await user.click(
       within(currentPanel()).getByRole("option", { name: /预发布/ }),
+    );
+    expect(onResolve).not.toHaveBeenCalled();
+    await user.click(
+      within(currentPanel()).getByRole("button", { name: "提交选择" }),
     );
     expect(onResolve).toHaveBeenCalledTimes(1);
     expect(onResolve).toHaveBeenCalledWith({
@@ -317,11 +321,17 @@ describe("multi-question card answering (decision N option 1)", () => {
     renderCard({ onResolve });
     const q1Options = within(currentPanel()).getAllByRole("option");
     await user.click(q1Options[0]);
+    await user.click(
+      within(currentPanel()).getByRole("button", { name: "提交选择" }),
+    );
     await user.click(q1Options[1]);
     expect(onResolve).toHaveBeenCalledTimes(1);
 
     await user.click(tabs()[1]);
     await user.click(within(currentPanel()).getAllByRole("option")[0]);
+    await user.click(
+      within(currentPanel()).getByRole("button", { name: "提交选择" }),
+    );
     expect(onResolve).toHaveBeenCalledTimes(2);
     expect(onResolve).toHaveBeenLastCalledWith(
       expect.objectContaining({ questionId: "q2" }),
@@ -389,6 +399,9 @@ describe("multi-question card state and recovery", () => {
       "1",
     );
     await user.click(within(currentPanel()).getAllByRole("option")[0]);
+    await user.click(
+      within(currentPanel()).getByRole("button", { name: "提交选择" }),
+    );
     expect(onResolve).toHaveBeenCalledWith(
       expect.objectContaining({ questionId: "q2" }),
     );
@@ -533,6 +546,9 @@ describe("multi-question card auto-advance focus (PR10C #125 review fix)", () =>
     await user.click(
       within(currentPanel()).getByRole("option", { name: /预发布/ }),
     );
+    await user.click(
+      within(currentPanel()).getByRole("button", { name: "提交选择" }),
+    );
     expect(onResolve).toHaveBeenCalledTimes(1);
 
     // The parent reducer pushes the recorded answer back down; the card
@@ -590,6 +606,9 @@ describe("multi-question card auto-advance focus (PR10C #125 review fix)", () =>
     expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
     await user.click(
       within(currentPanel()).getByRole("option", { name: /预发布/ }),
+    );
+    await user.click(
+      within(currentPanel()).getByRole("button", { name: "提交选择" }),
     );
     expect(onResolve).toHaveBeenCalledTimes(1);
 

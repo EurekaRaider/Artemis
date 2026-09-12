@@ -40,7 +40,7 @@ const steps = [
     themes: ["light", "dark"],
     zoomArm: true,
     scenario:
-      "Full interactive round: pending 3-question card renders with roving dots and per-question countdowns, Q1 answered by a real recommended-option click, Q2 reached by real keyboard (dot ArrowRight, option Shift+Tab entry) and answered by a real Enter activation, Q3 answered through the other-inline custom form with an IME-safe Enter, then duplicate resolutions rejected, the legacy single-question card answered end to end, and a 200% zoom layout pass.",
+      "Full interactive round: pending 3-question card renders with roving dots and per-question countdowns, Q1 answered by selecting the recommended option and clicking Submit selection, Q2 reached by real keyboard (dot ArrowRight, option entry past Submit selection with Shift+Tab) and answered by a real keyboard selection followed by Tab and Enter submission, Q3 answered through the other-inline custom form with an IME-safe Enter, then duplicate resolutions rejected, the legacy single-question card answered end to end, and a 200% zoom layout pass.",
   },
   {
     id: "multi-ui-expired",
@@ -879,13 +879,17 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     ),
   });
 
-  // (2) Real click answers Q1 with the recommended option.
+  // (2) Real clicks select and submit the recommended option for Q1.
   await driver.pressKey("Home", 36);
   await driver.waitForCard(
     "Home returns to q1 for answering",
     (state) => state.activeSlideIndex === 0,
   );
   await driver.clickActiveOptionByLabel("Ship it");
+  await driver.clickElement(
+    'document.querySelector(".user-question-slide.active .user-input-submit")',
+    "submit selected Q1 option",
+  );
   // The auto-advance lands one rAF after the answers update, so the wait
   // must gate on both the progress and the advanced slide.
   snapshot = await driver.waitForCard(
@@ -998,6 +1002,11 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     "q2 active, its dot selected and focused",
   );
   await driver.pressKey("Tab", 9, { modifiers: 8 });
+  await driver.waitForCard(
+    "submit selection focused before option list",
+    (state) => state.activeElement?.className === "user-input-submit",
+  );
+  await driver.pressKey("Tab", 9, { modifiers: 8 });
   snapshot = await driver.waitForCard(
     "roving option focused after Shift+Tab",
     (state) =>
@@ -1063,6 +1072,8 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
   await driver.waitForCard("focus back on In-app banner", (state) =>
     Boolean(state.activeElement?.text.includes("In-app banner")),
   );
+  await driver.pressKey("Enter", 13, { text: "\r" });
+  await driver.pressKey("Tab", 9);
   await driver.pressKey("Enter", 13, { text: "\r" });
   snapshot = await driver.waitForCard(
     "progress 2/3 and slide advanced after keyboard answer",
@@ -1239,6 +1250,10 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     )`,
     "legacy recommended option",
   );
+  await driver.clickElement(
+    'document.querySelector(".user-input-card:not(.multi-question) .user-input-submit")',
+    "submit legacy selection",
+  );
   await driver.waitForCard(
     "legacy card answered",
     (state) => state.legacyCards[0]?.answered === true,
@@ -1404,9 +1419,10 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     },
     optionLevel: {
       entry:
-        "Shift+Tab from the focused dot lands on the roving (tabIndex 0) option",
+        "Two Shift+Tab presses from the focused dot pass Submit selection and enter the roving option",
       keysPressed: ["ArrowDown", "End", "Home"],
-      activation: "Enter keyDown(\\r)+keyUp activates the focused option",
+      activation:
+        "Enter selects the focused option; Tab then Enter submits the selection",
     },
     focusIn: "real mouse click focuses a dot; Shift+Tab enters the option list",
     ime: {
@@ -1548,6 +1564,10 @@ async function driveExpiredArm(driver, testCase, artifactsFor) {
     (state) => state.activeSlideIndex === 1,
   );
   await driver.clickActiveOptionByLabel("Email digest");
+  await driver.clickElement(
+    'document.querySelector(".user-question-slide.active .user-input-submit")',
+    "submit live question selection",
+  );
   snapshot = await driver.waitForCard(
     "mixed card settled timed-out",
     (state) => state.timedOut && !state.pending,

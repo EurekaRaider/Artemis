@@ -15,6 +15,7 @@ import type {
   UserInputQuestionState,
   UserInputState,
 } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { UserInputFrame } from "@artemis/ui/patterns";
 
 import { localizedCopy } from "../shared/i18n-resources.js";
@@ -28,7 +29,7 @@ import {
 // D#76 PR10C (decision L option 1): the multi-question card keeps the v17 17b
 // semantics — one question in focus at a time, a dots tablist for question
 // navigation, per-question countdown, and per-question resolutions (decision N
-// option 1: clicking an option sends exactly one kind'd resolution). All state
+// option 1: submitting a selection sends one kind'd resolution). All state
 // is derived from the reducer's MultiQuestionUserInputState; this component
 // never mutates question status locally.
 
@@ -44,6 +45,8 @@ const multiQuestionCopy = {
     otherAnswerDetail: "输入一个不在以上列表中的答案",
     customAnswer: "输入其他答案",
     submitAnswer: "提交",
+    submitSelection: "提交选择",
+    waitingSelection: "等待选择",
     timeoutHint: "5 分钟内未选择将自动采用模型推荐项",
     answered: "已选择",
     timedOut: "5 分钟未选择，已采用模型推荐项",
@@ -60,6 +63,8 @@ const multiQuestionCopy = {
     otherAnswerDetail: "Type an answer that is not listed above",
     customAnswer: "Type another answer",
     submitAnswer: "Submit",
+    submitSelection: "Submit selection",
+    waitingSelection: "Waiting for selection",
     timeoutHint: "The recommended option is used automatically after 5 minutes",
     answered: "Selected",
     timedOut: "No response for 5 minutes; used the model recommendation",
@@ -271,10 +276,9 @@ function QuestionSlide({
                 className={`user-input-option${option.recommended ? " recommended" : ""}${activeOptionIndex === index ? " active" : ""}`}
                 disabled={busy}
                 key={option.label}
-                onClick={() => onOptionSelect(option.label)}
+                onClick={() => setActiveOptionIndex(index)}
                 onFocus={() => setActiveOptionIndex(index)}
                 onKeyDown={handleOptionKeyDown}
-                onMouseEnter={() => setActiveOptionIndex(index)}
                 ref={(button) => {
                   slideOptionButtons.current[index] = button;
                   registerOptionButton(question.questionId, index, button);
@@ -289,14 +293,14 @@ function QuestionSlide({
                 </span>
                 <span className="user-input-option-copy">
                   <span className="user-input-option-title">
-                    <strong>{option.label}</strong>
+                    <strong title={option.label}>{option.label}</strong>
                     {option.recommended && (
                       <small className="recommendation-badge">
                         {t.recommended}
                       </small>
                     )}
                   </span>
-                  <small>{option.description}</small>
+                  <small title={option.description}>{option.description}</small>
                 </span>
                 <EnterIcon />
               </button>
@@ -314,7 +318,6 @@ function QuestionSlide({
                 }}
                 onFocus={() => setActiveOptionIndex(otherOptionIndex)}
                 onKeyDown={handleOptionKeyDown}
-                onMouseEnter={() => setActiveOptionIndex(otherOptionIndex)}
                 ref={(button) => {
                   slideOptionButtons.current[otherOptionIndex] = button;
                   registerOptionButton(
@@ -352,6 +355,21 @@ function QuestionSlide({
               </button>
             )}
           </div>
+          {!showOther && (
+            <div className="user-input-actions">
+              <button
+                className="user-input-submit"
+                type="button"
+                disabled={busy || !question.options[activeOptionIndex]}
+                onClick={() => {
+                  const option = question.options[activeOptionIndex];
+                  if (option) onOptionSelect(option.label);
+                }}
+              >
+                {t.submitSelection}
+              </button>
+            </div>
+          )}
           {showOther && (
             <form
               className="user-input-other-inline"
@@ -622,21 +640,12 @@ export function MultiQuestionUserInputCard({
     >
       <header>
         <span aria-hidden="true" className="user-input-mark">
-          <Icon size={18}>
-            <path
-              d="M9.2 9.1a2.9 2.9 0 1 1 4.4 2.5c-1 .6-1.6 1.1-1.6 2.2"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.7"
-            />
-            <path
-              d="M12 17.5h.01"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="2.2"
-            />
-          </Icon>
+          <ArtemisIcon
+            className="icon"
+            name="approval-ask"
+            width={18}
+            height={18}
+          />
         </span>
         <div className="user-input-heading">
           <small className="user-input-eyebrow">{input.header}</small>
@@ -648,16 +657,19 @@ export function MultiQuestionUserInputCard({
           </strong>
         </div>
         {input.status === "pending" && currentQuestion && (
-          <time
-            aria-label={t.timeoutHint}
-            className="user-input-timeout"
-            dateTime={currentQuestion.expiresAt}
-            title={t.timeoutHint}
-          >
-            {formatUserInputCountdown(
-              Date.parse(currentQuestion.expiresAt) - clock,
-            )}
-          </time>
+          <span className="user-input-status">
+            <span>{t.waitingSelection}</span>
+            <time
+              aria-label={t.timeoutHint}
+              className="user-input-timeout"
+              dateTime={currentQuestion.expiresAt}
+              title={t.timeoutHint}
+            >
+              {formatUserInputCountdown(
+                Date.parse(currentQuestion.expiresAt) - clock,
+              )}
+            </time>
+          </span>
         )}
       </header>
       <div className="user-question-progress">

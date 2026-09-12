@@ -9,6 +9,7 @@ import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
+  reportTaskView: (input) => ipcRenderer.send(IPC.taskView, input),
   onImTaskCreated(listener) {
     const handler = (
       _event: Electron.IpcRendererEvent,

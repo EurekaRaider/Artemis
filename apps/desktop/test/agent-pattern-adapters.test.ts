@@ -36,7 +36,7 @@ describe("Desktop agent pattern adapters", () => {
     expect(view.statusLabel).toBe("In progress");
   });
 
-  it("preserves approval content and the existing deny/project/session/once order", () => {
+  it("preserves approval content and orders deny, once, and always allow", () => {
     const approval: ApprovalState = {
       type: "approval.requested",
       approvalId: "approval-1",
@@ -64,17 +64,27 @@ describe("Desktop agent pattern adapters", () => {
     );
     expect(view.actions.map((action) => action.id)).toEqual([
       "deny",
-      "approve-project",
-      "approve-session",
       "approve-once",
+      "approve-project",
     ]);
     expect(view.actions.map((action) => action.scope)).toEqual([
       "once",
+      "once",
       "project",
-      "session",
+    ]);
+    expect(view.actions[1]?.recommended).toBe(true);
+    const restricted = approvalPatternView({
+      ...approval,
+      allowedScopes: ["once"],
+    });
+    expect(restricted.actions.map((action) => action.id)).toEqual([
+      "deny",
+      "approve-once",
+    ]);
+    expect(restricted.actions.map((action) => action.scope)).toEqual([
+      "once",
       "once",
     ]);
-    expect(view.actions.at(-1)?.recommended).toBe(true);
   });
 
   it("maps tool presentation without exposing raw tool payloads to UI patterns", () => {
