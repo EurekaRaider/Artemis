@@ -3260,28 +3260,62 @@ body[data-dock="open"] .dock-resizer {
 }
 .dz-comment-actions { display: flex; align-items: center; gap: 6px; }
 .dz-comment-actions .btn { min-height: 25px; padding: 3px 10px; font-size: 11px; }
-/* 编辑检查浮层 */
-.dz-inspect {
+/* 编辑检查浮层 → 已由 contenteditable 直接编辑替代；
+   标记工具条 + 文字标注（对照 open-design PreviewDrawOverlay 工具组） */
+.dz-draw-tools {
   position: absolute;
-  right: 14px; bottom: 96px;
-  z-index: 20;
-  width: min(238px, calc(100% - 28px));
-  padding: 11px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 26;
   display: flex;
-  flex-direction: column;
-  gap: 9px;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
-.dz-inspect > strong { font-size: 12.5px; font-weight: 600; }
-.dz-inspect > .mono { font-size: 10px; color: var(--text-3); }
-.dz-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-2); }
-.dz-inline { display: flex; align-items: center; gap: 6px; }
-.dz-inline .input { flex: 1; min-height: 26px; font-size: 11px; }
-.dz-inspect-actions { display: flex; align-items: center; gap: 6px; }
-.dz-inspect-actions .btn { min-height: 25px; padding: 3px 10px; font-size: 11px; }
+.dz-draw-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.dz-draw-tool, .dz-draw-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: calc(var(--r-sm) - 1px);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-draw-tool.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.dz-draw-tool:hover, .dz-draw-act:hover { color: var(--text); }
+.dz-draw-tools .dz-divider { height: 14px; }
+.dz-draw-send { min-height: 24px; padding: 3px 10px; font-size: 11px; }
+.dz-draw-text {
+  position: absolute;
+  z-index: 18;
+  min-width: 24px;
+  padding: 1px 4px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  font: 550 12px/1.4 var(--font-ui);
+  color: var(--text);
+  outline: none;
+  white-space: nowrap;
+  cursor: text;
+}
+.dz-comment-pin { z-index: 19; }
 /* 版本历史浮层 */
 .dz-history {
   position: absolute;
@@ -3334,7 +3368,7 @@ body[data-dock="open"] .dock-resizer {
   pointer-events: none;
 }
 .dz-viewport.dz-drawing .dz-draw-layer { pointer-events: auto; cursor: crosshair; }
-.dz-draw-layer path {
+.dz-draw-layer path, .dz-draw-layer rect {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2.5;

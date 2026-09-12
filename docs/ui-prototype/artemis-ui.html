@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=172" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=173" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=146" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -581,13 +581,13 @@
 </div>
 <span class="sp"></span>
 <div class="dz-toolbar-actions">
-<button aria-label="截图并发送到对话" class="dz-iconbtn" id="dzShotBtn" title="截图并发送到对话" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg></button>
-<button aria-label="添加评论" class="dz-iconbtn" id="dzCommentBtn" title="添加评论" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M15 8.5H6.5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2H8v2.7l3.3-2.7h3.7a2 2 0 0 0 2-2v-1.5"></path><path d="M18 3.2v4.6M15.7 5.5h4.6"></path></svg></button>
-<button aria-label="标注" class="dz-iconbtn" id="dzDrawBtn" title="标注" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
+<button aria-label="截图发送到对话输入框" class="dz-iconbtn" id="dzShotBtn" title="截图发送到对话输入框" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg></button>
+<button aria-label="注释" class="dz-iconbtn" id="dzCommentBtn" title="注释" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M15 8.5H6.5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2H8v2.7l3.3-2.7h3.7a2 2 0 0 0 2-2v-1.5"></path><path d="M18 3.2v4.6M15.7 5.5h4.6"></path></svg></button>
+<button aria-label="标记" class="dz-iconbtn" id="dzDrawBtn" title="标记" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
 <span aria-hidden="true" class="dz-divider"></span>
-<button aria-label="编辑页面" class="dz-iconbtn" id="dzEditBtn" title="编辑页面" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
+<button aria-label="编辑" class="dz-iconbtn" id="dzEditBtn" title="编辑" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
 <span aria-hidden="true" class="dz-divider"></span>
-<button aria-label="评论列表" class="dz-iconbtn dz-comment-count" id="dzCommentListBtn" title="评论列表" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg><span class="dz-count" id="dzCount">0</span></button>
+<button aria-label="评论" class="dz-iconbtn dz-comment-count" id="dzCommentListBtn" title="评论" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg><span class="dz-count" id="dzCount">0</span></button>
 <div class="dz-zoom">
 <button aria-expanded="false" aria-haspopup="menu" class="dz-zoom-trigger" id="dzZoomBtn" title="重置缩放" type="button"><span id="dzZoomLabel">100%</span></button>
 <div class="dz-menu" hidden="" id="dzZoomMenu" role="menu">
@@ -652,20 +652,25 @@
 <span class="ln">133</span>    &lt;button class="btn primary"&gt;保存设置&lt;/button&gt;
 <span class="ln">134</span>  &lt;/div&gt;</pre>
 <div class="dz-tool-hint" hidden="" id="dzToolHint">在预览里点击要评论的元素</div>
-<div class="dz-comment-pin" hidden="" id="dzCommentPin" title="评论">💬</div>
+<div class="dz-comment-pin" hidden="" id="dzCommentPin" title="注释"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="13"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg></div>
 <div class="dz-comment-bubble" hidden="" id="dzCommentBubble">
 <span class="dz-comment-who">nicky · 现在</span>
 <textarea aria-label="评论内容" class="dz-comment-input" placeholder="输入评论，@ 可提及成员"></textarea>
-<div class="dz-comment-actions"><span class="card-sub">点击元素定位</span><span class="sp"></span><button class="btn btn-quiet" id="dzCommentCancel" type="button">取消</button><button class="btn btn-primary" id="dzCommentSend" type="button">发送</button></div>
-</div>
-<div class="dz-inspect" hidden="" id="dzInspect">
-<strong>保存设置按钮</strong>
-<span class="mono">hero-cta · 源码第 131 行</span>
-<label class="dz-field"><span>文案</span><input class="input" id="dzInspectText" type="text" value="保存设置"/></label>
-<label class="dz-field"><span>颜色</span><span class="dz-inline"><i class="design-swatch" style="background:#111214"></i><input class="input mono" type="text" value="#111214"/></span></label>
-<div class="dz-inspect-actions"><span class="sp"></span><button class="btn btn-quiet" id="dzInspectCancel" type="button">取消</button><button class="btn btn-primary" id="dzInspectSave" type="button">保存修改</button></div>
+<div class="dz-comment-actions"><span class="card-sub" id="dzCommentTarget">点击元素定位</span><span class="sp"></span><button class="btn btn-quiet" id="dzCommentCancel" type="button">取消</button><button class="btn btn-primary" id="dzCommentSend" type="button">发送</button></div>
 </div>
 <svg aria-hidden="true" class="dz-draw-layer" id="dzDrawLayer"></svg>
+<div class="dz-draw-tools" hidden="" id="dzDrawTools" role="toolbar" aria-label="标记工具">
+<div class="dz-draw-seg">
+<button aria-label="画笔" class="dz-draw-tool active" data-dz-dtool="pen" title="画笔" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
+<button aria-label="方框" class="dz-draw-tool" data-dz-dtool="box" title="方框" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="13" rx="1.5" width="15" x="4.5" y="5.5"></rect></svg></button>
+<button aria-label="文字" class="dz-draw-tool" data-dz-dtool="text" title="文字" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M5 7V5.5h14V7M12 5.5v13M9.5 18.5h5"></path></svg></button>
+</div>
+<span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="撤销" class="dz-draw-act" id="dzDrawUndo" title="撤销" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M8.5 5.5 4 10l4.5 4.5"></path><path d="M4 10h9a6 6 0 0 1 0 12h-2"></path></svg></button>
+<button aria-label="重做" class="dz-draw-act" id="dzDrawRedo" title="重做" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M15.5 5.5 20 10l-4.5 4.5"></path><path d="M20 10h-9a6 6 0 0 0 0 12h2"></path></svg></button>
+<span aria-hidden="true" class="dz-divider"></span>
+<button class="btn btn-primary dz-draw-send" id="dzDrawSend" type="button">发送到输入框</button>
+</div>
 <aside aria-label="评论列表" class="dz-comment-panel" hidden="" id="dzCommentPanel">
 <div class="dz-comment-panel-head"><strong>评论</strong><span class="dz-count-badge" id="dzPanelCount">0</span><span class="sp"></span><button aria-label="关闭评论列表" class="dz-panel-close" id="dzCommentPanelClose" type="button"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="12"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
 <div class="dz-comment-list" id="dzCommentList"></div>
@@ -690,6 +695,7 @@
 <span class="card-sub">按 Esc 退出演示</span>
 <span class="sp"></span>
 <button aria-label="退出演示" class="dz-iconbtn" id="dzPresentExit" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
 </div>
 </div>
 </div>
@@ -1457,6 +1463,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=162"></script>
+<script src="workspace/workspace.js?v=163"></script>
 </body>
 </html>

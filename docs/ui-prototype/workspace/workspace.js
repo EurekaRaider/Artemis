@@ -1850,11 +1850,13 @@
         b.classList.remove("active");
         b.setAttribute("aria-pressed", "false");
       });
-      var vp = $("#dzViewport");
-      if (vp) vp.classList.remove("dz-drawing");
+      dzDrawExit(false);
+      $$('#dzMockDesktop [contenteditable="true"], #dzMockPhone [contenteditable="true"]').forEach(function (m) {
+        m.contentEditable = "false";
+      });
       dzHint("");
       $("#dzCommentBubble").hidden = true;
-      $("#dzInspect").hidden = true;
+      $("#dzCommentPin").hidden = true;
     }
     function dzShow(view, file, title) {
       var files = view === "files";
@@ -2016,40 +2018,78 @@
       }
     });
 
-    /* 评论 / 标注 / 编辑 三个工具的开关态（class + aria-pressed 同步，对照 open-design） */
+    /* 注释 / 标记 / 编辑 三个工具（对照 open-design activate*Tool 的互斥模型） */
     function dzToolState(btn, on) {
       btn.classList.toggle("active", on);
       btn.setAttribute("aria-pressed", String(on));
     }
+    function dzEditExit(notify) {
+      var btn = $("#dzEditBtn");
+      if (!btn.classList.contains("active")) return;
+      dzToolState(btn, false);
+      $$('#dzMockDesktop [contenteditable="true"], #dzMockPhone [contenteditable="true"]').forEach(function (m) {
+        m.contentEditable = "false";
+      });
+      dzHint("");
+      if (notify) dzToast("编辑已保存");
+    }
     $("#dzCommentBtn").addEventListener("click", function () {
       dzCommentMode = !dzCommentMode;
       dzToolState($("#dzCommentBtn"), dzCommentMode);
-      dzToolState($("#dzDrawBtn"), false);
-      dzToolState($("#dzEditBtn"), false);
-      dzHint(dzCommentMode ? "在预览里点击要评论的元素" : "");
+      if (dzCommentMode) {
+        dzDrawExit(false);
+        dzEditExit(false);
+        dzHint("点击要注释的元素");
+      } else {
+        dzHint("");
+      }
     });
+    /* 编辑：预览直接可编辑（contenteditable），再点一次保存 */
     $("#dzEditBtn").addEventListener("click", function () {
-      var active = $("#dzEditBtn").classList.toggle("active");
-      dzToolState($("#dzEditBtn"), active);
-      dzToolState($("#dzCommentBtn"), false);
-      dzToolState($("#dzDrawBtn"), false);
+      if ($("#dzEditBtn").classList.contains("active")) {
+        dzEditExit(true);
+        return;
+      }
+      dzToolState($("#dzEditBtn"), true);
       dzCommentMode = false;
-      dzHint(active ? "点击元素直接微调文字与颜色" : "");
+      dzToolState($("#dzCommentBtn"), false);
+      dzDrawExit(false);
+      $$("#dzMockDesktop .mock-main, #dzMockPhone .dz-phone-screen").forEach(function (m) {
+        m.contentEditable = "true";
+      });
+      dzHint("点击文字直接编辑，完成后再点一次「编辑」保存");
     });
 
-    /* 点 mock 里的目标元素：评论模式弹气泡，编辑模式弹检查面板 */
-    $$(".dz-stage [data-dz-target]").forEach(function (el) {
-      el.addEventListener("click", function (e) {
-        e.stopPropagation();
-        if (dzCommentMode) {
-          var pin = $("#dzCommentPin");
-          pin.hidden = false;
-          $("#dzCommentBubble").hidden = false;
-          $("#dzCommentBubble .dz-comment-input").focus();
-        } else if ($("#dzEditBtn").classList.contains("active")) {
-          $("#dzInspect").hidden = false;
-        }
-      });
+    /* 注释模式：点预览任意元素 → 定位 pin + 气泡（对象取自点击元素） */
+    dzStage.addEventListener("click", function (e) {
+      if (!dzCommentMode) return;
+      e.preventDefault();
+      var labelled = e.target.closest(".mock-btn, .mock-field, .mock-head b, .mock-row, label");
+      var name = labelled
+        ? (labelled.tagName === "LABEL"
+            ? labelled.textContent
+            : labelled.querySelector("b")
+              ? labelled.querySelector("b").textContent
+              : labelled.textContent)
+        : "页面区域";
+      name = name.trim().slice(0, 12) || "页面区域";
+      var vp = $("#dzViewport").getBoundingClientRect();
+      var x = e.clientX - vp.left;
+      var y = e.clientY - vp.top;
+      var pin = $("#dzCommentPin");
+      pin.style.left = Math.round(x) + "px";
+      pin.style.top = Math.round(y) + "px";
+      pin.style.right = "auto";
+      pin.style.bottom = "auto";
+      pin.hidden = false;
+      var bubble = $("#dzCommentBubble");
+      bubble.style.left = Math.min(Math.round(x) + 14, Math.round(vp.width - 280)) + "px";
+      bubble.style.top = Math.max(8, Math.round(y) - 40) + "px";
+      bubble.style.right = "auto";
+      bubble.style.bottom = "auto";
+      bubble.hidden = false;
+      $("#dzCommentTarget").textContent = "注释对象：" + name;
+      $("#dzCommentBubble .dz-comment-input").focus();
     });
     $("#dzCommentCancel").addEventListener("click", function () {
       $("#dzCommentBubble").hidden = true;
@@ -2059,25 +2099,21 @@
       var input = $("#dzCommentBubble .dz-comment-input");
       var text = input.value.trim();
       if (text) {
-        dzComments.push({ who: "nicky", at: "刚刚", target: "保存设置按钮", text: text, resolved: false });
+        dzComments.push({
+          who: "nicky",
+          at: "刚刚",
+          target: $("#dzCommentTarget").textContent.replace("注释对象：", "") || "页面区域",
+          text: text,
+          resolved: false,
+        });
         input.value = "";
         dzRenderComments();
-        dzToast("评论已发送");
+        dzToast("注释已发送");
       }
       $("#dzCommentBubble").hidden = true;
+      $("#dzCommentPin").hidden = true;
       dzCommentMode = false;
       dzToolState($("#dzCommentBtn"), false);
-      dzHint("");
-    });
-    $("#dzInspectCancel").addEventListener("click", function () {
-      $("#dzInspect").hidden = true;
-    });
-    $("#dzInspectSave").addEventListener("click", function () {
-      var name = $("#dzInspectText").value || "保存设置";
-      var btn = $(".dz-stage .mock-btn.primary");
-      if (btn) btn.textContent = name;
-      $("#dzInspect").hidden = true;
-      dzToolState($("#dzEditBtn"), false);
       dzHint("");
     });
 
@@ -2139,56 +2175,164 @@
       }, 3200);
     });
 
-    /* 标注：真实自由画笔（SVG 折线），关闭时若有笔迹提示已发送并清除 */
+    /* 标记：画笔 / 方框 / 文字 + 撤销重做 + 发送到输入框（对照 open-design PreviewDrawOverlay） */
     var drawLayer = $("#dzDrawLayer");
     var drawViewport = $("#dzViewport");
     var drawPath = null;
+    var drawRect = null;
+    var drawStart = null;
+    var dzDrawTool = "pen";
+    var dzDrawOps = [];
+    var dzDrawRedo = [];
     function dzDrawing() {
       return drawViewport.classList.contains("dz-drawing");
     }
+    function dzDrawPush(op) {
+      dzDrawOps.push(op);
+      dzDrawRedo.length = 0;
+    }
+    function dzDrawExit(notify) {
+      var had = dzDrawOps.length > 0;
+      dzDrawOps.forEach(function (op) {
+        op.el.remove();
+      });
+      dzDrawOps.length = 0;
+      dzDrawRedo.length = 0;
+      drawLayer.replaceChildren();
+      $$(".dz-draw-text").forEach(function (t) {
+        t.remove();
+      });
+      drawViewport.classList.remove("dz-drawing");
+      $("#dzDrawTools").hidden = true;
+      dzToolState($("#dzDrawBtn"), false);
+      dzHint("");
+      if (notify && had) dzToast("标记已发送到对话输入框");
+    }
     drawViewport.addEventListener("mousedown", function (e) {
-      if (!dzDrawing() || e.button !== 0) return;
-      e.preventDefault();
+      if (!dzDrawing() || e.button !== 0 || e.target.closest(".dz-draw-tools")) return;
       var rect = drawLayer.getBoundingClientRect();
-      drawPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      drawPath.setAttribute("d", "M" + (e.clientX - rect.left) + " " + (e.clientY - rect.top));
-      drawLayer.appendChild(drawPath);
-    });
-    drawViewport.addEventListener("mousemove", function (e) {
-      if (!drawPath || !dzDrawing()) return;
-      var rect = drawLayer.getBoundingClientRect();
-      drawPath.setAttribute("d", drawPath.getAttribute("d") + " L" + (e.clientX - rect.left) + " " + (e.clientY - rect.top));
-    });
-    window.addEventListener("mouseup", function () {
-      drawPath = null;
-    });
-    $("#dzDrawBtn").addEventListener("click", function () {
-      var active = $("#dzDrawBtn").classList.toggle("active");
-      dzToolState($("#dzDrawBtn"), active);
-      dzToolState($("#dzCommentBtn"), false);
-      dzToolState($("#dzEditBtn"), false);
-      dzCommentMode = false;
-      var vp = $("#dzViewport");
-      vp.classList.toggle("dz-drawing", active);
-      if (active) {
-        dzHint("拖动鼠标在预览上绘制标注，完成后再点一次发送");
-      } else {
-        dzHint("");
-        var strokes = drawLayer.querySelectorAll("path").length;
-        drawLayer.replaceChildren();
-        if (strokes) dzToast("标注已发送到对话");
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      if (dzDrawTool === "pen") {
+        e.preventDefault();
+        drawPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        drawPath.setAttribute("d", "M" + x + " " + y);
+        drawLayer.appendChild(drawPath);
+      } else if (dzDrawTool === "box") {
+        e.preventDefault();
+        drawStart = { x: x, y: y };
+        drawRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        drawRect.setAttribute("x", x);
+        drawRect.setAttribute("y", y);
+        drawRect.setAttribute("width", 0);
+        drawRect.setAttribute("height", 0);
+        drawLayer.appendChild(drawRect);
       }
     });
+    drawViewport.addEventListener("mousemove", function (e) {
+      if (!dzDrawing()) return;
+      var rect = drawLayer.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      if (drawPath) {
+        drawPath.setAttribute("d", drawPath.getAttribute("d") + " L" + x + " " + y);
+      } else if (drawRect && drawStart) {
+        drawRect.setAttribute("x", Math.min(drawStart.x, x));
+        drawRect.setAttribute("y", Math.min(drawStart.y, y));
+        drawRect.setAttribute("width", Math.abs(x - drawStart.x));
+        drawRect.setAttribute("height", Math.abs(y - drawStart.y));
+      }
+    });
+    window.addEventListener("mouseup", function () {
+      if (drawPath) {
+        if (drawPath.getAttribute("d").indexOf("L") > -1) dzDrawPush({ type: "path", el: drawPath });
+        else drawPath.remove();
+        drawPath = null;
+      }
+      if (drawRect) {
+        if (Number(drawRect.getAttribute("width")) > 4) dzDrawPush({ type: "rect", el: drawRect });
+        else drawRect.remove();
+        drawRect = null;
+        drawStart = null;
+      }
+    });
+    /* 文字工具：点击放置可编辑文本，失焦即定型 */
+    drawViewport.addEventListener("click", function (e) {
+      if (!dzDrawing() || dzDrawTool !== "text" || e.target.closest(".dz-draw-tools") || e.target.closest(".dz-draw-text")) return;
+      var vp = drawViewport.getBoundingClientRect();
+      var t = document.createElement("span");
+      t.className = "dz-draw-text";
+      t.contentEditable = "true";
+      t.style.left = Math.round(e.clientX - vp.left) + "px";
+      t.style.top = Math.round(e.clientY - vp.top) + "px";
+      drawViewport.appendChild(t);
+      t.focus();
+      t.addEventListener("blur", function () {
+        if (t.textContent.trim()) dzDrawPush({ type: "text", el: t });
+        else t.remove();
+      });
+    });
+    $$("#dzDrawTools .dz-draw-tool").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        dzDrawTool = btn.dataset.dzDtool;
+        $$("#dzDrawTools .dz-draw-tool").forEach(function (o) {
+          o.classList.toggle("active", o === btn);
+        });
+      });
+    });
+    $("#dzDrawUndo").addEventListener("click", function () {
+      var op = dzDrawOps.pop();
+      if (!op) return;
+      op.el.remove();
+      dzDrawRedo.push(op);
+    });
+    $("#dzDrawRedo").addEventListener("click", function () {
+      var op = dzDrawRedo.pop();
+      if (!op) return;
+      (op.el.tagName === "span" ? drawViewport : drawLayer).appendChild(op.el);
+      dzDrawOps.push(op);
+    });
+    $("#dzDrawSend").addEventListener("click", function () {
+      dzDrawExit(true);
+    });
+    $("#dzDrawBtn").addEventListener("click", function () {
+      if ($("#dzDrawBtn").classList.contains("active")) {
+        dzDrawExit(true);
+        return;
+      }
+      dzToolState($("#dzDrawBtn"), true);
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzEditExit(false);
+      drawViewport.classList.add("dz-drawing");
+      $("#dzDrawTools").hidden = false;
+      dzHint("在预览上标记：画笔、方框或文字");
+    });
 
-    /* 评论列表面板开关 */
+    /* 评论：面板开关 + 进入注释创建态（对照 activateCommentCreateTool） */
     $("#dzCommentListBtn").addEventListener("click", function () {
       var panel = $("#dzCommentPanel");
-      panel.hidden = !panel.hidden;
-      dzToolState($("#dzCommentListBtn"), !panel.hidden);
+      var open = panel.hidden;
+      panel.hidden = !open;
+      dzToolState($("#dzCommentListBtn"), open);
+      if (open) {
+        dzCommentMode = true;
+        dzToolState($("#dzCommentBtn"), true);
+        dzDrawExit(false);
+        dzEditExit(false);
+        dzHint("点击要注释的元素");
+      } else {
+        dzCommentMode = false;
+        dzToolState($("#dzCommentBtn"), false);
+        dzHint("");
+      }
     });
     $("#dzCommentPanelClose").addEventListener("click", function () {
       $("#dzCommentPanel").hidden = true;
       dzToolState($("#dzCommentListBtn"), false);
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzHint("");
     });
 
     /* 版本历史：点击条目 → 恢复确认；确认后新增历史条目并回写 mock 文案 */
