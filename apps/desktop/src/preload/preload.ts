@@ -20,6 +20,7 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.designAction, threadId, input),
   setDesignBounds: (threadId, instanceId, bounds, visible) =>
     ipcRenderer.invoke(IPC.designBounds, threadId, instanceId, bounds, visible),
+  reportTaskView: (input) => ipcRenderer.send(IPC.taskView, input),
   onImTaskCreated(listener) {
     const handler = (
       _event: Electron.IpcRendererEvent,

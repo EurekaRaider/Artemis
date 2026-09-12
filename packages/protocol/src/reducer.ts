@@ -8,6 +8,7 @@ import type {
   ContextUsagePayload,
   McpToolUsedPayload,
   RunMode,
+  TaskNotificationState,
   TaskSourceAddedPayload,
   TurnChangeSetUpdatedPayload,
   ToolStartedPayload,
@@ -120,6 +121,7 @@ export interface TurnViewState {
 }
 
 export interface ThreadViewState {
+  notification?: TaskNotificationState;
   threadId: string;
   status:
     "idle" | "running" | "waiting-approval" | "waiting-user-input" | "failed";
@@ -961,6 +963,11 @@ function applyAgentPayload(
       else delete state.errorCode;
       return;
     }
+    case "thread.notification.updated":
+      if ((state.notification?.revision ?? -1) < payload.state.revision) {
+        state.notification = { ...payload.state };
+      }
+      return;
     case "turn.change-set.updated":
       return;
   }
