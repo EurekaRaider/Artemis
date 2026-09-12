@@ -106,6 +106,7 @@ const labels = {
     builtinTools: "Built-in tools",
     mcpTools: "MCP servers",
     mcpToolsCount: "{count} tools",
+    mcpToolsSelected: "{selected} of {count} tools selected",
     enabledLabel: "Enabled",
     allowAutomatic: "Allow automatic invocation",
     allowAutomaticHint:
@@ -168,6 +169,7 @@ const labels = {
     builtinTools: "内置工具",
     mcpTools: "MCP 服务器",
     mcpToolsCount: "{count} 个工具",
+    mcpToolsSelected: "已选择 {selected}/{count} 个工具",
     enabledLabel: "启用",
     allowAutomatic: "允许自动调用",
     allowAutomaticHint: "关闭后，该子智能体只能通过 @ 显式调用。",
@@ -374,6 +376,13 @@ export function CustomAgentsSettingsSection({
   // crashed the whole dialog when a fixed policy rendered its model picker.
   // Deduplicate by value and disambiguate labels by full model id.
   const modelOptions = useMemo(() => {
+    const normalizeLabel = (label: string) =>
+      label
+        .normalize("NFKC")
+        .replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, "")
+        .replace(/\p{White_Space}+/gu, " ")
+        .trim()
+        .toLowerCase();
     const seenValues = new Set<string>();
     const seenLabels = new Set<string>();
     const options: Array<{ value: string; label: string }> = [];
@@ -382,8 +391,15 @@ export function CustomAgentsSettingsSection({
       if (seenValues.has(value)) continue;
       seenValues.add(value);
       let label = `${model.name} (${model.providerId})`;
-      if (seenLabels.has(label)) label = `${model.name} (${value})`;
-      seenLabels.add(label);
+      if (seenLabels.has(normalizeLabel(label))) {
+        const qualifiedLabel = `${model.name} (${value})`;
+        label = qualifiedLabel;
+        let suffix = 2;
+        while (seenLabels.has(normalizeLabel(label))) {
+          label = `${qualifiedLabel} (${suffix++})`;
+        }
+      }
+      seenLabels.add(normalizeLabel(label));
       options.push({ value, label });
     }
     return options;
@@ -929,12 +945,21 @@ export function CustomAgentsSettingsSection({
                                   tool.toolName === ref.toolName,
                               ),
                             ).length;
-                            const checked =
-                              selected > 0 && selected === serverTools.length;
+                            const checked = selected > 0;
                             return (
                               <Checkbox
                                 key={server.config.id}
                                 checked={checked}
+                                description={
+                                  selected > 0 && selected < serverTools.length
+                                    ? t.mcpToolsSelected
+                                        .replace("{selected}", String(selected))
+                                        .replace(
+                                          "{count}",
+                                          String(serverTools.length),
+                                        )
+                                    : undefined
+                                }
                                 disabled={busy}
                                 label={`${server.config.name}（${t.mcpToolsCount.replace("{count}", String(server.tools.length))}）`}
                                 onCheckedChange={(next) =>

@@ -193,6 +193,8 @@ describe("CustomAgentsSettingsSection", () => {
           { providerId: "p1", modelId: "m1", name: "Model One" },
           { providerId: "p1", modelId: "m1", name: "Model One" },
           { providerId: "p2", modelId: "m2", name: "Model One" },
+          { providerId: "p1", modelId: "m3", name: "model  one" },
+          { providerId: "p1", modelId: "M3", name: "MODEL ONE" },
         ],
         customAgents: [{ ...summary, modelPolicy: fixedPolicy }],
       },
@@ -210,6 +212,43 @@ describe("CustomAgentsSettingsSection", () => {
     expect(
       await screen.findByText("Edit: Reviewer", { selector: "h3" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows partial MCP grants and lets the user revoke them in one click", async () => {
+    const user = userEvent.setup();
+    const { api } = renderSection({
+      snapshotOverrides: {
+        mcpServers: [
+          {
+            config: { id: "server-1", name: "Docs" },
+            tools: [
+              { serverId: "server-1", toolName: "read" },
+              { serverId: "server-1", toolName: "write" },
+            ],
+          },
+        ],
+      },
+      api: {
+        customAgentsGet: vi.fn(async () => ({
+          ...definition,
+          toolPolicy: {
+            kind: "allowlist",
+            tools: [{ kind: "mcp", serverId: "server-1", toolName: "read" }],
+          },
+        })),
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const server = await screen.findByRole("checkbox", { name: /Docs/u });
+    expect(server).toBeChecked();
+    expect(screen.getByText("1 of 2 tools selected")).toBeVisible();
+    await user.click(server);
+    await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
+    expect(api.customAgentsUpdate).toHaveBeenCalledWith(
+      "def-1",
+      3,
+      expect.objectContaining({ toolPolicy: { kind: "allowlist", tools: [] } }),
+    );
   });
 
   it("labels the fixed model with its configured model id", () => {
