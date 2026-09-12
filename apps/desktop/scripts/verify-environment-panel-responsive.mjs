@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -12,6 +12,11 @@ const electronPath = require("electron");
 const temporaryDirectory = await mkdtemp(
   join(tmpdir(), "artemis-environment-panel-"),
 );
+// Retain case evidence in the CI artifact directory, including on failure.
+const outputDirectory = process.argv[2]
+  ? resolve(process.argv[2])
+  : temporaryDirectory;
+await mkdir(outputDirectory, { recursive: true });
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -23,8 +28,8 @@ async function runCase(
   view = "environment",
   { direction = "ltr", scale = 1, theme = "light" } = {},
 ) {
-  const screenshotPath = join(temporaryDirectory, `${name}.png`);
-  const accessibilityPath = join(temporaryDirectory, `${name}.a11y.json`);
+  const screenshotPath = join(outputDirectory, `${name}.png`);
+  const accessibilityPath = join(outputDirectory, `${name}.a11y.json`);
   const environment = {
     ...process.env,
     ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
@@ -37,6 +42,7 @@ async function runCase(
     ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
   };
   delete environment.ELECTRON_RUN_AS_NODE;
+  delete environment.ARTEMIS_DEV_SERVER_URL;
   const result = spawnSync(
     electronPath,
     [
@@ -55,6 +61,10 @@ async function runCase(
       timeout: 45_000,
       maxBuffer: 2 * 1024 * 1024,
     },
+  );
+  await writeFile(
+    join(outputDirectory, `${name}.log`),
+    `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
   );
   if (result.error || result.status !== 0) {
     throw new Error(

@@ -2,12 +2,16 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DesignStore,
   type DesignHostContext,
 } from "../src/main/design-store.js";
 import { patchDesignSource } from "../src/main/design-source.js";
+
+// These tests use real SQLite commits and filesystem persistence.
+// Windows CI disk latency varies across the entire suite.
+if (process.platform === "win32") vi.setConfig({ testTimeout: 30_000 });
 
 const context: DesignHostContext = {
   projectId: "project",
@@ -50,29 +54,24 @@ afterEach(() => {
 });
 
 describe("design P0 persistence", () => {
-  it(
-    "dispatches both workflow directions in order, only after the exact previous turn completes",
-    () => {
-      const f = fixture();
-      const idle = { turn: false, tools: false, children: false };
-      const requests = ["code", "design", "code"] as const;
-      for (const [index, workflow] of requests.entries())
-        f.store.enqueue(context, `request-${index}`, workflow, "next");
-      for (const [index, workflow] of requests.entries()) {
-        const request = f.store.claim(context, idle)!;
-        expect(request.workflow).toBe(workflow);
-        expect(request.requestId).toBe(`request-${index}`);
-        expect(f.store.claim(context, idle)).toBeUndefined();
-        expect(() =>
-          f.store.complete(context, request.requestId, "stale-turn"),
-        ).toThrow(/different turn/);
-        f.store.complete(context, request.requestId, request.turnId);
-      }
+  it("dispatches both workflow directions in order, only after the exact previous turn completes", () => {
+    const f = fixture();
+    const idle = { turn: false, tools: false, children: false };
+    const requests = ["code", "design", "code"] as const;
+    for (const [index, workflow] of requests.entries())
+      f.store.enqueue(context, `request-${index}`, workflow, "next");
+    for (const [index, workflow] of requests.entries()) {
+      const request = f.store.claim(context, idle)!;
+      expect(request.workflow).toBe(workflow);
+      expect(request.requestId).toBe(`request-${index}`);
       expect(f.store.claim(context, idle)).toBeUndefined();
-    },
-    // Real SQLite commits can exceed five seconds on Windows CI disks.
-    process.platform === "win32" ? 30_000 : 5_000,
-  );
+      expect(() =>
+        f.store.complete(context, request.requestId, "stale-turn"),
+      ).toThrow(/different turn/);
+      f.store.complete(context, request.requestId, request.turnId);
+    }
+    expect(f.store.claim(context, idle)).toBeUndefined();
+  });
   it("saves edited text and parameters, reopens, and retries a lost response exactly once", () => {
     const f = fixture();
     const edited = patchDesignSource(source, [

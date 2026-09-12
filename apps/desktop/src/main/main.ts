@@ -17922,7 +17922,19 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view.startsWith('environment')) {
-                  document.querySelector('.thread-select')?.click();
+                  const waitForEnvironment = async (description, predicate) => {
+                    const deadline = Date.now() + 8_000;
+                    while (Date.now() < deadline) {
+                      const result = predicate();
+                      if (result) return result;
+                      await wait(50);
+                    }
+                    throw new Error(view + ': timed out waiting for ' + description);
+                  };
+                  const thread = await waitForEnvironment('thread selector', () =>
+                    document.querySelector('.thread-select'),
+                  );
+                  thread.click();
                   await wait(600);
                   if (view === 'environment-new-conversation') {
                     const create = document.querySelector('[data-tree-row-id="project:artemis-smoke-environment-project"] .project-new-thread');
@@ -17933,6 +17945,10 @@ function createMainWindow(): BrowserWindow {
                     return;
                   }
                   if (view === 'environment-unstarted' || view.startsWith('environment-non-git')) return;
+                  await waitForEnvironment('loaded conversation', () =>
+                    document.querySelector('.user-message .message-action') &&
+                    document.querySelector('.environment-trigger'),
+                  );
                   if (view === 'environment-context-usage') {
                     document.querySelector('.context-usage-indicator')?.focus();
                     await wait(250);
@@ -17953,14 +17969,24 @@ function createMainWindow(): BrowserWindow {
                   }
                   if (view.startsWith('environment-notice')) {
                     if (view.endsWith('-closed')) {
-                      document.querySelector('.environment-panel-header .environment-header-action')?.click();
-                      await wait(350);
+                      const close = await waitForEnvironment('environment close action', () =>
+                        document.querySelector('.environment-panel-header .environment-header-action'),
+                      );
+                      close.click();
+                      await waitForEnvironment('closed environment panel', () =>
+                        document.querySelector('.environment-trigger')?.getAttribute('aria-expanded') === 'false',
+                      );
                     }
                     navigator.clipboard.writeText = async () => {
                       throw new Error('This operation was aborted');
                     };
-                    document.querySelector('.user-message .message-action')?.click();
-                    await wait(350);
+                    const copy = await waitForEnvironment('message copy action', () =>
+                      document.querySelector('.user-message .message-action'),
+                    );
+                    copy.click();
+                    await waitForEnvironment('copy error notice', () =>
+                      document.querySelector('.transient-notice[role="alert"][data-tone="danger"]'),
+                    );
                     return;
                   }
                   if (view === 'environment-closed') {
