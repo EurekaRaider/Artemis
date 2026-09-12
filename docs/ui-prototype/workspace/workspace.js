@@ -2228,7 +2228,9 @@
         dzStage.outerHTML +
         "</div></body></html>";
       var url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
-      if (!window.open(url, "_blank")) dzToast("浏览器拦截了弹出窗口");
+      if (window.open(url, "_blank")) return;
+      dzPresentEnter(false);
+      dzToast("弹窗被浏览器拦截，已改为在当前标签页演示");
     }
     var dzPresentBtn = $("#dzPresentBtn");
     $("#dzPresentMenu").addEventListener("click", function (e) {
