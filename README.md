@@ -1628,9 +1628,9 @@ The main remaining gates are:
 
 ### Documentation
 
-| Product and acceptance                               | Engineering and security                   |
-| ---------------------------------------------------- | ------------------------------------------ |
-| [Installation guide](docs/install.md)         | [Architecture notes](docs/architecture.md) |
+| Product and acceptance                                               | Engineering and security                   |
+| -------------------------------------------------------------------- | ------------------------------------------ |
+| [Installation guide](docs/install.md)                                | [Architecture notes](docs/architecture.md) |
 | [P0 acceptance matrix](docs/projects/p0-acceptance-matrix/README.md) | [Security policy](SECURITY.md)             |
 | [IM deployment](docs/features/im-gateway/README.md)                  | [Engineering guidance](AGENTS.md)          |
 

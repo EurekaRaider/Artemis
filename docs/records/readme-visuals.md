@@ -24,8 +24,8 @@ and Token Usage identity. Personal names, home-directory paths and credentials
 are not shown. Chinese screenshots localize the UI while retaining the English
 sample conversation. The IM views use synthetic Feishu/Slack connection responses and a two-member roster in the isolated main-process handlers. No real Gateway, IM account or bot is contacted. The same fixture supplies a no-PR response to avoid personal GitHub access.
 
-| Screenshot                                                                | Surface                                                   |
-| ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Screenshot                                                                   | Surface                                                   |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------- |
 | [Light workspace](../images/screenshots/workspace-light.png)                 | Projects, persistent tasks and Markdown conversation      |
 | [Dark workspace](../images/screenshots/workspace-dark.png)                   | The same task in the dark theme                           |
 | [Light environment panel](../images/screenshots/environment-panel-light.png) | Workspace, Git changes, Agent activity and source summary |

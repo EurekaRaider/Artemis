@@ -558,6 +558,8 @@ export class DesignRepository {
       throw new Error("Invalid queued prompt.");
     if (!request || request.status !== "pending" || request.designRef)
       throw new Error("Only pending conversation requests can be edited.");
+    // Keep the original enqueue fingerprint: a delayed delivery must return
+    // this edited request, not restore the original prompt or enqueue twice.
     this.updateRequest({ ...request, text });
   }
   retry(context: DesignHostContext, requestId: string): DesignQueuedRequest {

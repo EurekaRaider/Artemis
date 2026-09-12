@@ -61,14 +61,14 @@ Open Design 是**"开源版 Claude Design"**：一个本地优先的 macOS/Windo
 
 ### 1.3 规模感
 
-| 资产 | 数量 | 说明 |
-|---|---|---|
-| 设计系统品牌包 | 151（+`_schema`） | `design-systems/<slug>/`，含 apple/claude/airbnb/ant… |
-| 渲染模板 | 114 | `design-templates/`，每个含 `SKILL.md` + `example.html` |
-| 功能技能 | 160+ | `skills/`，SKILL.md 形态，与模板同构、分属两个注册表 |
-| 官方场景插件 | 13 + 143 个 DS 镜像插件 | `plugins/_official/` |
-| Agent 适配 def | 26 | `apps/daemon/src/runtimes/registry.ts` |
-| craft 手艺文件 | 13 | `craft/*.md`，品牌无关的普适设计规则 |
+| 资产           | 数量                    | 说明                                                    |
+| -------------- | ----------------------- | ------------------------------------------------------- |
+| 设计系统品牌包 | 151（+`_schema`）       | `design-systems/<slug>/`，含 apple/claude/airbnb/ant…   |
+| 渲染模板       | 114                     | `design-templates/`，每个含 `SKILL.md` + `example.html` |
+| 功能技能       | 160+                    | `skills/`，SKILL.md 形态，与模板同构、分属两个注册表    |
+| 官方场景插件   | 13 + 143 个 DS 镜像插件 | `plugins/_official/`                                    |
+| Agent 适配 def | 26                      | `apps/daemon/src/runtimes/registry.ts`                  |
+| craft 手艺文件 | 13                      | `craft/*.md`，品牌无关的普适设计规则                    |
 
 ---
 
@@ -76,28 +76,28 @@ Open Design 是**"开源版 Claude Design"**：一个本地优先的 macOS/Windo
 
 ### 2.1 产品页面（左侧 56px 图标导航栏 `EntryNavRail`，默认收起）
 
-| 页面 | 功能 |
-|---|---|
-| **Home** | 大 composer（brief 输入）+ 意图 chip rail + 近期项目 + 插件画廊（详见 §5.2） |
-| **Projects / Designs** | 项目网格 |
-| **Design Systems** | 151 内置品牌包管理；创建向导支持 website URL / GitHub repo / 本地代码 / Figma / 资产上传 / 预设品牌 / DESIGN.md 粘贴七种源；可"用 Agent 编辑"、AI 深度优化（enrichment） |
-| **Tasks / Automation** | 把重复设计工作流编排成可调度的自动化任务 |
-| **Plugins / Marketplace** | 浏览/安装/分发插件；GitHub-backed registry（PR review 合并再生 marketplace.json） |
-| **Integrations** | 连接器（connector）、MCP、use-everywhere（从任意 IDE/脚本使用 OD） |
-| **Studio**（项目内） | 左对话右工作台的设计现场（详见 §5.3） |
+| 页面                      | 功能                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Home**                  | 大 composer（brief 输入）+ 意图 chip rail + 近期项目 + 插件画廊（详见 §5.2）                                                                                             |
+| **Projects / Designs**    | 项目网格                                                                                                                                                                 |
+| **Design Systems**        | 151 内置品牌包管理；创建向导支持 website URL / GitHub repo / 本地代码 / Figma / 资产上传 / 预设品牌 / DESIGN.md 粘贴七种源；可"用 Agent 编辑"、AI 深度优化（enrichment） |
+| **Tasks / Automation**    | 把重复设计工作流编排成可调度的自动化任务                                                                                                                                 |
+| **Plugins / Marketplace** | 浏览/安装/分发插件；GitHub-backed registry（PR review 合并再生 marketplace.json）                                                                                        |
+| **Integrations**          | 连接器（connector）、MCP、use-everywhere（从任意 IDE/脚本使用 OD）                                                                                                       |
+| **Studio**（项目内）      | 左对话右工作台的设计现场（详见 §5.3）                                                                                                                                    |
 
 ### 2.2 产物类型矩阵
 
-| 类型 | 形态 | 预览 | 导出 |
-|---|---|---|---|
-| Prototype（网页/移动/桌面原型） | 单页 HTML，读 DESIGN.md | 沙箱 iframe | HTML / PDF / ZIP |
-| Deck（PPT） | HTML + `.slide` 约定 | iframe + 键盘翻页 + 缩略图栏 + 演讲者备注 | PPTX（截图式/可编辑式）/ PDF |
-| Image | 媒体 provider 生成 | 原生 `<img>` | 文件下载 |
-| Video | provider 生成，MP4 直接落项目目录 | 原生 `<video>` | MP4（生成即产物） |
-| HyperFrames（HTML 动效） | agent 写 GSAP timeline 合成物，daemon 用 puppeteer 逐帧渲染 MP4（超时 5 分钟，进度回流） | 同 video | MP4 |
-| Audio | speech/sfx（ElevenLabs 等），音乐暂缓 | 原生 `<audio>` | 文件下载 |
-| Live Artifact（活产物） | 模板 `template.html` + 数据 `data.json` 分离，可刷新 | 服务端水化预览（**CSP 禁脚本**） | — |
-| React component / Markdown / SVG / mini-app | manifest kind 枚举 | 对应 viewer（Babel 编译/消毒渲染） | JSX / MD / SVG |
+| 类型                                        | 形态                                                                                     | 预览                                      | 导出                         |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------- |
+| Prototype（网页/移动/桌面原型）             | 单页 HTML，读 DESIGN.md                                                                  | 沙箱 iframe                               | HTML / PDF / ZIP             |
+| Deck（PPT）                                 | HTML + `.slide` 约定                                                                     | iframe + 键盘翻页 + 缩略图栏 + 演讲者备注 | PPTX（截图式/可编辑式）/ PDF |
+| Image                                       | 媒体 provider 生成                                                                       | 原生 `<img>`                              | 文件下载                     |
+| Video                                       | provider 生成，MP4 直接落项目目录                                                        | 原生 `<video>`                            | MP4（生成即产物）            |
+| HyperFrames（HTML 动效）                    | agent 写 GSAP timeline 合成物，daemon 用 puppeteer 逐帧渲染 MP4（超时 5 分钟，进度回流） | 同 video                                  | MP4                          |
+| Audio                                       | speech/sfx（ElevenLabs 等），音乐暂缓                                                    | 原生 `<audio>`                            | 文件下载                     |
+| Live Artifact（活产物）                     | 模板 `template.html` + 数据 `data.json` 分离，可刷新                                     | 服务端水化预览（**CSP 禁脚本**）          | —                            |
+| React component / Markdown / SVG / mini-app | manifest kind 枚举                                                                       | 对应 viewer（Babel 编译/消毒渲染）        | JSX / MD / SVG               |
 
 ### 2.3 能力清单（摘要）
 
@@ -174,13 +174,14 @@ OD 有**三套正交的"模式"概念**，文档明确要求不混淆：
 
 per-conversation，随 `POST /api/chat` 的 `sessionMode` 字段传入；UI 是 **composer 底栏的三档下拉**（`apps/web/src/components/SessionModeToggle.tsx`，已实读验证）：
 
-| 模式 | 图标 | 成本档 | 行为（由提示 override 实现） |
-|---|---|---|---|
-| chat | comment | low（1/3 格） | 像普通助手一样回答/对比/调试；**不装载**发现层/设计章程/deck 框架/评审面板（省 3K+ token）；记忆/技能/插件/MCP 仍装载（"light, not amnesiac"） |
-| plan | file | medium（2/3 格） | 同一上下文/工具/设计系统，但先产出**可编辑的 Markdown 计划文档**（plan.md / deck-outline.md / prd.md，按意图选体裁），用户确认前不出最终制品 |
-| design（默认） | sparkles | high（3/3 格） | 完整五阶段循环，装载全部重提示栈 |
+| 模式           | 图标     | 成本档           | 行为（由提示 override 实现）                                                                                                                   |
+| -------------- | -------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| chat           | comment  | low（1/3 格）    | 像普通助手一样回答/对比/调试；**不装载**发现层/设计章程/deck 框架/评审面板（省 3K+ token）；记忆/技能/插件/MCP 仍装载（"light, not amnesiac"） |
+| plan           | file     | medium（2/3 格） | 同一上下文/工具/设计系统，但先产出**可编辑的 Markdown 计划文档**（plan.md / deck-outline.md / prd.md，按意图选体裁），用户确认前不出最终制品   |
+| design（默认） | sparkles | high（3/3 格）   | 完整五阶段循环，装载全部重提示栈                                                                                                               |
 
 交互细节（值得照抄）：
+
 - 三档都带**成本信号条**（3 格用量表）——用户切换前就有开销预期；
 - 菜单悬停/聚焦时右侧展开**说明卡**：标题、摘要、成本说明、适用场景（Best for）、三条示例 query（`SessionModeToggle.tsx:140-202`）；
 - **模式随下一条消息生效**（`pendingSessionModeRef`，`ChatComposer.tsx:1026,1236`）——不重绑正在运行的子进程；
@@ -239,6 +240,7 @@ home-view（垂直栈，滚动容器）
 ```
 
 关键机制：
+
 - **chip = 动作而非装饰**：每个 chip 的 action 是判别联合（`apply-scenario(pluginId, projectKind, inputs?, projectMetadata?)`）——**选 chip = 绑定一个场景插件 + 项目类型 + 默认参数**（`apps/web/src/components/home-hero/chips.ts:44-63,87-377`）。
 - **媒体面 = 字段集**：image/video/hyperframes/audio 四面共用 `buildHomeMediaComposer(surface)` 生成 `fields/inputs`，渲染为底栏内联表单（image：模型/比例/分辨率；video：+时长；audio：文本或提示词/语音类型/模型/音色……）；**换面即重建表单并归一化**；参数不再烘进 prompt 文本，交给 agent 运行时询问（`apps/web/src/components/home-hero/media-surfaces.ts`）。
 - **选中 chip 后 rail 收起**、原地展开该场景的示例与字段；清掉 chip 恢复 rail——一套"composer 状态机"而非弹窗表单。
@@ -268,11 +270,13 @@ home-view（垂直栈，滚动容器）
 ```
 
 实测数值（已验证，`ProjectView.tsx:479-492`）：
+
 - 左栏默认 **460px**，min **345** / max **720**（且按视口自适应钳制），localStorage 持久化；
 - **专注模式**：chat slot `hidden`，grid 变单列，工作台左上角浮现"显示聊天"按钮；
 - 左栏可被 ManualEditPanel（手动改稿检查器）整体替换。
 
 **FileViewer**（产物预览器，13000+ 行）：
+
 - 顶工具栏：deck 缩略图栏开关｜重载｜**Versions**（版本历史模态：左版本列表含来源徽标 ai/manual + 右版本预览 + Restore）｜Source/Preview 切换｜视口切换（desktop/mobile/宽）｜deck 翻页｜截图复制｜评论模式｜标注｜手动编辑｜zoom｜更多（分享/导出 HTML/PDF/PPTX/ZIP）；
 - 正文：`preview-frame-clip > iframe`；**iframe 保活池**（默认 5 个复用，切 tab 秒开）；
 - 双预览策略：多文件产物走 URL-load（保真、缓存）；需要宿主能力（翻页/评论/inspect/调参/编辑）或检测到焦点抢占/重定向循环时切 **srcDoc 注入桥**；沙箱默认 `allow-scripts allow-downloads`（无 same-origin），WebGL/WASM 需求才升级 powered 沙箱；
@@ -358,12 +362,12 @@ design-systems/<slug>/
 
 ### 8.1 入口：composer 上的"设计模式"
 
-| OD 做法 | Artemis 映射 |
-|---|---|
+| OD 做法                                                             | Artemis 映射                                                                                                            |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | SessionModeToggle 三档（chat/plan/design）+ 成本信号条 + 悬停说明卡 | Artemis composer 已有模式体系（Plan/Execute 等），设计模式可作为同级档位；**成本/耗时预期信号条**是低成本高感知的照抄项 |
-| 模式 = 系统提示 override 段，随下一条消息生效，不重绑运行中进程 | 与 Pi 唯一循环不变量完美兼容：**design mode = Pi 的一个 session mode + 设计提示栈**，绝不是第二个编排框架 |
-| 意图 chip rail（场景卡）+ 媒体面字段内联展开 | 设计面板首屏的"要做什么"选择器：原型/组件/动效/图标…每个意图绑定默认提示包与表单字段（比例/平台/保真度） |
-| 自由输入也有隐藏默认场景兜底，绝不跑裸 agent | 设计模式的默认提示包应覆盖未选意图的自由输入 |
+| 模式 = 系统提示 override 段，随下一条消息生效，不重绑运行中进程     | 与 Pi 唯一循环不变量完美兼容：**design mode = Pi 的一个 session mode + 设计提示栈**，绝不是第二个编排框架               |
+| 意图 chip rail（场景卡）+ 媒体面字段内联展开                        | 设计面板首屏的"要做什么"选择器：原型/组件/动效/图标…每个意图绑定默认提示包与表单字段（比例/平台/保真度）                |
+| 自由输入也有隐藏默认场景兜底，绝不跑裸 agent                        | 设计模式的默认提示包应覆盖未选意图的自由输入                                                                            |
 
 ### 8.2 面板：进入设计模式后的布局
 
@@ -395,23 +399,23 @@ design-systems/<slug>/
 
 ## 附录：关键路径速查
 
-| 主题 | 路径 |
-|---|---|
-| UI 根组件 / 微路由 | `apps/web/src/App.tsx` / `apps/web/src/router.ts` |
-| Home composer | `apps/web/src/components/HomeHero.tsx`（hero）、`home-hero/chips.ts`（chip 表）、`home-hero/media-surfaces.ts`（媒体面字段） |
-| 会话模式切换 | `apps/web/src/components/SessionModeToggle.tsx` |
-| Studio 骨架 | `apps/web/src/components/ProjectView.tsx`（split 分栏 :479-492, :8499+） |
-| 会话面板 / Studio composer | `apps/web/src/components/ChatPane.tsx` / `ChatComposer.tsx` |
-| 工作台 / 预览器 | `apps/web/src/components/FileWorkspace.tsx` / `FileViewer.tsx` / `IframeKeepAlivePool.tsx` |
-| 系统提示组装 | `apps/daemon/src/prompts/system.ts`（:791-1359）、`discovery.ts`（发现/方向规则）、`directions.ts`（方向库）、`panel.ts`（评审协议） |
-| 技能注册/暂存 | `apps/daemon/src/skills.ts` |
-| Agent 适配 | `apps/daemon/src/runtimes/`（`registry.ts` 26 def、`defs/*.ts`）、`docs/agent-adapters.md` |
-| MCP server | `apps/daemon/src/mcp.ts`（工具清单 TOOL_DEFS） |
-| 设计系统解析/注入 | `apps/daemon/src/design-systems/index.ts`、`packages/contracts/src/design-systems/token-schema.ts` |
-| Artifact manifest | `packages/contracts/src/api/artifacts.ts:94-134`、`apps/daemon/src/artifacts/manifest.ts` |
-| Live artifact | `apps/daemon/src/live-artifacts/`（store/render/refresh-service）、`specs/2026-04-29-live-artifacts/spec.md` |
-| 文件版本 | `apps/daemon/src/project-file-versions.ts`、`run-html-version-snapshots.ts` |
-| 导出 | `apps/daemon/src/pdf-export.ts`、`deck-export.ts`、`apps/desktop/src/main/{pdf-export,deck-capture,artifact-export}.ts` |
-| 评审剧场 UI | `apps/web/src/components/Theater/`、`docs/critique-theater.md` |
-| 模式文档 | `docs/modes.md`（创建面 vs 注册表模式）、`docs/spec.md`、`docs/architecture.md` |
-| 共享设备外框 | `assets/frames/`（`?screen=` 契约） |
+| 主题                       | 路径                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| UI 根组件 / 微路由         | `apps/web/src/App.tsx` / `apps/web/src/router.ts`                                                                                    |
+| Home composer              | `apps/web/src/components/HomeHero.tsx`（hero）、`home-hero/chips.ts`（chip 表）、`home-hero/media-surfaces.ts`（媒体面字段）         |
+| 会话模式切换               | `apps/web/src/components/SessionModeToggle.tsx`                                                                                      |
+| Studio 骨架                | `apps/web/src/components/ProjectView.tsx`（split 分栏 :479-492, :8499+）                                                             |
+| 会话面板 / Studio composer | `apps/web/src/components/ChatPane.tsx` / `ChatComposer.tsx`                                                                          |
+| 工作台 / 预览器            | `apps/web/src/components/FileWorkspace.tsx` / `FileViewer.tsx` / `IframeKeepAlivePool.tsx`                                           |
+| 系统提示组装               | `apps/daemon/src/prompts/system.ts`（:791-1359）、`discovery.ts`（发现/方向规则）、`directions.ts`（方向库）、`panel.ts`（评审协议） |
+| 技能注册/暂存              | `apps/daemon/src/skills.ts`                                                                                                          |
+| Agent 适配                 | `apps/daemon/src/runtimes/`（`registry.ts` 26 def、`defs/*.ts`）、`docs/agent-adapters.md`                                           |
+| MCP server                 | `apps/daemon/src/mcp.ts`（工具清单 TOOL_DEFS）                                                                                       |
+| 设计系统解析/注入          | `apps/daemon/src/design-systems/index.ts`、`packages/contracts/src/design-systems/token-schema.ts`                                   |
+| Artifact manifest          | `packages/contracts/src/api/artifacts.ts:94-134`、`apps/daemon/src/artifacts/manifest.ts`                                            |
+| Live artifact              | `apps/daemon/src/live-artifacts/`（store/render/refresh-service）、`specs/2026-04-29-live-artifacts/spec.md`                         |
+| 文件版本                   | `apps/daemon/src/project-file-versions.ts`、`run-html-version-snapshots.ts`                                                          |
+| 导出                       | `apps/daemon/src/pdf-export.ts`、`deck-export.ts`、`apps/desktop/src/main/{pdf-export,deck-capture,artifact-export}.ts`              |
+| 评审剧场 UI                | `apps/web/src/components/Theater/`、`docs/critique-theater.md`                                                                       |
+| 模式文档                   | `docs/modes.md`（创建面 vs 注册表模式）、`docs/spec.md`、`docs/architecture.md`                                                      |
+| 共享设备外框               | `assets/frames/`（`?screen=` 契约）                                                                                                  |

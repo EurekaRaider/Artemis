@@ -57,20 +57,20 @@ open-design/
 
 ## 2. 功能全景（这个产品能做什么）
 
-| 功能域 | 入口 | 说明 |
-|---|---|---|
-| 项目聊天（"Studio"） | `/projects/:id` → `ProjectView` | 核心工作面：左聊天右画布 |
-| 首页创作入口 | `/` → `HomeHero` + chips 轨 | 自由文本 + 场景 chip（Prototype/Deck/Image/Video/HyperFrames/WebGL…） |
-| 设计系统 | `/design-systems` | 品牌契约（DESIGN.md + tokens.css + components.html），注入生成管线 |
-| 插件市场 | `/marketplace` `/plugins` | 460 官方插件，scenario/atom/skill/bundle 四类 |
-| 任务/自动化 | `/tasks` | routines 定时任务 |
-| Library | `/library` | 素材库（有 feature flag） |
-| 品牌 | `/brands` | 品牌提取与 enrichment |
-| 集成 | `/integrations` | agent CLI/MCP/HTTP 接入指南（"Use Everywhere" 弹窗——注意它**没有输入框**） |
-| 媒体生成 | 工具箱/scenario | image/video/audio 走独立媒体契约 + provider 适配器 |
-| HyperFrames | chip | 本地 HTML→MP4 渲染引擎，产物仍是 HTML |
-| 导出 | 预览面板内 | PDF/PPTX/图片/archive |
-| 部署 | 项目内 | deployments 表 + finalize 路由 |
+| 功能域               | 入口                            | 说明                                                                       |
+| -------------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| 项目聊天（"Studio"） | `/projects/:id` → `ProjectView` | 核心工作面：左聊天右画布                                                   |
+| 首页创作入口         | `/` → `HomeHero` + chips 轨     | 自由文本 + 场景 chip（Prototype/Deck/Image/Video/HyperFrames/WebGL…）      |
+| 设计系统             | `/design-systems`               | 品牌契约（DESIGN.md + tokens.css + components.html），注入生成管线         |
+| 插件市场             | `/marketplace` `/plugins`       | 460 官方插件，scenario/atom/skill/bundle 四类                              |
+| 任务/自动化          | `/tasks`                        | routines 定时任务                                                          |
+| Library              | `/library`                      | 素材库（有 feature flag）                                                  |
+| 品牌                 | `/brands`                       | 品牌提取与 enrichment                                                      |
+| 集成                 | `/integrations`                 | agent CLI/MCP/HTTP 接入指南（"Use Everywhere" 弹窗——注意它**没有输入框**） |
+| 媒体生成             | 工具箱/scenario                 | image/video/audio 走独立媒体契约 + provider 适配器                         |
+| HyperFrames          | chip                            | 本地 HTML→MP4 渲染引擎，产物仍是 HTML                                      |
+| 导出                 | 预览面板内                      | PDF/PPTX/图片/archive                                                      |
+| 部署                 | 项目内                          | deployments 表 + finalize 路由                                             |
 
 ---
 
@@ -78,16 +78,17 @@ open-design/
 
 代码里"模式"这个词对应**四个互不相同的维度**，你的"独立设计模式"必须先决定挂在哪一层：
 
-| 维度 | 取值 | 定义处 | 控制什么 |
-|---|---|---|---|
-| **sessionMode** 会话模式 | `design` / `chat`(UI 叫 Ask) / `plan` | `packages/contracts/src/api/chat.ts:39` | 整段系统提示词取舍：design=完整 artifact 宪章；chat=轻量问答（砍掉设计宪章/discovery）；plan=先产出可编辑 Markdown 计划文档再移交 design |
-| **projectKind** 项目类型 | `prototype`/`deck`/`template`/`other`/`brand`/`image`/`video`/`audio` | `packages/contracts/src/api/projects.ts:9` | 默认场景插件路由、预览面板形态、是否走媒体契约 |
-| **skillMode / od.mode** 技能输出面 | `prototype`/`deck`/`live-artifact`/`image`/`video`/`hyperframes`/`audio`/`design-system` | SKILL.md frontmatter；`apps/daemon/src/skills.ts:607` | 注入哪套生成契约（HTML 宪章 / deck 框架 / 媒体契约），决定独占预览面 |
-| **taskKind** 任务场景 | `new-generation`/`code-migration`/`figma-migration`/`tune-collab` | 插件 schema enum | 场景插件的路由键 |
+| 维度                               | 取值                                                                                     | 定义处                                                | 控制什么                                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **sessionMode** 会话模式           | `design` / `chat`(UI 叫 Ask) / `plan`                                                    | `packages/contracts/src/api/chat.ts:39`               | 整段系统提示词取舍：design=完整 artifact 宪章；chat=轻量问答（砍掉设计宪章/discovery）；plan=先产出可编辑 Markdown 计划文档再移交 design |
+| **projectKind** 项目类型           | `prototype`/`deck`/`template`/`other`/`brand`/`image`/`video`/`audio`                    | `packages/contracts/src/api/projects.ts:9`            | 默认场景插件路由、预览面板形态、是否走媒体契约                                                                                           |
+| **skillMode / od.mode** 技能输出面 | `prototype`/`deck`/`live-artifact`/`image`/`video`/`hyperframes`/`audio`/`design-system` | SKILL.md frontmatter；`apps/daemon/src/skills.ts:607` | 注入哪套生成契约（HTML 宪章 / deck 框架 / 媒体契约），决定独占预览面                                                                     |
+| **taskKind** 任务场景              | `new-generation`/`code-migration`/`figma-migration`/`tune-collab`                        | 插件 schema enum                                      | 场景插件的路由键                                                                                                                         |
 
 另有项目 metadata 修饰符（`intent: web-clone/live-artifact/wireframe…`、`fidelity`、`platformTargets`），首页 chips 就是靠这些修饰符**复用同一个插件**做出 wireframe/mobile 等"模式感"。
 
 **关键架构约束（代码注释明确写出）**：
+
 - sessionMode 三态是系统提示词头部级开关，接入成本高（daemon/contracts 两份镜像提示词组装器都要改，见 `apps/daemon/src/prompts/system.ts` ↔ `packages/contracts/src/prompts/system.ts` 的同步注释）；
 - 若新模式是"媒体面"（不产 HTML），必须在提示词层跳过 HTML discovery 层并以专属契约为唯一权威（`prompts/system.ts:958` 注释解释了原因）；
 - kind→插件默认表必须在 contracts 共享包，前后端不得各写一份（`scenario-defaults.ts:1` 注释）。
@@ -98,11 +99,11 @@ open-design/
 
 ### 4.1 两套输入实现（不共用）
 
-| 表面 | 组件 | 行数 | 说明 |
-|---|---|---|---|
-| 项目聊天 | `ChatComposer.tsx`（经 `ChatPane` 挂载） | 5613 行 | 全功能 |
-| 首页 hero | `HomeHero.tsx` | 5026 行 | **独立实现**，但复用 `LexicalComposerInput` 底层编辑器（L1554）和 `SessionModeToggle`（L1958） |
-| 画板评论 | `BoardComposerPopover.tsx` | 小 | 只有 Textarea |
+| 表面      | 组件                                     | 行数    | 说明                                                                                           |
+| --------- | ---------------------------------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| 项目聊天  | `ChatComposer.tsx`（经 `ChatPane` 挂载） | 5613 行 | 全功能                                                                                         |
+| 首页 hero | `HomeHero.tsx`                           | 5026 行 | **独立实现**，但复用 `LexicalComposerInput` 底层编辑器（L1554）和 `SessionModeToggle`（L1958） |
+| 画板评论  | `BoardComposerPopover.tsx`               | 小      | 只有 Textarea                                                                                  |
 
 ⚠️ "Use Everywhere" 浮窗（`UseEverywhereModal.tsx`，471 行）**没有输入框**，它是集成指南弹窗。
 
@@ -185,20 +186,21 @@ App.tsx
 
 ### 5.2 工作区 tab 分发（`FileWorkspace.tsx:3619-3899`）
 
-| tab | 组件 |
-|---|---|
-| `__browser__:n` | DesignBrowserPanel（Electron webview / iframe 降级） |
-| `__design_system__` | DesignSystemProjectPanel |
-| `__design_files__` | DesignFilesPanel |
-| sketch 文件 | SketchEditor（Excalidraw） |
-| `chat:<id>` | SideChatTab |
-| `terminal:<id>` | TerminalViewer（xterm.js） |
-| `live:<id>` | LiveArtifactViewer（preview/code/data/refresh-history 四子 tab） |
-| 普通文件 | FileViewer → renderer 注册表分发 |
+| tab                 | 组件                                                             |
+| ------------------- | ---------------------------------------------------------------- |
+| `__browser__:n`     | DesignBrowserPanel（Electron webview / iframe 降级）             |
+| `__design_system__` | DesignSystemProjectPanel                                         |
+| `__design_files__`  | DesignFilesPanel                                                 |
+| sketch 文件         | SketchEditor（Excalidraw）                                       |
+| `chat:<id>`         | SideChatTab                                                      |
+| `terminal:<id>`     | TerminalViewer（xterm.js）                                       |
+| `live:<id>`         | LiveArtifactViewer（preview/code/data/refresh-history 四子 tab） |
+| 普通文件            | FileViewer → renderer 注册表分发                                 |
 
 ### 5.3 预览渲染（双 iframe 架构）
 
 `HtmlViewer` 同时挂两个 iframe 二选一（`FileViewer.tsx:13379-13450`）：
+
 1. **URL-load iframe**：`src=/api/projects/:id/raw/:file`，浏览器自拉子资源；需要跨源隔离时切 powered-preview 源
 2. **srcDoc iframe**：`sandbox="allow-scripts allow-downloads"`，内容经 `buildSrcdoc()` 注入十几种 postMessage 桥（deck 导航/inspect 选取/评论/palette/手动编辑/快照…）
 
@@ -206,11 +208,11 @@ App.tsx
 
 ### 5.4 现有"面板"族（悬浮于预览之上）
 
-| 面板 | 位置 | 作用 |
-|---|---|---|
-| ManualEditPanel | `FileViewer.tsx:12094` | 手动编辑模式属性检查器：文本/href/src/样式/outerHTML 草稿 + 撤销重做，可拖拽浮动（985 行） |
-| InspectPanel | `FileViewer.tsx:4417` | inspect 模式轻量 CSS 调节（颜色/padding/字号/圆角），postMessage 改 iframe，可序列化回源码 |
-| CommentSidePanel/Dock | `FileViewer.tsx:3902/4300` | 评论列表，可 dock 预览右侧或 portal 进左栏 |
+| 面板                  | 位置                       | 作用                                                                                       |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
+| ManualEditPanel       | `FileViewer.tsx:12094`     | 手动编辑模式属性检查器：文本/href/src/样式/outerHTML 草稿 + 撤销重做，可拖拽浮动（985 行） |
+| InspectPanel          | `FileViewer.tsx:4417`      | inspect 模式轻量 CSS 调节（颜色/padding/字号/圆角），postMessage 改 iframe，可序列化回源码 |
+| CommentSidePanel/Dock | `FileViewer.tsx:3902/4300` | 评论列表，可 dock 预览右侧或 portal 进左栏                                                 |
 
 ---
 
@@ -219,11 +221,13 @@ App.tsx
 两套并行：
 
 **(a) 文件型 Artifact**（`apps/web/src/artifacts/`）：
+
 - `ArtifactKind`：`html | deck | react-component | markdown-document | svg | diagram | code-snippet | mini-app | design-system`
 - 清单 `ArtifactManifest` 以 `<entry>.artifact.json` sidecar 持久化；无清单时按扩展名+文件名启发式推断（含 deck 嗅探）
 - **RendererRegistry**（`renderer-registry.ts:90-108`）：硬编码有序数组 `[ReactComponent, DeckHtml, Html, Markdown, Svg]`，顺序即优先级；只有 markdown 支持流式部分渲染
 
 **(b) Live Artifact**（daemon 托管的可刷新产物）：
+
 - 契约 `packages/contracts/src/api/live-artifacts.ts`；存 `<projectDir>/.live-artifacts/`（artifact.json + template.html + data.json + refreshes.jsonl）
 - daemon 安全模板渲染（`{{data.x}}` 插值 + `data-od-repeat`，禁 script/iframe）
 
@@ -273,18 +277,19 @@ App.tsx
 
 **必改清单（约 18 处，按层分组）**：
 
-| 层 | 文件 | 改什么 |
-|---|---|---|
-| 契约 | `packages/contracts/src/api/chat.ts:39` | `ChatSessionMode` 加值 |
-| 契约 | `packages/contracts/src/analytics/events/ui-click.ts:765` + `mappers.ts:14` | TrackingSessionMode + 映射 |
-| 提示词（双份镜像） | `apps/daemon/src/prompts/system.ts` + `packages/contracts/src/prompts/system.ts:318` | 新增 `XXX_MODE_OVERRIDE` 常量 + `composeSystemPrompt` 分支，决定 discovery/charter 取舍 |
-| 选择器 | `apps/web/src/components/SessionModeToggle.tsx` | `MODE_META` 加项 + `ModeCopyKey` 联合类型 |
-| i18n | `src/i18n/types.ts` + **全部 19 个 locale 文件** | 每模式 9 个 key（typecheck 强制） |
-| daemon 白名单 | `db.ts:1115`、`routes/project/conversations.ts:15`、`routes/project/index.ts:1042`、`runtimes/runs.ts:316`、`routes/runs.ts:1148`、`server.ts:4370` | sessionMode 归一化/校验白名单 |
-| 行为分支（按需） | `runtime/design-delivery.ts:77`（是否要产物交付校验）、`ChatPane.tsx:1055`（nextStep 变体）+ `:4210`（消息徽章）、`HomeView.tsx:2006`（首页分流） | 模式行为差异 |
-| 可选 | `apps/daemon/src/cli.ts:5955` | CLI `--mode` flag |
+| 层                 | 文件                                                                                                                                                | 改什么                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 契约               | `packages/contracts/src/api/chat.ts:39`                                                                                                             | `ChatSessionMode` 加值                                                                  |
+| 契约               | `packages/contracts/src/analytics/events/ui-click.ts:765` + `mappers.ts:14`                                                                         | TrackingSessionMode + 映射                                                              |
+| 提示词（双份镜像） | `apps/daemon/src/prompts/system.ts` + `packages/contracts/src/prompts/system.ts:318`                                                                | 新增 `XXX_MODE_OVERRIDE` 常量 + `composeSystemPrompt` 分支，决定 discovery/charter 取舍 |
+| 选择器             | `apps/web/src/components/SessionModeToggle.tsx`                                                                                                     | `MODE_META` 加项 + `ModeCopyKey` 联合类型                                               |
+| i18n               | `src/i18n/types.ts` + **全部 19 个 locale 文件**                                                                                                    | 每模式 9 个 key（typecheck 强制）                                                       |
+| daemon 白名单      | `db.ts:1115`、`routes/project/conversations.ts:15`、`routes/project/index.ts:1042`、`runtimes/runs.ts:316`、`routes/runs.ts:1148`、`server.ts:4370` | sessionMode 归一化/校验白名单                                                           |
+| 行为分支（按需）   | `runtime/design-delivery.ts:77`（是否要产物交付校验）、`ChatPane.tsx:1055`（nextStep 变体）+ `:4210`（消息徽章）、`HomeView.tsx:2006`（首页分流）   | 模式行为差异                                                                            |
+| 可选               | `apps/daemon/src/cli.ts:5955`                                                                                                                       | CLI `--mode` flag                                                                       |
 
 **"进入设计面板"的接线点**：模式切换后开面板有两个现成挂载方式——
+
 - 在 `ProjectView` 监听 `activeConversation.sessionMode` 变化 → 调 FileWorkspace 的 tab API 打开你的面板 tab；
 - 或在 run 完成回调（`onDone`，ProjectView.tsx:5552 的 `selectAutoOpenTurnArtifact` 同款位置）按模式自动打开。
 
@@ -323,17 +328,17 @@ App.tsx
 
 ## 附：关键文件速查
 
-| 主题 | 文件 |
-|---|---|
-| 模式类型源头 | `packages/contracts/src/api/chat.ts:39` |
-| 模式选择器 | `apps/web/src/components/SessionModeToggle.tsx` |
-| 输入栏 | `apps/web/src/components/ChatComposer.tsx`（5613 行） |
-| Studio 页 | `apps/web/src/components/ProjectView.tsx`（布局常量 :479-497） |
-| 工作区分发 | `apps/web/src/components/FileWorkspace.tsx:3601` |
-| 新 tab 扩展点 | `apps/web/src/components/workspace/tab-launcher.ts:77` |
-| 渲染器注册 | `apps/web/src/artifacts/renderer-registry.ts:90` |
-| 提示词组装 | `apps/daemon/src/prompts/system.ts` ↔ `packages/contracts/src/prompts/system.ts` |
-| run API | `apps/daemon/src/routes/runs.ts:871` |
-| 插件规范 | `plugins/spec/SPEC.md` + `docs/schemas/open-design.plugin.v1.json` |
-| 场景默认表 | `packages/contracts/src/plugins/scenario-defaults.ts:55` |
-| 设计 tokens | `apps/web/src/styles/tokens.css` |
+| 主题          | 文件                                                                             |
+| ------------- | -------------------------------------------------------------------------------- |
+| 模式类型源头  | `packages/contracts/src/api/chat.ts:39`                                          |
+| 模式选择器    | `apps/web/src/components/SessionModeToggle.tsx`                                  |
+| 输入栏        | `apps/web/src/components/ChatComposer.tsx`（5613 行）                            |
+| Studio 页     | `apps/web/src/components/ProjectView.tsx`（布局常量 :479-497）                   |
+| 工作区分发    | `apps/web/src/components/FileWorkspace.tsx:3601`                                 |
+| 新 tab 扩展点 | `apps/web/src/components/workspace/tab-launcher.ts:77`                           |
+| 渲染器注册    | `apps/web/src/artifacts/renderer-registry.ts:90`                                 |
+| 提示词组装    | `apps/daemon/src/prompts/system.ts` ↔ `packages/contracts/src/prompts/system.ts` |
+| run API       | `apps/daemon/src/routes/runs.ts:871`                                             |
+| 插件规范      | `plugins/spec/SPEC.md` + `docs/schemas/open-design.plugin.v1.json`               |
+| 场景默认表    | `packages/contracts/src/plugins/scenario-defaults.ts:55`                         |
+| 设计 tokens   | `apps/web/src/styles/tokens.css`                                                 |
