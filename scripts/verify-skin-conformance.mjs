@@ -662,6 +662,9 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="select"] [data-part="listbox"]',
     {
+      display: "flex",
+      "flex-direction": "column",
+      gap: "var(--artemis-space-1)",
       "max-block-size": "calc(var(--artemis-size-control-compact) * 7)",
       overflow: "auto",
     },

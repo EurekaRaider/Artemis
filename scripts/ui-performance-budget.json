@@ -169,6 +169,14 @@
       "previousDesktopCssMaximumBytes": 374000,
       "desktopCssMaximumBytes": 382000,
       "reason": "The image preview adds real UI CSS; the production bundle is 374125 bytes, reproduced locally and in CI run 34613150010. Reserve approximately 2% measured headroom instead of repeatedly moving the ceiling by a few hundred bytes. The 382000-byte hard cap remains enforced. Main pushes now run this gate after a clean installation in an isolated checkout, before remote publication. JavaScript, shared UI, gallery and runtime budgets are unchanged."
+    },
+    {
+      "date": "2026-09-12",
+      "baseHead": "58108e7640ae8d95d5f8216a0c719b3f55072bc0",
+      "baseDesktopCssBytes": 377792,
+      "measuredDesktopCssBytes": 378775,
+      "desktopCssIncreaseBytes": 983,
+      "reason": "Issue #193 moves the custom sub-agent editor from an in-panel list replacement to an overlay dialog: sticky header/footer framing a scrollable sectioned form, the dirty-discard footer state, two-column tool checkboxes with row spacing, and server-dimension MCP selection add 983 bytes (0.26%). The replaced two-state editor rules are removed. Baseline and candidate use the same installed dependencies and Vite pipeline, substituting only styles.css in memory. The dialog CSS fits the 382000-byte ceiling raised for the image preview with 3225 bytes of headroom; JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [
