@@ -2526,13 +2526,13 @@
     display: flex;
     flex: 0 0
       calc(
-        var(--artemis-size-control-comfortable) + var(--artemis-space-4) + 2px
+        var(--artemis-size-control-compact) + var(--artemis-space-2) +
+          var(--artemis-border-width-default)
       );
     align-items: center;
     gap: calc(var(--artemis-space-1) * 1.5);
     min-inline-size: 0;
-    padding: calc(var(--artemis-space-2) - 1px)
-      calc(var(--artemis-space-2) + 2px) calc(var(--artemis-space-2) - 2px);
+    padding: calc(var(--artemis-space-1) / 2) calc(var(--artemis-space-2) + 2px);
     background: transparent;
     border-block-end: var(--artemis-border-width-default) solid
       var(--artemis-color-border-subtle);

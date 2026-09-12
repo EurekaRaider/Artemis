@@ -58,6 +58,31 @@ describe("custom agent store", () => {
     store.close();
   });
 
+  it("round-trips long Unicode instructions through create, update and disk reopen", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-agent-long-"));
+    temporaryDirectories.push(directory);
+    const path = join(directory, "state.sqlite");
+    const store = new AppStore(path);
+    const instructions = "中文😀\n".repeat(110000);
+    const agent = store.createCustomAgent({
+      name: "Long",
+      description: "",
+      color: "green",
+      instructions,
+      scope: "all",
+    });
+    expect(store.getCustomAgent(agent.id)?.instructions).toBe(instructions);
+    store.updateCustomAgent(agent.id, agent.revision, {
+      instructions: instructions + "END",
+    });
+    store.close();
+    const reopened = new AppStore(path);
+    expect(reopened.getCustomAgent(agent.id)?.instructions).toBe(
+      instructions + "END",
+    );
+    reopened.close();
+  });
+
   it("rejects duplicate names after normalization", async () => {
     const store = await openStore();
     store.createCustomAgent({

@@ -614,9 +614,9 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   }
 }
 
-.thread-select .status-dot {
+.thread-select .thread-status-indicator {
   grid-column: 1;
-  justify-self: center;
+  justify-self: end;
 }
 
 .thread-select:disabled {
@@ -5321,7 +5321,7 @@ button.environment-row:disabled {
   field-sizing: content;
   line-height: 1.55;
   max-height: 50vh;
-  min-height: 52px;
+  min-height: 32px;
   outline: 0;
   padding: 0;
   resize: none;
@@ -5331,8 +5331,8 @@ button.environment-row:disabled {
 }
 
 .composer-input {
-  margin-block-start: 8px;
-  padding: 9px 12px 8px;
+  margin-block-start: 4px;
+  padding: 7px 12px 4px;
   border-radius: var(--artemis-radius-input);
   min-width: 0;
 }
@@ -6575,14 +6575,19 @@ button.environment-row:disabled {
 
 .workspace-tab-add {
   align-items: center;
-  border-radius: 9px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--artemis-radius-control);
   color: var(--muted);
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 34px;
+  height: var(--artemis-size-control-compact);
+  min-block-size: var(--artemis-size-control-compact);
+  min-inline-size: var(--artemis-size-control-compact);
   justify-content: center;
-  width: 34px;
+  padding: 0;
+  width: var(--artemis-size-control-compact);
 }
 
 .workspace-tab-add:hover,
@@ -7126,6 +7131,27 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--text);
 }
 
+@keyframes review-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.review-toolbar-action[aria-busy="true"] svg {
+  animation: review-refresh-spin 0.8s linear infinite;
+}
+
+.review-toolbar-action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-toolbar-action[aria-busy="true"] svg {
+    animation: none;
+  }
+}
+
 .review-comparison-route {
   align-items: center;
   color: var(--muted-2);
@@ -7165,7 +7191,7 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .review-workspace {
   flex: 1;
-  grid-template-columns: minmax(0, 1fr) minmax(185px, 31%);
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 23%);
 }
 
 .review-diff-reader {
@@ -7221,7 +7247,7 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--muted);
   cursor: pointer;
   display: flex;
-  font: 10px/1.3 var(--mono-font);
+  font: 12px/1.4 var(--font);
   gap: 7px;
   min-height: 30px;
   padding: 0 7px;
@@ -7246,6 +7272,9 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .review-file {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
   contain-intrinsic-size: auto 160px;
   content-visibility: auto;
   min-width: 0;
@@ -7329,12 +7358,12 @@ button.sources-panel-entry.attachment:focus-visible {
   display: flex;
   gap: 7px;
   min-height: 28px;
-  padding: 3px 12px 3px 31px;
+  padding: 3px 12px 3px 56px;
 }
 
 .review-hunk code {
   flex: 1;
-  font-size: 9px;
+  font-size: 11px;
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -7345,53 +7374,82 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .review-lines {
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  background: var(--codex-workspace-bg);
   font-family: var(--mono-font);
 }
 
 .review-line {
   display: grid;
-  font-size: 10px;
-  grid-template-columns: 22px 30px 30px minmax(0, 1fr);
-  min-height: 21px;
+  position: relative;
+  grid-template-columns: 44px minmax(0, 1fr);
+  min-height: 22px;
+  padding: 0;
+  font-family: var(--mono-font), var(--font);
+  font-size: 13px;
+  line-height: 22px;
 }
 
-.review-line:has(> .review-comment-trigger) {
-  grid-template-columns: 16px 22px 30px 30px minmax(0, 1fr);
+.review-line > [data-part="marker"] {
+  display: none;
 }
 
 .review-line.addition {
-  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: color-mix(in srgb, var(--success) 65%, var(--text));
+  background: var(--artemis-color-status-success-subtle);
 }
 
 .review-line.deletion {
-  background: color-mix(in srgb, #e9797e 12%, transparent);
+  color: color-mix(in srgb, var(--danger) 65%, var(--text));
+  background: var(--artemis-color-status-danger-subtle);
 }
 
 .review-line code {
   min-width: 0;
+  font: inherit;
   overflow-wrap: anywhere;
-  padding: 3px 8px;
+  padding: 0 12px;
   white-space: pre-wrap;
+  tab-size: 4;
+}
+
+.review-file:is([data-language="markdown"], [data-language="text"])
+  .review-line
+  code {
+  font-family: var(--font);
+}
+
+.review-file:is([data-language="markdown"], [data-language="text"])
+  .syntax-token {
+  color: inherit;
 }
 
 .review-line-number {
-  border-right: 1px solid var(--border-soft);
   color: var(--muted-2);
-  padding: 3px 5px;
+  padding: 0 8px 0 4px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
   user-select: none;
   white-space: pre;
 }
 
+.review-line:is(.addition, .deletion) .review-line-number {
+  color: inherit;
+}
+
 .review-comment-trigger {
-  align-self: start;
-  background: transparent;
-  border: 0;
+  position: absolute;
+  inset-inline-start: 2px;
+  top: 1px;
+  width: 20px;
+  height: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
   color: var(--accent);
   cursor: pointer;
   opacity: 0;
   padding: 0;
+  z-index: 1;
 }
 
 .review-line:hover .review-comment-trigger,
@@ -10614,7 +10672,7 @@ kbd {
 .custom-agent-dialog {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: var(--artemis-radius-panel);
   inline-size: min(680px, calc(100vw - 48px));
   overflow: hidden;
   padding: 0;
@@ -10634,10 +10692,10 @@ kbd {
 .custom-agent-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--artemis-space-4);
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 24px 20px;
+  padding: var(--artemis-space-4) var(--artemis-space-5);
 }
 
 .custom-agent-dialog-header {
@@ -10647,7 +10705,7 @@ kbd {
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  padding: 20px 24px 14px;
+  padding: var(--artemis-space-4) var(--artemis-space-5);
 }
 
 .custom-agent-dialog-heading {
@@ -10699,7 +10757,7 @@ kbd {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  padding: 14px 24px;
+  padding: var(--artemis-space-3) var(--artemis-space-5);
 }
 
 /* Dialog checkbox lists: breathe between rows; MCP/builtin tools in two
@@ -10723,19 +10781,26 @@ kbd {
 .custom-agent-color-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--artemis-space-1);
 }
 
 .custom-agent-color-label {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: var(--artemis-typography-label-size);
+  font-weight: var(--artemis-typography-body-weight);
+  color: var(--artemis-color-text-primary);
 }
 
 .custom-agent-color-picker {
+  align-items: center;
+  min-block-size: max(
+    var(--artemis-size-control-compact),
+    calc(
+      1lh + 2 * var(--artemis-space-2) + 2 * var(--artemis-border-width-default)
+    )
+  );
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding-top: 4px;
 }
 
 .custom-agent-color-picker .custom-agent-color {
@@ -10784,6 +10849,42 @@ kbd {
 
 .custom-agent-capability-preview {
   margin: 0;
+}
+
+/* Keep editor groups and menus aligned with the compact settings controls. */
+.custom-agent-dialog-section {
+  min-inline-size: 0;
+}
+
+.custom-agent-dialog-section + .custom-agent-dialog-section {
+  border-top: var(--artemis-border-width-default) solid
+    var(--artemis-color-border-default);
+  padding-top: var(--artemis-space-4);
+}
+
+.custom-agent-dialog .custom-agent-model-select [data-part="menu"] {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--artemis-space-1));
+}
+
+.custom-agent-dialog-section:first-of-type {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.custom-agent-dialog-section:first-of-type > :last-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 540px) {
+  .custom-agent-dialog-section:first-of-type {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.custom-agent-dialog [data-artemis-component="select"] [data-part="listbox"] {
+  max-block-size: calc(var(--artemis-size-control-compact) * 5);
 }
 
 /* Composer @-mention menu + attached chip (D#152 PR4). */

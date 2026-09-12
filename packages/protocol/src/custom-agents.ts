@@ -38,8 +38,6 @@ export const CUSTOM_AGENT_CATALOG_TEXT_BUDGET = 4096;
 export const CUSTOM_AGENT_NAME_MAX_LENGTH = 64;
 /** Maximum length of a definition description. */
 export const CUSTOM_AGENT_DESCRIPTION_MAX_LENGTH = 512;
-/** Maximum length of the dedicated instructions body. */
-export const CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES = 16 * 1024;
 /** Maximum number of trigger phrases per definition. */
 export const CUSTOM_AGENT_TRIGGERS_MAX = 16;
 /** Maximum length of a single trigger phrase. */
@@ -240,6 +238,8 @@ export interface ResolvedCustomAgentModel {
   providerId: string;
   modelId: string;
   thinkingLevel: string | null;
+  /** Frozen effective window when inheriting; fixed models use their catalog window. */
+  contextWindow?: number;
 }
 
 /**

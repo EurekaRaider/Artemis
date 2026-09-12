@@ -54,7 +54,15 @@ async function setup(toolPolicy: CustomAgentDefinition["toolPolicy"]) {
     updatedAt: 0,
   };
   const internals = host as any;
-  internals.configuration.customAgents = [definition];
+  await host.configure({
+    credentials: {},
+    customAgents: [definition],
+    selection: {
+      providerId: "kimi-coding",
+      modelId: "k3",
+      thinkingLevel: "off",
+    },
+  });
   await host.openThread({
     threadId: "thread-1",
     workspacePath: workspace,

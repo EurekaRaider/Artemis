@@ -1,4 +1,3 @@
-import { confirmDesignLeave, hasDesignDraft } from "./design-drafts.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
@@ -402,11 +401,6 @@ const loadResourceCenter = () => import("./ResourceCenter.js");
 const loadSettingsPanel = () => import("./SettingsPanel.js");
 const loadTerminalPanel = () => import("./TerminalPanel.js");
 const loadTokenUsagePage = () => import("./TokenUsagePage.js");
-const DesignPanel = lazy(() =>
-  import("./DesignPanel.js").then((module) => ({
-    default: module.DesignPanel,
-  })),
-);
 const AutomationPage = lazy(() =>
   loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
 );
@@ -490,8 +484,6 @@ const copy = {
     agentTeam: "Agent team",
     terminal: "Terminal",
     browser: "Browser",
-    designTab: "Design",
-    designWorkflowBadge: "Design workflow",
     browserAddress: "Enter a URL",
     browserBack: "Back",
     browserForward: "Forward",
@@ -640,6 +632,8 @@ const copy = {
       "The platform Shell and Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
     terminalLocked: "Terminal locked until the native executor is available.",
     refreshDiff: "Refresh",
+    refreshingDiff: "Refreshing…",
+    diffRefreshed: "Diff refreshed",
     addAttachments: "Add files or images",
     removeAttachment: "Remove attachment",
     removeSelectedSkill: "Remove loaded Skill",
@@ -801,8 +795,6 @@ const copy = {
     agentTeam: "Agent 团队",
     terminal: "终端",
     browser: "浏览器",
-    designTab: "设计",
-    designWorkflowBadge: "设计工作流",
     browserAddress: "输入网址",
     browserBack: "后退",
     browserForward: "前进",
@@ -948,6 +940,8 @@ const copy = {
       "平台 Shell 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
     terminalLocked: "原生执行器可用前，终端保持锁定。",
     refreshDiff: "刷新",
+    refreshingDiff: "正在刷新…",
+    diffRefreshed: "差异已刷新",
     addAttachments: "添加文件或图片",
     removeAttachment: "移除附件",
     removeSelectedSkill: "移除已加载 Skill",
@@ -1225,7 +1219,7 @@ export function WorkspaceTabIcon({
 }) {
   if (kind === "review") return <ReviewIcon />;
   if (kind === "terminal") return <TerminalIcon />;
-  if (kind === "browser" || kind === "design") return <BrowserIcon />;
+  if (kind === "browser") return <BrowserIcon />;
   if (kind === "markdown") return <MarkdownIcon />;
   if (kind === "sources") return <SourcesIcon />;
   if (kind === "goal")
@@ -1507,23 +1501,7 @@ export function App() {
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
-  const [activeThreadId, setActiveThreadIdUnchecked] = useState<string>();
-  const activeThreadIdRef = useRef(activeThreadId);
-  activeThreadIdRef.current = activeThreadId;
-  const threadSwitchGeneration = useRef(0);
-  const setActiveThreadId = useCallback((next: string | undefined) => {
-    const current = activeThreadIdRef.current;
-    const generation = ++threadSwitchGeneration.current;
-    if (next === current) return;
-    if (!hasDesignDraft(current)) {
-      setActiveThreadIdUnchecked(next);
-      return;
-    }
-    void confirmDesignLeave(current).then((allowed) => {
-      if (generation === threadSwitchGeneration.current && allowed)
-        setActiveThreadIdUnchecked(next);
-    });
-  }, []);
+  const [activeThreadId, setActiveThreadId] = useState<string>();
   const [composerDrafts, setComposerDrafts] = useState<ComposerDrafts>({});
   const [promptSubmittedAtByThread, setPromptSubmittedAtByThread] = useState<
     Record<string, number>
@@ -1668,6 +1646,7 @@ export function App() {
   const [selectedReviewFilePath, setSelectedReviewFilePath] =
     useState<string>();
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
   const [sidebarOpen, setSidebarOpen] = useState(
@@ -2025,6 +2004,8 @@ export function App() {
   const username = snapshot?.userName ?? t.local;
   const localeRef = useRef(locale);
   localeRef.current = locale;
+  const activeThreadIdRef = useRef(activeThreadId);
+  activeThreadIdRef.current = activeThreadId;
   workspaceDockWidthRef.current = workspaceDockWidth;
   projectSidebarWidthRef.current = projectSidebarWidth;
   const activeComposerDraftKey = conversationDraftKey(
@@ -2722,7 +2703,6 @@ export function App() {
       if (kind === "review") return t.reviewPanel;
       if (kind === "terminal") return t.terminal;
       if (kind === "browser") return t.browser;
-      if (kind === "design") return t.designTab;
       if (kind === "markdown") return t.markdownReader;
       if (kind === "sources") return t.sources;
       if (kind === "goal") return t.goalEditTitle;
@@ -2748,34 +2728,25 @@ export function App() {
 
   const closeWorkspaceTab = useCallback(
     (tabId: string, options?: { moveFocus?: boolean }) => {
-      const finishClose = async () => {
-        if (
-          workspaceTabs.tabs.find((tab) => tab.id === tabId)?.kind ===
-            "design" &&
-          !(await confirmDesignLeave(activeThreadId))
-        )
-          return;
-        const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
-        const focusTarget = workspaceTabFocusTargetAfterClose(
-          workspaceTabs.tabs,
-          tabId,
-          workspaceTabs.activeTabId,
-        );
-        dispatchWorkspaceTab({ type: "close", tabId });
-        if (closesLastTab) {
-          setWorkspaceDockOpen(false);
-          if (options?.moveFocus) {
-            workspaceDockToggleElement.current?.focus();
-          }
-          return;
-        }
+      const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
+      const focusTarget = workspaceTabFocusTargetAfterClose(
+        workspaceTabs.tabs,
+        tabId,
+        workspaceTabs.activeTabId,
+      );
+      dispatchWorkspaceTab({ type: "close", tabId });
+      if (closesLastTab) {
+        setWorkspaceDockOpen(false);
         if (options?.moveFocus) {
-          focusWorkspaceTab(focusTarget);
+          workspaceDockToggleElement.current?.focus();
         }
-      };
-      void finishClose();
+        return;
+      }
+      if (options?.moveFocus) {
+        focusWorkspaceTab(focusTarget);
+      }
     },
-    [activeThreadId, dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
+    [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
 
   const openWorkspaceTabForThread = useCallback(
@@ -2847,13 +2818,6 @@ export function App() {
 
   const openWorkspaceTab = useCallback(
     (kind: WorkspaceTabKind, options: WorkspaceTabOpenOptions = {}) => {
-      if (kind === "design")
-        setWorkspaceDockWidth((current) =>
-          Math.max(
-            current ?? 0,
-            Math.min(760, Math.round(window.innerWidth * 0.55)),
-          ),
-        );
       setWorkspaceDockOpen(true);
       setWorkspaceTabMenuOpen(false);
       if (activeThreadId) {
@@ -3082,46 +3046,10 @@ export function App() {
     () => openWorkspaceTab("terminal"),
     [openWorkspaceTab],
   );
-  const [designWorkflow, setDesignWorkflow] = useState<"code" | "design">(
-    "code",
-  );
-  const seenDesignWorkflow = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    setDesignWorkflow("code");
-  }, [activeThreadId]);
-  useEffect(() => {
-    if (!activeThreadId || !window.artemis.getDesignState) return;
-    let disposed = false;
-    const refresh = async () => {
-      try {
-        const result = await window.artemis.getDesignState(activeThreadId);
-        if (disposed) return;
-        setDesignWorkflow(result.workflow);
-        const key = `${activeThreadId}:${result.workflow}`;
-        if (result.workflow === "design" && seenDesignWorkflow.current !== key)
-          openWorkspaceTab("design");
-        seenDesignWorkflow.current = key;
-      } catch {
-        /* Tasks without a local workspace do not expose Design. */
-      }
-    };
-    void refresh();
-    const timer = setInterval(() => {
-      void refresh();
-    }, 1500);
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-    };
-  }, [activeThreadId, openWorkspaceTab]);
   const openBrowserPanel = useCallback(
     () => openWorkspaceTab("browser"),
     [openWorkspaceTab],
   );
-  useEffect(() => {
-    if (activeThreadId && window.artemis.setDesignMode)
-      void window.artemis.setDesignMode(activeThreadId, mode).catch(() => {});
-  }, [mode, activeThreadId, designWorkflow]);
   const openFilesPanel = useCallback(
     () => openWorkspaceTab("file"),
     [openWorkspaceTab],
@@ -4645,6 +4573,7 @@ export function App() {
         startReviewTransition(() => {
           setReviewDiff(diff);
         });
+        return diff;
       } catch (error) {
         if (requestId !== reviewRequestId.current) return;
         setReviewDiff({
@@ -6508,15 +6437,7 @@ export function App() {
                             <>
                               <button
                                 className="thread-select"
-                                onClick={async () => {
-                                  if (
-                                    thread.id !== activeThreadIdRef.current &&
-                                    hasDesignDraft(activeThreadIdRef.current) &&
-                                    !(await confirmDesignLeave(
-                                      activeThreadIdRef.current,
-                                    ))
-                                  )
-                                    return;
+                                onClick={() => {
                                   discardNewConversationDraft();
                                   setActiveView("workspace");
                                   setActiveProjectId(project.id);
@@ -6774,13 +6695,7 @@ export function App() {
                   <>
                     <button
                       className="thread-select"
-                      onClick={async () => {
-                        if (
-                          thread.id !== activeThreadIdRef.current &&
-                          hasDesignDraft(activeThreadIdRef.current) &&
-                          !(await confirmDesignLeave(activeThreadIdRef.current))
-                        )
-                          return;
+                      onClick={() => {
                         discardNewConversationDraft();
                         setActiveView("workspace");
                         setActiveProjectId(undefined);
@@ -8042,20 +7957,11 @@ export function App() {
                                 : t.prompt
                             }
                             ref={promptInput}
-                            rows={2}
+                            rows={1}
                             value={prompt}
                           />
                         </div>
                         <div className="composer-toolbar">
-                          {designWorkflow === "design" && (
-                            <button
-                              type="button"
-                              className="design-workflow-badge"
-                              onClick={() => openWorkspaceTab("design")}
-                            >
-                              {t.designWorkflowBadge}
-                            </button>
-                          )}
                           <div className="composer-leading">
                             <button
                               aria-label={t.addAttachments}
@@ -8551,7 +8457,12 @@ export function App() {
                             title={t.addTab}
                             type="button"
                           >
-                            <PlusIcon />
+                            <ArtemisIcon
+                              className="icon"
+                              height={14}
+                              name="plus"
+                              width={14}
+                            />
                           </button>
                           {workspaceTabMenuOpen && (
                             <div className="workspace-tab-menu">
@@ -8568,7 +8479,6 @@ export function App() {
                                     : []),
                                   ["terminal", t.terminal, <TerminalIcon />],
                                   ["browser", t.browser, <BrowserIcon />],
-                                  ["design", t.designTab, <BrowserIcon />],
                                   ["file", t.files, <FilesIcon />],
                                 ] as const
                               ).map(([kind, label, icon]) => (
@@ -8683,15 +8593,6 @@ export function App() {
                     <div className="workspace-tab-content">
                       {workspaceTabs.tabs.length === 0 && (
                         <WorkspaceLauncher label={t.rightSidebar}>
-                          <WorkspaceLauncherAction
-                            icon={<WorkspaceLauncherIcon kind="browser" />}
-                            label={
-                              designWorkflow === "design"
-                                ? t.designWorkflowBadge
-                                : t.designTab
-                            }
-                            onActivate={() => openWorkspaceTab("design")}
-                          />
                           {activeProject && (
                             <WorkspaceLauncherAction
                               icon={<WorkspaceLauncherIcon kind="review" />}
@@ -8761,10 +8662,31 @@ export function App() {
                                     />
                                   </div>
                                   <button
-                                    aria-label={t.refreshDiff}
+                                    aria-label={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
+                                    aria-busy={reviewRefreshing}
                                     className="review-toolbar-action"
-                                    onClick={() => void refreshDiff(true)}
-                                    title={t.refreshDiff}
+                                    disabled={
+                                      reviewRefreshing || !activeThreadId
+                                    }
+                                    onClick={async () => {
+                                      setReviewRefreshing(true);
+                                      try {
+                                        const diff = await refreshDiff(true);
+                                        if (diff?.available)
+                                          setToast(t.diffRefreshed);
+                                      } finally {
+                                        setReviewRefreshing(false);
+                                      }
+                                    }}
+                                    title={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
                                     type="button"
                                   >
                                     <RefreshIcon />
@@ -8829,6 +8751,11 @@ export function App() {
                                   {reviewDiff?.available &&
                                     selectedReviewFile && (
                                       <ReviewDiffSurface
+                                        data-language={
+                                          filePresentation(
+                                            selectedReviewFile.path,
+                                          ).language
+                                        }
                                         key={selectedReviewFile.id}
                                         state={
                                           commentLineId ? "dirty" : "selected"
@@ -9027,10 +8954,10 @@ export function App() {
                                                           </button>
                                                         )}
                                                         <span className="review-line-number">
-                                                          {line.oldLine ?? ""}
-                                                        </span>
-                                                        <span className="review-line-number">
-                                                          {line.newLine ?? ""}
+                                                          {line.kind ===
+                                                          "deletion"
+                                                            ? line.oldLine
+                                                            : line.newLine}
                                                         </span>
                                                         <code>
                                                           <HighlightedCodeLine
@@ -9247,25 +9174,6 @@ export function App() {
                                 title={tab.title}
                                 emptyMessage={t.terminalLocked}
                                 theme={runtimeSettings?.theme ?? "system"}
-                              />
-                            </Suspense>
-                          )}
-                          {tab.kind === "design" && (
-                            <Suspense
-                              fallback={<div className="view-loading">…</div>}
-                            >
-                              <DesignPanel
-                                threadId={activeThreadId}
-                                locale={locale}
-                                mode={mode}
-                                active={
-                                  workspaceDockOpen &&
-                                  workspaceTabs.activeTabId === tab.id
-                                }
-                                onConversation={(text, image) => {
-                                  setPrompt(text);
-                                  if (image) addPromptAttachments([image]);
-                                }}
                               />
                             </Suspense>
                           )}
@@ -11593,7 +11501,12 @@ export function Timeline({
                   <span>
                     {t.workedFor} {formatWorkedDuration(turn.durationMs)}
                   </span>
-                  <ChevronIcon />
+                  <ArtemisIcon
+                    className="icon"
+                    height={14}
+                    name="chev-right"
+                    width={14}
+                  />
                 </>
               }
             >

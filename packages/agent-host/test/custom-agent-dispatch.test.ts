@@ -84,6 +84,7 @@ function frozenSnapshot(
 }
 
 interface HostedStub {
+  contextWindow?: number;
   currentTurnId: string;
   currentMode: "execute" | "plan" | "review";
   selection?: {
@@ -153,6 +154,7 @@ describe("custom agent dispatch resolution", () => {
   it("freezes an inherited parent model and intersected capabilities at accept time", () => {
     const { internals } = makeHost([definition()]);
     const hosted: HostedStub = {
+      contextWindow: 32000,
       currentTurnId: "turn-1",
       currentMode: "execute",
       selection: {
@@ -172,9 +174,54 @@ describe("custom agent dispatch resolution", () => {
       providerId: "kimi-coding",
       modelId: "k3",
       thinkingLevel: "off",
+      contextWindow: 32000,
     });
+    hosted.contextWindow = 128000;
+    expect(snapshot?.resolvedModel).toHaveProperty("contextWindow", 32000);
     expect(snapshot?.effectiveCapabilities).toContain("shell");
     expect(snapshot?.effectiveCapabilities).not.toContain("spawn-agent");
+  });
+
+  it("inherits the immediate supervisor's model and empty-session capacity, not the root's", () => {
+    const { internals } = makeHost([definition()]);
+    const hosted: HostedStub = {
+      currentTurnId: "turn",
+      currentMode: "execute",
+      contextWindow: 16000,
+      selection: {
+        providerId: "root-provider",
+        modelId: "root-model",
+        thinkingLevel: "off",
+      },
+      childAgents: new Map([
+        [
+          "supervisor",
+          {
+            session: {
+              model: {
+                provider: "child-provider",
+                id: "child-model",
+                contextWindow: 128000,
+              },
+              thinkingLevel: "off",
+              messages: [{ content: "Used parent history" }],
+            },
+          },
+        ],
+      ]),
+    };
+    const snapshot = internals.resolveCustomAgentDispatch(
+      hosted,
+      "supervisor",
+      "def-1",
+      undefined,
+    );
+    expect(snapshot?.resolvedModel).toEqual({
+      providerId: "child-provider",
+      modelId: "child-model",
+      thinkingLevel: "off",
+      contextWindow: 128000,
+    });
   });
 
   it("fixed model policy wins over the parent selection", () => {
@@ -188,6 +235,7 @@ describe("custom agent dispatch resolution", () => {
       }),
     ]);
     const hosted: HostedStub = {
+      contextWindow: 16000,
       currentTurnId: "turn-1",
       currentMode: "execute",
       selection: {
@@ -204,6 +252,7 @@ describe("custom agent dispatch resolution", () => {
       undefined,
     );
     expect(snapshot?.resolvedModel.providerId).toBe("anthropic");
+    expect(snapshot?.resolvedModel).not.toHaveProperty("contextWindow");
   });
 
   it("plan mode strips shell and write capabilities from the frozen ceiling", () => {

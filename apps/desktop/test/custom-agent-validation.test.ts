@@ -48,6 +48,15 @@ describe("validateCustomAgentInput", () => {
     expect(result.projectIds).toEqual(["proj-1"]);
   });
 
+  it("preserves long instructions for model-dependent validation at invocation", () => {
+    const instructions = "中文😀\n".repeat(110000);
+    expect(Buffer.byteLength(instructions)).toBeGreaterThan(1024 * 1024);
+    expect(
+      validateCustomAgentInput(validInput({ instructions }), projectExists)
+        .instructions,
+    ).toBe(instructions);
+  });
+
   it("rejects selected scope with zero projects instead of widening to all", () => {
     expect(() =>
       validateCustomAgentInput(
@@ -95,12 +104,6 @@ describe("validateCustomAgentInput", () => {
         projectExists,
       ),
     ).toThrowError(/CUSTOM_AGENT_INVALID.*description/);
-    expect(() =>
-      validateCustomAgentInput(
-        validInput({ instructions: "领".repeat(16 * 1024) }),
-        projectExists,
-      ),
-    ).toThrowError(/CUSTOM_AGENT_INVALID.*instructions/);
     expect(() =>
       validateCustomAgentInput(
         validInput({ triggers: Array.from({ length: 17 }, (_, i) => `t${i}`) }),

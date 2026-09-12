@@ -34,8 +34,6 @@
     }
   },
   "scripts": {
-    "verify:design-workflow": "npm run build && node apps/desktop/scripts/verify-design-workflow.mjs",
-    "verify:design-p0": "npm run build && node apps/desktop/scripts/verify-design-preview.mjs",
     "package:gateway": "npm run build:gateway && node scripts/package-gateway.mjs",
     "build:gateway": "npm run build -w @artemis/protocol && npm run build -w @artemis/gateway",
     "gateway": "node packages/gateway/dist/cli.js",

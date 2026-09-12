@@ -1,8 +1,3 @@
-import type {
-  DesignToolOperation,
-  DesignWorkflow,
-  DesignRef,
-} from "./design.js";
 import type { RemoteExecutionProfile, RemoteOperation } from "./im.js";
 import type {
   AgentPayload,
@@ -203,9 +198,6 @@ export type AgentHostCommand =
     }
   | {
       type: "turn.prompt";
-      workflow?: DesignWorkflow;
-      designRef?: DesignRef;
-      designRequestId?: string;
       requestId: string;
       threadId: string;
       turnId: string;
@@ -322,14 +314,6 @@ export interface AttachmentOperation {
 }
 
 export type BrokerExecutionRequest =
-  | {
-      kind: "design.operation";
-      approvalId: string;
-      threadId: string;
-      turnId: string;
-      mode: RunMode;
-      operation: DesignToolOperation;
-    }
   | {
       kind: "attachment.read";
       approvalId: string;

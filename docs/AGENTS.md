@@ -14,8 +14,7 @@ docs/
 │   ├── im-gateway/      # 下一级一律为 <domain>/ 子文件夹,单文档特性用 README.md 承载
 │   └── custom-subagents/  # 域内多文档时 README 作索引,配 plan / implementation-status 等
 ├── projects/            # 专项:有生命周期,做完即清(提案、调研、验收矩阵)
-│   ├── design-p0/       # 下一级一律为 <topic>/ 子文件夹,单文档专项用 README.md 承载
-│   └── design-mode-proposal/
+│   └── <topic>/        # 下一级一律为主题子文件夹,单文档专项用 README.md 承载
 ├── records/             # 台账:持续追加维护的记录(审计、账本、视觉规范)
 ├── ui-prototype/        # 自包含静态原型(内部自治,见下)
 ├── images/              # 图片资产;界面截图在 images/screenshots/

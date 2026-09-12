@@ -1,4 +1,4 @@
-import { Buffer } from "node:buffer";
+import { estimateTextTokens } from "@artemis/protocol";
 import type {
   Api,
   Context,
@@ -10,10 +10,6 @@ import {
   type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 
-// Conservative ceiling for bounded attachment reads, not whole-conversation tokens.
-export function attachmentTextTokens(value: string): number {
-  return Buffer.byteLength(value, "utf8");
-}
 export function attachmentImageTokens(
   model: { provider: string; id: string },
   width = 2048,
@@ -54,8 +50,8 @@ export function estimateRequestTokens(
   },
 ): number {
   let tokens =
-    Math.ceil((context.systemPrompt ?? "").length / 4) +
-    Math.ceil(JSON.stringify(context.tools ?? []).length / 4);
+    estimateTextTokens(context.systemPrompt ?? "") +
+    estimateTextTokens(JSON.stringify(context.tools ?? []));
   for (const message of context.messages) {
     tokens += 16;
     const content =
@@ -63,7 +59,7 @@ export function estimateRequestTokens(
         ? (message as { content?: unknown }).content
         : undefined;
     if (typeof content === "string") {
-      tokens += Math.ceil(content.length / 4);
+      tokens += estimateTextTokens(content);
       continue;
     }
     if (!Array.isArray(content)) {
@@ -72,11 +68,10 @@ export function estimateRequestTokens(
     }
     for (const block of content) {
       if (block?.type === "image") tokens += attachmentImageTokens(model);
-      else if (block?.type === "text")
-        tokens += Math.ceil(block.text.length / 4);
+      else if (block?.type === "text") tokens += estimateTextTokens(block.text);
       else if (block?.type === "thinking")
-        tokens += Math.ceil(block.thinking.length / 4);
-      else tokens += Math.ceil((JSON.stringify(block) ?? "").length / 4);
+        tokens += estimateTextTokens(block.thinking);
+      else tokens += estimateTextTokens(JSON.stringify(block) ?? "");
     }
   }
   return tokens;

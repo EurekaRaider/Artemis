@@ -13,6 +13,7 @@ import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   isAttachmentReference,
+  estimateTextTokens,
   promptAttachmentsSchema,
   MAX_PROMPT_FILE_BYTES,
   MAX_PROMPT_IMAGE_BYTES,
@@ -402,7 +403,7 @@ export class AttachmentStore {
       let remaining = Math.min(4000, op.maxTokens ?? 4000);
       for (const ref of refs.slice(offset)) {
         const item = { ...ref, thumbnail: undefined };
-        const size = Buffer.byteLength(JSON.stringify(item));
+        const size = estimateTextTokens(JSON.stringify(item));
         if (size > remaining) break;
         items.push(item);
         remaining -= size;

@@ -54,11 +54,9 @@ describe("task notification shutdown", () => {
   it("keeps the database open until will-quit, after windows finish closing", () => {
     const handlers = new Map<string, () => void>();
     const close = vi.fn();
-    const stopPreview = vi.fn();
     new Function(
       "app",
       "store",
-      "designs",
       `
       let shuttingDown = false;
       const imService = undefined, automationScheduler = undefined, terminalService = undefined;
@@ -75,10 +73,8 @@ describe("task notification shutdown", () => {
           handlers.set(event, callback),
       },
       { close },
-      { hasDrafts: () => false, preview: { stop: stopPreview } },
     );
     handlers.get("before-quit")!();
-    expect(stopPreview).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
     handlers.get("will-quit")!();
     expect(close).toHaveBeenCalledOnce();
