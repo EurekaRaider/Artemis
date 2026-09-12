@@ -849,6 +849,14 @@ export interface OpenThreadRequest {
   contextWindow?: number;
 }
 
+const DESIGN_READ_TOOL_NAMES = new Set([
+  "read",
+  "request_user_input",
+  "attachment_list",
+  "attachment_read",
+  "attachment_search",
+]);
+
 interface HostedThread {
   threadId: string;
   workspacePath: string;
@@ -859,6 +867,7 @@ interface HostedThread {
   resourceLoader: DefaultResourceLoader;
   currentTurnId: string | undefined;
   currentMode: RunMode | undefined;
+  currentWorkflow?: "code" | "design";
   compacting: boolean;
   topLevelUserTurns: number;
   readTool: SessionTool;
@@ -5895,6 +5904,21 @@ export class ArtemisAgentHost {
         .getActiveToolNames()
         .filter((name) => !mcpDirectToolNames.has(name)),
     );
+    // Retained tools from a previous code turn must obey the current workflow
+    // at execution, even when the model cannot discover them in the active set.
+    for (const tool of session.agent.state.tools) {
+      const execute = tool.execute.bind(tool);
+      tool.execute = async (...args) => {
+        if (
+          this.threads.get(request.threadId)?.currentWorkflow === "design" &&
+          !DESIGN_READ_TOOL_NAMES.has(tool.name)
+        )
+          throw new Error(
+            `Tool ${tool.name} is unavailable in the design workflow.`,
+          );
+        return execute(...args);
+      };
+    }
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
     );
@@ -6174,6 +6198,7 @@ export class ArtemisAgentHost {
       revision: number;
     },
     customAgentProjectId?: string | null,
+    workflow: "code" | "design" = "code",
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -6182,12 +6207,27 @@ export class ArtemisAgentHost {
     if (hosted.compacting) {
       throw new Error("Cannot start a turn while context is compacting.");
     }
+    if (workflow !== "code" && workflow !== "design")
+      throw new Error("Invalid task workflow.");
+    if (
+      (workflow === "design" || hosted.currentWorkflow === "design") &&
+      (hosted.currentTurnId || hosted.activeLeases.size > 0)
+    )
+      throw new Error(
+        "A workflow change must wait for the current host turn and tools.",
+      );
+    if (workflow === "design" && customAgentInvocation)
+      throw new Error("Custom agents are unavailable in the design workflow.");
 
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
+    hosted.currentWorkflow = workflow;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
     hosted.customAgentProjectId = customAgentProjectId ?? null;
-    const turnCustomAgents = customAgents ?? this.configuration.customAgents;
+    const turnCustomAgents =
+      workflow === "design"
+        ? []
+        : (customAgents ?? this.configuration.customAgents);
     if (turnCustomAgents === undefined) {
       delete hosted.turnCustomAgents;
     } else {
@@ -6205,8 +6245,12 @@ export class ArtemisAgentHost {
       recovery ? `${turnId}:recovery:${recovery.attemptId}` : turnId,
     );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
-    hosted.session.agent.state.tools =
+    const modeTools =
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
+    hosted.session.agent.state.tools =
+      workflow === "design"
+        ? modeTools.filter((tool) => DESIGN_READ_TOOL_NAMES.has(tool.name))
+        : modeTools;
 
     let explicitDispatchNote: string | undefined;
     if (customAgentInvocation) {
@@ -6419,6 +6463,7 @@ export class ArtemisAgentHost {
       }
       hosted.currentTurnId = undefined;
       hosted.currentMode = undefined;
+      delete hosted.currentWorkflow;
       hosted.currentMission = undefined;
       hosted.deferredTurnCompletion = undefined;
       hosted.adapter = undefined;
