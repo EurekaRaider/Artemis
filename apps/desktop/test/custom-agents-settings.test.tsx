@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 // Renderer coverage for the custom sub-agent settings section (D#152 PR4):
-// two-state list ↔ editor interaction, catalog rendering with policy
-// badges, validated create/edit round-trips, enable toggle, two-step
-// delete, revision-conflict handling, and the capability preview wiring
-// that reuses the runtime intersection.
+// list mounted in the tab with an overlay editor dialog (issue #193),
+// catalog rendering with policy badges, validated create/edit round-trips,
+// clean cancel plus dirty-discard guard, enable toggle, two-step delete,
+// revision-conflict handling, and the capability preview wiring that
+// reuses the runtime intersection.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -173,6 +174,38 @@ describe("CustomAgentsSettingsSection", () => {
     expect(screen.getByText("1 item(s)")).toBeInTheDocument();
   });
 
+  it("deduplicates repeated models instead of crashing the fixed-model picker", async () => {
+    const user = userEvent.setup();
+    // The settings snapshot can repeat a provider/model pair (builtin plus
+    // manually added) and repeat display names; the public Select contract
+    // rejects duplicate option values/labels and used to unmount the whole
+    // dialog with an error as soon as a fixed policy rendered its picker.
+    const fixedPolicy = { kind: "fixed", providerId: "p1", modelId: "m1" };
+    renderSection({
+      snapshotOverrides: {
+        models: [
+          { providerId: "p1", modelId: "m1", name: "Model One" },
+          { providerId: "p1", modelId: "m1", name: "Model One" },
+          { providerId: "p2", modelId: "m2", name: "Model One" },
+        ],
+        customAgents: [{ ...summary, modelPolicy: fixedPolicy }],
+      },
+      api: {
+        customAgentsGet: vi.fn(async () => ({
+          ...definition,
+          modelPolicy: fixedPolicy,
+        })),
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    // Rendering this far means the deduplicated options passed Select's
+    // contract validation instead of throwing.
+    expect(
+      await screen.findByText("Edit: Reviewer", { selector: "h3" }),
+    ).toBeInTheDocument();
+  });
+
   it("labels the fixed model with its configured model id", () => {
     renderSection({
       snapshotOverrides: {
@@ -212,15 +245,16 @@ describe("CustomAgentsSettingsSection", () => {
     ).toBeNull();
   });
 
-  it("creates a definition from the editor and returns to the list", async () => {
+  it("creates a definition from the dialog and keeps the list mounted", async () => {
     const user = userEvent.setup();
     const { api, applySettings, snapshot } = renderSection();
     await user.click(screen.getByRole("button", { name: "New sub-agent" }));
 
-    // The editor replaces the list — rows disappear while editing.
-    expect(screen.queryByText("Reviews diffs")).toBeNull();
+    // The editor is an overlay dialog now (issue #193) — the list behind it
+    // stays mounted while editing.
+    expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
     expect(
-      screen.getByText("New sub-agent", { selector: "strong" }),
+      screen.getByText("New sub-agent", { selector: "h3" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/saving returns to the list/u)).toBeInTheDocument();
 
@@ -233,7 +267,20 @@ describe("CustomAgentsSettingsSection", () => {
       ),
     );
 
-    await user.type(screen.getByLabelText("Name"), "Docs writer");
+    await user.type(screen.getByLabelText("Identity name"), "Docs writer");
+
+    // Local validation mirrors CUSTOM_AGENT_INVALID: an empty prompt blocks
+    // the save with a field error instead of an IPC rejection.
+    await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
+    expect(
+      screen.getByText("The dedicated prompt is required"),
+    ).toBeInTheDocument();
+    expect(api.customAgentsCreate).not.toHaveBeenCalled();
+
+    await user.type(
+      screen.getByLabelText("Dedicated prompt"),
+      "Write concise docs.",
+    );
     await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
 
     await waitFor(() =>
@@ -245,6 +292,7 @@ describe("CustomAgentsSettingsSection", () => {
     >;
     expect(input).toMatchObject({
       name: "Docs writer",
+      instructions: "Write concise docs.",
       enabled: true,
       scope: "all",
       projectIds: [],
@@ -255,7 +303,7 @@ describe("CustomAgentsSettingsSection", () => {
       triggers: [],
     });
     expect(applySettings).toHaveBeenCalledWith(snapshot);
-    // A successful save closes the editor and puts the list back on screen.
+    // A successful save closes the dialog and leaves the list on screen.
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "Save sub-agent" }),
@@ -264,15 +312,40 @@ describe("CustomAgentsSettingsSection", () => {
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
-  it("closes the editor from the back button without saving", async () => {
+  it("closes a clean dialog through cancel without saving", async () => {
     const user = userEvent.setup();
     const { api } = renderSection();
     await user.click(screen.getByRole("button", { name: "New sub-agent" }));
-    await user.type(screen.getByLabelText("Name"), "Discarded");
-    await user.click(screen.getByRole("button", { name: "Back to list" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(api.customAgentsCreate).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.queryByLabelText("Identity name")).toBeNull();
+    expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
+  });
+
+  it("guards a dirty dialog behind an explicit discard step", async () => {
+    const user = userEvent.setup();
+    const { api } = renderSection();
+    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.type(screen.getByLabelText("Identity name"), "Discarded");
+
+    // Cancel with unsaved changes swaps the footer into keep/discard mode
+    // instead of closing.
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("You have unsaved changes")).toBeInTheDocument();
+    expect(screen.getByLabelText("Identity name")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(
+      screen.getByRole("button", { name: "Save sub-agent" }),
+    ).toBeInTheDocument();
+
+    // Re-attempting the close brings the guard back; discarding this time
+    // exits without creating anything.
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(api.customAgentsCreate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Identity name")).toBeNull();
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
@@ -285,9 +358,9 @@ describe("CustomAgentsSettingsSection", () => {
       expect(api.customAgentsGet).toHaveBeenCalledWith("def-1"),
     );
     expect(
-      screen.getByText("Edit: Reviewer", { selector: "strong" }),
+      screen.getByText("Edit: Reviewer", { selector: "h3" }),
     ).toBeInTheDocument();
-    const instructions = await screen.findByLabelText("Dedicated instructions");
+    const instructions = await screen.findByLabelText("Dedicated prompt");
     expect(instructions).toHaveValue("Focus on correctness.");
 
     await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
@@ -356,7 +429,7 @@ describe("CustomAgentsSettingsSection", () => {
     const { applySettings } = renderSection({ api });
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
-    await screen.findByLabelText("Dedicated instructions");
+    await screen.findByLabelText("Dedicated prompt");
     await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
 
     await waitFor(() =>

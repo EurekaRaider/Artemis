@@ -10468,55 +10468,116 @@ kbd {
   font-size: 12px;
 }
 
-/* Two-state editor (list ↔ form, ZCode-style): the editor replaces the
-   list so a save always lands back on the visible list. */
-.custom-agent-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* Sub-agent editor dialog (issue #193). Plain class, not
+   [data-artemis-component]: restyling the public dialog needs registration. */
+.custom-agent-dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  inline-size: min(680px, calc(100vw - 48px));
+  padding: 0;
 }
 
-.custom-agent-editor-header {
-  display: flex;
+.custom-agent-dialog .custom-agent-form {
+  gap: 16px;
+  max-height: min(600px, 76vh);
+  min-width: 0;
+  overflow-y: auto;
+  padding: 0 24px 20px;
+}
+
+.custom-agent-dialog-header {
   align-items: flex-start;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
   justify-content: space-between;
-  gap: 12px;
+  margin: 0 -24px;
+  padding: 20px 24px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
-.custom-agent-editor-heading {
-  display: flex;
+.custom-agent-dialog-heading {
   align-items: flex-start;
-  gap: 4px;
+  display: flex;
+  gap: 10px;
   min-width: 0;
 }
 
-.custom-agent-editor-heading-copy {
+.custom-agent-dialog-heading .custom-agent-color {
+  flex: none;
+  margin-top: 4px;
+}
+
+.custom-agent-dialog-heading-copy {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.custom-agent-editor-heading-copy strong {
-  font-size: 14px;
-  line-height: 20px;
+.custom-agent-dialog-heading-copy h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  margin: 0;
 }
 
-.custom-agent-editor-heading-copy small {
+.custom-agent-dialog-heading-copy p {
   color: var(--muted-2);
   font-size: 12px;
   line-height: 16px;
+  margin: 0;
 }
 
-.custom-agent-editor-header [data-artemis-component="select"] {
-  flex: none;
-  width: 180px;
-}
-
-.custom-agent-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.custom-agent-dialog-section {
+  border: 0;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.custom-agent-dialog-footer {
+  align-items: center;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 4px -24px 0;
+  padding: 14px 24px;
+  position: sticky;
+  z-index: 1;
+}
+
+.custom-agent-dirty-note {
+  color: var(--warning);
+  font-size: 12px;
+  margin-right: auto;
+}
+
+/* Dialog checkbox lists: breathe between rows; MCP/builtin tools in two
+   columns so twelve built-ins do not stack into a dense wall. */
+.custom-agent-dialog .custom-agent-tools {
+  display: grid;
+  gap: 8px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.custom-agent-dialog .custom-agent-tools > legend {
+  grid-column: 1 / -1;
+}
+
+.custom-agent-dialog .custom-agent-projects {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .custom-agent-color-field {
@@ -10557,12 +10618,6 @@ kbd {
   opacity: var(--artemis-opacity-disabled);
 }
 
-.custom-agent-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .custom-agent-projects,
 .custom-agent-tools {
   margin: 0;
@@ -10571,11 +10626,21 @@ kbd {
 }
 
 .custom-agent-projects > legend,
-.custom-agent-tools > legend {
+.custom-agent-tools > legend,
+.custom-agent-dialog-section > legend {
   padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Dialog selects carry visible labels; align the trigger's horizontal text
+   inset with the 12px text-field inset so options do not hug the edge. */
+.custom-agent-dialog
+  [data-artemis-component="select"]
+  :is([data-part="trigger"], [data-part="search"]) {
+  padding-inline: 12px;
 }
 
 .custom-agent-capability-preview {

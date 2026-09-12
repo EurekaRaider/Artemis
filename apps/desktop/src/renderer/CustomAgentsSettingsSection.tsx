@@ -1,10 +1,9 @@
 /**
  * Custom sub-agent management section for Settings → Agent configuration
- * (D#152 PR4). Follows the ZCode-style list ↔ editor two-state pattern
- * inside the existing tab: the editor replaces the list while open, so a
- * successful save always lands the user back on the (visible) list instead
- * of appending a form below the fold. Dedicated instructions are fetched
- * only for the editor; the list works from catalog metadata.
+ * (D#152 PR4). The list stays mounted in the tab; creating or editing opens
+ * a controlled overlay Dialog (issue #193) so attention stays on the
+ * definition being edited. Dedicated instructions are fetched only for the
+ * editor; the list works from catalog metadata.
  */
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -16,7 +15,7 @@ import {
   checkCatalogBudget,
 } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
-import { EmptyState, InlineNotice } from "@artemis/ui/feedback";
+import { Dialog, EmptyState, InlineNotice } from "@artemis/ui/feedback";
 import {
   Checkbox,
   Select,
@@ -77,14 +76,24 @@ const labels = {
     empty: "No custom sub-agents yet",
     emptyHint:
       "Create a specialist role once, then invoke it with @ in the composer.",
-    back: "Back to list",
+    closeDialog: "Close",
+    dirtyWarning: "You have unsaved changes",
+    keepEditing: "Keep editing",
+    discardChanges: "Discard changes",
+    sectionIdentity: "Identity",
+    sectionModel: "Model",
+    sectionReasoning: "Reasoning effort",
+    sectionTools: "Tools",
+    sectionDispatch: "Dispatch & scope",
     editorEditTitle: "Edit: {name}",
     editorHint:
-      "Fill in the name, tools, and dedicated instructions; saving returns to the list.",
-    name: "Name",
+      "Fill in the name, tools, and dedicated prompt; saving returns to the list.",
+    name: "Identity name",
+    nameRequired: "Name is required",
     description: "Description",
     color: "Color",
-    instructions: "Dedicated instructions",
+    instructions: "Dedicated prompt",
+    instructionsRequired: "The dedicated prompt is required",
     instructionsHint:
       "Appended to the child agent's system prompt; never overrides Artemis identity, mode, or team rules.",
     scope: "Project scope",
@@ -96,25 +105,27 @@ const labels = {
     modelPolicy: "Model",
     modelInherit: "Inherit from parent session",
     modelFixed: "Fixed model",
-    thinkingPolicy: "Thinking level",
+    thinkingPolicy: "Reasoning effort",
     thinkingInherit: "Inherit from parent session",
     thinkingFixed: "Fixed level",
     toolPolicy: "Tools",
-    toolInherit: "Inherit child-agent baseline",
-    toolAllowlist: "Allowlist only",
+    toolInherit: "Inherit all tools by default",
+    toolAllowlist: "Choose available tools",
     builtinTools: "Built-in tools",
-    mcpTools: "MCP tools",
+    mcpTools: "MCP servers",
+    mcpToolsCount: "{count} tools",
     enabledLabel: "Enabled",
     allowAutomatic: "Allow automatic invocation",
     allowAutomaticHint:
       "When off, this sub-agent only runs on explicit @ invocation.",
     triggers: "Trigger phrases",
-    triggersHint: "Comma-separated; used for automatic routing candidates.",
+    triggersHint:
+      "Comma-separated. When a conversation mentions one of these phrases, this sub-agent becomes an automatic-invocation candidate; with automatic invocation off, only explicit @ uses it.",
     save: "Save sub-agent",
     cancelEdit: "Cancel",
     revisionConflict:
       "This definition was edited elsewhere. The latest version is loaded — review and save again.",
-    capabilityPreview: "Effective capabilities (preview for {mode})",
+    capabilityPreview: "Effective tools ({mode} mode)",
     scopeBadgeAll: "All projects",
     scopeBadgeSelected: "{count} project(s)",
     disabledBadge: "Disabled",
@@ -137,13 +148,23 @@ const labels = {
     cancelDelete: "取消",
     empty: "还没有自定义子智能体",
     emptyHint: "创建一次专业角色，之后在输入框用 @ 调用。",
-    back: "返回列表",
+    closeDialog: "关闭",
+    dirtyWarning: "有未保存的修改",
+    keepEditing: "继续编辑",
+    discardChanges: "放弃修改",
+    sectionIdentity: "身份",
+    sectionModel: "模型",
+    sectionReasoning: "推理强度",
+    sectionTools: "工具",
+    sectionDispatch: "调度与范围",
     editorEditTitle: "编辑：{name}",
-    editorHint: "填写名称、工具与专用指令，保存后返回列表。",
-    name: "名称",
+    editorHint: "填写名称、工具与专用提示词，保存后返回列表。",
+    name: "身份名称",
+    nameRequired: "请填写名称",
     description: "描述",
     color: "颜色",
-    instructions: "专用指令",
+    instructions: "专用提示词",
+    instructionsRequired: "请填写专用提示词",
     instructionsHint:
       "追加到子智能体系统提示的受控位置，不会覆盖 Artemis 身份、模式约束与团队协议。",
     scope: "项目范围",
@@ -154,24 +175,26 @@ const labels = {
     modelPolicy: "模型",
     modelInherit: "继承父会话",
     modelFixed: "固定模型",
-    thinkingPolicy: "思考强度",
+    thinkingPolicy: "推理强度",
     thinkingInherit: "继承父会话",
     thinkingFixed: "固定档位",
     toolPolicy: "工具",
-    toolInherit: "继承子智能体基线",
-    toolAllowlist: "仅白名单",
+    toolInherit: "默认继承所有工具",
+    toolAllowlist: "指定可用工具",
     builtinTools: "内置工具",
-    mcpTools: "MCP 工具",
+    mcpTools: "MCP 服务器",
+    mcpToolsCount: "{count} 个工具",
     enabledLabel: "启用",
     allowAutomatic: "允许自动调用",
     allowAutomaticHint: "关闭后，该子智能体只能通过 @ 显式调用。",
     triggers: "触发词",
-    triggersHint: "逗号分隔，用于自动路由候选。",
+    triggersHint:
+      "逗号分隔。对话中出现这些词语时，该子智能体会进入自动调用候选；关闭自动调用后，只有 @ 显式调用会使用它。",
     save: "保存子智能体",
     cancelEdit: "取消",
     revisionConflict:
       "该定义已在其他地方被修改，已载入最新版本，请确认后重新保存。",
-    capabilityPreview: "有效能力预览（{mode} 模式）",
+    capabilityPreview: "实际可用工具（{mode} 模式）",
     scopeBadgeAll: "全部项目",
     scopeBadgeSelected: "{count} 个项目",
     disabledBadge: "已停用",
@@ -289,30 +312,23 @@ export function CustomAgentsSettingsSection({
   applySettings(snapshot: SettingsSnapshot): void;
 }) {
   const t = labels[legacyLocale(locale)];
-  const anchorRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const baselineRef = useRef("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingRevision, setEditingRevision] = useState<number>(0);
   const [form, setForm] = useState<CustomAgentFormState>(EMPTY_FORM);
   const [formOpen, setFormOpen] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [error, setError] = useState<string>();
+  const [nameError, setNameError] = useState(false);
+  const [instructionsError, setInstructionsError] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string>();
   const [capabilityPreview, setCapabilityPreview] = useState<string[]>();
 
   // Older test fixtures (and any partial snapshot) may not carry the list
   // yet; treat it as empty rather than crashing the settings panel.
   const definitions = settings.customAgents ?? [];
-
-  // The section sits at the bottom of the Agent configuration tab; both
-  // state transitions must bring it into view, otherwise a save leaves the
-  // user scrolled past the newly rendered list (the original "saved but no
-  // list" complaint).
-  useEffect(() => {
-    const anchor = anchorRef.current;
-    if (anchor && typeof anchor.scrollIntoView === "function") {
-      anchor.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [formOpen]);
 
   // Per-turn automatic catalog budget (D#152 PR5): the runtime disables
   // automatic routing for over-budget turns instead of silently
@@ -370,14 +386,26 @@ export function CustomAgentsSettingsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formOpen, toolPolicyKey]);
 
-  const modelOptions = useMemo(
-    () =>
-      settings.models.map((model) => ({
-        value: `${model.providerId}/${model.modelId}`,
-        label: `${model.name} (${model.providerId})`,
-      })),
-    [settings.models],
-  );
+  // The model snapshot may repeat a provider/model pair (builtin plus
+  // manually added) or repeat display names; the public Select contract
+  // rejects duplicate values or perceptibly equal labels, which previously
+  // crashed the whole dialog when a fixed policy rendered its model picker.
+  // Deduplicate by value and disambiguate labels by full model id.
+  const modelOptions = useMemo(() => {
+    const seenValues = new Set<string>();
+    const seenLabels = new Set<string>();
+    const options: Array<{ value: string; label: string }> = [];
+    for (const model of settings.models) {
+      const value = `${model.providerId}/${model.modelId}`;
+      if (seenValues.has(value)) continue;
+      seenValues.add(value);
+      let label = `${model.name} (${model.providerId})`;
+      if (seenLabels.has(label)) label = `${model.name} (${value})`;
+      seenLabels.add(label);
+      options.push({ value, label });
+    }
+    return options;
+  }, [settings.models]);
 
   const modelBadge = (definition: CustomAgentSummary) => {
     const policy = definition.modelPolicy;
@@ -402,6 +430,9 @@ export function CustomAgentsSettingsSection({
     setFormOpen(false);
     setEditingId(null);
     setError(undefined);
+    setConfirmDiscard(false);
+    setNameError(false);
+    setInstructionsError(false);
   };
 
   const openCreate = () => {
@@ -409,7 +440,9 @@ export function CustomAgentsSettingsSection({
     setEditingName("");
     setEditingRevision(0);
     setForm(EMPTY_FORM);
+    baselineRef.current = JSON.stringify(EMPTY_FORM);
     setError(undefined);
+    setConfirmDiscard(false);
     setFormOpen(true);
   };
 
@@ -427,7 +460,7 @@ export function CustomAgentsSettingsSection({
       setEditingId(definition.id);
       setEditingName(definition.name);
       setEditingRevision(definition.revision);
-      setForm({
+      const nextForm: CustomAgentFormState = {
         name: definition.name,
         description: definition.description,
         color: definition.color,
@@ -467,7 +500,10 @@ export function CustomAgentsSettingsSection({
             : [],
         allowAutomaticInvocation: definition.allowAutomaticInvocation,
         triggersText: definition.triggers.join(", "),
-      });
+      };
+      setForm(nextForm);
+      baselineRef.current = JSON.stringify(nextForm);
+      setConfirmDiscard(false);
       setFormOpen(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -478,6 +514,13 @@ export function CustomAgentsSettingsSection({
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    // Mirror the main-process contract (CUSTOM_AGENT_INVALID) so an empty
+    // form fails locally with field errors instead of an IPC rejection.
+    const nameInvalid = !form.name.trim();
+    const instructionsInvalid = !form.instructions.trim();
+    setNameError(nameInvalid);
+    setInstructionsError(instructionsInvalid);
+    if (nameInvalid || instructionsInvalid) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -560,113 +603,219 @@ export function CustomAgentsSettingsSection({
     ? t.editorEditTitle.replace("{name}", editingName)
     : t.add;
 
+  const dirty = formOpen && JSON.stringify(form) !== baselineRef.current;
+
+  // Escape, backdrop clicks, and the close button all funnel through here;
+  // the dialog's open state is controlled, so vetoing keeps it mounted
+  // until the user explicitly keeps editing or discards.
+  const requestClose = () => {
+    if (busy) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    closeEditor();
+  };
+
   return (
-    <div className="custom-agents-anchor" ref={anchorRef}>
+    <div className="custom-agents-anchor">
       <ManagementSection
         actions={
-          formOpen ? undefined : (
-            <>
-              <span className="custom-agent-count">
-                {t.count.replace("{count}", String(definitions.length))}
-              </span>
-              <Button disabled={busy} onClick={openCreate}>
-                <ArtemisIcon name="plus" />
-                {t.add}
-              </Button>
-            </>
-          )
+          <>
+            <span className="custom-agent-count">
+              {t.count.replace("{count}", String(definitions.length))}
+            </span>
+            <Button disabled={busy} onClick={openCreate}>
+              <ArtemisIcon name="plus" />
+              {t.add}
+            </Button>
+          </>
         }
         className="settings-section custom-agents-section"
-        description={formOpen ? undefined : t.hint}
+        description={t.hint}
         title={t.title}
       >
-        {formOpen ? (
-          <div className="custom-agent-editor">
-            <div className="custom-agent-editor-header">
-              <div className="custom-agent-editor-heading">
-                <Button
-                  className="custom-agent-editor-back"
-                  disabled={busy}
-                  icon={<ArtemisIcon name="chev-left" />}
-                  onClick={closeEditor}
-                  variant="quiet"
-                >
-                  {t.back}
-                </Button>
-                <div className="custom-agent-editor-heading-copy">
-                  <strong>{editorTitle}</strong>
-                  <small>{t.editorHint}</small>
-                </div>
-              </div>
-              <Select
-                disabled={busy}
-                label={t.scope}
-                onValueChange={(scope) =>
-                  setForm((f) => ({
-                    ...f,
-                    scope: scope as "all" | "selected",
-                  }))
-                }
-                options={[
-                  { value: "all", label: t.scopeAll },
-                  { value: "selected", label: t.scopeSelected },
-                ]}
-                value={form.scope}
-              />
-            </div>
-            {error && <InlineNotice tone="warning">{error}</InlineNotice>}
-            {form.scope === "selected" && (
-              <fieldset className="custom-agent-projects">
-                <legend>{t.projects}</legend>
-                <p className="settings-hint">{t.scopeHint}</p>
-                {projects.map((project) => (
-                  <Checkbox
-                    key={project.id}
-                    checked={form.projectIds.includes(project.id)}
+        {error && !formOpen && (
+          <InlineNotice tone="warning">{error}</InlineNotice>
+        )}
+        {!automaticBudget.withinBudget && (
+          <InlineNotice tone="warning">
+            {t.automaticBudgetExceeded
+              .replace("{count}", String(automaticBudget.definitionCount))
+              .replace("{max}", String(CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS))
+              .replace("{chars}", String(CUSTOM_AGENT_CATALOG_TEXT_BUDGET))}
+          </InlineNotice>
+        )}
+        {definitions.length === 0 ? (
+          <EmptyState
+            action={
+              <Button disabled={busy} onClick={openCreate} variant="quiet">
+                {t.add}
+              </Button>
+            }
+            description={t.emptyHint}
+            title={t.empty}
+          />
+        ) : (
+          definitions.map((definition) => (
+            <ManagementRow
+              key={definition.id}
+              actions={
+                <>
+                  <Switch
+                    checked={definition.enabled}
                     disabled={busy}
-                    label={project.name}
-                    onCheckedChange={(checked) =>
-                      setForm((f) => ({
-                        ...f,
-                        projectIds: checked
-                          ? [...f.projectIds, project.id]
-                          : f.projectIds.filter((id) => id !== project.id),
-                      }))
+                    label={definition.name}
+                    labelVisibility="hidden"
+                    onCheckedChange={(enabled) =>
+                      void toggleEnabled(definition, enabled)
                     }
                   />
-                ))}
-              </fieldset>
-            )}
-            <form className="credential-form custom-agent-form" onSubmit={save}>
-              <div className="custom-agent-form-grid">
-                <TextField
-                  disabled={busy}
-                  label={t.name}
-                  onValueChange={(name) => setForm((f) => ({ ...f, name }))}
-                  value={form.name}
-                />
-                <div className="custom-agent-color-field">
-                  <span className="custom-agent-color-label">{t.color}</span>
-                  <div
-                    aria-label={t.color}
-                    className="custom-agent-color-picker"
-                    role="radiogroup"
+                  <Button
+                    disabled={busy}
+                    onClick={() => void openEdit(definition)}
+                    size="compact"
                   >
-                    {COLOR_TOKENS.map((token) => (
-                      <button
-                        key={token}
-                        aria-checked={form.color === token}
-                        aria-label={token}
-                        className={`custom-agent-color custom-agent-color-${customAgentColorToken(token)}${
-                          form.color === token ? " selected" : ""
-                        }`}
+                    {t.edit}
+                  </Button>
+                  {deleteConfirmId === definition.id ? (
+                    <>
+                      <Button
                         disabled={busy}
-                        onClick={() => setForm((f) => ({ ...f, color: token }))}
-                        role="radio"
-                        type="button"
-                      />
-                    ))}
-                  </div>
+                        onClick={() => void removeDefinition(definition.id)}
+                        size="compact"
+                        variant="danger"
+                      >
+                        {t.confirmDelete}
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() => setDeleteConfirmId(undefined)}
+                        size="compact"
+                      >
+                        {t.cancelDelete}
+                      </Button>
+                    </>
+                  ) : (
+                    <IconButton
+                      disabled={busy}
+                      icon={<ArtemisIcon name="trash" />}
+                      label={t.delete}
+                      onClick={() => setDeleteConfirmId(definition.id)}
+                    />
+                  )}
+                </>
+              }
+              description={
+                <>
+                  {definition.description && (
+                    <span className="custom-agent-description">
+                      {definition.description}
+                    </span>
+                  )}
+                  <span className="custom-agent-badges">
+                    <span className="custom-agent-badge">
+                      {modelBadge(definition)}
+                    </span>
+                    <span className="custom-agent-badge">
+                      {toolBadge(definition)}
+                    </span>
+                    <span className="custom-agent-badge">
+                      {definition.scope === "all"
+                        ? t.scopeBadgeAll
+                        : t.scopeBadgeSelected.replace(
+                            "{count}",
+                            String(definition.projectIds.length),
+                          )}
+                    </span>
+                    {!definition.enabled && (
+                      <span className="custom-agent-badge">
+                        {t.disabledBadge}
+                      </span>
+                    )}
+                    <span className="custom-agent-badge">
+                      {definition.allowAutomaticInvocation
+                        ? t.automaticBadge
+                        : t.manualBadge}
+                    </span>
+                  </span>
+                </>
+              }
+              leading={
+                <span
+                  aria-hidden="true"
+                  className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
+                />
+              }
+              title={definition.name}
+            />
+          ))
+        )}
+      </ManagementSection>
+      {formOpen && (
+        <Dialog
+          className="custom-agent-dialog"
+          initialFocusRef={nameInputRef}
+          label={editorTitle}
+          onOpenChange={(open) => {
+            if (!open) requestClose();
+          }}
+          open
+        >
+          <form className="credential-form custom-agent-form" onSubmit={save}>
+            <header className="custom-agent-dialog-header">
+              <div className="custom-agent-dialog-heading">
+                <span
+                  aria-hidden="true"
+                  className={`custom-agent-color custom-agent-color-${customAgentColorToken(form.color)}`}
+                />
+                <div className="custom-agent-dialog-heading-copy">
+                  <h3>{editorTitle}</h3>
+                  <p>{t.editorHint}</p>
+                </div>
+              </div>
+              <IconButton
+                disabled={busy}
+                icon={<ArtemisIcon name="close" />}
+                label={t.closeDialog}
+                onClick={requestClose}
+              />
+            </header>
+            {error && <InlineNotice tone="warning">{error}</InlineNotice>}
+            <fieldset className="custom-agent-dialog-section">
+              <legend>{t.sectionIdentity}</legend>
+              <TextField
+                disabled={busy}
+                error={nameError ? t.nameRequired : undefined}
+                inputRef={nameInputRef}
+                label={t.name}
+                onValueChange={(name) => {
+                  setNameError(false);
+                  setForm((f) => ({ ...f, name }));
+                }}
+                value={form.name}
+              />
+              <div className="custom-agent-color-field">
+                <span className="custom-agent-color-label">{t.color}</span>
+                <div
+                  aria-label={t.color}
+                  className="custom-agent-color-picker"
+                  role="radiogroup"
+                >
+                  {COLOR_TOKENS.map((token) => (
+                    <button
+                      key={token}
+                      aria-checked={form.color === token}
+                      aria-label={token}
+                      className={`custom-agent-color custom-agent-color-${customAgentColorToken(token)}${
+                        form.color === token ? " selected" : ""
+                      }`}
+                      disabled={busy}
+                      onClick={() => setForm((f) => ({ ...f, color: token }))}
+                      role="radio"
+                      type="button"
+                    />
+                  ))}
                 </div>
               </div>
               <TextField
@@ -677,77 +826,83 @@ export function CustomAgentsSettingsSection({
                 }
                 value={form.description}
               />
-              <div className="custom-agent-form-grid">
+            </fieldset>
+            <fieldset className="custom-agent-dialog-section">
+              <legend>{t.sectionModel}</legend>
+              <Select
+                disabled={busy}
+                label={t.modelPolicy}
+                labelVisibility="visible"
+                onValueChange={(kind) =>
+                  setForm((f) => ({
+                    ...f,
+                    modelKind: kind as "inherit" | "fixed",
+                  }))
+                }
+                options={[
+                  { value: "inherit", label: t.modelInherit },
+                  { value: "fixed", label: t.modelFixed },
+                ]}
+                value={form.modelKind}
+              />
+              {form.modelKind === "fixed" && (
                 <Select
                   disabled={busy}
-                  label={t.modelPolicy}
-                  onValueChange={(kind) =>
+                  label={t.modelFixed}
+                  labelVisibility="visible"
+                  onValueChange={(value) => {
+                    const [providerId = "", modelId = ""] = value.split("/");
                     setForm((f) => ({
                       ...f,
-                      modelKind: kind as "inherit" | "fixed",
-                    }))
-                  }
-                  options={[
-                    { value: "inherit", label: t.modelInherit },
-                    { value: "fixed", label: t.modelFixed },
-                  ]}
-                  value={form.modelKind}
+                      modelProviderId: providerId,
+                      modelId,
+                    }));
+                  }}
+                  options={modelOptions}
+                  value={`${form.modelProviderId}/${form.modelId}`}
                 />
-                <Select
-                  disabled={busy}
-                  label={t.thinkingPolicy}
-                  onValueChange={(kind) =>
-                    setForm((f) => ({
-                      ...f,
-                      thinkingKind: kind as "inherit" | "fixed",
-                    }))
-                  }
-                  options={[
-                    { value: "inherit", label: t.thinkingInherit },
-                    { value: "fixed", label: t.thinkingFixed },
-                  ]}
-                  value={form.thinkingKind}
-                />
-              </div>
-              {(form.modelKind === "fixed" ||
-                form.thinkingKind === "fixed") && (
-                <div className="custom-agent-form-grid">
-                  {form.modelKind === "fixed" && (
-                    <Select
-                      disabled={busy}
-                      label={t.modelFixed}
-                      onValueChange={(value) => {
-                        const [providerId = "", modelId = ""] =
-                          value.split("/");
-                        setForm((f) => ({
-                          ...f,
-                          modelProviderId: providerId,
-                          modelId,
-                        }));
-                      }}
-                      options={modelOptions}
-                      value={`${form.modelProviderId}/${form.modelId}`}
-                    />
-                  )}
-                  {form.thinkingKind === "fixed" && (
-                    <Select
-                      disabled={busy}
-                      label={t.thinkingFixed}
-                      onValueChange={(level) =>
-                        setForm((f) => ({ ...f, thinkingLevel: level }))
-                      }
-                      options={THINKING_LEVELS.map((level) => ({
-                        value: level,
-                        label: level,
-                      }))}
-                      value={form.thinkingLevel}
-                    />
-                  )}
-                </div>
               )}
+            </fieldset>
+            <fieldset className="custom-agent-dialog-section">
+              <legend>{t.sectionReasoning}</legend>
+              <Select
+                disabled={busy}
+                label={t.thinkingPolicy}
+                labelVisibility="visible"
+                onValueChange={(kind) =>
+                  setForm((f) => ({
+                    ...f,
+                    thinkingKind: kind as "inherit" | "fixed",
+                  }))
+                }
+                options={[
+                  { value: "inherit", label: t.thinkingInherit },
+                  { value: "fixed", label: t.thinkingFixed },
+                ]}
+                value={form.thinkingKind}
+              />
+              {form.thinkingKind === "fixed" && (
+                <Select
+                  disabled={busy}
+                  label={t.thinkingFixed}
+                  labelVisibility="visible"
+                  onValueChange={(level) =>
+                    setForm((f) => ({ ...f, thinkingLevel: level }))
+                  }
+                  options={THINKING_LEVELS.map((level) => ({
+                    value: level,
+                    label: level,
+                  }))}
+                  value={form.thinkingLevel}
+                />
+              )}
+            </fieldset>
+            <fieldset className="custom-agent-dialog-section">
+              <legend>{t.sectionTools}</legend>
               <Select
                 disabled={busy}
                 label={t.toolPolicy}
+                labelVisibility="visible"
                 onValueChange={(kind) =>
                   setForm((f) => ({
                     ...f,
@@ -786,58 +941,76 @@ export function CustomAgentsSettingsSection({
                   ) && (
                     <>
                       <legend>{t.mcpTools}</legend>
-                      {settings.mcpServers.flatMap((server) =>
-                        server.tools.map((tool) => {
-                          const key = `${tool.serverId}:${tool.toolName}`;
-                          const checked = form.mcpToolRefs.some(
-                            (ref) =>
-                              ref.serverId === tool.serverId &&
-                              ref.toolName === tool.toolName,
-                          );
+                      {settings.mcpServers
+                        .filter((server) => server.tools.length > 0)
+                        .map((server) => {
+                          // Server-dimension selection (issue #193 review):
+                          // checking a server grants every tool it exposes;
+                          // the stored refs still enumerate individual tools.
+                          const serverTools = server.tools.map((tool) => ({
+                            serverId: tool.serverId,
+                            toolName: tool.toolName,
+                          }));
+                          const selected = form.mcpToolRefs.filter((ref) =>
+                            serverTools.some(
+                              (tool) =>
+                                tool.serverId === ref.serverId &&
+                                tool.toolName === ref.toolName,
+                            ),
+                          ).length;
+                          const checked =
+                            selected > 0 && selected === serverTools.length;
                           return (
                             <Checkbox
-                              key={key}
+                              key={server.config.id}
                               checked={checked}
                               disabled={busy}
-                              label={`${tool.serverName} / ${tool.toolName}`}
+                              label={`${server.config.name}（${t.mcpToolsCount.replace("{count}", String(server.tools.length))}）`}
                               onCheckedChange={(next) =>
                                 setForm((f) => ({
                                   ...f,
                                   mcpToolRefs: next
                                     ? [
-                                        ...f.mcpToolRefs,
-                                        {
-                                          serverId: tool.serverId,
-                                          toolName: tool.toolName,
-                                        },
+                                        ...f.mcpToolRefs.filter(
+                                          (ref) =>
+                                            !serverTools.some(
+                                              (tool) =>
+                                                tool.serverId === ref.serverId,
+                                            ),
+                                        ),
+                                        ...serverTools,
                                       ]
                                     : f.mcpToolRefs.filter(
                                         (ref) =>
-                                          !(
-                                            ref.serverId === tool.serverId &&
-                                            ref.toolName === tool.toolName
+                                          !serverTools.some(
+                                            (tool) =>
+                                              tool.serverId === ref.serverId,
                                           ),
                                       ),
                                 }))
                               }
                             />
                           );
-                        }),
-                      )}
+                        })}
                     </>
                   )}
                 </fieldset>
               )}
-              <TextAreaField
-                description={t.instructionsHint}
-                disabled={busy}
-                label={t.instructions}
-                onValueChange={(instructions) =>
-                  setForm((f) => ({ ...f, instructions }))
-                }
-                rows={6}
-                value={form.instructions}
-              />
+            </fieldset>
+            <TextAreaField
+              description={t.instructionsHint}
+              disabled={busy}
+              error={instructionsError ? t.instructionsRequired : undefined}
+              label={t.instructions}
+              onValueChange={(instructions) => {
+                setInstructionsError(false);
+                setForm((f) => ({ ...f, instructions }));
+              }}
+              rows={6}
+              value={form.instructions}
+            />
+            <fieldset className="custom-agent-dialog-section">
+              <legend>{t.sectionDispatch}</legend>
               <TextField
                 description={t.triggersHint}
                 disabled={busy}
@@ -864,6 +1037,44 @@ export function CustomAgentsSettingsSection({
                   setForm((f) => ({ ...f, allowAutomaticInvocation }))
                 }
               />
+              <Select
+                disabled={busy}
+                label={t.scope}
+                labelVisibility="visible"
+                onValueChange={(scope) =>
+                  setForm((f) => ({
+                    ...f,
+                    scope: scope as "all" | "selected",
+                  }))
+                }
+                options={[
+                  { value: "all", label: t.scopeAll },
+                  { value: "selected", label: t.scopeSelected },
+                ]}
+                value={form.scope}
+              />
+              {form.scope === "selected" && (
+                <fieldset className="custom-agent-projects">
+                  <legend>{t.projects}</legend>
+                  <p className="settings-hint">{t.scopeHint}</p>
+                  {projects.map((project) => (
+                    <Checkbox
+                      key={project.id}
+                      checked={form.projectIds.includes(project.id)}
+                      disabled={busy}
+                      label={project.name}
+                      onCheckedChange={(checked) =>
+                        setForm((f) => ({
+                          ...f,
+                          projectIds: checked
+                            ? [...f.projectIds, project.id]
+                            : f.projectIds.filter((id) => id !== project.id),
+                        }))
+                      }
+                    />
+                  ))}
+                </fieldset>
+              )}
               {capabilityPreview && (
                 <p className="settings-hint custom-agent-capability-preview">
                   {t.capabilityPreview.replace("{mode}", "execute")}:{" "}
@@ -872,135 +1083,43 @@ export function CustomAgentsSettingsSection({
                     : "—"}
                 </p>
               )}
-              <div className="custom-agent-form-actions">
-                <Button disabled={busy} type="submit" variant="primary">
-                  {t.save}
-                </Button>
-              </div>
-            </form>
-          </div>
-        ) : (
-          <>
-            {error && <InlineNotice tone="warning">{error}</InlineNotice>}
-            {!automaticBudget.withinBudget && (
-              <InlineNotice tone="warning">
-                {t.automaticBudgetExceeded
-                  .replace("{count}", String(automaticBudget.definitionCount))
-                  .replace(
-                    "{max}",
-                    String(CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS),
-                  )
-                  .replace("{chars}", String(CUSTOM_AGENT_CATALOG_TEXT_BUDGET))}
-              </InlineNotice>
-            )}
-            {definitions.length === 0 ? (
-              <EmptyState
-                action={
-                  <Button disabled={busy} onClick={openCreate} variant="quiet">
-                    {t.add}
+            </fieldset>
+            <footer className="custom-agent-dialog-footer">
+              {confirmDiscard && dirty ? (
+                <>
+                  <span className="custom-agent-dirty-note">
+                    {t.dirtyWarning}
+                  </span>
+                  <Button
+                    disabled={busy}
+                    onClick={() => setConfirmDiscard(false)}
+                    type="button"
+                  >
+                    {t.keepEditing}
                   </Button>
-                }
-                description={t.emptyHint}
-                title={t.empty}
-              />
-            ) : (
-              definitions.map((definition) => (
-                <ManagementRow
-                  key={definition.id}
-                  actions={
-                    <>
-                      <Switch
-                        checked={definition.enabled}
-                        disabled={busy}
-                        label={definition.name}
-                        labelVisibility="hidden"
-                        onCheckedChange={(enabled) =>
-                          void toggleEnabled(definition, enabled)
-                        }
-                      />
-                      <Button
-                        disabled={busy}
-                        onClick={() => void openEdit(definition)}
-                        size="compact"
-                      >
-                        {t.edit}
-                      </Button>
-                      {deleteConfirmId === definition.id ? (
-                        <>
-                          <Button
-                            disabled={busy}
-                            onClick={() => void removeDefinition(definition.id)}
-                            size="compact"
-                            variant="danger"
-                          >
-                            {t.confirmDelete}
-                          </Button>
-                          <Button
-                            disabled={busy}
-                            onClick={() => setDeleteConfirmId(undefined)}
-                            size="compact"
-                          >
-                            {t.cancelDelete}
-                          </Button>
-                        </>
-                      ) : (
-                        <IconButton
-                          disabled={busy}
-                          icon={<ArtemisIcon name="trash" />}
-                          label={t.delete}
-                          onClick={() => setDeleteConfirmId(definition.id)}
-                        />
-                      )}
-                    </>
-                  }
-                  description={
-                    <>
-                      {definition.description && (
-                        <span className="custom-agent-description">
-                          {definition.description}
-                        </span>
-                      )}
-                      <span className="custom-agent-badges">
-                        <span className="custom-agent-badge">
-                          {modelBadge(definition)}
-                        </span>
-                        <span className="custom-agent-badge">
-                          {toolBadge(definition)}
-                        </span>
-                        <span className="custom-agent-badge">
-                          {definition.scope === "all"
-                            ? t.scopeBadgeAll
-                            : t.scopeBadgeSelected.replace(
-                                "{count}",
-                                String(definition.projectIds.length),
-                              )}
-                        </span>
-                        {!definition.enabled && (
-                          <span className="custom-agent-badge">
-                            {t.disabledBadge}
-                          </span>
-                        )}
-                        <span className="custom-agent-badge">
-                          {definition.allowAutomaticInvocation
-                            ? t.automaticBadge
-                            : t.manualBadge}
-                        </span>
-                      </span>
-                    </>
-                  }
-                  leading={
-                    <span
-                      aria-hidden="true"
-                      className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
-                    />
-                  }
-                  title={definition.name}
-                />
-              ))
-            )}
-          </>
-        )}
-      </ManagementSection>
+                  <Button
+                    disabled={busy}
+                    onClick={closeEditor}
+                    type="button"
+                    variant="danger"
+                  >
+                    {t.discardChanges}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button disabled={busy} onClick={requestClose} type="button">
+                    {t.cancelEdit}
+                  </Button>
+                  <Button disabled={busy} type="submit" variant="primary">
+                    {t.save}
+                  </Button>
+                </>
+              )}
+            </footer>
+          </form>
+        </Dialog>
+      )}
     </div>
   );
 }
