@@ -282,31 +282,36 @@ it("keeps the previous head and permits an identical retry after a blob write fa
   expect(f.repository.save(context, next).content.title).toBe("Next");
 });
 
-it("enforces the revision cap without losing the last saved version", () => {
-  const f = fixture();
-  let saved = f.repository.save(context, {
-    operationId: "0",
-    baseRevision: null,
-    content: content(),
-  });
-  for (let index = 1; index < 50; index++)
-    saved = f.repository.save(context, {
-      operationId: String(index),
-      documentId: saved.documentId,
-      baseRevision: saved.revisionId,
-      content: { ...content(), title: String(index) },
-    });
-  expect(() =>
-    f.repository.save(context, {
-      operationId: "overflow",
-      documentId: saved.documentId,
-      baseRevision: saved.revisionId,
+it(
+  "enforces the revision cap without losing the last saved version",
+  () => {
+    const f = fixture();
+    let saved = f.repository.save(context, {
+      operationId: "0",
+      baseRevision: null,
       content: content(),
-    }),
-  ).toThrow(/history limit/);
-  expect(f.repository.read(context, saved.documentId)).toEqual(saved);
-  expect(f.repository.history(context, saved.documentId)).toHaveLength(50);
-});
+    });
+    for (let index = 1; index < 50; index++)
+      saved = f.repository.save(context, {
+        operationId: String(index),
+        documentId: saved.documentId,
+        baseRevision: saved.revisionId,
+        content: { ...content(), title: String(index) },
+      });
+    expect(() =>
+      f.repository.save(context, {
+        operationId: "overflow",
+        documentId: saved.documentId,
+        baseRevision: saved.revisionId,
+        content: content(),
+      }),
+    ).toThrow(/history limit/);
+    expect(f.repository.read(context, saved.documentId)).toEqual(saved);
+    expect(f.repository.history(context, saved.documentId)).toHaveLength(50);
+  },
+  // Allow all 50 durable revisions to finish on Windows CI disks.
+  process.platform === "win32" ? 30_000 : 5_000,
+);
 
 it("injects the trusted bridge ahead of page scripts even when head has attributes", () => {
   const page = content().variants[0]!.pages[0]!;

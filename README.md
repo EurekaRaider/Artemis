@@ -1628,11 +1628,13 @@ The main remaining gates are:
 
 ### Documentation
 
-| Product and acceptance                              | Engineering and security                   |
-| --------------------------------------------------- | ------------------------------------------ |
-| [Installation guide](docs/install.md)               | [Architecture notes](docs/architecture.md) |
-|                                                     | [Security policy](SECURITY.md)             |
-| [IM deployment](docs/features/im-gateway/README.md) | [Engineering guidance](AGENTS.md)          |
+**Get started**\
+[Installation guide](docs/install.md) ·
+[IM deployment](docs/features/im-gateway/README.md)
+
+**Build and contribute**\
+[Architecture notes](docs/architecture.md) ·
+[Security policy](SECURITY.md) · [Engineering guidance](AGENTS.md)
 
 ### Independent product boundary
 
