@@ -62,7 +62,7 @@ unit tests do not establish that they are closed:
   updates and rollback.
 
 The frozen prototype file hashes remain in
-[`scripts/ui-prototype-manifest.json`](../scripts/ui-prototype-manifest.json).
+[`scripts/ui-prototype-manifest.json`](../../../scripts/ui-prototype-manifest.json).
 `verify:latest-ui` and `verify:prototype-parity` still check this baseline; a
 changed prototype requires separate review rather than silently refreshed hashes.
 Historical local reports remain under `artifacts/ui-migration-9556fac/` and are

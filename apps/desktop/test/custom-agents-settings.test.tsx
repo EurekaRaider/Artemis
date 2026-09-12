@@ -5,7 +5,13 @@
 // clean cancel plus dirty-discard guard, enable toggle, two-step delete,
 // revision-conflict handling, and the capability preview wiring that
 // reuses the runtime intersection.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -355,6 +361,38 @@ describe("CustomAgentsSettingsSection", () => {
       ).toBeNull(),
     );
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
+  });
+
+  it("blocks an over-limit dedicated prompt with a byte-accurate field error (issue #196)", async () => {
+    const user = userEvent.setup();
+    const { api } = renderSection();
+    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.type(screen.getByLabelText("Name"), "Verbose writer");
+
+    // 6,000 CJK characters = 18,000 UTF-8 bytes, past the 16,384-byte
+    // ceiling; a character count would not catch this.
+    fireEvent.change(screen.getByLabelText("Dedicated prompt"), {
+      target: { value: "字".repeat(6000) },
+    });
+    await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
+
+    expect(
+      screen.getByText(/exceeds the 16 KB limit \(17\.6 KB\)/u),
+    ).toBeInTheDocument();
+    expect(api.customAgentsCreate).not.toHaveBeenCalled();
+    // The near-limit usage readout rides along in the field description.
+    expect(
+      screen.getByText(/17\.6 KB of the 16 KB limit used/u),
+    ).toBeInTheDocument();
+
+    // Trimming back under the ceiling lets the same save proceed.
+    fireEvent.change(screen.getByLabelText("Dedicated prompt"), {
+      target: { value: "字".repeat(4000) },
+    });
+    await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
+    await waitFor(() =>
+      expect(api.customAgentsCreate).toHaveBeenCalledTimes(1),
+    );
   });
 
   it("closes a clean dialog through cancel without saving", async () => {

@@ -381,14 +381,14 @@ try {
     );
     assertOpenGeometry("initial", interaction.initial);
     assert(
-      "empty-launcher-four-actions",
-      interaction.initial.launcherActions === 4 &&
+      "empty-launcher-five-actions",
+      interaction.initial.launcherActions === 5 &&
         interaction.initial.tabs.length === 0,
       {
         launcherActions: interaction.initial.launcherActions,
         tabs: interaction.initial.tabs,
       },
-      { launcherActions: 4, tabs: [] },
+      { launcherActions: 5, tabs: [] },
     );
     assertOpenGeometry("multi-tab", interaction.multiTab);
     assert(

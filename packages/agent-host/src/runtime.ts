@@ -1,3 +1,5 @@
+import { createDesignTools } from "./design-tools.js";
+import { DESIGN_WORKFLOW_INSTRUCTIONS } from "@artemis/protocol";
 import { createAttachmentTools } from "./attachment-tools.js";
 import { installCompactionBudget } from "./compaction-budget.js";
 import {
@@ -849,6 +851,17 @@ export interface OpenThreadRequest {
   contextWindow?: number;
 }
 
+const DESIGN_READ_TOOL_NAMES = new Set([
+  "design_save_revision",
+  "design_document",
+  "design_preview_check",
+  "read",
+  "request_user_input",
+  "attachment_list",
+  "attachment_read",
+  "attachment_search",
+]);
+
 interface HostedThread {
   threadId: string;
   workspacePath: string;
@@ -859,6 +872,7 @@ interface HostedThread {
   resourceLoader: DefaultResourceLoader;
   currentTurnId: string | undefined;
   currentMode: RunMode | undefined;
+  currentWorkflow?: "code" | "design";
   compacting: boolean;
   topLevelUserTurns: number;
   readTool: SessionTool;
@@ -3408,6 +3422,37 @@ export class ArtemisAgentHost {
       }
       return result.data;
     };
+    const designTools = createDesignTools(async (operation) => {
+      const hosted = this.requireActiveThread(request.threadId);
+      if (operation.action === "save" || operation.action === "inspect") {
+        if (
+          hosted.currentWorkflow !== "design" ||
+          hosted.currentMode !== "execute"
+        )
+          throw new Error(
+            "Design mutations require Design workflow and Execute.",
+          );
+      }
+      if (
+        (operation.action === "inspect" ||
+          (operation.action === "read" && operation.visual)) &&
+        !hosted.session.model?.input.includes("image")
+      )
+        throw new Error(
+          "Select a vision model to inspect the design screenshot.",
+        );
+      const result = await this.broker.request({
+        kind: "design.operation",
+        approvalId: randomUUID(),
+        threadId: request.threadId,
+        turnId: hosted.currentTurnId!,
+        mode: hosted.currentMode!,
+        operation,
+      });
+      if (!result.approved)
+        throw new Error(result.error ?? "Design operation denied.");
+      return result.data;
+    });
     const attachmentTools = createAttachmentTools(invokeAttachmentOperation);
     const readTool = defineTool({
       name: "read",
@@ -5811,6 +5856,7 @@ export class ArtemisAgentHost {
       resourceLoader,
       noTools: "builtin",
       customTools: [
+        ...designTools,
         ...attachmentTools,
         ...remoteTools,
         readTool,
@@ -5845,6 +5891,7 @@ export class ArtemisAgentHost {
         ...extensionTools,
       ],
       tools: [
+        ...designTools.map((tool) => tool.name),
         ...remoteTools.map((tool) => tool.name),
         "read",
         "web_search",
@@ -5890,6 +5937,21 @@ export class ArtemisAgentHost {
     });
     this.configureSessionCompaction(session);
     const mcpDirectToolNames = new Set(mcpTools.map((tool) => tool.name));
+    // Retained tools from a previous code turn must obey the current workflow
+    // at execution, even when the model cannot discover them in the active set.
+    for (const tool of session.agent.state.tools) {
+      const execute = tool.execute.bind(tool);
+      tool.execute = async (...args) => {
+        if (
+          this.threads.get(request.threadId)?.currentWorkflow === "design" &&
+          !DESIGN_READ_TOOL_NAMES.has(tool.name)
+        )
+          throw new Error(
+            `Tool ${tool.name} is unavailable in the design workflow.`,
+          );
+        return execute(...args);
+      };
+    }
     session.setActiveToolsByName(
       session
         .getActiveToolNames()
@@ -5990,6 +6052,7 @@ export class ArtemisAgentHost {
     }
     const executeTools = session.agent.state.tools.filter(
       (tool) =>
+        designTools.some((candidate) => candidate.name === tool.name) ||
         remoteTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "read" ||
         tool.name === "web_search" ||
@@ -6040,6 +6103,9 @@ export class ArtemisAgentHost {
       ),
       mcpDirectToolNames,
       delegatedTools: [
+        ...session.agent.state.tools.filter(
+          (tool) => tool.name === "design_document",
+        ),
         ...session.agent.state.tools.filter((tool) =>
           tool.name.startsWith("attachment_"),
         ),
@@ -6174,6 +6240,7 @@ export class ArtemisAgentHost {
       revision: number;
     },
     customAgentProjectId?: string | null,
+    workflow: "code" | "design" = "code",
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -6182,12 +6249,27 @@ export class ArtemisAgentHost {
     if (hosted.compacting) {
       throw new Error("Cannot start a turn while context is compacting.");
     }
+    if (workflow !== "code" && workflow !== "design")
+      throw new Error("Invalid task workflow.");
+    if (
+      (workflow === "design" || hosted.currentWorkflow === "design") &&
+      (hosted.currentTurnId || hosted.activeLeases.size > 0)
+    )
+      throw new Error(
+        "A workflow change must wait for the current host turn and tools.",
+      );
+    if (workflow === "design" && customAgentInvocation)
+      throw new Error("Custom agents are unavailable in the design workflow.");
 
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
+    hosted.currentWorkflow = workflow;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
     hosted.customAgentProjectId = customAgentProjectId ?? null;
-    const turnCustomAgents = customAgents ?? this.configuration.customAgents;
+    const turnCustomAgents =
+      workflow === "design"
+        ? []
+        : (customAgents ?? this.configuration.customAgents);
     if (turnCustomAgents === undefined) {
       delete hosted.turnCustomAgents;
     } else {
@@ -6205,8 +6287,12 @@ export class ArtemisAgentHost {
       recovery ? `${turnId}:recovery:${recovery.attemptId}` : turnId,
     );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
-    hosted.session.agent.state.tools =
+    const modeTools =
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
+    hosted.session.agent.state.tools =
+      workflow === "design"
+        ? modeTools.filter((tool) => DESIGN_READ_TOOL_NAMES.has(tool.name))
+        : modeTools;
 
     let explicitDispatchNote: string | undefined;
     if (customAgentInvocation) {
@@ -6252,37 +6338,42 @@ export class ArtemisAgentHost {
       ].join("\n");
     }
 
-    const preparedAttachments = await this.prepareAttachments(
-      hosted,
-      attachments,
-      text,
-    );
-    const basePrompt = buildTurnPrompt(
-      mode,
-      recovery ? processRecoveryPrompt(text, recovery) : text,
-      goal,
-      memoryContext,
-      interruptedTeamContext,
-      collaborationContext,
-    );
-    const prompt = appendPromptFiles(
-      [basePrompt, autoCatalogNote, explicitDispatchNote]
-        .filter((note): note is string => note !== undefined)
-        .join("\n\n"),
-      preparedAttachments,
-    );
-    const expandedPrompt = await expandSkillInvocations(
-      prompt,
-      hosted.resourceLoader.getSkills().skills,
-    );
-    const images = toSessionImages(preparedAttachments);
-    if (recovery) reconcileInterruptedTools(hosted.session, recovery);
-    this.promptCache.updateParentTurnCount(
-      hosted.session.sessionId,
-      hosted.topLevelUserTurns,
-    );
-    if (!recovery) hosted.topLevelUserTurns += 1;
     try {
+      const preparedAttachments = await this.prepareAttachments(
+        hosted,
+        attachments,
+        text,
+      );
+      const basePrompt = buildTurnPrompt(
+        mode,
+        recovery ? processRecoveryPrompt(text, recovery) : text,
+        goal,
+        memoryContext,
+        interruptedTeamContext,
+        collaborationContext,
+      );
+      const prompt = appendPromptFiles(
+        [
+          basePrompt,
+          workflow === "design" ? DESIGN_WORKFLOW_INSTRUCTIONS : undefined,
+          autoCatalogNote,
+          explicitDispatchNote,
+        ]
+          .filter((note): note is string => note !== undefined)
+          .join("\n\n"),
+        preparedAttachments,
+      );
+      const expandedPrompt = await expandSkillInvocations(
+        prompt,
+        hosted.resourceLoader.getSkills().skills,
+      );
+      const images = toSessionImages(preparedAttachments);
+      if (recovery) reconcileInterruptedTools(hosted.session, recovery);
+      this.promptCache.updateParentTurnCount(
+        hosted.session.sessionId,
+        hosted.topLevelUserTurns,
+      );
+      if (!recovery) hosted.topLevelUserTurns += 1;
       const concurrency = this.concurrency.snapshot;
       if (
         concurrency &&
@@ -6417,8 +6508,15 @@ export class ArtemisAgentHost {
           this.requestChildCancellation(hosted, child);
         }
       }
+      await Promise.all(
+        [...hosted.childAgents.values()]
+          .filter((child) => child.turnId === turnId)
+          .map((child) => child.done),
+      );
+      await this.bashExecutions.drainTurn(threadId, turnId);
       hosted.currentTurnId = undefined;
       hosted.currentMode = undefined;
+      delete hosted.currentWorkflow;
       hosted.currentMission = undefined;
       hosted.deferredTurnCompletion = undefined;
       hosted.adapter = undefined;

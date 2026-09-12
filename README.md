@@ -54,7 +54,7 @@ is limited by the task mode, parent permissions and definition; later revocation
 blocks further tool calls. Explicit requests for unavailable definitions return
 an error instead of silently falling back to a generic agent.
 
-See the [custom sub-agent implementation notes](docs/custom-subagents/implementation-status.md)
+See the [custom sub-agent implementation notes](docs/features/custom-subagents/implementation-status.md)
 for validation evidence and current limitations.
 
 ## 01 / System overview
@@ -166,7 +166,7 @@ recurring follow-up alongside the same coding and Git workflows.
 The screenshots below show the running Artemis desktop on macOS, using a
 sample **Field Notes** project. Conversations, Agent activity, usage totals and
 paused automations use demonstration data. IM screens use synthetic connections and member rosters, without contacting personal accounts. Click a screenshot to view it at
-full size. [Capture details](docs/readme-visuals.md).
+full size. [Capture details](docs/records/readme-visuals.md).
 
 ### The project workspace
 
@@ -934,7 +934,7 @@ and choose **Update**. Keep the marketplace `name` stable; changing its identity
 requires users to remove and add the source again. The full development guide,
 including complete Skill, MCP and Connector examples, validation steps, limits
 and update behavior, is in
-[Developing a GitHub plugin marketplace](docs/plugin-marketplaces.md).
+[Developing a GitHub plugin marketplace](docs/features/plugin-marketplaces/README.md).
 
 An Artemis Connector is a standard Streamable HTTP MCP endpoint declared
 by a plugin in `.connector.json` or in the plugin manifest's `connectors`
@@ -1217,7 +1217,7 @@ Artemis 电脑，在 IM 中接收进度、结果，处理澄清和本人审批�
 IM is disabled by default. Remote sessions use scoped tools and native sandbox
 boundaries. The screenshots show the current production UI with demonstration
 transport data; they do not establish delivery in a real IM tenant. See
-[IM deployment and collaboration](docs/im-gateway.md) for configuration, command
+[IM deployment and collaboration](docs/features/im-gateway/README.md) for configuration, command
 reference, security details and deployment acceptance checks.
 
 ### Diagnostics and update recovery
@@ -1399,7 +1399,7 @@ Resource, archive and automation pages retain the workspace header and use
 the prototype canvas/card hierarchy. Settings and management buttons share
 the prototype's secondary and quiet states; archived deletion uses a
 neutral trash icon with the existing confirmation. The [management appearance
-checklist](docs/management-appearance-audit.md) records the reference mapping
+checklist](docs/records/management-appearance-audit.md) records the reference mapping
 and both-theme review of all six settings sections.
 Sources add rounded,
 inset attachment hover rows and aligned MCP content. Missing or unreadable
@@ -1628,11 +1628,11 @@ The main remaining gates are:
 
 ### Documentation
 
-| Product and acceptance                               | Engineering and security                   |
-| ---------------------------------------------------- | ------------------------------------------ |
-| [Installation guide](docs/README_INSTALL.md)         | [Architecture notes](docs/architecture.md) |
-| [P0 acceptance matrix](docs/p0-acceptance-matrix.md) | [Security policy](SECURITY.md)             |
-| [IM deployment](docs/im-gateway.md)                  | [Engineering guidance](AGENTS.md)          |
+| Product and acceptance                                               | Engineering and security                   |
+| -------------------------------------------------------------------- | ------------------------------------------ |
+| [Installation guide](docs/install.md)                                | [Architecture notes](docs/architecture.md) |
+| [P0 acceptance matrix](docs/projects/p0-acceptance-matrix/README.md) | [Security policy](SECURITY.md)             |
+| [IM deployment](docs/features/im-gateway/README.md)                  | [Engineering guidance](AGENTS.md)          |
 
 ### Independent product boundary
 

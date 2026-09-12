@@ -92,3 +92,26 @@ describe("ObservedBashRegistry", () => {
     expect(cancelled.status).toBe("cancelled");
   });
 });
+
+it("drains cancelled shells before allowing a workflow boundary", async () => {
+  const execution = deferred<{ exitCode: number | null }>();
+  const registry = new ObservedBashRegistry({
+    exec: async () => execution.promise,
+  });
+  await registry.start({
+    ...scope,
+    command: "work",
+    cwd: "/workspace",
+    observationMilliseconds: 1,
+  });
+  registry.cancelTurn(scope.threadId, scope.turnId);
+  let drained = false;
+  const pending = registry.drainTurn(scope.threadId, scope.turnId).then(() => {
+    drained = true;
+  });
+  await Promise.resolve();
+  expect(drained).toBe(false);
+  execution.resolve({ exitCode: null });
+  await pending;
+  expect(drained).toBe(true);
+});

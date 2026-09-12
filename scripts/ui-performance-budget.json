@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 382000,
+      "desktopCssBytes": 385000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -177,6 +177,17 @@
       "measuredDesktopCssBytes": 378775,
       "desktopCssIncreaseBytes": 983,
       "reason": "Issue #193 moves the custom sub-agent editor from an in-panel list replacement to an overlay dialog: sticky header/footer framing a scrollable sectioned form, the dirty-discard footer state, two-column tool checkboxes with row spacing, and server-dimension MCP selection add 983 bytes (0.26%). The replaced two-state editor rules are removed. Baseline and candidate use the same installed dependencies and Vite pipeline, substituting only styles.css in memory. The dialog CSS fits the 382000-byte ceiling raised for the image preview with 3225 bytes of headroom; JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
+    {
+      "date": "2026-09-12",
+      "baseHead": "54fbfdaebeb77c3e84b36c799badf1f8af05e1b6",
+      "measurementHead": "bfc6e09ee37381b48ae207537813988ad3368141",
+      "baseDesktopCssBytes": 381928,
+      "measuredDesktopCssBytes": 384392,
+      "desktopCssIncreaseBytes": 2464,
+      "previousDesktopCssMaximumBytes": 382000,
+      "desktopCssMaximumBytes": 385000,
+      "reason": "PR #195 adds the task-local Design panel (2512 bytes of lazy CSS) and compacts the composer menu (-48 bytes). The integrated main baseline is already 381928 bytes, leaving 72 bytes under the previous cap. Baseline and candidate use identical installed dependencies and the production Vite pipeline; the baseline substitutes only App.tsx and styles.css from baseHead in memory. The 385000-byte CSS cap leaves 608 bytes of headroom. JavaScript, shared UI, gallery, startup, and workload limits are unchanged."
     }
   ],
   "startupBudgetRevisions": [

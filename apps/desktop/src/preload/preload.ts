@@ -9,6 +9,17 @@ import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
+  setDesignMode: (threadId, mode) =>
+    ipcRenderer.invoke(IPC.designMode, threadId, mode),
+  setDesignDraft: (threadId, key, draft) =>
+    ipcRenderer.invoke(IPC.designDraft, threadId, key, draft),
+  confirmDesignLeave: (threadId) =>
+    ipcRenderer.invoke(IPC.designLeave, threadId),
+  getDesignState: (threadId) => ipcRenderer.invoke(IPC.designState, threadId),
+  designAction: (threadId, input) =>
+    ipcRenderer.invoke(IPC.designAction, threadId, input),
+  setDesignBounds: (threadId, instanceId, bounds, visible) =>
+    ipcRenderer.invoke(IPC.designBounds, threadId, instanceId, bounds, visible),
   reportTaskView: (input) => ipcRenderer.send(IPC.taskView, input),
   onImTaskCreated(listener) {
     const handler = (
