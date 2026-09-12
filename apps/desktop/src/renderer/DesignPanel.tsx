@@ -4,23 +4,199 @@ import type {
   DesignPanelState,
   DesignPatch,
   DesignRevision,
+  AppLocale,
   RunMode,
   PromptAttachment,
 } from "@artemis/protocol";
 import "./design-panel.css";
 import { confirmDesignLeave } from "./design-drafts.js";
+import { legacyLocale } from "../shared/locales.js";
+
+const labels = {
+  en: {
+    workspaceLabel: "Design workspace",
+    toolbarTitleDesign: "Design workflow",
+    toolbarTitle: "Design",
+    newDesign: "New design",
+    backToCode: "Back to code",
+    enterDesign: "Enter design",
+    documentSelect: "Design document",
+    documentPlaceholder: "Choose a design",
+    revisionSelect: "Design revision",
+    headRevision: "Latest revision",
+    conflictBranch: " · conflict branch",
+    draftPersistFailed:
+      "Could not keep the draft. Free up local storage and try again.",
+    patchLimitReached: "Save the current edits before making more changes.",
+    readOnlyMode:
+      "This mode only allows reading and discussion. Switch to Execute to edit, run previews, and implement.",
+    newerRevisionExists:
+      "A newer revision exists. What you are viewing and your draft are kept.",
+    viewLatest: "View latest revision",
+    conflictNotice:
+      "This revision conflicts with newer changes and was kept separately. Compare revisions and choose what to continue with.",
+    undo: "Undo",
+    redo: "Redo",
+    unsavedCount: (count: number) =>
+      `${count} unsaved edit(s) · draft kept on this device`,
+    saveRevision: "Save new revision",
+    discardDraft: "Discard draft",
+    queue: "Task queue",
+    moveUp: "Move up",
+    editQueued: "Edit queued message",
+    resubmit: "Original confirmed — resubmit",
+    cancel: "Cancel",
+    variantSelect: "Design variant",
+    pageSelect: "Design page",
+    runPreview: "Run preview",
+    inspect: "Screenshot check",
+    stop: "Stop",
+    compareLatest: "Compare with latest",
+    showCanvas: "Canvas",
+    showSource: "Source",
+    exportHtml: "Export static HTML",
+    implementPage: "Implement this page",
+    implementVariant: "Implement this variant",
+    thumbnailsLabel: "Variant comparison",
+    checkPassed: "check passed",
+    checkFailed: "check failed",
+    noScreenshot: "No screenshot yet",
+    currentRevision: (id: string) => `Current revision · ${id}`,
+    latestRevision: (id: string) => `Latest revision · ${id}`,
+    pageMissing: "No matching page in this revision",
+    previewRunning: "Preview running",
+    previewIdle: "Run the preview to view this revision.",
+    selectedElement: "Selected element",
+    elementPlaceholder: "Click an element in the preview",
+    sourceLine: (line: number, id: string) => `Source line ${line} · ${id}`,
+    viewSource: "View source",
+    editViaChat: "Edit via chat",
+    editContext: (
+      documentId: string,
+      revisionId: string,
+      variant: string,
+      page: string,
+      elementId: string,
+      tag: string,
+      line: number,
+    ) =>
+      `Please revise design ${documentId}, revision ${revisionId}, variant ${variant}, page ${page}, element ${elementId} (${tag}, source line ${line}):`,
+    staticText: "Static text",
+    textNotEditable:
+      "This element does not support direct text editing. Use chat to change it.",
+    textColor: "Text color",
+    borderRadius: "Corner radius",
+    replaceImage: "Replace image",
+    imageTooLarge: "Choose a PNG, JPEG, or WebP image smaller than 3 MiB.",
+    moveToContainer: "Move to static container",
+    containerPlaceholder: "Choose a destination container",
+    pageStructure: "Page structure · drag to reorder",
+    dataLabel: (key: string) => `Data · ${key}`,
+    basis: "Design basis and simulated behavior",
+    previewErrors: "Preview errors",
+    emptyTitle: "Explore design in this task",
+    emptyHint:
+      "Send /design with your request to generate interactive variants. Previews use simulated data; once you pick a revision you can implement it in the current workspace.",
+    startDesign: "Start designing",
+  },
+  "zh-CN": {
+    workspaceLabel: "设计工作区",
+    toolbarTitleDesign: "设计工作流",
+    toolbarTitle: "设计",
+    newDesign: "新建设计",
+    backToCode: "返回代码",
+    enterDesign: "进入设计",
+    documentSelect: "设计文档",
+    documentPlaceholder: "选择设计",
+    revisionSelect: "设计版本",
+    headRevision: "最新版本",
+    conflictBranch: " · 冲突分支",
+    draftPersistFailed: "无法保留草稿，请释放本地存储空间后重试。",
+    patchLimitReached: "请先保存当前编辑，再继续修改。",
+    readOnlyMode:
+      "当前模式只允许阅读和讨论。切换到 Execute 后可编辑、运行预览及实施。",
+    newerRevisionExists: "已有其他版本，当前查看的内容和草稿已保留。",
+    viewLatest: "查看最新版本",
+    conflictNotice:
+      "此版本与较新的修改冲突，已独立保留。请比较版本后选择需要继续的内容。",
+    undo: "撤销",
+    redo: "重做",
+    unsavedCount: (count: number) => `${count} 项未保存编辑 · 草稿已在本机保留`,
+    saveRevision: "保存新版本",
+    discardDraft: "丢弃草稿",
+    queue: "任务队列",
+    moveUp: "上移",
+    editQueued: "编辑排队消息",
+    resubmit: "已核对原任务，重新提交",
+    cancel: "取消",
+    variantSelect: "设计方案",
+    pageSelect: "设计页面",
+    runPreview: "运行预览",
+    inspect: "截图检查",
+    stop: "停止",
+    compareLatest: "对比最新版本",
+    showCanvas: "画布",
+    showSource: "源码",
+    exportHtml: "导出静态 HTML",
+    implementPage: "实施此页面",
+    implementVariant: "实施此方案",
+    thumbnailsLabel: "方案比较",
+    checkPassed: "检查通过",
+    checkFailed: "未通过检查",
+    noScreenshot: "尚未截图检查",
+    currentRevision: (id: string) => `当前版本 · ${id}`,
+    latestRevision: (id: string) => `最新版本 · ${id}`,
+    pageMissing: "此版本中没有对应页面",
+    previewRunning: "预览运行中",
+    previewIdle: "选择运行预览以查看此版本。",
+    selectedElement: "选中元素",
+    elementPlaceholder: "在预览中点击元素",
+    sourceLine: (line: number, id: string) => `源码第 ${line} 行 · ${id}`,
+    viewSource: "查看源码",
+    editViaChat: "通过对话修改",
+    editContext: (
+      documentId: string,
+      revisionId: string,
+      variant: string,
+      page: string,
+      elementId: string,
+      tag: string,
+      line: number,
+    ) =>
+      `请修改设计 ${documentId} 的版本 ${revisionId}，方案 ${variant}，页面 ${page}，元素 ${elementId}（${tag}，源码第 ${line} 行）：`,
+    staticText: "静态文字",
+    textNotEditable: "此元素不支持直接文字编辑，可使用对话修改。",
+    textColor: "文字颜色",
+    borderRadius: "圆角",
+    replaceImage: "替换图片",
+    imageTooLarge: "请选择小于 3 MiB 的 PNG、JPEG 或 WebP 图片。",
+    moveToContainer: "移至静态容器",
+    containerPlaceholder: "选择目标容器",
+    pageStructure: "页面结构 · 拖动排序",
+    dataLabel: (key: string) => `数据 · ${key}`,
+    basis: "设计依据和模拟行为",
+    previewErrors: "预览错误",
+    emptyTitle: "在当前任务中探索设计",
+    emptyHint:
+      "发送 /design 和你的需求，生成可交互的方案。预览使用模拟数据，选定版本后可以在当前工作区实施。",
+    startDesign: "开始设计",
+  },
+} satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
 export function DesignPanel({
   threadId,
+  locale,
   mode,
   active,
   onConversation,
 }: {
   threadId: string | undefined;
+  locale: AppLocale;
   mode: RunMode;
   active: boolean;
   onConversation: (text: string, image?: PromptAttachment) => void;
 }) {
+  const t = labels[legacyLocale(locale)];
   const [state, setState] = useState<DesignPanelState>();
   const [revision, setRevision] = useState<DesignRevision>();
   const [variantId, setVariantId] = useState("");
@@ -34,6 +210,7 @@ export function DesignPanel({
   const [showSource, setShowSource] = useState(false);
   const [comparison, setComparison] = useState<DesignRevision>();
   const [undone, setUndone] = useState<DesignPatch[]>([]);
+  const colorEdit = useRef<DesignPatch | undefined>(undefined);
   const canvas = useRef<HTMLDivElement>(null);
   const seenPreview = useRef<string | undefined>(undefined);
   const scope = useRef(threadId);
@@ -272,16 +449,28 @@ export function DesignPanel({
       setOperationId(id);
       setPatches(next);
     } catch {
-      setError("无法保留草稿，请释放本地存储空间后重试。");
+      setError(t.draftPersistFailed);
     }
   };
-  const edit = (patch: DesignPatch) => {
-    const next = [...patches, patch];
+  const edit = (patch: DesignPatch, liveColor = false) => {
+    // Coalesce only ticks from the current color interaction. Blur and other
+    // edits end it, preserving independent edits as distinct undo steps.
+    const last = patches.at(-1);
+    const next =
+      liveColor &&
+      last === colorEdit.current &&
+      patch.type === "style" &&
+      last?.type === "style" &&
+      last.elementId === patch.elementId &&
+      last.property === patch.property
+        ? [...patches.slice(0, -1), patch]
+        : [...patches, patch];
     if (next.length > 128) {
-      setError("请先保存当前编辑，再继续修改。");
+      setError(t.patchLimitReached);
       return;
     }
     replacePatches(next);
+    colorEdit.current = liveColor ? patch : undefined;
     setUndone([]);
   };
   useEffect(() => {
@@ -401,7 +590,7 @@ export function DesignPanel({
   return (
     <section
       className="design-panel"
-      aria-label="设计工作区"
+      aria-label={t.workspaceLabel}
       onKeyDown={(event) => {
         if (
           (event.metaKey || event.ctrlKey) &&
@@ -420,8 +609,12 @@ export function DesignPanel({
       }}
     >
       <header className="design-toolbar">
-        <strong>{state?.workflow === "design" ? "设计工作流" : "设计"}</strong>
-        <button onClick={() => onConversation("/design ")}>新建设计</button>
+        <strong>
+          {state?.workflow === "design" ? t.toolbarTitleDesign : t.toolbarTitle}
+        </strong>
+        <button onClick={() => onConversation("/design ")}>
+          {t.newDesign}
+        </button>
         <button
           disabled={busy}
           onClick={() =>
@@ -431,17 +624,17 @@ export function DesignPanel({
             })
           }
         >
-          {state?.workflow === "design" ? "返回代码" : "进入设计"}
+          {state?.workflow === "design" ? t.backToCode : t.enterDesign}
         </button>
         <select
-          aria-label="设计文档"
+          aria-label={t.documentSelect}
           value={revision?.documentId ?? ""}
           onChange={(event) =>
             void action({ action: "read", documentId: event.target.value })
           }
         >
           <option value="" disabled>
-            选择设计
+            {t.documentPlaceholder}
           </option>
           {state?.documents.map((item) => (
             <option key={item.documentId} value={item.documentId}>
@@ -451,7 +644,7 @@ export function DesignPanel({
         </select>
         {revision && (
           <select
-            aria-label="设计版本"
+            aria-label={t.revisionSelect}
             value={revision.revisionId}
             onChange={(event) =>
               void action({
@@ -464,9 +657,9 @@ export function DesignPanel({
             {state?.history?.map((item) => (
               <option key={item.revisionId} value={item.revisionId}>
                 {item.revisionId === head?.revisionId
-                  ? "最新版本"
+                  ? t.headRevision
                   : item.createdAt.slice(11, 19)}
-                {item.conflict ? " · 冲突分支" : ""} ·{" "}
+                {item.conflict ? t.conflictBranch : ""} ·{" "}
                 {item.revisionId.slice(0, 8)}
               </option>
             ))}
@@ -478,14 +671,10 @@ export function DesignPanel({
           {error}
         </p>
       )}
-      {mode !== "execute" && (
-        <p className="design-notice">
-          当前模式只允许阅读和讨论。切换到 Execute 后可编辑、运行预览及实施。
-        </p>
-      )}
+      {mode !== "execute" && <p className="design-notice">{t.readOnlyMode}</p>}
       {revision && head && head.revisionId !== revision.revisionId && (
         <p className="design-notice">
-          已有其他版本，当前查看的内容和草稿已保留。
+          {t.newerRevisionExists}
           <button
             disabled={busy}
             onClick={() =>
@@ -496,14 +685,12 @@ export function DesignPanel({
               })
             }
           >
-            查看最新版本
+            {t.viewLatest}
           </button>
         </p>
       )}
       {revision?.conflict && (
-        <p className="design-notice">
-          此版本与较新的修改冲突，已独立保留。请比较版本后选择需要继续的内容。
-        </p>
+        <p className="design-notice">{t.conflictNotice}</p>
       )}
       {(!!patches.length || !!undone.length) && (
         <div className="design-toolbar">
@@ -514,7 +701,7 @@ export function DesignPanel({
               replacePatches(patches.slice(0, -1));
             }}
           >
-            撤销
+            {t.undo}
           </button>
           <button
             disabled={!undone.length}
@@ -523,24 +710,23 @@ export function DesignPanel({
               setUndone(undone.slice(0, -1));
             }}
           >
-            重做
+            {t.redo}
           </button>
-          {!!patches.length && (
-            <span>{patches.length} 项未保存编辑 · 草稿已在本机保留</span>
-          )}
+          {!!patches.length && <span>{t.unsavedCount(patches.length)}</span>}
           <button
             disabled={!canWrite || !patches.length}
             onClick={() => void save()}
           >
-            保存新版本
+            {t.saveRevision}
           </button>
           <button
             onClick={() => {
               if (draftKey) localStorage.removeItem(draftKey);
               setPatches([]);
+              setUndone([]);
             }}
           >
-            丢弃草稿
+            {t.discardDraft}
           </button>
         </div>
       )}
@@ -548,7 +734,7 @@ export function DesignPanel({
         (item) => !["completed", "cancelled"].includes(item.status),
       ).length && (
         <details className="design-queue">
-          <summary>任务队列</summary>
+          <summary>{t.queue}</summary>
           {state.requests
             .filter((item) => !["completed", "cancelled"].includes(item.status))
             .map((item) => (
@@ -574,11 +760,11 @@ export function DesignPanel({
                         }
                       }}
                     >
-                      上移
+                      {t.moveUp}
                     </button>
                     {!item.designRef && (
                       <textarea
-                        aria-label="编辑排队消息"
+                        aria-label={t.editQueued}
                         defaultValue={item.text}
                         onBlur={(event) => {
                           if (event.target.value !== item.text)
@@ -604,7 +790,7 @@ export function DesignPanel({
                       })
                     }
                   >
-                    已核对原任务，重新提交
+                    {t.resubmit}
                   </button>
                 )}
                 {item.status !== "dispatched" && (
@@ -616,7 +802,7 @@ export function DesignPanel({
                       })
                     }
                   >
-                    取消
+                    {t.cancel}
                   </button>
                 )}
               </div>
@@ -627,7 +813,7 @@ export function DesignPanel({
         <>
           <div className="design-toolbar">
             <select
-              aria-label="设计方案"
+              aria-label={t.variantSelect}
               value={variantId}
               onChange={async (event) => {
                 const id = event.target.value;
@@ -647,7 +833,7 @@ export function DesignPanel({
               ))}
             </select>
             <select
-              aria-label="设计页面"
+              aria-label={t.pageSelect}
               value={pageId}
               onChange={async (event) => {
                 const id = event.target.value;
@@ -668,7 +854,7 @@ export function DesignPanel({
                 exact && void action({ action: "preview", ...exact })
               }
             >
-              运行预览
+              {t.runPreview}
             </button>
             <button
               disabled={!canWrite || !!patches.length}
@@ -676,10 +862,10 @@ export function DesignPanel({
                 exact && void action({ action: "inspect", ...exact })
               }
             >
-              截图检查
+              {t.inspect}
             </button>
             <button onClick={() => void action({ action: "stop" })}>
-              停止
+              {t.stop}
             </button>
             <button
               onClick={async () => {
@@ -702,10 +888,10 @@ export function DesignPanel({
                 }
               }}
             >
-              对比最新版本
+              {t.compareLatest}
             </button>
             <button onClick={() => setShowSource((value) => !value)}>
-              {showSource ? "画布" : "源码"}
+              {showSource ? t.showCanvas : t.showSource}
             </button>
             <button
               disabled={
@@ -722,7 +908,7 @@ export function DesignPanel({
                 })
               }
             >
-              导出静态 HTML
+              {t.exportHtml}
             </button>
             <button
               disabled={!canWrite || !!patches.length}
@@ -739,7 +925,7 @@ export function DesignPanel({
                 })
               }
             >
-              实施此页面
+              {t.implementPage}
             </button>
             <button
               disabled={!canWrite || !!patches.length}
@@ -756,10 +942,10 @@ export function DesignPanel({
                 })
               }
             >
-              实施此方案
+              {t.implementVariant}
             </button>
           </div>
-          <div className="design-thumbnails" aria-label="方案比较">
+          <div className="design-thumbnails" aria-label={t.thumbnailsLabel}>
             {revision.content.variants.map((item) => {
               const thumbnail = state?.thumbnails?.find(
                 (image) => image.variantId === item.id,
@@ -776,11 +962,11 @@ export function DesignPanel({
                 >
                   {thumbnail ? (
                     <img
-                      alt={`${item.name} · ${thumbnail.passed ? "检查通过" : "未通过检查"}`}
+                      alt={`${item.name} · ${thumbnail.passed ? t.checkPassed : t.checkFailed}`}
                       src={thumbnail.dataUrl}
                     />
                   ) : (
-                    <span>尚未截图检查</span>
+                    <span>{t.noScreenshot}</span>
                   )}
                   <strong>{item.name}</strong>
                   <span>{item.description}</span>
@@ -793,17 +979,19 @@ export function DesignPanel({
               {showSource ? (
                 <div className="design-source-comparison">
                   <div>
-                    <p>当前版本 · {revision.revisionId.slice(0, 8)}</p>
+                    <p>{t.currentRevision(revision.revisionId.slice(0, 8))}</p>
                     <pre>{page.html}</pre>
                   </div>
                   {comparison && (
                     <div>
-                      <p>最新版本 · {comparison.revisionId.slice(0, 8)}</p>
+                      <p>
+                        {t.latestRevision(comparison.revisionId.slice(0, 8))}
+                      </p>
                       <pre>
                         {comparison.content.variants
                           .find((item) => item.id === variantId)
                           ?.pages.find((item) => item.id === pageId)?.html ??
-                          "此版本中没有对应页面"}
+                          t.pageMissing}
                       </pre>
                     </div>
                   )}
@@ -811,8 +999,8 @@ export function DesignPanel({
               ) : (
                 <p>
                   {previewMatches && state?.preview?.status === "running"
-                    ? "预览运行中"
-                    : "选择运行预览以查看此版本。"}
+                    ? t.previewRunning
+                    : t.previewIdle}
                   {state?.preview?.error}
                 </p>
               )}
@@ -820,11 +1008,11 @@ export function DesignPanel({
             <aside className="design-inspector">
               <p>{variant?.description}</p>
               <select
-                aria-label="选中元素"
+                aria-label={t.selectedElement}
                 value={selectedId}
                 onChange={(event) => setSelectedId(event.target.value)}
               >
-                <option value="">在预览中点击元素</option>
+                <option value="">{t.elementPlaceholder}</option>
                 {entries.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.tag} · {item.id}
@@ -834,19 +1022,29 @@ export function DesignPanel({
               {selected && (
                 <div key={`${revision.revisionId}:${selected.id}`}>
                   <p>
-                    源码第 {selected.line} 行 ·{" "}
-                    {revision.revisionId.slice(0, 8)}
+                    {t.sourceLine(
+                      selected.line,
+                      revision.revisionId.slice(0, 8),
+                    )}
                   </p>
                   <button
                     onClick={() => {
                       setShowSource(true);
                     }}
                   >
-                    查看源码
+                    {t.viewSource}
                   </button>
                   <button
                     onClick={async () => {
-                      const context = `请修改设计 ${revision.documentId} 的版本 ${revision.revisionId}，方案 ${variantId}，页面 ${pageId}，元素 ${selected.id}（${selected.tag}，源码第 ${selected.line} 行）：`;
+                      const context = t.editContext(
+                        revision.documentId,
+                        revision.revisionId,
+                        variantId,
+                        pageId,
+                        selected.id,
+                        selected.tag,
+                        selected.line,
+                      );
                       const result =
                         previewMatches &&
                         state?.preview?.status === "running" &&
@@ -860,11 +1058,11 @@ export function DesignPanel({
                         onConversation(context, result?.selectionImage);
                     }}
                   >
-                    通过对话修改
+                    {t.editViaChat}
                   </button>
                   {selected.editable && !selected.binding ? (
                     <label>
-                      静态文字
+                      {t.staticText}
                       <textarea
                         disabled={!canWrite}
                         key={`${selected.id}:${patches.length}`}
@@ -893,25 +1091,31 @@ export function DesignPanel({
                       />
                     </label>
                   ) : (
-                    <p>此元素不支持直接文字编辑，可使用对话修改。</p>
+                    <p>{t.textNotEditable}</p>
                   )}
                   <label>
-                    文字颜色
+                    {t.textColor}
                     <input
                       type="color"
                       disabled={!canWrite}
+                      onBlur={() => {
+                        colorEdit.current = undefined;
+                      }}
                       onChange={(event) =>
-                        edit({
-                          type: "style",
-                          elementId: selected.id,
-                          property: "color",
-                          value: event.target.value,
-                        })
+                        edit(
+                          {
+                            type: "style",
+                            elementId: selected.id,
+                            property: "color",
+                            value: event.target.value,
+                          },
+                          true,
+                        )
                       }
                     />
                   </label>
                   <label>
-                    圆角
+                    {t.borderRadius}
                     <input
                       type="number"
                       min="0"
@@ -930,7 +1134,7 @@ export function DesignPanel({
                   </label>
                   {selected.tag === "img" && (
                     <label>
-                      替换图片
+                      {t.replaceImage}
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
@@ -939,9 +1143,7 @@ export function DesignPanel({
                           const file = event.target.files?.[0];
                           if (!file) return;
                           if (file.size > 3 * 1024 * 1024) {
-                            setError(
-                              "请选择小于 3 MiB 的 PNG、JPEG 或 WebP 图片。",
-                            );
+                            setError(t.imageTooLarge);
                             return;
                           }
                           const reader = new FileReader();
@@ -957,7 +1159,7 @@ export function DesignPanel({
                     </label>
                   )}
                   <label>
-                    移至静态容器
+                    {t.moveToContainer}
                     <select
                       disabled={!canWrite}
                       value=""
@@ -970,7 +1172,7 @@ export function DesignPanel({
                       }
                     >
                       <option value="" disabled>
-                        选择目标容器
+                        {t.containerPlaceholder}
                       </option>
                       {entries
                         .filter(
@@ -987,7 +1189,7 @@ export function DesignPanel({
               )}
               {!!entries.length && (
                 <details>
-                  <summary>页面结构 · 拖动排序</summary>
+                  <summary>{t.pageStructure}</summary>
                   <ul>
                     {entries.map((item) => (
                       <li
@@ -1065,7 +1267,7 @@ export function DesignPanel({
                 <label
                   key={`${revision.revisionId}:data:${key}:${patches.length}`}
                 >
-                  数据 · {key}
+                  {t.dataLabel(key)}
                   <input
                     disabled={!canWrite}
                     defaultValue={String(
@@ -1094,7 +1296,7 @@ export function DesignPanel({
                 </label>
               ))}
               <details>
-                <summary>设计依据和模拟行为</summary>
+                <summary>{t.basis}</summary>
                 <p>{revision.content.brief}</p>
                 <p>{revision.content.interactionNotes}</p>
                 {revision.content.basis.map((item) => (
@@ -1105,7 +1307,7 @@ export function DesignPanel({
               </details>
               {!!state?.preview?.errors.length && (
                 <details open>
-                  <summary>预览错误</summary>
+                  <summary>{t.previewErrors}</summary>
                   {state.preview.errors.map((item, index) => (
                     <p key={index}>{item}</p>
                   ))}
@@ -1116,12 +1318,11 @@ export function DesignPanel({
         </>
       ) : (
         <div className="design-empty">
-          <h3>在当前任务中探索设计</h3>
-          <p>
-            发送 /design
-            和你的需求，生成可交互的方案。预览使用模拟数据，选定版本后可以在当前工作区实施。
-          </p>
-          <button onClick={() => onConversation("/design ")}>开始设计</button>
+          <h3>{t.emptyTitle}</h3>
+          <p>{t.emptyHint}</p>
+          <button onClick={() => onConversation("/design ")}>
+            {t.startDesign}
+          </button>
         </div>
       )}
     </section>

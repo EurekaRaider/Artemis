@@ -27,6 +27,7 @@ it("does not carry a pending action or its late result into another task", async
     designAction: action,
   });
   const props = {
+    locale: "zh-CN" as const,
     mode: "execute" as const,
     active: true,
     onConversation: vi.fn(),

@@ -5680,6 +5680,7 @@ function designService(): DesignService {
       ),
       designContext,
       pumpDesignRequests,
+      currentLocale,
     );
   return designs;
 }

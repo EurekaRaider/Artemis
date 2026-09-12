@@ -490,6 +490,8 @@ const copy = {
     agentTeam: "Agent team",
     terminal: "Terminal",
     browser: "Browser",
+    designTab: "Design",
+    designWorkflowBadge: "Design workflow",
     browserAddress: "Enter a URL",
     browserBack: "Back",
     browserForward: "Forward",
@@ -799,6 +801,8 @@ const copy = {
     agentTeam: "Agent 团队",
     terminal: "终端",
     browser: "浏览器",
+    designTab: "设计",
+    designWorkflowBadge: "设计工作流",
     browserAddress: "输入网址",
     browserBack: "后退",
     browserForward: "前进",
@@ -2718,7 +2722,7 @@ export function App() {
       if (kind === "review") return t.reviewPanel;
       if (kind === "terminal") return t.terminal;
       if (kind === "browser") return t.browser;
-      if (kind === "design") return "设计";
+      if (kind === "design") return t.designTab;
       if (kind === "markdown") return t.markdownReader;
       if (kind === "sources") return t.sources;
       if (kind === "goal") return t.goalEditTitle;
@@ -8049,7 +8053,7 @@ export function App() {
                               className="design-workflow-badge"
                               onClick={() => openWorkspaceTab("design")}
                             >
-                              设计工作流
+                              {t.designWorkflowBadge}
                             </button>
                           )}
                           <div className="composer-leading">
@@ -8564,7 +8568,7 @@ export function App() {
                                     : []),
                                   ["terminal", t.terminal, <TerminalIcon />],
                                   ["browser", t.browser, <BrowserIcon />],
-                                  ["design", "设计", <BrowserIcon />],
+                                  ["design", t.designTab, <BrowserIcon />],
                                   ["file", t.files, <FilesIcon />],
                                 ] as const
                               ).map(([kind, label, icon]) => (
@@ -8683,8 +8687,8 @@ export function App() {
                             icon={<WorkspaceLauncherIcon kind="browser" />}
                             label={
                               designWorkflow === "design"
-                                ? "设计工作流"
-                                : "设计"
+                                ? t.designWorkflowBadge
+                                : t.designTab
                             }
                             onActivate={() => openWorkspaceTab("design")}
                           />
@@ -9252,6 +9256,7 @@ export function App() {
                             >
                               <DesignPanel
                                 threadId={activeThreadId}
+                                locale={locale}
                                 mode={mode}
                                 active={
                                   workspaceDockOpen &&
