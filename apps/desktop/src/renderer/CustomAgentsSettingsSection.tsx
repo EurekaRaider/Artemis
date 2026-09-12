@@ -836,7 +836,7 @@ export function CustomAgentsSettingsSection({
               <Select
                 disabled={busy}
                 label={t.modelPolicy}
-                labelVisibility="visible"
+                labelVisibility="hidden"
                 onValueChange={(kind) =>
                   setForm((f) => ({
                     ...f,
@@ -872,7 +872,7 @@ export function CustomAgentsSettingsSection({
               <Select
                 disabled={busy}
                 label={t.thinkingPolicy}
-                labelVisibility="visible"
+                labelVisibility="hidden"
                 onValueChange={(kind) =>
                   setForm((f) => ({
                     ...f,
@@ -906,7 +906,7 @@ export function CustomAgentsSettingsSection({
               <Select
                 disabled={busy}
                 label={t.toolPolicy}
-                labelVisibility="visible"
+                labelVisibility="hidden"
                 onValueChange={(kind) =>
                   setForm((f) => ({
                     ...f,
