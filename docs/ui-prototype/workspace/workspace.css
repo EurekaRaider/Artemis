@@ -2717,7 +2717,7 @@ body[data-dock="open"] .dock-resizer {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 6px 8px 0;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border-soft);
   overflow-x: auto;
   scrollbar-width: none;
@@ -2728,10 +2728,9 @@ body[data-dock="open"] .dock-resizer {
   align-items: center;
   gap: 6px;
   max-width: 168px;
-  padding: 5px 8px;
-  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
-  border-bottom: 0;
   background: transparent;
   color: var(--text-2);
   font: 500 12px/1.4 var(--font-ui);
@@ -2743,8 +2742,7 @@ body[data-dock="open"] .dock-resizer {
   border-color: var(--border-soft);
   color: var(--text);
   font-weight: 600;
-  position: relative;
-  top: 1px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 .design-ws-tab svg { flex: none; }
 .design-ws-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
