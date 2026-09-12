@@ -9,7 +9,7 @@ docs/
 ├── AGENTS.md            # 本规则
 ├── README.md            # 导读索引:每份文档一行说明,新人/新会话从这里看全貌
 ├── architecture.md      # 长青总览(留根级,最高频入口)
-├── README_INSTALL.md    # 长青总览(留根级,外部引用多)
+├── install.md    # 长青总览(留根级,外部引用多)
 ├── features/            # 功能域:描述系统已有/将有的能力(稳定,不过期)
 │   └── custom-subagents/  # 域内文档 ≥3 份时建子目录,README 作索引
 ├── projects/            # 专项:有生命周期,做完即清(提案、调研、验收矩阵)

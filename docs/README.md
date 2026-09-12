@@ -7,7 +7,7 @@
 | 文档 | 说明 |
 |---|---|
 | [architecture.md](architecture.md) | 系统架构总览(进程模型、包边界、信任分层) |
-| [README_INSTALL.md](README_INSTALL.md) | 安装与运行说明 |
+| [install.md](install.md) | 安装与运行说明 |
 
 ## features/ · 功能域
 
