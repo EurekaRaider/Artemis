@@ -67,6 +67,9 @@ it("restricts a design turn at execution, then restores code tools in the same P
       .spyOn(AgentSession.prototype, "prompt")
       .mockImplementation(async function () {
         expect(this).toBe(session);
+        await expect(
+          host.prompt("design", "busy-code", "next", "execute"),
+        ).rejects.toThrow(/must wait/);
         expect(this.agent.state.tools.map((tool) => tool.name)).toEqual(
           expect.arrayContaining(["read", "request_user_input"]),
         );
@@ -111,6 +114,27 @@ it("restricts a design turn at execution, then restores code tools in the same P
       );
     });
     await host.prompt("design", "turn-code", "Implement", "execute");
+    vi.spyOn(host as any, "prepareAttachments").mockRejectedValueOnce(
+      new Error("attachment failed"),
+    );
+    await expect(
+      host.prompt(
+        "design",
+        "failed-design",
+        "Explore",
+        "execute",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "design",
+      ),
+    ).rejects.toThrow("attachment failed");
+    await host.prompt("design", "recovered-code", "Implement", "execute");
   } finally {
     host.dispose();
     await rm(root, { recursive: true, force: true });

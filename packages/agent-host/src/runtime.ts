@@ -6296,37 +6296,37 @@ export class ArtemisAgentHost {
       ].join("\n");
     }
 
-    const preparedAttachments = await this.prepareAttachments(
-      hosted,
-      attachments,
-      text,
-    );
-    const basePrompt = buildTurnPrompt(
-      mode,
-      recovery ? processRecoveryPrompt(text, recovery) : text,
-      goal,
-      memoryContext,
-      interruptedTeamContext,
-      collaborationContext,
-    );
-    const prompt = appendPromptFiles(
-      [basePrompt, autoCatalogNote, explicitDispatchNote]
-        .filter((note): note is string => note !== undefined)
-        .join("\n\n"),
-      preparedAttachments,
-    );
-    const expandedPrompt = await expandSkillInvocations(
-      prompt,
-      hosted.resourceLoader.getSkills().skills,
-    );
-    const images = toSessionImages(preparedAttachments);
-    if (recovery) reconcileInterruptedTools(hosted.session, recovery);
-    this.promptCache.updateParentTurnCount(
-      hosted.session.sessionId,
-      hosted.topLevelUserTurns,
-    );
-    if (!recovery) hosted.topLevelUserTurns += 1;
     try {
+      const preparedAttachments = await this.prepareAttachments(
+        hosted,
+        attachments,
+        text,
+      );
+      const basePrompt = buildTurnPrompt(
+        mode,
+        recovery ? processRecoveryPrompt(text, recovery) : text,
+        goal,
+        memoryContext,
+        interruptedTeamContext,
+        collaborationContext,
+      );
+      const prompt = appendPromptFiles(
+        [basePrompt, autoCatalogNote, explicitDispatchNote]
+          .filter((note): note is string => note !== undefined)
+          .join("\n\n"),
+        preparedAttachments,
+      );
+      const expandedPrompt = await expandSkillInvocations(
+        prompt,
+        hosted.resourceLoader.getSkills().skills,
+      );
+      const images = toSessionImages(preparedAttachments);
+      if (recovery) reconcileInterruptedTools(hosted.session, recovery);
+      this.promptCache.updateParentTurnCount(
+        hosted.session.sessionId,
+        hosted.topLevelUserTurns,
+      );
+      if (!recovery) hosted.topLevelUserTurns += 1;
       const concurrency = this.concurrency.snapshot;
       if (
         concurrency &&
