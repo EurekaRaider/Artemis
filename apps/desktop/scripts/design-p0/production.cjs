@@ -271,11 +271,15 @@ app.whenReady().then(async () => {
         "window.designState.errors.length",
       )) === 0,
     );
-    await floodFrame.executeJavaScript(
-      "setInterval(()=>parent.postMessage({type:'error',text:'flood'},'*'),1);void 0",
-    );
-    for (let i = 0; i < 60 && host.state("t")?.status === "running"; i++)
+    // Drive bursts from Main: background renderer timers may be throttled to
+    // one tick per second on CI, which would never exceed the rate limit.
+    for (let i = 0; i < 60 && host.state("t")?.status === "running"; i++) {
+      await floodFrame.executeJavaScript(
+        "for(let i=0;i<40;i++)parent.postMessage({type:'error',text:'flood'},'*');void 0",
+      );
       await wait(100);
+    }
+    checks.push({ floodState: host.state("t") });
     check(
       "sustained bridge flood stops the preview",
       host.state("t")?.status === "failed" &&
