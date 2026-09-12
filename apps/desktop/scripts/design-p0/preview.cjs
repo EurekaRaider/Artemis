@@ -24,6 +24,7 @@ const report = {
   platform: process.platform,
   arch: process.arch,
   head: process.env.ARTEMIS_DESIGN_P0_HEAD,
+  dirty: process.env.ARTEMIS_DESIGN_P0_DIRTY === "true",
   checks: [],
   frames: [],
 };
@@ -285,8 +286,38 @@ app
     report.separateChildPids = [...owned].filter(
       (pid) => pid !== preview.webContents.getOSProcessId(),
     );
-    preview.webContents.forcefullyCrashRenderer();
-    preview.webContents.close();
+    const { DesignWatchdog } = require(
+      path.join(output, "design-watchdog.cjs"),
+    );
+    const stopped = new Promise((resolve) => {
+      const watchdog = new DesignWatchdog({
+        probe: async () => {
+          await page.executeJavaScript("void 0");
+        },
+        residentBytes: () =>
+          Math.max(
+            0,
+            ...app
+              .getAppMetrics()
+              .filter((metric) => owned.has(metric.pid))
+              .map((metric) => metric.memory.workingSetSize * 1024),
+          ),
+        stop: (reason) => {
+          preview.webContents.forcefullyCrashRenderer();
+          preview.webContents.close();
+          resolve(reason);
+        },
+      });
+      watchdog.start();
+    });
+    report.watchdogReason = await Promise.race([
+      stopped,
+      wait(8000).then(() => "deadline"),
+    ]);
+    check(
+      "Main watchdog terminates an unresponsive generated frame",
+      report.watchdogReason === "unresponsive",
+    );
     for (let attempt = 0; attempt < 30; attempt++) {
       const live = new Set(app.getAppMetrics().map((metric) => metric.pid));
       if (![...owned].some((pid) => live.has(pid))) break;

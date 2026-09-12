@@ -22,12 +22,31 @@ it("restricts a design turn at execution, then restores code tools in the same P
     { agentDir: join(root, "agent") },
   );
   try {
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "fixture",
+          serverName: "fixture",
+          transport: "stdio",
+          piName: "fixture_write",
+          toolName: "write",
+          description: "Fixture write",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: false,
+          destructive: false,
+        },
+      ],
+    });
     await host.openThread({
       threadId: "design",
       workspacePath,
       target: "local",
     });
     const thread = (host as any).threads.get("design");
+    await thread.executeTools
+      .find((tool: { name: string }) => tool.name === "search_mcp_tools")
+      .execute("discover", { query: "fixture", limit: 1 });
     const session = thread.session;
     const ordinaryTools = thread.executeTools.map(
       (tool: { name: string }) => tool.name,
@@ -41,6 +60,7 @@ it("restricts a design turn at execution, then restores code tools in the same P
         "local_file_write",
         "save_memory",
         "send_message",
+        "fixture_write",
       ].includes(tool.name),
     );
     const spy = vi

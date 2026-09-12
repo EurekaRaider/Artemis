@@ -11,17 +11,27 @@ const head = execFileSync("git", ["rev-parse", "HEAD"], {
   cwd: root,
   encoding: "utf8",
 }).trim();
+const dirty = Boolean(
+  execFileSync("git", ["status", "--porcelain"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim(),
+);
 if (
   process.env.ARTEMIS_EXPECTED_HEAD &&
   process.env.ARTEMIS_EXPECTED_HEAD !== head
 )
   throw new Error("Design P0 checkout does not match the expected commit.");
+if (process.env.ARTEMIS_EXPECTED_HEAD && dirty)
+  throw new Error(
+    "Design P0 expected-head validation requires a clean checkout.",
+  );
 const base = process.env.ARTEMIS_DESIGN_P0_OUTPUT ?? tmpdir();
 await mkdir(base, { recursive: true });
 const output = await mkdtemp(join(base, "artemis-design-p0-"));
 await build({
-  entryPoints: ["design-source", "design-store"].map((name) =>
-    fileURLToPath(new URL(`../src/main/${name}.ts`, import.meta.url)),
+  entryPoints: ["design-source", "design-store", "design-watchdog"].map(
+    (name) => fileURLToPath(new URL(`../src/main/${name}.ts`, import.meta.url)),
   ),
   outdir: output,
   outExtension: { ".js": ".cjs" },
@@ -33,6 +43,7 @@ const env = {
   ...process.env,
   ARTEMIS_DESIGN_P0_OUTPUT: output,
   ARTEMIS_DESIGN_P0_HEAD: head,
+  ARTEMIS_DESIGN_P0_DIRTY: String(dirty),
 };
 delete env.ELECTRON_RUN_AS_NODE;
 const child = spawn(
@@ -55,7 +66,7 @@ try {
   console.log(JSON.stringify(report, null, 2));
   passed =
     !report.error &&
-    report.checks.length === 12 &&
+    report.checks.length === 13 &&
     report.checks.every((check) => check.passed);
 } catch {
   console.error("Native probe did not produce a report.");

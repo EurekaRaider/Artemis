@@ -38,7 +38,7 @@ jobs:
           ARTEMIS_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           ARTEMIS_DESIGN_P0_OUTPUT: ${{ runner.temp }}/artemis-design-p0
       - name: Verify design persistence and workflow policy
-        run: npx vitest run apps/desktop/test/design-source.test.ts apps/desktop/test/design-store.test.ts packages/agent-host/test/design-workflow.test.ts
+        run: npx vitest run apps/desktop/test/design-source.test.ts apps/desktop/test/design-store.test.ts apps/desktop/test/design-watchdog.test.ts packages/agent-host/test/design-workflow.test.ts
       - name: Upload design P0 evidence
         if: always()
         uses: actions/upload-artifact@v6

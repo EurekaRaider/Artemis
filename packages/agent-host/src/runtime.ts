@@ -5899,11 +5899,6 @@ export class ArtemisAgentHost {
     });
     this.configureSessionCompaction(session);
     const mcpDirectToolNames = new Set(mcpTools.map((tool) => tool.name));
-    session.setActiveToolsByName(
-      session
-        .getActiveToolNames()
-        .filter((name) => !mcpDirectToolNames.has(name)),
-    );
     // Retained tools from a previous code turn must obey the current workflow
     // at execution, even when the model cannot discover them in the active set.
     for (const tool of session.agent.state.tools) {
@@ -5919,6 +5914,11 @@ export class ArtemisAgentHost {
         return execute(...args);
       };
     }
+    session.setActiveToolsByName(
+      session
+        .getActiveToolNames()
+        .filter((name) => !mcpDirectToolNames.has(name)),
+    );
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
     );
