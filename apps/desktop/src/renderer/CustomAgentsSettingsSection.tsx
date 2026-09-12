@@ -77,9 +77,6 @@ const labels = {
     emptyHint:
       "Create a specialist role once, then invoke it with @ in the composer.",
     closeDialog: "Close",
-    dirtyWarning: "You have unsaved changes",
-    keepEditing: "Keep editing",
-    discardChanges: "Discard changes",
     editorEditTitle: "Edit: {name}",
     editorHint:
       "Fill in the name, tools, and dedicated prompt; saving returns to the list.",
@@ -144,9 +141,6 @@ const labels = {
     empty: "还没有自定义子智能体",
     emptyHint: "创建一次专业角色，之后在输入框用 @ 调用。",
     closeDialog: "关闭",
-    dirtyWarning: "有未保存的修改",
-    keepEditing: "继续编辑",
-    discardChanges: "放弃修改",
     editorEditTitle: "编辑：{name}",
     editorHint: "填写名称、工具与专用提示词，保存后返回列表。",
     name: "名称",
@@ -303,13 +297,11 @@ export function CustomAgentsSettingsSection({
 }) {
   const t = labels[legacyLocale(locale)];
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const baselineRef = useRef("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingRevision, setEditingRevision] = useState<number>(0);
   const [form, setForm] = useState<CustomAgentFormState>(EMPTY_FORM);
   const [formOpen, setFormOpen] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [error, setError] = useState<string>();
   const [nameError, setNameError] = useState(false);
   const [instructionsError, setInstructionsError] = useState(false);
@@ -420,7 +412,6 @@ export function CustomAgentsSettingsSection({
     setFormOpen(false);
     setEditingId(null);
     setError(undefined);
-    setConfirmDiscard(false);
     setNameError(false);
     setInstructionsError(false);
   };
@@ -430,9 +421,7 @@ export function CustomAgentsSettingsSection({
     setEditingName("");
     setEditingRevision(0);
     setForm(EMPTY_FORM);
-    baselineRef.current = JSON.stringify(EMPTY_FORM);
     setError(undefined);
-    setConfirmDiscard(false);
     setFormOpen(true);
   };
 
@@ -492,8 +481,6 @@ export function CustomAgentsSettingsSection({
         triggersText: definition.triggers.join(", "),
       };
       setForm(nextForm);
-      baselineRef.current = JSON.stringify(nextForm);
-      setConfirmDiscard(false);
       setFormOpen(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -593,17 +580,10 @@ export function CustomAgentsSettingsSection({
     ? t.editorEditTitle.replace("{name}", editingName)
     : t.add;
 
-  const dirty = formOpen && JSON.stringify(form) !== baselineRef.current;
-
   // Escape, backdrop clicks, and the close button all funnel through here;
-  // the dialog's open state is controlled, so vetoing keeps it mounted
-  // until the user explicitly keeps editing or discards.
+  // closing always discards unsaved form state without a confirm step.
   const requestClose = () => {
     if (busy) return;
-    if (dirty) {
-      setConfirmDiscard(true);
-      return;
-    }
     closeEditor();
   };
 
@@ -1077,37 +1057,12 @@ export function CustomAgentsSettingsSection({
               </fieldset>
             </div>
             <footer className="custom-agent-dialog-footer">
-              {confirmDiscard && dirty ? (
-                <>
-                  <span className="custom-agent-dirty-note">
-                    {t.dirtyWarning}
-                  </span>
-                  <Button
-                    disabled={busy}
-                    onClick={() => setConfirmDiscard(false)}
-                    type="button"
-                  >
-                    {t.keepEditing}
-                  </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={closeEditor}
-                    type="button"
-                    variant="danger"
-                  >
-                    {t.discardChanges}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button disabled={busy} onClick={requestClose} type="button">
-                    {t.cancelEdit}
-                  </Button>
-                  <Button disabled={busy} type="submit" variant="primary">
-                    {t.save}
-                  </Button>
-                </>
-              )}
+              <Button disabled={busy} onClick={requestClose} type="button">
+                {t.cancelEdit}
+              </Button>
+              <Button disabled={busy} type="submit" variant="primary">
+                {t.save}
+              </Button>
             </footer>
           </form>
         </Dialog>

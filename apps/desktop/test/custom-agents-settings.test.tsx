@@ -329,27 +329,14 @@ describe("CustomAgentsSettingsSection", () => {
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
-  it("guards a dirty dialog behind an explicit discard step", async () => {
+  it("closes a dirty dialog through cancel and discards without saving", async () => {
     const user = userEvent.setup();
     const { api } = renderSection();
     await user.click(screen.getByRole("button", { name: "New sub-agent" }));
     await user.type(screen.getByLabelText("Name"), "Discarded");
 
-    // Cancel with unsaved changes swaps the footer into keep/discard mode
-    // instead of closing.
+    // Cancel closes immediately even with unsaved changes; nothing is created.
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByText("You have unsaved changes")).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Keep editing" }));
-    expect(
-      screen.getByRole("button", { name: "Save sub-agent" }),
-    ).toBeInTheDocument();
-
-    // Re-attempting the close brings the guard back; discarding this time
-    // exits without creating anything.
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(api.customAgentsCreate).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Name")).toBeNull();
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();

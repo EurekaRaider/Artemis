@@ -10568,12 +10568,6 @@ kbd {
   padding: 14px 24px;
 }
 
-.custom-agent-dirty-note {
-  color: var(--warning);
-  font-size: 12px;
-  margin-right: auto;
-}
-
 /* Dialog checkbox lists: breathe between rows; MCP/builtin tools in two
    columns so twelve built-ins do not stack into a dense wall. */
 .custom-agent-dialog .custom-agent-tools {
