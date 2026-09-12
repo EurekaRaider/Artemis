@@ -17874,10 +17874,19 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
                   if (view === 'turn-changes-form-controls') {
-                    document
-                      .querySelector('.turn-change-actions button:last-child')
-                      ?.click();
                     const deadline = Date.now() + 8_000;
+                    let reviewAction = null;
+                    while (Date.now() < deadline) {
+                      reviewAction = document.querySelector(
+                        '.turn-change-actions button:last-child',
+                      );
+                      if (reviewAction instanceof HTMLButtonElement && !reviewAction.disabled) break;
+                      await wait(100);
+                    }
+                    if (!(reviewAction instanceof HTMLButtonElement) || reviewAction.disabled) {
+                      throw new Error('Review action did not become available.');
+                    }
+                    reviewAction.click();
                     let trigger = null;
                     while (Date.now() < deadline && trigger === null) {
                       trigger = document.querySelector(
