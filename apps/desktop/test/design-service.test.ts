@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import type { DesignContent, RunMode } from "@artemis/protocol";
+import type { AppLocale, DesignContent, RunMode } from "@artemis/protocol";
 import { DesignRepository } from "../src/main/design-repository.js";
 import { DesignService } from "../src/main/design-service.js";
 import type { DesignPreviewHost } from "../src/main/design-preview-host.js";
@@ -17,7 +17,7 @@ afterEach(() => {
   cleanup.splice(0).forEach((fn) => fn());
   vi.resetAllMocks();
 });
-function fixture() {
+function fixture(locale: AppLocale = "en") {
   const root = mkdtempSync(join(tmpdir(), "design-service-"));
   const repository = new DesignRepository(root);
   cleanup.push(() => {
@@ -43,6 +43,7 @@ function fixture() {
     preview as unknown as DesignPreviewHost,
     async () => ({ ...context }),
     vi.fn(),
+    () => locale,
   );
   const content: DesignContent = {
     schemaVersion: 1,
@@ -181,3 +182,23 @@ it("saves a draft before leaving and refuses implementation while drafts remain"
       .pages[0]!.html,
   ).toContain("edited");
 });
+
+it.each([
+  ["en", "Unsaved design edits", "Cancel"],
+  ["zh-CN", "未保存的设计编辑", "取消"],
+] as const)(
+  "uses %s for native draft confirmation",
+  async (locale, title, cancel) => {
+    const f = fixture(locale);
+    await f.service.draft("t", "draft", f.patch);
+    mocks.dialog.mockResolvedValueOnce({ response: 2 });
+    expect(await f.service.confirmLeave("t")).toBe(false);
+    expect(mocks.dialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title,
+        buttons: expect.arrayContaining([cancel]),
+      }),
+    );
+    expect(f.service.hasDrafts("t")).toBe(true);
+  },
+);

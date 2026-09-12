@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { dialog, nativeImage } from "electron";
 import type {
+  AppLocale,
   DesignPanelAction,
   DesignPanelState,
   DesignToolOperation,
@@ -55,13 +56,31 @@ export class DesignService {
       ([, draft]) => !threadId || draft.context.threadId === threadId,
     );
     if (!entries.length) return Promise.resolve(true);
+    const zh = this.locale().startsWith("zh");
+    const copy = zh
+      ? {
+          title: "未保存的设计编辑",
+          message: "离开前如何处理设计草稿？",
+          buttons: ["保存并离开", "丢弃并离开", "取消"],
+          workspaceChanged: "工作区已改变，请回到原工作区保存草稿。",
+          retained: "草稿仍已保留",
+        }
+      : {
+          title: "Unsaved design edits",
+          message:
+            "What would you like to do with the design drafts before leaving?",
+          buttons: ["Save and leave", "Discard and leave", "Cancel"],
+          workspaceChanged:
+            "The workspace changed. Return to the original workspace to save the drafts.",
+          retained: "Your drafts have been kept",
+        };
     const restorePreview = this.preview.suspendVisibility();
     this.leaving = (async () => {
       const choice = await dialog.showMessageBox({
         type: "question",
-        title: "未保存的设计编辑",
-        message: "离开前如何处理设计草稿？",
-        buttons: ["保存并离开", "丢弃并离开", "取消"],
+        title: copy.title,
+        message: copy.message,
+        buttons: copy.buttons,
         defaultId: 2,
         cancelId: 2,
       });
@@ -74,7 +93,7 @@ export class DesignService {
               current.workspaceBinding !== draft.context.workspaceBinding ||
               current.projectId !== draft.context.projectId
             )
-              throw new Error("工作区已改变，请回到原工作区保存草稿。");
+              throw new Error(copy.workspaceChanged);
             await this.action(current.threadId, draft.input);
           }
           this.drafts.delete(key);
@@ -83,7 +102,7 @@ export class DesignService {
       } catch (error) {
         await dialog.showMessageBox({
           type: "error",
-          message: "草稿仍已保留",
+          message: copy.retained,
           detail: String(error),
         });
         return false;
@@ -100,6 +119,7 @@ export class DesignService {
     readonly preview: DesignPreviewHost,
     private readonly context: (threadId: string) => Promise<DesignHostContext>,
     private readonly pump: (threadId: string) => Promise<void>,
+    private readonly locale: () => AppLocale = () => "en",
   ) {}
 
   async state(threadId: string): Promise<DesignPanelState> {

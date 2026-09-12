@@ -210,6 +210,7 @@ export function DesignPanel({
   const [showSource, setShowSource] = useState(false);
   const [comparison, setComparison] = useState<DesignRevision>();
   const [undone, setUndone] = useState<DesignPatch[]>([]);
+  const colorEdit = useRef<DesignPatch | undefined>(undefined);
   const canvas = useRef<HTMLDivElement>(null);
   const seenPreview = useRef<string | undefined>(undefined);
   const scope = useRef(threadId);
@@ -451,12 +452,13 @@ export function DesignPanel({
       setError(t.draftPersistFailed);
     }
   };
-  const edit = (patch: DesignPatch) => {
-    // Live controls (the color picker fires per drag tick) collapse into the
-    // previous patch when they target the same element and property, so one
-    // drag is one history entry instead of flooding the 128-patch cap.
+  const edit = (patch: DesignPatch, liveColor = false) => {
+    // Coalesce only ticks from the current color interaction. Blur and other
+    // edits end it, preserving independent edits as distinct undo steps.
     const last = patches.at(-1);
     const next =
+      liveColor &&
+      last === colorEdit.current &&
       patch.type === "style" &&
       last?.type === "style" &&
       last.elementId === patch.elementId &&
@@ -468,6 +470,7 @@ export function DesignPanel({
       return;
     }
     replacePatches(next);
+    colorEdit.current = liveColor ? patch : undefined;
     setUndone([]);
   };
   useEffect(() => {
@@ -1095,13 +1098,19 @@ export function DesignPanel({
                     <input
                       type="color"
                       disabled={!canWrite}
+                      onBlur={() => {
+                        colorEdit.current = undefined;
+                      }}
                       onChange={(event) =>
-                        edit({
-                          type: "style",
-                          elementId: selected.id,
-                          property: "color",
-                          value: event.target.value,
-                        })
+                        edit(
+                          {
+                            type: "style",
+                            elementId: selected.id,
+                            property: "color",
+                            value: event.target.value,
+                          },
+                          true,
+                        )
                       }
                     />
                   </label>
