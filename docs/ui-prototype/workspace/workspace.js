@@ -1790,7 +1790,7 @@
       $$(".dz-menu").forEach(function (m) {
         m.hidden = true;
       });
-      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzMoreBtn").forEach(function (b) {
+      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzMoreBtn, #dzHandoffCaret").forEach(function (b) {
         b.setAttribute("aria-expanded", "false");
       });
     }
@@ -1922,7 +1922,7 @@
       $$(".dz-menu").forEach(function (m) {
         m.hidden = true;
       });
-      $$('.dz-device-trigger, .dz-zoom-trigger, #dzMoreBtn').forEach(function (b) {
+      $$('.dz-device-trigger, .dz-zoom-trigger, #dzMoreBtn, #dzHandoffCaret').forEach(function (b) {
         b.setAttribute("aria-expanded", "false");
       });
       menu.hidden = !open;
@@ -1990,7 +1990,7 @@
       }
     });
     document.addEventListener("click", function (e) {
-      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more")) {
+      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-handoff")) {
         $$(".dz-menu").forEach(function (m) {
           m.hidden = true;
         });
@@ -2369,13 +2369,134 @@
     /* 分享：开关态切换 */
     $("#dzShareBtn").addEventListener("click", function () {
       var shared = $("#dzShareBtn").classList.toggle("shared");
-      $("#dzShareBtn").textContent = shared ? "已分享" : "分享";
+      $("#dzShareLabel").textContent = shared ? "已分享" : "分享";
       dzToast(shared ? "分享已开启，链接已复制" : "分享已关闭");
+    });
+
+    /* 交付（Handoff）：分体按钮 = 左侧直接用首选编辑器打开，▼ 弹「编辑器/CLI」双 tab 菜单 */
+    var dzHandoffEditors = {
+      "VS Code": '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .325 8.74L3.899 12 .325 15.26a1 1 0 0 0 .002 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zM17.9 17.448 10.826 12l7.178-5.448v10.896z" fill="#22a0e8"></path></svg>',
+      Cursor: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M12 3.2 20.5 19h-4.2L12 10.4 7.7 19H3.5z" fill="currentColor"></path></svg>',
+      Trae: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><rect height="15" rx="3.5" width="15" x="4.5" y="4.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M9.5 9.5l5 5M14.5 9.5l-5 5" stroke="currentColor" stroke-linecap="round" stroke-width="1.6"></path></svg>',
+      Zed: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M7 7h10L7 17h10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path></svg>',
+      Xcode: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M4 16.5 16.5 4l3.5 3.5L7.5 20z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.6"></path><path d="M4 20l3-1" stroke="currentColor" stroke-linecap="round" stroke-width="1.6"></path></svg>',
+    };
+    var dzHandoffPreferred = "VS Code";
+    var dzHandoffInstalled = ["VS Code", "Cursor", "Trae"];
+    var dzHandoffFramework = "React";
+    var dzHandoffCli = [
+      { name: "Claude Code", bin: "claude" },
+      { name: "Codex CLI", bin: "codex" },
+      { name: "OpenCode", bin: "opencode" },
+      { name: "Gemini CLI", bin: "gemini" },
+      { name: "Qwen Code", bin: "qwen" },
+    ];
+    function dzHandoffPanes() {
+      var editor =
+        '<div class="dz-handoff-pane" id="dzHandoffEditor">' +
+        '<div class="dz-handoff-group-title">已安装</div><div class="dz-handoff-rail">' +
+        dzHandoffInstalled
+          .map(function (name) {
+            return (
+              '<button class="dz-handoff-item" data-dz-editor="' + name + '" title="在 ' + name + ' 中打开" type="button">' +
+              '<span class="dz-handoff-logo sm">' + dzHandoffEditors[name] + "</span>" +
+              "<span>" + name + "</span>" +
+              '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg></button>'
+            );
+          })
+          .join("") +
+        '</div><div class="dz-handoff-group-title">未安装</div><div class="dz-handoff-rail dim">' +
+        ["Zed", "Xcode"]
+          .map(function (name) {
+            return (
+              '<button class="dz-handoff-item" data-dz-editor="' + name + '" data-dz-dim="1" title="未检测到 ' + name + '" type="button">' +
+              '<span class="dz-handoff-logo sm">' + dzHandoffEditors[name] + "</span>" +
+              "<span>" + name + "</span></button>"
+            );
+          })
+          .join("") +
+        "</div></div>";
+      var cli =
+        '<div class="dz-handoff-pane">' +
+        '<div class="dz-handoff-group-title">代码框架</div><div class="dz-handoff-frameworks">' +
+        ["React", "Vue.js", "Svelte", "SolidJS", "Next.js", "JS"]
+          .map(function (f) {
+            return '<button class="dz-handoff-chip' + (f === dzHandoffFramework ? " active" : "") + '" data-dz-framework="' + f + '" type="button">' + f + "</button>";
+          })
+          .join("") +
+        '</div><div class="dz-handoff-group-title">已安装</div><div class="dz-handoff-cli">' +
+        dzHandoffCli
+          .map(function (c) {
+            return (
+              '<div class="dz-handoff-cli-row"><span class="dz-handoff-cli-name">' + c.name + '</span><code class="mono">' + c.bin + '</code><button class="dz-handoff-copy" data-dz-copy="' + c.name + ' 启动命令" type="button">复制</button></div>'
+            );
+          })
+          .join("") +
+        "</div></div>";
+      $("#dzHandoffPanes").innerHTML = editor + cli;
+      $("#dzHandoffEditor").nextElementSibling.hidden = true;
+    }
+    dzHandoffPanes();
+    $("#dzHandoffMain").addEventListener("click", function () {
+      dzToast("已在 " + dzHandoffPreferred + " 中打开项目文件夹");
+    });
+    $("#dzHandoffCaret").addEventListener("click", function () {
+      dzToggleMenu($("#dzHandoffCaret"), $("#dzHandoffMenu"));
+    });
+    $("#dzHandoffMenu").addEventListener("click", function (e) {
+      var tab = e.target.closest("[data-dz-htab]");
+      if (tab) {
+        $$(".dz-handoff-tabs [role=tab]").forEach(function (o) {
+          var on = o === tab;
+          o.classList.toggle("active", on);
+          o.setAttribute("aria-selected", String(on));
+        });
+        var isCli = tab.dataset.dzHtab === "cli";
+        var panes = $("#dzHandoffPanes").children;
+        panes[0].hidden = isCli;
+        panes[1].hidden = !isCli;
+        return;
+      }
+      var chip = e.target.closest("[data-dz-framework]");
+      if (chip) {
+        dzHandoffFramework = chip.dataset.dzFramework;
+        $$(".dz-handoff-chip").forEach(function (o) {
+          o.classList.toggle("active", o === chip);
+        });
+        return;
+      }
+      var editorBtn = e.target.closest("[data-dz-editor]");
+      if (editorBtn) {
+        $("#dzHandoffMenu").hidden = true;
+        $("#dzHandoffCaret").setAttribute("aria-expanded", "false");
+        if (editorBtn.dataset.dzDim) {
+          dzToast("未检测到 " + editorBtn.dataset.dzEditor + "，请先安装");
+          return;
+        }
+        dzHandoffPreferred = editorBtn.dataset.dzEditor;
+        $("#dzHandoffLogo").innerHTML = dzHandoffEditors[dzHandoffPreferred];
+        $("#dzHandoffLabel").textContent = dzHandoffPreferred;
+        $("#dzHandoffMain").setAttribute("aria-label", "在 " + dzHandoffPreferred + " 中打开项目文件夹");
+        $("#dzHandoffMain").title = "在 " + dzHandoffPreferred + " 中打开项目文件夹";
+        dzToast("已在 " + dzHandoffPreferred + " 中打开项目文件夹");
+        return;
+      }
+      var copy = e.target.closest("[data-dz-copy]");
+      if (copy) {
+        dzToast("已复制 " + copy.dataset.dzCopy.replace("项目路径", "项目路径（/Users/demo/Projects/rights-hub）"));
+        var old = copy.textContent;
+        copy.textContent = "已复制";
+        copy.disabled = true;
+        window.setTimeout(function () {
+          copy.textContent = old;
+          copy.disabled = false;
+        }, 1200);
+      }
     });
 
     /* 全局点外收起所有菜单（含新加的三组） */
     document.addEventListener("click", function (e) {
-      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-crumb-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-file-menu-pop")) {
+      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-handoff") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-crumb-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-file-menu-pop")) {
         dzCloseMenus();
       }
       if (!e.target.closest("#dzHistory") && !e.target.closest("#dzHistoryBtn")) {

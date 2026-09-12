@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=170" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=171" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=146" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -495,8 +495,21 @@
 <button class="dz-menu-item" data-dz-toast="分享链接已复制" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M9.5 14.5 14.5 9.5"></path><path d="M11 6.5 12.8 4.7a4 4 0 0 1 5.7 5.7L16.7 12"></path><path d="M13 17.5 11.2 19.3a4 4 0 0 1-5.7-5.7L7.3 12"></path></svg>复制分享链接</button>
 </div>
 </div>
-<button class="btn btn-quiet design-ws-share" id="dzShareBtn" type="button">分享</button>
-<button aria-label="在编辑器中打开" class="design-ws-iconbtn" data-dz-toast="已在默认编辑器中打开 customer.html" title="在编辑器中打开" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><path d="M9 8 5 12l4 4M15 8l4 4-4 4"></path></svg><svg aria-hidden="true" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="10"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg></button>
+<button class="btn btn-quiet design-ws-share" id="dzShareBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M14 4h6v6"></path><path d="M20 4l-8.5 8.5"></path><path d="M18.5 13.5V18A1.5 1.5 0 0 1 17 19.5H6A1.5 1.5 0 0 1 4.5 18V7A1.5 1.5 0 0 1 6 5.5h4.5"></path></svg><span id="dzShareLabel">分享</span></button>
+<div class="dz-handoff" id="dzHandoff">
+<div class="dz-handoff-split">
+<button aria-label="在 VS Code 中打开项目文件夹" class="dz-handoff-trigger" id="dzHandoffMain" title="在 VS Code 中打开项目文件夹" type="button"><span class="dz-handoff-logo" id="dzHandoffLogo"><svg fill="none" height="16" viewbox="0 0 24 24" width="16"><path d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .325 8.74L3.899 12 .325 15.26a1 1 0 0 0 .002 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zM17.9 17.448 10.826 12l7.178-5.448v10.896z" fill="#22a0e8"></path></svg></span><span id="dzHandoffLabel">VS Code</span></button>
+<button aria-expanded="false" aria-haspopup="menu" aria-label="选择交付目标" class="dz-handoff-caret" id="dzHandoffCaret" title="选择交付目标" type="button"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg></button>
+</div>
+<div class="dz-menu dz-handoff-menu" hidden="" id="dzHandoffMenu" role="dialog" aria-label="交付选项">
+<div class="dz-handoff-tabs" role="tablist">
+<button aria-selected="true" class="active" data-dz-htab="editor" id="dzHTabEditor" role="tab" type="button">通过编辑器打开</button>
+<button aria-selected="false" data-dz-htab="cli" id="dzHTabCli" role="tab" type="button">复制给 CLI</button>
+</div>
+<div class="dz-handoff-path"><span class="mono" title="/Users/demo/Projects/rights-hub">/Users/demo/Projects/rights-hub</span><button class="dz-handoff-copy" data-dz-copy="项目路径" type="button">复制路径</button></div>
+<div id="dzHandoffPanes"></div>
+</div>
+</div>
 </div>
 </div>
 <div class="design-files" id="dzViewFiles">
@@ -1448,6 +1461,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=159"></script>
+<script src="workspace/workspace.js?v=161"></script>
 </body>
 </html>

@@ -3529,6 +3529,138 @@ body[data-dock="open"] .dock-resizer {
 .dz-more-menu { left: auto; right: 0; top: calc(100% + 8px); min-width: 196px; }
 .dz-menu-sep { height: 1px; margin: 4px 7px; background: var(--border-soft); }
 
+/* 交付（Handoff）分体按钮与「编辑器/CLI」菜单 */
+.dz-handoff { position: relative; }
+.dz-handoff-split {
+  display: inline-flex;
+  align-items: stretch;
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.dz-handoff-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 7px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 550 11.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-trigger:hover { background: var(--surface-2); }
+.dz-handoff-caret {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--border-soft);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-handoff-caret:hover { background: var(--surface-2); color: var(--text); }
+.dz-handoff-caret[aria-expanded="true"] { color: var(--text); background: var(--surface-2); }
+.dz-handoff-logo { display: inline-flex; align-items: center; }
+.dz-handoff-logo.sm svg { width: 16px; height: 16px; }
+.dz-handoff-menu {
+  left: auto;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 288px;
+  padding: 8px;
+  gap: 6px;
+}
+.dz-handoff-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.dz-handoff-tabs [role="tab"] {
+  flex: 1;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: calc(var(--r-sm) - 1px);
+  background: none;
+  color: var(--text-2);
+  font: 550 11px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-tabs [role="tab"].active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.dz-handoff-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+}
+.dz-handoff-path .mono {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.dz-handoff-copy {
+  flex: none;
+  padding: 3.5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-2);
+  font: 550 10.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-copy:hover { color: var(--text); border-color: var(--text-3); }
+.dz-handoff-copy:disabled { color: var(--text); border-color: transparent; cursor: default; }
+.dz-handoff-group-title { padding: 2px 6px; font: 550 10px/1.4 var(--font-ui); color: var(--text-3); letter-spacing: 0.02em; }
+.dz-handoff-rail { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.dz-handoff-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  font: 500 11.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-item svg { flex: none; }
+.dz-handoff-item span:not(.dz-handoff-logo) { flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-handoff-item:hover { background: var(--surface-2); }
+.dz-handoff-rail.dim .dz-handoff-item { color: var(--text-3); opacity: 0.72; }
+.dz-handoff-frameworks { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px; }
+.dz-handoff-chip {
+  padding: 3.5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-2);
+  font: 500 10.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-chip:hover { color: var(--text); }
+.dz-handoff-chip.active { background: var(--surface-3); color: var(--text); border-color: transparent; }
+.dz-handoff-cli { display: flex; flex-direction: column; gap: 2px; }
+.dz-handoff-cli-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
+}
+.dz-handoff-cli-row:hover { background: var(--surface-2); }
+.dz-handoff-cli-name { flex: 1; font: 500 11.5px/1 var(--font-ui); color: var(--text); }
+.dz-handoff-cli-row code { font-size: 10.5px; color: var(--text-3); }
+
 /* 截图草稿卡：当前预览的迷你克隆 + 说明 + 垃圾桶移除 */
 .dz-shot-card {
   position: absolute;
