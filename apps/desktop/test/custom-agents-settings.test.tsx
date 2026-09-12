@@ -146,14 +146,20 @@ function renderSection(options: RenderOptions = {}) {
 }
 
 describe("CustomAgentsSettingsSection", () => {
-  it("shows the empty state with a create call to action", () => {
+  it("shows the dashed empty state as the only create entry point", () => {
     renderSection({ snapshotOverrides: { customAgents: [] } });
     expect(screen.getByText("No custom sub-agents yet")).toBeInTheDocument();
     expect(screen.getByText(/Create a specialist role once/u)).toBeVisible();
-    // Header and empty state both offer creation.
+    const empty = screen
+      .getByText("No custom sub-agents yet")
+      .closest("[data-artemis-component='empty-state']");
+    expect(empty?.className).toContain("custom-agent-empty");
+    // While empty, the header count chip and create button stay hidden —
+    // the dashed box owns the single creation entry point.
     expect(
       screen.getAllByRole("button", { name: "New sub-agent" }).length,
-    ).toBe(2);
+    ).toBe(1);
+    expect(screen.queryByText("0 item(s)")).toBeNull();
   });
 
   it("lists definitions with policy, scope, state, and routing badges", () => {

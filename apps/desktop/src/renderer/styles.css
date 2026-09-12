@@ -10468,6 +10468,13 @@ kbd {
   font-size: 12px;
 }
 
+/* Empty catalog: the dashed box carries the whole empty state, so the
+   header actions (count chip + create button) are hidden while it shows. */
+.custom-agent-empty {
+  border: 1px dashed var(--border-soft);
+  border-radius: var(--artemis-radius-card);
+}
+
 /* Sub-agent editor dialog (issue #193). Plain class, not
    [data-artemis-component]: restyling the public dialog needs registration. */
 .custom-agent-dialog {

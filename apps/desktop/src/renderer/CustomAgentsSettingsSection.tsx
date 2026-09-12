@@ -621,15 +621,17 @@ export function CustomAgentsSettingsSection({
     <div className="custom-agents-anchor">
       <ManagementSection
         actions={
-          <>
-            <span className="custom-agent-count">
-              {t.count.replace("{count}", String(definitions.length))}
-            </span>
-            <Button disabled={busy} onClick={openCreate}>
-              <ArtemisIcon name="plus" />
-              {t.add}
-            </Button>
-          </>
+          definitions.length === 0 ? undefined : (
+            <>
+              <span className="custom-agent-count">
+                {t.count.replace("{count}", String(definitions.length))}
+              </span>
+              <Button disabled={busy} onClick={openCreate}>
+                <ArtemisIcon name="plus" />
+                {t.add}
+              </Button>
+            </>
+          )
         }
         className="settings-section custom-agents-section"
         description={t.hint}
@@ -649,10 +651,12 @@ export function CustomAgentsSettingsSection({
         {definitions.length === 0 ? (
           <EmptyState
             action={
-              <Button disabled={busy} onClick={openCreate} variant="quiet">
+              <Button disabled={busy} onClick={openCreate}>
+                <ArtemisIcon name="plus" />
                 {t.add}
               </Button>
             }
+            className="custom-agent-empty"
             description={t.emptyHint}
             title={t.empty}
           />
