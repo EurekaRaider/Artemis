@@ -172,6 +172,7 @@
     review: { label: "审查", icon: "review" },
     terminal: { label: "终端", icon: "terminal" },
     browser: { label: "浏览器", icon: "browser" },
+    design: { label: "设计", icon: "design" },
     files: { label: "文件", icon: "files" },
     goal: { label: "任务目标" },
     sources: { label: "来源" },
@@ -1755,6 +1756,30 @@
       return value;
     },
   });
+
+  /* ---------- 设计面板（B3）：队列折叠条 + 画廊方向卡选中 ---------- */
+  var designQueueToggle = $("#designQueueToggle");
+  if (designQueueToggle) {
+    designQueueToggle.addEventListener("click", function () {
+      var open = designQueueToggle.getAttribute("aria-expanded") === "true";
+      designQueueToggle.setAttribute("aria-expanded", String(!open));
+      $("#designQueueList").hidden = open;
+    });
+  }
+  var designGallery = $("#designGallery");
+  if (designGallery) {
+    designGallery.addEventListener("click", function (e) {
+      var card = e.target.closest(".design-variant");
+      if (!card) return;
+      designGallery
+        .querySelectorAll(".design-variant")
+        .forEach(function (item) {
+          var active = item === card;
+          item.classList.toggle("selected", active);
+          item.setAttribute("aria-pressed", String(active));
+        });
+    });
+  }
 
   var reviewExamples = ArtemisWorkspaceFixtures.reviews;
   function selectReview(index) {
