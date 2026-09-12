@@ -80,11 +80,6 @@ const labels = {
     dirtyWarning: "You have unsaved changes",
     keepEditing: "Keep editing",
     discardChanges: "Discard changes",
-    sectionIdentity: "Identity",
-    sectionModel: "Model",
-    sectionReasoning: "Reasoning effort",
-    sectionTools: "Tools",
-    sectionDispatch: "Dispatch & scope",
     editorEditTitle: "Edit: {name}",
     editorHint:
       "Fill in the name, tools, and dedicated prompt; saving returns to the list.",
@@ -152,11 +147,6 @@ const labels = {
     dirtyWarning: "有未保存的修改",
     keepEditing: "继续编辑",
     discardChanges: "放弃修改",
-    sectionIdentity: "身份",
-    sectionModel: "模型",
-    sectionReasoning: "推理强度",
-    sectionTools: "工具",
-    sectionDispatch: "调度与范围",
     editorEditTitle: "编辑：{name}",
     editorHint: "填写名称、工具与专用提示词，保存后返回列表。",
     name: "名称",
@@ -788,7 +778,6 @@ export function CustomAgentsSettingsSection({
             <div className="custom-agent-dialog-body">
               {error && <InlineNotice tone="warning">{error}</InlineNotice>}
               <fieldset className="custom-agent-dialog-section">
-                <legend>{t.sectionIdentity}</legend>
                 <TextField
                   disabled={busy}
                   error={nameError ? t.nameRequired : undefined}
@@ -833,11 +822,10 @@ export function CustomAgentsSettingsSection({
                 />
               </fieldset>
               <fieldset className="custom-agent-dialog-section">
-                <legend>{t.sectionModel}</legend>
                 <Select
                   disabled={busy}
                   label={t.modelPolicy}
-                  labelVisibility="hidden"
+                  labelVisibility="visible"
                   onValueChange={(kind) =>
                     setForm((f) => ({
                       ...f,
@@ -869,11 +857,10 @@ export function CustomAgentsSettingsSection({
                 )}
               </fieldset>
               <fieldset className="custom-agent-dialog-section">
-                <legend>{t.sectionReasoning}</legend>
                 <Select
                   disabled={busy}
                   label={t.thinkingPolicy}
-                  labelVisibility="hidden"
+                  labelVisibility="visible"
                   onValueChange={(kind) =>
                     setForm((f) => ({
                       ...f,
@@ -903,11 +890,10 @@ export function CustomAgentsSettingsSection({
                 )}
               </fieldset>
               <fieldset className="custom-agent-dialog-section">
-                <legend>{t.sectionTools}</legend>
                 <Select
                   disabled={busy}
                   label={t.toolPolicy}
-                  labelVisibility="hidden"
+                  labelVisibility="visible"
                   onValueChange={(kind) =>
                     setForm((f) => ({
                       ...f,
@@ -1016,7 +1002,6 @@ export function CustomAgentsSettingsSection({
                 value={form.instructions}
               />
               <fieldset className="custom-agent-dialog-section">
-                <legend>{t.sectionDispatch}</legend>
                 <TextField
                   description={t.triggersHint}
                   disabled={busy}

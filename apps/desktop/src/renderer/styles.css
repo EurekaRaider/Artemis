@@ -10638,8 +10638,7 @@ kbd {
 }
 
 .custom-agent-projects > legend,
-.custom-agent-tools > legend,
-.custom-agent-dialog-section > legend {
+.custom-agent-tools > legend {
   padding: 0;
   font-size: 12px;
   font-weight: 600;
