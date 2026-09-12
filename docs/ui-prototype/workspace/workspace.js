@@ -1757,28 +1757,53 @@
     },
   });
 
-  /* ---------- 设计面板（B3）：队列折叠条 + 画廊方向卡选中 ---------- */
-  var designQueueToggle = $("#designQueueToggle");
-  if (designQueueToggle) {
-    designQueueToggle.addEventListener("click", function () {
-      var open = designQueueToggle.getAttribute("aria-expanded") === "true";
-      designQueueToggle.setAttribute("aria-expanded", String(!open));
-      $("#designQueueList").hidden = open;
+  /* ---------- 设计面板（open-design 结构）：文件浏览 ↔ 文件预览视图切换 ---------- */
+  var dzPanel = $("#dockPanelDesign");
+  if (dzPanel) {
+    var dzFilesTab = $("#dzTabFiles");
+    var dzFileTab = $("#dzTabFile");
+    var dzViewFiles = $("#dzViewFiles");
+    var dzViewPreview = $("#dzViewPreview");
+    function dzShow(view, file, title) {
+      var files = view === "files";
+      dzViewFiles.hidden = !files;
+      dzViewPreview.hidden = files;
+      dzFilesTab.classList.toggle("active", files);
+      dzFilesTab.setAttribute("aria-selected", String(files));
+      dzFileTab.classList.toggle("active", !files);
+      dzFileTab.setAttribute("aria-selected", String(!files));
+      dzFileTab.hidden = false;
+      if (file) {
+        $("#dzTabFileName").textContent = file;
+        $("#dzAddressFile").textContent = file;
+      }
+      if (title) $("#dzAddressTitle").textContent = title;
+    }
+    dzFilesTab.addEventListener("click", function () {
+      dzShow("files");
     });
-  }
-  var designGallery = $("#designGallery");
-  if (designGallery) {
-    designGallery.addEventListener("click", function (e) {
-      var card = e.target.closest(".design-variant");
-      if (!card) return;
-      designGallery
-        .querySelectorAll(".design-variant")
-        .forEach(function (item) {
-          var active = item === card;
-          item.classList.toggle("selected", active);
-          item.setAttribute("aria-pressed", String(active));
-        });
+    dzFileTab.addEventListener("click", function (e) {
+      if (e.target.closest(".design-ws-x")) {
+        // 关闭文件标签：回文件浏览并收起标签
+        dzShow("files");
+        dzFileTab.hidden = true;
+        return;
+      }
+      dzShow("preview");
     });
+    $$(".design-file-card").forEach(function (card) {
+      card.addEventListener("click", function () {
+        dzShow("preview", card.dataset.dzOpen, card.dataset.dzTitle);
+      });
+    });
+    var dzComposer = dzPanel.querySelector(".design-composer-input");
+    var dzSend = dzPanel.querySelector(".design-composer-send");
+    if (dzComposer && dzSend) {
+      var dzSync = function () {
+        dzSend.disabled = !dzComposer.textContent.trim();
+      };
+      dzComposer.addEventListener("input", dzSync);
+    }
   }
 
   var reviewExamples = ArtemisWorkspaceFixtures.reviews;

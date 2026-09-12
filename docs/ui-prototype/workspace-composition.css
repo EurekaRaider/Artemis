@@ -48,8 +48,6 @@
 .preview-grid .card {padding:18px;}
 .preview-grid h2 {font-size:14px;margin-bottom:8px;}
 .files-workspace {display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,34%);flex:1;min-height:0;}
-.design-workspace {display:grid;grid-template-columns:minmax(0,1fr) 240px;flex:1;min-height:340px;}
-.design-canvas {display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;}
 .file-viewer {display:flex;flex-direction:column;min-width:0;min-height:0;}
 .file-tree {min-width:0;overflow:auto;border-left:1px solid var(--border-soft);background:var(--surface-2);}
 .file-tree summary {font-size:11px;color:var(--text-2);cursor:pointer;padding:8px;}
@@ -1636,8 +1634,8 @@ body.sidebar-initializing .app-shell,
 body.sidebar-initializing .workspace-header,
 body.sidebar-initializing .sidebar .sidebar-main,
 body.sidebar-initializing .sidebar .sidebar-rail { transition: none !important; }
-/* v159 设计面板（B3）：dock 过窄时画布/检查器上下堆叠，检查器限高滚动。 */
+/* v161 设计面板（open-design 结构）：dock 过窄时文件卡单列、标签条横向滚动。 */
 @container (max-width:540px) {
-  .design-workspace {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(240px,1fr) auto;}
-  .design-inspector {border-left:0;border-top:1px solid var(--border-soft);max-height:280px;}
+  .design-cards {grid-template-columns:minmax(0,1fr);}
+  .design-file-thumb {height:96px;}
 }

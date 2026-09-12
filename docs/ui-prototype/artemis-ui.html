@@ -7,9 +7,9 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=160" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=161" rel="stylesheet"/>
 
-<link href="workspace-composition.css?v=145" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
+<link href="workspace-composition.css?v=146" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
 <body data-dock="closed" data-empty="0" data-view="workspace">
 <!-- v113：模拟 macOS hiddenInset 红绿灯（真实应用为原生控件，恒浮于内容之上；纯展示不拦截点击） -->
@@ -463,66 +463,56 @@
 </div>
 <!-- browser 占位面板（点击 launcher Browser 打开） -->
 <div aria-labelledby="dockTabBrowser" class="tab-panel" data-panel="browser" hidden="" id="dockPanelBrowser" role="tabpanel"><header class="panel-toolbar"><strong>浏览器</strong><span class="sp"></span><button class="btn btn-quiet" id="browserRefresh" type="button">刷新</button></header><form class="browser-bar" id="browserForm"><button aria-label="后退" class="icon-btn" disabled="" id="browserBack" type="button">‹</button><button aria-label="前进" class="icon-btn" disabled="" id="browserForward" type="button">›</button><input aria-label="浏览器地址" class="browser-address" id="browserAddress" value="artemis://preview/welcome"/><button class="btn btn-quiet" type="submit">前往</button></form><div class="browser-preview" id="browserPreview"><span class="chip ok">本地预览</span><h1>让想法成为作品。</h1><p>从一个任务开始，在同一个工作空间中编写、查看和完善。</p><div class="preview-grid"><article class="card"><h2>清晰的上下文</h2><p>项目、附件和来源始终触手可及。</p></article><article class="card"><h2>专注的工作空间</h2><p>会话与工具并排，随时查看结果。</p></article></div><button class="btn btn-primary" id="previewReadme" type="button">阅读项目说明</button></div></div>
-<!-- 设计主面板（B3 框架：工具栏 → 提示区 → 草稿条 → 队列 → 画廊 → 画布+检查器） -->
+<!-- 设计主面板（还原 open-design 项目页右侧设计呈现面板结构：工作区标签条 → 文件浏览（面包屑/分类胶囊/文件卡网格/底部生成 composer）→ 文件预览态） -->
 <section aria-label="设计" class="tab-panel design-panel" data-panel="design" hidden="" id="dockPanelDesign" role="tabpanel" aria-labelledby="dockTabDesign">
-<header class="panel-toolbar design-toolbar">
-<select aria-label="设计文档" class="select-pill" id="designDoc"><option value="settings-revamp">设置页改版</option><option value="empty-state">空状态插图页</option></select>
-<select aria-label="版本" class="select-pill" id="designRevision"><option value="head">a3f19c02 · 最新</option><option value="prev">9d24b710 · 今天 14:05</option><option value="conflict">5c88e2f4 · 昨天 18:44 · 有分叉</option></select>
+<div aria-label="页面" class="design-ws-tabs" role="tablist">
+<button aria-selected="true" class="design-ws-tab active" data-dz-view="files" id="dzTabFiles" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg><span class="design-ws-label">设计文件</span></button>
+<button aria-selected="false" class="design-ws-tab" data-dz-view="preview" id="dzTabFile" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="design-ws-label" id="dzTabFileName">customer.html</span><span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button>
+<button aria-label="新建标签页" class="design-ws-add" title="新建标签页" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="13"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+<div class="design-files" id="dzViewFiles">
+<nav aria-label="项目" class="design-crumb">
+<span class="design-crumb-project">2B_Hifi</span>
 <span class="sp"></span>
-<button class="btn btn-quiet" id="designBackToCode" type="button">返回代码</button>
-<button class="btn btn-primary" id="designNew" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M12 4.5l1.7 5.3 5.3 1.7-5.3 1.7L12 18.5l-1.7-5.3L5 11.5l5.3-1.7z"></path></svg>新建设计</button>
-</header>
-<div class="design-notice" role="status"><span>正在看的不是最新版本，内容和草稿都已保留。</span><button class="btn btn-quiet" type="button">查看最新版本</button></div>
-<div class="design-draftbar">
-<button aria-label="撤销" class="btn btn-quiet icon-btn" title="撤销" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4 9h9.5a5 5 0 0 1 0 10H10"></path><path d="M7.5 5.5 4 9l3.5 3.5"></path></svg></button>
-<button aria-label="重做" class="btn btn-quiet icon-btn" disabled="" title="重做" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20 9h-9.5a5 5 0 0 0 0 10H14"></path><path d="M16.5 5.5 20 9l-3.5 3.5"></path></svg></button>
-<span class="design-draft-copy"><b>3</b> 处未保存，已在本机留档</span>
-<span class="sp"></span>
-<button class="btn" id="designSave" type="button">保存为新版本</button>
-<button aria-label="丢弃草稿" class="btn btn-quiet icon-btn" title="丢弃草稿" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4.5 7h15M9.5 7V5.5A1.5 1.5 0 0 1 11 4h2a1.5 1.5 0 0 1 1.5 1.5V7m3 0-.8 11.2a2 2 0 0 1-2 1.8H9.3a2 2 0 0 1-2-1.8L6.5 7"></path><path d="M10 11v5M14 11v5"></path></svg></button>
+<button aria-label="项目操作" class="design-crumb-menu" title="项目操作" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></button>
+</nav>
+<div class="design-cats">
+<button class="design-cat" type="button">文件夹 <span class="design-cat-count">3</span></button>
+<button class="design-cat active" type="button">页面 <span class="design-cat-count">2</span></button>
+<button class="design-cat" type="button">样式表 <span class="design-cat-count">1</span></button>
+<button class="design-cat" type="button">脚本 <span class="design-cat-count">20</span></button>
+<button class="design-cat" type="button">图片 <span class="design-cat-count">50</span></button>
+<button class="design-cat" type="button">其他 <span class="design-cat-count">25</span></button>
 </div>
-<div class="design-queue">
-<button aria-expanded="false" class="design-queue-bar" id="designQueueToggle" type="button"><svg aria-hidden="true" class="design-queue-chev" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg><span>任务队列</span><span class="design-queue-count">2</span></button>
-<div class="design-queue-list" hidden="" id="designQueueList">
-<div class="design-queue-item"><div class="design-queue-copy"><strong>做个深色主题的设置页改版</strong><span class="card-sub">等待中 · 前面还有 1 个</span></div><span class="sp"></span><button class="btn btn-quiet" type="button">提前</button><button class="btn btn-quiet" type="button">取消</button></div>
-<div class="design-queue-item"><div class="design-queue-copy"><strong>设计空状态插图页</strong><span class="card-sub">失败 · 模型没有返回结果</span></div><span class="sp"></span><button class="btn btn-quiet" type="button">已核对，重新提交</button><button class="btn btn-quiet" type="button">取消</button></div>
-</div>
-</div>
-<div aria-label="先挑一个方向" class="design-gallery" id="designGallery">
-<button aria-pressed="true" class="design-variant selected" type="button">
-<span aria-hidden="true" class="design-thumb" data-tone="dashboard"><i class="t-side"></i><i class="t-col"><b></b><b></b><b></b></i></span>
-<span class="design-variant-copy"><strong>方案 A · 深色仪表风</strong><small>侧栏分组＋数据卡片，信息密度高</small></span>
-<span class="design-check" data-state="passed">✓ 已通过</span>
+<div class="design-cards">
+<button class="design-file-card" data-dz-open="customer.html" data-dz-title="客户档案" type="button">
+<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>
+<span class="design-file-meta"><span class="design-file-name">customer.html</span><span class="design-file-sub">HTML 页面 · 3 周前</span></span>
+<span aria-hidden="true" class="design-file-menu"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>
 </button>
-<button aria-pressed="false" class="design-variant" type="button">
-<span aria-hidden="true" class="design-thumb" data-tone="editorial"><i class="t-hero"></i><i class="t-col"><b class="w60"></b><b></b></i><i class="t-col"><b class="w60"></b><b></b></i></span>
-<span class="design-variant-copy"><strong>方案 B · 杂志编辑风</strong><small>大标题＋双栏正文，阅读感优先</small></span>
-<span class="design-check" data-state="issues">✗ 2 处问题</span>
-</button>
-<button aria-pressed="false" class="design-variant" type="button">
-<span aria-hidden="true" class="design-thumb" data-tone="minimal"><i class="t-mid"></i><i class="t-btn"></i></span>
-<span class="design-variant-copy"><strong>方案 C · 极简留白</strong><small>居中单列，只留一个主行动</small></span>
-<span class="design-check" data-state="unchecked">○ 未检查</span>
-</button>
-<button aria-pressed="false" class="design-variant" type="button">
-<span aria-hidden="true" class="design-thumb" data-tone="cards"><i class="t-grid"><b></b><b></b><b></b><b></b></i></span>
-<span class="design-variant-copy"><strong>方案 D · 卡片列表</strong><small>表格改卡片，逐项独立操作</small></span>
-<span class="design-check" data-state="unchecked">○ 未检查</span>
+<button class="design-file-card" data-dz-open="index.html" data-dz-title="工作台" type="button">
+<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-grid"><b></b><b></b><b class="w60"></b><b></b></i></span>
+<span class="design-file-meta"><span class="design-file-name">index.html</span><span class="design-file-sub">HTML 页面 · 3 周前</span></span>
+<span aria-hidden="true" class="design-file-menu"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>
 </button>
 </div>
-<div class="design-workspace">
-<div class="design-canvas">
-<div class="design-canvas-bar">
-<select aria-label="页面" class="select-pill"><option>首页</option><option>设置</option><option>详情</option></select>
-<button class="btn btn-quiet" type="button"><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect x="6.5" height="11" rx="2" width="11" y="6.5"></rect><path d="M6.5 12h11"></path></svg>停止</button>
-<button class="btn btn-quiet" type="button"><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg>检查</button>
-<span class="sp"></span>
-<button class="btn btn-quiet" type="button">对比</button>
-<div aria-label="视图" class="seg" role="group"><button aria-pressed="true" class="active" type="button">画布</button><button aria-pressed="false" type="button">源码</button></div>
-<button class="btn btn-quiet" type="button">导出 HTML</button>
-<button class="btn btn-primary" type="button">实施</button>
+<div class="design-composer">
+<div class="design-composer-input" contenteditable="true" data-placeholder="描述你想生成的内容…" role="textbox"></div>
+<div class="design-composer-actions">
+<button aria-label="添加上下文" class="design-composer-btn" title="添加上下文" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="15"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button aria-label="发送" class="design-composer-send" disabled="" title="发送" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="15"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"></path></svg></button>
 </div>
-<div class="design-preview">
+</div>
+</div>
+<div class="design-preview-view" hidden="" id="dzViewPreview">
+<div class="design-browser-bar">
+<button aria-label="后退" class="design-browser-nav" disabled="" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m14.5 6-6 6 6 6"></path></svg></button>
+<button aria-label="前进" class="design-browser-nav" disabled="" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.5 6 6 6-6 6"></path></svg></button>
+<button aria-label="刷新" class="design-browser-nav" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20 12a8 8 0 1 1-2.5-5.8"></path><path d="M20 4v4h-4"></path></svg></button>
+<div class="design-address"><span aria-hidden="true" class="design-address-icon"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="12"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg></span><span class="design-address-file" id="dzAddressFile">customer.html</span><span class="design-address-sep">·</span><span class="design-address-title" id="dzAddressTitle">客户档案</span></div>
+<button aria-label="更多操作" class="design-browser-nav" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></button>
+</div>
+<div class="design-viewport">
 <div aria-hidden="true" class="design-mock">
 <div class="mock-side"><i class="on"></i><i></i><i></i><i></i></div>
 <div class="mock-main">
@@ -535,33 +525,6 @@
 </div>
 <span class="design-selection-tag" aria-hidden="true">保存设置按钮 · hero-cta</span>
 </div>
-</div>
-<aside aria-label="检查器" class="design-inspector">
-<div class="design-inspector-head">
-<strong>保存设置按钮</strong>
-<span class="mono">hero-cta</span>
-<span class="card-sub">源码第 128 行 · <button class="design-link" type="button">查看源码</button></span>
-</div>
-<details class="design-group" open=""><summary>文字</summary><div class="design-group-body">
-<label class="design-field"><span>文案</span><input class="input" type="text" value="保存设置"/></label>
-<label class="design-field"><span>颜色</span><span class="design-inline"><i class="design-swatch" style="background:#111214"></i><input class="input mono" type="text" value="#111214"/></span></label>
-<label class="design-field"><span>圆角</span><span class="design-inline"><input class="input" type="number" value="8"/><span class="card-sub">px</span></span></label>
-</div></details>
-<details class="design-group" open=""><summary>参数</summary><div class="design-group-body">
-<label class="design-field"><span>圆角强度 <i class="mono">--design-radius</i></span><span class="design-inline"><input aria-label="圆角强度" type="range" value="8"/><b class="mono">8px</b></span></label>
-</div></details>
-<details class="design-group"><summary>图片</summary><div class="design-group-body"><button class="btn btn-quiet" type="button">替换图片…</button><span class="card-sub">≤3MB · PNG / JPEG / WebP</span></div></details>
-<details class="design-group"><summary>数据</summary><div class="design-group-body"><label class="design-field"><span>标题 <i class="mono">data-design-bind</i></span><input class="input" type="text" value="账户设置"/></label></div></details>
-<details class="design-group"><summary>结构</summary><div class="design-group-body">
-<label class="design-field"><span>移至静态容器</span><select class="select-pill"><option value="">选择容器</option><option>form-actions</option><option>settings-shell</option></select></label>
-<details class="design-subgroup"><summary>页面结构</summary><div class="design-tree"><span class="on">settings-shell</span><span>side-nav</span><span>form-row ×3</span><span>form-actions</span></div></details>
-</div></details>
-<details class="design-group" open=""><summary>依据</summary><div class="design-group-body">
-<p>深色设置页改版：分组导航在左、表单居中、主行动右下。对齐桌面端 14px 基准与 8px 圆角。</p>
-<span class="card-sub">参考：DESIGN.md · settings/page.tsx</span>
-</div></details>
-<button class="btn design-via-chat" type="button">改不动的，让对话来</button>
-</aside>
 </div>
 </section>
 <div aria-labelledby="dockTabFiles" class="tab-panel" data-panel="files" hidden="" id="dockPanelFiles" role="tabpanel"><header class="panel-toolbar"><strong>文件</strong><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">打开阅读器</button></header><div class="files-workspace"><div class="file-viewer"><div class="panel-toolbar"><span class="mono" id="fileViewerPath">README.md</span><span class="sp"></span><button class="btn btn-quiet" id="fileEdit" type="button">编辑</button></div><pre class="code-view" id="fileSource" tabindex="0"></pre><textarea aria-label="文件内容" class="editor-area" hidden="" id="fileEditor"></textarea><div class="panel-actions" hidden="" id="fileEditActions"><span class="card-sub">修改仅保留在此原型页面</span><span class="sp"></span><button class="btn btn-quiet" id="fileCancel" type="button">取消</button><button class="btn btn-primary" id="fileSave" type="button">保存</button></div></div><aside aria-label="工作区文件" class="file-tree"><label class="panel-filter"><input aria-label="筛选工作区文件" id="fileFilter" placeholder="筛选文件"/></label><details open=""><summary>Artemis</summary><button class="file-row selected" data-file="readme" type="button">README.md</button><details open=""><summary>docs / ui-prototype</summary><button class="file-row" data-file="html" type="button">artemis-ui.html</button><button class="file-row" data-file="css" type="button">component-tokens.css</button></details><button class="file-row" data-file="package" type="button">package.json</button></details><p class="empty-hint" hidden="" id="fileNoMatch">没有匹配的文件</p></aside></div></div>
@@ -1327,6 +1290,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=145"></script>
+<script src="workspace/workspace.js?v=146"></script>
 </body>
 </html>
