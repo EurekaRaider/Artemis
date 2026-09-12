@@ -86,7 +86,6 @@
     {
       "classNameSets": [
         ["status-dot", "idle"],
-        ["status-dot", "completed"],
         ["status-dot", "running"],
         ["status-dot", "queued"],
         ["status-dot", "waiting-approval"],
