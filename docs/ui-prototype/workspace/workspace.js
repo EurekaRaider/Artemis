@@ -2142,6 +2142,36 @@
       dzToast("已恢复，并存成一个新版本");
     });
 
+    /* 演示模式：stage 整体移入全屏层，退出时归位 */
+    var presentLayer = $("#dzPresentLayer");
+    var presentReturnTo = null;
+    function dzPresentExit() {
+      if (presentLayer.hidden) return;
+      presentLayer.hidden = true;
+      if (presentReturnTo) presentReturnTo.parentNode.insertBefore(dzStage, presentReturnTo);
+      dzPresentBtn.classList.remove("active");
+    }
+    var dzPresentBtn = $("#dzPresentBtn");
+    dzPresentBtn.addEventListener("click", function () {
+      if (!presentLayer.hidden) {
+        dzPresentExit();
+        return;
+      }
+      var file = $(".design-ws-tab.active .design-ws-label");
+      $("#dzPresentTitle").textContent = (file ? file.textContent : "customer.html") + " · 演示中";
+      presentReturnTo = dzStage.nextSibling;
+      presentLayer.appendChild(dzStage);
+      presentLayer.hidden = false;
+      dzPresentBtn.classList.add("active");
+    });
+    $("#dzPresentExit").addEventListener("click", dzPresentExit);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !presentLayer.hidden) {
+        e.stopPropagation();
+        dzPresentExit();
+      }
+    });
+
     /* 导出 / 新建标签 / 项目菜单：toggle 式下拉 */
     [["#dzExportBtn", "#dzExportMenu"], ["#dzPlusBtn", "#dzPlusMenu"], ["#dzProjectBtn", "#dzProjectMenu"]].forEach(
       function (pair) {
