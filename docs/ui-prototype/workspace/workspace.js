@@ -1904,6 +1904,12 @@
         dzSource.hidden = dzMode !== "source";
         dzStage.hidden = dzMode === "source";
         dzClearTools();
+        if (dzMode === "preview") {
+          // 点「预览」= 让视口重新渲染一次（含已在预览态时），给可见反馈
+          dzStage.classList.remove("dz-rendering");
+          void dzStage.offsetWidth;
+          dzStage.classList.add("dz-rendering");
+        }
       });
     });
 
