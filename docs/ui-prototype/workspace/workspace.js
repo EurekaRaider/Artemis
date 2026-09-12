@@ -1790,7 +1790,7 @@
       $$(".dz-menu").forEach(function (m) {
         m.hidden = true;
       });
-      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn").forEach(function (b) {
+      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzMoreBtn").forEach(function (b) {
         b.setAttribute("aria-expanded", "false");
       });
     }
@@ -1799,6 +1799,7 @@
       var empty = $("#dzCommentEmpty");
       $("#dzPanelCount").textContent = String(dzComments.filter(function (c) { return !c.resolved; }).length);
       $("#dzCount").textContent = String(dzComments.filter(function (c) { return !c.resolved; }).length);
+      $("#dzMoreCount").textContent = String(dzComments.filter(function (c) { return !c.resolved; }).length);
       list.replaceChildren();
       var live = dzComments.filter(function (c) { return !c.resolved; });
       empty.hidden = live.length > 0;
@@ -1845,9 +1846,12 @@
     }
     function dzClearTools() {
       dzCommentMode = false;
-      $("#dzCommentBtn").classList.remove("active");
-      $("#dzDrawBtn").classList.remove("active");
-      $("#dzEditBtn").classList.remove("active");
+      [$("#dzCommentBtn"), $("#dzDrawBtn"), $("#dzEditBtn")].forEach(function (b) {
+        b.classList.remove("active");
+        b.setAttribute("aria-pressed", "false");
+      });
+      var vp = $("#dzViewport");
+      if (vp) vp.classList.remove("dz-drawing");
       dzHint("");
       $("#dzCommentBubble").hidden = true;
       $("#dzInspect").hidden = true;
@@ -1918,26 +1922,37 @@
       $$(".dz-menu").forEach(function (m) {
         m.hidden = true;
       });
-      $$('.dz-device-trigger, .dz-zoom-trigger').forEach(function (b) {
+      $$('.dz-device-trigger, .dz-zoom-trigger, #dzMoreBtn').forEach(function (b) {
         b.setAttribute("aria-expanded", "false");
       });
       menu.hidden = !open;
       btn.setAttribute("aria-expanded", String(!menu.hidden));
+    }
+    /* 设备/缩放：主下拉与「更多」菜单里的副本共用一份状态与 active 同步 */
+    function dzSetDevice(id) {
+      dzDevice = id;
+      $("#dzDeviceLabel").textContent = id === "mobile" ? "手机" : id === "tablet" ? "平板" : "桌面端";
+      $$('.dz-menu [data-dz-device]').forEach(function (o) {
+        o.classList.toggle("active", o.dataset.dzDevice === id);
+      });
+      dzApplyStage();
+    }
+    function dzSetZoom(level) {
+      dzZoom = level;
+      $("#dzZoomLabel").textContent = level + "%";
+      $$('.dz-menu [data-dz-zoom]').forEach(function (o) {
+        o.classList.toggle("active", Number(o.dataset.dzZoom) === level);
+      });
+      dzApplyStage();
     }
     $("#dzDeviceBtn").addEventListener("click", function () {
       dzToggleMenu($("#dzDeviceBtn"), $("#dzDeviceMenu"));
     });
     $$('#dzDeviceMenu .dz-menu-item').forEach(function (item) {
       item.addEventListener("click", function () {
-        dzDevice = item.dataset.dzDevice;
-        $("#dzDeviceLabel").textContent =
-          dzDevice === "mobile" ? "手机" : dzDevice === "tablet" ? "平板" : "桌面端";
-        $$('#dzDeviceMenu .dz-menu-item').forEach(function (o) {
-          o.classList.toggle("active", o === item);
-        });
+        dzSetDevice(item.dataset.dzDevice);
         $("#dzDeviceMenu").hidden = true;
         $("#dzDeviceBtn").setAttribute("aria-expanded", "false");
-        dzApplyStage();
       });
     });
     $("#dzZoomBtn").addEventListener("click", function () {
@@ -1945,18 +1960,37 @@
     });
     $$('#dzZoomMenu .dz-menu-item').forEach(function (item) {
       item.addEventListener("click", function () {
-        dzZoom = Number(item.dataset.dzZoom);
-        $("#dzZoomLabel").textContent = dzZoom + "%";
-        $$('#dzZoomMenu .dz-menu-item').forEach(function (o) {
-          o.classList.toggle("active", o === item);
-        });
+        dzSetZoom(Number(item.dataset.dzZoom));
         $("#dzZoomMenu").hidden = true;
         $("#dzZoomBtn").setAttribute("aria-expanded", "false");
-        dzApplyStage();
       });
     });
+
+    /* 「更多」汇聚菜单：版本历史 / 设备预设 / 评论面板 / 缩放（对照 open-design viewer-toolbar-more） */
+    $("#dzMoreBtn").addEventListener("click", function () {
+      dzToggleMenu($("#dzMoreBtn"), $("#dzMoreMenu"));
+    });
+    $("#dzMoreMenu").addEventListener("click", function (e) {
+      var item = e.target.closest(".dz-menu-item");
+      if (!item) return;
+      $("#dzMoreMenu").hidden = true;
+      $("#dzMoreBtn").setAttribute("aria-expanded", "false");
+      if (item.dataset.dzMore === "history") {
+        /* 阻止冒泡：避免 document 层的「点外关历史」把刚打开的浮层又关掉 */
+        e.stopPropagation();
+        $("#dzHistory").hidden = !$("#dzHistory").hidden;
+      } else if (item.dataset.dzMore === "comments") {
+        $("#dzCommentPanel").hidden = false;
+        $("#dzCommentListBtn").classList.add("active");
+        $("#dzCommentListBtn").setAttribute("aria-pressed", "true");
+      } else if (item.dataset.dzDevice) {
+        dzSetDevice(item.dataset.dzDevice);
+      } else if (item.dataset.dzZoom) {
+        dzSetZoom(Number(item.dataset.dzZoom));
+      }
+    });
     document.addEventListener("click", function (e) {
-      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom")) {
+      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more")) {
         $$(".dz-menu").forEach(function (m) {
           m.hidden = true;
         });
@@ -1966,7 +2000,7 @@
       }
     });
 
-    /* 刷新：图标旋转一下 */
+    /* 刷新：图标旋转 + 预览重渲染一次（模拟 iframe 重载） */
     $("#dzReload").addEventListener("click", function () {
       var icon = $("#dzReload svg");
       icon.style.transition = "transform .5s cubic-bezier(0.23,1,0.32,1)";
@@ -1975,20 +2009,30 @@
         icon.style.transition = "";
         icon.style.transform = "";
       }, 520);
+      if (dzMode === "preview" && !dzStage.hidden) {
+        dzStage.classList.remove("dz-rendering");
+        void dzStage.offsetWidth;
+        dzStage.classList.add("dz-rendering");
+      }
     });
 
-    /* 评论 / 标注 / 编辑 三个工具的开关态 */
+    /* 评论 / 标注 / 编辑 三个工具的开关态（class + aria-pressed 同步，对照 open-design） */
+    function dzToolState(btn, on) {
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", String(on));
+    }
     $("#dzCommentBtn").addEventListener("click", function () {
       dzCommentMode = !dzCommentMode;
-      $("#dzCommentBtn").classList.toggle("active", dzCommentMode);
-      $("#dzDrawBtn").classList.remove("active");
-      $("#dzEditBtn").classList.remove("active");
+      dzToolState($("#dzCommentBtn"), dzCommentMode);
+      dzToolState($("#dzDrawBtn"), false);
+      dzToolState($("#dzEditBtn"), false);
       dzHint(dzCommentMode ? "在预览里点击要评论的元素" : "");
     });
     $("#dzEditBtn").addEventListener("click", function () {
       var active = $("#dzEditBtn").classList.toggle("active");
-      $("#dzCommentBtn").classList.remove("active");
-      $("#dzDrawBtn").classList.remove("active");
+      dzToolState($("#dzEditBtn"), active);
+      dzToolState($("#dzCommentBtn"), false);
+      dzToolState($("#dzDrawBtn"), false);
       dzCommentMode = false;
       dzHint(active ? "点击元素直接微调文字与颜色" : "");
     });
@@ -2022,7 +2066,7 @@
       }
       $("#dzCommentBubble").hidden = true;
       dzCommentMode = false;
-      $("#dzCommentBtn").classList.remove("active");
+      dzToolState($("#dzCommentBtn"), false);
       dzHint("");
     });
     $("#dzInspectCancel").addEventListener("click", function () {
@@ -2033,7 +2077,7 @@
       var btn = $(".dz-stage .mock-btn.primary");
       if (btn) btn.textContent = name;
       $("#dzInspect").hidden = true;
-      $("#dzEditBtn").classList.remove("active");
+      dzToolState($("#dzEditBtn"), false);
       dzHint("");
     });
 
@@ -2051,7 +2095,8 @@
 
     /* ---- 仿真增强（对照 open-design 行为） ---- */
 
-    /* 截图：视口白闪一下 + toast（模拟快门与发送到对话） */
+    /* 截图：视口白闪 + 草稿卡（当前设计稿迷你克隆，模拟进入对话输入区的附件草稿） */
+    var dzShotTimer = 0;
     $("#dzShotBtn").addEventListener("click", function () {
       var flash = document.createElement("span");
       flash.className = "dz-flash";
@@ -2059,7 +2104,39 @@
       window.setTimeout(function () {
         flash.remove();
       }, 320);
-      dzToast("截图已发送到对话");
+      var old = $("#dzShotCard");
+      if (old) old.remove();
+      var card = document.createElement("div");
+      card.className = "dz-shot-card";
+      card.id = "dzShotCard";
+      var mini = document.createElement("div");
+      mini.className = "dz-shot-mini";
+      /* 克隆当前预览（去掉 dz* id 防重复），垃圾桶移除模拟从输入区删除附件 */
+      mini.innerHTML = dzStage.outerHTML.replace(/ id="dz[^"]*"/g, "");
+      var cap = document.createElement("div");
+      cap.className = "dz-shot-cap";
+      cap.innerHTML = "<b>截图草稿</b><span>已加入输入区，随下条消息发送</span>";
+      var x = document.createElement("button");
+      x.type = "button";
+      x.className = "dz-shot-x";
+      x.setAttribute("aria-label", "移除截图草稿");
+      x.title = "移除截图草稿";
+      x.innerHTML =
+        '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l1 12.5a1 1 0 0 0 1 .5h7a1 1 0 0 0 1-.5l1-12.5"></path><path d="M10 11v5M14 11v5"></path></svg>';
+      x.addEventListener("click", function () {
+        card.remove();
+        dzToast("截图草稿已移除");
+      });
+      card.appendChild(mini);
+      card.appendChild(cap);
+      card.appendChild(x);
+      $("#dzViewport").appendChild(card);
+      window.clearTimeout(dzShotTimer);
+      dzShotTimer = window.setTimeout(function () {
+        if (!card.isConnected) return;
+        card.remove();
+        dzToast("截图已发送到对话");
+      }, 3200);
     });
 
     /* 标注：真实自由画笔（SVG 折线），关闭时若有笔迹提示已发送并清除 */
@@ -2087,8 +2164,9 @@
     });
     $("#dzDrawBtn").addEventListener("click", function () {
       var active = $("#dzDrawBtn").classList.toggle("active");
-      $("#dzCommentBtn").classList.remove("active");
-      $("#dzEditBtn").classList.remove("active");
+      dzToolState($("#dzDrawBtn"), active);
+      dzToolState($("#dzCommentBtn"), false);
+      dzToolState($("#dzEditBtn"), false);
       dzCommentMode = false;
       var vp = $("#dzViewport");
       vp.classList.toggle("dz-drawing", active);
@@ -2106,11 +2184,11 @@
     $("#dzCommentListBtn").addEventListener("click", function () {
       var panel = $("#dzCommentPanel");
       panel.hidden = !panel.hidden;
-      $("#dzCommentListBtn").classList.toggle("active", !panel.hidden);
+      dzToolState($("#dzCommentListBtn"), !panel.hidden);
     });
     $("#dzCommentPanelClose").addEventListener("click", function () {
       $("#dzCommentPanel").hidden = true;
-      $("#dzCommentListBtn").classList.remove("active");
+      dzToolState($("#dzCommentListBtn"), false);
     });
 
     /* 版本历史：点击条目 → 恢复确认；确认后新增历史条目并回写 mock 文案 */
@@ -2297,7 +2375,7 @@
 
     /* 全局点外收起所有菜单（含新加的三组） */
     document.addEventListener("click", function (e) {
-      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-crumb-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-file-menu-pop")) {
+      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-crumb-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-file-menu-pop")) {
         dzCloseMenus();
       }
       if (!e.target.closest("#dzHistory") && !e.target.closest("#dzHistoryBtn")) {

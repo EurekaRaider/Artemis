@@ -3525,6 +3525,68 @@ body[data-dock="open"] .dock-resizer {
 .dz-export-menu { left: auto; right: 0; top: calc(100% + 8px); }
 .dz-present-menu { left: auto; right: 0; top: calc(100% + 8px); }
 .dz-plus-menu { top: calc(100% + 8px); left: 0; }
+.dz-more { position: relative; }
+.dz-more-menu { left: auto; right: 0; top: calc(100% + 8px); min-width: 196px; }
+.dz-menu-sep { height: 1px; margin: 4px 7px; background: var(--border-soft); }
+
+/* 截图草稿卡：当前预览的迷你克隆 + 说明 + 垃圾桶移除 */
+.dz-shot-card {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 32;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  animation: dz-shot-in 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes dz-shot-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.dz-shot-mini {
+  width: 148px;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+}
+.dz-shot-mini .dz-stage {
+  width: 920px !important;
+  margin: 0;
+  transform: none !important;
+  zoom: 0.16;
+}
+.dz-shot-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 150px;
+  color: var(--text-2);
+  font: 500 11px/1.45 var(--font-ui);
+}
+.dz-shot-cap b { font-size: 12px; color: var(--text); font-weight: 600; }
+.dz-shot-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-shot-x:hover { background: var(--surface-2); color: var(--text); }
 .design-crumb { position: relative; }
 .dz-crumb-menu { top: calc(100% + 4px); left: 0; }
 
