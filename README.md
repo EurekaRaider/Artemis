@@ -1631,7 +1631,7 @@ The main remaining gates are:
 | Product and acceptance                               | Engineering and security                   |
 | ---------------------------------------------------- | ------------------------------------------ |
 | [Installation guide](docs/install.md)         | [Architecture notes](docs/architecture.md) |
-| [P0 acceptance matrix](docs/projects/p0-acceptance-matrix.md) | [Security policy](SECURITY.md)             |
+| [P0 acceptance matrix](docs/projects/p0-acceptance-matrix/README.md) | [Security policy](SECURITY.md)             |
 | [IM deployment](docs/features/im-gateway/README.md)                  | [Engineering guidance](AGENTS.md)          |
 
 ### Independent product boundary

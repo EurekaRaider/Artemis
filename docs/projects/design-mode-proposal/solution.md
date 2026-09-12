@@ -199,7 +199,7 @@ Artemis 内部有正交两维：**workflow（code/design）× runMode（plan/rev
 | vision 模型不可用/降质 → 检查卡空转 | 中 | 检查不可用时降级为"未检查"徽标 + 一键重试；不阻塞产出 |
 | 设计指令 token 预算膨胀（简报+DESIGN.md+craft 叠加） | 中 | 借鉴 OD "push 核心契约、重文件按需 read"；DESIGN.md 超 12K 截断并提示 |
 | 版本/冲突分支 UI 复杂度失控 | 中 | 时间线首版只读 + 对比；"恢复写新版本"复用现有 CAS 语义 |
-| Windows 验证矩阵未跑（`docs/projects/design-workflow.md` 明示） | 高（发布前） | P1 仅随 macOS 内测；跨平台发布前补 Win x64 验证为硬门禁 |
+| Windows 验证矩阵未跑（`docs/projects/design-workflow/README.md` 明示） | 高（发布前） | P1 仅随 macOS 内测；跨平台发布前补 Win x64 验证为硬门禁 |
 | 与并行会话的工作区冲突（design 代码属并行主线） | 中 | 本提案文档先行、评审留档；实施排期与 PR195 主线对齐合流 |
 | 用户把设计面板当 Figma 用（期待自由编辑） | 低 | 空态/文案明确"受限微调 + 对话迭代"定位；非目标重申 |
 

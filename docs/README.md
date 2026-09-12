@@ -23,9 +23,9 @@
 
 | 文档 | 说明 |
 |---|---|
-| [design-p0.md](projects/design-p0.md) | 设计工作流 P0 方案 |
-| [design-workflow.md](projects/design-workflow.md) | 任务设计工作流实现 |
-| [p0-acceptance-matrix.md](projects/p0-acceptance-matrix.md) | P0 验收矩阵(安全门禁) |
+| [design-p0.md](projects/design-p0/README.md) | 设计工作流 P0 方案 |
+| [design-workflow.md](projects/design-workflow/README.md) | 任务设计工作流实现 |
+| [p0-acceptance-matrix.md](projects/p0-acceptance-matrix/README.md) | P0 验收矩阵(安全门禁) |
 | [design-mode-proposal/](projects/design-mode-proposal/) | 设计模式调研报告与方案(进行中) |
 
 ## records/ · 台账

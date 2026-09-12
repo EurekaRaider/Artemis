@@ -2,7 +2,7 @@
 
 Artemis is pre-release software. Do not use it for untrusted or unattended
 work until the native executor rows in
-[`docs/projects/p0-acceptance-matrix.md`](docs/projects/p0-acceptance-matrix.md) pass.
+[`docs/projects/p0-acceptance-matrix/README.md`](docs/projects/p0-acceptance-matrix/README.md) pass.
 
 The current slice provides:
 
