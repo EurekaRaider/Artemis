@@ -13,10 +13,10 @@
 
 | 文档 | 说明 |
 |---|---|
-| [im-gateway.md](features/im-gateway.md) | IM 网关部署与协作(配置、指令、多设备) |
-| [im-security.md](features/im-security.md) | IM 安全边界(权限交集、审批、沙箱) |
-| [attachment-context.md](features/attachment-context.md) | 附件上下文预算与保护 |
-| [plugin-marketplaces.md](features/plugin-marketplaces.md) | GitHub 插件市场设计 |
+| [im-gateway.md](features/im-gateway/README.md) | IM 网关部署与协作(配置、指令、多设备) |
+| [im-security.md](features/im-security/README.md) | IM 安全边界(权限交集、审批、沙箱) |
+| [attachment-context.md](features/attachment-context/README.md) | 附件上下文预算与保护 |
+| [plugin-marketplaces.md](features/plugin-marketplaces/README.md) | GitHub 插件市场设计 |
 | [custom-subagents/](features/custom-subagents/README.md) | 自定义子智能体(索引 / 计划 / 实施状态) |
 
 ## projects/ · 进行中专项

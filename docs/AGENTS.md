@@ -9,9 +9,10 @@ docs/
 ├── AGENTS.md            # 本规则
 ├── README.md            # 导读索引:每份文档一行说明,新人/新会话从这里看全貌
 ├── architecture.md      # 长青总览(留根级,最高频入口)
-├── install.md    # 长青总览(留根级,外部引用多)
+├── install.md           # 长青总览:安装说明
 ├── features/            # 功能域:描述系统已有/将有的能力(稳定,不过期)
-│   └── custom-subagents/  # 域内文档 ≥3 份时建子目录,README 作索引
+│   ├── im-gateway/      # 下一级一律为 <domain>/ 子文件夹,单文档特性用 README.md 承载
+│   └── custom-subagents/  # 域内多文档时 README 作索引,配 plan / implementation-status 等
 ├── projects/            # 专项:有生命周期,做完即清(提案、调研、验收矩阵)
 │   └── design-mode-proposal/
 ├── records/             # 台账:持续追加维护的记录(审计、账本、视觉规范)
@@ -28,7 +29,7 @@ docs/
 1. **人人都要看的总览吗?**(架构、安装)→ 根级。仅此两类,新增须谨慎。
 2. **有开始和结束、做完会归档吗?**(提案、调研、专项、验收矩阵)→ `projects/<topic>/` 或 `projects/<topic>.md`。
 3. **是持续追加的记录而非一次性说明吗?**(账本、审计、规范)→ `records/`。
-4. **描述系统某个能力吗?** → `features/<domain>.md`;该域文档达到 3 份及以上时建 `features/<domain>/` 子目录,以 `README.md` 作索引,配 `plan.md` / `implementation-status.md` 等(范例:`features/custom-subagents/`)。
+4. **描述系统某个能力吗?** → `features/<domain>/README.md`(`features/` 下一级**一律为子文件夹,单文档特性也建目录**,内容直接写进 README.md);域内文档增多时 README 转为索引,新增 `plan.md` / `implementation-status.md` 等命名文档(范例:`features/custom-subagents/`)。
 
 兜底:**先问"会不会过期"**——会过期的进 `projects/`,不会的按内容归 `features/` 或 `records/`。
 

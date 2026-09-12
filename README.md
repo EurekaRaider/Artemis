@@ -934,7 +934,7 @@ and choose **Update**. Keep the marketplace `name` stable; changing its identity
 requires users to remove and add the source again. The full development guide,
 including complete Skill, MCP and Connector examples, validation steps, limits
 and update behavior, is in
-[Developing a GitHub plugin marketplace](docs/features/plugin-marketplaces.md).
+[Developing a GitHub plugin marketplace](docs/features/plugin-marketplaces/README.md).
 
 An Artemis Connector is a standard Streamable HTTP MCP endpoint declared
 by a plugin in `.connector.json` or in the plugin manifest's `connectors`
@@ -1217,7 +1217,7 @@ Artemis 电脑，在 IM 中接收进度、结果，处理澄清和本人审批�
 IM is disabled by default. Remote sessions use scoped tools and native sandbox
 boundaries. The screenshots show the current production UI with demonstration
 transport data; they do not establish delivery in a real IM tenant. See
-[IM deployment and collaboration](docs/features/im-gateway.md) for configuration, command
+[IM deployment and collaboration](docs/features/im-gateway/README.md) for configuration, command
 reference, security details and deployment acceptance checks.
 
 ### Diagnostics and update recovery
@@ -1632,7 +1632,7 @@ The main remaining gates are:
 | ---------------------------------------------------- | ------------------------------------------ |
 | [Installation guide](docs/install.md)         | [Architecture notes](docs/architecture.md) |
 | [P0 acceptance matrix](docs/projects/p0-acceptance-matrix.md) | [Security policy](SECURITY.md)             |
-| [IM deployment](docs/features/im-gateway.md)                  | [Engineering guidance](AGENTS.md)          |
+| [IM deployment](docs/features/im-gateway/README.md)                  | [Engineering guidance](AGENTS.md)          |
 
 ### Independent product boundary
 
