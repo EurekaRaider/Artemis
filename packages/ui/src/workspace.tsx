@@ -785,12 +785,28 @@ export function WorkspaceEditorToolbar({
                   : ""}
           </span>
           <button
+            aria-label={saveLabel}
             data-part="save"
             disabled={!canSave}
             onClick={onSave}
+            title={saveLabel}
             type="button"
           >
-            {saveLabel}
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              width="16"
+              height="16"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z" />
+              <path d="M7 3v6h10V3M7 21v-8h10v8" />
+            </svg>
           </button>
         </span>
       </div>

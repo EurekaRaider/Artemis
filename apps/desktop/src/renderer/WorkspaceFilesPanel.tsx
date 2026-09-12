@@ -371,27 +371,29 @@ export function WorkspaceFilesPanel({
 
   return (
     <section className="workspace-files-panel">
-      <header className="workspace-panel-toolbar">
-        <strong>{title}</strong>
-        {imageSelected && selectedFile?.content !== undefined && (
-          <Button
-            variant="quiet"
-            size="compact"
-            onClick={() => setImageSource(!imageSource)}
-          >
-            {imageSource ? previewLabel : sourceLabel}
-          </Button>
-        )}
-        {markdownSelected && selectedFile && onOpenReader && readerLabel && (
-          <button
-            className="environment-text-action"
-            onClick={() => onOpenReader(selectedFile.path)}
-            type="button"
-          >
-            {readerLabel}
-          </button>
-        )}
-      </header>
+      {((imageSelected && selectedFile?.content !== undefined) ||
+        (markdownSelected && selectedFile && onOpenReader && readerLabel)) && (
+        <header className="workspace-panel-toolbar">
+          {imageSelected && selectedFile?.content !== undefined && (
+            <Button
+              variant="quiet"
+              size="compact"
+              onClick={() => setImageSource(!imageSource)}
+            >
+              {imageSource ? previewLabel : sourceLabel}
+            </Button>
+          )}
+          {markdownSelected && selectedFile && onOpenReader && readerLabel && (
+            <button
+              className="environment-text-action"
+              onClick={() => onOpenReader(selectedFile.path)}
+              type="button"
+            >
+              {readerLabel}
+            </button>
+          )}
+        </header>
+      )}
       <WorkspaceFileLayout
         label={title}
         viewer={

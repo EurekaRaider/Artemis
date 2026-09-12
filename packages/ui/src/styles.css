@@ -2711,6 +2711,7 @@
     align-items: center;
     justify-content: center;
     inline-size: calc(var(--artemis-space-3) + 1px);
+    min-inline-size: max-content;
     block-size: calc(var(--artemis-space-3) + 1px);
   }
 
@@ -2917,17 +2918,26 @@
 
   [data-artemis-component="workspace-editor-toolbar"] [data-part="save"] {
     box-sizing: border-box;
-    min-block-size: var(--artemis-size-control-compact);
-    padding-inline: var(--artemis-space-3);
-    color: var(--artemis-color-accent-on-primary);
-    background: var(--artemis-color-accent-primary);
-    border: var(--artemis-border-width-default) solid
-      var(--artemis-color-accent-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--artemis-size-control-compact);
+    block-size: var(--artemis-size-control-compact);
+    padding: 0;
+    color: var(--artemis-color-text-secondary);
+    background: transparent;
+    border: 0;
     border-radius: var(--artemis-radius-control);
     font: inherit;
     font-size: var(--artemis-typography-label-size);
     font-weight: 600;
     cursor: pointer;
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"]
+    [data-part="save"]:enabled:hover {
+    color: var(--artemis-color-text-primary);
+    background: var(--artemis-color-interaction-hover);
   }
 
   [data-artemis-component="workspace-editor-toolbar"]
@@ -3235,7 +3245,7 @@
       calc(var(--artemis-space-6) + var(--artemis-space-4)) 0;
     border: 0;
     font: inherit;
-    font-size: calc(var(--artemis-typography-body-size) + 1px);
+    font-size: calc(var(--artemis-typography-label-size) + 1px);
     line-height: 1.5;
     tab-size: 2;
     white-space: pre;
