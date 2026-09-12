@@ -563,3 +563,11 @@ export function checkCatalogBudget(
     textLength,
   };
 }
+
+/** One explicitly assigned task block, pinned to its selected definition revision. */
+export interface CustomAgentTaskInvocation {
+  invocationId: string;
+  definitionId: string;
+  revision: number;
+  text: string;
+}

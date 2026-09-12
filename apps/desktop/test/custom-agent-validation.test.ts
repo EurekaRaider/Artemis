@@ -13,6 +13,7 @@ import {
   CUSTOM_AGENT_COLOR_TOKENS,
   customAgentRequestFingerprint,
   validateCustomAgentInput,
+  validateCustomAgentTasks,
   validateCustomAgentSendReference,
 } from "../src/main/custom-agent-validation.js";
 
@@ -229,5 +230,69 @@ describe("validateCustomAgentSendReference", () => {
     expect(() => validateCustomAgentSendReference(null)).toThrowError(
       /CUSTOM_AGENT_INVALID/,
     );
+  });
+});
+
+describe("task block validation", () => {
+  it("preserves each task's independent text and reference", () => {
+    expect(
+      validateCustomAgentTasks([
+        {
+          definitionId: "one",
+          revision: 1,
+          invocationId: "a",
+          text: " Review only ",
+        },
+        {
+          definitionId: "two",
+          revision: 2,
+          invocationId: "b",
+          text: "Test only",
+        },
+      ]),
+    ).toEqual([
+      {
+        definitionId: "one",
+        revision: 1,
+        invocationId: "a",
+        text: "Review only",
+      },
+      {
+        definitionId: "two",
+        revision: 2,
+        invocationId: "b",
+        text: "Test only",
+      },
+    ]);
+  });
+  it("accepts more task blocks than the concurrent execution capacity", () => {
+    expect(
+      validateCustomAgentTasks(
+        Array.from({ length: 12 }, (_, index) => ({
+          definitionId: "one",
+          revision: 1,
+          invocationId: String(index),
+          text: `Task ${index}`,
+        })),
+      ),
+    ).toHaveLength(12);
+  });
+  it("rejects empty tasks, duplicate invocation ids and over-capacity batches", () => {
+    const task = {
+      definitionId: "one",
+      revision: 1,
+      invocationId: "a",
+      text: "task",
+    };
+    expect(() => validateCustomAgentTasks([{ ...task, text: " " }])).toThrow();
+    expect(() => validateCustomAgentTasks([task, task])).toThrow();
+    expect(() =>
+      validateCustomAgentTasks(
+        Array.from({ length: 65 }, (_, i) => ({
+          ...task,
+          invocationId: String(i),
+        })),
+      ),
+    ).toThrow();
   });
 });

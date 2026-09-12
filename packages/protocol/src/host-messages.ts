@@ -14,7 +14,10 @@ import type {
   UserInputOption,
 } from "./schema.js";
 import type { OfficeDocumentRequest } from "./office.js";
-import type { CustomAgentDefinition } from "./custom-agents.js";
+import type {
+  CustomAgentDefinition,
+  CustomAgentTaskInvocation,
+} from "./custom-agents.js";
 
 export const AGENT_CONCURRENCY_MINIMUM = 2;
 export const AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM = 16;
@@ -216,6 +219,7 @@ export type AgentHostCommand =
        */
       customAgents?: CustomAgentDefinition[];
       customAgentProjectId?: string | null;
+      customAgentTasks?: CustomAgentTaskInvocation[];
       /**
        * A validated explicit user invocation (structured @ reference).
        * The host must materialize exactly one instance for it; the model

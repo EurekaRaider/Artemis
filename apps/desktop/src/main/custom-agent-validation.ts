@@ -12,6 +12,8 @@ import { createHash } from "node:crypto";
 
 import {
   CUSTOM_AGENT_ALLOWLIST_MAX,
+  AGENT_TEAM_LOGICAL_MAXIMUM,
+  type CustomAgentTaskInvocation,
   CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS,
   CUSTOM_AGENT_DESCRIPTION_MAX_LENGTH,
   CUSTOM_AGENT_NAME_MAX_LENGTH,
@@ -330,3 +332,20 @@ export function validateCustomAgentSendReference(
 }
 
 export { CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS };
+
+export function validateCustomAgentTasks(
+  raw: unknown,
+): CustomAgentTaskInvocation[] {
+  if (!Array.isArray(raw) || raw.length > AGENT_TEAM_LOGICAL_MAXIMUM) {
+    fail("task blocks must be an array within the team task limit");
+  }
+  const ids = new Set<string>();
+  return raw.map((value) => {
+    const reference = validateCustomAgentSendReference(value);
+    if (typeof value.text !== "string" || !value.text.trim())
+      fail("task block text cannot be empty");
+    if (ids.has(reference.invocationId)) fail("duplicate task invocation id");
+    ids.add(reference.invocationId);
+    return { ...reference, text: value.text.trim() };
+  });
+}

@@ -113,6 +113,15 @@ interface HostedStub {
 }
 
 interface HostInternals {
+  acceptExplicitCustomAgentTasks(
+    hosted: HostedStub,
+    tasks: Array<{
+      definitionId: string;
+      revision: number;
+      invocationId: string;
+      text: string;
+    }>,
+  ): unknown;
   configuration: { customAgents?: CustomAgentDefinition[] };
   threads: Map<string, HostedStub>;
   resolveCustomAgentDispatch(
@@ -526,6 +535,82 @@ describe("explicit user invocation acceptance", () => {
     };
     return hosted;
   }
+
+  it("dispatches independent task text through the existing team and deduplicates each block", () => {
+    const { internals } = makeHost([definition()]);
+    const log: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(log);
+    const tasks = [
+      {
+        definitionId: "def-1",
+        revision: 2,
+        invocationId: "a",
+        text: "Review only",
+      },
+      {
+        definitionId: "def-1",
+        revision: 2,
+        invocationId: "b",
+        text: "Test only",
+      },
+    ];
+    internals.acceptExplicitCustomAgentTasks(hosted, tasks);
+    internals.acceptExplicitCustomAgentTasks(hosted, tasks);
+    expect(log.map((entry) => entry.task)).toEqual([
+      "Review only",
+      "Test only",
+    ]);
+    expect(hosted.team?.spawnCount).toBe(2);
+    expect(hosted.team?.requiredAgentIds.size).toBe(2);
+  });
+
+  it("accepts twelve user task blocks without relaxing autonomous child limits", () => {
+    const { internals } = makeHost([definition()]);
+    const log: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(log);
+    internals.acceptExplicitCustomAgentTasks(
+      hosted,
+      Array.from({ length: 12 }, (_, index) => ({
+        definitionId: "def-1",
+        revision: 2,
+        invocationId: `block-${index}`,
+        text: `Task ${index}`,
+      })),
+    );
+    expect(log).toHaveLength(12);
+    expect(hosted.team?.requiredAgentIds.size).toBe(12);
+    expect(() =>
+      internals.acceptExplicitCustomAgentInvocation(
+        hosted,
+        { definitionId: "def-1", revision: 2, invocationId: "legacy" },
+        "legacy task",
+      ),
+    ).toThrow(/direct children/);
+  });
+
+  it("rejects a bad later block before launching the valid first block", () => {
+    const { internals } = makeHost([definition()]);
+    const log: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(log);
+    expect(() =>
+      internals.acceptExplicitCustomAgentTasks(hosted, [
+        {
+          definitionId: "def-1",
+          revision: 2,
+          invocationId: "a",
+          text: "Review",
+        },
+        {
+          definitionId: "missing",
+          revision: 1,
+          invocationId: "b",
+          text: "Test",
+        },
+      ]),
+    ).toThrow(/CUSTOM_AGENT/);
+    expect(log).toHaveLength(0);
+    expect(hosted.team).toBeUndefined();
+  });
 
   it("materializes exactly one user-explicit instance and deducts budget once", () => {
     const { internals } = makeHost([definition()]);

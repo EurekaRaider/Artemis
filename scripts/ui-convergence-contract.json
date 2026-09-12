@@ -271,8 +271,8 @@
           "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
         },
         {
-          "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "custom-agent-color-${customAgentColorToken(customAgentReference.color)}"
+          "path": "apps/desktop/src/renderer/CustomAgentTaskBlocks.tsx",
+          "contains": "custom-agent-color-${customAgentColorToken(task.color)}"
         },
         {
           "path": "apps/desktop/src/renderer/CustomAgentsSettingsSection.tsx",

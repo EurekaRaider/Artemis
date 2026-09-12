@@ -13,11 +13,11 @@ export interface ComposerDraft {
   selectedSkillNames: string[];
   attachments: PromptAttachment[];
   /**
-   * Structured @ sub-agent reference (D#152). Rides the draft so per-thread
+   * Structured @ sub-agent task blocks. Ride the draft so per-thread
    * composition keeps it; the send path mints the invocationId per
-   * submission. Absent when no chip is attached.
+   * submission. Each block retains its own text and stable UI identity.
    */
-  customAgentReference?: CustomAgentDraftReference;
+  customAgentTasks?: CustomAgentDraftTask[];
 }
 
 /**
@@ -30,6 +30,11 @@ export interface CustomAgentDraftReference {
   revision: number;
   name: string;
   color: string;
+}
+
+export interface CustomAgentDraftTask extends CustomAgentDraftReference {
+  id: string;
+  text: string;
 }
 
 export type ComposerDrafts = Record<string, ComposerDraft>;

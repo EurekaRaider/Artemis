@@ -255,7 +255,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(addButtonStart).toBeGreaterThan(-1);
     expect(addButtonEnd).toBeGreaterThan(addButtonStart);
     expect(addButtonSource).toContain("onClick=");
-    expect(addButtonSource).toMatch(/(?:<PlusIcon\s*\/>|>\s*\+\s*$)/u);
+    expect(addButtonSource).toMatch(/<ArtemisIcon\b[^>]*name="plus"[^>]*\/>/u);
     expect(appSource).toContain("workspaceTabMenuOpen");
     expect(appSource).toContain('className="workspace-tab-menu"');
     const menuStart = appSource.indexOf('className="workspace-tab-menu"');

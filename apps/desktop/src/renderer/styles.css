@@ -10888,15 +10888,116 @@ kbd {
 }
 
 /* Composer @-mention menu + attached chip (D#152 PR4). */
-.custom-agent-mention-menu .custom-agent-color,
-.composer-selected-agent .custom-agent-color {
+.custom-agent-mention-menu,
+.im-member-mention-menu {
+  padding: 2px;
+  border-radius: var(--artemis-radius-input);
+}
+
+.custom-agent-mention-menu .slash-command-heading,
+.im-member-mention-menu .slash-command-heading {
+  padding: 2px var(--artemis-space-2);
+  line-height: 14px;
+}
+
+.custom-agent-mention-menu .slash-command-suggestion,
+.im-member-mention-menu .slash-command-suggestion {
+  min-height: var(--artemis-space-6);
+  padding: 2px var(--artemis-space-2);
+  gap: var(--artemis-space-2);
+  line-height: 20px;
+}
+
+.custom-agent-mention-menu .custom-agent-color {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-agent-mention-menu .custom-agent-color {
   flex: none;
   align-self: center;
 }
 
-.custom-agent-mention-menu .slash-command-suggestion > span:last-child,
-.composer-selected-agent .composer-selected-skill-copy {
+.custom-agent-mention-menu .slash-command-suggestion > span:last-child {
   min-width: 0;
+  gap: var(--artemis-space-2);
+}
+
+.custom-agent-mention-menu [data-part="label"] > span:last-child,
+.im-member-mention-menu [data-part="label"] > span:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+  gap: var(--artemis-space-3);
+  line-height: 20px;
+}
+
+.composer-agent-tasks {
+  max-height: min(40vh, 360px);
+  overflow-y: auto;
+  display: grid;
+  gap: var(--artemis-space-2);
+  margin: var(--artemis-space-2) var(--artemis-space-3) 0;
+}
+
+.composer-agent-task {
+  min-width: 0;
+  border: var(--artemis-border-width-default) solid
+    var(--artemis-color-border-subtle);
+  border-radius: var(--artemis-radius-input);
+  background: var(--artemis-color-surface-sunken);
+}
+
+.composer-agent-task-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--artemis-space-2);
+  min-height: var(--artemis-space-6);
+  padding: 0 var(--artemis-space-1) 0 var(--artemis-space-2);
+}
+
+.composer-agent-task .custom-agent-color {
+  flex: none;
+  width: 6px;
+  height: 6px;
+}
+
+.composer-selected-agent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.composer-agent-task .composer-selected-skill-remove {
+  flex: none;
+  width: var(--artemis-space-5);
+  height: var(--artemis-space-5);
+  margin-inline-start: auto;
+  line-height: 1;
+}
+
+.composer .composer-agent-task textarea {
+  min-height: var(--artemis-space-6);
+  max-height: 160px;
+  padding: 2px var(--artemis-space-2) var(--artemis-space-1);
+  line-height: 18px;
+}
+
+.composer-agent-task:focus-within {
+  border-color: var(--artemis-color-border-default);
+}
+
+.composer-agent-main-label {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11px;
+  line-height: 18px;
+  margin-bottom: var(--artemis-space-1);
 }
 
 /* Instance identity line (D#152 PR4): small, light, no backplate. */
@@ -12165,8 +12266,9 @@ kbd {
 }
 .im-member-mention-menu strong,
 .im-member-mention-menu small {
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .im-member-removal {

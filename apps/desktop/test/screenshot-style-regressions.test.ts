@@ -119,14 +119,15 @@ describe("screenshot visual contracts", () => {
       expect(code.overflow).not.toBe("hidden");
       expect(code["text-overflow"]).not.toBe("ellipsis");
     }
-    expect(
-      declarations(desktop, ".review-line:has(> .review-comment-trigger)")[
-        "grid-template-columns"
-      ],
-    ).toBe("16px 22px 30px 30px minmax(0, 1fr)");
-    expect(declarations(desktop, ".review-comment-trigger")["align-self"]).toBe(
-      "start",
+    expect(declarations(desktop, ".review-line")["grid-template-columns"]).toBe(
+      "44px minmax(0, 1fr)",
     );
+    expect(declarations(desktop, ".review-line").position).toBe("relative");
+    expect(declarations(desktop, ".review-comment-trigger")).toMatchObject({
+      position: "absolute",
+      "inset-inline-start": "2px",
+      top: "1px",
+    });
     expect(declarations(desktop, ".review-line-number")["white-space"]).toBe(
       "pre",
     );

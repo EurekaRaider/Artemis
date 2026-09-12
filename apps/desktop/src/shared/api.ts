@@ -13,6 +13,7 @@ import type {
   AutomationSchedule,
   AutomationTarget,
   CustomAgentDefinition,
+  CustomAgentTaskInvocation,
   CustomAgentModelPolicy,
   CustomAgentThinkingPolicy,
   CustomAgentToolPolicy,
@@ -63,6 +64,7 @@ export interface CreateThreadInput {
 }
 
 export interface StartTurnInput {
+  customAgentTasks?: CustomAgentTaskInvocation[];
   threadId: string;
   text: string;
   mode: RunMode;

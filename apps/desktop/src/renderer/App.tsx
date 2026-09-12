@@ -1,10 +1,12 @@
+import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
+import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
-import { ImMemberMentionMenu, useImMemberMentions } from "./ImMemberMentions";
+import { useImMemberMentions } from "./ImMemberMentions";
 import {
   lazy,
   Suspense,
@@ -230,7 +232,6 @@ import {
 } from "./composer-drafts.js";
 import {
   CustomAgentMentionMenu,
-  customAgentColorToken,
   useCustomAgentMention,
 } from "./CustomAgentMention.js";
 import { customAgentInstanceIdentity } from "./custom-agent-identity.js";
@@ -2020,7 +2021,7 @@ export function App() {
     attachments,
     prompt,
     selectedSkillNames: selectedComposerSkillNames,
-    customAgentReference,
+    customAgentTasks = [],
   } = activeComposerDraft;
   const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
   draftAttachments.current.set(activeComposerDraftKey, attachments);
@@ -2048,22 +2049,27 @@ export function App() {
     setText: setPrompt,
     input: promptInput,
   });
-  const setCustomAgentReference = useCallback(
-    (reference: CustomAgentDraftReference | undefined) => {
-      updateActiveComposerDraft((current) => {
-        const next = { ...current };
-        if (reference === undefined) delete next.customAgentReference;
-        else next.customAgentReference = reference;
-        return next;
-      });
+  const [focusAgentTaskId, setFocusAgentTaskId] = useState<string>();
+  const setCustomAgentTasks = useCallback(
+    (tasks: NonNullable<ComposerDraft["customAgentTasks"]>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        customAgentTasks: tasks,
+      }));
     },
     [updateActiveComposerDraft],
   );
-  // In a confirmed IM group thread @ already means member targeting, so the
-  // sub-agent menu stays out of the way there.
-  const imGroupConfirmed = !!(
-    activeThreadId && imThreadStatus[activeThreadId]?.group?.confirmed
-  );
+  const addCustomAgentTask = (reference: CustomAgentDraftReference) => {
+    const id = crypto.randomUUID();
+    updateActiveComposerDraft((current) => ({
+      ...current,
+      customAgentTasks: [
+        ...(current.customAgentTasks ?? []),
+        { ...reference, id, text: "" },
+      ],
+    }));
+    setFocusAgentTaskId(id);
+  };
   const customAgentMention = useCustomAgentMention({
     definitions: runtimeSettings?.customAgents ?? [],
     projectId:
@@ -2072,8 +2078,9 @@ export function App() {
     text: prompt,
     setText: setPrompt,
     input: promptInput,
-    enabled: customAgentReference === undefined && !imGroupConfirmed,
-    onSelect: setCustomAgentReference,
+    enabled: customAgentTasks.length < AGENT_TEAM_LOGICAL_MAXIMUM,
+    members: groupMentions.open ? groupMentions : undefined,
+    onSelect: addCustomAgentTask,
   });
   const copyConversationText = useCallback(
     async (text: string) => {
@@ -5287,9 +5294,9 @@ export function App() {
       promptHistoryNavigation.current = { index: -1, draft: "" };
       setPrompt("");
       setSelectedComposerSkillNames([]);
-      setCustomAgentReference(undefined);
+      setCustomAgentTasks([]);
     },
-    [setPrompt, setSelectedComposerSkillNames, setCustomAgentReference],
+    [setPrompt, setSelectedComposerSkillNames, setCustomAgentTasks],
   );
 
   const recordPromptSubmission = useCallback(
@@ -5307,6 +5314,15 @@ export function App() {
     await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
     const pendingAttachments =
       draftAttachments.current.get(activeComposerDraftKey) ?? [];
+    if (customAgentTasks.some((task) => !task.text.trim())) {
+      setToast({
+        error: true,
+        message: locale.startsWith("zh")
+          ? "请填写每个子智能体的任务，或移除空任务块。"
+          : "Fill in each sub-agent task or remove the empty block.",
+      });
+      return;
+    }
     const rawPrompt = prompt.trim();
     const runModeCommand = parseRunModeCommand(rawPrompt);
     if (runModeCommand && runModeCommand.kind === "multiple") {
@@ -5323,7 +5339,10 @@ export function App() {
       runModeCommand?.kind === "command" ? runModeCommand.prompt : rawPrompt;
     // A @ sub-agent chip binds to a plain dispatch message. Control
     // commands (/plan, /goal, /compact, …) never carry one.
-    if (customAgentReference && commandPrompt.trimStart().startsWith("/")) {
+    if (
+      customAgentTasks.length > 0 &&
+      commandPrompt.trimStart().startsWith("/")
+    ) {
       setToast({ error: true, message: t.customAgentControlConflict });
       return;
     }
@@ -5388,7 +5407,7 @@ export function App() {
     const text = goalCommand
       ? visibleText
       : promptWithSelectedSkills(visibleText, selectedSkills);
-    if (!text || busy) return;
+    if ((!text && customAgentTasks.length === 0) || busy) return;
     const submittedAt = Date.now();
     let createdThread: Thread | undefined;
     if (compactMatch && activeThread) {
@@ -5462,7 +5481,7 @@ export function App() {
       if (activeThread && turnActive) {
         // Explicit @ dispatch requires an idle thread this phase; the
         // follow-up queue has no invocation-record carriage yet.
-        if (customAgentReference) {
+        if (customAgentTasks.length > 0) {
           setToast({ error: true, message: t.customAgentWhileRunning });
           return;
         }
@@ -5490,13 +5509,14 @@ export function App() {
         // The renderer mints one invocationId per submission; IPC retries
         // of this call reuse it and the store dedups by (thread, id) +
         // content fingerprint.
-        ...(customAgentReference
+        ...(customAgentTasks.length > 0
           ? {
-              customAgentReference: {
-                definitionId: customAgentReference.definitionId,
-                revision: customAgentReference.revision,
+              customAgentTasks: customAgentTasks.map((task) => ({
+                definitionId: task.definitionId,
+                revision: task.revision,
                 invocationId: crypto.randomUUID(),
-              },
+                text: task.text.trim(),
+              })),
             }
           : {}),
       });
@@ -5533,7 +5553,7 @@ export function App() {
     clearSubmittedPrompt,
     closeGoalEditor,
     createThread,
-    customAgentReference,
+    customAgentTasks,
     mode,
     openGoalEditor,
     prompt,
@@ -7724,31 +7744,27 @@ export function App() {
                               </div>
                             );
                           })}
-                        {!skillCommandMenuOpen && customAgentReference && (
-                          <div
-                            className="composer-selected-skill composer-selected-agent"
-                            data-custom-agent={
-                              customAgentReference.definitionId
+                        {customAgentTasks.length > 0 && (
+                          <CustomAgentTaskBlocks
+                            tasks={customAgentTasks}
+                            focusTaskId={focusAgentTaskId}
+                            zh={locale.startsWith("zh")}
+                            onChange={(id, text) =>
+                              setCustomAgentTasks(
+                                customAgentTasks.map((task) =>
+                                  task.id === id ? { ...task, text } : task,
+                                ),
+                              )
                             }
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`custom-agent-color custom-agent-color-${customAgentColorToken(customAgentReference.color)}`}
-                            />
-                            <span className="composer-selected-skill-copy">
-                              <small>{t.selectedCustomAgent}</small>
-                              <strong>@{customAgentReference.name}</strong>
-                            </span>
-                            <button
-                              aria-label={`${t.removeSelectedCustomAgent}: ${customAgentReference.name}`}
-                              className="composer-selected-skill-remove"
-                              onClick={() => setCustomAgentReference(undefined)}
-                              title={t.removeSelectedCustomAgent}
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          </div>
+                            onRemove={(id) => {
+                              setCustomAgentTasks(
+                                customAgentTasks.filter(
+                                  (task) => task.id !== id,
+                                ),
+                              );
+                              promptInput.current?.focus();
+                            }}
+                          />
                         )}
                         {attachments.length > 0 && (
                           <ComposerAttachments
@@ -7780,40 +7796,37 @@ export function App() {
                             }}
                           />
                         )}
-                        <ImMemberMentionMenu
-                          mentions={groupMentions}
-                          zh={locale.startsWith("zh")}
-                        />
                         <CustomAgentMentionMenu
                           mention={customAgentMention}
                           zh={locale.startsWith("zh")}
                         />
                         <div className="composer-input">
+                          {customAgentTasks.length > 0 && (
+                            <div className="composer-agent-main-label">
+                              {locale.startsWith("zh")
+                                ? "给主智能体的指令 · 输入 @ 继续添加任务"
+                                : "Main assistant instructions · Type @ to add another task"}
+                            </div>
+                          )}
                           <textarea
                             aria-activedescendant={
-                              groupMentions.open
-                                ? `im-member-mention-${groupMentions.activeIndex}`
-                                : customAgentMention.open
-                                  ? `custom-agent-mention-${customAgentMention.activeIndex}`
-                                  : skillCommandMenuOpen &&
-                                      slashCommandSuggestions.length > 0
-                                    ? `skill-command-option-${activeSlashSuggestion}`
-                                    : undefined
+                              customAgentMention.open
+                                ? `custom-agent-mention-${customAgentMention.activeIndex}`
+                                : skillCommandMenuOpen &&
+                                    slashCommandSuggestions.length > 0
+                                  ? `skill-command-option-${activeSlashSuggestion}`
+                                  : undefined
                             }
                             aria-autocomplete="list"
                             aria-controls={
-                              groupMentions.open
-                                ? "im-member-mention-menu"
-                                : customAgentMention.open
-                                  ? "custom-agent-mention-menu"
-                                  : skillCommandMenuOpen
-                                    ? "skill-command-menu"
-                                    : undefined
+                              customAgentMention.open
+                                ? "custom-agent-mention-menu"
+                                : skillCommandMenuOpen
+                                  ? "skill-command-menu"
+                                  : undefined
                             }
                             aria-expanded={
-                              groupMentions.open ||
-                              customAgentMention.open ||
-                              skillCommandMenuOpen
+                              customAgentMention.open || skillCommandMenuOpen
                             }
                             aria-label={t.prompt}
                             onChange={(event) => {
@@ -7840,7 +7853,6 @@ export function App() {
                               );
                             }}
                             onKeyDown={(event) => {
-                              if (groupMentions.keyDown(event)) return;
                               if (customAgentMention.keyDown(event)) return;
                               if (
                                 event.key === "Tab" &&
@@ -8355,7 +8367,8 @@ export function App() {
                                 <button
                                   className="send-button"
                                   disabled={
-                                    (!prompt.trim() &&
+                                    (customAgentTasks.length === 0 &&
+                                      !prompt.trim() &&
                                       attachments.length === 0 &&
                                       selectedSkills.length === 0) ||
                                     busy
@@ -8386,7 +8399,8 @@ export function App() {
                               <button
                                 className="send-button"
                                 disabled={
-                                  (!prompt.trim() &&
+                                  (customAgentTasks.length === 0 &&
+                                    !prompt.trim() &&
                                     attachments.length === 0 &&
                                     selectedSkills.length === 0) ||
                                   busy

@@ -8,6 +8,7 @@ import {
   customAgentRequestFingerprint,
   validateCustomAgentInput,
   validateCustomAgentSendReference,
+  validateCustomAgentTasks,
   validateCustomAgentToolPolicy,
 } from "./custom-agent-validation.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
@@ -5631,12 +5632,20 @@ async function startTaskTurnUnchecked(
   ) {
     throw new Error("The Goal changed before its continuation could start.");
   }
+  if (input.customAgentReference && input.customAgentTasks?.length)
+    throw new Error(
+      "CUSTOM_AGENT_INVALID: use task blocks or the legacy reference, not both.",
+    );
+  const taskBlocks =
+    input.customAgentTasks === undefined
+      ? []
+      : validateCustomAgentTasks(input.customAgentTasks);
   const text = input.text.trim();
   const attachments = await attachmentStore().bind(
     attachmentScope(thread.id),
     promptAttachmentsSchema.parse(input.attachments ?? []),
   );
-  if (!text && attachments.length === 0) {
+  if (!text && attachments.length === 0 && taskBlocks.length === 0) {
     throw new Error("Prompt cannot be empty.");
   }
   const turnId = randomUUID();
@@ -5648,8 +5657,21 @@ async function startTaskTurnUnchecked(
   } else if (options.origin === "im" || imService?.profile(thread.id)) {
     imService?.authorizeThread(thread.id, input.mode);
   }
-  const requestText =
-    text || `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
+  const taskDefinitions = store.listEffectiveCustomAgents(
+    thread.projectId ?? null,
+  );
+  const requestText = taskBlocks.length
+    ? [
+        text,
+        ...taskBlocks.map(
+          (task) =>
+            `### @${taskDefinitions.find((definition) => definition.id === task.definitionId)?.name ?? task.definitionId}\n${task.text}`,
+        ),
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    : text ||
+      `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
   const collaborationContext = imService?.desktopGroupContext(
     thread.id,
     requestText,
@@ -5794,18 +5816,22 @@ async function startTaskTurnUnchecked(
   const turnCustomAgents = store.listEffectiveCustomAgents(
     thread.projectId ?? null,
   );
-  let customAgentInvocation:
-    | { invocationId: string; definitionId: string; revision: number }
-    | undefined;
-  let customAgentInvocationFingerprint: string | undefined;
-  if (input.customAgentReference !== undefined) {
-    const reference = validateCustomAgentSendReference(
-      input.customAgentReference,
-    );
+  const invocations = taskBlocks.length
+    ? taskBlocks
+    : input.customAgentReference
+      ? [
+          {
+            ...validateCustomAgentSendReference(input.customAgentReference),
+            text: requestText,
+          },
+        ]
+      : [];
+  const invocationStore = store;
+  const invocationRecords = invocations.map((reference) => {
     // Resolve against the full catalog so a definition disabled between
     // chip selection and send reports CUSTOM_AGENT_DISABLED, not
     // NOT_FOUND; scope effectiveness is checked separately.
-    const definition = store
+    const definition = invocationStore
       .listCustomAgents()
       .find((candidate) => candidate.id === reference.definitionId);
     if (!definition) {
@@ -5828,19 +5854,26 @@ async function startTaskTurnUnchecked(
         `CUSTOM_AGENT_REVISION_CONFLICT: custom sub-agent "${definition.name}" was edited; refresh the reference and retry.`,
       );
     }
-    customAgentInvocationFingerprint = customAgentRequestFingerprint({
+    return {
       threadId: thread.id,
-      text: requestText,
-      attachmentIds: attachments.map((attachment) => attachment.id),
-      definitionId: definition.id,
-      revision: definition.revision,
-    });
-    customAgentInvocation = {
       invocationId: reference.invocationId,
+      requestFingerprint: customAgentRequestFingerprint({
+        threadId: thread.id,
+        text: taskBlocks.length
+          ? JSON.stringify({ text, tasks: taskBlocks })
+          : requestText,
+        attachmentIds: attachments.map((attachment) => attachment.id),
+        definitionId: definition.id,
+        revision: definition.revision,
+      }),
       definitionId: definition.id,
-      revision: definition.revision,
+      definitionRevision: definition.revision,
+      definitionName: definition.name,
+      turnId,
+      instanceId: null,
+      status: "pending" as const,
     };
-  }
+  });
   const checkpoint: TurnCheckpoint = {
     threadId: thread.id,
     turnId,
@@ -5855,53 +5888,21 @@ async function startTaskTurnUnchecked(
     ...(collaborationContext ? { collaborationContext } : {}),
     customAgents: turnCustomAgents,
     customAgentProjectId: thread.projectId ?? null,
-    ...(customAgentInvocation ? { customAgentInvocation } : {}),
+    ...(taskBlocks.length
+      ? { customAgentTasks: taskBlocks }
+      : invocations[0]
+        ? { customAgentInvocation: invocations[0] }
+        : {}),
   };
-  if (customAgentInvocation && customAgentInvocationFingerprint) {
-    // Persist the dedup record BEFORE the dispatch can start a child
-    // instance. The unique key is (threadId, invocationId); a same-id
-    // different-content request is an INVOCATION_CONFLICT from the store.
-    // A dispatch-committed record with the same fingerprint is an IPC
-    // retry and is reused as-is.
-    const definition = turnCustomAgents.find(
-      (candidate) => candidate.id === customAgentInvocation.definitionId,
-    );
-    if (!definition) {
-      throw new Error("CUSTOM_AGENT_NOT_FOUND: definition vanished.");
-    }
-    const { record } = store.upsertCustomAgentInvocation({
-      threadId: thread.id,
-      invocationId: customAgentInvocation.invocationId,
-      requestFingerprint: customAgentInvocationFingerprint,
-      definitionId: definition.id,
-      definitionRevision: definition.revision,
-      definitionName: definition.name,
-      turnId,
-      instanceId: null,
-      status: "pending",
-    });
-    if (record.status === "dispatch-committed" && record.turnId) {
+  if (invocationRecords.length) {
+    const previousTurnId =
+      store.commitCustomAgentInvocations(invocationRecords);
+    if (previousTurnId) {
       turnLatencyTraces.delete(turnId);
       return {
-        turnId: record.turnId,
+        turnId: previousTurnId,
         thread: store.getThread(thread.id) ?? thread,
       };
-    }
-    if (record.status === "pending") {
-      store.transitionCustomAgentInvocation(
-        thread.id,
-        customAgentInvocation.invocationId,
-        "dispatch-committed",
-        { turnId },
-      );
-    } else if (record.status === "outcome-unknown") {
-      throw new Error(
-        "INVOCATION_OUTCOME_UNKNOWN: this invocation was left ambiguous after a crash; send a new message to re-execute it.",
-      );
-    } else if (record.status === "finished" || record.status === "cancelled") {
-      throw new Error(
-        "INVOCATION_CONFLICT: this invocation already completed; send a new message for a new execution.",
-      );
     }
   }
   try {
@@ -5915,10 +5916,10 @@ async function startTaskTurnUnchecked(
       checkpoint,
     );
   } catch (error) {
-    if (customAgentInvocation) {
+    for (const invocation of invocations) {
       store.transitionCustomAgentInvocation(
         thread.id,
-        customAgentInvocation.invocationId,
+        invocation.invocationId,
         "cancelled",
       );
     }
@@ -6042,12 +6043,14 @@ async function resumeInterruptedTurns(): Promise<void> {
         ...(thread.goal ? { goal: thread.goal } : {}),
         recovery,
       };
-      if (checkpoint.customAgentInvocation) {
+      for (const invocation of checkpoint.customAgentTasks ??
+        (checkpoint.customAgentInvocation
+          ? [checkpoint.customAgentInvocation]
+          : [])) {
         // Crash window: the committed dispatch may or may not have started
         // the child before the process died. Never blindly re-dispatch —
         // mark outcome-unknown and resume the parent turn without the
         // explicit instance; the user re-executes with a new invocation.
-        const invocation = checkpoint.customAgentInvocation;
         const record = store?.getCustomAgentInvocation(
           threadId,
           invocation.invocationId,
@@ -6059,8 +6062,9 @@ async function resumeInterruptedTurns(): Promise<void> {
             "outcome-unknown",
           );
         }
-        delete resumed.customAgentInvocation;
       }
+      delete resumed.customAgentInvocation;
+      delete resumed.customAgentTasks;
       store.saveTurnCheckpoint(resumed);
       if (checkpoint.goalCreationAuthorized)
         goalCreationAuthorizations.add(turnId);

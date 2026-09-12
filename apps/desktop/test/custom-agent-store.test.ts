@@ -308,6 +308,46 @@ describe("custom agent store", () => {
     store.close();
   });
 
+  it("commits a task batch atomically and rolls back a partial retry", async () => {
+    const store = await openStore();
+    const now = new Date().toISOString();
+    store.createThread({
+      id: "batch",
+      title: "batch",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const record = {
+      threadId: "batch",
+      invocationId: "a",
+      requestFingerprint: "batch-fp",
+      definitionId: "def",
+      definitionRevision: 1,
+      definitionName: "test",
+      turnId: "turn",
+      instanceId: null,
+      status: "pending" as const,
+    };
+    const batch = [record, { ...record, invocationId: "b" }];
+    expect(store.commitCustomAgentInvocations(batch)).toBeUndefined();
+    expect(store.commitCustomAgentInvocations(batch)).toBe("turn");
+    expect(() =>
+      store.commitCustomAgentInvocations([
+        { ...record, invocationId: "c" },
+        record,
+      ]),
+    ).toThrow(/INVOCATION_CONFLICT/);
+    expect(store.getCustomAgentInvocation("batch", "c")).toBeUndefined();
+    store.transitionCustomAgentInvocation("batch", "a", "outcome-unknown");
+    expect(() => store.commitCustomAgentInvocations(batch)).toThrow();
+    store.close();
+  });
+
   it("invocation status transitions follow the contract state machine", async () => {
     const store = await openStore();
     const projectId = makeProject(store, "/tmp/eta");

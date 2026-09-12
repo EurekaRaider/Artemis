@@ -1,3 +1,4 @@
+import type { CustomAgentTaskInvocation } from "@artemis/protocol";
 import { assertCustomAgentContext } from "./custom-agent-context.js";
 import { createAttachmentTools } from "./attachment-tools.js";
 import { installCompactionBudget } from "./compaction-budget.js";
@@ -2640,6 +2641,58 @@ export class ArtemisAgentHost {
    * instance; a stale binding whose instance is gone is outcome-unknown
    * and never silently re-dispatches.
    */
+  private acceptExplicitCustomAgentTasks(
+    hosted: HostedThread,
+    tasks: CustomAgentTaskInvocation[],
+  ) {
+    if (
+      tasks.length > AGENT_TEAM_LOGICAL_MAXIMUM ||
+      new Set(tasks.map((task) => task.invocationId)).size !== tasks.length
+    ) {
+      throw new Error("CUSTOM_AGENT_INVALID: invalid task batch.");
+    }
+    let newCount = 0;
+    // Validate the complete batch before any member is allocated or budget debited.
+    for (const task of tasks) {
+      if (!task.text.trim())
+        throw new Error("CUSTOM_AGENT_INVALID: empty task block.");
+      const bound = hosted.explicitCustomAgentInvocations.get(
+        task.invocationId,
+      );
+      if (bound !== undefined) {
+        if (!hosted.childAgents.has(bound))
+          throw new Error("INVOCATION_OUTCOME_UNKNOWN: task instance is gone.");
+        continue;
+      }
+      newCount++;
+      if (
+        !this.resolveCustomAgentDispatch(
+          hosted,
+          ROOT_AGENT_ID,
+          task.definitionId,
+          undefined,
+          task,
+        )
+      ) {
+        throw new Error(
+          "CUSTOM_AGENT_NOT_FOUND: task definition is not effective.",
+        );
+      }
+    }
+    if (
+      (hosted.team?.spawnCount ?? 0) + newCount > AGENT_TEAM_SPAWN_BUDGET ||
+      (hosted.team?.memberAgentIds.length ?? 0) + newCount >
+        AGENT_TEAM_LOGICAL_MAXIMUM
+    ) {
+      throw new Error(
+        "CUSTOM_AGENT_INVALID: task batch exceeds the team capacity.",
+      );
+    }
+    return tasks.map((task) =>
+      this.acceptExplicitCustomAgentInvocation(hosted, task, task.text, true),
+    );
+  }
+
   private acceptExplicitCustomAgentInvocation(
     hosted: HostedThread,
     invocation: {
@@ -2648,6 +2701,7 @@ export class ArtemisAgentHost {
       revision: number;
     },
     taskText: string,
+    taskBlock = false,
   ): { agentId: string; definitionName: string; duplicate: boolean } {
     const boundAgentId = hosted.explicitCustomAgentInvocations.get(
       invocation.invocationId,
@@ -2690,8 +2744,9 @@ export class ArtemisAgentHost {
       );
     }
     if (
+      !taskBlock &&
       this.directChildren(hosted, ROOT_AGENT_ID).length >=
-      AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
+        AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
     ) {
       throw new Error(
         `An agent may have at most ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children.`,
@@ -5639,6 +5694,7 @@ export class ArtemisAgentHost {
                         }\n`,
                       );
                     } else if (payload.type === "turn.failed") {
+                      child.error = payload.message;
                       scheduleActivityUpdate(`\n[failed] ${payload.message}\n`);
                     } else if (payload.type === "assistant.usage") {
                       this.sink.emit(
@@ -5683,6 +5739,7 @@ export class ArtemisAgentHost {
                   });
                 }
                 await child.session.prompt(childPrompt);
+                if (child.error) throw new Error(child.error);
                 if (
                   this.directChildren(hosted, child.agentId).length > 0 &&
                   !child.subtreeIntegrated
@@ -6226,6 +6283,7 @@ export class ArtemisAgentHost {
       revision: number;
     },
     customAgentProjectId?: string | null,
+    customAgentTasks?: CustomAgentTaskInvocation[],
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -6261,19 +6319,26 @@ export class ArtemisAgentHost {
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
     let explicitDispatchNote: string | undefined;
-    if (customAgentInvocation) {
-      // The host materializes exactly one instance for a validated
-      // explicit user reference; the model cannot forge this source.
-      // Failures throw coded errors so the turn fails loudly instead of
-      // silently degrading into a free-form role.
+    if (customAgentTasks?.length) {
+      const accepted = this.acceptExplicitCustomAgentTasks(
+        hosted,
+        customAgentTasks,
+      );
+      explicitDispatchNote = [
+        "[Host dispatch] The user assigned separate task blocks. Each instance receives ONLY its own block, not the other tasks or the main assistant instructions.",
+        ...accepted.map(
+          (task) =>
+            `- ${task.definitionName}: instance ${task.agentId} is already materialized. Do not spawn a duplicate.`,
+        ),
+        "Follow the main assistant instructions, wait for these required team members, and integrate their results into your reply.",
+      ].join("\n");
+    } else if (customAgentInvocation) {
       const accepted = this.acceptExplicitCustomAgentInvocation(
         hosted,
         customAgentInvocation,
         text,
       );
-      explicitDispatchNote = accepted.duplicate
-        ? `[Host dispatch] The explicit invocation of custom sub-agent "${accepted.definitionName}" was already materialized as instance ${accepted.agentId}; do not spawn a duplicate. Wait for its result and integrate it into your reply.`
-        : `[Host dispatch] The user explicitly invoked custom sub-agent "${accepted.definitionName}" for this task. Instance ${accepted.agentId} is already running with the user's message as its task; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
+      explicitDispatchNote = `[Host dispatch] The explicit invocation of custom sub-agent "${accepted.definitionName}" is already materialized as instance ${accepted.agentId}; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
     }
 
     // Automatic routing catalog (D#152 PR5): the model-visible slice is

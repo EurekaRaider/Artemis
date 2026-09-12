@@ -74,9 +74,11 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     expect(threadSelect.indexOf("status-dot")).toBeLessThan(
       threadSelect.indexOf("thread-title"),
     );
-    const threadStatusDot = cssDeclarations(".thread-select .status-dot");
+    const threadStatusDot = cssDeclarations(
+      ".thread-select .thread-status-indicator",
+    );
     expect(threadStatusDot).toContain("grid-column: 1");
-    expect(threadStatusDot).toContain("justify-self: center");
+    expect(threadStatusDot).toContain("justify-self: end");
     expect(threadStatusDot).not.toContain("position: absolute");
     expect(threadStatusDot).not.toMatch(/\bright:/u);
     expect(cssDeclarations(".project-thread-list")).toContain(
