@@ -3529,6 +3529,19 @@ body[data-dock="open"] .dock-resizer {
 .dz-more-menu { left: auto; right: 0; top: calc(100% + 8px); min-width: 196px; }
 .dz-menu-sep { height: 1px; margin: 4px 7px; background: var(--border-soft); }
 
+/* 工具条容器查询（对照 open-design viewer/core.css）：宽面板 ⋯ 隐藏、
+   ≤720px ⋯ 出现并把模式 tab 收成纯图标，≤600px 整组内联工具隐藏只留 ⋯。 */
+.dz-toolbar { container-type: inline-size; }
+.dz-more { display: none; align-items: center; }
+@container (max-width: 720px) {
+  .dz-mode-tab { width: 30px; min-width: 30px; padding-inline: 0; justify-content: center; }
+  .dz-mode-label { display: none; }
+  .dz-more { display: inline-flex; }
+}
+@container (max-width: 600px) {
+  .dz-toolbar-actions { display: none; }
+}
+
 /* 交付（Handoff）分体按钮与「编辑器/CLI」菜单 */
 .dz-handoff { position: relative; }
 .dz-handoff-split {

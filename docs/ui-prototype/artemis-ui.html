@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=171" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=172" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=146" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -567,8 +567,8 @@
 <div class="dz-toolbar-left">
 <button aria-label="刷新预览" class="dz-iconbtn" id="dzReload" title="刷新预览" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20 12a8 8 0 1 1-2.5-5.8"></path><path d="M20 4v4h-4"></path></svg></button>
 <div aria-label="视图模式" class="dz-mode" role="tablist">
-<button aria-selected="true" class="dz-mode-tab active" data-dz-mode="preview" id="dzModePreview" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9h17"></path><path d="M7 13h6.5M7 16h9"></path></svg>预览</button>
-<button aria-selected="false" class="dz-mode-tab" data-dz-mode="source" id="dzModeSource" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg>代码</button>
+<button aria-selected="true" class="dz-mode-tab active" data-dz-mode="preview" id="dzModePreview" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9h17"></path><path d="M7 13h6.5M7 16h9"></path></svg><span class="dz-mode-label">预览</span></button>
+<button aria-selected="false" class="dz-mode-tab" data-dz-mode="source" id="dzModeSource" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="dz-mode-label">代码</span></button>
 </div>
 <div class="dz-device">
 <button aria-expanded="false" aria-haspopup="menu" class="dz-device-trigger" id="dzDeviceBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg><span id="dzDeviceLabel">桌面端</span><svg aria-hidden="true" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="10"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg></button>
@@ -591,11 +591,8 @@
 <div class="dz-zoom">
 <button aria-expanded="false" aria-haspopup="menu" class="dz-zoom-trigger" id="dzZoomBtn" title="重置缩放" type="button"><span id="dzZoomLabel">100%</span></button>
 <div class="dz-menu" hidden="" id="dzZoomMenu" role="menu">
-<button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button">50%</button>
-<button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button">75%</button>
-<button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button">100%</button>
-<button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button">125%</button>
 <button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
+</div>
 </div>
 </div>
 <div class="dz-more">
@@ -613,7 +610,6 @@
 <button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button">100%</button>
 <button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button">125%</button>
 <button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
-</div>
 </div>
 </div>
 </div>
