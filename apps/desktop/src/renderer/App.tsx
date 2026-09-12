@@ -1,5 +1,7 @@
 import { confirmDesignLeave, hasDesignDraft } from "./design-drafts.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
+import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
+import { useTaskNotificationRead } from "./task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
@@ -562,15 +564,17 @@ const copy = {
     deleteComment: "Delete comment",
     approveOnce: "Approve once",
     approveSession: "Approve for task",
-    approveProject: "Approve for project",
+    approveProject: "Always allow",
+    approvalScopeHint: "Always allow: the same operation in this project.",
     deny: "Deny",
-    approvalApproved: "Approved request",
-    approvalDenied: "Denied request",
+    approvalApproved: "Approved",
+    approvalDenied: "Denied",
     recommended: "Recommended",
     otherAnswer: "Other…",
     otherAnswerDetail: "Type an answer that is not listed above",
     customAnswer: "Type another answer",
     submitAnswer: "Submit",
+    waitingSelection: "Waiting for selection",
     navigateChoices: "Move",
     selectChoice: "Select",
     answered: "Selected",
@@ -870,15 +874,17 @@ const copy = {
     deleteComment: "删除评论",
     approveOnce: "仅批准本次",
     approveSession: "本任务内批准",
-    approveProject: "本项目内批准",
+    approveProject: "始终允许",
+    approvalScopeHint: "始终允许：仅限本项目中的相同操作。",
     deny: "拒绝",
-    approvalApproved: "已批准的操作",
-    approvalDenied: "已拒绝的操作",
+    approvalApproved: "已批准",
+    approvalDenied: "已拒绝",
     recommended: "模型推荐",
     otherAnswer: "其他…",
     otherAnswerDetail: "输入一个不在以上列表中的答案",
     customAnswer: "输入其他答案",
     submitAnswer: "提交",
+    waitingSelection: "等待选择",
     navigateChoices: "移动",
     selectChoice: "选择",
     answered: "已选择",
@@ -1277,7 +1283,7 @@ function ApprovalIcon({
       className="icon"
       data-neutral={neutral || undefined}
       height={19}
-      name={warning ? "warning" : "approval"}
+      name={warning ? "warning" : "approval-ask"}
       width={19}
     />
   );
@@ -1382,6 +1388,8 @@ function mergeThreadEvents(
 
 function eventChangesThread(event: AgentEvent): boolean {
   return [
+    "thread.notification.updated",
+    "user-input.requested",
     "turn.started",
     "approval.requested",
     "turn.completed",
@@ -1392,6 +1400,15 @@ function eventChangesThread(event: AgentEvent): boolean {
 }
 
 function updateThreadFromEvent(thread: Thread, event: AgentEvent): Thread {
+  if (event.payload.type === "thread.notification.updated") {
+    if ((thread.notification?.revision ?? -1) >= event.payload.state.revision)
+      return thread;
+    return {
+      ...thread,
+      notification: event.payload.state,
+      status: event.payload.threadStatus ?? thread.status,
+    };
+  }
   if (event.payload.type === "thread.goal.updated") {
     if (
       thread.goal?.goalId === event.payload.goal.goalId &&
@@ -3120,7 +3137,11 @@ export function App() {
       const thread = refreshed.threads.find(
         (candidate) => candidate.id === threadId,
       );
-      if (!thread) return;
+      if (!thread) {
+        setActiveThreadId(undefined);
+        setActiveView("workspace");
+        return;
+      }
       discardNewConversationDraft();
       setActiveProjectId(thread.projectId);
       setActiveThreadId(thread.id);
@@ -3968,6 +3989,17 @@ export function App() {
   const activeEvents = activeThread
     ? (snapshot?.events[activeThread.id] ?? [])
     : [];
+  useTaskNotificationRead(
+    activeView === "workspace" &&
+      activeThreadId &&
+      loadedEventThreads.current.has(activeThreadId)
+      ? activeThreadId
+      : undefined,
+    activeThread?.notification?.unread &&
+      (activeEvents.at(-1)?.seq ?? -1) >= activeThread.notification.seq
+      ? activeThread.notification.seq
+      : undefined,
+  );
   const latestHtmlChange = useMemo(() => {
     for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
       const event = activeEvents[index];
@@ -6493,9 +6525,9 @@ export function App() {
                                   setThreadMenuId(undefined);
                                 }}
                               >
-                                <span
-                                  aria-hidden="true"
-                                  className={`status-dot ${thread.status}`}
+                                <ThreadStatusIndicator
+                                  thread={thread}
+                                  locale={locale}
                                 />
                                 {imThreadStatus[thread.id] && (
                                   <ImThreadConnection
@@ -6758,10 +6790,7 @@ export function App() {
                       }}
                       type="button"
                     >
-                      <span
-                        aria-hidden="true"
-                        className={`status-dot ${thread.status}`}
-                      />
+                      <ThreadStatusIndicator thread={thread} locale={locale} />
                       {imThreadStatus[thread.id] && (
                         <ImThreadConnection
                           status={imThreadStatus[thread.id]!}
@@ -10274,7 +10303,7 @@ export function ChildAgentPanel({
   );
 }
 
-function UserInputCard({
+export function UserInputCard({
   input,
   active,
   locale,
@@ -10383,39 +10412,33 @@ function UserInputCard({
     >
       <header>
         <span aria-hidden="true" className="user-input-mark">
-          <Icon size={18}>
-            <path
-              d="M9.2 9.1a2.9 2.9 0 1 1 4.4 2.5c-1 .6-1.6 1.1-1.6 2.2"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.7"
-            />
-            <path
-              d="M12 17.5h.01"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="2.2"
-            />
-          </Icon>
+          <ArtemisIcon
+            className="icon"
+            name="approval-ask"
+            width={18}
+            height={18}
+          />
         </span>
         <div className="user-input-heading">
           <small className="user-input-eyebrow">{input.header}</small>
-          <strong className="user-input-question" data-part="question">
-            {input.question}
-          </strong>
         </div>
         {input.status === "pending" && (
-          <time
-            aria-label={t.timeoutHint}
-            className="user-input-timeout"
-            dateTime={input.expiresAt}
-            title={t.timeoutHint}
-          >
-            {formatUserInputCountdown(Date.parse(input.expiresAt) - clock)}
-          </time>
+          <span className="user-input-status">
+            <span>{t.waitingSelection}</span>
+            <time
+              aria-label={t.timeoutHint}
+              className="user-input-timeout"
+              dateTime={input.expiresAt}
+              title={t.timeoutHint}
+            >
+              {formatUserInputCountdown(Date.parse(input.expiresAt) - clock)}
+            </time>
+          </span>
         )}
       </header>
+      <p className="user-input-question" data-part="question">
+        {input.question}
+      </p>
       {input.status === "pending" ? (
         <>
           <div className="user-input-options-scroll">
@@ -10432,10 +10455,9 @@ function UserInputCard({
                   className={`user-input-option${option.recommended ? " recommended" : ""}${activeOptionIndex === index ? " active" : ""}`}
                   disabled={interactionBusy}
                   key={option.label}
-                  onClick={() => void resolve({ selectedOption: index })}
+                  onClick={() => setActiveOptionIndex(index)}
                   onFocus={() => setActiveOptionIndex(index)}
                   onKeyDown={handleOptionKeyDown}
-                  onMouseEnter={() => setActiveOptionIndex(index)}
                   ref={(button) => {
                     optionButtons.current[index] = button;
                   }}
@@ -10448,14 +10470,16 @@ function UserInputCard({
                   </span>
                   <span className="user-input-option-copy">
                     <span className="user-input-option-title">
-                      <strong>{option.label}</strong>
+                      <strong title={option.label}>{option.label}</strong>
                       {option.recommended && (
                         <small className="recommendation-badge">
                           {t.recommended}
                         </small>
                       )}
                     </span>
-                    <small>{option.description}</small>
+                    <small title={option.description}>
+                      {option.description}
+                    </small>
                   </span>
                   <span aria-hidden="true" className="user-input-option-enter">
                     <Icon size={17}>
@@ -10483,7 +10507,6 @@ function UserInputCard({
                   }}
                   onFocus={() => setActiveOptionIndex(otherOptionIndex)}
                   onKeyDown={handleOptionKeyDown}
-                  onMouseEnter={() => setActiveOptionIndex(otherOptionIndex)}
                   ref={(button) => {
                     optionButtons.current[otherOptionIndex] = button;
                   }}
@@ -10584,6 +10607,22 @@ function UserInputCard({
               </form>
             )}
           </div>
+          {!showOther && (
+            <div className="user-input-actions">
+              <button
+                className="user-input-submit"
+                type="button"
+                disabled={
+                  interactionBusy || activeOptionIndex >= input.options.length
+                }
+                onClick={() =>
+                  void resolve({ selectedOption: activeOptionIndex })
+                }
+              >
+                {locale === "zh-CN" ? "提交选择" : "Submit selection"}
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <div className="user-input-result" data-part="status">
@@ -10918,7 +10957,7 @@ export function TurnChangeSetCard({
   );
 }
 
-function Timeline({
+export function Timeline({
   installedPlugins,
   installedSkills,
   state,
@@ -11270,6 +11309,16 @@ function Timeline({
                 <span className="approval-shield">
                   <ApprovalIcon neutral />
                 </span>
+                <span className="approval-card-copy">
+                  <strong>
+                    {groupedApprovals.map((item) => item.summary).join(" · ")}
+                  </strong>
+                  <small>
+                    {groupedApprovals
+                      .map((item) => item.command ?? item.paths.join(", "))
+                      .join(" · ")}
+                  </small>
+                </span>
                 <span className="approval-count-badge">
                   ×{groupedApprovals.length}
                 </span>
@@ -11360,16 +11409,14 @@ function Timeline({
                 <span className="approval-shield">
                   <ApprovalIcon neutral />
                 </span>
+                {approvalCopy}
                 <span className="approval-card-chevron">
                   <ChevronIcon />
                 </span>
               </>
             }
           >
-            <div className="approval-resolved-details">
-              {approvalCopy}
-              {modelReason}
-            </div>
+            <div className="approval-resolved-details">{modelReason}</div>
           </ResultDisclosure>
         );
       }
@@ -11381,42 +11428,55 @@ function Timeline({
       );
       return (
         <ApprovalPatternCard
-          actions={pendingView.actions.map((action) => {
-            const label =
-              action.id === "deny"
-                ? t.deny
-                : action.id === "approve-project"
-                  ? t.approveProject
-                  : action.id === "approve-session"
-                    ? t.approveSession
-                    : t.approveOnce;
-            return (
-              <button
-                className={
-                  action.id === "approve-once"
-                    ? "primary-button compact"
-                    : "secondary-button"
-                }
-                key={action.id}
-                onClick={() =>
-                  onResolve(approval, action.approved, action.scope)
-                }
-              >
-                {label}
-                {action.recommended && (
-                  <small className="recommendation-badge">
-                    {t.recommended}
-                  </small>
-                )}
-              </button>
-            );
-          })}
+          actions={
+            <>
+              {approval.modelRecommendation && (
+                <small className="approval-recommendation">
+                  {t.recommended}:{" "}
+                  {approval.modelRecommendation === "deny"
+                    ? t.deny
+                    : t.approveOnce}
+                </small>
+              )}
+              {pendingView.actions.map((action) => {
+                const label =
+                  action.id === "deny"
+                    ? t.deny
+                    : action.id === "approve-project"
+                      ? t.approveProject
+                      : action.id === "approve-session"
+                        ? t.approveSession
+                        : t.approveOnce;
+                return (
+                  <button
+                    className="secondary-button approval-action"
+                    title={
+                      action.id === "approve-project"
+                        ? t.approvalScopeHint
+                        : undefined
+                    }
+                    key={action.id}
+                    onClick={() =>
+                      onResolve(approval, action.approved, action.scope)
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {approval.allowedScopes.includes("project") && (
+                <small className="approval-scope-hint">
+                  {t.approvalScopeHint}
+                </small>
+              )}
+            </>
+          }
           className={`approval-card ${approval.status}`}
           description={
             <>
-              <small>
+              <code className="approval-command">
                 <bdi>{pendingView.detail}</bdi>
-              </small>
+              </code>
               {pendingView.actorLabel && (
                 <small>
                   <bdi>{pendingView.actorLabel}</bdi>

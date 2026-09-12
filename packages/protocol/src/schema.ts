@@ -1008,7 +1008,24 @@ export const turnFailedPayloadSchema = z.object({
   backgroundProcessesRunning: z.boolean().optional(),
 });
 
+export const taskNotificationStateSchema = z.object({
+  revision: z.number().int().nonnegative(),
+  seq: z.number().int().min(-1),
+  unread: z.boolean(),
+  kind: z
+    .enum(["completed", "failed", "input-required", "approval-required"])
+    .optional(),
+});
+export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
+
 export const agentPayloadSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("thread.notification.updated"),
+    state: taskNotificationStateSchema,
+    threadStatus: z
+      .enum(["idle", "running", "waiting-approval", "failed"])
+      .optional(),
+  }),
   userMessagePayloadSchema,
   turnStartedPayloadSchema,
   turnActivityPayloadSchema,
@@ -1068,6 +1085,7 @@ export const projectSchema = z.object({
 export type Project = z.infer<typeof projectSchema>;
 
 export const threadSchema = z.object({
+  notification: taskNotificationStateSchema.optional(),
   id: z.string().min(1),
   projectId: z.string().min(1).optional(),
   title: z.string().min(1),

@@ -277,7 +277,7 @@ const labels = {
     tabProviders: "供应商及模型配置",
     providerConfigBuiltin: "内置",
     providerConfigCustom: "自定义",
-    tabAgents: "Agent 配置",
+    tabAgents: "智能体配置",
     tabCapabilities: "执行权限",
     tabMaintenance: "更新与诊断",
     model: "模型",

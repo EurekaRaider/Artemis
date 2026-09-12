@@ -321,3 +321,23 @@ it("injects the trusted bridge ahead of page scripts even when head has attribut
   );
   expect(page.html).not.toContain("window.trustedBridge");
 });
+
+it("retains edited prompts across delayed duplicate delivery and restart", () => {
+  const f = fixture();
+  const input = {
+    requestId: "edited",
+    workflow: "design" as const,
+    text: "Original",
+  };
+  const original = f.repository.enqueue(context, input);
+  f.repository.edit(context, input.requestId, "Edited");
+  f.restart();
+  const replay = f.repository.enqueue(context, input);
+  expect(replay.text).toBe("Edited");
+  expect(replay.turnId).toBe(original.turnId);
+  expect(f.repository.requests(context.threadId)).toHaveLength(1);
+  expect(() =>
+    f.repository.enqueue(context, { ...input, text: "Different" }),
+  ).toThrow(/reused/);
+  expect(f.repository.claim(context)?.text).toBe("Edited");
+});

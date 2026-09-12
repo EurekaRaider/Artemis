@@ -60,6 +60,7 @@ function fixture(temporary = false) {
     taskSourceImages: () => ({ deleteThread: vi.fn() }),
     imService: { deleteThread: vi.fn() },
     cleanupGoalObjective: vi.fn(),
+    taskNotifications: { refresh: vi.fn() },
   };
   new Function(
     ...Object.keys(scope),
@@ -84,6 +85,7 @@ describe("thread deletion IPC with an unresponsive Agent Host", () => {
     );
     expect(f.scope.deletePiSessionTranscript).toHaveBeenCalled();
     expect(f.deleted).toHaveBeenCalledWith("thread");
+    expect(f.scope.taskNotifications.refresh).toHaveBeenCalledOnce();
     expect(f.scope.store.getThread()).toBeUndefined();
   });
   it("reports temporary-task shutdown failure without deleting a live workspace", async () => {

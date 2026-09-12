@@ -97,7 +97,7 @@
       "reason": "Task and presentation status unions are appended to the shared status-dot class at runtime.",
       "sources": [
         {
-          "path": "apps/desktop/src/renderer/App.tsx",
+          "path": "apps/desktop/src/renderer/ThreadStatusIndicator.tsx",
           "contains": "className={`status-dot ${thread.status}`}"
         },
         {
@@ -131,21 +131,7 @@
         }
       ]
     },
-    {
-      "classNameSets": [["user-input-card", "pending"]],
-      "owner": "Desktop user-input cards",
-      "reason": "The protocol-owned input status is appended to the user-input-card class at runtime.",
-      "sources": [
-        {
-          "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "className={`user-input-card ${input.status}`}"
-        },
-        {
-          "path": "apps/desktop/src/renderer/MultiQuestionUserInputCard.tsx",
-          "contains": "className={`user-input-card multi-question ${input.status}`}"
-        }
-      ]
-    },
+
     {
       "classNameSets": [
         ["child-agent-card", "suspect"],
@@ -665,6 +651,15 @@
       "important": false,
       "owner": "Desktop custom sub-agent management (D#152 PR4)",
       "reason": "Align the 10px color dot with the management-row title baseline in the custom sub-agent settings list."
+    },
+    {
+      "atRules": [],
+      "selector": ".custom-agent-dialog [data-artemis-component=\"select\"] :is([data-part=\"trigger\"], [data-part=\"search\"])",
+      "property": "padding-inline",
+      "value": "12px",
+      "important": false,
+      "owner": "Desktop custom sub-agent editor dialog (D#152)",
+      "reason": "Dialog selects show visible labels next to 12px-inset text fields; keep the option text inset aligned instead of hugging the control edge."
     }
   ]
 }

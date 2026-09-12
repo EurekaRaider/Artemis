@@ -7,11 +7,11 @@ Artemis 1.5.7 desktop running on macOS arm64. They show the production Electron
 renderer, not the UI prototype or component Gallery.
 
 Each capture is 1440 × 850 CSS pixels at 100% zoom, with the full application viewport
-included. The [capture manifest](images/screenshots/manifest.json) records the
+included. The [capture manifest](../images/screenshots/manifest.json) records the
 source HEAD, working-tree qualification, timestamp, renderer security settings,
 image dimensions and SHA-256 hashes. These are local working-tree captures;
 they are not screenshots of a signed release. The two additional environment-panel
-captures have their own [capture manifest](images/screenshots/environment-manifest.json),
+captures have their own [capture manifest](../images/screenshots/environment-manifest.json),
 preserving the original capture provenance of the other images.
 
 The Field Notes Git repository, conversation, completed Agent-team records,
@@ -24,28 +24,28 @@ and Token Usage identity. Personal names, home-directory paths and credentials
 are not shown. Chinese screenshots localize the UI while retaining the English
 sample conversation. The IM views use synthetic Feishu/Slack connection responses and a two-member roster in the isolated main-process handlers. No real Gateway, IM account or bot is contacted. The same fixture supplies a no-PR response to avoid personal GitHub access.
 
-| Screenshot                                                                | Surface                                                   |
-| ------------------------------------------------------------------------- | --------------------------------------------------------- |
-| [Light workspace](images/screenshots/workspace-light.png)                 | Projects, persistent tasks and Markdown conversation      |
-| [Dark workspace](images/screenshots/workspace-dark.png)                   | The same task in the dark theme                           |
-| [Light environment panel](images/screenshots/environment-panel-light.png) | Workspace, Git changes, Agent activity and source summary |
-| [Dark environment panel](images/screenshots/environment-panel-dark.png)   | The same environment information in the dark theme        |
-| [Git Review](images/screenshots/git-review.png)                           | Real unstaged TypeScript diff in the sample repository    |
-| [Files and Markdown](images/screenshots/markdown-files.png)               | Project documentation in the Markdown reader              |
-| [Terminal](images/screenshots/terminal.png)                               | Native PTY with real Git output                           |
-| [Agent team](images/screenshots/agent-team.png)                           | Two completed sample member tasks                         |
-| [Resource Center](images/screenshots/resources.png)                       | Bundled plugins and capability management                 |
-| [General settings](images/screenshots/settings-general.png)               | Profile picture, language and theme                       |
-| [Automations](images/screenshots/automations.png)                         | Two disabled weekly project automations                   |
-| [Token usage](images/screenshots/token-usage.png)                         | Synthetic usage totals, heatmap and composition           |
-| [IM connections](images/screenshots/im-connections.png)                   | Bot manager with synthetic connected channels             |
-| [Group spaces](images/screenshots/im-spaces.png)                          | Saved demonstration collaboration space                   |
-| [Group conversation](images/screenshots/im-group-chat.png)                | Group task with synthetic members and computer states     |
-| [Dark group conversation](images/screenshots/im-group-chat-dark.png)      | The same group task in the dark theme                     |
-| [Simplified Chinese](images/screenshots/workspace-zh-CN.png)              | Localized navigation and composer                         |
+| Screenshot                                                                   | Surface                                                   |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [Light workspace](../images/screenshots/workspace-light.png)                 | Projects, persistent tasks and Markdown conversation      |
+| [Dark workspace](../images/screenshots/workspace-dark.png)                   | The same task in the dark theme                           |
+| [Light environment panel](../images/screenshots/environment-panel-light.png) | Workspace, Git changes, Agent activity and source summary |
+| [Dark environment panel](../images/screenshots/environment-panel-dark.png)   | The same environment information in the dark theme        |
+| [Git Review](../images/screenshots/git-review.png)                           | Real unstaged TypeScript diff in the sample repository    |
+| [Files and Markdown](../images/screenshots/markdown-files.png)               | Project documentation in the Markdown reader              |
+| [Terminal](../images/screenshots/terminal.png)                               | Native PTY with real Git output                           |
+| [Agent team](../images/screenshots/agent-team.png)                           | Two completed sample member tasks                         |
+| [Resource Center](../images/screenshots/resources.png)                       | Bundled plugins and capability management                 |
+| [General settings](../images/screenshots/settings-general.png)               | Profile picture, language and theme                       |
+| [Automations](../images/screenshots/automations.png)                         | Two disabled weekly project automations                   |
+| [Token usage](../images/screenshots/token-usage.png)                         | Synthetic usage totals, heatmap and composition           |
+| [IM connections](../images/screenshots/im-connections.png)                   | Bot manager with synthetic connected channels             |
+| [Group spaces](../images/screenshots/im-spaces.png)                          | Saved demonstration collaboration space                   |
+| [Group conversation](../images/screenshots/im-group-chat.png)                | Group task with synthetic members and computer states     |
+| [Dark group conversation](../images/screenshots/im-group-chat-dark.png)      | The same group task in the dark theme                     |
+| [Simplified Chinese](../images/screenshots/workspace-zh-CN.png)              | Localized navigation and composer                         |
 
 To refresh the screenshots on macOS, build the desktop and run the
-[capture script](scripts/capture-readme.mjs) with an available Playwright module:
+[capture script](../scripts/capture-readme.mjs) with an available Playwright module:
 
 ```sh
 npm run build -w @artemis/desktop
@@ -67,8 +67,8 @@ the existing screenshot-matrix and native verification workflows.
 
 ## System architecture
 
-The [self-contained HTML](diagrams/artemis-system-architecture.html) and
-[standalone SVG](images/artemis-system-architecture.svg) contain the same diagram.
+The [self-contained HTML](../diagrams/artemis-system-architecture.html) and
+[standalone SVG](../images/artemis-system-architecture.svg) contain the same diagram.
 The README uses SVG so labels remain sharp when enlarged. Both work without
 remote font or script downloads.
 
@@ -110,7 +110,7 @@ title and description, and inspect the rendered labels and connector geometry.
 
 ## IM collaboration architecture
 
-[HTML source](diagrams/artemis-im-collaboration.html) · [SVG](images/artemis-im-collaboration.svg)
+[HTML source](../diagrams/artemis-im-collaboration.html) · [SVG](../images/artemis-im-collaboration.svg)
 
 The 1280 × 560 companion diagram separates existing IM groups, the Gateway and
 independently authorized desktops. Solid arrows show task delivery; the dashed

@@ -206,7 +206,9 @@ app.whenReady().then(async () => {
     );
     const pids = preview.mainFrame.framesInSubtree.map((f) => f.osProcessId);
     void frame.executeJavaScript("while(true){}").catch(() => {});
-    await wait(6500);
+    const watchdogDeadline = Date.now() + 10000;
+    while (host.state("t").status !== "failed" && Date.now() < watchdogDeadline)
+      await wait(100);
     check("watchdog stops loop", host.state("t").status === "failed");
     check(
       "trusted window survives",

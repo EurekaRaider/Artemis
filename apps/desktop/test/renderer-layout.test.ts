@@ -911,15 +911,15 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('role="option"');
     expect(appSource).toContain("optionButtons.current[nextIndex]?.focus()");
 
-    expect(cssRule(".user-input-card")).toMatch(/\bborder-radius:\s*14px/u);
-    expect(cssRule(".user-input-options")).toMatch(
+    expect(cssRule(".user-input-card")).toMatch(/\bborder-radius:\s*10px/u);
+    expect(cssRule(".user-input-card .user-input-options")).toMatch(
       /grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
     );
-    expect(cssRule(".user-input-options-scroll")).toMatch(
+    expect(cssRule(".user-input-card .user-input-options-scroll")).toMatch(
       /\boverflow-y:\s*auto/u,
     );
-    expect(cssRule(".user-input-option.active")).toMatch(
-      /\bborder-color:\s*color-mix/u,
+    expect(cssRule(".user-input-card .user-input-option.active")).toMatch(
+      /\bbackground:\s*var\(--artemis-color-surface-sunken\)/u,
     );
   });
 

@@ -848,6 +848,7 @@ export interface ArtemisApi {
     bounds: { x: number; y: number; width: number; height: number },
     visible: boolean,
   ): Promise<void>;
+  reportTaskView(input: { threadId?: string; seenSeq?: number }): void;
   onImTaskCreated(listener: (thread: Thread) => void): () => void;
   getImStatus(): Promise<
     ImStatus & { connections?: unknown[]; spaces?: unknown[] }
@@ -1198,6 +1199,7 @@ export const IPC = {
   designState: "artemis:design-state",
   designAction: "artemis:design-action",
   designBounds: "artemis:design-bounds",
+  taskView: "artemis:task-view",
   imTaskCreated: "artemis:im-task-created",
   imStatus: "artemis:im-status",
   imSave: "artemis:im-save",

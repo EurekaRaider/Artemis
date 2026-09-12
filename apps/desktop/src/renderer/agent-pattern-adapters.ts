@@ -154,9 +154,11 @@ export function approvalPatternView(
       scope,
     });
   };
-  appendApprovalAction("project", "approve-project");
-  appendApprovalAction("session", "approve-session");
   appendApprovalAction("once", "approve-once");
+  if (!approval.allowedScopes.includes("project")) {
+    appendApprovalAction("session", "approve-session");
+  }
+  appendApprovalAction("project", "approve-project");
   return {
     actions,
     ...(actorLabel ? { actorLabel } : {}),
