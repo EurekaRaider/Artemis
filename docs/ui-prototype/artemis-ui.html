@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=167" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=168" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=146" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -478,7 +478,14 @@
 </div>
 <span class="sp"></span>
 <div class="design-ws-actions">
-<button aria-label="演示模式" class="design-ws-iconbtn" id="dzPresentBtn" title="演示模式" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M10.3 9.6v4.8l4.3-2.4z" fill="currentColor" stroke="none"></path></svg></button>
+<div class="design-ws-present">
+<button aria-expanded="false" aria-haspopup="menu" aria-label="演示" class="design-ws-iconbtn" id="dzPresentBtn" title="演示" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M10.3 9.6v4.8l4.3-2.4z" fill="currentColor" stroke="none"></path></svg></button>
+<div class="dz-menu dz-present-menu" hidden="" id="dzPresentMenu" role="menu">
+<button class="dz-menu-item" data-dz-present="tab" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M2.8 12S6 6.2 12 6.2 21.2 12 21.2 12 18 17.8 12 17.8 2.8 12 2.8 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>在当前标签页</button>
+<button class="dz-menu-item" data-dz-present="fullscreen" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M8.2 5.8v12.4L18.4 12z"></path></svg>全屏</button>
+<button class="dz-menu-item" data-dz-present="newtab" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M14 4h6v6"></path><path d="M20 4l-8.5 8.5"></path><path d="M18.5 13.5V18A1.5 1.5 0 0 1 17 19.5H6A1.5 1.5 0 0 1 4.5 18V7A1.5 1.5 0 0 1 6 5.5h4.5"></path></svg>新标签页</button>
+</div>
+</div>
 <button aria-label="版本历史" class="design-ws-iconbtn" id="dzHistoryBtn" title="版本历史" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></button>
 <div class="dz-export">
 <button class="btn btn-primary design-ws-export" id="dzExportBtn" type="button">导出</button>
@@ -1424,6 +1431,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=153"></script>
+<script src="workspace/workspace.js?v=155"></script>
 </body>
 </html>

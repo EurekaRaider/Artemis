@@ -1790,7 +1790,7 @@
       $$(".dz-menu").forEach(function (m) {
         m.hidden = true;
       });
-      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger").forEach(function (b) {
+      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn").forEach(function (b) {
         b.setAttribute("aria-expanded", "false");
       });
     }
@@ -2142,38 +2142,123 @@
       dzToast("已恢复，并存成一个新版本");
     });
 
-    /* 演示模式：stage 整体移入全屏层，退出时归位 */
+    /* 演示模式：下拉选演示方式；stage 整体移入全屏层，退出时归位 */
     var presentLayer = $("#dzPresentLayer");
     var presentReturnTo = null;
-    function dzPresentExit() {
-      if (presentLayer.hidden) return;
-      presentLayer.hidden = true;
-      if (presentReturnTo) presentReturnTo.parentNode.insertBefore(dzStage, presentReturnTo);
-      dzPresentBtn.classList.remove("active");
-    }
-    var dzPresentBtn = $("#dzPresentBtn");
-    dzPresentBtn.addEventListener("click", function () {
-      if (!presentLayer.hidden) {
-        dzPresentExit();
-        return;
-      }
+    function dzPresentEnter(fullscreen) {
+      if (!dzViewFiles.hidden) dzShow("preview", "customer.html");
       var file = $(".design-ws-tab.active .design-ws-label");
       $("#dzPresentTitle").textContent = (file ? file.textContent : "customer.html") + " · 演示中";
       presentReturnTo = dzStage.nextSibling;
       presentLayer.appendChild(dzStage);
       presentLayer.hidden = false;
       dzPresentBtn.classList.add("active");
+      if (fullscreen && presentLayer.requestFullscreen) {
+        presentLayer.requestFullscreen().catch(function () {});
+      }
+    }
+    function dzPresentExit() {
+      if (presentLayer.hidden) return;
+      presentLayer.hidden = true;
+      if (presentReturnTo) presentReturnTo.parentNode.insertBefore(dzStage, presentReturnTo);
+      dzPresentBtn.classList.remove("active");
+      if (document.fullscreenElement === presentLayer && document.exitFullscreen) {
+        document.exitFullscreen().catch(function () {});
+      }
+    }
+    function dzCollectMockCss() {
+      var out = "";
+      function walk(rules) {
+        Array.prototype.forEach.call(rules, function (rule) {
+          if (rule.styleSheet) {
+            try {
+              walk(rule.styleSheet.cssRules);
+            } catch (err) {
+              /* 跨域或尚未加载的 @import，跳过 */
+            }
+            return;
+          }
+          var text = rule.cssText || "";
+          if (/^:root|\[data-theme|\.dz-stage|\.design-mock|\.mock-|\.dz-phone/.test(text)) out += text + "\n";
+        });
+      }
+      Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+        var rules = null;
+        try {
+          rules = sheet.cssRules;
+        } catch (err) {
+          rules = null;
+        }
+        if (rules) walk(rules);
+      });
+      return out;
+    }
+    function dzPresentNewTab() {
+      var file = $(".design-ws-tab.active .design-ws-label");
+      var name = file ? file.textContent : "customer.html";
+      var attrs =
+        ' data-theme="' +
+        (document.documentElement.dataset.theme || "light") +
+        '" data-contrast="' +
+        (document.documentElement.dataset.contrast || "normal") +
+        '" data-direction="' +
+        (document.documentElement.dataset.direction || "a") +
+        '"';
+      var doc =
+        '<!doctype html><html lang="zh-CN"' +
+        attrs +
+        "><head><meta charset=\"utf-8\">" +
+        '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+        "<title>" +
+        name +
+        " · 演示</title><style>html,body{margin:0;min-height:100%}" +
+        "body{display:flex;flex-direction:column;background:var(--surface-2,#f5f5f7);color:var(--text,#111);" +
+        "font-family:var(--font-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif)}" +
+        ".pd-bar{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:12.5px;font-weight:600;" +
+        "background:var(--surface,#fff);border-bottom:1px solid var(--border-soft,rgba(0,0,0,.1))}" +
+        ".pd-bar small{font-weight:400;font-size:11px;color:var(--text-2,#666)}" +
+        ".pd-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px}" +
+        ".pd-body .dz-stage{width:min(920px,92vw) !important;transform:none !important;margin:auto}" +
+        dzCollectMockCss() +
+        "</style></head><body>" +
+        '<div class="pd-bar"><span>' +
+        name +
+        ' · 演示</span><small>原型演示模式生成的静态页面</small></div>' +
+        '<div class="pd-body">' +
+        dzStage.outerHTML +
+        "</div></body></html>";
+      var url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
+      if (!window.open(url, "_blank")) dzToast("浏览器拦截了弹出窗口");
+    }
+    var dzPresentBtn = $("#dzPresentBtn");
+    $("#dzPresentMenu").addEventListener("click", function (e) {
+      var item = e.target.closest(".dz-menu-item");
+      if (!item) return;
+      $("#dzPresentMenu").hidden = true;
+      dzPresentBtn.setAttribute("aria-expanded", "false");
+      if (item.dataset.dzPresent === "tab") dzPresentEnter(false);
+      else if (item.dataset.dzPresent === "fullscreen") dzPresentEnter(true);
+      else dzPresentNewTab();
     });
     $("#dzPresentExit").addEventListener("click", dzPresentExit);
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && !presentLayer.hidden) {
+      if (e.key !== "Escape") return;
+      if (!$("#dzPresentMenu").hidden) {
+        $("#dzPresentMenu").hidden = true;
+        dzPresentBtn.setAttribute("aria-expanded", "false");
+        return;
+      }
+      if (!presentLayer.hidden) {
         e.stopPropagation();
         dzPresentExit();
       }
     });
+    document.addEventListener("fullscreenchange", function () {
+      if (!document.fullscreenElement && !presentLayer.hidden) dzPresentExit();
+    });
 
     /* 导出 / 新建标签 / 项目菜单：toggle 式下拉 */
-    [["#dzExportBtn", "#dzExportMenu"], ["#dzPlusBtn", "#dzPlusMenu"], ["#dzProjectBtn", "#dzProjectMenu"]].forEach(
+    [["#dzExportBtn", "#dzExportMenu"], ["#dzPlusBtn", "#dzPlusMenu"], ["#dzProjectBtn", "#dzProjectMenu"], ["#dzPresentBtn", "#dzPresentMenu"]].forEach(
       function (pair) {
         $(pair[0]).addEventListener("click", function (e) {
           e.stopPropagation();

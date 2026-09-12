@@ -3521,8 +3521,9 @@ body[data-dock="open"] .dock-resizer {
 }
 
 /* 标签条/面包屑内的下拉定位容器 */
-.dz-export, .dz-plus { position: relative; }
+.dz-export, .dz-plus, .design-ws-present { position: relative; }
 .dz-export-menu { left: auto; right: 0; top: calc(100% + 8px); }
+.dz-present-menu { left: auto; right: 0; top: calc(100% + 8px); }
 .dz-plus-menu { top: calc(100% + 8px); left: 0; }
 .design-crumb { position: relative; }
 .dz-crumb-menu { top: calc(100% + 4px); left: 0; }
