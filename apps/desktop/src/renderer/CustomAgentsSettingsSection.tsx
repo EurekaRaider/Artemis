@@ -88,7 +88,7 @@ const labels = {
     editorEditTitle: "Edit: {name}",
     editorHint:
       "Fill in the name, tools, and dedicated prompt; saving returns to the list.",
-    name: "Identity name",
+    name: "Name",
     nameRequired: "Name is required",
     description: "Description",
     color: "Color",
@@ -159,7 +159,7 @@ const labels = {
     sectionDispatch: "调度与范围",
     editorEditTitle: "编辑：{name}",
     editorHint: "填写名称、工具与专用提示词，保存后返回列表。",
-    name: "身份名称",
+    name: "名称",
     nameRequired: "请填写名称",
     description: "描述",
     color: "颜色",

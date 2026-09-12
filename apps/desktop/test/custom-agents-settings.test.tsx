@@ -273,7 +273,7 @@ describe("CustomAgentsSettingsSection", () => {
       ),
     );
 
-    await user.type(screen.getByLabelText("Identity name"), "Docs writer");
+    await user.type(screen.getByLabelText("Name"), "Docs writer");
 
     // Local validation mirrors CUSTOM_AGENT_INVALID: an empty prompt blocks
     // the save with a field error instead of an IPC rejection.
@@ -325,7 +325,7 @@ describe("CustomAgentsSettingsSection", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(api.customAgentsCreate).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Identity name")).toBeNull();
+    expect(screen.queryByLabelText("Name")).toBeNull();
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
@@ -333,13 +333,13 @@ describe("CustomAgentsSettingsSection", () => {
     const user = userEvent.setup();
     const { api } = renderSection();
     await user.click(screen.getByRole("button", { name: "New sub-agent" }));
-    await user.type(screen.getByLabelText("Identity name"), "Discarded");
+    await user.type(screen.getByLabelText("Name"), "Discarded");
 
     // Cancel with unsaved changes swaps the footer into keep/discard mode
     // instead of closing.
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByText("You have unsaved changes")).toBeInTheDocument();
-    expect(screen.getByLabelText("Identity name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
     expect(
@@ -351,7 +351,7 @@ describe("CustomAgentsSettingsSection", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(api.customAgentsCreate).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Identity name")).toBeNull();
+    expect(screen.queryByLabelText("Name")).toBeNull();
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
