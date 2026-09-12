@@ -665,6 +665,15 @@
       "important": false,
       "owner": "Desktop custom sub-agent management (D#152 PR4)",
       "reason": "Align the 10px color dot with the management-row title baseline in the custom sub-agent settings list."
+    },
+    {
+      "atRules": [],
+      "selector": ".custom-agent-dialog [data-artemis-component=\"select\"] :is([data-part=\"trigger\"], [data-part=\"search\"])",
+      "property": "padding-inline",
+      "value": "12px",
+      "important": false,
+      "owner": "Desktop custom sub-agent editor dialog (D#152)",
+      "reason": "Dialog selects show visible labels next to 12px-inset text fields; keep the option text inset aligned instead of hugging the control edge."
     }
   ]
 }
