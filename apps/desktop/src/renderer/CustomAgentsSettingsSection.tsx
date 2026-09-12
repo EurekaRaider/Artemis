@@ -12,6 +12,7 @@ import type { AppLocale } from "@artemis/protocol";
 import {
   CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS,
   CUSTOM_AGENT_CATALOG_TEXT_BUDGET,
+  CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES,
   checkCatalogBudget,
 } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
@@ -63,6 +64,12 @@ const COLOR_TOKENS = [
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
 
+// UTF-8 byte size mirrors the main-process CUSTOM_AGENT_INVALID contract;
+// CJK text runs 3 bytes per character, so a character count would understate.
+const utf8Bytes = (text: string) => new TextEncoder().encode(text).length;
+const INSTRUCTIONS_LIMIT_KB = CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES / 1024;
+const formatKb = (bytes: number) => `${(bytes / 1024).toFixed(1)}`;
+
 const labels = {
   en: {
     title: "Custom sub-agents",
@@ -86,6 +93,9 @@ const labels = {
     color: "Color",
     instructions: "Dedicated prompt",
     instructionsRequired: "The dedicated prompt is required",
+    instructionsUsage: "{used} KB of the {max} KB limit used",
+    instructionsOverLimit:
+      "The dedicated prompt exceeds the {max} KB limit ({used} KB). Trim it before saving.",
     instructionsHint:
       "Appended to the child agent's system prompt; never overrides Artemis identity, mode, or team rules.",
     scope: "Project scope",
@@ -150,6 +160,9 @@ const labels = {
     color: "颜色",
     instructions: "专用提示词",
     instructionsRequired: "请填写专用提示词",
+    instructionsUsage: "已用 {used} KB / 上限 {max} KB",
+    instructionsOverLimit:
+      "专用提示词超出 {max} KB 上限（当前 {used} KB），请精简后再保存。",
     instructionsHint:
       "追加到子智能体系统提示的受控位置，不会覆盖 Artemis 身份、模式约束与团队协议。",
     scope: "项目范围",
@@ -306,7 +319,7 @@ export function CustomAgentsSettingsSection({
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [nameError, setNameError] = useState(false);
-  const [instructionsError, setInstructionsError] = useState(false);
+  const [instructionsError, setInstructionsError] = useState<string>();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string>();
   const [capabilityPreview, setCapabilityPreview] = useState<string[]>();
 
@@ -429,7 +442,7 @@ export function CustomAgentsSettingsSection({
     setEditingId(null);
     setError(undefined);
     setNameError(false);
-    setInstructionsError(false);
+    setInstructionsError(undefined);
   };
 
   const openCreate = () => {
@@ -508,12 +521,24 @@ export function CustomAgentsSettingsSection({
   const save = async (event: FormEvent) => {
     event.preventDefault();
     // Mirror the main-process contract (CUSTOM_AGENT_INVALID) so an empty
-    // form fails locally with field errors instead of an IPC rejection.
+    // or over-limit form fails locally with field errors instead of an IPC
+    // rejection (issue #196 for the 16 KB instructions ceiling).
     const nameInvalid = !form.name.trim();
     const instructionsInvalid = !form.instructions.trim();
+    const instructionsBytes = utf8Bytes(form.instructions);
+    const instructionsOverLimit =
+      instructionsBytes > CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES;
     setNameError(nameInvalid);
-    setInstructionsError(instructionsInvalid);
-    if (nameInvalid || instructionsInvalid) return;
+    setInstructionsError(
+      instructionsOverLimit
+        ? t.instructionsOverLimit
+            .replace("{used}", formatKb(instructionsBytes))
+            .replace("{max}", String(INSTRUCTIONS_LIMIT_KB))
+        : instructionsInvalid
+          ? t.instructionsRequired
+          : undefined,
+    );
+    if (nameInvalid || instructionsInvalid || instructionsOverLimit) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -995,12 +1020,22 @@ export function CustomAgentsSettingsSection({
                 )}
               </fieldset>
               <TextAreaField
-                description={t.instructionsHint}
+                description={
+                  utf8Bytes(form.instructions) >=
+                  CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES * 0.9
+                    ? `${t.instructionsHint} ${t.instructionsUsage
+                        .replace(
+                          "{used}",
+                          formatKb(utf8Bytes(form.instructions)),
+                        )
+                        .replace("{max}", String(INSTRUCTIONS_LIMIT_KB))}`
+                    : t.instructionsHint
+                }
                 disabled={busy}
-                error={instructionsError ? t.instructionsRequired : undefined}
+                error={instructionsError}
                 label={t.instructions}
                 onValueChange={(instructions) => {
-                  setInstructionsError(false);
+                  setInstructionsError(undefined);
                   setForm((f) => ({ ...f, instructions }));
                 }}
                 rows={6}
