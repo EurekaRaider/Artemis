@@ -42,21 +42,6 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 
 <br />
 
-## New in 1.5.8: custom sub-agents
-
-Create reusable sub-agents in Settings with dedicated instructions, model
-preferences, project associations and tool allowlists. Select a definition with
-`@` in an idle task's composer to invoke it, or enable automatic delegation for
-eligible definitions. Running tasks do not accept new structured `@` references.
-
-Each accepted instance freezes its definition and tool policy. Effective access
-is limited by the task mode, parent permissions and definition; later revocation
-blocks further tool calls. Explicit requests for unavailable definitions return
-an error instead of silently falling back to a generic agent.
-
-See the [custom sub-agent implementation notes](docs/features/custom-subagents/implementation-status.md)
-for validation evidence and current limitations.
-
 ## 01 / System overview
 
 ### Built for work, not just code
@@ -1050,6 +1035,24 @@ Artemis implements multi-Agent work as a tree of real Pi-backed sessions. The
 root remains responsible for decomposition, conflict-free assignment,
 monitoring, integration and the final response; child Agents may supervise a
 bounded subteam and must integrate it before completing.
+
+#### Custom sub-agents
+
+Create reusable sub-agents in Settings with dedicated instructions, model
+preferences, project associations and tool allowlists, so you can reuse the same
+specialist setup across tasks.
+
+Select a custom sub-agent with `@` in an idle task's composer to invoke it, or
+enable automatic delegation for eligible definitions. Running tasks do not
+accept new structured `@` references.
+
+Each accepted instance keeps a fixed snapshot of its definition and tool policy.
+Its access is limited by the task mode, parent permissions and definition;
+revoking permissions blocks further tool calls. Explicit requests for unavailable
+definitions return an error instead of silently falling back to a generic agent.
+
+See the [custom sub-agent implementation notes](docs/features/custom-subagents/implementation-status.md)
+for validation evidence and current limitations.
 
 <details open>
 <summary><strong>01 · Scheduling and Ultra Mode</strong></summary>
