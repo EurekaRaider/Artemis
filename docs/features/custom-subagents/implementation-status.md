@@ -26,11 +26,14 @@
 - 自动委派可独立关闭：定义的“允许自动调用”开关或清空自动集合即可让路由退化为纯手动 @，显式调用链路不依赖自动目录。
 - 定义执行能力异常时，运行时对失效定义返回编码错误（`CUSTOM_AGENT_DISABLED` / `CUSTOM_AGENT_NOT_FOUND`），显式请求不会静默退化为自由角色。
 
-## PR6 发布验收证据
+## PR6 发布验收证据（2026-09-13 执行，main @ `8505bbc`）
 
-- 全量测试 / typecheck / build：见本节提交时的 CI 记录与本地运行输出。
-- 真实桌面运行：以隔离用户数据与合成项目执行（设置 → 新建子智能体 → @ 调用 → 实例展示 → 自动路由审计），不使用个人提示词作为素材。
-- 平台范围：本次仅记录 macOS 桌面运行；Windows 与 macOS 打包产物（签名/公证/更新/回滚）不在本次声明范围内，按项目合同在发布时另行提供证据。
+- 门禁：`npm test` 全链通过（pre-push 校验、gateway/protocol/platform/agent-host/theme-contract/ui/theme-artemis/ui-gallery 测试、皮肤包与一致性、UI 收敛/UI 边界/UI 包消费者、desktop 构建、UI 性能、ui-gallery 校验、desktop 测试；exit 0）；`npm run typecheck` exit 0；`npm run build` exit 0。
+- 真实桌面运行（隔离用户数据）：`--user-data-dir` 指向 `/tmp/artemis-acceptance-home/desktop` 启动 v1.5.8 桌面构建；预置合成项目 `PR6 合成验收项目`（`/tmp/artemis-acceptance-project`）；供应商配置自本机 Keychain 同身份拷贝解密。
+- 桌面流程：设置 → 智能体配置 → 新建子智能体 `acceptance-release-drafter`（scope=selected 绑定合成项目、仅手动 @、触发词"发布说明/release notes"、专用提示词 0.2 KiB，保存后列表"1 项"）→ 合成项目会话结构化 @ 调用（提及弹窗仅列出生效定义，项目过滤实时生效）→ 任务"为本项目 README 起草 5 条发布说明要点"→ 34 s 完成 → 主智能体整合交付。
+- 实例展示：环境面板行与 Agent 团队面板成员行均为 `@acceptance-release-drafter · r1 · kimi-coding/k3 · @ 调用`；团队消息含子代理交接（5 条要点）与主 Agent 整合确认。截图存于 `/tmp/pr6-e2e-*.png`、`/tmp/artemis-running.png`（临时目录，仅作执行当日凭证）。
+- 自动路由/调用审计：`custom_agent_invocations` 恰一条记录（invocation `fd08f89e…`、`definition_revision=1`、`status=finished`）；`custom_agents.revision=1`、`scope='selected'`、`enabled=1`；`custom_agent_projects` 绑定 1 条。
+- 未验证平台范围：Windows 与 macOS 打包产物（签名/公证/更新/回滚）按项目合同在发布时另行提供证据；本次为 macOS 桌面（开发构建）+ 真实模型运行。
 
 ## PR #192 审核修复
 
