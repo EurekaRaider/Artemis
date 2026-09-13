@@ -482,7 +482,7 @@
     },
     {
       "atRules": [],
-      "selector": ".im-setup-steps p, .settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
+      "selector": ".settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
       "property": "margin-block",
       "value": "6px",
       "important": false,

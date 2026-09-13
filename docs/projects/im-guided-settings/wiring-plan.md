@@ -210,3 +210,9 @@
 - **测试迁移**：nav() 助手删除，新增 `openCard/platformCard/platformState/openGroupSetup` 助手；信号测试改查平台选择行 `data-connection-state`；~20 个管理态用例改走卡片导航；ready 用例改为「完成态直达概览」；tab 键导航改为卡头 Enter 切换；截图契约从 `.im-channel-card` 迁到 `.im-platform-card`；ImNavigation 独立 compact 用例删除。
 - **死 CSS 清理**：`.im-wizard/.im-guide-link/.im-channel-list/.im-channel-card/.im-common-*/.im-nav-*/.im-layout/.im-detail` 等全部移除，`verify:ui-convergence` 全绿。
 - 门禁：仓库根 `npm test` 1673 通过 + `typecheck` 全绿。
+
+### P6 部分先行（进行中）
+
+- **ImSetupGuide 主组件退役**：六步向导组件删除（ImGatewayInstructions/ImFirstTaskInstructions 保留且仍被④⑤卡使用）；配套 CSS（.im-setup-steps/.im-step-*/.is-current/.im-setup-guide）与收敛契约登记同步清理；分组规则中的仍存活选择器（.settings-section textarea 行距、.im-test-steps）已恢复。图标冻结清单 10→9。
+- **PR-S4 决议落档**：测试任务自动验收（消息→任务→完成→回执四段关联 + 防历史任务冒充）单独立项，本期为 D4 诚实版 V1；原「第 6 步 done 硬编码 false」的 ImSetupGuide 已随向导退役，新⑤卡由 im-flow-derive 的用户确认标记承载，无伪装自动验收。
+- **待办**：verify:im 真机 e2e 适配并跑通（按钮改名/范围树显隐/导航结构三处影响已在 P2/P4 记录）；PR-S5 im-gateway README 三处修订；DOC-1/2 提案修订；提案状态更新。

@@ -1274,12 +1274,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 .environment-rows,
 .environment-activity-list,
 .model-picker-options > button.ultra-mode-option > span,
-.im-step-button [data-part="label"] {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
 .environment-rows {
   margin-inline: 0;
   width: 100%;
@@ -7256,10 +7250,6 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .review-line.addition,
-.im-setup-steps [data-done="true"] .im-step-status {
-  color: var(--success);
-}
-
 .review-line.deletion,
 .review-empty.error,
 .text-button.danger {
@@ -9885,17 +9875,15 @@ kbd {
   cursor: pointer;
   padding-block: 12px;
 }
-.im-setup-steps,
-.im-test-steps {
-  display: grid;
-  gap: 16px;
-  padding-inline-start: 24px;
-}
-.im-setup-steps p,
 .settings-section
   > [data-part="content"]
   > :is([data-artemis-component="textarea-field"], .configuration-import) {
   margin-block: 6px;
+}
+.im-test-steps {
+  display: grid;
+  gap: 16px;
+  padding-inline-start: 24px;
 }
 .im-command {
   white-space: pre-wrap;
@@ -10209,49 +10197,6 @@ kbd {
   font-family: var(--artemis-typography-mono-family);
   overflow-wrap: anywhere;
 }
-.im-setup-steps {
-  list-style: none;
-  padding-inline-start: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-}
-.im-settings .im-setup-steps li {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  column-gap: 8px;
-  margin: 0;
-  padding: 9px 10px;
-  border-bottom: 0;
-  align-items: center;
-  gap: 10px;
-  border: 0;
-  border-radius: 8px;
-}
-.im-setup-steps button {
-  justify-content: flex-start;
-  white-space: normal;
-  text-align: start;
-}
-.im-setup-steps p {
-  display: none;
-  grid-column: 1 / -1;
-  color: var(--muted);
-}
-.im-setup-steps .is-current p {
-  display: block;
-}
-.im-setup-steps .is-current button {
-  color: var(--blue);
-}
-.im-step-status {
-  font-size: 11px;
-  margin: 0;
-  color: var(--muted);
-}
 .im-platform-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -10285,9 +10230,6 @@ kbd {
   }
 }
 
-.im-setup-steps .is-current {
-  background: var(--artemis-color-interaction-selected);
-}
 /* At high zoom, keep every outer tab reachable without consuming the IM viewport. */
 @media (max-width: 52rem) and (max-height: 36rem) {
   .settings-panel:has(.im-settings)
@@ -11065,59 +11007,6 @@ kbd {
   margin-inline-start: auto;
   gap: 12px;
   max-width: 100%;
-}
-
-.im-setup-guide {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  gap: 12px;
-}
-
-.im-setup-guide > [data-part="header"] [data-part="title"] {
-  font-size: 12.5px;
-  font-weight: 510;
-  color: var(--artemis-color-text-secondary);
-}
-
-.im-setup-guide > [data-part="header"] [data-part="description"] {
-  font-size: 11.5px;
-}
-
-.im-step-mark {
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  color: var(--artemis-color-text-tertiary);
-}
-
-.im-setup-steps .im-step-button {
-  justify-content: flex-start;
-  align-items: stretch;
-  min-width: 0;
-  min-height: 0;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  text-align: start;
-}
-
-.im-step-button strong {
-  font-size: 12.5px;
-  font-weight: 590;
-  line-height: 18.75px;
-  color: var(--artemis-color-text-primary);
-}
-
-.im-step-button small {
-  font-size: 11px;
-  line-height: 16.5px;
-  color: var(--artemis-color-text-tertiary);
-}
-
-.im-setup-steps .is-current .im-step-mark {
-  color: var(--artemis-color-accent-primary);
 }
 
 .settings-header [data-variant="quiet"] {
