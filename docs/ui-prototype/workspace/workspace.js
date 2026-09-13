@@ -663,6 +663,7 @@
         gateway: { started: false, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: false,
         connections: { feishu: [], wecom: [], slack: [] },
+        platformReady: { feishu: false, wecom: false, slack: false },
         pairingRequests: [],
         bindings: [],
         groups: [],
@@ -684,6 +685,7 @@
           wecom: [],
           slack: [],
         },
+        platformReady: { feishu: false, wecom: false, slack: false },
         pairingRequests: [],
         bindings: [],
         groups: [],
@@ -710,6 +712,7 @@
             { conn: "conn-4", app: "Artemis 机器人", state: "reconnecting", attempt: 2 },
           ],
         },
+        platformReady: { feishu: true, wecom: true, slack: false },
         pairingRequests: [{ name: "张伟", id: "u_33c1", platform: "feishu" }],
         bindings: [
           { name: "王小明", id: "u_9f3a", platform: "feishu", mode: "Plan", muted: true },
@@ -1099,6 +1102,18 @@
       }
       return (
         '<div class="im-subcard" data-im-subcard="' + p.key + '" hidden="">' +
+        /* 三子阶段（提案第二步）：准备机器人 → 填写凭据并连接 → 完成平台接收设置 */
+        '<ol class="im-substages" data-im-substages="">' +
+        '<li data-substage="1">准备机器人</li>' +
+        '<li data-substage="2">填写凭据并连接</li>' +
+        '<li data-substage="3">完成平台接收设置</li></ol>' +
+        '<div class="im-stage1"><button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>查看接入指引（权限与事件订阅）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
+        '<div class="im-fold-body" hidden="">' + imGuideTemplate(p.key) + "</div></div>" +
+        /* 团队态：Gateway 上已有机器人，选用即连，无需凭据 */
+        '<div class="im-team-bots" data-im-team-bots="" hidden="">' +
+        '<p class="im-fine">团队 Gateway 上已有可用机器人，选用即可，无需填写凭据。</p>' +
+        '<button class="im-team-bot" data-im-team-pick="" type="button"><strong>Artemis 团队机器人 · ' + p.name + '</strong><small>已连接到团队 Gateway · 选用后即可配对</small></button>' +
+        '<button class="im-demo-link" data-im-team-custom="" type="button">改用自己的凭据 →</button></div>' +
         '<div class="im-subcard-saved" data-im-cred-saved="" hidden="">' +
         '<p class="im-muted">演示配置已保存，密钥已清空。实际产品在 Gateway 加密保存。</p>' +
         '<div class="btn-pair"><button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button>' +
@@ -1111,10 +1126,27 @@
         '<p class="im-fine" data-im-connect-help="" hidden="">正在用新密钥连接机器人，通常几秒。</p>' +
         '<div class="btn-pair"><button class="btn btn-ghost" data-im-fill-demo="" type="button">填入演示值</button><button class="btn btn-primary" data-im-cred-save="" type="button">保存并重连</button>' +
         '<button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>' +
-        '<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-sim-outcome=""><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option></select></p></form>' +
-        '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>接入指引（权限与事件订阅）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
-        '<div class="im-fold-body" hidden="">' + imGuideTemplate(p.key) + "</div></div>"
+        '<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-sim-outcome=""><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option>' +
+        (p.key === "slack" ? '<option value="mismatch">两 Token 不同应用</option>' : "") +
+        "</select></p></form>" +
+        /* 阶段3：平台侧步骤由用户确认，不伪装系统检测 */
+        '<div class="im-stage3" data-im-stage3="" hidden="">' +
+        '<p class="im-fine">' + imStage3Copy(p.key) + "</p>" +
+        '<label class="settings-checkbox"><input type="checkbox" data-im-receive-ready=""/><span>我已在平台完成接收设置</span></label>' +
+        '<p class="im-fine" data-im-receive-note="" hidden="">收发将在配对时验证。</p>' +
+        '<div class="btn-pair"><button class="btn btn-primary" data-im-receive-done="" disabled="" type="button">已完成平台设置，继续</button></div>' +
+        '<p class="im-fine" data-im-receive-done-note="" hidden="">已确认 · 收发将在配对时验证。</p>' +
+        "</div></div>"
       );
+    }
+
+    /* 阶段3 说明按平台生成（对齐生产平台侧步骤） */
+    function imStage3Copy(platformKey) {
+      if (platformKey === "feishu")
+        return "回飞书后台：事件订阅选择「长连接」、订阅消息事件，然后创建版本并发布。做完再来勾选。";
+      if (platformKey === "wecom")
+        return "回企业微信确认机器人已发布，且自己已在「可使用成员」范围。做完再来勾选。";
+      return "回 Slack 确认应用已安装到工作区、Socket Mode 已开启。做完再来勾选。";
     }
 
     function imGuideTemplate(platformKey) {
@@ -1589,6 +1621,41 @@
       bar.innerHTML = html;
     }
 
+    /* ② 三子阶段渲染：阶段条高亮（未连接=② / 已连接未确认=③）+ 阶段3 显隐与确认态 */
+    function imRenderSubstages() {
+      IM_PLATFORMS.forEach(function (p) {
+        var row = imPanel.querySelector('[data-im-platform="' + p.key + '"]');
+        if (!row) return;
+        var sub = row.querySelector("[data-im-subcard]");
+        if (!sub) return;
+        var st = imDerived.platforms[p.key];
+        var connected = st.ok > 0;
+        var ready = !!(imState.platformReady && imState.platformReady[p.key]);
+        Array.prototype.forEach.call(
+          sub.querySelectorAll("[data-substage]"),
+          function (li) {
+            var n = li.getAttribute("data-substage");
+            li.classList.toggle("done", n === "2" ? connected : n === "3" ? ready : false);
+            li.classList.toggle("cur", !ready && n === (connected ? "3" : "2"));
+          },
+        );
+        var stage3 = sub.querySelector("[data-im-stage3]");
+        if (stage3) {
+          stage3.hidden = !connected;
+          var doneNote = stage3.querySelector("[data-im-receive-done-note]");
+          if (doneNote) doneNote.hidden = !ready;
+          var box = stage3.querySelector(".settings-checkbox");
+          if (box) box.hidden = ready;
+          var btnRow = stage3.querySelector(".btn-pair");
+          if (btnRow) btnRow.hidden = ready;
+          if (ready) {
+            var note = stage3.querySelector("[data-im-receive-note]");
+            if (note) note.hidden = true;
+          }
+        }
+      });
+    }
+
     function imRefresh() {
       var recovery = imPanel.querySelector("[data-im-recovery]");
       if (recovery) recovery.hidden = !imState.gateway.linkBroken;
@@ -1601,8 +1668,9 @@
       imPanel.querySelector("[data-im-service-empty]").hidden = imState.gateway.started;
       imPanel.querySelector("[data-im-service-ready]").hidden = !imState.gateway.started;
       imRenderService();
-      /* ② 平台行信号灯与聚合文案（暂停时转 idle） */
+      /* ② 平台行信号灯与聚合文案（暂停时转 idle）+ 三子阶段 */
       imUpdatePlatformRows();
+      imRenderSubstages();
       /* ③ 等待卡与衔接行 */
       imRenderWaitCard();
       imPanel.querySelector("[data-im-goto-projects]").hidden = imDerived.projectsDone;
@@ -1821,13 +1889,20 @@
       var sub = row.querySelector("[data-im-subcard]");
       var st = imDerived.platforms[platformKey];
       var configured = st.conns.length > 0;
+      /* 团队态：未配置平台优先呈现团队机器人列表（选用即连），跳过凭据表单 */
+      var team = !!imState.gateway.team && !configured && !focusSecret;
+      var showForm = (!configured || focusSecret) && !team;
       sub.hidden = false;
-      sub.querySelector("[data-im-cred-saved]").hidden = !configured || focusSecret;
-      sub.querySelector("[data-im-cred-form]").hidden = configured && !focusSecret;
-      var first = sub.querySelector(
-        focusSecret ? 'input[type="password"]' : "input, select",
-      );
-      if (first) first.focus();
+      var teamBox = sub.querySelector("[data-im-team-bots]");
+      if (teamBox) teamBox.hidden = !team;
+      sub.querySelector("[data-im-cred-saved]").hidden = !(configured && !focusSecret && !team);
+      sub.querySelector("[data-im-cred-form]").hidden = !showForm;
+      if (showForm) {
+        var first = sub.querySelector(
+          focusSecret ? 'input[type="password"]' : "input, select",
+        );
+        if (first) first.focus();
+      }
     }
     function imCloseSubcard(platformKey) {
       var row = imPanel.querySelector('[data-im-platform="' + platformKey + '"]');
@@ -1872,6 +1947,15 @@
       /* ① 启动演示结果（成功 / 端口被占用 / 注册失败） */
       var svcOutcome = ev.target.closest("[data-im-service-outcome]");
       if (svcOutcome && imState.sim) imState.sim.serviceOutcome = svcOutcome.value;
+      /* ② 阶段3：勾选「我已在平台完成接收设置」→ 解锁继续按钮 + 显示验证说明 */
+      var ready3 = ev.target.closest("[data-im-receive-ready]");
+      if (ready3) {
+        var sub3 = ready3.closest("[data-im-subcard]");
+        var btn3 = sub3.querySelector("[data-im-receive-done]");
+        if (btn3) btn3.disabled = !ready3.checked;
+        var note3 = sub3.querySelector("[data-im-receive-note]");
+        if (note3) note3.hidden = !ready3.checked;
+      }
     });
     /* 字段帮助：聚焦显示帮助小字；blur 非空校验前缀；输入即清错；
        已显示的错误优先于帮助（不被聚焦覆盖） */
@@ -1974,6 +2058,35 @@
       }
       if (ev.target.closest("[data-im-add]")) {
         imOpenSubcard(key, false);
+        return;
+      }
+      /* 团队态：选用团队机器人（直接建立连接，接收设置由团队管理员维护） */
+      if (ev.target.closest("[data-im-team-pick]")) {
+        imState.sim.session = true;
+        var pickId =
+          "conn-" +
+          (IM_PLATFORMS.reduce(function (n, p) {
+            return n + ((imState.connections[p.key] || []).length);
+          }, 0) + 1);
+        imState.connections[key] = [
+          { conn: pickId, app: "Artemis 团队机器人", state: "ok", note: "已连接 · 刚刚" },
+        ];
+        imState.platformReady[key] = true;
+        imBuildPlatformRows();
+        imUpdatePlatformRows();
+        imBuildInstructions();
+        imRefresh();
+        notice("已选用团队机器人。收发将在配对时验证。");
+        return;
+      }
+      /* 团队态次级路径：改用自己的凭据 */
+      if (ev.target.closest("[data-im-team-custom]")) {
+        var subC = platformRow.querySelector("[data-im-subcard]");
+        subC.querySelector("[data-im-team-bots]").hidden = true;
+        var formC = subC.querySelector("[data-im-cred-form]");
+        formC.hidden = false;
+        var firstC = formC.querySelector("input, select");
+        if (firstC) firstC.focus();
         return;
       }
       if (ev.target.closest("[data-im-reenter]")) {
@@ -2092,7 +2205,7 @@
               if (c.state !== "ok") {
                 c.state = "bad";
                 c.reason =
-                  outcome === "offline" ? "网络中断。检查网络后重试，已保留输入。" : outcome === "permission" ? "平台权限不足。补齐权限、发布并安装应用后重试。" : secretName + " 已失效或不匹配。重新复制后重试，已保留输入。";
+                  outcome === "offline" ? "网络中断。检查网络后重试，已保留输入。" : outcome === "permission" ? "平台权限不足。补齐权限、发布并安装应用后重试。" : outcome === "mismatch" ? "连接握手失败：Bot Token 与 App-Level Token 属于不同应用。两个令牌必须来自同一应用（保存时不校验，连接时才发现）。" : secretName + " 已失效或不匹配。重新复制后重试，已保留输入。";
               }
             });
             save.disabled = false;
@@ -2174,6 +2287,17 @@
         }, IM_T_FADE);
       }
     });
+    /* ② 阶段3「已完成平台设置，继续」：用户确认落 platformReady（不伪装系统检测） */
+    imPanel.addEventListener("click", function (ev) {
+      var done3 = ev.target.closest("[data-im-receive-done]");
+      if (!done3 || done3.disabled) return;
+      var pk = done3.closest("[data-im-subcard]").getAttribute("data-im-subcard");
+      imState.platformReady[pk] = true;
+      imState.sim.session = true;
+      imRefresh();
+      notice("已确认。收发将在配对时验证。");
+    });
+
     /* ③ 双轨：演示直达（幂等，pairWait 判空） */
     imPanel.addEventListener("click", function (ev) {
       if (ev.target.closest("[data-im-pair-arrive]")) imArrivePairing();
@@ -2491,12 +2615,16 @@
       if (scene) {
         var key = scene.dataset.imScene;
         imConfirm("切换演示场景", "当前输入和未保存设置会清空；不会修改实际消息服务。", function () {
-          imApplyDemo(key === "ready" || key === "offline" || key === "expired" ? "alert" : key);
+          imApplyDemo(key === "ready" || key === "offline" || key === "expired" ? "alert" : key === "team" ? "progress" : key);
           if (key === "ready" || key === "offline" || key === "expired") {
             Object.values(imState.connections).flat().forEach(function (c) { c.state = "ok"; delete c.reason; });
             imState.pairingRequests = []; imState.projects.forEach(function (p) { p.expired = false; });
             imState.gateway.linkBroken = key === "offline";
             if (key === "expired") { imSecondsLeft = 0; imCodeExpired = true; imManual.account = true; }
+            imRenderAll();
+          }
+          if (key === "team") {
+            imState.gateway.team = "https://gw.example.com";
             imRenderAll();
           }
           notice("已切换演示场景。");

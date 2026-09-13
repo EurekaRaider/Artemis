@@ -71,6 +71,45 @@ try {
   /* 收起「演示场景」面板，恢复后续检查的初始开合状态 */
   await page.locator('.im-simulation summary').click();
  });
+ await check('C2 bot sub-stages, stage-3 gating, team pick and slack mismatch',async()=>{
+  const wc=page.locator('[data-im-subcard="wecom"]');
+  /* 三阶段：未连接高亮「填写凭据并连接」，连接成功后阶段3出现并拦住继续按钮 */
+  await page.click('[data-im-platform="wecom"] [data-im-add]');
+  assert.equal(await wc.locator('[data-substage="2"]').evaluate(e=>e.classList.contains('cur')),true);
+  await page.locator('[data-im-platform="wecom"] [data-im-fill-demo]').click();
+  await page.click('[data-im-subcard="wecom"] [data-im-cred-save]');
+  await page.waitForTimeout(1100);
+  assert.equal(await wc.locator('[data-im-stage3]').isVisible(),true);
+  assert.equal(await wc.locator('[data-im-receive-done]').isDisabled(),true);
+  await wc.locator('[data-im-receive-ready]').check();
+  assert.equal(await wc.locator('[data-im-receive-done]').isDisabled(),false);
+  assert.match(await wc.locator('[data-im-receive-note]').textContent(),/收发将在配对时验证/);
+  await page.click('[data-im-subcard="wecom"] [data-im-receive-done]');
+  await page.waitForTimeout(200);
+  assert.match(await wc.locator('[data-im-receive-done-note]').textContent(),/已确认/);
+  assert.equal(await wc.locator('[data-substage="3"]').evaluate(e=>e.classList.contains('done')),true);
+  /* Slack 双 Token 不一致：保存通过，连接阶段报「不同应用」 */
+  await page.click('[data-im-platform="slack"] [data-im-add]');
+  await page.locator('[data-im-platform="slack"] [data-im-fill-demo]').click();
+  await page.locator('[data-im-subcard="slack"] [data-im-sim-outcome]').selectOption('mismatch');
+  await page.click('[data-im-subcard="slack"] [data-im-cred-save]');
+  await page.waitForTimeout(1100);
+  assert.match(await page.locator('[data-im-platform="slack"]').textContent(),/不同应用/);
+  /* 团队态：未配置平台呈现机器人列表（跳过凭据表单），选用即连、阶段3 已确认 */
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-scene="team"]').click();
+  await page.locator('[data-im-confirm-ok]').click();
+  await page.waitForTimeout(500);
+  await locate('bots');
+  await page.click('[data-im-platform="wecom"] [data-im-add]');
+  assert.equal(await wc.locator('[data-im-team-bots]').isVisible(),true);
+  assert.equal(await wc.locator('[data-im-cred-form]').isHidden(),true);
+  await page.click('[data-im-subcard="wecom"] [data-im-team-pick]');
+  await page.waitForTimeout(300);
+  assert.match(await page.locator('[data-im-platform="wecom"] .im-platform-status').textContent(),/已连接/);
+  assert.match(await wc.locator('[data-im-receive-done-note]').textContent(),/已确认/);
+  await page.locator('.im-simulation summary').click();
+ });
  await check('scenes and expired pairing do not advance',async()=>{await page.locator('.im-simulation summary').click();await page.locator('[data-im-scene="expired"]').click();await page.locator('[data-im-confirm-ok]').click();await locate('account');assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),true);assert.equal(await page.locator('[data-im-wait-card]').isHidden(),true);assert.match(await page.locator('[data-im-renew-code]').textContent(),/生成新指令/);await page.locator('[data-im-renew-code]').click();assert.match(await page.locator('[data-im-countdown]').first().textContent(),/5:00|4:59/);assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),false);});
  await check('narrow dark and reduced motion',async()=>{await page.setViewportSize({width:620,height:850});await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await locate('bots');await page.screenshot({path:out+'/narrow-dark.png'});assert.equal(await page.locator('#settingsPanelIm').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);});
  assert.deepEqual(errors,[]); await writeFile(out+'/result.json',JSON.stringify({results,errors},null,2));

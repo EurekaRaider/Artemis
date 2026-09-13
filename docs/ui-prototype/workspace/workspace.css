@@ -4262,6 +4262,83 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-subcard .im-guide-toggle {
   align-self: flex-start;
 }
+/* ② 三子阶段条（提案第二步）：准备机器人 → 填写凭据并连接 → 完成平台接收设置 */
+.im-substages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.im-substages li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.im-substages li::before {
+  content: "○";
+  font-size: 10px;
+  line-height: 1;
+}
+.im-substages li.cur {
+  color: var(--text-2);
+  font-weight: 560;
+}
+.im-substages li.cur::before {
+  content: "●";
+  font-size: 7px;
+}
+.im-substages li.done::before {
+  content: "✓";
+  color: var(--success);
+  font-size: 10px;
+}
+/* ② 阶段3：平台侧步骤由用户确认 */
+.im-stage3 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+/* ② 团队态机器人列表 */
+.im-team-bots {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.im-team-bot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color var(--t-quick);
+}
+.im-team-bot:hover {
+  border-color: var(--border);
+}
+.im-team-bot strong {
+  font-size: 12.5px;
+  font-weight: 580;
+  color: var(--text);
+}
+.im-team-bot small {
+  font-size: 11px;
+  color: var(--text-3);
+}
 /* ③ 配对指令区（平台派生；chips 复制反馈复用） */
 .im-instr-title {
   margin: 0;
