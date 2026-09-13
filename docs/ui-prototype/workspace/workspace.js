@@ -652,6 +652,9 @@
         /* ③ 双轨：10s 倒计时自动到达 + 演示直达弱链接 */
         pairWait: null /* { platform, leftMs } */,
         projectsDirty: false,
+        /* 保存/启用两阶段演示开关（确定性失败分支） */
+        saveFailure: false,
+        enableFailure: false,
         /* ⑤ 群支线：idle → found → confirmed → done */
         groupPhase: "idle",
         hints: {}, /* 会话内「首次」引导旗标 */
@@ -662,6 +665,8 @@
         sim: imSimSeed(),
         gateway: { started: false, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: false,
+        grantEnabled: false,
+        grantEnableFailed: false,
         connections: { feishu: [], wecom: [], slack: [] },
         platformReady: { feishu: false, wecom: false, slack: false },
         pairingRequests: [],
@@ -678,6 +683,8 @@
         sim: imSimSeed(),
         gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: true,
+        grantEnabled: true,
+        grantEnableFailed: false,
         connections: {
           feishu: [
             { conn: "conn-1", app: "Artemis 机器人", state: "ok", note: "已连接 · 2 分钟前" },
@@ -700,6 +707,8 @@
         sim: imSimSeed(),
         gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: true,
+        grantEnabled: true,
+        grantEnableFailed: false,
         connections: {
           feishu: [
             { conn: "conn-1", app: "Artemis 机器人", state: "bad", reason: "App Secret 已失效" },
@@ -873,10 +882,10 @@
             ? "已绑定 " + s.bindings.length + " 个账号"
             : "发一条配对指令即可绑定",
       };
-      /* ④ 允许手机操作的项目（勾选未保存 → busy「已选 N · 待保存」） */
+      /* ④ 允许手机操作的项目（勾选未保存 → busy「已选 N · 待保存」；启用失败入⚠） */
       var projectsBusy = !!sim.projectsDirty;
       cards.projects = {
-        state: projectsBusy ? "busy" : cardState("projects", projectsDone, expired > 0),
+        state: projectsBusy ? "busy" : cardState("projects", projectsDone, expired > 0 || !!s.grantEnableFailed),
         badgeText: projectsBusy
           ? "已选 " + checkedProjects + " · 待保存"
           : checkedProjects > 0
@@ -884,11 +893,13 @@
             : firstUndone === "projects"
               ? "当前步骤"
               : "待选择",
-        alerts: expired,
-        summary: checkedProjects
-          ? "已授权 " + checkedProjects + " 个项目" +
-            (s.defaultProject ? " · 默认 " + s.defaultProject : "")
-          : "还没有选择项目",
+        alerts: expired + (s.grantEnableFailed ? 1 : 0),
+        summary: s.grantEnableFailed
+          ? "授权已保存 · 连接未启用"
+          : checkedProjects
+            ? "已授权 " + checkedProjects + " 个项目" +
+              (s.defaultProject ? " · 默认 " + s.defaultProject : "")
+            : "还没有选择项目",
       };
       /* ⑤ 群协作（可选）：done 仅当存在已生效群；found → busy「待确认」 */
       cards.groups = {
@@ -979,7 +990,7 @@
         projectsDone: projectsDone,
         /* 设置进度：完成链四步计数，总数 5（第 5 步「发一条测试任务」C4 落地后计入；⑤群协作可选不计入） */
         progressDone: chain.filter(function (c) { return c[1]; }).length,
-        ready: s.masterOn && serviceDone && botsDone && accountDone && projectsDone &&
+        ready: s.masterOn && s.grantEnabled !== false && serviceDone && botsDone && accountDone && projectsDone &&
           badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
         groupMembers: groupMembers,
         activeGroups: activeGroups.length,
@@ -1460,13 +1471,75 @@
       imPanel.querySelector("[data-im-binding-empty]").hidden = imState.bindings.length > 0;
     }
 
+    /* ④ 范围树（演示数据）：depth 由路径推导；locked=受保护文件不可选 */
+    var IM_SCOPE_TREE = [
+      { path: "src/" },
+      { path: "src/renderer/" },
+      { path: "src/main/" },
+      { path: "docs/" },
+      { path: "package.json" },
+      { path: ".env.local", locked: true },
+    ];
+    function imScopeDepth(path) {
+      return (path.match(/\//g) || []).length - 1;
+    }
+    function imScopeAncestors(path) {
+      var out = [];
+      var parts = path.split("/");
+      parts.pop(); /* 末段（文件或目录名）不入祖先 */
+      var acc = "";
+      parts.forEach(function (seg) {
+        if (!seg) return;
+        acc += seg + "/";
+        out.push(acc);
+      });
+      return out;
+    }
+    var IM_MODE_META = {
+      plan: { label: "只读分析", desc: "可以看和总结，不改文件" },
+      review: { label: "只读审查", desc: "可以评审代码，不改文件" },
+      execute: { label: "允许修改", desc: "可以改文件，需要选择范围" },
+    };
+    function imScopeText(pr) {
+      if (pr.mode === "execute") {
+        var reads = pr.reads && pr.reads.length ? "可读 " + pr.reads.length + " 项" : "未选范围";
+        var writes = pr.writes && pr.writes.length ? " · 可写 " + pr.writes.length + " 项" : "";
+        return reads + writes;
+      }
+      return pr.reads && pr.reads.length ? "自定义可读 " + pr.reads.length + " 项" : "可读整个项目，不可写任何文件";
+    }
+
     function imBuildProjects() {
       var list = imPanel.querySelector("[data-im-project-rows]");
       list.textContent = "";
       imState.projects.forEach(function (pr, idx) {
+        pr.reads = pr.reads || [];
+        pr.writes = pr.writes || [];
+        pr.mode = pr.mode || "plan";
+        pr.approval = pr.approval || "ask";
         var li = document.createElement("li");
         li.className = "im-project";
         li.setAttribute("data-im-project-idx", String(idx));
+        /* 三档模式卡（提案第 4 步：三件事之一「能做什么、能看什么」） */
+        var modes = ["plan", "review", "execute"]
+          .map(function (m) {
+            return (
+              '<label class="im-mode-tier' + (pr.mode === m ? " on" : "") + '"><input type="radio" name="imMode' + idx + '" value="' + m + '"' + (pr.mode === m ? " checked" : "") + ' data-im-mode=""/><strong>' + IM_MODE_META[m].label + "</strong><small>" + IM_MODE_META[m].desc + "</small></label>"
+            );
+          })
+          .join("");
+        /* 范围树：可读/可写两列；受保护文件禁选 */
+        var tree =
+          '<div class="im-scope-head"><span></span><span>可读</span><span>可写</span></div>' +
+          IM_SCOPE_TREE.map(function (node) {
+            var locked = !!node.locked;
+            return (
+              '<div class="im-scope-row' + (locked ? " locked" : "") + '" data-scope-path="' + node.path + '" style="--depth:' + imScopeDepth(node.path) + '">' +
+              '<input type="checkbox" aria-label="可读 ' + node.path + '" data-im-scope-read="" data-scope-path="' + node.path + '"' + (locked ? " disabled" : "") + "/>" +
+              '<input type="checkbox" aria-label="可写 ' + node.path + '" data-im-scope-write="" data-scope-path="' + node.path + '"' + (locked ? " disabled" : "") + "/>" +
+              '<span class="im-scope-label">' + node.path + (locked ? " · 受保护" : "") + "</span></div>"
+            );
+          }).join("");
         li.innerHTML =
           '<label class="settings-checkbox im-project-head"><input type="checkbox"' +
           (pr.checked ? " checked" : "") + '><span><strong>' + pr.id + "</strong><small>" + pr.path + "</small></span></label>" +
@@ -1474,20 +1547,24 @@
             ? '<div class="im-project-expired"><span>⚠ 授权已到期</span><button class="btn btn-ghost" data-im-reauthorize="" type="button">去授权</button></div>'
             : "") +
           '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>调整权限</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
-          '<div class="im-fold-body" hidden=""><div class="form-grid">' +
-          '<label class="im-field"><span class="im-field-label">任务模式</span><select class="im-field-input" data-im-permission="mode"><option value="plan">Plan · 只读分析</option><option value="review">Review · 只读审查</option><option value="execute">Execute · 允许修改</option></select></label>' +
+          '<div class="im-fold-body" hidden="">' +
+          '<div class="im-mode-tiers" data-im-mode-tiers="">' + modes + "</div>" +
+          '<p class="im-fine" data-im-scope-declare=""></p>' +
+          '<div class="im-scope-tree" data-im-scope-tree="" hidden="">' + tree + "</div>" +
+          '<button class="im-demo-link" data-im-scope-custom="" type="button">自定义范围 ▸</button>' +
           '<label class="im-field"><span class="im-field-label">执行审批</span><select class="im-field-input" data-im-permission="approval"><option value="ask">每次确认</option><option value="automatic">授权范围内自动执行</option></select></label>' +
-          '</div><label class="settings-checkbox"><input type="checkbox" data-im-permission="commands"/><span>允许沙箱命令</span></label>' +
-          '<label class="settings-checkbox"><input type="checkbox" data-im-permission="network"/><span>允许命令访问网络</span></label>' +
+          '<div data-im-exec-only="" hidden=""><label class="settings-checkbox"><input type="checkbox" data-im-permission="commands"/><span>允许沙箱命令</span></label>' +
+          '<label class="settings-checkbox"><input type="checkbox" data-im-permission="network"/><span>允许命令访问网络</span></label></div>' +
           '<p class="im-fine">远程任务仅在授权项目的沙箱内运行；不开放完整本机访问、MCP 或扩展。</p>' +
-          '<p class="im-fine" data-im-expiry-field="">' + (pr.expired ? '授权已到期，重新选择项目并保存可续期 30 天。' : '保存后授权有效期为 30 天。') + '</p></div>';
-        li.querySelectorAll("[data-im-permission]").forEach(function (input) {
-          var key = input.dataset.imPermission;
-          if (input.type === "checkbox") input.checked = !!pr[key];
-          else input.value = pr[key] || (key === "mode" ? "plan" : "ask");
-          if (input.type === "checkbox") input.disabled = pr.mode !== "execute" || (key === "network" && !pr.commands);
-        });
-        var checkbox = li.querySelector('input[type="checkbox"]');
+          '<p class="im-fine" data-im-expiry-field="">' + (pr.expired ? "授权已到期，重新选择项目并保存可续期 30 天。" : "保存后授权有效期为 30 天。") + "</p></div>";
+        var approvalSel = li.querySelector('[data-im-permission="approval"]');
+        if (approvalSel) approvalSel.value = pr.approval;
+        var cmd = li.querySelector('[data-im-permission="commands"]');
+        var net = li.querySelector('[data-im-permission="network"]');
+        if (cmd) cmd.checked = !!pr.commands;
+        if (net) net.checked = !!pr.network;
+        imUpdateProjectRow(li, pr);
+        var checkbox = li.querySelector(".im-project-head input");
         checkbox.addEventListener("change", function () {
           imState.projects[idx].checked = checkbox.checked;
           imState.sim.session = true;
@@ -1495,7 +1572,7 @@
           if (
             checkbox.checked &&
             !imState.defaultProject &&
-            !imState.projects.some(function (pr) { return pr.checked && pr.id !== imState.projects[idx].id; })
+            !imState.projects.some(function (p2) { return p2.checked && p2.id !== imState.projects[idx].id; })
           ) {
             imState.defaultProject = imState.projects[idx].id;
             var sel = imPanel.querySelector("[data-im-default-project]");
@@ -1503,18 +1580,65 @@
             notice("已把 " + imState.projects[idx].id + " 设为默认项目。");
           }
           imState.sim.projectsDirty = true;
-          if (!imState.projects.some(function (pr) { return pr.checked && pr.id === imState.defaultProject; })) {
-            imState.defaultProject = (imState.projects.find(function (pr) { return pr.checked; }) || {}).id || "";
+          if (!imState.projects.some(function (p2) { return p2.checked && p2.id === imState.defaultProject; })) {
+            imState.defaultProject = (imState.projects.find(function (p2) { return p2.checked; }) || {}).id || "";
           }
           imSyncDefaultProject();
           imRefresh();
         });
         list.appendChild(li);
-        /* 动态渲染的 switch 需单独初始化 */
-        var sw = li.querySelector(".switch");
-        if (sw && window.ArtemisUI) window.ArtemisUI.toggle(sw);
       });
       imSyncDefaultProject();
+    }
+
+    /* ④ 行内状态渲染：档位高亮 / 范围声明 / 树显隐与勾选态 / 命令网络可用性 */
+    function imUpdateProjectRow(li, pr) {
+      Array.prototype.forEach.call(
+        li.querySelectorAll("[data-im-mode-tiers] .im-mode-tier"),
+        function (tier) {
+          var radio = tier.querySelector("input");
+          tier.classList.toggle("on", radio && radio.checked);
+        },
+      );
+      var declare = li.querySelector("[data-im-scope-declare]");
+      if (declare)
+        declare.textContent =
+          pr.mode === "execute"
+            ? "选择可读与可写范围；可写必须是可读的子集，受保护文件不能选。"
+            : "默认可读整个项目，不可写任何文件；需要更细可改用「自定义范围」。";
+      var tree = li.querySelector("[data-im-scope-tree]");
+      var customBtn = li.querySelector("[data-im-scope-custom]");
+      var customOpen = !!li.dataset.scopeCustom;
+      var treeOpen = pr.mode === "execute" || customOpen;
+      if (tree) tree.hidden = !treeOpen;
+      if (customBtn) customBtn.hidden = pr.mode === "execute";
+      Array.prototype.forEach.call(
+        li.querySelectorAll(".im-scope-row"),
+        function (row) {
+          var path = row.getAttribute("data-scope-path");
+          var locked = row.classList.contains("locked");
+          var r = row.querySelector("[data-im-scope-read]");
+          var w = row.querySelector("[data-im-scope-write]");
+          r.checked = pr.reads.indexOf(path) >= 0;
+          w.checked = pr.writes.indexOf(path) >= 0;
+          /* 受保护文件不可选；可写依赖可读——自身或子路径有可写时禁取消可读 */
+          r.disabled =
+            locked ||
+            w.checked ||
+            pr.writes.some(function (wPath) {
+              return wPath === path || wPath.indexOf(path) === 0;
+            });
+          w.disabled = locked || pr.mode !== "execute";
+        },
+      );
+      var execOnly = li.querySelector("[data-im-exec-only]");
+      if (execOnly) {
+        execOnly.hidden = pr.mode !== "execute";
+        var cmd = li.querySelector('[data-im-permission="commands"]');
+        var net = li.querySelector('[data-im-permission="network"]');
+        if (cmd) cmd.disabled = pr.mode !== "execute";
+        if (net) net.disabled = pr.mode !== "execute" || !pr.commands;
+      }
     }
     function imSyncDefaultProject() {
       var select = imPanel.querySelector("[data-im-default-project]");
@@ -1679,6 +1803,34 @@
       if (projGuide) {
         projGuide.hidden = imState.projects.some(function (pr) { return pr.checked; });
       }
+      /* ④ 两阶段渲染：部分成功条 / 保存禁用（Execute 未选范围）/ 默认项目行（多项目才显示）/ 确认摘要五要素 */
+      var partialBar = imPanel.querySelector("[data-im-grant-partial]");
+      if (partialBar) partialBar.hidden = !imState.grantEnableFailed;
+      var saveBtn = imPanel.querySelector("[data-im-projects-save]");
+      if (saveBtn) {
+        var scopeMissing = imState.projects.some(function (pr) {
+          return pr.checked && pr.mode === "execute" && (!pr.reads || !pr.reads.length);
+        });
+        saveBtn.disabled = scopeMissing;
+        saveBtn.title = scopeMissing ? "先为「允许修改」的项目选择可读范围" : "";
+      }
+      var defaultRow = imPanel.querySelector("[data-im-default-row]");
+      if (defaultRow)
+        defaultRow.hidden = imState.projects.filter(function (pr) { return pr.checked; }).length <= 1;
+      var summaryEl = imPanel.querySelector("[data-im-grant-summary]");
+      if (summaryEl) {
+        var checkedList = imState.projects.filter(function (pr) { return pr.checked; });
+        summaryEl.hidden = !checkedList.length;
+        summaryEl.innerHTML = checkedList.length
+          ? "确认摘要：" +
+            checkedList
+              .map(function (pr) {
+                return "<b>" + pr.id + "</b> · " + IM_MODE_META[pr.mode].label + " · " + imScopeText(pr) + " · 有效期 30 天";
+              })
+              .join("<br>") +
+            "<br>回复仅发给你绑定的单聊"
+          : "";
+      }
       /* ⑤ 模拟操作条 */
       imRenderGroupSim();
       /* M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）；800ms 淡入 */
@@ -1778,6 +1930,7 @@
       imPanel.querySelectorAll("#imTeamForm input").forEach(function (input) { input.value = ""; });
       imPanel.querySelectorAll("[data-im-team-result], [data-im-diagnostic-result]").forEach(function (el) { el.hidden = true; });
       var failureToggle = imPanel.querySelector("[data-im-save-failure]"); if (failureToggle) failureToggle.setAttribute("aria-pressed", "false");
+      var enableToggle = imPanel.querySelector("[data-im-enable-failure]"); if (enableToggle) enableToggle.setAttribute("aria-pressed", "false");
       imSecondsLeft = 5 * 60;
       imCodeExpired = false;
       var readyBar = imPanel.querySelector("[data-im-ready]");
@@ -2318,16 +2471,45 @@
       imState.sim.projectsDirty = true;
       imRefresh();
     });
+    /* ④「保存并启用」两阶段（提案 4.4）：保存失败不启用；保存成功、启用失败=部分成功仅重试启用 */
     imPanel.querySelector("[data-im-projects-save]").addEventListener("click", function () {
-      if (imState.sim.saveFailure) { notice("保存失败，服务暂不可用。已保留权限草稿，请恢复后重试。", true); return; }
-      function commit() {
+      if (this.disabled) return;
+      var errEl = imPanel.querySelector("[data-im-grant-error]");
+      if (imState.sim.saveFailure) {
+        errEl.hidden = false;
+        errEl.textContent = "保存失败：服务暂不可用。授权未保存，连接未启用；已保留你的选择，恢复后重试。";
+        return;
+      }
+      imConfirm("保存并启用", "将按当前勾选与权限保存授权，并启用连接。取消勾选的项目将撤销远程访问。", function () {
+        errEl.hidden = true;
+        /* 阶段 1：保存授权 */
         imState.projects.forEach(function (pr) { if (pr.checked) pr.expired = false; });
         imState.sim.projectsDirty = false;
         imBuildProjects();
-        imRefresh();
-        notice("项目权限已保存（演示）");
+        /* 阶段 2：启用 */
+        if (imState.sim.enableFailure) {
+          imState.grantEnabled = false;
+          imState.grantEnableFailed = true;
+          imRefresh();
+          notice("授权已保存，连接未启用（演示）", true);
+        } else {
+          imState.grantEnabled = true;
+          imState.grantEnableFailed = false;
+          imRefresh();
+          notice("项目权限已保存，连接已启用（演示）");
+        }
+      });
+    });
+    /* 部分成功：仅重试启用（不重复保存） */
+    imPanel.querySelector("[data-im-retry-enable]").addEventListener("click", function () {
+      if (imState.sim.enableFailure) {
+        notice("启用仍失败：服务暂不可用（演示）。", true);
+        return;
       }
-      imConfirm("保存项目权限", "绑定账号将按所选模式访问勾选项目。取消勾选的项目将撤销远程访问。", commit);
+      imState.grantEnabled = true;
+      imState.grantEnableFailed = false;
+      imRefresh();
+      notice("连接已启用（演示）");
     });
     /* ④ 到期行 [去授权]：展开该行授权设置 + 一次性脉冲高亮到期字段 */
     imPanel.addEventListener("click", function (ev) {
@@ -2590,18 +2772,78 @@
       }
     });
     imPanel.addEventListener("change", function (event) {
+      var li = event.target.closest("[data-im-project-idx]");
+      if (!li) return;
+      var pr = imState.projects[Number(li.getAttribute("data-im-project-idx"))];
+      /* 三档模式：退出「允许修改」清空命令/网络/可写 */
+      var modeRadio = event.target.closest("[data-im-mode]");
+      if (modeRadio && modeRadio.checked) {
+        pr.mode = modeRadio.value;
+        if (pr.mode !== "execute") {
+          pr.commands = pr.network = false;
+          pr.writes = [];
+        }
+        imState.sim.projectsDirty = true;
+        imUpdateProjectRow(li, pr);
+        imRefresh();
+        return;
+      }
+      /* 审批 / 沙箱命令 / 网络 */
       var input = event.target.closest("[data-im-permission]");
-      if (!input) return;
-      var row = input.closest("[data-im-project-idx]");
-      var project = imState.projects[Number(row.dataset.imProjectIdx)];
-      project[input.dataset.imPermission] = input.type === "checkbox" ? input.checked : input.value;
-      if (project.mode !== "execute") project.commands = project.network = false;
-      if (!project.commands) project.network = false;
-      row.querySelectorAll('input[data-im-permission]').forEach(function (el) {
-        el.checked = !!project[el.dataset.imPermission];
-        el.disabled = project.mode !== "execute" || (el.dataset.imPermission === "network" && !project.commands);
-      });
-      imState.sim.projectsDirty = true; imRefresh();
+      if (input) {
+        pr[input.dataset.imPermission] = input.type === "checkbox" ? input.checked : input.value;
+        if (pr.mode !== "execute") pr.commands = pr.network = false;
+        if (!pr.commands) pr.network = false;
+        imState.sim.projectsDirty = true;
+        imUpdateProjectRow(li, pr);
+        imRefresh();
+        return;
+      }
+      /* 范围树：可写⊆可读联动；受保护不可选（构建时已禁） */
+      var readChk = event.target.closest("[data-im-scope-read]");
+      var writeChk = event.target.closest("[data-im-scope-write]");
+      if (readChk || writeChk) {
+        var path = (readChk || writeChk).getAttribute("data-scope-path");
+        if (readChk) {
+          if (readChk.checked) {
+            if (pr.reads.indexOf(path) < 0) pr.reads.push(path);
+          } else {
+            var depends = pr.writes.some(function (wPath) {
+              return wPath === path || wPath.indexOf(path) === 0;
+            });
+            if (depends) {
+              readChk.checked = true;
+              notice("先取消依赖它的可写范围，再取消可读。", true);
+              return;
+            }
+            pr.reads = pr.reads.filter(function (rPath) { return rPath !== path; });
+          }
+        }
+        if (writeChk) {
+          if (writeChk.checked) {
+            if (pr.writes.indexOf(path) < 0) pr.writes.push(path);
+            /* 可写强制可读：自身 + 祖先目录 */
+            imScopeAncestors(path).concat([path]).forEach(function (p2) {
+              if (pr.reads.indexOf(p2) < 0) pr.reads.push(p2);
+            });
+          } else {
+            pr.writes = pr.writes.filter(function (wPath) { return wPath !== path; });
+          }
+        }
+        imState.sim.projectsDirty = true;
+        imUpdateProjectRow(li, pr);
+        imRefresh();
+      }
+    });
+    /* 「自定义范围」：Plan/Review 档展开完整树（Execute 档树常显） */
+    imPanel.addEventListener("click", function (event) {
+      var custom = event.target.closest("[data-im-scope-custom]");
+      if (!custom) return;
+      var li = custom.closest("[data-im-project-idx]");
+      if (li.dataset.scopeCustom === "true") delete li.dataset.scopeCustom;
+      else li.dataset.scopeCustom = "true";
+      var pr = imState.projects[Number(li.getAttribute("data-im-project-idx"))];
+      imUpdateProjectRow(li, pr);
     });
     imPanel.addEventListener("click", function (event) {
       var fill = event.target.closest("[data-im-fill-demo]");
@@ -2631,6 +2873,7 @@
         });
       }
       if (event.target.closest("[data-im-save-failure]")) { imState.sim.saveFailure = !imState.sim.saveFailure; event.target.closest("button").setAttribute("aria-pressed", String(imState.sim.saveFailure)); notice(imState.sim.saveFailure ? "接下来保存项目权限将失败。" : "已恢复保存能力，可重试。"); }
+      if (event.target.closest("[data-im-enable-failure]")) { imState.sim.enableFailure = !imState.sim.enableFailure; event.target.closest("button").setAttribute("aria-pressed", String(imState.sim.enableFailure)); notice(imState.sim.enableFailure ? "接下来保存成功后启用连接将失败。" : "已恢复启用能力，可重试启用。"); }
       if (event.target.closest("[data-im-recover]")) { imState.gateway.linkBroken = false; imRefresh(); notice("消息服务已恢复（演示）"); }
       if (event.target.closest("[data-im-diagnose]")) {
         var output = imPanel.querySelector("[data-im-diagnostic-result]");

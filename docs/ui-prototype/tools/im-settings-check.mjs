@@ -110,6 +110,65 @@ try {
   assert.match(await wc.locator('[data-im-receive-done-note]').textContent(),/已确认/);
   await page.locator('.im-simulation summary').click();
  });
+ await check('C3 grant tiers, scope tree and two-phase enable',async()=>{
+  await locate('projects');
+  const art=page.locator('[data-im-project-idx="0"]');
+  const save=page.locator('[data-im-projects-save]');
+  /* headless 平滑滚动竞态下 hit-test 偶发落到面板背板：用 DOM 派发触发同一 handler */
+  await art.locator('[data-im-fold]').dispatchEvent('click');
+  /* Plan 默认：无范围树、无命令/网络；默认范围声明 */
+  assert.equal(await art.locator('[data-im-scope-tree]').isHidden(),true);
+  assert.equal(await art.locator('[data-im-exec-only]').isHidden(),true);
+  assert.match(await art.locator('[data-im-scope-declare]').textContent(),/可读整个项目，不可写任何文件/);
+  /* 切「允许修改」：树出现；勾选项目后未选范围 → 保存禁用（点可见的档位 label） */
+  await art.locator('.im-mode-tier:has(input[value="execute"])').click();
+  assert.equal(await art.locator('[data-im-scope-tree]').isVisible(),true);
+  await art.locator('.im-project-head input').check();
+  assert.equal(await save.isDisabled(),true);
+  /* 写勾 src/renderer/ → 自身与父目录 src/ 可读被强制勾上；受保护文件不可选 */
+  await art.locator('.im-scope-row[data-scope-path="src/renderer/"] [data-im-scope-write]').check();
+  assert.equal(await art.locator('.im-scope-row[data-scope-path="src/renderer/"] [data-im-scope-read]').isChecked(),true);
+  assert.equal(await art.locator('.im-scope-row[data-scope-path="src/"] [data-im-scope-read]').isChecked(),true);
+  assert.equal(await art.locator('.im-scope-row[data-scope-path=".env.local"] [data-im-scope-read]').isDisabled(),true);
+  assert.equal(await art.locator('.im-scope-row[data-scope-path="src/"] [data-im-scope-read]').isDisabled(),true);
+  assert.equal(await save.isDisabled(),false);
+  /* 确认摘要五要素 */
+  const summary=await page.locator('[data-im-grant-summary]').textContent();
+  assert.match(summary,/Artemis/);assert.match(summary,/允许修改/);assert.match(summary,/有效期 30 天/);assert.match(summary,/回复仅发给你绑定的单聊/);
+  /* 补齐③（team 场景清空了绑定）：配对批准后再走两阶段三场景 */
+  await page.evaluate(()=>window.__imLocateCard('account'));await page.waitForTimeout(450);
+  await page.locator('[data-copy-pair]').first().click();
+  await page.click('[data-im-pair-arrive]');await page.waitForTimeout(200);
+  await page.click('[data-im-approve]');await page.waitForTimeout(400);
+  /* 两阶段·场景一：保存失败 → 错误归表单，不启用 */
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-save-failure]').click();
+  await page.locator('.im-simulation summary').click();
+  await save.click();
+  assert.match(await page.locator('[data-im-grant-error]').textContent(),/保存失败/);
+  assert.equal(await page.locator('[data-im-grant-partial]').isHidden(),true);
+  /* 场景二：保存成功、启用失败 → 部分成功条 + 仅重试启用 */
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-save-failure]').click();
+  await page.locator('[data-im-enable-failure]').click();
+  await page.locator('.im-simulation summary').click();
+  await save.click();
+  await page.locator('[data-im-confirm-ok]').click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('[data-im-grant-partial]').isVisible(),true);
+  assert.equal(await page.locator('[data-im-ready]').isHidden(),true);
+  assert.equal(await page.locator('[data-im-card="projects"] [data-im-alerts]').textContent(),'⚠1');
+  await page.locator('[data-im-retry-enable]').click();
+  assert.equal(await page.locator('[data-im-grant-partial]').isVisible(),true);
+  /* 场景三：恢复启用 → 重试启用成功 → 就绪条 */
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-enable-failure]').click();
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-retry-enable]').click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('[data-im-grant-partial]').isHidden(),true);
+  assert.equal(await page.locator('[data-im-ready]').isVisible(),true);
+ });
  await check('scenes and expired pairing do not advance',async()=>{await page.locator('.im-simulation summary').click();await page.locator('[data-im-scene="expired"]').click();await page.locator('[data-im-confirm-ok]').click();await locate('account');assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),true);assert.equal(await page.locator('[data-im-wait-card]').isHidden(),true);assert.match(await page.locator('[data-im-renew-code]').textContent(),/生成新指令/);await page.locator('[data-im-renew-code]').click();assert.match(await page.locator('[data-im-countdown]').first().textContent(),/5:00|4:59/);assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),false);});
  await check('narrow dark and reduced motion',async()=>{await page.setViewportSize({width:620,height:850});await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await locate('bots');await page.screenshot({path:out+'/narrow-dark.png'});assert.equal(await page.locator('#settingsPanelIm').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);});
  assert.deepEqual(errors,[]); await writeFile(out+'/result.json',JSON.stringify({results,errors},null,2));

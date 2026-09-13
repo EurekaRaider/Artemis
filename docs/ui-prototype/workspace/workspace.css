@@ -4387,6 +4387,112 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-project-expired .btn {
   margin-left: auto;
 }
+/* ④ 三档模式卡（提案第 4 步：只读分析 / 只读审查 / 允许修改） */
+.im-mode-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  .im-mode-tiers {
+    grid-template-columns: 1fr;
+  }
+}
+.im-mode-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color var(--t-quick), background var(--t-quick);
+}
+.im-mode-tier input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.im-mode-tier strong {
+  font-size: 12px;
+  font-weight: 580;
+  color: var(--text-2);
+}
+.im-mode-tier small {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.im-mode-tier.on {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--text) 4%, var(--surface));
+}
+.im-mode-tier.on strong {
+  color: var(--text);
+}
+/* ④ 范围树：可读/可写两列，缩进按路径深度 */
+.im-scope-head,
+.im-scope-row {
+  display: grid;
+  grid-template-columns: 120px 44px 44px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.im-scope-head {
+  font-size: 11px;
+  color: var(--text-3);
+  padding-bottom: 2px;
+}
+.im-scope-head span:nth-child(n + 2) {
+  text-align: center;
+}
+.im-scope-row {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 1px 0;
+}
+.im-scope-row input {
+  justify-self: center;
+}
+.im-scope-row .im-scope-label {
+  padding-left: calc(var(--depth, 0) * 18px);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+}
+.im-scope-row.locked .im-scope-label {
+  color: var(--text-3);
+}
+.im-scope-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-control);
+}
+/* ④ 确认摘要（五要素：项目/模式/文件范围/有效期/回复对象） */
+.im-grant-summary {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.8;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-control);
+  margin: 0;
+}
+.im-grant-summary b {
+  font-weight: 620;
+  color: var(--text-2);
+}
+.im-grant-error {
+  color: var(--danger-text);
+}
+.im-grant-partial {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--warning-text);
+}
 /* ⑤ 群协作：三步说明 + 群列表行 */
 .im-steps-lite {
   margin: 0;

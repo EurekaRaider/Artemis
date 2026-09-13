@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=167" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=168" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -904,11 +904,16 @@
 <div class="im-card-body" id="imCardBodyProjects">
 <p class="im-muted" data-im-projects-guide="">至少勾一个——不勾，手机上发消息不会动任何项目。</p>
 <p class="im-muted">勾选后，绑定的账号才能通过聊天消息操作这个项目。</p>
+<p class="im-fine">没有想授权的项目？<button class="im-demo-link" data-im-open-project="" type="button">先打开项目</button>，再回来勾选。</p>
 <ul class="im-project-list" data-im-project-rows=""></ul>
+<p class="im-fine" data-im-audience="">回复仅发给你绑定的单聊；群分享在「群协作」里单独配置。</p>
+<div aria-live="polite" class="im-grant-summary" data-im-grant-summary=""></div>
+<p class="im-fine im-grant-error" data-im-grant-error="" hidden="" role="alert"></p>
 <div class="im-block">
-<div class="setting-row"><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill" data-im-default-project=""></select></div>
-<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-im-projects-save="" type="button">保存</button></div>
+<div class="setting-row" data-im-default-row=""><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill" data-im-default-project=""></select></div>
+<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-im-projects-save="" type="button">保存并启用</button></div>
 </div>
+<p class="im-fine im-grant-partial" data-im-grant-partial="" hidden="">授权已保存，连接未启用。<button class="btn btn-ghost" data-im-retry-enable="" type="button">重试启用</button></p>
 </div>
 </section>
 <!-- ⑤ 群协作（可选） -->
@@ -937,7 +942,7 @@
 </div>
 <!-- 模拟会话重置：回到 empty 快照（仅内存，不写 hash） -->
 <details class="im-simulation"><summary>演示场景</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。</p><div class="btn-pair im-scene-buttons">
-<button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-scene="team">团队服务</button><button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button>
+<button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-scene="team">团队服务</button><button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button><button type="button" class="btn btn-ghost" data-im-enable-failure aria-pressed="false">启用失败模拟</button>
 </div></details><div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
 <!-- M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）才显示 -->
 <div class="im-ready" data-im-ready="" hidden="">
@@ -1034,6 +1039,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=154"></script>
+<script src="workspace/workspace.js?v=155"></script>
 </body>
 </html>
