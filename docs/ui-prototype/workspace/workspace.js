@@ -3027,11 +3027,10 @@
         button.onclick = function (event) { event.preventDefault(); var show = input.type === "password"; input.type = show ? "text" : "password"; button.textContent = show ? "隐藏" : "显示"; button.setAttribute("aria-label", show ? "隐藏密钥" : "显示密钥"); button.setAttribute("aria-pressed", String(show)); };
         wrap.append(button);
       });
-      imPanel.querySelectorAll(".btn, .im-demo-link").forEach(function (button) {
-        if (button.querySelector("svg")) return;
-        var label = button.textContent;
-        var name = /复制/.test(label) ? "files" : /添加|填入/.test(label) ? "plus" : /保存|确认|批准/.test(label) ? "check" : /取消|拒绝|隐藏/.test(label) ? "close" : /项目/.test(label) ? "folder" : /更换|管理/.test(label) ? "edit" : /诊断|显示/.test(label) ? "info" : "refresh";
-        button.prepend(UI.icon(name));
+      /* 行内次要按钮与设置抽屉其他分区对齐：纯文字 compact ghost（12px/28px）。
+         不按标签猜图标——猜测曾把「已保存 · 更换」配成 ✓、「删除连接」配成 ⟲，语义全错。 */
+      imPanel.querySelectorAll(".btn-ghost, .btn-quiet").forEach(function (button) {
+        button.dataset.size = "compact";
       });
       UI.enhance(imPanel);
     }

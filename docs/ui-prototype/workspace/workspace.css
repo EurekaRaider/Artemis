@@ -6148,7 +6148,6 @@ body.sidebar-collapsed .sidebar-brand .activity-mark {
 .im-secret-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .im-secret-wrap > input { flex: 1; min-width: 0; width: 100%; }
 .im-secret-wrap .im-reveal { flex: none; min-width: 58px; }
-#settingsPanelIm .btn > svg, #settingsPanelIm .im-demo-link > svg { width: 14px; height: 14px; flex: none; }
 #settingsPanelIm .im-demo-link { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 #settingsPanelIm .btn-pair { flex-wrap: wrap; }
 #settingsPanelIm .im-field-input[aria-invalid="true"] { border-color: var(--danger-text); }
