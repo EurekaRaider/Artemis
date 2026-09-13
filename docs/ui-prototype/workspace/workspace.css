@@ -3216,40 +3216,186 @@ body[data-dock="open"] .dock-resizer {
   color: var(--text-2);
   margin-top: auto;
 }
-/* 评论 pin + 气泡 */
-.dz-comment-pin {
+/* 注释仿真（对照 open-design CommentPreviewOverlays / BoardComposerPopover）：
+   取色沿用 open-design 原值 —— pin #d96a46、拾取高亮 #1677ff、面板强调 #ff5a3c，仅作用于本仿真层 */
+.dz-pin-layer {
   position: absolute;
-  right: 18px; bottom: 64px;
-  width: 26px; height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50% 50% 50% 4px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 12px;
-  transform: rotate(-2deg);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  inset: 0;
+  z-index: 19;
+  pointer-events: none;
 }
-.dz-comment-bubble {
+.dz-pin {
   position: absolute;
-  right: 14px; bottom: 96px;
-  z-index: 20;
-  width: min(264px, calc(100% - 28px));
+  left: 0; top: 0;
+  width: 42px; height: 42px;
+  padding: 0;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 10px;
+  background: #d96a46;
+  color: #fff;
+  font: 700 18px/36px var(--font-ui);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 10px 22px rgba(33, 24, 18, 0.22);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.dz-pin:hover {
+  background: #c95e3e;
+  transform: translate(-50%, calc(-50% - 1px));
+}
+/* 悬停/选中元素的高亮框（CommentTargetOverlay） */
+#dzPickBox {
+  position: absolute;
+  z-index: 18;
+  pointer-events: none;
+  border: 1px solid #1677ff;
+  background: rgba(22, 119, 255, 0.24);
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.18);
+}
+#dzPickBox.selected { border-width: 2px; }
+/* 注释模式下预览整体 crosshair（对照 html[data-od-comment-mode] body *） */
+.dz-viewport.dz-picking .dz-stage,
+.dz-viewport.dz-picking .dz-stage * { cursor: crosshair !important; }
+/* hover 样式摘要卡（AnnotationHoverPopover）：只读，随光标 +14px，越界翻转 */
+.dz-pick-card {
+  position: absolute;
+  z-index: 40;
+  min-width: 220px;
+  max-width: 300px;
   padding: 10px;
   border: 1px solid var(--border-soft);
   border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.dz-pick-row {
+  display: grid;
+  grid-template-columns: minmax(52px, max-content) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.dz-pick-row > span { color: var(--text-2); font-weight: 500; }
+.dz-pick-row > b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-pick-row i {
+  flex: none;
+  width: 14px; height: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+}
+/* 注释 composer（comment-popover-composer）：可拖拽标题栏 + 样式行 + 输入 + 双 CTA */
+.dz-note-composer {
+  position: absolute;
+  z-index: 41;
+  width: min(320px, calc(100% - 28px));
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
 }
-.dz-comment-who { font-size: 10.5px; color: var(--text-2); }
-.dz-comment-input {
+.dz-note-titlebar { display: flex; align-items: center; gap: 8px; min-height: 24px; margin: -2px 0 8px; }
+.dz-note-grip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: grab;
+  touch-action: none;
+}
+.dz-note-grip:hover { background: var(--surface-2); color: var(--text); }
+.dz-note-grip span {
+  width: 12px; height: 16px;
+  background-image: radial-gradient(currentColor 1.3px, transparent 1.4px);
+  background-position: 0 0;
+  background-size: 6px 5px;
+}
+.dz-note-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-note-viewall {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dz-note-viewall:hover { color: var(--text); }
+.dz-note-body { display: grid; gap: 10px; max-height: 250px; overflow: auto; }
+.dz-note-rows { display: grid; gap: 8px; min-width: 220px; }
+.dz-note-images { display: flex; flex-wrap: wrap; gap: 6px; }
+.dz-note-img { position: relative; flex: none; }
+.dz-note-img img {
+  display: block;
+  width: 48px; height: 48px;
+  object-fit: cover;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.dz-note-img button {
+  position: absolute;
+  top: -6px; right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+.dz-note-img button:hover { background: var(--surface-2); }
+.dz-note-input {
   width: 100%;
-  min-height: 54px;
-  padding: 7px 9px;
+  height: 112px;
+  max-height: 112px;
+  padding: 8px 10px;
   border: 1px solid var(--border-soft);
   border-radius: var(--r-sm);
   background: var(--surface-2);
@@ -3257,9 +3403,30 @@ body[data-dock="open"] .dock-resizer {
   color: var(--text);
   resize: none;
   outline: none;
+  overflow-y: auto;
 }
-.dz-comment-actions { display: flex; align-items: center; gap: 6px; }
-.dz-comment-actions .btn { min-height: 25px; padding: 3px 10px; font-size: 11px; }
+.dz-note-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.dz-note-actions-start, .dz-note-actions-end { display: inline-flex; align-items: center; min-width: 0; }
+.dz-note-actions-start { gap: 6px; }
+.dz-note-actions-end { gap: 8px; }
+.dz-note-ic {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  line-height: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.dz-note-ic:hover { background: var(--surface-2); color: var(--text); }
+.dz-note-danger:hover { color: var(--danger); }
+.dz-note-actions .btn { min-height: 26px; padding: 3px 10px; font-size: 11px; }
 /* 编辑检查浮层 → 已由 contenteditable 直接编辑替代；
    标记工具条 + 文字标注（对照 open-design PreviewDrawOverlay 工具组） */
 .dz-draw-tools {
@@ -3315,7 +3482,6 @@ body[data-dock="open"] .dock-resizer {
   white-space: nowrap;
   cursor: text;
 }
-.dz-comment-pin { z-index: 19; }
 /* 版本历史浮层 */
 .dz-history {
   position: absolute;
@@ -3377,13 +3543,13 @@ body[data-dock="open"] .dock-resizer {
   opacity: .9;
 }
 
-/* 评论列表侧浮层 */
+/* 评论列表侧浮层（CommentSidePanel：320px 卡 + #ff5a3c 活动态内嵌条） */
 .dz-comment-panel {
   position: absolute;
   top: 10px; right: 12px;
   z-index: 22;
-  width: min(252px, calc(100% - 24px));
-  max-height: min(420px, 70%);
+  width: min(320px, calc(100% - 24px));
+  max-height: min(460px, 80%);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-soft);
@@ -3400,7 +3566,12 @@ body[data-dock="open"] .dock-resizer {
   padding: 9px 11px;
   border-bottom: 1px solid var(--border-soft);
 }
-.dz-comment-panel-head strong { font-size: 12.5px; }
+.dz-comment-panel-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+}
 .dz-count-badge {
   padding: 1px 7px;
   border-radius: 999px;
@@ -3424,37 +3595,54 @@ body[data-dock="open"] .dock-resizer {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
-.dz-comment-empty { padding: 18px 12px; font-size: 11.5px; }
+.dz-comment-empty { padding: 24px 12px; font-size: 11.5px; text-align: center; }
 .dz-comment-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 9px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.dz-comment-item:hover { background: var(--surface-2); }
+.dz-comment-item.active {
+  background: color-mix(in srgb, #ff5a3c 14%, var(--surface));
+  border-color: color-mix(in srgb, #ff5a3c 52%, var(--border-soft));
+  box-shadow: inset 3px 0 0 #ff5a3c;
+}
+.dz-comment-item-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.dz-comment-item-head b { color: var(--text); font-weight: 650; }
+.dz-comment-item-head .dz-comment-time {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.dz-comment-item p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.dz-comment-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.dz-comment-atts img {
+  display: block;
+  width: 56px; height: 56px;
+  object-fit: cover;
   border: 1px solid var(--border-soft);
   border-radius: var(--r-sm);
   background: var(--surface-2);
 }
-.dz-comment-item.resolved { opacity: .55; }
-.dz-comment-item-head { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-2); }
-.dz-comment-item-head b { color: var(--text); font-weight: 600; }
-.dz-comment-item p { margin: 0; font-size: 12px; line-height: 1.5; }
-.dz-comment-resolve {
-  align-self: flex-start;
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--text-2);
-  font: 550 10.5px/1 var(--font-ui);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.dz-comment-resolve:hover { color: var(--success-text); }
 
 /* 版本恢复确认小卡 */
 .dz-confirm {
