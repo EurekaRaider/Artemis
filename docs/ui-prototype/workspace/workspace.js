@@ -748,7 +748,8 @@
 
     var imState = null; /* 当前演示状态（可变副本） */
     var imDerived = null; /* imDerive 缓存 */
-    var imManual = {}; /* 用户手动展开/折叠：cardKey → boolean */
+    var imManual = {}; /* 用户显式切换概览/设置步骤；applyDemo 按完成态自动定向 */ /* 用户手动展开/折叠：cardKey → boolean */
+    var imShowOverview = false;
     var imEpoch = 0; /* applyDemo 递增：作废在途过渡定时器 */
     var imCardEls = {};
     IM_CARD_ORDER.forEach(function (key) {
@@ -974,6 +975,7 @@
         connectingTotal: connectingTotal,
         paused: paused,
         firstUndone: firstUndone,
+        allDone: !firstUndone,
         cards: cards,
         pill: pill,
         autoExpand: autoExpand,
@@ -1892,6 +1894,105 @@
       });
     }
 
+    /* ===== 完成后连接概览（D1/PT-8）：三态分开表达 + 五分区 + 总开关新家 ===== */
+    function imRenderOverview() {
+      var ov = imPanel.querySelector("[data-im-overview]");
+      if (!ov) return;
+      var gf = imState.groupFlow;
+      ov.hidden = !!gf.open || !imShowOverview;
+      var mainFlow = imPanel.querySelector("#imFlow");
+      if (mainFlow) mainFlow.hidden = !!gf.open || imShowOverview;
+      if (!imShowOverview || gf.open) return;
+      var d = imDerived;
+      var s = imState;
+      var badN = d.badTotal + (s.gateway.linkBroken ? 1 : 0);
+      var trio = imPanel.querySelector("[data-im-ov-trio]");
+      if (trio) {
+        var conn =
+          s.gateway.linkBroken
+            ? { t: "服务断连", c: "bad" }
+            : badN
+              ? d.healthyTotal
+                ? { t: "部分连接异常", c: "warn" }
+                : { t: "连接异常", c: "bad" }
+              : d.healthyTotal
+                ? { t: "全部正常", c: "ok" }
+                : { t: "还没有机器人", c: "idle" };
+        trio.innerHTML =
+          '<span class="' + (d.allDone ? "ok" : "") + '">配置完整 <b>' + (d.allDone ? "✓" : "未完成") + "</b></span>" +
+          '<span class="' + conn.c + '">连接 <b>' + conn.t + "</b></span>" +
+          '<span class="' + (s.test.confirmed ? "ok" : "") + '">测试 <b>' + (s.test.confirmed ? "已通过（你已确认）" : "未做") + "</b></span>";
+      }
+      var contBtn = imPanel.querySelector("[data-im-continue-setup]");
+      if (contBtn) contBtn.hidden = d.allDone && !badN && !d.expired;
+      var secs = imPanel.querySelector("[data-im-ov-sections]");
+      if (!secs) return;
+      var paused = d.paused;
+      var pausedTag = paused ? " · 已暂停" : "";
+      var connDot = function (state) {
+        return paused ? "idle" : state === "ok" ? "ok" : state === "bad" ? "bad" : "pending";
+      };
+      var connText = function (c) {
+        return c.state === "ok" ? "已连接" : c.state === "bad" ? "连接失败" : c.state === "connecting" ? "连接中" : "正在重连 · 第 " + (c.attempt || 1) + " 次";
+      };
+      var botRows = "";
+      IM_PLATFORMS.forEach(function (p) {
+        (s.connections[p.key] || []).forEach(function (c) {
+          botRows +=
+            '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ' + connDot(c.state) + '"></span>' +
+            '<span>' + c.app + " · " + p.name + "</span>" +
+            '<span class="im-ov-note">' + connText(c) + (c.state === "ok" && c.note ? " · " + c.note : c.reason ? " · " + c.reason : "") + "</span></div>";
+        });
+      });
+      var partialNote =
+        d.badTotal && d.healthyTotal
+          ? '<p class="im-fine">部分连接异常——故障连接可单独修复，其余不受影响。</p>'
+          : "";
+      var accountRows = s.bindings
+        .map(function (b) {
+          return '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ok"></span><span>' + b.name + " · " + b.id +
+            '</span><span class="im-ov-note">' + b.mode + " 模式" + (b.muted ? " · 已静音" : "") + "</span></div>";
+        })
+        .join("");
+      var projectRows = s.projects
+        .filter(function (pr) { return pr.checked; })
+        .map(function (pr) {
+          return '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ' + (pr.expired ? "pending" : "ok") + '"></span><span>' + pr.id +
+            '</span><span class="im-ov-note">' + IM_MODE_META[pr.mode].label + " · " + imScopeText(pr) +
+            (pr.expired ? " · 已到期" : " · 有效期 30 天") + "</span></div>";
+        })
+        .join("") || '<div class="im-ov-row"><span class="im-ov-note">还没有授权项目</span></div>';
+      var groupLine =
+        gf.phase === "done"
+          ? "已连接 " + gf.groups.length + " 个群"
+          : gf.phase === "discover"
+            ? "未设置"
+            : "进行中";
+      secs.innerHTML =
+        '<div class="im-ov-section"><div class="im-ov-sec-title">消息服务' + pausedTag + "</div>" +
+        '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ' + (s.gateway.linkBroken ? "bad" : "ok") + '"></span>' +
+        "<span>" + (s.gateway.team ? "团队服务 · " + s.gateway.team : "本机运行") + " · " + s.gateway.deviceId + "</span>" +
+        '<label class="im-master"><span class="im-master-label">' + (s.masterOn ? "运行中" : "已暂停") + '</span>' +
+        '<button aria-checked="' + s.masterOn + '" aria-label="暂停或恢复响应 IM 指令" class="switch' + (s.masterOn ? " on" : "") + '" data-im-ov-master="" role="switch" type="button"></button></label></div>' +
+        '<p class="im-fine">团队配置与诊断在第 ① 步的高级区。</p></div>' +
+        '<div class="im-ov-section"><div class="im-ov-sec-title">机器人' + pausedTag + "</div>" + partialNote +
+        (botRows || '<div class="im-ov-row"><span class="im-ov-note">还没有机器人</span></div>') +
+        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-ov-goto="bots" type="button">去管理</button></div></div>' +
+        '<div class="im-ov-section"><div class="im-ov-sec-title">我的账号</div>' +
+        (accountRows || '<div class="im-ov-row"><span class="im-ov-note">还没有绑定账号</span></div>') +
+        (s.pairingRequests.length ? '<div class="im-ov-row"><span aria-hidden="true" class="im-dot pending"></span><span>' + s.pairingRequests.length + " 条绑定待确认</span></div>" : "") +
+        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-ov-goto="account" type="button">去处理</button></div></div>' +
+        '<div class="im-ov-section"><div class="im-ov-sec-title">项目访问</div>' + projectRows +
+        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-ov-goto="projects" type="button">编辑</button></div></div>' +
+        '<div class="im-ov-section"><div class="im-ov-sec-title">群协作</div>' +
+        '<div class="im-ov-row"><span class="im-ov-note">' + groupLine + "</span></div>" +
+        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作</button></div></div>';
+      /* 动态渲染的 switch 需单独初始化（对齐 UI.toggle 运行时增强） */
+      Array.prototype.forEach.call(secs.querySelectorAll(".switch"), function (sw) {
+        if (window.ArtemisUI) window.ArtemisUI.toggle(sw);
+      });
+    }
+
     function imRefresh() {
       var recovery = imPanel.querySelector("[data-im-recovery]");
       if (recovery) recovery.hidden = !imState.gateway.linkBroken;
@@ -1943,9 +2044,10 @@
             "<br>回复仅发给你绑定的单聊"
           : "";
       }
-      /* ⑤ 测试任务轨道 + 群协作第二流程（M6 就绪条已退场，由⑤完成态承接） */
+      /* ⑤ 测试任务轨道 + 群协作第二流程 + 完成后概览（M6 就绪条已退场，由⑤完成态承接） */
       imRenderTest();
       imRenderGroupFlow();
+      imRenderOverview();
       /* D1：首次流程无总开关。设置进度 N/5 + ③ 五态行 */
       var progEl = imPanel.querySelector("[data-im-progress]");
       if (progEl)
@@ -2000,6 +2102,9 @@
       imSecondsLeft = 5 * 60;
       imCodeExpired = false;
       imRenderAll();
+      /* 五步全✓时自动进入概览：再次打开不重跑流程 */
+      imShowOverview = !!(imDerived && imDerived.allDone);
+      imRefresh();
     }
 
     /* ===== 定位与脉冲（一次性背景脉冲，不用 focus ring） ===== */
@@ -2018,6 +2123,8 @@
     /* 展开目标卡 → .settings-content 滚动到位 → 一次性脉冲 → 焦点落卡头（时序：scroll 先于 focus） */
     function imLocateCard(key, opts) {
       opts = opts || {};
+      imShowOverview = false; /* 定位目标在设置步骤内：先退出概览 */
+      imRefresh();
       imManual[key] = true;
       imRenderCards();
       var card = imCardEls[key];
@@ -2735,7 +2842,7 @@
       }
       if (ev.target.closest("[data-im-open-group-flow]")) {
         imState.groupFlow.open = true;
-        imRenderGroupFlow();
+        imRefresh();
         var scroller2 = $(".settings-content");
         if (scroller2) scroller2.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -2747,7 +2854,7 @@
       if (!gf) return;
       if (ev.target.closest("[data-im-group-back]") && gf.open) {
         gf.open = false;
-        imRenderGroupFlow();
+        imRefresh(); /* 统一经 refresh：正确衔接概览与设置步骤的显隐 */
         return;
       }
       if (ev.target.closest("[data-im-gf-find]")) {
@@ -2789,6 +2896,43 @@
         gf.phase = "done";
         imRefresh();
         notice("群协作已就绪（演示）");
+      }
+    });
+
+    /* 完成后概览交互：总开关（暂停/恢复）/进入/返回/继续设置/分区跳转 */
+    imPanel.addEventListener("click", function (ev) {
+      var master2 = ev.target.closest("[data-im-ov-master]");
+      if (master2) {
+        imState.masterOn = master2.classList.contains("on");
+        imRefresh();
+        notice(imState.masterOn ? "已恢复响应 IM 指令（演示）" : "已暂停响应 IM 指令，配置保留（演示）");
+        return;
+      }
+      if (ev.target.closest("[data-im-view-overview]")) {
+        imShowOverview = true;
+        imRefresh();
+        var scroller3 = $(".settings-content");
+        if (scroller3) scroller3.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      if (ev.target.closest("[data-im-back-setup]")) {
+        imShowOverview = false;
+        imRefresh();
+        return;
+      }
+      var cont2 = ev.target.closest("[data-im-continue-setup]");
+      if (cont2) {
+        imShowOverview = false;
+        imRefresh();
+        var target2 = imDerived.firstUndone || (imDerived.expired ? "projects" : "bots");
+        imLocateCard(target2);
+        return;
+      }
+      var goto2 = ev.target.closest("[data-im-ov-goto]");
+      if (goto2) {
+        imShowOverview = false;
+        imRefresh();
+        imLocateCard(goto2.getAttribute("data-im-ov-goto"));
       }
     });
 
@@ -3001,6 +3145,8 @@
             if (key === "ready") { imState.test.stage = 4; imState.test.confirmed = true; }
             if (key === "expired") { imSecondsLeft = 0; imCodeExpired = true; imManual.account = true; }
             imRenderAll();
+            imShowOverview = !!(imDerived && imDerived.allDone);
+            imRefresh();
           }
           if (key === "team") {
             imState.gateway.team = "https://gw.example.com";

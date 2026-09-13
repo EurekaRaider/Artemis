@@ -204,8 +204,47 @@ try {
   await page.locator('[data-im-gf-grant]').click();
   assert.match(await page.locator('[data-im-group-state]').textContent(),/你的项目已就绪/);
   await page.locator('[data-im-group-flow] > [data-im-group-back]').click();
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(300);
   assert.equal(await page.locator('[data-im-group-flow]').isHidden(),true);
+ });
+ await check('C5 overview reopen, group entry, partial failures and continue setup',async()=>{
+  /* ready 场景重放：五步全✓ → 自动进入概览（再次打开不重跑流程）；场景面板本块内开合自理 */
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-scene="ready"]').click();
+  await page.locator('[data-im-confirm-ok]').click();
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('[data-im-overview]').isVisible(),true);
+  assert.match(await page.locator('[data-im-ov-trio]').textContent(),/已通过（你已确认）/);
+  /* 概览五分区内的群协作入口 → 返回仍回概览 */
+  await page.locator('[data-im-ov-sections] [data-im-open-group-flow]').click();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('[data-im-group-flow]').isVisible(),true);
+  await page.locator('[data-im-group-flow] > [data-im-group-back]').click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('[data-im-overview]').isVisible(),true);
+  /* alert 场景：未全完成不自动进概览；手动完成⑤后进入 → 部分连接异常 + 健康连接不连坐 */
+  await page.locator('[data-im-scene="alert"]').click();
+  await page.locator('[data-im-confirm-ok]').click();
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('[data-im-overview]').isHidden(),true);
+  await locate('test');
+  for(let i=0;i<4;i++){await page.locator('[data-im-test-advance]').click();await page.waitForTimeout(60);}
+  await page.locator('[data-im-test-confirm-btn]').click();
+  await page.waitForTimeout(200);
+  await page.locator('[data-im-view-overview]').click();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('[data-im-overview]').isVisible(),true);
+  assert.match(await page.locator('[data-im-ov-trio]').textContent(),/部分连接异常/);
+  const secsText=await page.locator('[data-im-ov-sections]').textContent();
+  assert.match(secsText,/连接失败/);
+  assert.match(secsText,/已连接/);
+  /* 继续设置：token-lab 到期 → 定位④并展开 */
+  await page.locator('[data-im-continue-setup]').click();
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('[data-im-overview]').isHidden(),true);
+  assert.equal(await page.locator('[data-im-card="projects"] [data-im-card-head]').getAttribute('aria-expanded'),'true');
+  /* 收起演示场景面板，交还给后续检查 */
+  await page.locator('.im-simulation summary').click();
  });
  await check('scenes and expired pairing do not advance',async()=>{await page.locator('.im-simulation summary').click();await page.locator('[data-im-scene="expired"]').click();await page.locator('[data-im-confirm-ok]').click();await locate('account');assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),true);assert.equal(await page.locator('[data-im-wait-card]').isHidden(),true);assert.match(await page.locator('[data-im-renew-code]').textContent(),/生成新指令/);await page.locator('[data-im-renew-code]').click();assert.match(await page.locator('[data-im-countdown]').first().textContent(),/5:00|4:59/);assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),false);});
  await check('narrow dark and reduced motion',async()=>{await page.setViewportSize({width:620,height:850});await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await locate('bots');await page.screenshot({path:out+'/narrow-dark.png'});assert.equal(await page.locator('#settingsPanelIm').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);});

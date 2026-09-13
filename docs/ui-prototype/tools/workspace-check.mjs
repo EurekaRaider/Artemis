@@ -162,6 +162,23 @@ try {
     await page.locator('[data-im-group-flow] > [data-im-group-back]').click();
     await page.waitForTimeout(200);
     assert.equal(await page.locator('[data-im-group-flow]').isHidden(),true);
+    /* C5 概览：查看连接概览 → 三态 + 暂停/恢复 + 返回设置步骤 */
+    await page.locator('[data-im-view-overview]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('[data-im-overview]').isVisible(),true);
+    const trioText=await page.locator('[data-im-ov-trio]').textContent();
+    assert.match(trioText,/配置完整/);
+    assert.match(trioText,/全部正常/);
+    assert.match(trioText,/已通过/);
+    await page.locator('[data-im-ov-master]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'paused');
+    assert.match(await page.locator('[data-im-ov-sections]').textContent(),/已暂停/);
+    await page.locator('[data-im-ov-master]').click();
+    await page.waitForTimeout(150);
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'ok');
+    await page.locator('[data-im-back-setup]').click();
+    assert.equal(await page.locator('[data-im-overview]').isHidden(),true);
     /* 重置：回到 empty 契约 */
     await page.click('[data-im-sim-reset]');
     await page.click('[data-im-confirm-ok]');

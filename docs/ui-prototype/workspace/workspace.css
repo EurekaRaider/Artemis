@@ -3952,6 +3952,20 @@ body[data-archived-demo] .composer-wrap .composer {
   flex: none;
 }
 /* D1：首次流程无总开关，头部改为「设置进度 N/5」（小而轻，仅数字加粗） */
+/* 完成后概览（C5）：总开关新家（消息服务分区内的暂停/恢复） */
+.im-master {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.im-master-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.im-master .switch {
+  margin: 0;
+}
 .im-progress {
   font-size: 11px;
   color: var(--text-3);
@@ -4537,6 +4551,71 @@ body[data-archived-demo] .composer-wrap .composer {
 }
 .im-test-done .im-ready-title {
   color: var(--success-text);
+}
+/* 完成后连接概览（三态分开 + 五分区） */
+.im-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 0 8px;
+}
+.im-ov-trio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.im-ov-trio b {
+  font-weight: 620;
+  color: var(--text-2);
+  margin-left: 2px;
+}
+.im-ov-trio .ok b {
+  color: var(--success-text);
+}
+.im-ov-trio .warn b {
+  color: var(--warning-text);
+}
+.im-ov-trio .bad b {
+  color: var(--danger-text);
+}
+.im-ov-actions {
+  display: flex;
+  gap: 16px;
+}
+.im-ov-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-ov-section {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-card);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.im-ov-sec-title {
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.im-ov-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.im-ov-row .sp {
+  flex: 1;
+}
+.im-ov-note {
+  color: var(--text-3);
+  font-size: 11px;
 }
 /* 群协作独立第二流程 */
 .im-group-flow {

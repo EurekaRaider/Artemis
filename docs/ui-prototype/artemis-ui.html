@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=169" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=170" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -941,6 +941,7 @@
 <div class="btn-pair">
 <button class="btn btn-primary" data-im-finish="" type="button">开始使用</button>
 <button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作（可选）</button>
+<button class="btn btn-ghost" data-im-view-overview="" type="button">查看连接概览</button>
 </div>
 </div>
 </div>
@@ -959,6 +960,16 @@
 </ol>
 <div data-im-group-body=""></div>
 <p aria-live="polite" class="im-fine" data-im-group-state=""></p>
+</div>
+<!-- 完成后连接概览（D1/PT-8）：五分区 + 三态分开表达 + 总开关新家 -->
+<div class="im-overview" data-im-overview="" hidden="">
+<h4 class="im-group-flow-title">连接概览</h4>
+<div class="im-ov-trio" data-im-ov-trio=""></div>
+<div class="im-ov-actions">
+<button class="im-demo-link" data-im-continue-setup="" hidden="" type="button">继续设置 →</button>
+<button class="im-demo-link" data-im-back-setup="" type="button">← 返回设置步骤</button>
+</div>
+<div class="im-ov-sections" data-im-ov-sections=""></div>
 </div>
 <!-- 模拟会话重置：回到 empty 快照（仅内存，不写 hash） -->
 <details class="im-simulation"><summary>演示场景</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。</p><div class="btn-pair im-scene-buttons">
@@ -1051,6 +1062,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=156"></script>
+<script src="workspace/workspace.js?v=157"></script>
 </body>
 </html>
