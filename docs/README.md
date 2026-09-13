@@ -21,7 +21,7 @@
 
 ## projects/ · 进行中专项
 
-暂无进行中专项文档。
+- [消息接入引导式设置提案](projects/im-guided-settings/README.md)：实际参数、步骤依赖、五步首次设置、群协作与异常恢复。
 
 ## records/ · 台账
 

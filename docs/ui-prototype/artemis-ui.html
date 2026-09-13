@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=164" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=165" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -813,6 +813,8 @@
 <label class="im-master"><span class="im-master-label">启用</span><button aria-checked="false" aria-label="启用 IM 连接" class="switch" id="imMasterSwitch" role="switch" type="button"></button></label>
 </div>
 </div>
+<p class="im-fine">交互原型 · 配置仅在本次页面中模拟，不连接聊天平台。</p>
+<div class="im-recovery" data-im-recovery hidden role="status">设备与消息服务断连，远程任务暂不可用。<button type="button" class="btn btn-ghost" data-im-recover>恢复服务</button></div>
 <div class="im-flow" id="imFlow">
 <!-- ① 连接服务 -->
 <section class="im-card" data-im-card="service">
@@ -822,15 +824,35 @@
 <button class="btn btn-primary im-service-cta" data-im-service-start="" type="button">一键开启（推荐）</button>
 <p class="im-muted">消息服务负责收发消息，在本机自动运行。</p>
 <p class="im-fine" data-im-service-help="" hidden="">第一次启动会生成设备编号，几秒就好。</p>
-<p class="im-fine">使用团队服务器？展开下方「高级」。</p>
+<p class="im-fine">个人使用可直接开启；团队配置在本步骤下方。</p>
 </div>
 <div class="im-service-ready" data-im-service-ready="" hidden="">
 <div class="im-service-facts">
-<div class="im-fact"><span class="im-fact-label">运行方式</span><span class="im-fact-value">本机自动运行（推荐）</span></div>
+<div class="im-fact"><span class="im-fact-label">运行方式</span><span class="im-fact-value" data-im-runtime>本机自动运行（推荐）</span></div>
 <div class="im-fact"><span class="im-fact-label">设备编号</span><span class="im-fact-value"><code class="im-identifier">dev-3f9a</code></span></div>
 </div>
-<p class="im-muted">消息服务在本机后台收发聊天消息，重启 Artemis 后自动恢复，无需值守。</p>
-<p class="im-fine">换用团队服务器见下方「高级」。</p>
+<p class="im-muted">接收远程任务时，请保持电脑唤醒、Artemis 运行。退出应用会停止本机消息服务。</p>
+<p class="im-fine">团队服务器与诊断见本步骤下方。</p>
+</div>
+<!-- 底部「高级」折叠组：团队服务器 / 连接诊断 / 指令速查 -->
+<div class="im-advanced" id="imAdvanced">
+<button aria-controls="imAdvancedBody" aria-expanded="false" class="im-advanced-toggle" data-im-fold="" type="button"><span>团队服务器与诊断</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="" id="imAdvancedBody">
+<div class="im-block im-team-form" id="imTeamForm">
+<h4>团队服务器</h4>
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">服务地址</span><input class="im-field-input" placeholder="https://gw.example.com" spellcheck="false"/></label>
+<label class="im-field"><span class="im-field-label">设备名</span><input class="im-field-input" placeholder="nicky 的 Mac"/></label>
+<label class="im-field field-wide"><span class="im-field-label">管理凭据</span><input class="im-field-input" placeholder="仅注册时使用，不落盘" type="password"/></label>
+</div>
+<p class="im-fine" data-im-team-result hidden role="status"></p><div class="setting-row"><span class="sp"></span><div class="btn-pair"><button class="btn btn-primary" data-im-team-register="" type="button">注册</button><code class="im-identifier">dev-3f9a</code></div></div>
+</div>
+<div class="im-block">
+<h4>连接诊断</h4><p class="im-fine" data-im-diagnostic-result hidden role="status"></p>
+<div class="setting-row"><div><div class="label">诊断</div><div class="desc">检查服务、机器人、账号和项目授权</div></div><span class="sp"></span><button class="btn btn-ghost" data-im-diagnose="" type="button">运行诊断</button></div>
+</div>
+
+</div>
 </div>
 </div>
 </section>
@@ -839,7 +861,7 @@
 <button aria-controls="imCardBodyBots" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">2</span><span class="im-card-title">添加机器人</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
 <div class="im-card-body" id="imCardBodyBots">
 <p class="im-muted">先接一个平台就够用，其余随时可补。</p>
-<p class="im-muted">点『去添加』，把后台凭证页的内容贴进来。</p>
+
 <ul class="im-platform-rows" data-im-platform-rows=""></ul>
 </div>
 </section>
@@ -862,6 +884,15 @@
 <p class="im-muted" data-im-binding-empty="" hidden="">还没有绑定任何账号。</p>
 </div>
 <button class="im-demo-link" data-im-goto-projects="" hidden="" type="button">先去 ④ 选择项目 →</button>
+<div class="im-block">
+<h4>指令速查</h4>
+<div class="im-chips">
+<button class="im-chip" type="button"><code>/pair</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>/status</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>/stop</code><span aria-hidden="true">⧉</span></button>
+</div>
+</div>
 </div>
 </section>
 <!-- ④ 允许手机操作的项目 -->
@@ -873,7 +904,7 @@
 <ul class="im-project-list" data-im-project-rows=""></ul>
 <div class="im-block">
 <div class="setting-row"><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill" data-im-default-project=""></select></div>
-<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-im-projects-save="" data-toast="已保存（演示）" type="button">保存</button></div>
+<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-im-projects-save="" type="button">保存</button></div>
 </div>
 </div>
 </section>
@@ -901,36 +932,10 @@
 </div>
 </section>
 </div>
-<!-- 底部「高级」折叠组：团队服务器 / 连接诊断 / 指令速查 -->
-<div class="im-advanced" id="imAdvanced">
-<button aria-controls="imAdvancedBody" aria-expanded="false" class="im-advanced-toggle" data-im-fold="" type="button"><span>高级</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="" id="imAdvancedBody">
-<div class="im-block im-team-form" id="imTeamForm">
-<h4>团队服务器</h4>
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">服务地址</span><input class="im-field-input" placeholder="https://gw.example.com" spellcheck="false"/></label>
-<label class="im-field"><span class="im-field-label">设备名</span><input class="im-field-input" placeholder="nicky 的 Mac"/></label>
-<label class="im-field field-wide"><span class="im-field-label">管理凭据</span><input class="im-field-input" placeholder="仅注册时使用，不落盘" type="password"/></label>
-</div>
-<div class="setting-row"><span class="sp"></span><div class="btn-pair"><button class="btn btn-primary" data-toast="已注册设备（演示）" type="button">注册</button><code class="im-identifier">dev-3f9a</code></div></div>
-</div>
-<div class="im-block">
-<h4>连接诊断</h4>
-<div class="setting-row"><div><div class="label">诊断</div><div class="desc">最近一次：全部正常 · 2 分钟前</div></div><span class="sp"></span><button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">运行诊断</button></div>
-</div>
-<div class="im-block">
-<h4>指令速查</h4>
-<div class="im-chips">
-<button class="im-chip" type="button"><code>/pair</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>/status</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>/stop</code><span aria-hidden="true">⧉</span></button>
-</div>
-</div>
-</div>
-</div>
 <!-- 模拟会话重置：回到 empty 快照（仅内存，不写 hash） -->
-<div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
+<details class="im-simulation"><summary>演示场景</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。</p><div class="btn-pair im-scene-buttons">
+<button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button>
+</div></details><div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
 <!-- M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）才显示 -->
 <div class="im-ready" data-im-ready="" hidden="">
 <p class="im-ready-title">✓ 全部就绪　去聊天软件给机器人发条消息试试</p>
@@ -1026,6 +1031,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=151"></script>
+<script src="workspace/workspace.js?v=152"></script>
 </body>
 </html>

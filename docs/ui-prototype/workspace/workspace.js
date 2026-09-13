@@ -790,7 +790,7 @@
       var serviceDone = s.gateway.started && !s.gateway.linkBroken;
       var botsDone = healthyTotal > 0;
       var accountDone = s.bindings.length > 0;
-      var projectsDone = checkedProjects > 0 && expired === 0;
+      var projectsDone = checkedProjects > 0 && expired === 0 && !sim.projectsDirty;
       var anyConfigured = connsTotal > 0;
       var paused = !s.masterOn && anyConfigured;
       var pairWaiting = !!sim.pairWait;
@@ -826,7 +826,7 @@
               : "待开启",
         alerts: serviceAlerts,
         summary: serviceDone
-          ? "已就绪 · 本机运行 · " + s.gateway.deviceId
+          ? "已就绪 · " + (s.gateway.team ? "团队服务" : "本机运行") + " · " + s.gateway.deviceId
           : "先开启服务",
       };
       /* ② 添加机器人 */
@@ -868,9 +868,9 @@
             : "发一条配对指令即可绑定",
       };
       /* ④ 允许手机操作的项目（勾选未保存 → busy「已选 N · 待保存」） */
-      var projectsBusy = !!sim.projectsDirty && checkedProjects > 0;
+      var projectsBusy = !!sim.projectsDirty;
       cards.projects = {
-        state: projectsBusy ? "busy" : cardState("projects", checkedProjects > 0, false),
+        state: projectsBusy ? "busy" : cardState("projects", projectsDone, expired > 0),
         badgeText: projectsBusy
           ? "已选 " + checkedProjects + " · 待保存"
           : checkedProjects > 0
@@ -962,7 +962,7 @@
         autoExpand: autoExpand,
         expired: expired,
         projectsDone: projectsDone,
-        ready: serviceDone && botsDone && accountDone && projectsDone &&
+        ready: s.masterOn && serviceDone && botsDone && accountDone && projectsDone &&
           badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
         groupMembers: groupMembers,
         activeGroups: activeGroups.length,
@@ -981,6 +981,7 @@
     }
 
     /* M2b 凭据子卡：字段清单（接收方式条件化）+ 保存并重连三态流 + 接入指引 */
+    var imFieldSequence = 0;
     var IM_FIELD = function (label, inputHtml, extra) {
       return (
         '<label class="im-field' + (extra || "") + '" data-im-field-label="' + label + '">' +
@@ -991,50 +992,22 @@
     /* 字段级帮助（聚焦显示）与校验（blur 非空/提交必填）：大白话，逐平台同构 */
     var IM_FIELD_RULES = {
       feishu: {
-        "App ID": {
-          help: "在飞书后台『凭证与基础信息』页顶部。",
-          prefix: "cli_",
-          prefixError: "App ID 一般以 cli_ 开头。确认这格没贴成 App Secret。",
-        },
-        "机器人 Open ID": {
-          help: "是机器人的 Open ID，不是你自己的。",
-          prefix: "ou_",
-          prefixError: "这格要填 ou_ 开头的机器人 Open ID——cli_ 开头的是上一格的 App ID。",
-        },
-        "Tenant Key": { required: true, requiredError: "Tenant Key 不能为空，在应用详情页。" },
-        "App Secret": {
-          help: "只送到本机服务并加密保存，界面不再回显。",
-          required: true,
-          requiredError: "App Secret 不能为空，在『凭证与基础信息』页。",
-        },
-        "区域": { help: "账号在 lark.com 用新加坡/美国。" },
-        "Verification Token": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
-        "Encrypt Key": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+        "App ID": { required: true, requiredError: "请输入 App ID。", prefix: "cli_", prefixError: "App ID 应以 cli_ 开头。", help: "开发者后台 → 凭证与基础信息。" },
+        "App Secret": { required: true, requiredError: "请输入 App Secret。", help: "与 App ID 来自同一应用；原型仅在本次页面中使用。" },
+        "机器人 Open ID": { prefix: "ou_", prefixError: "请输入 ou_ 开头的机器人 Open ID。", help: "可留空，连接时自动识别。" },
+        "Tenant Key": { help: "可留空，连接时自动识别团队。" },
+        "Verification Token": { httpsHelp: "从事件与回调页复制 Verification Token。" },
+        "Encrypt Key": { httpsHelp: "从事件与回调页复制 Encrypt Key。" }
       },
       wecom: {
-        "企业 ID": {
-          prefix: "ww_",
-          prefixError: "企业 ID 一般以 ww_ 开头。确认没贴成应用 Secret。",
-        },
-        "Agent ID": { required: true, requiredError: "Agent ID 不能为空，在应用详情页。" },
-        "应用 Secret": {
-          help: "只送到本机服务并加密保存，界面不再回显。",
-          required: true,
-          requiredError: "应用 Secret 不能为空，在『接收消息』页。",
-        },
-        "Token": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
-        "EncodingAESKey": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+        "企业 ID": { required: true, requiredError: "请输入企业 ID。", prefix: "ww", prefixError: "企业 ID 应以 ww 开头。", help: "管理后台 → 我的企业 → 企业信息。" },
+        "Bot ID": { required: true, requiredError: "请输入智能机器人的 Bot ID。" },
+        "Secret": { required: true, requiredError: "请输入与 Bot ID 对应的 Secret。", help: "智能机器人 → API 模式 → 长连接；不是群 Webhook。" }
       },
       slack: {
-        "Bot Token": {
-          help: "只送到本机服务并加密保存，界面不再回显。",
-          prefix: "xoxb-",
-          prefixError: "Bot Token 一般以 xoxb- 开头。确认没贴成 Signing Secret。",
-        },
-        "Client ID": { required: true, requiredError: "Client ID 不能为空，在应用基础信息页。" },
-        "Client Secret": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
-        "Signing Secret": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
-      },
+        "Bot Token": { required: true, requiredError: "请输入 Bot User OAuth Token。", prefix: "xoxb-", prefixError: "Bot Token 应以 xoxb- 开头。" },
+        "App-Level Token": { required: true, requiredError: "请输入 App-Level Token。", prefix: "xapp-", prefixError: "App-Level Token 应以 xapp- 开头。", help: "需包含 connections:write，两个令牌来自同一应用。" }
+      }
     };
     var IM_HTTPS_REQUIRED_ERROR = "选了 HTTPS 回调，这两项就必填。";
     function imFieldRule(platformKey, label) {
@@ -1049,10 +1022,18 @@
       help.textContent = text || "";
       help.classList.toggle("im-field-error", !!isError);
       help.hidden = !text;
+      var input = labelEl.querySelector("input, select");
+      if (input) {
+        if (!help.id) help.id = "im-help-" + (++imFieldSequence);
+        input.setAttribute("aria-describedby", help.id);
+        input.setAttribute("aria-invalid", String(!!isError));
+      }
     }
     function imHideFieldMessage(labelEl) {
       var help = imFieldHelpEl(labelEl);
       if (help) help.hidden = true;
+      var input = labelEl.querySelector("input, select");
+      if (input) input.removeAttribute("aria-invalid");
     }
     /* 单字段校验：返回错误文案或 null（httpsOnly 字段仅在可见时参与） */
     function imValidateField(platformKey, labelEl) {
@@ -1083,50 +1064,39 @@
 
     function imSubcardTemplate(p) {
       var fields = "";
+      var secret = '<input class="im-field-input" type="password" autocomplete="off"/>';
       if (p.key === "feishu") {
-        fields =
-          IM_FIELD("App ID", '<input class="im-field-input" placeholder="cli_a5…" spellcheck="false"/>') +
-          IM_FIELD("机器人 Open ID", '<input class="im-field-input" placeholder="ou_…（不是 App ID）" spellcheck="false"/>') +
-          IM_FIELD("Tenant Key", '<input class="im-field-input" placeholder="tenant_id" spellcheck="false"/>') +
-          IM_FIELD("区域", '<select class="im-field-input"><option selected="">中国</option><option>新加坡</option><option>美国</option></select>') +
-          IM_FIELD("App Secret", '<input class="im-field-input" type="password"/>') +
+        fields = IM_FIELD("App ID", '<input class="im-field-input" placeholder="cli_…" spellcheck="false"/>') +
+          IM_FIELD("App Secret", secret) +
+          '<details class="im-credential-advanced field-wide"><summary>高级设置 · 通常无需修改</summary><div class="form-grid">' +
+          IM_FIELD("区域", '<select class="im-field-input"><option value="feishu">飞书 · 中国</option><option value="lark">Lark · 国际</option></select>') +
           IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
-          IM_FIELD("Verification Token", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
-          IM_FIELD("Encrypt Key", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
-          IM_FORWARD_URL(p.key);
+          IM_FIELD("Tenant Key", '<input class="im-field-input" placeholder="自动获取"/>') +
+          IM_FIELD("机器人 Open ID", '<input class="im-field-input" placeholder="自动获取"/>') +
+          IM_FIELD("Verification Token", secret, '\" data-im-https-only="" hidden=""') +
+          IM_FIELD("Encrypt Key", secret, '\" data-im-https-only="" hidden=""') +
+          IM_FORWARD_URL(p.key) + '</div></details>';
       } else if (p.key === "wecom") {
-        fields =
-          IM_FIELD("企业 ID", '<input class="im-field-input" placeholder="ww…" spellcheck="false"/>') +
-          IM_FIELD("Agent ID", '<input class="im-field-input"/>') +
-          IM_FIELD("应用 Secret", '<input class="im-field-input" type="password"/>') +
-          IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
-          IM_FIELD("Token", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
-          IM_FIELD("EncodingAESKey", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
-          IM_FORWARD_URL(p.key);
+        fields = IM_FIELD("企业 ID", '<input class="im-field-input" placeholder="ww…"/>') +
+          IM_FIELD("Bot ID", '<input class="im-field-input" placeholder="智能机器人 Bot ID"/>') + IM_FIELD("Secret", secret);
       } else {
-        fields =
-          IM_FIELD("Bot Token", '<input class="im-field-input" placeholder="xoxb-…" spellcheck="false"/>') +
-          IM_FIELD("App ID", '<input class="im-field-input" placeholder="A1…"/>') +
-          IM_FIELD("Client ID", '<input class="im-field-input"/>') +
-          IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
-          IM_FIELD("Client Secret", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
-          IM_FIELD("Signing Secret", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
-          IM_FORWARD_URL(p.key);
+        fields = IM_FIELD("Bot Token", secret.replace('/>', ' placeholder="xoxb-…"/>')) +
+          IM_FIELD("App-Level Token", secret.replace('/>', ' placeholder="xapp-…"/>'));
       }
       return (
         '<div class="im-subcard" data-im-subcard="' + p.key + '" hidden="">' +
         '<div class="im-subcard-saved" data-im-cred-saved="" hidden="">' +
-        '<p class="im-muted">机器人信息已加密保存在本机，不会回显。</p>' +
+        '<p class="im-muted">演示配置已保存，密钥已清空。实际产品在 Gateway 加密保存。</p>' +
         '<button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button></div>' +
-        '<form class="im-credentials-form" data-im-cred-form="">' +
-        '<div class="im-subcard-title">机器人信息（加密保存在本机，不回显）</div>' +
-        '<p class="im-fine">最少填 4 项，其余保持默认就行，以后随时改。</p>' +
+        '<form novalidate class="im-credentials-form" data-im-cred-form="">' +
+        '<div class="im-subcard-title">应用凭据</div>' +
+        '<p class="im-fine">填写必需凭据即可连接；请使用演示值，不要输入真实密钥。</p>' +
         '<div class="form-grid">' + fields + "</div>" +
         '<p class="im-fine">保存后机器人会用新密钥重新连接。</p>' +
         '<p class="im-fine" data-im-connect-help="" hidden="">正在用新密钥连接机器人，通常几秒。</p>' +
-        '<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并重连</button>' +
+        '<div class="btn-pair"><button class="btn btn-ghost" data-im-fill-demo="" type="button">填入演示值</button><button class="btn btn-primary" data-im-cred-save="" type="button">保存并重连</button>' +
         '<button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>' +
-        '<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-sim-outcome=""><option value="ok">成功</option><option value="bad">失败（密钥失效）</option></select></p></form>' +
+        '<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-sim-outcome=""><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option></select></p></form>' +
         '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>接入指引（权限与事件订阅）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
         '<div class="im-fold-body" hidden="">' + imGuideTemplate(p.key) + "</div></div>"
       );
@@ -1141,7 +1111,7 @@
           '<button class="im-chip" type="button"><code>im:message:send_as_bot</code><span aria-hidden="true">⧉</span></button>' +
           '<button class="im-chip" type="button"><code>im:message.reaction:write</code><span aria-hidden="true">⧉</span></button>' +
           '<button class="im-chip" type="button"><code>im:resource</code><span aria-hidden="true">⧉</span></button></div></li>' +
-          '<li><p>事件订阅方式选择「长连接」（选 HTTPS 回调时把上方转发地址填入平台后台）。</p></li>' +
+          '<li><p>先在 Artemis 保存凭据建立连接，再回平台选择长连接、订阅事件并发布。HTTPS 回调只用于公网团队服务。</p></li>' +
           '<li><p>订阅事件：</p><div class="im-chips"><button class="im-chip" type="button"><code>im.message.receive_v1</code><span aria-hidden="true">⧉</span></button></div></li>' +
           '<li class="im-guide-warning"><p>在「回调配置」（不是事件订阅）添加：</p><div class="im-chips"><button class="im-chip" type="button"><code>card.action.trigger</code><span aria-hidden="true">⧉</span></button></div></li>' +
           '<li><p>创建版本并发布。</p></li></ol>'
@@ -1149,16 +1119,16 @@
       }
       if (platformKey === "wecom") {
         return (
-          '<ol class="im-guide"><li><p>在企业微信管理后台创建企业自建应用。</p></li>' +
-          '<li><p>记录企业 ID、Agent ID 与应用 Secret。</p></li>' +
-          '<li><p>在「接收消息」页配置回调凭证；长连接无需公网，HTTPS 回调需把上方转发地址加入白名单。</p></li>' +
-          '<li><p>把可信域名加入应用白名单。</p></li></ol>'
+          '<ol class="im-guide"><li><p>企业微信客户端 → 工作台 → 智能机器人 → API 模式创建。</p></li>' +
+          '<li><p>选择长连接，复制 Bot ID、Secret；从管理后台复制企业 ID。</p></li>' +
+          '<li><p>同一个 Bot ID 仅连接一份 Gateway，避免被其他客户端抢占。</p></li>' +
+          '<li><p>将自己加入机器人可使用成员范围并保存。</p></li></ol>'
         );
       }
       return (
         '<ol class="im-guide"><li><p>在 Slack API 创建应用，或直接导入 Manifest。</p></li>' +
         '<li><p>开启 Socket Mode（无需公网回调）。</p></li>' +
-        '<li><p>订阅 <code class="im-identifier">message.im</code> 等事件并授予权限。</p></li></ol>'
+        '<li><p>订阅 message.im、app_mention；授予 chat:write、im:history、app_mentions:read、files:read、users:read。安装应用到工作区，创建带 connections:write 的 App-Level Token。</p></li></ol>'
       );
     }
 
@@ -1276,7 +1246,7 @@
       return m + ":" + String(s).padStart(2, "0");
     }
     function imRenewCode() {
-      imSecondsLeft = 4 * 60 + 32;
+      imSecondsLeft = 5 * 60;
       imCodeExpired = false;
       /* [换一个] 终止等待（配对码作废，确认自然不会到达） */
       if (imState.sim && imState.sim.pairWait) {
@@ -1349,7 +1319,9 @@
         box.querySelectorAll("[data-copy-pair]"),
         function (btn) {
           btn.addEventListener("click", function () {
+            if (imCodeExpired || imState.gateway.linkBroken) { notice("请先更新配对码或恢复服务。", true); return; }
             var line = btn.closest("[data-im-instr-platform]");
+            imCopy(line.querySelector("code").textContent);
             var original = btn.textContent;
             btn.textContent = "已复制";
             setTimeout(function () { btn.textContent = original; }, 1400);
@@ -1362,6 +1334,7 @@
     /* ③ 双轨：10s 倒计时自动到达 + 「演示：让确认现在到达」弱链接（幂等） */
     function imStartPairWait(platformKey) {
       if (!imState.sim || imState.sim.pairWait) return;
+      if (imCodeExpired || imState.gateway.linkBroken) { notice("配对码已过期或服务断连，请更新配对码并恢复服务。", true); return; }
       imState.sim.session = true;
       imState.sim.pairWait = { platform: platformKey, leftMs: IM_T_PAIR_WAIT };
       imRenderWaitCard();
@@ -1445,12 +1418,18 @@
             : "") +
           '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>调整权限</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
           '<div class="im-fold-body" hidden=""><div class="form-grid">' +
-          '<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option' + (pr.id === "Artemis" ? ' selected' : "") + '>Execute</option><option' + (pr.id === "token-lab" ? ' selected' : "") + '>Plan</option><option>Review</option></select></label>' +
-          '<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option><option>每步确认</option></select></label>' +
-          '<label class="im-field"><span class="im-field-label">沙箱</span><select class="im-field-input"><option selected="">默认（Seatbelt / AppContainer）</option><option>完整本机访问</option></select></label>' +
-          '<label class="im-field"><span class="im-field-label">网络</span><select class="im-field-input"><option selected="">按服务器</option><option>允许全部</option></select></label>' +
-          '<label class="im-field"><span class="im-field-label">到期</span><input class="im-field-input" data-im-expiry-field="" type="date" value="' + (pr.expired ? "2026-09-01" : "2026-10-05") + '"/></label>' +
-          '</div><div class="setting-row"><div class="label">到期自动续期</div><span class="sp"></span><button aria-checked="true" aria-label="到期自动续期" class="switch on" role="switch" type="button"></button></div></div>';
+          '<label class="im-field"><span class="im-field-label">任务模式</span><select class="im-field-input" data-im-permission="mode"><option value="plan">Plan · 只读分析</option><option value="review">Review · 只读审查</option><option value="execute">Execute · 允许修改</option></select></label>' +
+          '<label class="im-field"><span class="im-field-label">执行审批</span><select class="im-field-input" data-im-permission="approval"><option value="ask">每次确认</option><option value="automatic">授权范围内自动执行</option></select></label>' +
+          '</div><label class="settings-checkbox"><input type="checkbox" data-im-permission="commands"/><span>允许沙箱命令</span></label>' +
+          '<label class="settings-checkbox"><input type="checkbox" data-im-permission="network"/><span>允许命令访问网络</span></label>' +
+          '<p class="im-fine">远程任务仅在授权项目的沙箱内运行；不开放完整本机访问、MCP 或扩展。</p>' +
+          '<p class="im-fine" data-im-expiry-field="">' + (pr.expired ? '授权已到期，重新选择项目并保存可续期 30 天。' : '保存后授权有效期为 30 天。') + '</p></div>';
+        li.querySelectorAll("[data-im-permission]").forEach(function (input) {
+          var key = input.dataset.imPermission;
+          if (input.type === "checkbox") input.checked = !!pr[key];
+          else input.value = pr[key] || (key === "mode" ? "plan" : "ask");
+          if (input.type === "checkbox") input.disabled = pr.mode !== "execute" || (key === "network" && !pr.commands);
+        });
         var checkbox = li.querySelector('input[type="checkbox"]');
         checkbox.addEventListener("change", function () {
           imState.projects[idx].checked = checkbox.checked;
@@ -1466,9 +1445,11 @@
             if (sel) sel.value = imState.defaultProject;
             notice("已把 " + imState.projects[idx].id + " 设为默认项目。");
           }
-          imState.sim.projectsDirty = imState.projects.some(function (pr) {
-            return pr.checked;
-          });
+          imState.sim.projectsDirty = true;
+          if (!imState.projects.some(function (pr) { return pr.checked && pr.id === imState.defaultProject; })) {
+            imState.defaultProject = (imState.projects.find(function (pr) { return pr.checked; }) || {}).id || "";
+          }
+          imSyncDefaultProject();
           imRefresh();
         });
         list.appendChild(li);
@@ -1476,16 +1457,14 @@
         var sw = li.querySelector(".switch");
         if (sw && window.ArtemisUI) window.ArtemisUI.toggle(sw);
       });
-      /* 默认项目下拉 */
+      imSyncDefaultProject();
+    }
+    function imSyncDefaultProject() {
       var select = imPanel.querySelector("[data-im-default-project]");
-      select.innerHTML =
-        '<option value="">未选择</option>' +
-        imState.projects
-          .map(function (pr) {
-            return '<option value="' + pr.id + '"' +
-              (imState.defaultProject === pr.id ? " selected" : "") + ">" + pr.id + "</option>";
-          })
-          .join("");
+      select.replaceChildren(new Option("未选择", ""));
+      imState.projects.filter(function (pr) { return pr.checked; }).forEach(function (pr) {
+        select.add(new Option(pr.id, pr.id, false, pr.id === imState.defaultProject));
+      });
     }
 
     function imRenderPill() {
@@ -1579,6 +1558,10 @@
     }
 
     function imRefresh() {
+      var recovery = imPanel.querySelector("[data-im-recovery]");
+      if (recovery) recovery.hidden = !imState.gateway.linkBroken;
+      var runtime = imPanel.querySelector("[data-im-runtime]");
+      if (runtime) runtime.textContent = imState.gateway.team ? "团队服务 · " + imState.gateway.team : "本机自动运行（推荐）";
       imDerived = imDerive(imState);
       imRenderPill();
       imRenderCards();
@@ -1681,7 +1664,10 @@
       imEpoch += 1; /* 作废在途的启动/连接/群确认定时器（防串态） */
       imState = JSON.parse(JSON.stringify(IM_SEEDS[key]));
       imManual = {};
-      imSecondsLeft = 4 * 60 + 32;
+      imPanel.querySelectorAll("#imTeamForm input").forEach(function (input) { input.value = ""; });
+      imPanel.querySelectorAll("[data-im-team-result], [data-im-diagnostic-result]").forEach(function (el) { el.hidden = true; });
+      var failureToggle = imPanel.querySelector("[data-im-save-failure]"); if (failureToggle) failureToggle.setAttribute("aria-pressed", "false");
+      imSecondsLeft = 5 * 60;
       imCodeExpired = false;
       var readyBar = imPanel.querySelector("[data-im-ready]");
       if (readyBar) readyBar.classList.remove("im-enter", "im-enter-on");
@@ -1782,7 +1768,7 @@
       var st = imDerived.platforms[platformKey];
       var configured = st.conns.length > 0;
       sub.hidden = false;
-      sub.querySelector("[data-im-cred-saved]").hidden = configured && !focusSecret;
+      sub.querySelector("[data-im-cred-saved]").hidden = !configured || focusSecret;
       sub.querySelector("[data-im-cred-form]").hidden = configured && !focusSecret;
       var first = sub.querySelector(
         focusSecret ? 'input[type="password"]' : "input, select",
@@ -1794,8 +1780,7 @@
       var sub = row.querySelector("[data-im-subcard]");
       sub.hidden = true;
       var form = sub.querySelector("[data-im-cred-form]");
-      form.reset();
-      imApplyReceiveMode(form);
+      /* 折叠保留本次页面中的草稿。 */
     }
     /* 接收方式：长连接隐藏 HTTPS 专属字段与转发地址；
        HTTPS 专属字段的帮助小字在该模式下常驻显示 */
@@ -1895,6 +1880,7 @@
         },
       );
       if (firstBad) {
+        var advanced = firstBad.closest("details"); if (advanced) advanced.open = true;
         firstBad.focus();
         return false;
       }
@@ -1906,8 +1892,7 @@
       var key = platformRow && platformRow.getAttribute("data-im-platform");
       if (ev.target.closest("[data-im-manage]")) {
         var sub = platformRow.querySelector("[data-im-subcard]");
-        if (sub.hidden) imOpenSubcard(key, false);
-        else imCloseSubcard(key);
+        imOpenSubcard(key, false);
         return;
       }
       if (ev.target.closest("[data-im-add]")) {
@@ -1953,8 +1938,7 @@
         var sub3 = form3.closest("[data-im-subcard]");
         var row3 = sub3.closest(".im-platform-row");
         var st3 = imDerived.platforms[row3.getAttribute("data-im-platform")];
-        form3.reset();
-        imApplyReceiveMode(form3);
+        /* 取消收起表单，草稿保留；重置演示时统一清空。 */
         if (st3.conns.length > 0) {
           form3.hidden = true;
           sub3.querySelector("[data-im-cred-saved]").hidden = false;
@@ -1970,11 +1954,17 @@
         var sub4 = form4.closest("[data-im-subcard]");
         var rowKey = sub4.closest(".im-platform-row").getAttribute("data-im-platform");
         if (!imValidateForm(form4)) return; /* 错误大白话，聚焦首错 */
+        if (!imState.gateway.started || imState.gateway.linkBroken) { notice("消息服务未连接，请先恢复服务。", true); return; }
+        var receive = form4.querySelector("[data-im-receive-mode]");
+        if (receive && receive.value === "https" && !imState.gateway.team) { notice("HTTPS 回调需要公网团队服务，请先在高级设置注册。", true); return; }
+        var selectedOutcome = imState.sim.credOutcome[rowKey];
         var isNew = (imState.connections[rowKey] || []).length === 0;
         imState.sim.session = true;
         /* 900ms 连接过渡：保存钮禁用「正在连接…」+帮助行；平台行 ◐ 连接中 */
         save.disabled = true;
         save.textContent = "正在连接…";
+        form4.setAttribute("aria-busy", "true");
+        form4.querySelectorAll("input, select, button").forEach(function (el) { el.disabled = true; });
         var help4 = form4.querySelector("[data-im-connect-help]");
         if (help4) help4.hidden = false;
         var connId =
@@ -1988,15 +1978,16 @@
           ];
         } else {
           imState.connections[rowKey].forEach(function (c) {
-            if (c.state !== "ok") c.state = "connecting";
+            c.state = "connecting";
           });
         }
         imRefresh();
         var epoch = imEpoch;
         setTimeout(function () {
           if (epoch !== imEpoch) return;
-          var outcome =
-            imState.sim.credOutcome[rowKey] === "bad" ? "bad" : "ok";
+          var outcome = selectedOutcome;
+          form4.removeAttribute("aria-busy");
+          form4.querySelectorAll("input, select, button").forEach(function (el) { el.disabled = false; });
           var conns = imState.connections[rowKey] || [];
           if (outcome === "ok") {
             conns.forEach(function (c) {
@@ -2008,7 +1999,6 @@
             imApplyReceiveMode(form4);
             form4.hidden = true;
             sub4.querySelector("[data-im-cred-saved]").hidden = false;
-            imBuildPlatformRows();
             imRefresh();
             imBuildInstructions(); /* ③ 指令区随首个健康连接重建 */
             notice(
@@ -2020,12 +2010,12 @@
           } else {
             /* 失败（确定性演示结果）：行内原因 + 现有失败 UI；表单保留可直接重试 */
             var secretName =
-              rowKey === "wecom" ? "应用 Secret" : rowKey === "slack" ? "Bot Token" : "App Secret";
+              rowKey === "wecom" ? "Secret" : rowKey === "slack" ? "Bot Token" : "App Secret";
             conns.forEach(function (c) {
               if (c.state !== "ok") {
                 c.state = "bad";
                 c.reason =
-                  secretName + "已失效或不匹配——回后台重新复制一次，再点『保存并重连』。";
+                  outcome === "offline" ? "网络中断。检查网络后重试，已保留输入。" : outcome === "permission" ? "平台权限不足。补齐权限、发布并安装应用后重试。" : secretName + " 已失效或不匹配。重新复制后重试，已保留输入。";
               }
             });
             save.disabled = false;
@@ -2039,6 +2029,7 @@
       /* 复制类按钮反馈（转发地址）与 chips 复制 */
       var copy = ev.target.closest("[data-copy]");
       if (copy) {
+        imCopy(copy.parentElement.querySelector("code").textContent);
         var original = copy.textContent;
         copy.textContent = "已复制";
         setTimeout(function () {
@@ -2048,6 +2039,7 @@
       }
       var chip = ev.target.closest(".im-chip");
       if (chip && chip.contains(ev.target)) {
+        imCopy(chip.querySelector("code").textContent);
         var mark = chip.querySelector("span[aria-hidden]");
         var markText = mark ? mark.textContent : "";
         chip.classList.add("copied");
@@ -2129,17 +2121,19 @@
     /* ④ 默认项目选择；保存同时处理到期（授权续期语义，角标随 derive 收敛） */
     imPanel.querySelector("[data-im-default-project]").addEventListener("change", function () {
       imState.defaultProject = this.value;
+      imState.sim.projectsDirty = true;
       imRefresh();
     });
     imPanel.querySelector("[data-im-projects-save]").addEventListener("click", function () {
-      /* 本地保存瞬时，不设假延迟；清 dirty 徽标与到期角标随 derive 收敛 */
-      var hadExpired = imState.projects.some(function (pr) { return pr.expired; });
-      if (hadExpired) {
-        imState.projects.forEach(function (pr) { pr.expired = false; });
+      if (imState.sim.saveFailure) { notice("保存失败，服务暂不可用。已保留权限草稿，请恢复后重试。", true); return; }
+      function commit() {
+        imState.projects.forEach(function (pr) { if (pr.checked) pr.expired = false; });
+        imState.sim.projectsDirty = false;
         imBuildProjects();
+        imRefresh();
+        notice("项目权限已保存（演示）");
       }
-      imState.sim.projectsDirty = false;
-      imRefresh();
+      imConfirm("保存项目权限", "绑定账号将按所选模式访问勾选项目。取消勾选的项目将撤销远程访问。", commit);
     });
     /* ④ 到期行 [去授权]：展开该行授权设置 + 一次性脉冲高亮到期字段 */
     imPanel.addEventListener("click", function (ev) {
@@ -2156,7 +2150,7 @@
         var field = li.querySelector("[data-im-expiry-field]");
         if (field) {
           field.scrollIntoView({ block: "nearest", behavior: "smooth" });
-          imPulse(field.closest(".im-field"));
+          imPulse(field);
         }
       });
     });
@@ -2195,7 +2189,7 @@
         row.querySelector(".im-binding-actions").hidden = true;
         var confirmBar = row.querySelector(".im-unbind-confirm");
         confirmBar.hidden = false;
-        confirmBar.querySelector("[data-im-unbind-done]").focus();
+        confirmBar.querySelector("[data-im-keep]").focus();
         return;
       }
       if (ev.target.closest("[data-im-keep]")) {
@@ -2288,8 +2282,7 @@
 
     /* 重置入口：从头再来一遍（回到 empty 快照，滚回面板顶，焦点落①卡头） */
     imPanel.querySelector("[data-im-sim-reset]").addEventListener("click", function () {
-      imApplyDemo("empty");
-      notice("已回到初始状态（演示）");
+      imConfirm("重新开始设置", "清空本次演示的配置和未保存输入。实际服务不受影响。", function () { imApplyDemo("empty"); notice("已回到初始状态（演示）"); });
       var scroller = $(".settings-content");
       if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(function () {
@@ -2333,6 +2326,139 @@
 
     /* hash 直达桥（#im-demo=empty|progress|alert）、定位桥与幂等态 setter；
        无 hash 时默认未配置（empty），打开面板即处于可操作的从头模拟起点 */
+    /* Settings simulation shares buttons, icons, dialog and toast with the workspace. */
+    var imConfirmEl = document.createElement("dialog");
+    imConfirmEl.className = "prototype-dialog im-confirm-dialog";
+    imConfirmEl.setAttribute("aria-labelledby", "im-confirm-title");
+    imConfirmEl.innerHTML = '<h3 id="im-confirm-title"></h3><p id="im-confirm-description"></p><div class="btn-pair"></div>';
+    var imCancelButton = UI.button({ label: "取消", variant: "ghost", icon: UI.icon("close") });
+    imCancelButton.setAttribute("data-im-confirm-cancel", "");
+    var imSaveButton = UI.button({ label: "确认保存", variant: "primary", icon: UI.icon("check") });
+    imSaveButton.setAttribute("data-im-confirm-ok", "");
+    imConfirmEl.querySelector(".btn-pair").append(imCancelButton, imSaveButton);
+    imConfirmEl.setAttribute("aria-describedby", "im-confirm-description");
+    document.body.appendChild(imConfirmEl);
+    var imConfirmController = UI.dialog(imConfirmEl, { initialFocus: imConfirmEl.querySelector("[data-im-confirm-cancel]") });
+    var imConfirmAction;
+    function imConfirm(title, description, action) {
+      imConfirmEl.querySelector("h3").textContent = title;
+      imConfirmEl.querySelector("p").textContent = description;
+      imConfirmAction = action;
+      imConfirmController.open(document.activeElement);
+    }
+    imConfirmEl.querySelector("[data-im-confirm-cancel]").onclick = function () { imConfirmController.close(); imConfirmAction = null; };
+    imConfirmEl.querySelector("[data-im-confirm-ok]").onclick = function () { var action = imConfirmAction; imConfirmAction = null; imConfirmController.close(); if (action) action(); };
+
+    function imCopy(text) {
+      if (!navigator.clipboard) { notice("剪贴板不可用，请选中指令手动复制。", true); return; }
+      navigator.clipboard.writeText(text).catch(function () { notice("复制失败，请选中指令手动复制。", true); });
+    }
+    function imDecorate() {
+      imPanel.querySelectorAll("[data-im-field-label]").forEach(function (field) {
+        var input = field.querySelector("input,select");
+        if (!input) return;
+        if (!input.id) input.id = "im-input-" + (++imFieldSequence);
+        field.htmlFor = input.id;
+      });
+      imPanel.querySelectorAll('input[type="password"]').forEach(function (input) {
+        if (input.dataset.revealReady) return;
+        input.dataset.revealReady = "true";
+        var wrap = document.createElement("span"); wrap.className = "im-secret-wrap";
+        input.replaceWith(wrap); wrap.append(input);
+        var button = document.createElement("button"); button.type = "button"; button.className = "btn btn-ghost im-reveal";
+        button.textContent = "显示"; button.setAttribute("aria-label", "显示密钥"); button.setAttribute("aria-pressed", "false");
+        button.onclick = function (event) { event.preventDefault(); var show = input.type === "password"; input.type = show ? "text" : "password"; button.textContent = show ? "隐藏" : "显示"; button.setAttribute("aria-label", show ? "隐藏密钥" : "显示密钥"); button.setAttribute("aria-pressed", String(show)); };
+        wrap.append(button);
+      });
+      imPanel.querySelectorAll(".btn, .im-demo-link").forEach(function (button) {
+        if (button.querySelector("svg")) return;
+        var label = button.textContent;
+        var name = /复制/.test(label) ? "files" : /添加|填入/.test(label) ? "plus" : /保存|确认|批准/.test(label) ? "check" : /取消|拒绝|隐藏/.test(label) ? "close" : /项目/.test(label) ? "folder" : /更换|管理/.test(label) ? "edit" : /诊断|显示/.test(label) ? "info" : "refresh";
+        button.prepend(UI.icon(name));
+      });
+      UI.enhance(imPanel);
+    }
+    // Observe added controls only; repeated enhancement is idempotent.
+    var imDecorating = false;
+    var imObserver = new MutationObserver(function () {
+      if (imDecorating) return;
+      imDecorating = true; imObserver.disconnect(); imDecorate();
+      imObserver.observe(imPanel, { childList: true, subtree: true }); imDecorating = false;
+    });
+    imObserver.observe(imPanel, { childList: true, subtree: true });
+    imPanel.addEventListener("submit", function (event) {
+      if (!event.target.matches("[data-im-cred-form]")) return;
+      event.preventDefault(); event.target.querySelector("[data-im-cred-save]").click();
+    });
+    imPanel.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.isComposing && event.target.matches("[data-im-cred-form] input")) {
+        event.preventDefault(); event.target.closest("form").querySelector("[data-im-cred-save]").click();
+      }
+    });
+    imPanel.addEventListener("change", function (event) {
+      var input = event.target.closest("[data-im-permission]");
+      if (!input) return;
+      var row = input.closest("[data-im-project-idx]");
+      var project = imState.projects[Number(row.dataset.imProjectIdx)];
+      project[input.dataset.imPermission] = input.type === "checkbox" ? input.checked : input.value;
+      if (project.mode !== "execute") project.commands = project.network = false;
+      if (!project.commands) project.network = false;
+      row.querySelectorAll('input[data-im-permission]').forEach(function (el) {
+        el.checked = !!project[el.dataset.imPermission];
+        el.disabled = project.mode !== "execute" || (el.dataset.imPermission === "network" && !project.commands);
+      });
+      imState.sim.projectsDirty = true; imRefresh();
+    });
+    imPanel.addEventListener("click", function (event) {
+      var fill = event.target.closest("[data-im-fill-demo]");
+      if (fill) {
+        var row = fill.closest("[data-im-platform]");
+        var values = { "App ID": "cli_demo_artemis", "App Secret": "demo-secret", "企业 ID": "ww123456789", "Bot ID": "demo-bot", "Secret": "demo-secret", "Bot Token": "xoxb-demo", "App-Level Token": "xapp-demo", "Verification Token": "demo-verification", "Encrypt Key": "demo-encrypt" };
+        row.querySelectorAll("[data-im-field-label]").forEach(function (field) { var input = field.querySelector("input"); if (input && values[field.dataset.imFieldLabel]) { input.value = values[field.dataset.imFieldLabel]; imHideFieldMessage(field); } });
+        notice("已填入虚构演示值，仅在当前页面使用。");
+      }
+      var scene = event.target.closest("[data-im-scene]");
+      if (scene) {
+        var key = scene.dataset.imScene;
+        imConfirm("切换演示场景", "当前输入和未保存设置会清空；不会修改实际消息服务。", function () {
+          imApplyDemo(key === "ready" || key === "offline" || key === "expired" ? "alert" : key);
+          if (key === "ready" || key === "offline" || key === "expired") {
+            Object.values(imState.connections).flat().forEach(function (c) { c.state = "ok"; delete c.reason; });
+            imState.pairingRequests = []; imState.projects.forEach(function (p) { p.expired = false; });
+            imState.gateway.linkBroken = key === "offline";
+            if (key === "expired") { imSecondsLeft = 0; imCodeExpired = true; imManual.account = true; }
+            imRenderAll();
+          }
+          notice("已切换演示场景。");
+        });
+      }
+      if (event.target.closest("[data-im-save-failure]")) { imState.sim.saveFailure = !imState.sim.saveFailure; event.target.closest("button").setAttribute("aria-pressed", String(imState.sim.saveFailure)); notice(imState.sim.saveFailure ? "接下来保存项目权限将失败。" : "已恢复保存能力，可重试。"); }
+      if (event.target.closest("[data-im-recover]")) { imState.gateway.linkBroken = false; imRefresh(); notice("消息服务已恢复（演示）"); }
+      if (event.target.closest("[data-im-diagnose]")) {
+        var output = imPanel.querySelector("[data-im-diagnostic-result]");
+        output.textContent = !imState.gateway.started ? "服务未启动：先完成第 1 步。" : imState.gateway.linkBroken ? "设备与服务断连：恢复服务后重试。" : imDerived.badTotal ? "机器人凭据或权限异常：展开第 2 步查看原因。" : !imState.bindings.length ? "服务正常；尚未绑定账号，请完成第 3 步。" : !imDerived.ready ? "连接正常；请保存有效项目授权并启用连接。" : "服务、机器人、账号与项目授权均正常。";
+        output.hidden = false;
+      }
+      if (event.target.closest("[data-im-team-register]")) {
+        var form = imPanel.querySelector("#imTeamForm"); var inputs = form.querySelectorAll("input");
+        var result = form.querySelector("[data-im-team-result]");
+        var url;
+        try { url = new URL(inputs[0].value); } catch (_) {}
+        if (!url || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !inputs[1].value.trim() || !inputs[2].value.trim()) {
+          result.textContent = "填写 HTTPS 服务地址、设备名和管理凭据；地址不能含账号、密码或查询参数。"; result.hidden = false; inputs[!url || url.protocol !== "https:" ? 0 : !inputs[1].value.trim() ? 1 : 2].focus(); return;
+        }
+        imConfirm("注册到团队服务器", "机器人凭据将由团队 Gateway 保管。此处只模拟注册，不连接外部服务器。", function () {
+          inputs[2].value = ""; imState.gateway.team = url.origin; imState.gateway.started = true; imState.gateway.linkBroken = false;
+          result.textContent = "已注册演示设备 dev-3f9a，管理凭据已清空。"; result.hidden = false; imRefresh();
+        });
+      }
+    });
+    window.addEventListener("beforeunload", function (event) {
+      var dirty = imState.sim.projectsDirty || Array.from(imPanel.querySelectorAll('[data-im-cred-form] input')).some(function (input) { return !!input.value; });
+      if (dirty) { event.preventDefault(); event.returnValue = ""; }
+    });
+    imDecorate();
+
     window.__imApplyDemo = imApplyDemo;
     window.__imLocateCard = imLocateCard;
     imApplyDemo("empty");

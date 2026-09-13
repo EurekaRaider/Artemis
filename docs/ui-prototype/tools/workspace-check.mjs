@@ -89,8 +89,6 @@ try {
     /* G2 失败支线：填 4 必填 → 演示结果=失败 → 连接失败 + ②⚠1 + 胶囊 warn */
     await page.click('[data-im-platform="feishu"] [data-im-add]');
     await feishu('App ID').fill('cli_a5demo');
-    await feishu('机器人 Open ID').fill('ou_demo01');
-    await feishu('Tenant Key').fill('tenant_demo');
     await feishu('App Secret').fill('secret_demo');
     await page.locator('[data-im-subcard="feishu"] [data-im-sim-outcome]').selectOption('bad');
     await page.click('[data-im-subcard="feishu"] [data-im-cred-save]');
@@ -122,11 +120,12 @@ try {
     assert.equal(await page.locator('[data-im-bindings] .im-binding-row').count(),1);
     assert.equal(await page.locator('[data-im-card="projects"] [data-im-card-head]').getAttribute('aria-expanded'),'true');
     /* ④：勾选 → 待保存徽标 + 自动默认 → 保存 → M6 就绪条 */
-    await page.locator('[data-im-project-idx="0"] input[type="checkbox"]').check();
+    await page.locator('[data-im-project-idx="0"] .im-project-head input').check();
     await page.waitForTimeout(200);
     assert.equal(await badge('projects'),'已选 1 · 待保存');
     assert.equal(await page.locator('[data-im-default-project]').inputValue(),'Artemis');
     await page.click('[data-im-projects-save]');
+    await page.click('[data-im-confirm-ok]');
     await page.waitForTimeout(300);
     assert.equal(await page.locator('[data-im-ready]').isVisible(),true);
     /* ⑤ 支线：发现 → 确认 → 已连接 1 群 */
@@ -141,6 +140,7 @@ try {
     assert.equal(await badge('groups'),'已连接 1 群');
     /* 重置：回到 empty 契约 */
     await page.click('[data-im-sim-reset]');
+    await page.click('[data-im-confirm-ok]');
     await page.waitForTimeout(400);
     assert.equal(await page.locator('#imStateText').textContent(),'未开启');
     assert.deepEqual(await cards(),['true','false','false','false','false']);

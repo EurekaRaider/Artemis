@@ -647,7 +647,30 @@
       return { set };
     });
   }
+  // Geometry matches the maintained components.html icon catalogue.
+  const actionIconMarkup = {
+  "folder": "<path d=\"M3.5 6.5a2 2 0 012-2h4l2 2.5h7a2 2 0 012 2v8a2 2 0 01-2 2h-13a2 2 0 01-2-2v-10.5z\"/>",
+  "plus": "<path d=\"M12 5.5v13M5.5 12h13\"/>",
+  "close": "<path d=\"M6 6l12 12M18 6L6 18\"/>",
+  "refresh": "<path d=\"M20.5 11a8.5 8.5 0 10.5 4\"/><path d=\"M21 4.5v5h-5\"/>",
+  "check": "<path d=\"M4.5 12.5l5 5 10-11\"/>",
+  "files": "<path d=\"M8 3.5h6l3.5 3.5v12a1.5 1.5 0 01-1.5 1.5H8A1.5 1.5 0 016.5 19V5a1.5 1.5 0 011.5-1.5z\"/><path d=\"M14 3.5V7h3.5\"/><path d=\"M9.5 12h5M9.5 15.5h5\"/>",
+  "info": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 11v5M12 7.5v.5\"/>",
+  "gear": "<path d=\"M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>",
+  "edit": "<path d=\"M4 20h4l11-11a2.1 2.1 0 00-3-3L5 17l-1 3z\"/><path d=\"M13.5 7.5l3 3\"/>",
+  "lock": "<rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2\"/><path d=\"M8 10.5V7.5a4 4 0 018 0v3\"/>"
+};
+  function icon(name) {
+    const markup = actionIconMarkup[name];
+    if (!markup) throw new Error("Unknown Artemis icon: " + name);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    for (const [key, value] of Object.entries({ viewBox: "0 0 24 24", width: "14", height: "14", fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" })) svg.setAttribute(key, value);
+    // Static, trusted catalogue paths only; user input never enters SVG markup.
+    svg.innerHTML = markup;
+    return svg;
+  }
   const api = {
+    icon,
     toggle,
     version: "0.1.0",
     button,
