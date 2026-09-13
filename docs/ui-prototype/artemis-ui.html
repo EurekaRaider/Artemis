@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=158" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=159" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -801,340 +801,91 @@
 </div>
 </div>
 </div>
-<!-- 消息接入（按 proposal-im-settings-redesign 三态：向导 / 管理双栏 / 紧凑 <720px） -->
-<div aria-labelledby="settingsTabIm" class="settings-panel-content" data-panel="im" data-im-mode="manage" hidden="" id="settingsPanelIm" role="tabpanel">
+<!-- 消息接入（方向 B：单列分区卡片流；徽标/胶囊/摘要/展开全部由 derive 从演示状态推导） -->
+<div aria-labelledby="settingsTabIm" class="settings-panel-content" data-panel="im" hidden="" id="settingsPanelIm" role="tabpanel">
 <div class="im-head">
 <div>
 <h3 class="im-head-title">消息接入</h3>
-<p class="im-head-hint">通过 IM 单聊或群协作，把任务交给这台电脑执行。</p>
+<p class="im-head-hint">在聊天软件里发消息，就能指挥这台电脑干活。</p>
 </div>
-<div class="im-head-state" title="机器人接入状态；不代表手机或电脑上的 IM 客户端在线状态。">
-<span class="im-status-pill" id="imStatePill"><span aria-hidden="true" class="im-dot ok"></span><span id="imStateText">已连接</span></span>
-<label class="im-master"><span class="im-master-label">启用</span><button aria-checked="true" aria-label="启用 IM 连接" class="switch on" id="imMasterSwitch" role="switch" type="button"></button></label>
+<div class="im-head-state">
+<button aria-live="polite" class="im-status-pill" id="imStatePill" title="机器人接入状态；不代表聊天软件客户端在线状态。" type="button"><span aria-hidden="true" class="im-dot idle"></span><span id="imStateText">未开启</span></button>
+<label class="im-master"><span class="im-master-label">启用</span><button aria-checked="false" aria-label="启用 IM 连接" class="switch" id="imMasterSwitch" role="switch" type="button"></button></label>
 </div>
 </div>
-<div class="im-wizard" id="imWizard" hidden="">
-<p class="im-wizard-hint">首次使用？跟着 6 步完成设置。<button class="im-demo-link" id="imBackManage" type="button">返回管理</button></p>
-<button class="im-platform-card im-group-entry" data-im-goto="group" type="button"><strong>群消息接入</strong><span>连接群聊或频道，创建同平台或跨平台协作空间</span></button>
-<div id="imWizardBody"></div>
+<div class="im-flow" id="imFlow">
+<!-- ① 连接服务 -->
+<section class="im-card" data-im-card="service">
+<button aria-controls="imCardBodyService" aria-expanded="true" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">1</span><span class="im-card-title">连接服务</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyService">
+<div class="im-service-empty" data-im-service-empty="">
+<button class="btn btn-primary im-service-cta" data-im-service-start="" type="button">一键开启（推荐）</button>
+<p class="im-muted">消息服务负责收发消息，在本机自动运行。</p>
+<p class="im-fine">使用团队服务器？展开下方「高级」。</p>
 </div>
-<div class="im-manage" id="imManage">
-<div class="im-layout">
-<nav aria-label="消息接入导航" class="im-channel-list" id="imNavList" role="tablist">
-<div class="im-nav-group">渠道</div>
-<button aria-selected="true" class="im-channel-card" data-im-view="feishu" role="tab" type="button"><span class="im-channel-title">飞书</span><span class="im-channel-status"><span aria-hidden="true" class="im-dot ok"></span>已配置(2)</span></button>
-<button aria-selected="false" class="im-channel-card" data-im-view="wecom" role="tab" type="button"><span class="im-channel-title">企业微信</span><span class="im-channel-status"><span aria-hidden="true" class="im-dot idle"></span>未配置</span></button>
-<button aria-selected="false" class="im-channel-card" data-im-view="slack" role="tab" type="button"><span class="im-channel-title">Slack</span><span class="im-channel-status"><span aria-hidden="true" class="im-dot idle"></span>未配置</span></button>
-<button aria-selected="false" class="im-channel-card" data-im-view="group" role="tab" type="button"><span class="im-channel-title">群消息接入</span></button>
-<button class="im-more" id="imMoreBtn" type="button">通用 ▾</button>
-<div class="im-nav-group gen">通用</div>
-<button aria-selected="false" class="im-channel-card gen" data-im-view="gateway" role="tab" type="button"><span class="im-channel-title">Gateway 与设备</span></button>
-<button aria-selected="false" class="im-channel-card gen" data-im-view="pairing" role="tab" type="button"><span class="im-channel-title">配对与账号</span></button>
-<button aria-selected="false" class="im-channel-card gen" data-im-view="projects" role="tab" type="button"><span class="im-channel-title">项目授权</span></button>
-<button aria-selected="false" class="im-channel-card gen" data-im-view="guide" role="tab" type="button"><span class="im-channel-title">设置指引</span></button>
-<div class="im-more-menu" hidden="" id="imMoreMenu">
-<button data-im-view="gateway" type="button">Gateway 与设备</button>
-<button data-im-view="pairing" type="button">配对与账号</button>
-<button data-im-view="projects" type="button">项目授权</button>
-<button data-im-view="guide" type="button">设置指引</button>
+<div class="im-service-ready" data-im-service-ready="" hidden="">
+<div class="im-service-facts">
+<div class="im-fact"><span class="im-fact-label">运行方式</span><span class="im-fact-value">本机自动运行（推荐）</span></div>
+<div class="im-fact"><span class="im-fact-label">设备编号</span><span class="im-fact-value"><code class="im-identifier">dev-3f9a</code></span></div>
 </div>
-</nav>
-<div class="im-detail" id="imDetail">
-<!-- 渠道详情：飞书（已连接：条件配对卡 + 凭据/回调/连接状态/绑定/指引五块） -->
-<section class="im-view" data-im-view="feishu">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">飞书</h4><p class="im-detail-hint">企业自建应用 · 凭证与回调已就绪</p></div>
-<span class="im-status-pill"><span aria-hidden="true" class="im-dot ok"></span>已连接</span>
-</header>
-<div class="im-pairing-request-card" id="imPairCard">
-<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span><strong>配对请求 · 待确认</strong></div>
-<div class="im-pair-who">王小明 · <code class="im-identifier">u_9f3a</code></div>
-<div class="im-pair-actions"><button class="btn btn-primary" data-im-approve="" type="button">批准</button><button class="btn btn-ghost" data-im-reject="" type="button">拒绝</button></div>
+<p class="im-muted">消息服务在本机后台收发聊天消息，重启 Artemis 后自动恢复，无需值守。</p>
+<p class="im-fine">换用团队服务器见下方「高级」。</p>
 </div>
-<div class="im-block">
-<div class="im-block-head"><h4>应用凭据</h4><button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button></div>
-<p class="im-muted" data-im-cred-saved="">凭据已加密保存在本机，不会回显。保存新凭据会覆盖当前凭据并重新连接机器人。</p>
-<form class="im-credentials-form" data-im-cred-form="" hidden="">
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">应用 ID</span><input class="im-field-input" placeholder="cli_a5…" spellcheck="false"/></label>
-<label class="im-field"><span class="im-field-label">应用名称</span><input class="im-field-input" placeholder="Artemis 机器人"/></label>
-<label class="im-field"><span class="im-field-label">租户 ID</span><input class="im-field-input" placeholder="tenant_id"/></label>
-<label class="im-field"><span class="im-field-label">App ID</span><input class="im-field-input" placeholder="cli_a5…"/></label>
-<label class="im-field"><span class="im-field-label">机器人 Open ID</span><input class="im-field-input" placeholder="ou_…"/></label>
-<label class="im-field"><span class="im-field-label">App Secret</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">Verification Token</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">Encrypt Key</span><input class="im-field-input" type="password"/></label>
 </div>
-<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并连接</button><button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>
-</form>
+</section>
+<!-- ② 添加机器人 -->
+<section class="im-card" data-im-card="bots">
+<button aria-controls="imCardBodyBots" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">2</span><span class="im-card-title">添加机器人</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyBots">
+<p class="im-muted">在聊天平台创建一个机器人应用，把凭据填进来。其余平台随时可补加，不影响使用。</p>
+<ul class="im-platform-rows" data-im-platform-rows=""></ul>
 </div>
-<div class="im-block">
-<h4>事件回调地址</h4>
-<div class="im-callback"><code class="im-identifier">https://gw.example.com/im/feishu/conn-1/callback</code><button class="btn btn-ghost" data-copy="" type="button">复制</button></div>
-</div>
-<div class="im-block">
-<h4>连接状态</h4>
-<div class="im-conn-row"><span aria-hidden="true" class="im-dot ok"></span><code class="im-identifier">conn-1</code><span class="im-conn-state">已连接</span><span class="im-conn-time">2 分钟前</span></div>
-<div class="im-conn-row"><span aria-hidden="true" class="im-dot pending"></span><code class="im-identifier">conn-2</code><span class="im-conn-state">连接中</span><span class="im-conn-time">重试 1/3</span></div>
-</div>
+</section>
+<!-- ③ 绑定我的账号 -->
+<section class="im-card" data-im-card="account">
+<button aria-controls="imCardBodyAccount" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">3</span><span class="im-card-title">绑定我的账号</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyAccount">
+<div class="im-code-card" data-im-instructions=""></div>
 <div class="im-block">
 <h4>已绑定账号</h4>
-<ul class="im-binding-list">
-<li class="im-binding-row">
-<div class="im-binding-main"><span class="im-binding-name">王小明</span><code class="im-identifier">u_9f3a</code><span class="im-binding-meta">Plan 模式</span></div>
-<div class="im-binding-actions">
-<button aria-label="静音" class="im-icon-btn" data-toast="已静音（演示）" title="静音" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg></button>
-<button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg></button>
+<ul class="im-binding-list" data-im-bindings=""></ul>
+<p class="im-muted" data-im-binding-empty="" hidden="">还没有绑定任何账号。</p>
 </div>
-<div class="im-unbind-confirm" hidden="">
-<span>确认解除与该账号的绑定？</span>
-<button class="btn btn-ghost danger" data-toast="已解除绑定（演示）" data-im-unbind-done="" type="button">确认解除</button>
-<button class="btn btn-ghost" data-im-keep="" type="button">保留</button>
+<button class="im-demo-link" data-im-goto-projects="" hidden="" type="button">先去 ④ 选择项目 →</button>
 </div>
-</li>
-<li class="im-binding-row">
-<div class="im-binding-main"><span class="im-binding-name">李四</span><code class="im-identifier">u_2c71</code><span class="im-binding-meta">Execute 模式</span></div>
-<div class="im-binding-actions">
-<button aria-label="恢复输出" class="im-icon-btn" data-toast="已恢复输出（演示）" title="恢复输出" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg></button>
-<button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg></button>
-</div>
-<div class="im-unbind-confirm" hidden="">
-<span>确认解除与该账号的绑定？</span>
-<button class="btn btn-ghost danger" data-toast="已解除绑定（演示）" data-im-unbind-done="" type="button">确认解除</button>
-<button class="btn btn-ghost" data-im-keep="" type="button">保留</button>
-</div>
-</li>
-</ul>
-</div>
+</section>
+<!-- ④ 允许手机操作的项目 -->
+<section class="im-card" data-im-card="projects">
+<button aria-controls="imCardBodyProjects" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">4</span><span class="im-card-title">允许手机操作的项目</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyProjects">
+<p class="im-muted">勾选后，绑定的账号才能通过聊天消息操作这个项目。</p>
+<ul class="im-project-list" data-im-project-rows=""></ul>
 <div class="im-block">
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>飞书接入指引</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<ol class="im-guide">
-<li><p>在飞书开发者后台创建企业自建应用。</p></li>
-<li><p>开通以下权限：</p>
-<div class="im-chips">
-<button class="im-chip" type="button"><code>im:message</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>im:message:send_as_bot</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>im:message.reaction:write</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>im:resource</code><span aria-hidden="true">⧉</span></button>
-</div>
-</li>
-<li><p>事件订阅方式选择「长连接」。</p></li>
-<li><p>订阅事件：</p>
-<div class="im-chips"><button class="im-chip" type="button"><code>im.message.receive_v1</code><span aria-hidden="true">⧉</span></button></div>
-</li>
-<li class="im-guide-warning"><p>在「回调配置」（不是事件订阅）添加：</p>
-<div class="im-chips"><button class="im-chip" type="button"><code>card.action.trigger</code><span aria-hidden="true">⧉</span></button></div>
-</li>
-<li><p>创建版本并发布。</p></li>
-</ol>
+<div class="setting-row"><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill" data-im-default-project=""></select></div>
+<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-im-projects-save="" data-toast="已保存（演示）" type="button">保存</button></div>
 </div>
 </div>
 </section>
-<!-- 渠道详情：企业微信（未配置：凭据空态 + 指引） -->
-<section class="im-view" data-im-view="wecom" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">企业微信</h4><p class="im-detail-hint">企业自建应用 · 长连接，无需公网</p></div>
-<span class="im-status-pill"><span aria-hidden="true" class="im-dot idle"></span>未配置</span>
-</header>
-<div class="im-block">
-<div class="im-block-head"><h4>应用凭据</h4></div>
-<div class="im-cred-empty">
-<p class="im-muted">还没有保存企业微信应用凭证。</p>
-<button class="btn btn-primary" data-im-cred-swap="" type="button">填写企业 ID / Secret 等…</button>
-</div>
-<form class="im-credentials-form" data-im-cred-form="" hidden="">
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">企业 ID</span><input class="im-field-input" placeholder="ww…" spellcheck="false"/></label>
-<label class="im-field"><span class="im-field-label">应用 Secret</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">Agent ID</span><input class="im-field-input"/></label>
-<label class="im-field"><span class="im-field-label">Token</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">EncodingAESKey</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">可信域名</span><input class="im-field-input" placeholder="example.com" spellcheck="false"/></label>
-</div>
-<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并连接</button><button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>
-</form>
-</div>
-<div class="im-block">
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>企业微信接入指引</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<ol class="im-guide">
-<li><p>在企业微信管理后台创建企业自建应用。</p></li>
-<li><p>记录企业 ID、Agent ID 与应用 Secret。</p></li>
-<li><p>在「接收消息」页配置 Token 与 EncodingAESKey，回调模式选择长连接。</p></li>
-<li><p>把可信域名加入应用白名单。</p></li>
-</ol>
-</div>
+<!-- ⑤ 群协作（可选） -->
+<section class="im-card" data-im-card="groups">
+<button aria-controls="imCardBodyGroups" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">5</span><span class="im-card-title">群协作<span class="im-card-optional">（可选）</span></span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyGroups">
+<p class="im-muted">可选。把机器人拉进群，和绑定的账号一起做群协作；不设置不影响单聊使用。</p>
 </div>
 </section>
-<!-- 渠道详情：Slack（未配置 + 高级折叠） -->
-<section class="im-view" data-im-view="slack" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">Slack</h4><p class="im-detail-hint">Manifest 导入 · 无需公网</p></div>
-<span class="im-status-pill"><span aria-hidden="true" class="im-dot idle"></span>未配置</span>
-</header>
-<div class="im-block">
-<div class="im-block-head"><h4>应用凭据</h4></div>
-<div class="im-cred-empty">
-<p class="im-muted">还没有保存 Slack 应用凭证。</p>
-<button class="btn btn-primary" data-im-cred-swap="" type="button">填写 Bot Token / Signing Secret…</button>
 </div>
-<form class="im-credentials-form" data-im-cred-form="" hidden="">
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">Bot Token</span><input class="im-field-input" placeholder="xoxb-…" spellcheck="false"/></label>
-<label class="im-field"><span class="im-field-label">Signing Secret</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">App ID</span><input class="im-field-input"/></label>
-<label class="im-field"><span class="im-field-label">Client ID</span><input class="im-field-input"/></label>
-</div>
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>高级字段</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">Client Secret</span><input class="im-field-input" type="password"/></label>
-<label class="im-field"><span class="im-field-label">Verification Token</span><input class="im-field-input" type="password"/></label>
-</div>
-</div>
-<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并连接</button><button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>
-</form>
-</div>
-<div class="im-block">
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>Slack 接入指引</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<ol class="im-guide">
-<li><p>在 Slack API 创建应用，或直接导入 Manifest。</p></li>
-<li><p>开启 Socket Mode（无需公网回调）。</p></li>
-<li><p>订阅 <code class="im-identifier">message.im</code> 等事件并授予权限。</p></li>
-</ol>
-</div>
-</div>
-</section>
-<!-- 通用：Gateway 与设备 -->
-<section class="im-view" data-im-view="gateway" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">Gateway 与设备</h4><p class="im-detail-hint">内置 Gateway 开箱即用；团队模式连接共享服务。</p></div>
-</header>
-<div class="im-block">
-<h4>模式</h4>
-<div class="im-mode-cards">
-<label class="im-mode-card"><input checked="" name="gwMode" type="radio" value="builtin"/><strong>内置 Gateway</strong><small>本机自启，无需配置</small></label>
-<label class="im-mode-card"><input name="gwMode" type="radio" value="team"/><strong>团队 Gateway</strong><small>连接团队共享服务</small></label>
-</div>
-</div>
-<div class="im-block im-team-form" hidden="" id="imTeamForm">
-<h4>团队连接</h4>
+<!-- 底部「高级」折叠组：团队服务器 / 连接诊断 / 指令速查 -->
+<div class="im-advanced" id="imAdvanced">
+<button aria-controls="imAdvancedBody" aria-expanded="false" class="im-advanced-toggle" data-im-fold="" type="button"><span>高级</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="" id="imAdvancedBody">
+<div class="im-block im-team-form" id="imTeamForm">
+<h4>团队服务器</h4>
 <div class="form-grid">
 <label class="im-field"><span class="im-field-label">服务地址</span><input class="im-field-input" placeholder="https://gw.example.com" spellcheck="false"/></label>
 <label class="im-field"><span class="im-field-label">设备名</span><input class="im-field-input" placeholder="nicky 的 Mac"/></label>
 <label class="im-field field-wide"><span class="im-field-label">管理凭据</span><input class="im-field-input" placeholder="仅注册时使用，不落盘" type="password"/></label>
 </div>
 <div class="setting-row"><span class="sp"></span><div class="btn-pair"><button class="btn btn-primary" data-toast="已注册设备（演示）" type="button">注册</button><code class="im-identifier">dev-3f9a</code></div></div>
-</div>
-</section>
-<!-- 通用：配对与账号 -->
-<section class="im-view" data-im-view="pairing" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">配对与账号</h4><p class="im-detail-hint">在 IM 会话中回复配对指令，把个人账号绑定到这台设备。</p></div>
-</header>
-<div class="im-block">
-<div class="im-code-card">
-<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span><strong>配对码 · <span class="im-countdown" id="imCountdown">4:32</span> 内有效</strong></div>
-<code class="im-identifier lg">/pair 7K2Q-XR9M</code>
-<button class="btn btn-primary" data-copy-pair="" type="button">复制配对指令</button>
-</div>
-</div>
-<div class="im-block">
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>试试第一条任务</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<ol class="im-guide">
-<li><p>在绑定的 IM 会话中发送：</p><div class="im-chips"><button class="im-chip" type="button"><code>总结当前分支的改动</code><span aria-hidden="true">⧉</span></button></div></li>
-<li><p>Artemis 会在本机执行并回传结果；复杂任务会先给出计划。</p></li>
-</ol>
-</div>
-</div>
-</section>
-<!-- 通用：项目授权 -->
-<section class="im-view" data-im-view="projects" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">项目授权</h4><p class="im-detail-hint">勾选可被 IM 驱动的本地项目，并为其配置授权。</p></div>
-</header>
-<div class="im-block">
-<ul class="im-project-list">
-<li class="im-project">
-<label class="settings-checkbox im-project-head"><input checked="" type="checkbox"/><span><strong>Artemis</strong><small>~/Documents/Artemis-feat-im-feishu</small></span></label>
-<button aria-expanded="true" class="im-guide-toggle" data-im-fold="" type="button"><span>授权设置</span><span aria-hidden="true" class="im-guide-caret">▾</span></button>
-<div class="im-fold-body">
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option>Plan</option><option selected="">Execute</option><option>Review</option></select></label>
-<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option><option>每步确认</option></select></label>
-<label class="im-field"><span class="im-field-label">沙箱</span><select class="im-field-input"><option selected="">默认（Seatbelt / AppContainer）</option><option>完整本机访问</option></select></label>
-<label class="im-field"><span class="im-field-label">网络</span><select class="im-field-input"><option selected="">按服务器</option><option>允许全部</option></select></label>
-<label class="im-field"><span class="im-field-label">协作空间 ID</span><input class="im-field-input" placeholder="留空自动"/></label>
-<label class="im-field"><span class="im-field-label">到期</span><input class="im-field-input" type="date" value="2026-10-05"/></label>
-</div>
-<div class="setting-row"><div class="label">到期自动续期</div><span class="sp"></span><button aria-checked="true" aria-label="到期自动续期" class="switch on" role="switch" type="button"></button></div>
-</div>
-</li>
-<li class="im-project">
-<label class="settings-checkbox im-project-head"><input type="checkbox"/><span><strong>token-lab</strong><small>~/Documents/token-lab</small></span></label>
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>授权设置</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<div class="form-grid">
-<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option selected="">Plan</option><option>Execute</option></select></label>
-<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option></select></label>
-</div>
-</div>
-</li>
-</ul>
-</div>
-<div class="im-block">
-<div class="setting-row"><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill"><option selected="">Artemis</option><option>token-lab</option></select></div>
-<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-toast="已保存并启用（演示）" type="button">保存并启用</button></div>
-</div>
-</section>
-<!-- 群消息接入：直接显示管理内容，高级 JSON 保留折叠。 -->
-<section class="im-view" data-im-view="group" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">创建与连接 IM 群协作空间</h4><p class="im-detail-hint">连接同平台或跨平台的群与频道，支持企业微信、飞书、Lark 和 Slack。跨电脑协作需连接同一个可访问的团队 Gateway。</p></div>
-</header>
-<div class="im-block">
-<button aria-expanded="true" class="im-guide-toggle" data-im-fold="" type="button"><span>协作空间管理</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body">
-<div class="setting-row"><div><div class="label">空间诊断</div><div class="desc">检查成员同步与网关连通性。</div></div><span class="sp"></span><button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">运行诊断</button></div>
-<p class="im-muted">先绑定账号，再在群中 @机器人并发送 /help（Slack 发 help）发现群。仅机器人任务、公开进度和成果在空间中共享。</p><button class="btn btn-ghost" data-im-goto="pairing" type="button">先去绑定账号</button><button class="btn btn-ghost" data-toast="群和成员已刷新（演示）" type="button">刷新群和成员</button><ul class="im-binding-list">
-<li class="im-binding-row"><div class="im-binding-main"><strong>artemis-ui-评审群</strong><span class="im-binding-meta">5 名成员 · feishu</span></div></li>
-<li class="im-binding-row"><div class="im-binding-main"><strong>packaging-standby</strong><span class="im-binding-meta">2 名成员 · wecom</span></div></li>
-</ul>
-<details><summary>高级 JSON 配置</summary><label class="im-field"><span class="im-field-label">空间 JSON</span><textarea class="editor-area mono" rows="8" spellcheck="false">{
-  "members": ["u_9f3a", "u_2c71"],
-  "gateway": "conn-1",
-  "defaultMode": "plan"
-}</textarea></label></details>
-</div>
-</div>
-</section>
-<!-- 通用：设置指引（六步清单 + 平台差异；单份 markup，向导态由 JS 搬走） -->
-<section class="im-view" data-im-view="guide" hidden="">
-<header class="im-detail-header">
-<div><h4 class="im-view-title">设置指引</h4><p class="im-detail-hint">六步完成接入；已完成的项目会标记出来，当前步骤可直接跳转。</p></div>
-</header>
-<div id="imGuideBody">
-<div id="imGuideContent">
-<ol class="im-steps">
-<li class="done"><span aria-hidden="true" class="im-step-mark">✓</span><div class="im-step-copy"><strong>准备 Gateway</strong><small>启动内置 Gateway，或连接团队服务</small></div><span class="im-step-state">已完成</span></li>
-<li class="done"><span aria-hidden="true" class="im-step-mark">✓</span><div class="im-step-copy"><strong>注册这台电脑</strong><small>设备编号 <code class="im-identifier">dev-3f9a</code> · 无需重复注册</small></div><span class="im-step-state">已完成</span></li>
-<li class="current"><span aria-hidden="true" class="im-step-mark">●</span><div class="im-step-copy"><strong>连接一个机器人</strong><small>选择平台并填入应用凭证</small></div><span class="im-step-cta"><button class="btn btn-primary" data-im-goto="feishu" type="button">去设置 →</button></span></li>
-<li><span aria-hidden="true" class="im-step-mark">○</span><div class="im-step-copy"><strong>绑定你的 IM 账号</strong><small>在 IM 中回复配对码完成绑定</small></div><span class="im-step-state">待办</span></li>
-<li><span aria-hidden="true" class="im-step-mark">○</span><div class="im-step-copy"><strong>选择项目并启用</strong><small>授权可被 IM 驱动的项目</small></div><span class="im-step-state">待办</span></li>
-<li><span aria-hidden="true" class="im-step-mark">○</span><div class="im-step-copy"><strong>发送第一条任务</strong><small>在 IM 会话中直接派发</small></div><span class="im-step-state">待办</span></li>
-</ol>
-<div class="im-platforms-head">支持的平台</div>
-<div class="im-platform-cards">
-<div class="im-platform-card"><strong>企业微信</strong><small>无需公网 · 长连接</small></div>
-<div class="im-platform-card"><strong>飞书</strong><small>需 HTTPS 回调</small></div>
-<div class="im-platform-card"><strong>Slack</strong><small>无需公网 · Manifest 导入</small></div>
-</div>
-</div>
-</div>
-</section>
 </div>
 </div>
 </div>
@@ -1225,6 +976,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=144"></script>
+<script src="workspace/workspace.js?v=145"></script>
 </body>
 </html>

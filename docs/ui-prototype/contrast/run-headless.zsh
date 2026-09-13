@@ -84,7 +84,6 @@ PREF_BAD=""
 grep -q "对比度全矩阵扫描器 ${VERSION}" "$ROOT/contrast/scanner.js" || PREF_BAD="$PREF_BAD scanner.js(版本)"
 grep -q "${VERSION}" "$ROOT/README.md" || PREF_BAD="$PREF_BAD README(版本)"
 grep -q "${BASELINE:0:7}" "$ROOT/README.md" || PREF_BAD="$PREF_BAD README(基线)"
-grep -q "${VERSION}" "$ROOT/proposal-ui-library.md" || PREF_BAD="$PREF_BAD proposal(版本)"
 grep -q "${VERSION}" "$ROOT/capability-matrix.md" || PREF_BAD="$PREF_BAD matrix(版本)"
 grep -q "${BASELINE:0:7}" "$ROOT/capability-matrix.md" || PREF_BAD="$PREF_BAD matrix(基线)"
 grep -q "runPrototypeContracts" "$ROOT/tools/prototype-contracts.js" || PREF_BAD="$PREF_BAD prototype-contracts.js(缺失)"
@@ -742,7 +741,7 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$T5DIR/"
   cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T5DIR/"
   cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T5DIR/"
-  cp "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T5DIR/"
+  cp "$ROOT/README.md" "$ROOT/capability-matrix.md" "$T5DIR/"
   cp -r "$ROOT/tools" "$T5DIR/tools"
   RUN_SELFTESTS=0 CHROME=/usr/bin/true "$T5DIR/contrast/run-headless.zsh" >/dev/null 2>&1
   T5_ACTUAL=$?
@@ -764,7 +763,7 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   T6DIR="$(mktemp -d /tmp/artemis-layout-nested.XXXXXX)"
   mkdir -p "$T6DIR/prototype"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T6DIR/prototype/"
-  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T6DIR/prototype/"
+  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$ROOT/README.md" "$ROOT/capability-matrix.md" "$T6DIR/prototype/"
   cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T6DIR/prototype/"
   cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T6DIR/prototype/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T6DIR/prototype/contrast/run-headless.zsh" >/dev/null 2>&1
@@ -778,7 +777,7 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   # T7 平铺布局自测（R16①）：内容直接在根、无 prototype/ 嵌套，路径从脚本位置解析
   T7DIR="$(mktemp -d /tmp/artemis-layout-flat.XXXXXX)"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T7DIR/"
-  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T7DIR/"
+  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$ROOT/README.md" "$ROOT/capability-matrix.md" "$T7DIR/"
   cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T7DIR/"
   cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T7DIR/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T7DIR/contrast/run-headless.zsh" >/dev/null 2>&1

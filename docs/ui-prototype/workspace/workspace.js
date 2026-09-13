@@ -614,157 +614,581 @@
     });
   });
 
-  /* ---------- 消息接入（按 proposal-im-settings-redesign 三态：向导 / 管理双栏 / 紧凑） ---------- */
+  /* ---------- 消息接入（方向 B：单列分区卡片流；derive 为单一事实源） ----------
+     状态对象 → imDerive() → 各卡徽标/摘要/告警角标/胶囊聚合/自动展开；
+     #im-demo=empty|progress|alert 重放（applyDemo 全量重建，幂等）。 */
   var imPanel = $("#settingsPanelIm");
   if (imPanel) {
-    var imNav = $("#imNavList"),
-      imDetailEl = $("#imDetail"),
-      imMoreBtn = $("#imMoreBtn"),
-      imMoreMenu = $("#imMoreMenu"),
-      imWizard = $("#imWizard"),
-      imManage = $("#imManage"),
-      imMaster = $("#imMasterSwitch"),
-      imStateText = $("#imStateText"),
-      imStatePill = $("#imStatePill"),
-      countdownEl = $("#imCountdown");
+    var IM_PLATFORMS = [
+      { key: "feishu", name: "飞书" },
+      { key: "wecom", name: "企业微信" },
+      { key: "slack", name: "Slack" },
+    ];
+    var IM_CARD_ORDER = ["service", "bots", "account", "projects", "groups"];
+    var IM_PAIR_CODES = ["7K2Q-XR9M", "3TD8-M52W", "9FJ4-QN7C"];
+    var IM_ICON_BELL = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg>';
+    var IM_ICON_BELL_OFF = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg>';
+    var IM_ICON_UNLINK = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg>';
 
-    /* 渠道/通用导航：点选或方向键切换详情视图（tablist 语义） */
-    function imSelect(view) {
-      $$('#imNavList .im-channel-card[data-im-view]').forEach(function (b) {
-        b.setAttribute(
-          "aria-selected",
-          String(b.getAttribute("data-im-view") === view),
-        );
-      });
-      imDetailEl
-        .querySelectorAll(".im-view")
-        .forEach(function (section) {
-          section.hidden = section.getAttribute("data-im-view") !== view;
+    /* 演示状态种子：empty=空态 / progress=进行中 / alert=告警 */
+    var IM_SEEDS = {
+      empty: {
+        gateway: { started: false, linkBroken: false, deviceId: "dev-3f9a" },
+        masterOn: false,
+        connections: { feishu: [], wecom: [], slack: [] },
+        pairingRequests: [],
+        bindings: [],
+        groups: [],
+        projects: [
+          { id: "Artemis", path: "~/Documents/Artemis", checked: false, expired: false },
+          { id: "token-lab", path: "~/Documents/token-lab", checked: false, expired: false },
+        ],
+        defaultProject: "",
+        pairCode: IM_PAIR_CODES[0],
+      },
+      progress: {
+        gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
+        masterOn: true,
+        connections: {
+          feishu: [
+            { conn: "conn-1", app: "Artemis 机器人", state: "ok", note: "已连接 · 2 分钟前" },
+          ],
+          wecom: [],
+          slack: [],
+        },
+        pairingRequests: [],
+        bindings: [],
+        groups: [],
+        projects: [
+          { id: "Artemis", path: "~/Documents/Artemis", checked: false, expired: false },
+          { id: "token-lab", path: "~/Documents/token-lab", checked: false, expired: false },
+        ],
+        defaultProject: "",
+        pairCode: IM_PAIR_CODES[0],
+      },
+      alert: {
+        gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
+        masterOn: true,
+        connections: {
+          feishu: [
+            { conn: "conn-1", app: "Artemis 机器人", state: "bad", reason: "App Secret 已失效" },
+            { conn: "conn-2", app: "Artemis 备用机器人", state: "ok", note: "已连接 · 2 分钟前" },
+          ],
+          wecom: [
+            { conn: "conn-3", app: "Artemis 机器人", state: "ok", note: "已连接 · 5 分钟前" },
+          ],
+          slack: [
+            { conn: "conn-4", app: "Artemis 机器人", state: "reconnecting", attempt: 2 },
+          ],
+        },
+        pairingRequests: [{ name: "张伟", id: "u_33c1", platform: "feishu" }],
+        bindings: [
+          { name: "王小明", id: "u_9f3a", platform: "feishu", mode: "Plan", muted: true },
+          { name: "李四", id: "u_2c71", platform: "feishu", mode: "Execute", muted: false },
+        ],
+        groups: [
+          { name: "artemis-ui-评审群", members: 5, platform: "feishu" },
+          { name: "packaging-standby", members: 2, platform: "wecom" },
+        ],
+        projects: [
+          { id: "Artemis", path: "~/Documents/Artemis", checked: true, expired: false },
+          { id: "token-lab", path: "~/Documents/token-lab", checked: false, expired: true },
+        ],
+        defaultProject: "Artemis",
+        pairCode: IM_PAIR_CODES[0],
+      },
+    };
+
+    var imState = null; /* 当前演示状态（可变副本） */
+    var imDerived = null; /* imDerive 缓存 */
+    var imManual = {}; /* 用户手动展开/折叠：cardKey → boolean */
+    var imCardEls = {};
+    IM_CARD_ORDER.forEach(function (key) {
+      var el = imPanel.querySelector('.im-card[data-im-card="' + key + '"]');
+      if (el) imCardEls[key] = el;
+    });
+    var imMaster = $("#imMasterSwitch"),
+      imPill = $("#imStatePill"),
+      imStateText = $("#imStateText");
+
+    /* ===== derive：状态 → 徽标 / 摘要 / 告警角标 / 胶囊 / 自动展开 ===== */
+    function imDerive(s) {
+      var platforms = {};
+      var healthyTotal = 0,
+        badTotal = 0,
+        reconnectTotal = 0;
+      IM_PLATFORMS.forEach(function (p) {
+        var conns = (s.connections && s.connections[p.key]) || [];
+        var ok = 0,
+          bad = 0,
+          rc = 0;
+        conns.forEach(function (c) {
+          if (c.state === "ok") ok += 1;
+          else if (c.state === "bad") bad += 1;
+          else if (c.state === "reconnecting") rc += 1;
         });
-      imMoreMenu.hidden = true;
-      imMoreBtn.setAttribute("aria-expanded", "false");
-      imMoreBtn.classList.toggle("selected", ["gateway", "pairing", "projects", "guide"].includes(view));
-    }
-    imNav.addEventListener("click", function (ev) {
-      var btn = ev.target.closest("[data-im-view]");
-      if (btn) imSelect(btn.getAttribute("data-im-view"));
-      if (ev.target === imMoreBtn || imMoreBtn.contains(ev.target))
-        { imMoreMenu.hidden = !imMoreMenu.hidden; imMoreBtn.setAttribute("aria-expanded", String(!imMoreMenu.hidden)); }
-    });
-    imNav.addEventListener("keydown", function (ev) {
-      if (ev.key === "Escape") { imMoreMenu.hidden = true; imMoreBtn.setAttribute("aria-expanded", "false"); imMoreBtn.focus(); return; }
-      if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(ev.key) || ev.target.closest("#imMoreMenu")) return;
-      var tabs = $$('#imNavList .im-channel-card').filter(function (tab) { return tab.getClientRects().length > 0; });
-      var i = tabs.findIndex(function (t) {
-        return t.getAttribute("aria-selected") === "true";
+        healthyTotal += ok;
+        badTotal += bad;
+        reconnectTotal += rc;
+        var agg;
+        if (!conns.length) agg = "none";
+        else if (bad && ok) agg = "partial";
+        else if (bad && !ok) agg = "allbad";
+        else if (rc && !ok) agg = "reconnecting";
+        else agg = "ok";
+        platforms[p.key] = { conns: conns, ok: ok, bad: bad, rc: rc, agg: agg };
       });
-      var next = (i + (["ArrowDown", "ArrowRight"].includes(ev.key) ? 1 : -1) + tabs.length) % tabs.length;
-      tabs[next].focus();
-      imSelect(tabs[next].getAttribute("data-im-view"));
-      ev.preventDefault();
-    });
 
-    /* 向导态 ↔ 管理态（hash #settings=1&im=wizard|manage 可直达）；
-       六步清单为单份 markup（#imGuideContent），向导态整体搬入向导面板，管理态归位「设置指引」视图 */
-    function imMode(mode) {
-      var wizard = mode === "wizard";
-      imPanel.setAttribute("data-im-mode", mode);
-      imWizard.hidden = !wizard;
-      imManage.hidden = wizard;
-      var content = $("#imGuideContent");
-      if (content) {
-        (wizard ? $("#imWizardBody") : $("#imGuideBody")).appendChild(
-          content,
-        );
+      var serviceAlerts = s.gateway.linkBroken ? 1 : 0;
+      var expired = s.projects.filter(function (pr) { return pr.expired; }).length;
+      var checkedProjects = s.projects.filter(function (pr) { return pr.checked; }).length;
+      var healthyPlatformNames = IM_PLATFORMS.filter(function (p) {
+        return platforms[p.key].ok > 0;
+      }).map(function (p) { return p.name; });
+      var connsTotal = healthyTotal + badTotal + reconnectTotal;
+      var groupMembers = s.groups.reduce(function (n, g) { return n + g.members; }, 0);
+
+      var serviceDone = s.gateway.started && !s.gateway.linkBroken;
+      var botsDone = healthyTotal > 0;
+      var accountDone = s.bindings.length > 0;
+      var projectsDone = checkedProjects > 0 && expired === 0;
+      var anyConfigured = connsTotal > 0;
+      var paused = !s.masterOn && anyConfigured;
+
+      /* 完成链（⑤不参与、不阻塞）：第一个未完成卡即「当前步骤」 */
+      var chain = [
+        ["service", serviceDone],
+        ["bots", botsDone],
+        ["account", accountDone],
+        ["projects", projectsDone],
+      ];
+      var firstUndone = null;
+      for (var i = 0; i < chain.length; i += 1) {
+        if (!chain[i][1]) { firstUndone = chain[i][0]; break; }
       }
-      /* 主开关守卫：向导态（未完成配置）禁用并给原因 */
-      imMaster.disabled = wizard;
-      imMaster.setAttribute(
-        "title",
-        wizard
-          ? "完成 Gateway、渠道与账号配置后可启用"
-          : "关闭后停止响应 IM 指令，配置保留",
+
+      function cardState(key, done, warnInstead) {
+        if (warnInstead) return "warn";
+        if (done) return "done";
+        return firstUndone === key ? "current" : "todo";
+      }
+
+      var cards = {};
+      /* ① 连接服务 */
+      cards.service = {
+        state: s.gateway.linkBroken ? "warn" : serviceDone ? "done" : "current",
+        badgeText: s.gateway.linkBroken ? "服务断连" : serviceDone ? "已就绪" : "待开启",
+        alerts: serviceAlerts,
+        summary: serviceDone
+          ? "已就绪 · 本机运行 · " + s.gateway.deviceId
+          : "先开启服务",
+      };
+      /* ② 添加机器人 */
+      var botsBadgeText = "待办";
+      if (botsDone) botsBadgeText = "已连接 · " + healthyPlatformNames[0];
+      else if (anyConfigured && !healthyTotal) botsBadgeText = "连接失败";
+      else if (firstUndone === "bots") botsBadgeText = "当前步骤";
+      else if (!serviceDone) botsBadgeText = "待开启";
+      cards.bots = {
+        state: cardState("bots", botsDone, anyConfigured && !healthyTotal),
+        badgeText: botsBadgeText,
+        alerts: badTotal,
+        summary: botsDone
+          ? "已连接 · " + healthyPlatformNames.join("、") + " · " + healthyTotal + " 个机器人"
+          : anyConfigured
+            ? "有连接故障，点开查看"
+            : "还没有机器人，先添加一个",
+      };
+      /* ③ 绑定我的账号 */
+      cards.account = {
+        state: cardState("account", accountDone, false),
+        badgeText: accountDone
+          ? "已绑定 " + s.bindings.length + " 人"
+          : firstUndone === "account"
+            ? "当前步骤"
+            : serviceDone || botsDone
+              ? "待绑定"
+              : "待开启",
+        alerts: s.pairingRequests.length,
+        summary: s.pairingRequests.length
+          ? s.pairingRequests.length + " 条绑定待确认"
+          : accountDone
+            ? "已绑定 " + s.bindings.length + " 个账号"
+            : "发一条配对指令即可绑定",
+      };
+      /* ④ 允许手机操作的项目 */
+      cards.projects = {
+        state: cardState("projects", checkedProjects > 0, false),
+        badgeText: checkedProjects > 0
+          ? "已授权 " + checkedProjects + " 个"
+          : firstUndone === "projects"
+            ? "当前步骤"
+            : "待选择",
+        alerts: expired,
+        summary: checkedProjects
+          ? "已授权 " + checkedProjects + " 个项目" +
+            (s.defaultProject ? " · 默认 " + s.defaultProject : "")
+          : "还没有选择项目",
+      };
+      /* ⑤ 群协作（可选） */
+      cards.groups = {
+        state: s.groups.length ? "done" : "todo",
+        badgeText: s.groups.length ? "已连接 " + s.groups.length + " 群" : "未设置",
+        alerts: 0,
+        summary: s.groups.length
+          ? "已连接 " + s.groups.length + " 个群 · " + groupMembers + " 名成员"
+          : "未设置",
+      };
+
+      if (!s.gateway.started) {
+        /* 空态：②-⑤ 折叠为统一的「先开启服务」摘要行（点击=定位①大按钮） */
+        IM_CARD_ORDER.forEach(function (key) {
+          cards[key].summary = "先开启服务";
+        });
+      }
+      if (paused) {
+        /* 主开关关闭：徽标保留，摘要加「已暂停」后缀 */
+        IM_CARD_ORDER.forEach(function (key) {
+          cards[key].summary += " · 已暂停";
+        });
+      }
+
+      /* 胶囊聚合：未接入任何平台 → 未开启；暂停优先于健康态；故障计数可点定位 */
+      var pill;
+      if (!connsTotal) pill = { tone: "off", html: "未开启", count: 0 };
+      else if (!s.masterOn)
+        pill = { tone: "paused", html: "已暂停响应 IM 指令", count: 0 };
+      else if (badTotal + serviceAlerts > 0)
+        pill = {
+          tone: "warn",
+          html: "<strong>" + (badTotal + serviceAlerts) + "</strong> 个机器人连接失败",
+          count: badTotal + serviceAlerts,
+        };
+      else
+        pill = {
+          tone: "ok",
+          html: "一切正常 · <strong>" + healthyTotal + "</strong> 个机器人在线",
+          count: healthyTotal,
+        };
+
+      var autoExpand = [];
+      if (firstUndone) autoExpand.push(firstUndone);
+      IM_CARD_ORDER.forEach(function (key) {
+        if (cards[key].alerts > 0 && autoExpand.indexOf(key) < 0) autoExpand.push(key);
+      });
+
+      return {
+        platforms: platforms,
+        healthyTotal: healthyTotal,
+        badTotal: badTotal,
+        reconnectTotal: reconnectTotal,
+        paused: paused,
+        firstUndone: firstUndone,
+        cards: cards,
+        pill: pill,
+        autoExpand: autoExpand,
+        expired: expired,
+        projectsDone: projectsDone,
+        ready: serviceDone && botsDone && accountDone && projectsDone &&
+          badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
+        groupMembers: groupMembers,
+      };
+    }
+
+    /* ===== 渲染：结构（applyDemo 全量重建）+ 状态（imRefresh 原地更新） ===== */
+    function imPlatformDotClass(st) {
+      if (imDerived.paused) return "idle";
+      if (st.agg === "ok") return "ok";
+      if (st.agg === "allbad") return "bad";
+      if (st.agg === "partial" || st.agg === "reconnecting") return "pending";
+      return "idle";
+    }
+
+    function imBuildPlatformRows() {
+      var list = imPanel.querySelector("[data-im-platform-rows]");
+      list.textContent = "";
+      IM_PLATFORMS.forEach(function (p) {
+        var li = document.createElement("li");
+        li.className = "im-platform-row";
+        li.setAttribute("data-im-platform", p.key);
+        li.innerHTML =
+          '<span aria-hidden="true" class="im-dot"></span>' +
+          '<span class="im-platform-name">' + p.name + "</span>" +
+          '<span class="im-platform-status"></span>';
+        list.appendChild(li);
+      });
+    }
+
+    function imUpdatePlatformRows() {
+      IM_PLATFORMS.forEach(function (p) {
+        var row = imPanel.querySelector('[data-im-platform="' + p.key + '"]');
+        if (!row) return;
+        var st = imDerived.platforms[p.key];
+        var dot = row.querySelector(".im-dot");
+        var status = row.querySelector(".im-platform-status");
+        dot.className = "im-dot " + imPlatformDotClass(st);
+        var text;
+        if (st.agg === "none") text = "未配置";
+        else if (st.agg === "ok") text = "已连接 · " + st.conns.length + " 个";
+        else if (st.agg === "partial") text = st.bad + "/" + st.conns.length + " 连接故障";
+        else if (st.agg === "allbad") text = "连接失败";
+        else if (st.agg === "reconnecting")
+          text = "正在重连 · 第 " + (st.conns[0] && st.conns[0].attempt || 1) + " 次";
+        status.textContent = text;
+        var reason = row.querySelector(".im-platform-reason");
+        if (st.agg === "allbad") {
+          if (!reason) {
+            reason = document.createElement("span");
+            reason.className = "im-platform-reason";
+            row.appendChild(reason);
+          }
+          reason.textContent =
+            (st.conns[0] && st.conns[0].reason) || "连接失败，请检查凭据";
+        } else if (reason) reason.remove();
+      });
+    }
+
+    function imPairCommand(platformKey) {
+      /* Slack 无斜杠（spec 规定），其余 /pair */
+      return (platformKey === "slack" ? "pair " : "/pair ") + imState.pairCode;
+    }
+
+    function imBuildInstructions() {
+      var box = imPanel.querySelector("[data-im-instructions]");
+      var healthy = IM_PLATFORMS.filter(function (p) {
+        return imDerived.platforms[p.key].ok > 0;
+      });
+      if (!healthy.length) {
+        box.innerHTML = '<p class="im-muted">先在 ② 添加并连接一个机器人，这里会给出配对指令。</p>';
+        return;
+      }
+      var html = '<p class="im-instr-title">1. 把这条消息发给机器人私聊：</p>';
+      healthy.forEach(function (p) {
+        var conn = imDerived.platforms[p.key].conns.filter(function (c) {
+          return c.state === "ok";
+        })[0];
+        html +=
+          '<div class="im-instr-line"><span class="im-instr-who">' +
+          p.name + " · " + (conn && conn.app ? conn.app : "机器人") +
+          '</span><code class="im-identifier">' + imPairCommand(p.key) +
+          '</code><button class="btn btn-ghost" data-copy-pair="" type="button">复制指令</button></div>';
+      });
+      html +=
+        '<p class="im-fine"><span class="im-countdown" data-im-countdown="">4:32</span> 后过期</p>' +
+        '<p class="im-instr-title">2. 机器人回复确认后，账号会出现在下面。</p>';
+      box.innerHTML = html;
+      /* 重建后重新挂复制反馈 */
+      Array.prototype.forEach.call(
+        box.querySelectorAll("[data-copy-pair]"),
+        function (btn) {
+          btn.addEventListener("click", function () {
+            var original = btn.textContent;
+            btn.textContent = "已复制";
+            setTimeout(function () { btn.textContent = original; }, 1400);
+          });
+        },
       );
     }
-    $("#imBackManage") &&
-      $("#imBackManage").addEventListener("click", function () {
-        imMode("manage");
+
+    function imBuildBindings() {
+      var list = imPanel.querySelector("[data-im-bindings]");
+      list.textContent = "";
+      imState.bindings.forEach(function (b, idx) {
+        var li = document.createElement("li");
+        li.className = "im-binding-row";
+        li.setAttribute("data-im-binding-idx", String(idx));
+        li.innerHTML =
+          '<div class="im-binding-main"><span class="im-binding-name">' + b.name +
+          '</span><code class="im-identifier">' + b.id + "</code>" +
+          '<span class="im-binding-meta">' +
+          (IM_PLATFORMS.filter(function (p) { return p.key === b.platform; })[0] || {}).name +
+          " · " + b.mode + ' 模式</span>' +
+          (b.muted ? '<span class="im-binding-tag">已静音</span>' : "") +
+          '</div><div class="im-binding-actions">' +
+          '<button aria-label="' + (b.muted ? "恢复输出" : "静音") +
+          '" class="im-icon-btn" data-im-mute="" title="' + (b.muted ? "恢复输出" : "静音") +
+          '" type="button">' + (b.muted ? IM_ICON_BELL : IM_ICON_BELL_OFF) +
+          '</button><button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button">' +
+          IM_ICON_UNLINK + "</button></div>" +
+          '<div class="im-unbind-confirm" hidden=""><span>确认解除与该账号的绑定？</span>' +
+          '<button class="btn btn-ghost danger" data-im-unbind-done="" type="button">确认解除</button>' +
+          '<button class="btn btn-ghost" data-im-keep="" type="button">保留</button></div>';
+        list.appendChild(li);
       });
-    $$("[data-im-goto]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        imMode("manage");
-        imSelect(b.getAttribute("data-im-goto"));
+      imPanel.querySelector("[data-im-binding-empty]").hidden = imState.bindings.length > 0;
+    }
+
+    function imBuildProjects() {
+      var list = imPanel.querySelector("[data-im-project-rows]");
+      list.textContent = "";
+      imState.projects.forEach(function (pr, idx) {
+        var li = document.createElement("li");
+        li.className = "im-project";
+        li.setAttribute("data-im-project-idx", String(idx));
+        li.innerHTML =
+          '<label class="settings-checkbox im-project-head"><input type="checkbox"' +
+          (pr.checked ? " checked" : "") + '><span><strong>' + pr.id + "</strong><small>" + pr.path + "</small></span></label>" +
+          '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>调整权限</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
+          '<div class="im-fold-body" hidden=""><div class="form-grid">' +
+          '<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option' + (pr.id === "Artemis" ? ' selected' : "") + '>Execute</option><option' + (pr.id === "token-lab" ? ' selected' : "") + '>Plan</option><option>Review</option></select></label>' +
+          '<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option><option>每步确认</option></select></label>' +
+          '<label class="im-field"><span class="im-field-label">沙箱</span><select class="im-field-input"><option selected="">默认（Seatbelt / AppContainer）</option><option>完整本机访问</option></select></label>' +
+          '<label class="im-field"><span class="im-field-label">网络</span><select class="im-field-input"><option selected="">按服务器</option><option>允许全部</option></select></label>' +
+          '<label class="im-field"><span class="im-field-label">到期</span><input class="im-field-input" type="date" value="2026-10-05"/></label>' +
+          '</div><div class="setting-row"><div class="label">到期自动续期</div><span class="sp"></span><button aria-checked="true" aria-label="到期自动续期" class="switch on" role="switch" type="button"></button></div></div>';
+        var checkbox = li.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener("change", function () {
+          imState.projects[idx].checked = checkbox.checked;
+          imRefresh();
+        });
+        list.appendChild(li);
+        /* 动态渲染的 switch 需单独初始化 */
+        var sw = li.querySelector(".switch");
+        if (sw && window.ArtemisUI) window.ArtemisUI.toggle(sw);
       });
-    });
+      /* 默认项目下拉 */
+      var select = imPanel.querySelector("[data-im-default-project]");
+      select.innerHTML =
+        '<option value="">未选择</option>' +
+        imState.projects
+          .map(function (pr) {
+            return '<option value="' + pr.id + '"' +
+              (imState.defaultProject === pr.id ? " selected" : "") + ">" + pr.id + "</option>";
+          })
+          .join("");
+    }
 
-    /* 主开关：关闭只停用，不清配置（proposal 语义）；翻转由全局 UI.toggle 完成，此处只跟随状态 */
-    imMaster.addEventListener("click", function () {
-      var on = imMaster.classList.contains("on");
-      imMaster.setAttribute("aria-checked", String(on));
-      imStateText.textContent = on ? "已连接" : "已停用";
-      var dot = imStatePill.querySelector(".im-dot");
-      dot.className = "im-dot " + (on ? "ok" : "idle");
-      notice(on ? "IM 连接已启用（演示）" : "IM 连接已停用，配置保留（演示）");
-    });
+    function imRenderPill() {
+      var pill = imDerived.pill;
+      imPill.dataset.tone = pill.tone;
+      imPill.setAttribute(
+        "title",
+        pill.tone === "warn"
+          ? "点按定位到「添加机器人」卡片"
+          : "机器人接入状态；不代表聊天软件客户端在线状态。",
+      );
+      imStateText.innerHTML = pill.html;
+      var dot = imPill.querySelector(".im-dot");
+      dot.className =
+        "im-dot " + (pill.tone === "ok" ? "ok" : pill.tone === "warn" ? "pending" : "idle");
+      imPill.disabled = pill.tone !== "warn";
+    }
 
-    /* 配对请求条件卡：批准/拒绝后即时移除 */
-    imDetailEl.addEventListener("click", function (ev) {
-      if (ev.target.closest("[data-im-approve]")) {
-        var card = ev.target.closest(".im-pairing-request-card");
-        if (card) card.remove();
-        notice("已批准配对，账号已绑定（演示）");
-      } else if (ev.target.closest("[data-im-reject]")) {
-        var card2 = ev.target.closest(".im-pairing-request-card");
-        if (card2) card2.remove();
-        notice("已拒绝配对（演示）");
-      }
-    });
-
-    /* 凭据两态：已保存 ↔ 表单（按渠道就近展开，密钥不回显） */
-    imDetailEl.addEventListener("click", function (ev) {
-      var swap = ev.target.closest("[data-im-cred-swap]");
-      if (swap) {
-        var block = swap.closest(".im-block");
-        var saved = block.querySelector("[data-im-cred-saved]");
-        var empty = block.querySelector(".im-cred-empty");
-        var form = block.querySelector("[data-im-cred-form]");
-        if (saved) saved.hidden = true;
-        if (empty) empty.hidden = true;
-        form.hidden = false;
-        var first = form.querySelector("input, select");
-        if (first) first.focus();
-        return;
-      }
-      if (ev.target.closest("[data-im-cred-cancel]")) {
-        var form2 = ev.target.closest("[data-im-cred-form]");
-        var block2 = form2.closest(".im-block");
-        form2.hidden = true;
-        form2.reset();
-        var saved2 = block2.querySelector("[data-im-cred-saved]");
-        var empty2 = block2.querySelector(".im-cred-empty");
-        if (saved2) saved2.hidden = false;
-        if (empty2) empty2.hidden = false;
-        return;
-      }
-      if (ev.target.closest("[data-im-cred-save]")) {
-        var form3 = ev.target.closest("[data-im-cred-form]");
-        var block3 = form3.closest(".im-block");
-        form3.hidden = true;
-        form3.reset();
-        var saved3 = block3.querySelector("[data-im-cred-saved]");
-        var empty3 = block3.querySelector(".im-cred-empty");
-        if (saved3) saved3.hidden = false;
-        if (empty3) {
-          /* 未配置渠道首次保存：升级为已保存态提示 */
-          empty3.innerHTML =
-            '<p class="im-muted">凭据已加密保存在本机，不会回显。</p>' +
-            '<button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button>';
-          empty3.hidden = false;
+    function imRenderCards() {
+      IM_CARD_ORDER.forEach(function (key) {
+        var card = imCardEls[key];
+        if (!card) return;
+        var c = imDerived.cards[key];
+        var badge = card.querySelector("[data-im-badge]");
+        badge.dataset.state = c.state;
+        badge.textContent = c.badgeText;
+        var alerts = card.querySelector("[data-im-alerts]");
+        if (c.alerts > 0) {
+          alerts.hidden = false;
+          alerts.setAttribute("aria-label", c.alerts + " 条告警");
+          alerts.textContent = "⚠" + c.alerts;
+        } else {
+          alerts.hidden = true;
         }
-        notice("凭据已保存并连接（演示）");
+        var summary = card.querySelector("[data-im-summary]");
+        summary.textContent = c.summary;
+        var open = key in imManual
+          ? !!imManual[key]
+          : imDerived.autoExpand.indexOf(key) >= 0;
+        card.querySelector(".im-card-body").hidden = !open;
+        card.querySelector("[data-im-card-head]").setAttribute("aria-expanded", String(open));
+        card.querySelector("[data-im-caret]").textContent = open ? "▾" : "▸";
+        summary.hidden = open;
+      });
+    }
+
+    function imRefresh() {
+      imDerived = imDerive(imState);
+      imRenderPill();
+      imRenderCards();
+      /* ① 空态 / 就绪态 */
+      imPanel.querySelector("[data-im-service-empty]").hidden = imState.gateway.started;
+      imPanel.querySelector("[data-im-service-ready]").hidden = !imState.gateway.started;
+      /* ② 平台行信号灯与聚合文案（暂停时转 idle） */
+      imUpdatePlatformRows();
+      /* ③ 衔接行：④未完成才显示 */
+      imPanel.querySelector("[data-im-goto-projects]").hidden = imDerived.projectsDone;
+      /* 主开关：服务未开启时禁用 */
+      imMaster.disabled = !imState.gateway.started;
+      imMaster.classList.toggle("on", imState.masterOn);
+      imMaster.setAttribute("aria-checked", String(imState.masterOn));
+      imMaster.setAttribute(
+        "title",
+        imState.gateway.started
+          ? "关闭后停止响应 IM 指令，配置保留"
+          : "开启消息服务后可启用",
+      );
+    }
+
+    function imRenderAll() {
+      imDerived = imDerive(imState);
+      imBuildPlatformRows();
+      imUpdatePlatformRows();
+      imBuildInstructions();
+      imBuildBindings();
+      imBuildProjects();
+      imRefresh();
+    }
+
+    function imApplyDemo(key) {
+      if (!Object.hasOwn(IM_SEEDS, key)) key = "progress";
+      imState = JSON.parse(JSON.stringify(IM_SEEDS[key]));
+      imManual = {};
+      imRenderAll();
+    }
+
+    /* ===== 交互 ===== */
+    /* 卡头：切换折叠并记住；空态下 ②-⑤ 点击=定位①大按钮 */
+    imPanel.addEventListener("click", function (ev) {
+      var head = ev.target.closest("[data-im-card-head]");
+      if (!head) return;
+      var card = head.closest(".im-card");
+      var key = card.getAttribute("data-im-card");
+      if (!imState.gateway.started && key !== "service") {
+        var cta = imPanel.querySelector("[data-im-service-start]");
+        cta.scrollIntoView({ block: "center", behavior: "smooth" });
         return;
       }
-      /* 解绑行内二次确认：焦点移入确认钮，Esc 视为保留 */
+      imManual[key] = card.querySelector(".im-card-body").hidden;
+      imRenderCards();
+    });
+
+    /* ① 一键开启 */
+    imPanel.querySelector("[data-im-service-start]").addEventListener("click", function () {
+      imState.gateway.started = true;
+      imState.masterOn = true;
+      imRefresh();
+      notice("消息服务已在本机开启（演示）");
+    });
+
+    /* 主开关：开/关都触发全卡 derive */
+    imMaster.addEventListener("click", function () {
+      imState.masterOn = imMaster.classList.contains("on");
+      imRefresh();
+      notice(imState.masterOn ? "已开始响应 IM 指令（演示）" : "已暂停响应 IM 指令，配置保留（演示）");
+    });
+
+    /* ③ 衔接行：展开④并滚动到位 */
+    imPanel.querySelector("[data-im-goto-projects]").addEventListener("click", function () {
+      imManual.projects = true;
+      imRenderCards();
+      var head = imCardEls.projects.querySelector("[data-im-card-head]");
+      head.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+
+    /* ④ 默认项目选择 */
+    imPanel.querySelector("[data-im-default-project]").addEventListener("change", function () {
+      imState.defaultProject = this.value;
+      imRefresh();
+    });
+
+    /* 解绑行内二次确认：焦点移入确认钮，Esc 视为保留（不给弹窗关闭让路） */
+    imPanel.addEventListener("click", function (ev) {
       var unbind = ev.target.closest("[data-im-unbind]");
       if (unbind) {
         var row = unbind.closest(".im-binding-row");
@@ -779,13 +1203,22 @@
         row2.querySelector(".im-unbind-confirm").hidden = true;
         row2.querySelector(".im-binding-actions").hidden = false;
         row2.querySelector("[data-im-unbind]").focus();
+        return;
+      }
+      var done = ev.target.closest("[data-im-unbind-done]");
+      if (done) {
+        var row3 = done.closest(".im-binding-row");
+        var idx = Number(row3.getAttribute("data-im-binding-idx"));
+        if (Number.isFinite(idx)) imState.bindings.splice(idx, 1);
+        imBuildBindings();
+        imRefresh();
+        notice("已解除绑定（演示）");
       }
     });
-    imDetailEl.addEventListener("keydown", function (ev) {
+    imPanel.addEventListener("keydown", function (ev) {
       if (ev.key !== "Escape") return;
       var confirmBar = ev.target.closest(".im-unbind-confirm");
       if (!confirmBar) return;
-      /* 行内确认的 Esc 只作用于本行（不给设置弹窗的关闭让路） */
       ev.stopPropagation();
       ev.preventDefault();
       var row = confirmBar.closest(".im-binding-row");
@@ -794,7 +1227,7 @@
       row.querySelector("[data-im-unbind]").focus();
     });
 
-    /* 折叠块（接入指引 / 高级字段 / 群协作 / 试试第一条任务 / 授权设置） */
+    /* 折叠块（高级组 / 调整权限 / 后续指引） */
     imPanel.addEventListener("click", function (ev) {
       var fold = ev.target.closest("[data-im-fold]");
       if (!fold) return;
@@ -807,80 +1240,24 @@
       if (caret) caret.textContent = open ? "▾" : "▸";
     });
 
-    /* Gateway 模式卡片：团队模式展开连接表单 */
-    $$('input[name="gwMode"]').forEach(function (radio) {
-      radio.addEventListener("change", function () {
-        $("#imTeamForm").hidden = radio.value !== "team" || !radio.checked;
-      });
-    });
-
-    /* 配对码倒计时（tabular-nums，5 分钟时效） */
-    var secondsLeft = 4 * 60 + 32;
+    /* 配对码倒计时（tabular-nums；元素随指令区重建，逐 tick 查询） */
+    var imSecondsLeft = 4 * 60 + 32;
     function imTick() {
-      if (secondsLeft > 0) secondsLeft--;
-      var m = Math.floor(secondsLeft / 60),
-        s = secondsLeft % 60;
-      countdownEl.textContent = m + ":" + String(s).padStart(2, "0");
-      if (secondsLeft === 0) {
-        clearInterval(imTimer);
-        var head = countdownEl.closest(".im-pair-head");
-        if (head) head.querySelector("strong").textContent = "配对码已过期";
-      }
+      if (imSecondsLeft > 0) imSecondsLeft -= 1;
+      var m = Math.floor(imSecondsLeft / 60),
+        s = imSecondsLeft % 60;
+      Array.prototype.forEach.call(
+        imPanel.querySelectorAll("[data-im-countdown]"),
+        function (el) {
+          el.textContent = m + ":" + String(s).padStart(2, "0");
+        },
+      );
     }
     var imTimer = setInterval(imTick, 1000);
 
-    /* 复制类按钮反馈（回调地址 / 配对指令） */
-    $$('[data-copy], [data-copy-pair]').forEach(function (btn) {
-      var original = btn.textContent;
-      btn.addEventListener("click", function () {
-        btn.textContent = "已复制";
-        setTimeout(function () {
-          btn.textContent = original;
-        }, 1400);
-      });
-    });
-
-    /* 渠道 tab 状态推导：已配置(连接数)/未配置；任一连接健康即绿灯（否则已配置但无健康连接=amber） */
-    function imSyncChannelTabs() {
-      $$("#imNavList .im-channel-card:not(.gen)").forEach(function (card) {
-        var view = card.getAttribute("data-im-view");
-        var section = imDetailEl.querySelector(
-          '.im-view[data-im-view="' + view + '"]',
-        );
-        var status = card.querySelector(".im-channel-status");
-        if (!section || !status) return;
-        var conns = Array.prototype.slice.call(
-          section.querySelectorAll(".im-conn-row"),
-        );
-        var healthy = conns.some(function (row) {
-          return !!row.querySelector(".im-dot.ok");
-        });
-        var dot = status.querySelector(".im-dot");
-        if (!dot) {
-          dot = document.createElement("span");
-          dot.className = "im-dot";
-          dot.setAttribute("aria-hidden", "true");
-        }
-        var text = document.createElement("span");
-        text.textContent = conns.length
-          ? "已配置(" + conns.length + ")"
-          : "未配置";
-        dot.className =
-          "im-dot " +
-          (conns.length ? (healthy ? "ok" : "pending") : "idle");
-        status.textContent = "";
-        status.appendChild(dot);
-        status.appendChild(text);
-      });
-    }
-
-    imMode("manage");
-    imSelect("feishu");
-    imSyncChannelTabs();
-    /* 供连接态变化后复推（及测试直达） */
-    window.__imSyncChannelTabs = imSyncChannelTabs;
-    /* hash 直达桥（#settings=1&im=wizard|manage） */
-    window.__imSetMode = imMode;
+    /* hash 直达桥（#settings=1&im-demo=empty|progress|alert）与测试用幂等态 setter */
+    window.__imApplyDemo = imApplyDemo;
+    imApplyDemo("progress");
   }
 
   /* 设置弹窗 */
@@ -2423,10 +2800,14 @@
       if (params.get("empty") === "1") body.setAttribute("data-empty", "1");
       if (params.get("settings") === "1") {
         settingsController.open($("#settingsBtn"));
-        var imHash = params.get("im");
-        if ((imHash === "wizard" || imHash === "manage") && window.__imSetMode) {
+        var imDemo = params.get("im-demo");
+        if (
+          ["empty", "progress", "alert"].includes(imDemo) &&
+          window.__imApplyDemo
+        ) {
           selectSettings("im");
-          window.__imSetMode(imHash);
+          /* hash 重放幂等：applyDemo 从种子全量重建（derive 重跑） */
+          window.__imApplyDemo(imDemo);
         }
       }
       if (params.get("collapsed") === "1") {
