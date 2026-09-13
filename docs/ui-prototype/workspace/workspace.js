@@ -1095,6 +1095,46 @@
       return (platformKey === "slack" ? "pair " : "/pair ") + imState.pairCode;
     }
 
+    /* 配对码时效：到期变「已过期」，[换一个] 重置倒计时并换新码 */
+    var imSecondsLeft = 4 * 60 + 32;
+    var imCodeExpired = false;
+    function imExpiryText() {
+      var m = Math.floor(imSecondsLeft / 60),
+        s = imSecondsLeft % 60;
+      return m + ":" + String(s).padStart(2, "0");
+    }
+    function imRenewCode() {
+      imSecondsLeft = 4 * 60 + 32;
+      imCodeExpired = false;
+      var i = IM_PAIR_CODES.indexOf(imState.pairCode);
+      imState.pairCode = IM_PAIR_CODES[(i + 1) % IM_PAIR_CODES.length];
+      imBuildInstructions();
+      imRefresh();
+      notice("已换新配对码（演示）");
+    }
+
+    /* 配对请求卡：置顶③折叠体，带平台徽标；批准/拒绝后移除 */
+    function imBuildPairingRequests() {
+      var box = imPanel.querySelector("[data-im-pairing-requests]");
+      box.textContent = "";
+      imState.pairingRequests.forEach(function (req, idx) {
+        var platformName = (IM_PLATFORMS.filter(function (p) {
+          return p.key === req.platform;
+        })[0] || {}).name || req.platform;
+        var card = document.createElement("div");
+        card.className = "im-pairing-request-card";
+        card.setAttribute("data-im-pairing-idx", String(idx));
+        card.innerHTML =
+          '<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span>' +
+          "<strong>" + req.name + " 请求绑定这台电脑</strong></div>" +
+          '<div class="im-pair-who"><span class="im-pair-platform">' + platformName + "</span>" +
+          '<code class="im-identifier">' + req.id + "</code></div>" +
+          '<div class="im-pair-actions"><button class="btn btn-primary" data-im-approve="" type="button">批准</button>' +
+          '<button class="btn btn-ghost" data-im-reject="" type="button">拒绝</button></div>';
+        box.appendChild(card);
+      });
+    }
+
     function imBuildInstructions() {
       var box = imPanel.querySelector("[data-im-instructions]");
       var healthy = IM_PLATFORMS.filter(function (p) {
@@ -1116,7 +1156,9 @@
           '</code><button class="btn btn-ghost" data-copy-pair="" type="button">复制指令</button></div>';
       });
       html +=
-        '<p class="im-fine"><span class="im-countdown" data-im-countdown="">4:32</span> 后过期</p>' +
+        '<p class="im-fine"><span data-im-expiry-note=""><span class="im-countdown" data-im-countdown="">' +
+        imExpiryText() + '</span>' + (imCodeExpired ? "" : " 后过期") +
+        '</span> · <button class="im-demo-link" data-im-renew-code="" type="button">换一个</button></p>' +
         '<p class="im-instr-title">2. 机器人回复确认后，账号会出现在下面。</p>';
       box.innerHTML = html;
       /* 重建后重新挂复制反馈 */
@@ -1271,6 +1313,7 @@
       imDerived = imDerive(imState);
       imBuildPlatformRows();
       imUpdatePlatformRows();
+      imBuildPairingRequests();
       imBuildInstructions();
       imBuildBindings();
       imBuildProjects();
@@ -1281,11 +1324,44 @@
       if (!Object.hasOwn(IM_SEEDS, key)) key = "progress";
       imState = JSON.parse(JSON.stringify(IM_SEEDS[key]));
       imManual = {};
+      imSecondsLeft = 4 * 60 + 32;
+      imCodeExpired = false;
       imRenderAll();
     }
 
+    /* ===== 定位与脉冲（一次性背景脉冲，不用 focus ring） ===== */
+    function imPulse(el) {
+      if (!el) return;
+      el.classList.remove("im-pulse");
+      void el.offsetWidth; /* 重启动画 */
+      el.classList.add("im-pulse");
+      el.addEventListener("animationend", function handler(ev) {
+        if (ev.animationName === "im-pulse-bg") {
+          el.classList.remove("im-pulse");
+          el.removeEventListener("animationend", handler);
+        }
+      });
+    }
+    /* 展开目标卡 → .settings-content 滚动到位 → 一次性脉冲 → 焦点落卡头（时序：scroll 先于 focus） */
+    function imLocateCard(key, opts) {
+      opts = opts || {};
+      imManual[key] = true;
+      imRenderCards();
+      var card = imCardEls[key];
+      var head = card.querySelector("[data-im-card-head]");
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          head.scrollIntoView({ block: "center", behavior: "smooth" });
+          imPulse(opts.pulse || card);
+          if (opts.focus !== false) {
+            setTimeout(function () { head.focus(); }, 400);
+          }
+        });
+      });
+    }
+
     /* ===== 交互 ===== */
-    /* 卡头：切换折叠并记住；空态下 ②-⑤ 点击=定位①大按钮 */
+    /* 卡头：切换折叠并记住；空态下 ②-⑤ 点击=闪烁定位①大按钮 */
     imPanel.addEventListener("click", function (ev) {
       var head = ev.target.closest("[data-im-card-head]");
       if (!head) return;
@@ -1294,10 +1370,17 @@
       if (!imState.gateway.started && key !== "service") {
         var cta = imPanel.querySelector("[data-im-service-start]");
         cta.scrollIntoView({ block: "center", behavior: "smooth" });
+        imPulse(cta);
         return;
       }
       imManual[key] = card.querySelector(".im-card-body").hidden;
       imRenderCards();
+    });
+
+    /* 聚合胶囊：故障态点击=定位②卡（滚动+一次性脉冲） */
+    imPill.addEventListener("click", function () {
+      if (imDerived.pill.tone !== "warn") return;
+      imLocateCard("bots");
     });
 
     /* ① 一键开启 */
@@ -1367,10 +1450,11 @@
       if (ev.target.closest("[data-im-view-reason]")) {
         var subs = platformRow.querySelector(".im-conn-subrows");
         subs.hidden = false;
+        var badRow = subs.querySelector(".im-dot.bad");
+        if (badRow) badRow.closest(".im-conn-row").scrollIntoView({ block: "nearest", behavior: "smooth" });
         var reasonEl = platformRow.querySelector(".im-platform-reason");
-        if (reasonEl && !reasonEl.hidden) {
-          reasonEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        }
+        if (reasonEl && !reasonEl.hidden) reasonEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        imPulse(reasonEl && !reasonEl.hidden ? reasonEl : subs);
         return;
       }
       if (ev.target.closest("[data-im-retry]")) {
@@ -1449,12 +1533,26 @@
       notice(imState.masterOn ? "已开始响应 IM 指令（演示）" : "已暂停响应 IM 指令，配置保留（演示）");
     });
 
-    /* ③ 衔接行：展开④并滚动到位 */
+    /* ③ 配对请求：批准/拒绝后移除（角标与摘要随 derive 收敛） */
+    imPanel.addEventListener("click", function (ev) {
+      var approve = ev.target.closest("[data-im-approve]");
+      var reject = ev.target.closest("[data-im-reject]");
+      if (!approve && !reject) return;
+      var cardEl = (approve || reject).closest("[data-im-pairing-idx]");
+      var idx = Number(cardEl.getAttribute("data-im-pairing-idx"));
+      if (Number.isFinite(idx)) imState.pairingRequests.splice(idx, 1);
+      imBuildPairingRequests();
+      imRefresh();
+      notice(approve ? "已批准配对，账号已绑定（演示）" : "已拒绝配对（演示）");
+    });
+    /* 配对码：[换一个] 重置倒计时并换新码 */
+    imPanel.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-im-renew-code]")) imRenewCode();
+    });
+
+    /* ③ 衔接行：定位④（展开+滚动+脉冲+焦点） */
     imPanel.querySelector("[data-im-goto-projects]").addEventListener("click", function () {
-      imManual.projects = true;
-      imRenderCards();
-      var head = imCardEls.projects.querySelector("[data-im-card-head]");
-      head.scrollIntoView({ block: "center", behavior: "smooth" });
+      imLocateCard("projects");
     });
 
     /* ④ 默认项目选择 */
@@ -1516,23 +1614,31 @@
       if (caret) caret.textContent = open ? "▾" : "▸";
     });
 
-    /* 配对码倒计时（tabular-nums；元素随指令区重建，逐 tick 查询） */
-    var imSecondsLeft = 4 * 60 + 32;
+    /* 配对码倒计时（tabular-nums；元素随指令区重建，逐 tick 查询）；
+       到期变「已过期 · [换一个]」，点击重置倒计时并换新码 */
     function imTick() {
       if (imSecondsLeft > 0) imSecondsLeft -= 1;
-      var m = Math.floor(imSecondsLeft / 60),
-        s = imSecondsLeft % 60;
+      if (imSecondsLeft === 0) imCodeExpired = true;
       Array.prototype.forEach.call(
         imPanel.querySelectorAll("[data-im-countdown]"),
         function (el) {
-          el.textContent = m + ":" + String(s).padStart(2, "0");
+          el.textContent = imExpiryText();
         },
       );
+      if (imCodeExpired) {
+        Array.prototype.forEach.call(
+          imPanel.querySelectorAll("[data-im-expiry-note]"),
+          function (el) {
+            el.textContent = "已过期";
+          },
+        );
+      }
     }
     var imTimer = setInterval(imTick, 1000);
 
-    /* hash 直达桥（#settings=1&im-demo=empty|progress|alert）与测试用幂等态 setter */
+    /* hash 直达桥（#settings=1&im-demo=empty|progress|alert）、定位桥与幂等态 setter */
     window.__imApplyDemo = imApplyDemo;
+    window.__imLocateCard = imLocateCard;
     imApplyDemo("progress");
   }
 
@@ -1570,6 +1676,18 @@
   function selectSettings(key) {
     var tab = $('.settings-tab[data-settings-panel="' + key + '"]');
     if (tab) settingsTabs.select(tab);
+  }
+
+  /* 定时任务卡「待授权」深链：打开设置 → 消息接入 → 展开④ → 滚动 → 一次性脉冲 → 焦点落④卡头 */
+  var autoAuthBtn = $("[data-auto-auth]");
+  if (autoAuthBtn) {
+    autoAuthBtn.addEventListener("click", function () {
+      settingsController.open(autoAuthBtn);
+      selectSettings("im");
+      requestAnimationFrame(function () {
+        if (window.__imLocateCard) window.__imLocateCard("projects");
+      });
+    });
   }
 
   /* 主题（对齐真实设置：界面主题下拉 + #theme= hash；语言下拉即时生效语义） */

@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=160" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=161" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -617,10 +617,10 @@
 </div>
 </article>
 <article class="card" data-project="token-lab">
-<div class="card-row"><div><h2 class="card-title">周报草稿</h2><div class="card-sub">token-lab</div></div><span class="sp"></span><span class="auto-state pending">需要授权</span></div>
+<div class="card-row"><div><h2 class="card-title">周报草稿</h2><div class="card-sub">token-lab</div></div><span class="sp"></span><button class="auto-state pending" data-auto-auth="" title="打开设置 → 消息接入 → 允许手机操作的项目" type="button">待授权 · 点击去授权</button></div>
 <p class="auto-prompt">汇总本周合并的 PR 与 CHANGELOG 变更，生成英文周报草稿并发送审批。</p>
 <div class="auto-meta"><span>五 · 18:00 · Asia/Shanghai</span><span>PLAN · 托管 Worktree</span><span>下次: 2026年9月11日 18:00</span><span>上次: 2026年8月28日 18:00</span></div>
-<div class="card-actions"><button class="btn btn-quiet" data-toast="已发起授权（演示）" type="button">授权</button><button class="btn btn-quiet" disabled type="button">立即运行</button><button class="btn btn-quiet" data-auto-toggle type="button">已启用</button><button class="btn btn-quiet" data-auto-edit type="button">编辑</button><button class="btn btn-quiet danger" data-toast="已删除定时任务（演示）" type="button">删除</button></div>
+<div class="card-actions"><button class="btn btn-quiet" disabled type="button">立即运行</button><button class="btn btn-quiet" data-auto-toggle type="button">已启用</button><button class="btn btn-quiet" data-auto-edit type="button">编辑</button><button class="btn btn-quiet danger" data-toast="已删除定时任务（演示）" type="button">删除</button></div>
 <div class="run-history"><strong>最近运行</strong>
 <button class="run-row" type="button"><span class="run-dot skipped"></span><span>2026年8月28日 18:00</span><span>skipped</span><small>跳过：上一个任务仍在运行</small></button>
 </div>
@@ -845,6 +845,7 @@
 <section class="im-card" data-im-card="account">
 <button aria-controls="imCardBodyAccount" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">3</span><span class="im-card-title">绑定我的账号</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
 <div class="im-card-body" id="imCardBodyAccount">
+<div data-im-pairing-requests=""></div>
 <div class="im-code-card" data-im-instructions=""></div>
 <div class="im-block">
 <h4>已绑定账号</h4>
@@ -976,6 +977,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=146"></script>
+<script src="workspace/workspace.js?v=147"></script>
 </body>
 </html>

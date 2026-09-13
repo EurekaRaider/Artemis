@@ -3323,11 +3323,22 @@ body[data-dock="open"] .dock-resizer {
   border-color: transparent;
 }
 /* v153：定时任务「需要授权」——警告态（配方对齐 status-pill warn：边框 40% / 底 9%
-   从 --warning 派生，文字 --warning-text） */
+   从 --warning 派生，文字 --warning-text）；
+   阶段3：改为「待授权 · 点击去授权」button（深链入口），补按钮基线 */
 .auto-state.pending {
   color: var(--warning-text);
   background: color-mix(in srgb, var(--warning) 9%, transparent);
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+}
+button.auto-state.pending {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 590;
+  cursor: pointer;
+  transition: background var(--t-quick), border-color var(--t-quick);
+}
+button.auto-state.pending:hover {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
 }
 .auto-prompt {
   font-size: 12.5px;
@@ -4375,6 +4386,32 @@ body[data-archived-demo] .composer-wrap .composer {
   display: flex;
   gap: 8px;
   margin-left: auto;
+}
+/* 配对请求平台徽标（带平台归属的小胶囊） */
+.im-pair-platform {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 10.5px;
+  color: var(--text-2);
+}
+/* 一次性背景脉冲（≤2 拍，慢而匀；不用 outline/focus ring） */
+@keyframes im-pulse-bg {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  30%,
+  70% {
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  }
+}
+.im-pulse {
+  animation: im-pulse-bg 0.9s ease-in-out 1;
+  border-radius: var(--r-control);
 }
 /* 配对码卡（通用 → 配对与账号） */
 .im-code-card {
