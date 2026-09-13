@@ -58,13 +58,16 @@ try {
     await page.goto(base+'#settings=1&im-demo=progress');await page.waitForTimeout(400);
     assert.deepEqual(await cards(),['false','false','true','false','false']);
     assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'ok');
-    assert.equal(await page.locator('#imMasterSwitch').getAttribute('aria-checked'),'true');
+    /* D1：首次流程无总开关（断言不存在）；进度=服务+机器人 2/5 */
+    assert.equal(await page.locator('#imMasterSwitch').count(),0);
+    assert.match(await page.locator('[data-im-progress]').textContent(),/2\/5/);
     assert.equal(await page.locator('[data-im-ready]').isHidden(),true);
-    /* empty：仅①展开，主开关禁用，②-⑤摘要统一「先开启服务」 */
+    /* empty：仅①展开，②-⑤摘要统一「先开启服务」 */
     await page.goto(base+'#settings=1&im-demo=empty');await page.waitForTimeout(400);
     assert.deepEqual(await cards(),['true','false','false','false','false']);
     assert.equal(await page.locator('#imStateText').textContent(),'未开启');
-    assert.equal(await page.locator('#imMasterSwitch').isDisabled(),true);
+    assert.equal(await page.locator('#imMasterSwitch').count(),0);
+    assert.match(await page.locator('[data-im-progress]').textContent(),/0\/5/);
     assert.equal(await page.locator('[data-im-summary]').evaluateAll(els=>els.every(e=>e.textContent==='先开启服务')),true);
     assert.equal(await page.locator('[data-im-service-start]').isVisible(),true);
     /* hash 重放幂等：empty → alert 回放后聚合态完整重建 */

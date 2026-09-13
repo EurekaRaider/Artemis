@@ -21,7 +21,57 @@ try {
  await check('manage saved credentials displays saved view',async()=>{await locate('bots');await row.locator('[data-im-manage]').click();assert.equal(await row.locator('[data-im-cred-saved]').isVisible(),true);await row.locator('[data-im-cred-swap]').click();assert.equal(await row.locator('[data-im-field-label="App Secret"] input').inputValue(),'');});
  await check('all platform contracts and draft collapse',async()=>{for(const [key,count] of [['wecom',3],['slack',2]]){const r=page.locator('[data-im-platform="'+key+'"]');await r.locator('[data-im-add]').click();assert.equal(await r.locator('input:visible').count(),count);assert.equal(await r.locator('[data-im-receive-mode]').count(),0);await r.locator('[data-im-fill-demo]').click();await r.locator('[data-im-cred-cancel]').click();await r.locator('[data-im-add]').click();assert.ok(await r.locator('input').first().inputValue());} });
  await page.screenshot({path:out+'/credentials-light.png'});
- await check('scenes and expired pairing do not advance',async()=>{await page.locator('.im-simulation summary').click();await page.locator('[data-im-scene="expired"]').click();await page.locator('[data-im-confirm-ok]').click();await locate('account');await page.locator('[data-copy-pair]').first().click();assert.equal(await page.locator('[data-im-wait-card]').isHidden(),true);await page.locator('[data-im-renew-code]').click();assert.match(await page.locator('[data-im-countdown]').first().textContent(),/5:00|4:59/);});
+ await check('C1 progress, phases, service failure and delete cascade',async()=>{
+  /* D1：首次流程无总开关；四步完成 → 进度 4/5（第 5 步测试任务未做）；③ 已绑定 */
+  assert.equal(await page.locator('#imMasterSwitch').count(),0);
+  assert.match(await page.locator('[data-im-progress]').textContent(),/4\/5/);
+  assert.match(await page.locator('[data-im-pair-phase]').textContent(),/已绑定/);
+  /* 删除连接级联回退：③绑定清空、机器人未配置、进度回退、③五态行隐藏（未生成） */
+  await locate('bots');
+  await page.locator('[data-im-platform="feishu"] [data-im-manage]').click();
+  await page.locator('[data-im-subcard="feishu"] [data-im-conn-delete]').click();
+  await page.locator('[data-im-confirm-ok]').click();
+  await page.waitForTimeout(300);
+  assert.match(await page.locator('[data-im-platform="feishu"] .im-platform-status').textContent(),/未配置/);
+  assert.equal(await page.locator('[data-im-bindings] .im-binding-row').count(),0);
+  assert.equal(await page.locator('[data-im-pair-phase]').isHidden(),true);
+  assert.match(await page.locator('[data-im-progress]').textContent(),/2\/5/);
+  /* ①失败分支：端口占用→独立原因+重试开启；改成功→重试落已就绪
+     （经面板内「演示场景」回到 empty——goto 同 URL 会被脏状态 beforeunload 挡下） */
+  await page.locator('.im-simulation summary').click();
+  await page.locator('[data-im-scene="empty"]').click();
+  await page.locator('[data-im-confirm-ok]').click();
+  await page.waitForTimeout(500);
+  await page.locator('[data-im-service-outcome]').selectOption('port');
+  await page.click('[data-im-service-start]');
+  await page.waitForTimeout(1200);
+  assert.match(await page.locator('[data-im-service-error]').textContent(),/端口被其他程序占用/);
+  assert.match(await page.locator('[data-im-service-start]').textContent(),/重试开启/);
+  await page.locator('[data-im-service-outcome]').selectOption('ok');
+  await page.click('[data-im-service-start]');
+  await page.waitForTimeout(1200);
+  assert.equal(await page.locator('[data-im-card="service"] [data-im-badge]').textContent(),'已就绪');
+  /* ③五态序列：等待你发送 →（复制≠发送）→ 收到账号请求 → 待本人确认 →（批准）→ 已绑定 */
+  await page.click('[data-im-platform="feishu"] [data-im-add]');
+  await row.locator('[data-im-fill-demo]').click();
+  await page.click('[data-im-subcard="feishu"] [data-im-cred-save]');
+  await page.waitForTimeout(1100);
+  await locate('account');
+  await page.locator('[data-copy-pair]').first().click();
+  await page.waitForTimeout(150);
+  assert.match(await page.locator('[data-im-pair-phase]').textContent(),/等待你发送/);
+  await page.click('[data-im-pair-arrive]');
+  await page.waitForTimeout(200);
+  assert.match(await page.locator('[data-im-pair-phase]').textContent(),/收到账号请求/);
+  await page.waitForTimeout(2600);
+  assert.match(await page.locator('[data-im-pair-phase]').textContent(),/待本人确认/);
+  await page.click('[data-im-approve]');
+  await page.waitForTimeout(300);
+  assert.match(await page.locator('[data-im-pair-phase]').textContent(),/已绑定/);
+  /* 收起「演示场景」面板，恢复后续检查的初始开合状态 */
+  await page.locator('.im-simulation summary').click();
+ });
+ await check('scenes and expired pairing do not advance',async()=>{await page.locator('.im-simulation summary').click();await page.locator('[data-im-scene="expired"]').click();await page.locator('[data-im-confirm-ok]').click();await locate('account');assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),true);assert.equal(await page.locator('[data-im-wait-card]').isHidden(),true);assert.match(await page.locator('[data-im-renew-code]').textContent(),/生成新指令/);await page.locator('[data-im-renew-code]').click();assert.match(await page.locator('[data-im-countdown]').first().textContent(),/5:00|4:59/);assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),false);});
  await check('narrow dark and reduced motion',async()=>{await page.setViewportSize({width:620,height:850});await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await locate('bots');await page.screenshot({path:out+'/narrow-dark.png'});assert.equal(await page.locator('#settingsPanelIm').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);});
  assert.deepEqual(errors,[]); await writeFile(out+'/result.json',JSON.stringify({results,errors},null,2));
 } finally {await browser.close();}

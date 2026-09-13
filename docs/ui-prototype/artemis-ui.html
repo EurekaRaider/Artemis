@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=165" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=166" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -809,8 +809,8 @@
 <p class="im-head-hint">在聊天软件里发消息，就能指挥这台电脑干活。</p>
 </div>
 <div class="im-head-state">
+<span class="im-progress" data-im-progress="">设置进度 <b>0</b>/5</span>
 <button aria-live="polite" class="im-status-pill" id="imStatePill" title="机器人接入状态；不代表聊天软件客户端在线状态。" type="button"><span aria-hidden="true" class="im-dot idle"></span><span id="imStateText">未开启</span></button>
-<label class="im-master"><span class="im-master-label">启用</span><button aria-checked="false" aria-label="启用 IM 连接" class="switch" id="imMasterSwitch" role="switch" type="button"></button></label>
 </div>
 </div>
 <p class="im-fine">交互原型 · 配置仅在本次页面中模拟，不连接聊天平台。</p>
@@ -823,7 +823,9 @@
 <div class="im-service-empty" data-im-service-empty="">
 <button class="btn btn-primary im-service-cta" data-im-service-start="" type="button">一键开启（推荐）</button>
 <p class="im-muted">消息服务负责收发消息，在本机自动运行。</p>
-<p class="im-fine" data-im-service-help="" hidden="">第一次启动会生成设备编号，几秒就好。</p>
+<p class="im-fine" data-im-service-help="" hidden="">启动服务并注册电脑，几秒就好。</p>
+<p class="im-fine im-service-error" data-im-service-error="" hidden="" role="alert"></p>
+<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-service-outcome=""><option value="ok">成功</option><option value="port">端口被占用</option><option value="register">注册失败</option></select></p>
 <p class="im-fine">个人使用可直接开启；团队配置在本步骤下方。</p>
 </div>
 <div class="im-service-ready" data-im-service-ready="" hidden="">
@@ -870,6 +872,7 @@
 <button aria-controls="imCardBodyAccount" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">3</span><span class="im-card-title">绑定我的账号</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
 <div class="im-card-body" id="imCardBodyAccount">
 <div data-im-pairing-requests=""></div>
+<p class="im-fine im-pair-phase" data-im-pair-phase="" hidden=""></p>
 <div class="im-code-card" data-im-instructions=""></div>
 <div class="im-code-card im-wait-card" data-im-wait-card="" hidden="">
 <span aria-hidden="true" class="im-dot pending"></span>
@@ -1031,6 +1034,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=152"></script>
+<script src="workspace/workspace.js?v=153"></script>
 </body>
 </html>

@@ -3951,17 +3951,40 @@ body[data-archived-demo] .composer-wrap .composer {
   gap: 12px;
   flex: none;
 }
-.im-master {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+/* D1：首次流程无总开关，头部改为「设置进度 N/5」（小而轻，仅数字加粗） */
+.im-progress {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.im-master-label {
-  font-size: 12px;
+.im-progress b {
+  font-weight: 660;
   color: var(--text-2);
 }
-.im-master .switch {
+/* ① 启动失败原因行（语义令牌 danger-text） */
+.im-service-error {
+  color: var(--danger-text);
+}
+/* ③ 五态行（小而轻，仅状态词加粗） */
+.im-pair-phase {
   margin: 0;
+}
+.im-pair-phase b {
+  font-weight: 660;
+  color: var(--text-2);
+}
+/* 演示数据小标签（请求卡/绑定行；无背板原则下用极轻描边） */
+.im-demo-tag {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2.5px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  color: var(--text-3);
+  font-weight: 450;
+  margin-left: 6px;
+  white-space: nowrap;
 }
 /* ===== 方向 B：单列分区卡片流（derive 驱动徽标/摘要/角标/自动展开） ===== */
 .im-flow {

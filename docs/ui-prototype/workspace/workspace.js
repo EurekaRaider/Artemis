@@ -627,6 +627,7 @@
       { key: "slack", name: "Slack" },
     ];
     var IM_CARD_ORDER = ["service", "bots", "account", "projects", "groups"];
+    var IM_STEP_TOTAL = 5; /* 设置进度总数：完成链四步 + 第 5 步「发一条测试任务」（群协作可选不计入） */
     var IM_PAIR_CODES = ["7K2Q-XR9M", "3TD8-M52W", "9FJ4-QN7C"];
     /* 时序常量：启动/连接过渡、配对等待、群确认；淡入淡出 200ms；脉冲 0.9s 仅
        用于深链/胶囊定位/配对请求到达；④[保存]本地瞬时，不设假延迟 */
@@ -646,6 +647,8 @@
         session: false,
         /* 凭据保存的确定性演示结果（选择器在凭据子卡内，不用随机） */
         credOutcome: { feishu: "ok", wecom: "ok", slack: "ok" },
+        /* ① 一键开启的确定性演示结果（成功 / 端口被占用 / 注册失败） */
+        serviceOutcome: "ok",
         /* ③ 双轨：10s 倒计时自动到达 + 演示直达弱链接 */
         pairWait: null /* { platform, leftMs } */,
         projectsDirty: false,
@@ -734,9 +737,9 @@
       var el = imPanel.querySelector('.im-card[data-im-card="' + key + '"]');
       if (el) imCardEls[key] = el;
     });
-    var imMaster = $("#imMasterSwitch"),
-      imPill = $("#imStatePill"),
+    var imPill = $("#imStatePill"),
       imStateText = $("#imStateText");
+    /* D1：首次流程无总开关——启用语义归④「保存并启用」；暂停/恢复在完成后概览（C5） */
 
     /* ===== derive：状态 → 徽标 / 摘要 / 告警角标 / 胶囊 / 自动展开 ===== */
     function imDerive(s) {
@@ -909,6 +912,15 @@
         IM_CARD_ORDER.forEach(function (key) {
           cards[key].summary = "先开启服务";
         });
+      } else if (firstUndone) {
+        /* 未来步骤：显示前置提示（完成链线性，先完成当前步骤） */
+        var undoneIdx = IM_CARD_ORDER.indexOf(firstUndone);
+        var undoneTitles = { service: "连接服务", bots: "添加机器人", account: "绑定我的账号", projects: "选择项目" };
+        IM_CARD_ORDER.forEach(function (key, i) {
+          if (i > undoneIdx && key !== "groups" && cards[key].state === "todo") {
+            cards[key].summary = "先完成第 " + (undoneIdx + 1) + " 步「" + undoneTitles[firstUndone] + "」";
+          }
+        });
       }
       if (paused) {
         /* 主开关关闭：徽标保留，摘要加「已暂停」后缀 */
@@ -962,6 +974,8 @@
         autoExpand: autoExpand,
         expired: expired,
         projectsDone: projectsDone,
+        /* 设置进度：完成链四步计数，总数 5（第 5 步「发一条测试任务」C4 落地后计入；⑤群协作可选不计入） */
+        progressDone: chain.filter(function (c) { return c[1]; }).length,
         ready: s.masterOn && serviceDone && botsDone && accountDone && projectsDone &&
           badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
         groupMembers: groupMembers,
@@ -1087,7 +1101,8 @@
         '<div class="im-subcard" data-im-subcard="' + p.key + '" hidden="">' +
         '<div class="im-subcard-saved" data-im-cred-saved="" hidden="">' +
         '<p class="im-muted">演示配置已保存，密钥已清空。实际产品在 Gateway 加密保存。</p>' +
-        '<button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button></div>' +
+        '<div class="btn-pair"><button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button>' +
+        '<button class="btn btn-ghost danger" data-im-conn-delete="" type="button">删除连接</button></div></div>' +
         '<form novalidate class="im-credentials-form" data-im-cred-form="">' +
         '<div class="im-subcard-title">应用凭据</div>' +
         '<p class="im-fine">填写必需凭据即可连接；请使用演示值，不要输入真实密钥。</p>' +
@@ -1273,7 +1288,7 @@
         card.setAttribute("data-im-pairing-idx", String(idx));
         card.innerHTML =
           '<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span>' +
-          "<strong>" + req.name + " 请求绑定这台电脑</strong></div>" +
+          "<strong>" + req.name + " 请求绑定这台电脑</strong><span class=\"im-demo-tag\">演示</span></div>" +
           '<div class="im-pair-who"><span class="im-pair-platform">' + platformName + "</span>" +
           '<code class="im-identifier">' + req.id + "</code></div>" +
           '<div class="im-pair-actions"><button class="btn btn-primary" data-im-approve="" type="button">批准</button>' +
@@ -1306,12 +1321,14 @@
           '<div class="im-instr-line" data-im-instr-platform="' + p.key + '"><span class="im-instr-who">' +
           p.name + " · " + (conn && conn.app ? conn.app : "机器人") +
           '</span><code class="im-identifier">' + imPairCommand(p.key) +
-          '</code><button class="btn btn-ghost" data-copy-pair="" type="button">复制指令</button></div>';
+          '</code><button class="btn btn-ghost" data-copy-pair="" type="button"' +
+          (imCodeExpired ? ' disabled="" title="配对码已过期"' : "") + ">复制指令</button></div>";
       });
       html +=
         '<p class="im-fine"><span data-im-expiry-note=""><span class="im-countdown" data-im-countdown="">' +
         imExpiryText() + '</span>' + (imCodeExpired ? "" : " 后过期") +
-        '</span> · <button class="im-demo-link" data-im-renew-code="" type="button">换一个</button></p>' +
+        '</span> · <button class="im-demo-link" data-im-renew-code="" type="button">' +
+        (imCodeExpired ? "生成新指令" : "换一个") + "</button></p>" +
         '<p class="im-instr-title">2. 机器人回复确认后，账号会出现在下面。</p>';
       box.innerHTML = html;
       /* 重建后重新挂复制反馈；复制指令开启 10s 双轨等待（幂等） */
@@ -1355,12 +1372,14 @@
         if (el) el.textContent = imPairWaitText();
       }
     }
-    /* 到达：转入配对请求卡（到达脉冲是允许的三个脉冲场景之一） */
+    /* 到达：转入配对请求卡（到达脉冲是允许的三个脉冲场景之一）；
+       requestFresh 2.5s 内显示「收到账号请求」，随后转「待本人确认」（③五态） */
     function imArrivePairing() {
       var w = imState.sim && imState.sim.pairWait;
       if (!w) return; /* 幂等：已到达/已取消 */
       imState.sim.pairWait = null;
       imRenderWaitCard();
+      imState.sim.requestFresh = true;
       imState.pairingRequests.push({
         name: "我（演示账号）",
         id: "u_me01",
@@ -1368,6 +1387,12 @@
       });
       imBuildPairingRequests();
       imRefresh();
+      var fe = imEpoch;
+      setTimeout(function () {
+        if (fe !== imEpoch || !imState.sim) return;
+        imState.sim.requestFresh = false;
+        imRenderPairPhase();
+      }, 2500);
       var reqCard = imPanel.querySelector("[data-im-pairing-idx]");
       if (reqCard) {
         reqCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -1384,7 +1409,7 @@
         li.setAttribute("data-im-binding-idx", String(idx));
         li.innerHTML =
           '<div class="im-binding-main"><span class="im-binding-name">' + b.name +
-          '</span><code class="im-identifier">' + b.id + "</code>" +
+          '<span class="im-demo-tag">演示</span></span><code class="im-identifier">' + b.id + "</code>" +
           '<span class="im-binding-meta">' +
           (IM_PLATFORMS.filter(function (p) { return p.key === b.platform; })[0] || {}).name +
           " · " + b.mode + ' 模式</span>' +
@@ -1505,27 +1530,34 @@
           alerts.hidden = true;
         }
         var summary = card.querySelector("[data-im-summary]");
-        summary.textContent = c.summary;
         var open = key in imManual
           ? !!imManual[key]
           : imDerived.autoExpand.indexOf(key) >= 0;
         card.querySelector(".im-card-body").hidden = !open;
         card.querySelector("[data-im-card-head]").setAttribute("aria-expanded", String(open));
         card.querySelector("[data-im-caret]").textContent = open ? "▾" : "▸";
+        /* 已完成且折叠的卡：摘要行尾给「编辑」入口提示（卡头整行即编辑入口） */
+        summary.textContent = c.state === "done" && !open ? c.summary + " · 编辑" : c.summary;
         summary.hidden = open;
       });
     }
 
-    /* ① 空态按钮/帮助行随 starting 瞬态（G1：1000ms 启动过渡） */
+    /* ① 空态按钮/帮助行随 starting 瞬态（G1：1000ms 启动过渡）与失败分支（端口占用/注册失败） */
     function imRenderService() {
       var cta = imPanel.querySelector("[data-im-service-start]");
       var help = imPanel.querySelector("[data-im-service-help]");
+      var err = imPanel.querySelector("[data-im-service-error]");
       var starting = !!imState.gateway.starting;
+      var failed = imState.gateway.startError;
       if (cta) {
         cta.disabled = starting;
-        cta.textContent = starting ? "正在启动…" : "一键开启（推荐）";
+        cta.textContent = starting ? "正在启动…" : failed ? "重试开启" : "一键开启（推荐）";
       }
       if (help) help.hidden = !starting;
+      if (err) {
+        err.hidden = !failed;
+        if (failed) err.textContent = failed;
+      }
     }
 
     /* ⑤ 模拟操作条：③未绑定禁用；found→confirmed 两拍（G4） */
@@ -1594,16 +1626,27 @@
           readyBar.classList.remove("im-enter", "im-enter-on");
         }
       }
-      /* 主开关：服务未开启时禁用 */
-      imMaster.disabled = !imState.gateway.started;
-      imMaster.classList.toggle("on", imState.masterOn);
-      imMaster.setAttribute("aria-checked", String(imState.masterOn));
-      imMaster.setAttribute(
-        "title",
-        imState.gateway.started
-          ? "关闭后停止响应 IM 指令，配置保留"
-          : "开启消息服务后可启用",
-      );
+      /* D1：首次流程无总开关。设置进度 N/5 + ③ 五态行 */
+      var progEl = imPanel.querySelector("[data-im-progress]");
+      if (progEl)
+        progEl.innerHTML = "设置进度 <b>" + imDerived.progressDone + "</b>/" + IM_STEP_TOTAL;
+      imRenderPairPhase();
+    }
+
+    /* ③ 五态（提案第三步）：未生成 → 等待你发送 → 收到账号请求 → 待本人确认 → 已绑定 */
+    function imPairPhase() {
+      if (imState.pairingRequests.length)
+        return imState.sim.requestFresh ? "收到账号请求" : "待本人确认";
+      if (!imDerived || imDerived.healthyTotal === 0) return "未生成";
+      if (imState.bindings.length) return "已绑定";
+      return "等待你发送";
+    }
+    function imRenderPairPhase() {
+      var el = imPanel.querySelector("[data-im-pair-phase]");
+      if (!el) return;
+      var hasBot = imDerived && imDerived.healthyTotal > 0;
+      el.hidden = !hasBot;
+      if (hasBot) el.innerHTML = "当前状态：<b>" + imPairPhase() + "</b>";
     }
 
     /* ⑤ 群列表行：名称 · 成员数 · 平台 [诊断]；found=已发现未共享（pending 点） */
@@ -1742,21 +1785,32 @@
       imLocateCard("bots");
     });
 
-    /* ① 一键开启（G1：1000ms 启动过渡——按钮禁用「正在启动…」+帮助行，完成才落 ✓） */
+    /* ① 一键开启（G1：1000ms 启动过渡；失败分支=确定性演示结果，失败留在本步可重试） */
     imPanel.querySelector("[data-im-service-start]").addEventListener("click", function () {
       if (imState.gateway.starting || imState.gateway.started) return;
       imState.sim.session = true;
+      delete imState.gateway.startError;
       imState.gateway.starting = true;
       imRefresh();
       var epoch = imEpoch;
       setTimeout(function () {
         if (epoch !== imEpoch) return;
         imState.gateway.starting = false;
-        imState.gateway.started = true;
-        imState.masterOn = true;
-        imRefresh();
-        notice("消息服务已在本机开启（演示）");
-        imAdvanceTo("bots"); /* ②自动展开●（不抢鼠标用户焦点） */
+        var outcome = (imState.sim && imState.sim.serviceOutcome) || "ok";
+        if (outcome === "ok") {
+          imState.gateway.started = true;
+          imState.masterOn = true;
+          imRefresh();
+          notice("消息服务已在本机开启（演示）");
+          imAdvanceTo("bots"); /* ②自动展开●（不抢鼠标用户焦点） */
+        } else {
+          imState.gateway.startError =
+            outcome === "port"
+              ? "启动失败：端口被其他程序占用。关闭占用程序后重试，或改用团队服务器。"
+              : "注册失败：无法生成设备编号。请重试；多次失败可改用团队服务器。";
+          imRefresh();
+          notice("启动失败（演示）", true);
+        }
       }, IM_T_START);
     });
 
@@ -1815,6 +1869,9 @@
           .getAttribute("data-im-platform");
         imState.sim.credOutcome[subKey] = outcomeSel.value;
       }
+      /* ① 启动演示结果（成功 / 端口被占用 / 注册失败） */
+      var svcOutcome = ev.target.closest("[data-im-service-outcome]");
+      if (svcOutcome && imState.sim) imState.sim.serviceOutcome = svcOutcome.value;
     });
     /* 字段帮助：聚焦显示帮助小字；blur 非空校验前缀；输入即清错；
        已显示的错误优先于帮助（不被聚焦覆盖） */
@@ -1890,6 +1947,26 @@
     imPanel.addEventListener("click", function (ev) {
       var platformRow = ev.target.closest(".im-platform-row");
       var key = platformRow && platformRow.getAttribute("data-im-platform");
+      /* 删除连接：级联回退（该平台绑定与待确认请求一并移除，完成链重算）+ 一次性提示 */
+      var del = ev.target.closest("[data-im-conn-delete]");
+      if (del && key) {
+        var delName = (IM_PLATFORMS.filter(function (p) { return p.key === key; })[0] || {}).name || key;
+        imConfirm("删除连接", "将删除「" + delName + "」的机器人连接，并解除该平台已绑定账号与待确认请求。", function () {
+          imState.connections[key] = [];
+          imState.pairingRequests = imState.pairingRequests.filter(function (r) { return r.platform !== key; });
+          var removed = imState.bindings.filter(function (b) { return b.platform === key; }).length;
+          imState.bindings = imState.bindings.filter(function (b) { return b.platform !== key; });
+          imState.sim.session = true;
+          imBuildPlatformRows();
+          imUpdatePlatformRows();
+          imBuildPairingRequests();
+          imBuildBindings();
+          imBuildInstructions();
+          imRefresh();
+          notice(removed ? "已删除连接；相关绑定与后续步骤状态已回退（演示）" : "已删除连接（演示）");
+        });
+        return;
+      }
       if (ev.target.closest("[data-im-manage]")) {
         var sub = platformRow.querySelector("[data-im-subcard]");
         imOpenSubcard(key, false);
@@ -2049,13 +2126,6 @@
           if (mark) mark.textContent = markText;
         }, 1400);
       }
-    });
-
-    /* 主开关：开/关都触发全卡 derive */
-    imMaster.addEventListener("click", function () {
-      imState.masterOn = imMaster.classList.contains("on");
-      imRefresh();
-      notice(imState.masterOn ? "已开始响应 IM 指令（演示）" : "已暂停响应 IM 指令，配置保留（演示）");
     });
 
     /* ③ 配对请求：批准=落绑定（G3）+绑定行淡入+④自动展开；拒绝=淡出+焦点回复制钮 */
@@ -2447,9 +2517,25 @@
         if (!url || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !inputs[1].value.trim() || !inputs[2].value.trim()) {
           result.textContent = "填写 HTTPS 服务地址、设备名和管理凭据；地址不能含账号、密码或查询参数。"; result.hidden = false; inputs[!url || url.protocol !== "https:" ? 0 : !inputs[1].value.trim() ? 1 : 2].focus(); return;
         }
-        imConfirm("注册到团队服务器", "机器人凭据将由团队 Gateway 保管。此处只模拟注册，不连接外部服务器。", function () {
-          inputs[2].value = ""; imState.gateway.team = url.origin; imState.gateway.started = true; imState.gateway.linkBroken = false;
+        /* 切换服务先暂停并明确影响（PT-2）：已在运行时注册团队=断开现有连接与绑定 */
+        var switching = imState.gateway.started && !imState.gateway.linkBroken;
+        imConfirm("注册到团队服务器", switching
+          ? "将切换到团队服务器：本机服务停止，现有机器人连接与绑定会被断开，之后需要重新接入。确认继续？"
+          : "机器人凭据将由团队 Gateway 保管。此处只模拟注册，不连接外部服务器。", function () {
+          inputs[2].value = "";
+          if (switching) {
+            IM_PLATFORMS.forEach(function (p) { imState.connections[p.key] = []; });
+            imState.pairingRequests = [];
+            imState.bindings = [];
+            imBuildPlatformRows();
+            imUpdatePlatformRows();
+            imBuildPairingRequests();
+            imBuildBindings();
+            imBuildInstructions();
+          }
+          imState.gateway.team = url.origin; imState.gateway.started = true; imState.gateway.linkBroken = false;
           result.textContent = "已注册演示设备 dev-3f9a，管理凭据已清空。"; result.hidden = false; imRefresh();
+          if (switching) notice("已切换到团队服务器，机器人连接已断开（演示）");
         });
       }
     });
