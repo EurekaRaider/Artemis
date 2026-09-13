@@ -10,6 +10,14 @@ import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
   reportTaskView: (input) => ipcRenderer.send(IPC.taskView, input),
+  onThreadTitleUpdated(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      thread: Pick<import("@artemis/protocol").Thread, "id" | "title">,
+    ) => listener(thread);
+    ipcRenderer.on(IPC.threadTitleUpdated, handler);
+    return () => ipcRenderer.removeListener(IPC.threadTitleUpdated, handler);
+  },
   onImTaskCreated(listener) {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -67,6 +75,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.promptAttachmentPrepare, id),
   selectPromptAttachments: () =>
     ipcRenderer.invoke(IPC.promptAttachmentsSelect),
+  previewPromptFile: (id, offset, threadId) =>
+    ipcRenderer.invoke(IPC.promptFilePreview, id, offset, threadId),
   previewPromptAttachment: (id) =>
     ipcRenderer.invoke(IPC.promptAttachmentPreview, id),
   cancelPromptAttachment: (id) =>

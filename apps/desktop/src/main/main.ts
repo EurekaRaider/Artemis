@@ -265,7 +265,12 @@ import {
   preparePackagedNodePtyRuntime,
   type PreparedNodePtyRuntime,
 } from "./node-pty-runtime.js";
-import { deriveTaskTitle, isAutomaticTaskTitle } from "./task-title.js";
+import {
+  AutomaticTaskTitles,
+  deriveTaskTitle,
+  isAutomaticTaskTitle,
+  shouldGenerateTaskTitle,
+} from "./task-title.js";
 import { mainText } from "./i18n.js";
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import {
@@ -416,6 +421,7 @@ let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
 let notificationRendererReady = false;
 let turnChangeSetService: TurnChangeSetService | undefined;
+const automaticTaskTitles = new AutomaticTaskTitles();
 const turnChangeSetCompletionTails = new Map<string, Promise<void>>();
 let agentProcess: AgentProcess | undefined;
 let terminalService: TerminalService | undefined;
@@ -5677,10 +5683,49 @@ async function startTaskTurnUnchecked(
     requestText,
     input.mode,
   );
-  if (source === "user" && isAutomaticTaskTitle(thread.title)) {
+  if (
+    shouldGenerateTaskTitle(
+      thread.title,
+      source,
+      store.getThreadEvents(thread.id),
+    )
+  ) {
     thread = store.updateThread(thread.id, {
       title: deriveTaskTitle(text, currentLocale()),
     });
+    const titledThread = thread;
+    const process = agentProcess;
+    const locale = currentLocale();
+    const selection = thread.modelSelection ?? activeRuntimeSelection;
+    if (requestText.trim() && !/^\s*\/init\s*$/iu.test(requestText)) {
+      void automaticTaskTitles.generate(
+        titledThread,
+        async () => {
+          await agentRuntimeReady;
+          return process.request<string>(
+            {
+              type: "task.generate-summary",
+              requestId: randomUUID(),
+              title: requestText.slice(0, 2_000),
+              locale,
+              ...(selection ? { selection } : {}),
+            },
+            25_000,
+          );
+        },
+        () =>
+          agentProcess === process
+            ? store?.getThread(titledThread.id)
+            : undefined,
+        (title) => {
+          store!.updateThread(titledThread.id, { title });
+          mainWindow?.webContents.send(IPC.threadTitleUpdated, {
+            id: titledThread.id,
+            title,
+          });
+        },
+      );
+    }
   }
   const now = Date.now();
   const traceSelection = thread.modelSelection ?? activeRuntimeSelection;
@@ -9396,6 +9441,18 @@ function registerIpc(): void {
         attachmentPreparations.delete(id);
     }
   });
+  ipcMain.handle(
+    IPC.promptFilePreview,
+    async (_event, id: string, offset = 0, threadId?: string) => {
+      if (threadId !== undefined && !store?.getThread(threadId))
+        throw new Error("Task was not found.");
+      return attachmentStore().previewFile(
+        id,
+        offset,
+        threadId === undefined ? undefined : attachmentScope(threadId),
+      );
+    },
+  );
   ipcMain.handle(IPC.promptAttachmentPreview, async (_event, id: string) =>
     promptImageSchema.parse(await attachmentStore().preview(id)),
   );
@@ -9535,6 +9592,7 @@ function registerIpc(): void {
       if (!store.getThread(command.threadId)) {
         throw new Error(`Thread not found: ${command.threadId}`);
       }
+      automaticTaskTitles.cancel(command.threadId);
       return store.updateThread(command.threadId, { title: command.title });
     },
   );

@@ -1,4 +1,4 @@
-import type { AppLocale } from "@artemis/protocol";
+import type { AgentEvent, AppLocale, Thread } from "@artemis/protocol";
 
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import { mainText } from "./i18n.js";
@@ -12,6 +12,44 @@ const AUTOMATIC_TITLES = new Set(
 
 const TITLE_LIMIT = 64;
 
+/** A late model response must never undo a manual rename or resurrect a task. */
+export class AutomaticTaskTitles {
+  private readonly pending = new Map<string, symbol>();
+
+  cancel(threadId: string): void {
+    this.pending.delete(threadId);
+  }
+
+  async generate(
+    thread: Pick<Thread, "id" | "title">,
+    generate: () => Promise<string>,
+    current: () => Thread | undefined,
+    apply: (title: string) => void,
+  ): Promise<void> {
+    if (this.pending.has(thread.id)) return;
+    const token = Symbol();
+    this.pending.set(thread.id, token);
+    try {
+      const title = (await generate()).trim();
+      const latest = current();
+      if (
+        this.pending.get(thread.id) === token &&
+        latest &&
+        !latest.archived &&
+        latest.title === thread.title &&
+        title &&
+        Array.from(title).length <= TITLE_LIMIT &&
+        !/[\r\n\0]/u.test(title)
+      )
+        apply(title);
+    } catch {
+      // The immediate, locally derived title remains usable offline or on error.
+    } finally {
+      if (this.pending.get(thread.id) === token) this.pending.delete(thread.id);
+    }
+  }
+}
+
 function trimToCodePoints(value: string, limit: number): string {
   const points = Array.from(value);
   return points.length <= limit
@@ -24,6 +62,18 @@ function trimToCodePoints(value: string, limit: number): string {
 
 export function isAutomaticTaskTitle(title: string): boolean {
   return AUTOMATIC_TITLES.has(title.trim());
+}
+
+export function shouldGenerateTaskTitle(
+  title: string,
+  source: "user" | "goal-continuation",
+  events: readonly AgentEvent[],
+): boolean {
+  return (
+    source === "user" &&
+    isAutomaticTaskTitle(title) &&
+    !events.some((event) => event.payload.type === "user.message")
+  );
 }
 
 export function deriveTaskTitle(request: string, locale: AppLocale): string {

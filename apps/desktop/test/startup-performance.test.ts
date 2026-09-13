@@ -102,7 +102,6 @@ describe("desktop startup latency guardrails", () => {
   it("pins visual convergence to the PR source head and verifies the Windows package", () => {
     const visualJob = ciWorkflowSource.slice(
       ciWorkflowSource.indexOf("visual-convergence-electron:"),
-      ciWorkflowSource.indexOf("ui-gallery-conformance:"),
     );
     const exactSourceHead = "github.event.pull_request.head.sha || github.sha";
 

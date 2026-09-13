@@ -468,6 +468,30 @@ export class AttachmentStore {
     );
   }
 
+  async previewFile(
+    id: string,
+    offset = 0,
+    threadId?: string,
+  ): Promise<import("../shared/api.js").AttachmentFilePreview> {
+    const record = threadId
+      ? await this.authorized(threadId, id)
+      : await this.record(id);
+    if (record.ref.kind !== "file") throw new Error("Attachment is not a file");
+    if (!Number.isSafeInteger(offset) || offset < 0)
+      throw new Error("Invalid attachment offset");
+    const ref = await this.prepare(id);
+    if (ref.status === "error" && (ref.characters !== 0 || ref.size !== 0))
+      throw new Error(ref.error);
+    const result = await runWork<{ text: string; nextOffset?: number }>({
+      action: "read",
+      path: join(this.directory(id), "text.json"),
+      mimeType: ref.mimeType,
+      offset,
+      maxTokens: 4000,
+    });
+    return { name: ref.name, text: result.text, nextOffset: result.nextOffset };
+  }
+
   async preview(
     id: string,
     threadId?: string,

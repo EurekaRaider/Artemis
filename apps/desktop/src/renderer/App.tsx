@@ -1,3 +1,5 @@
+import { FileAttachment } from "./FileAttachment.js";
+import { MessageImageAttachment } from "./MessageImageAttachment.js";
 import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
 import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
@@ -8,6 +10,7 @@ import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
 import { useImMemberMentions } from "./ImMemberMentions";
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -3681,6 +3684,20 @@ export function App() {
       receiveAgentEvents([event]);
     });
     const unsubscribeBatch = window.artemis.onAgentEvents(receiveAgentEvents);
+    const unsubscribeTitles = window.artemis.onThreadTitleUpdated?.(
+      ({ id, title }) => {
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((thread) =>
+                  thread.id === id ? { ...thread, title } : thread,
+                ),
+              }
+            : current,
+        );
+      },
+    );
     const unsubscribeImTasks = window.artemis.onImTaskCreated?.((thread) => {
       setSnapshot((current) =>
         current
@@ -3728,6 +3745,7 @@ export function App() {
       unsubscribe();
       unsubscribeBatch();
       unsubscribeImTasks?.();
+      unsubscribeTitles?.();
       unsubscribeActivities();
       if (pendingAgentFrame.current !== undefined) {
         window.cancelAnimationFrame(pendingAgentFrame.current);
@@ -7786,14 +7804,6 @@ export function App() {
                                 ),
                               );
                             }}
-                            onClear={() => {
-                              for (const attachment of attachments)
-                                if (isAttachmentReference(attachment))
-                                  void window.artemis.cancelPromptAttachment(
-                                    attachment.id,
-                                  );
-                              setAttachments([]);
-                            }}
                           />
                         )}
                         <CustomAgentMentionMenu
@@ -11038,97 +11048,115 @@ export function Timeline({
       const message = state.userMessages[id];
       if (!message) return null;
       const messageAttachments = userMessageAttachments(state, id);
+      const images = messageAttachments.filter(
+        (source) => source.kind === "image",
+      );
+      const files = messageAttachments.filter(
+        (source) => source.kind === "file",
+      );
       const skillNames = selectedSkillNamesForPrompt(message.text);
       const visibleText = promptWithoutSelectedSkills(message.text);
       const editable =
         onEditUserMessage !== undefined &&
         (turn?.status === "cancelled" || turn?.status === "failed");
       return (
-        <ConversationMessage
-          actions={
-            <>
-              <button
-                aria-label={t.copyMessage}
-                className="message-action"
-                onClick={() => void onCopyText(visibleText || message.text)}
-                title={t.copyMessage}
-                type="button"
-              >
-                <CopyIcon />
-              </button>
-              {editable && (
-                <button
-                  aria-label={t.editAndResend}
-                  className="message-action"
-                  onClick={() => onEditUserMessage(message.text)}
-                  title={t.editAndResend}
-                  type="button"
-                >
-                  <EditIcon />
-                </button>
-              )}
-            </>
-          }
-          capabilities={
-            skillNames.length > 0 ? (
-              <>
-                {skillNames.map((name) => {
-                  const skill = installedSkills.find(
-                    (candidate) => candidate.name === name,
-                  );
-                  const plugin = installedPlugins.find((candidate) =>
-                    candidate.skillNames.includes(name),
-                  );
-                  return (
-                    <span className="user-message-capability" key={name}>
-                      <span
-                        className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
-                      >
-                        {plugin?.iconDataUrl ? (
-                          <img
-                            alt=""
-                            draggable={false}
-                            src={plugin.iconDataUrl}
-                          />
-                        ) : plugin ? (
-                          <ResourceIcon />
-                        ) : (
-                          <ArtemisIcon height={16} name="skill" width={16} />
-                        )}
-                      </span>
-                      <strong>{skill?.name ?? name}</strong>
-                    </span>
-                  );
-                })}
-              </>
-            ) : undefined
-          }
-          className="user-message"
-          key={entry}
-          kind="user"
-        >
-          {messageAttachments.length > 0 && (
+        <Fragment key={entry}>
+          {images.length > 0 && (
             <div className="message-attachments">
-              {messageAttachments.map((source) => (
-                <span
-                  className="user-message-attachment"
-                  key={source.sourceId}
-                  title={source.name}
-                >
-                  <ArtemisIcon
-                    name={source.kind === "image" ? "image" : "file"}
-                    width={14}
-                    height={14}
-                  />
-                  <span>{source.name}</span>
-                </span>
+              {images.map((source) => (
+                <MessageImageAttachment
+                  key={`${state.threadId}:${source.sourceId}`}
+                  threadId={state.threadId}
+                  sourceId={source.sourceId}
+                  name={source.name}
+                  thumbnail={source.attachment?.thumbnail}
+                  zh={locale === "zh-CN"}
+                />
               ))}
             </div>
           )}
-          {visibleText && (
-            <div className="user-message-text">{visibleText}</div>
-          )}
-        </ConversationMessage>
+          <ConversationMessage
+            actions={
+              <>
+                <button
+                  aria-label={t.copyMessage}
+                  className="message-action"
+                  onClick={() => void onCopyText(visibleText || message.text)}
+                  title={t.copyMessage}
+                  type="button"
+                >
+                  <CopyIcon />
+                </button>
+                {editable && (
+                  <button
+                    aria-label={t.editAndResend}
+                    className="message-action"
+                    onClick={() => onEditUserMessage(message.text)}
+                    title={t.editAndResend}
+                    type="button"
+                  >
+                    <EditIcon />
+                  </button>
+                )}
+              </>
+            }
+            capabilities={
+              skillNames.length > 0 ? (
+                <>
+                  {skillNames.map((name) => {
+                    const skill = installedSkills.find(
+                      (candidate) => candidate.name === name,
+                    );
+                    const plugin = installedPlugins.find((candidate) =>
+                      candidate.skillNames.includes(name),
+                    );
+                    return (
+                      <span className="user-message-capability" key={name}>
+                        <span
+                          className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
+                        >
+                          {plugin?.iconDataUrl ? (
+                            <img
+                              alt=""
+                              draggable={false}
+                              src={plugin.iconDataUrl}
+                            />
+                          ) : plugin ? (
+                            <ResourceIcon />
+                          ) : (
+                            <ArtemisIcon height={16} name="skill" width={16} />
+                          )}
+                        </span>
+                        <strong>{skill?.name ?? name}</strong>
+                      </span>
+                    );
+                  })}
+                </>
+              ) : undefined
+            }
+            className="user-message"
+            key={entry}
+            kind="user"
+          >
+            {files.length > 0 && (
+              <div className="message-attachments">
+                {files.map((source) => (
+                  <FileAttachment
+                    key={source.sourceId}
+                    name={source.name}
+                    id={source.attachment?.id}
+                    threadId={state.threadId}
+                    zh={locale === "zh-CN"}
+                    compact
+                  />
+                ))}
+              </div>
+            )}
+            {visibleText && (
+              <div className="user-message-text">{visibleText}</div>
+            )}
+          </ConversationMessage>
+        </Fragment>
       );
     }
     if (kind === "compaction") {

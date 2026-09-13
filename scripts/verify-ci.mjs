@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 
 // Shared by GitHub Actions and the main-branch pre-push check.
-const commands = ["format:check", "test", "typecheck", "build"];
+// npm test builds the production bundles before running tests and artifact checks.
+const commands = ["format:check", "test", "typecheck"];
 if (process.env.ARTEMIS_SKIP_PRODUCTION_AUDIT !== "true") {
   commands.push("audit:production");
 }

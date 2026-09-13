@@ -286,6 +286,32 @@ describe("Feedback overlays", () => {
     expect(screen.getByRole("tooltip", { name: "Create task" })).toBeTruthy();
   });
 
+  it("dismisses a clicked computer tooltip on mouse leave and preserves keyboard focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <Tooltip label="电脑在线">
+        <span role="img" aria-label="电脑在线" tabIndex={0}>
+          Computer
+        </span>
+      </Tooltip>,
+    );
+    const trigger = screen.getByRole("img", { name: "电脑在线" });
+    await user.click(trigger);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    expect(document.activeElement).toBe(trigger);
+    await user.unhover(trigger);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await user.tab();
+    await user.tab();
+    expect(document.activeElement).toBe(trigger);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    await user.hover(trigger);
+    await user.unhover(trigger);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    await user.tab();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("requires perceptible overlay labels", () => {
     expect(() =>
       render(

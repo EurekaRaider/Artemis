@@ -207,3 +207,38 @@ it("reports empty scanned pages honestly while retaining visual access and cance
     await rm(root, { recursive: true, force: true });
   }
 }, 20000);
+
+it("previews persisted files in bounded pages, including empty files, with task authorization", async () => {
+  const root = await mkdtemp(join(tmpdir(), "artemis-file-preview-"));
+  try {
+    const input = join(root, "config.yml");
+    const content = "# 配置\nvalue: test\n".repeat(3000);
+    await writeFile(input, content);
+    const store = new AttachmentStore(join(root, "store"));
+    const ref = await store.importPath(input);
+    const first = await store.previewFile(ref.id);
+    expect(first.text.length).toBeLessThan(content.length);
+    expect(first.nextOffset).toBe(first.text.length);
+    await store.bind("task", [ref]);
+    await rm(input);
+    const reopened = new AttachmentStore(join(root, "store"));
+    const next = await reopened.previewFile(ref.id, first.nextOffset, "task");
+    expect(
+      content.slice(first.nextOffset, first.nextOffset! + next.text.length),
+    ).toBe(next.text);
+    await expect(reopened.previewFile(ref.id, 0, "other")).rejects.toThrow(
+      /not available/,
+    );
+    await expect(reopened.previewFile(ref.id, -1, "task")).rejects.toThrow(
+      /offset/,
+    );
+    await writeFile(input, "");
+    const empty = await store.importPath(input);
+    expect((await store.previewFile(empty.id)).text).toBe("");
+    await writeFile(input, Buffer.from([0, 1, 2, 3]));
+    const binary = await store.importPath(input);
+    await expect(store.previewFile(binary.id)).rejects.toThrow(/binary/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

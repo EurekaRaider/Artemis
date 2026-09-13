@@ -607,9 +607,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('className="composer-trailing"');
     expect(appSource).toContain("selectPromptAttachments()");
     expect(appSource).toContain("<ComposerAttachments");
-    expect(cssRule(".composer-attachments-list")).toContain(
-      "max-height: 160px",
-    );
+    expect(cssRule(".attachment-image-strip")).toContain("overflow-x: auto");
     expect(cssRule(".composer-context")).toMatch(/\bdisplay:\s*flex/u);
     expect(cssRule(".composer-context-trigger")).toMatch(
       /\bmax-width:\s*100%[\s\S]*\boverflow:\s*hidden[\s\S]*\bwidth:\s*100%/u,

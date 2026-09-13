@@ -828,6 +828,9 @@ export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
   reportTaskView(input: { threadId?: string; seenSeq?: number }): void;
+  onThreadTitleUpdated(
+    listener: (thread: Pick<Thread, "id" | "title">) => void,
+  ): () => void;
   onImTaskCreated(listener: (thread: Thread) => void): () => void;
   getImStatus(): Promise<
     ImStatus & { connections?: unknown[]; spaces?: unknown[] }
@@ -870,6 +873,11 @@ export interface ArtemisApi {
     projectId: string,
     threadId?: string,
   ): Promise<ProjectGitPushResult>;
+  previewPromptFile(
+    id: string,
+    offset?: number,
+    threadId?: string,
+  ): Promise<AttachmentFilePreview>;
   previewPromptAttachment(id: string): Promise<PromptImage>;
   cancelPromptAttachment(id: string): Promise<void>;
   preparePromptAttachment(
@@ -1173,6 +1181,7 @@ export interface ArtemisApi {
 
 export const IPC = {
   taskView: "artemis:task-view",
+  threadTitleUpdated: "artemis:thread-title-updated",
   imTaskCreated: "artemis:im-task-created",
   imStatus: "artemis:im-status",
   imSave: "artemis:im-save",
@@ -1193,6 +1202,7 @@ export const IPC = {
   projectGitPush: "artemis:project-git-push",
   projectGitChanged: "artemis:project-git-changed",
   promptAttachmentsSelect: "artemis:prompt-attachments-select",
+  promptFilePreview: "artemis:prompt-file-preview",
   promptAttachmentPreview: "artemis:prompt-attachment-preview",
   promptAttachmentCancel: "artemis:prompt-attachment-cancel",
   promptAttachmentImport: "artemis:prompt-attachment-import",
@@ -1350,3 +1360,9 @@ export const IPC = {
   agentEvents: "artemis:agent-events",
   agentActivities: "artemis:agent-activities",
 } as const;
+
+export interface AttachmentFilePreview {
+  name: string;
+  text: string;
+  nextOffset?: number | undefined;
+}

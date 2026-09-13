@@ -520,6 +520,7 @@ export function Tooltip({
   const contentRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  const pointerDown = useRef(false);
   const overlayId = useRef(Symbol("artemis-tooltip")).current;
   const open = hovered || focused;
   const position = useAnchoredPosition(
@@ -561,10 +562,21 @@ export function Tooltip({
       data-artemis-component="tooltip-anchor"
       data-part="anchor"
       onBlur={(event: FocusEvent<HTMLSpanElement>) => {
+        pointerDown.current = false;
         if (!event.currentTarget.contains(event.relatedTarget))
           setFocused(false);
       }}
-      onFocus={() => setFocused(true)}
+      onFocus={() => setFocused(!pointerDown.current)}
+      onPointerDownCapture={() => {
+        pointerDown.current = true;
+        setFocused(false);
+      }}
+      onPointerUpCapture={() => {
+        pointerDown.current = false;
+      }}
+      onPointerCancel={() => {
+        pointerDown.current = false;
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       ref={anchorRef}

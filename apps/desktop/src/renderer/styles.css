@@ -5355,120 +5355,81 @@ button.environment-row:disabled {
   z-index: 20;
 }
 
-.composer-attachments {
-  margin: 8px 12px 0;
-  min-width: 0;
+.attachment-image-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px;
+}
+.composer-image-strip {
+  margin: 8px 8px 0;
+}
+.attachment-image-tile {
+  position: relative;
+  flex: none;
+}
+.attachment-image-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  flex: none;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--artemis-color-surface-sunken);
   color: var(--muted);
+  cursor: pointer;
+}
+.attachment-image-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.attachment-image-button span {
+  padding: 8px;
+  overflow-wrap: anywhere;
   font-size: 12px;
 }
-.composer-attachments-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  cursor: pointer;
-  list-style: none;
+.attachment-image-button small {
+  display: block;
+  margin-top: 8px;
 }
-.composer-attachments-summary::-webkit-details-marker {
-  display: none;
-}
-.composer-attachments-summary strong {
-  font-weight: 500;
-  white-space: nowrap;
-}
-.composer-attachments-thumbnails {
-  display: flex;
-  flex: none;
-  padding-right: 4px;
-}
-.composer-attachments-thumbnails > * {
-  width: 26px;
-  height: 26px;
-  object-fit: cover;
-  border: 2px solid var(--artemis-color-surface-sunken);
-  border-radius: 6px;
-  margin-right: -4px;
-  background: var(--artemis-color-surface-sunken);
-  text-align: center;
-}
-.composer-attachments-status {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-}
-.composer-attachments-chevron {
-  margin-left: auto;
-}
-.composer-attachments[open] .composer-attachments-chevron {
-  transform: rotate(180deg);
-}
-.composer-attachments-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 0;
-  font-size: 11px;
-}
-.composer-attachments-actions button {
-  flex: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-.composer-attachments-list {
-  max-height: 160px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-top: 1px solid var(--border-soft);
-}
-.composer-attachment-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-}
-.composer-attachment-preview {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.composer-attachment-preview:disabled {
-  opacity: 1;
-  cursor: default;
-}
-.composer-attachment-preview img {
+.attachment-image-remove {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  position: absolute;
+  top: 4px;
+  right: 4px;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-  flex: none;
-}
-.composer-attachment-preview > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.composer-attachment-state {
-  flex: none;
-  font-size: 11px;
-}
-.composer-attachment-remove {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  border-radius: 6px;
-  color: var(--muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  background: var(--artemis-color-surface-sunken);
+  color: var(--text);
   cursor: pointer;
 }
-.composer-attachment-remove:hover {
-  color: var(--danger);
-  background: var(--hover);
+
+.attachment-file-card {
+  flex-direction: column;
+  gap: 8px;
+}
+.attachment-file-fallback {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+.attachment-file-content {
+  width: min(72vw, 800px);
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px var(--mono-font);
 }
 .composer-attachment-dialog {
   max-width: 85vw;
@@ -5506,6 +5467,8 @@ button.environment-row:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  justify-content: flex-end;
+  margin-block-end: 8px;
 }
 .user-message-attachment {
   display: inline-flex;
@@ -5513,7 +5476,7 @@ button.environment-row:disabled {
   gap: 6px;
   height: 24px;
   max-width: min(280px, 100%);
-  padding: 0 4px 0 9px;
+  padding: 0 9px;
   margin: 0;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
@@ -5527,13 +5490,6 @@ button.environment-row:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.message-attachments {
-  justify-content: flex-end;
-  margin-block-end: 8px;
-}
-.user-message-attachment {
-  padding-inline-end: 9px;
 }
 .user-message-attachment svg {
   flex: none;

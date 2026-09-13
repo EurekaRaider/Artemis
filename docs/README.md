@@ -31,6 +31,8 @@
 | [management-appearance-audit.md](records/management-appearance-audit.md) | 管理面板外观审计记录                        |
 | [readme-visuals.md](records/readme-visuals.md)                           | README 截图与视觉资产规范(capture 脚本配套) |
 
+- [test-ci-audit.md](records/test-ci-audit.md)：测试与 CI 精简依据、覆盖保留和验证边界。
+
 ## 自治区与资产
 
 - [ui-prototype/](ui-prototype/README.md) — 静态原型(自带 README、工具与契约)
