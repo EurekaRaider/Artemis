@@ -4359,6 +4359,10 @@ body[data-archived-demo] .composer-wrap .composer {
   font-size: 12px;
   color: var(--text);
 }
+/* 标题段独占一行：卡片是 flex-wrap 容器，编号段落不与指令行/到期行抢行 */
+.im-code-card .im-instr-title {
+  flex-basis: 100%;
+}
 .im-instr-line {
   display: flex;
   align-items: baseline;
