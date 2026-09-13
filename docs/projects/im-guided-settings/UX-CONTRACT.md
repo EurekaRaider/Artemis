@@ -11,13 +11,13 @@
 
 ## Canonical UI Map
 
-| Capability | Canonical owner | Source of truth | Allowed variants | Verification |
-|---|---|---|---|---|
-| Form | ArtemisUI.enhance + IM field rules | ui/index.js; ImSettingsPanel.tsx | 内联校验、密码显隐、草稿保留 | tools/im-settings-check.mjs |
-| Select/Listbox | 原型原生 select | ui/index.js; ui/primitives.css | 接受系统弹出菜单；生产沿用 React Select | tools/im-settings-check.mjs |
-| Toast | notice / ArtemisUI.toast | workspace/workspace.js; ui/index.js | 成功或错误；关键问题另有持久状态 | tools/workspace-check.mjs |
-| CRUD | imState / imDerive | workspace/workspace.js | 确认权限保存、账号解绑 | tools/im-settings-check.mjs |
-| Scrollbar | 原型全局样式 | ui/tokens.css; ui/primitives.css | 沿用 settings-content 滚动归属 | tools/workspace-check.mjs |
+| Capability     | Canonical owner                    | Source of truth                     | Allowed variants                        | Verification                |
+| -------------- | ---------------------------------- | ----------------------------------- | --------------------------------------- | --------------------------- |
+| Form           | ArtemisUI.enhance + IM field rules | ui/index.js; ImSettingsPanel.tsx    | 内联校验、密码显隐、草稿保留            | tools/im-settings-check.mjs |
+| Select/Listbox | 原型原生 select                    | ui/index.js; ui/primitives.css      | 接受系统弹出菜单；生产沿用 React Select | tools/im-settings-check.mjs |
+| Toast          | notice / ArtemisUI.toast           | workspace/workspace.js; ui/index.js | 成功或错误；关键问题另有持久状态        | tools/workspace-check.mjs   |
+| CRUD           | imState / imDerive                 | workspace/workspace.js              | 确认权限保存、账号解绑                  | tools/im-settings-check.mjs |
+| Scrollbar      | 原型全局样式                       | ui/tokens.css; ui/primitives.css    | 沿用 settings-content 滚动归属          | tools/workspace-check.mjs   |
 
 ## 消息接入流程
 
