@@ -4729,6 +4729,17 @@ body[data-archived-demo] .composer-wrap .composer {
   /* 表单标签不换行（硬约束） */
   white-space: nowrap;
 }
+/* 字段级帮助小字（聚焦显示；HTTPS 专属字段在回调模式常驻）；错误同位复用 */
+.im-field-help {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.45;
+  white-space: normal;
+}
+.im-field-help.im-field-error {
+  color: var(--warning-text);
+}
 .im-field-input {
   font: inherit;
   font-size: 12px;

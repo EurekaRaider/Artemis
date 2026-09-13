@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=163" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=164" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -838,7 +838,8 @@
 <section class="im-card" data-im-card="bots">
 <button aria-controls="imCardBodyBots" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">2</span><span class="im-card-title">添加机器人</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
 <div class="im-card-body" id="imCardBodyBots">
-<p class="im-muted">在聊天平台创建一个机器人应用，把凭据填进来。其余平台随时可补加，不影响使用。</p>
+<p class="im-muted">先接一个平台就够用，其余随时可补。</p>
+<p class="im-muted">点『去添加』，把后台凭证页的内容贴进来。</p>
 <ul class="im-platform-rows" data-im-platform-rows=""></ul>
 </div>
 </section>
@@ -867,6 +868,7 @@
 <section class="im-card" data-im-card="projects">
 <button aria-controls="imCardBodyProjects" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">4</span><span class="im-card-title">允许手机操作的项目</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
 <div class="im-card-body" id="imCardBodyProjects">
+<p class="im-muted" data-im-projects-guide="">至少勾一个——不勾，手机上发消息不会动任何项目。</p>
 <p class="im-muted">勾选后，绑定的账号才能通过聊天消息操作这个项目。</p>
 <ul class="im-project-list" data-im-project-rows=""></ul>
 <div class="im-block">
@@ -1024,6 +1026,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=149"></script>
+<script src="workspace/workspace.js?v=150"></script>
 </body>
 </html>

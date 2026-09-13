@@ -983,10 +983,92 @@
     /* M2b 凭据子卡：字段清单（接收方式条件化）+ 保存并重连三态流 + 接入指引 */
     var IM_FIELD = function (label, inputHtml, extra) {
       return (
-        '<label class="im-field' + (extra || "") + '"><span class="im-field-label">' +
-        label + "</span>" + inputHtml + "</label>"
+        '<label class="im-field' + (extra || "") + '" data-im-field-label="' + label + '">' +
+        '<span class="im-field-label">' + label + "</span>" + inputHtml +
+        '<p class="im-fine im-field-help" data-im-field-help="" hidden=""></p></label>'
       );
     };
+    /* 字段级帮助（聚焦显示）与校验（blur 非空/提交必填）：大白话，逐平台同构 */
+    var IM_FIELD_RULES = {
+      feishu: {
+        "App ID": {
+          help: "在飞书后台『凭证与基础信息』页顶部。",
+          prefix: "cli_",
+          prefixError: "App ID 一般以 cli_ 开头。确认这格没贴成 App Secret。",
+        },
+        "机器人 Open ID": {
+          help: "是机器人的 Open ID，不是你自己的。",
+          prefix: "ou_",
+          prefixError: "这格要填 ou_ 开头的机器人 Open ID——cli_ 开头的是上一格的 App ID。",
+        },
+        "Tenant Key": { required: true, requiredError: "Tenant Key 不能为空，在应用详情页。" },
+        "App Secret": {
+          help: "只送到本机服务并加密保存，界面不再回显。",
+          required: true,
+          requiredError: "App Secret 不能为空，在『凭证与基础信息』页。",
+        },
+        "区域": { help: "账号在 lark.com 用新加坡/美国。" },
+        "Verification Token": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+        "Encrypt Key": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+      },
+      wecom: {
+        "企业 ID": {
+          prefix: "ww_",
+          prefixError: "企业 ID 一般以 ww_ 开头。确认没贴成应用 Secret。",
+        },
+        "Agent ID": { required: true, requiredError: "Agent ID 不能为空，在应用详情页。" },
+        "应用 Secret": {
+          help: "只送到本机服务并加密保存，界面不再回显。",
+          required: true,
+          requiredError: "应用 Secret 不能为空，在『接收消息』页。",
+        },
+        "Token": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+        "EncodingAESKey": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+      },
+      slack: {
+        "Bot Token": {
+          help: "只送到本机服务并加密保存，界面不再回显。",
+          prefix: "xoxb-",
+          prefixError: "Bot Token 一般以 xoxb- 开头。确认没贴成 Signing Secret。",
+        },
+        "Client ID": { required: true, requiredError: "Client ID 不能为空，在应用基础信息页。" },
+        "Client Secret": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+        "Signing Secret": { httpsHelp: "回调模式下必填，和后台回调页一致。" },
+      },
+    };
+    var IM_HTTPS_REQUIRED_ERROR = "选了 HTTPS 回调，这两项就必填。";
+    function imFieldRule(platformKey, label) {
+      return (IM_FIELD_RULES[platformKey] || {})[label] || null;
+    }
+    function imFieldHelpEl(labelEl) {
+      return labelEl.querySelector("[data-im-field-help]");
+    }
+    function imShowFieldMessage(labelEl, text, isError) {
+      var help = imFieldHelpEl(labelEl);
+      if (!help) return;
+      help.textContent = text || "";
+      help.classList.toggle("im-field-error", !!isError);
+      help.hidden = !text;
+    }
+    function imHideFieldMessage(labelEl) {
+      var help = imFieldHelpEl(labelEl);
+      if (help) help.hidden = true;
+    }
+    /* 单字段校验：返回错误文案或 null（httpsOnly 字段仅在可见时参与） */
+    function imValidateField(platformKey, labelEl) {
+      var input = labelEl.querySelector("input, select");
+      if (!input) return null;
+      var label = labelEl.getAttribute("data-im-field-label");
+      var rule = imFieldRule(platformKey, label);
+      if (!rule) return null;
+      var value = (input.value || "").trim();
+      var httpsVisible = !labelEl.hasAttribute("data-im-https-only") || !labelEl.hidden;
+      if (rule.prefix && value && !value.toLowerCase().startsWith(rule.prefix))
+        return rule.prefixError;
+      if (!value && rule.required) return rule.requiredError;
+      if (!value && rule.httpsHelp && httpsVisible) return IM_HTTPS_REQUIRED_ERROR;
+      return null;
+    }
     var IM_RECEIVE_SELECT =
       '<select class="im-field-input" data-im-receive-mode=""><option selected="" value="ws">长连接（推荐）</option><option value="https">HTTPS 回调</option></select>';
     var IM_FORWARD_URL = function (platformKey) {
@@ -1038,6 +1120,7 @@
         '<button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button></div>' +
         '<form class="im-credentials-form" data-im-cred-form="">' +
         '<div class="im-subcard-title">机器人信息（加密保存在本机，不回显）</div>' +
+        '<p class="im-fine">最少填 4 项，其余保持默认就行，以后随时改。</p>' +
         '<div class="form-grid">' + fields + "</div>" +
         '<p class="im-fine">保存后机器人会用新密钥重新连接。</p>' +
         '<p class="im-fine" data-im-connect-help="" hidden="">正在用新密钥连接机器人，通常几秒。</p>' +
@@ -1238,7 +1321,13 @@
         box.innerHTML = '<p class="im-muted">先在 ② 添加并连接一个机器人，这里会给出配对指令。</p>';
         return;
       }
-      var html = '<p class="im-instr-title">1. 把这条消息发给机器人私聊：</p>';
+      var html = "";
+      /* 会话内首次：机器人连上后的衔接首行 */
+      if (!(imState.sim.hints && imState.sim.hints.accountIntro)) {
+        if (imState.sim.hints) imState.sim.hints.accountIntro = true;
+        html += '<p class="im-instr-title">机器人连上了。现在把它认成你：</p>';
+      }
+      html += '<p class="im-instr-title">1. 把这条消息发给机器人私聊：</p>';
       healthy.forEach(function (p) {
         var conn = imDerived.platforms[p.key].conns.filter(function (c) {
           return c.state === "ok";
@@ -1502,6 +1591,11 @@
       /* ③ 等待卡与衔接行 */
       imRenderWaitCard();
       imPanel.querySelector("[data-im-goto-projects]").hidden = imDerived.projectsDone;
+      /* ④ 引导（勾选前显示，勾过即让位） */
+      var projGuide = imPanel.querySelector("[data-im-projects-guide]");
+      if (projGuide) {
+        projGuide.hidden = imState.projects.some(function (pr) { return pr.checked; });
+      }
       /* ⑤ 模拟操作条 */
       imRenderGroupSim();
       /* M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）；800ms 淡入 */
@@ -1703,15 +1797,25 @@
       form.reset();
       imApplyReceiveMode(form);
     }
-    /* 接收方式：长连接隐藏 HTTPS 专属字段与转发地址 */
+    /* 接收方式：长连接隐藏 HTTPS 专属字段与转发地址；
+       HTTPS 专属字段的帮助小字在该模式下常驻显示 */
     function imApplyReceiveMode(scope) {
       var select = scope.querySelector("[data-im-receive-mode]");
       if (!select) return;
+      var sub = scope.closest(".im-platform-row");
+      var platformKey = sub ? sub.getAttribute("data-im-platform") : "";
       var https = select.value === "https";
       Array.prototype.forEach.call(
         scope.querySelectorAll("[data-im-https-only]"),
         function (el) {
           el.hidden = !https;
+          if (!el.hasAttribute("data-im-field-label")) return;
+          var rule = imFieldRule(platformKey, el.getAttribute("data-im-field-label"));
+          if (rule && rule.httpsHelp && https) {
+            imShowFieldMessage(el, rule.httpsHelp, false);
+          } else {
+            imHideFieldMessage(el);
+          }
         },
       );
     }
@@ -1727,6 +1831,75 @@
         imState.sim.credOutcome[subKey] = outcomeSel.value;
       }
     });
+    /* 字段帮助：聚焦显示帮助小字；blur 非空校验前缀；输入即清错；
+       已显示的错误优先于帮助（不被聚焦覆盖） */
+    imPanel.addEventListener("focusin", function (ev) {
+      var labelEl = ev.target.closest("[data-im-field-label]");
+      if (!labelEl || !labelEl.closest("[data-im-cred-form]")) return;
+      var helpEl = imFieldHelpEl(labelEl);
+      if (helpEl && helpEl.classList.contains("im-field-error")) return;
+      var sub = labelEl.closest(".im-platform-row");
+      var rule = imFieldRule(
+        sub ? sub.getAttribute("data-im-platform") : "",
+        labelEl.getAttribute("data-im-field-label"),
+      );
+      var isHttpsOnly = labelEl.hasAttribute("data-im-https-only");
+      var httpsOn =
+        !isHttpsOnly ||
+        (labelEl.closest("[data-im-cred-form]").querySelector("[data-im-receive-mode]") || {}).value === "https";
+      if (rule && rule.help && !isHttpsOnly) imShowFieldMessage(labelEl, rule.help, false);
+      else if (rule && rule.httpsHelp && isHttpsOnly && httpsOn)
+        imShowFieldMessage(labelEl, rule.httpsHelp, false);
+      else if (rule && rule.help && isHttpsOnly && !httpsOn)
+        imShowFieldMessage(labelEl, rule.help, false);
+    });
+    imPanel.addEventListener("focusout", function (ev) {
+      var labelEl = ev.target.closest("[data-im-field-label]");
+      if (!labelEl || !labelEl.closest("[data-im-cred-form]")) return;
+      var sub = labelEl.closest(".im-platform-row");
+      var value = (ev.target.value || "").trim();
+      if (!value) {
+        /* 空值不催错（必填错误只在提交时统一校验）；https 常驻帮助保留 */
+        var rule0 = imFieldRule(
+          sub ? sub.getAttribute("data-im-platform") : "",
+          labelEl.getAttribute("data-im-field-label"),
+        );
+        if (!(rule0 && rule0.httpsHelp && !labelEl.hidden)) imHideFieldMessage(labelEl);
+        return;
+      }
+      var error = imValidateField(sub ? sub.getAttribute("data-im-platform") : "", labelEl);
+      if (error) imShowFieldMessage(labelEl, error, true);
+    });
+    imPanel.addEventListener("input", function (ev) {
+      var labelEl = ev.target.closest("[data-im-field-label]");
+      if (!labelEl || !labelEl.closest("[data-im-cred-form]")) return;
+      var help = imFieldHelpEl(labelEl);
+      if (help && help.classList.contains("im-field-error")) imHideFieldMessage(labelEl);
+    });
+    /* 提交前整表校验：错误大白话 + 聚焦第一个错误格；全过才进连接过渡 */
+    function imValidateForm(form) {
+      var sub = form.closest(".im-platform-row");
+      var platformKey = sub ? sub.getAttribute("data-im-platform") : "";
+      var firstBad = null;
+      Array.prototype.forEach.call(
+        form.querySelectorAll("[data-im-field-label]"),
+        function (labelEl) {
+          if (labelEl.hidden) return; /* HTTPS 专属字段长连接下不参与 */
+          var error = imValidateField(platformKey, labelEl);
+          if (error) {
+            imShowFieldMessage(labelEl, error, true);
+            if (!firstBad) firstBad = labelEl.querySelector("input, select");
+          } else {
+            imHideFieldMessage(labelEl);
+          }
+        },
+      );
+      if (firstBad) {
+        firstBad.focus();
+        return false;
+      }
+      return true;
+    }
 
     imPanel.addEventListener("click", function (ev) {
       var platformRow = ev.target.closest(".im-platform-row");
@@ -1796,6 +1969,7 @@
         var form4 = ev.target.closest("[data-im-cred-form]");
         var sub4 = form4.closest("[data-im-subcard]");
         var rowKey = sub4.closest(".im-platform-row").getAttribute("data-im-platform");
+        if (!imValidateForm(form4)) return; /* 错误大白话，聚焦首错 */
         var isNew = (imState.connections[rowKey] || []).length === 0;
         imState.sim.session = true;
         /* 900ms 连接过渡：保存钮禁用「正在连接…」+帮助行；平台行 ◐ 连接中 */

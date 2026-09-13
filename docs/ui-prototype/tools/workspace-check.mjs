@@ -73,6 +73,80 @@ try {
     assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'warn');
     await page.locator('#settingsClose').click();
   });
+  await check('im full simulation walkthrough (empty → ready → reset)',async()=>{
+    const cards=()=>page.locator('[data-im-card-head]').evaluateAll(els=>els.map(e=>e.getAttribute('aria-expanded')));
+    const badge=key=>page.locator('[data-im-card="'+key+'"] [data-im-badge]').textContent();
+    const feishu=label=>page.locator('[data-im-subcard="feishu"] [data-im-field-label="'+label+'"] input');
+    await page.goto(base+'#settings=1&im-demo=empty');await page.waitForTimeout(400);
+    /* G1：一键开启 → 1000ms 启动过渡 */
+    await page.click('[data-im-service-start]');
+    assert.equal(await page.locator('[data-im-service-start]').textContent(),'正在启动…');
+    assert.equal(await page.locator('[data-im-service-start]').isDisabled(),true);
+    await page.waitForTimeout(1300);
+    assert.equal(await badge('service'),'已就绪');
+    assert.equal(await badge('bots'),'当前步骤');
+    assert.equal(await page.locator('#imStateText').textContent(),'服务已就绪，还没有机器人');
+    /* G2 失败支线：填 4 必填 → 演示结果=失败 → 连接失败 + ②⚠1 + 胶囊 warn */
+    await page.click('[data-im-platform="feishu"] [data-im-add]');
+    await feishu('App ID').fill('cli_a5demo');
+    await feishu('机器人 Open ID').fill('ou_demo01');
+    await feishu('Tenant Key').fill('tenant_demo');
+    await feishu('App Secret').fill('secret_demo');
+    await page.locator('[data-im-subcard="feishu"] [data-im-sim-outcome]').selectOption('bad');
+    await page.click('[data-im-subcard="feishu"] [data-im-cred-save]');
+    /* 时序守卫：连接过渡期内保存钮 disabled */
+    assert.equal(await page.locator('[data-im-subcard="feishu"] [data-im-cred-save]').isDisabled(),true);
+    assert.equal(await page.locator('[data-im-subcard="feishu"] [data-im-cred-save]').textContent(),'正在连接…');
+    await page.waitForTimeout(1100);
+    assert.equal(await page.locator('[data-im-platform="feishu"] .im-platform-status').textContent(),'连接失败');
+    assert.equal(await page.locator('[data-im-card="bots"] [data-im-alerts]').textContent(),'⚠1');
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'warn');
+    /* G2 成功支线：重新输入密钥 → 演示结果=成功 → 已连接 · 1 个，③展开，胶囊 ok */
+    await page.click('[data-im-platform="feishu"] [data-im-reenter]');
+    await page.locator('[data-im-subcard="feishu"] [data-im-sim-outcome]').selectOption('ok');
+    await page.click('[data-im-subcard="feishu"] [data-im-cred-save]');
+    assert.equal(await page.locator('[data-im-subcard="feishu"] [data-im-cred-save]').isDisabled(),true);
+    await page.waitForTimeout(1100);
+    assert.equal(await page.locator('[data-im-platform="feishu"] .im-platform-status').textContent(),'已连接 · 1 个');
+    assert.equal(await page.locator('[data-im-card="account"] [data-im-card-head]').getAttribute('aria-expanded'),'true');
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'ok');
+    /* ③ 双轨：复制指令 → 等待卡 → 演示直达 → 请求卡 → 批准 → 绑定行 + ④展开 */
+    await page.locator('[data-copy-pair]').first().click();
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator('[data-im-wait-card]').isVisible(),true);
+    await page.click('[data-im-pair-arrive]');
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator('[data-im-pairing-idx]').count(),1);
+    await page.click('[data-im-approve]');
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('[data-im-bindings] .im-binding-row').count(),1);
+    assert.equal(await page.locator('[data-im-card="projects"] [data-im-card-head]').getAttribute('aria-expanded'),'true');
+    /* ④：勾选 → 待保存徽标 + 自动默认 → 保存 → M6 就绪条 */
+    await page.locator('[data-im-project-idx="0"] input[type="checkbox"]').check();
+    await page.waitForTimeout(200);
+    assert.equal(await badge('projects'),'已选 1 · 待保存');
+    assert.equal(await page.locator('[data-im-default-project]').inputValue(),'Artemis');
+    await page.click('[data-im-projects-save]');
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('[data-im-ready]').isVisible(),true);
+    /* ⑤ 支线：发现 → 确认 → 已连接 1 群 */
+    await page.click('[data-im-card="groups"] [data-im-card-head]');
+    await page.waitForTimeout(200);
+    await page.click('[data-im-group-find]');
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator('.im-group-state').textContent(),'已发现 · 未共享');
+    await page.click('[data-im-group-confirm]');
+    await page.waitForTimeout(1000);
+    assert.equal(await page.locator('.im-group-state').textContent(),'已生效');
+    assert.equal(await badge('groups'),'已连接 1 群');
+    /* 重置：回到 empty 契约 */
+    await page.click('[data-im-sim-reset]');
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('#imStateText').textContent(),'未开启');
+    assert.deepEqual(await cards(),['true','false','false','false','false']);
+    assert.equal(await page.locator('[data-im-ready]').isHidden(),true);
+    await page.locator('#settingsClose').click();
+  });
   await check('resource panel switching',async()=>{await page.locator('.sidebar-main [data-goto="resources"]').click();for(const key of ['plugins','connectors','mcp','skills']){await page.locator('[data-resource="'+key+'"]').click();assert.equal(await page.locator('.resource-pane:visible').getAttribute('data-resource-panel'),key);}});
   for(const width of [1440,1280,1024,980,768,390]){
     await check('viewport '+width,async()=>{
