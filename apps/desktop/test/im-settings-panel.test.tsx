@@ -19,6 +19,7 @@ import {
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { ImSettingsPanel } from "../src/renderer/ImSettingsPanel.js";
 import { ImPairingCode } from "../src/renderer/ImAccountControls.js";
+import { imWriteTestConfirmed } from "../src/renderer/im-flow-derive.js";
 import {
   ImNavigation,
   imConnectionHealth,
@@ -122,6 +123,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  localStorage.clear();
 });
 const nav = (name: string) =>
   screen.getByRole("tab", { name: new RegExp(name) });
@@ -236,11 +238,9 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await user.click(
-      await screen.findByRole("button", { name: /^绑定你的 IM 账号/ }),
-    );
+    // 引导流③卡自动展开，配对内容直接可见。
     expect(
-      screen.getByRole("button", { name: "配对平台 Lark 国际版" }),
+      await screen.findByRole("button", { name: "配对平台 Lark 国际版" }),
     ).toBeVisible();
     expect(
       screen.getByText(/在 Lark 国际版 中找到刚配置的机器人/),
@@ -650,9 +650,8 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await user.click(
-      await screen.findByRole("button", { name: /^连接一个机器人/ }),
-    );
+    // 引导流②卡自动展开（无连接），凭据表单直接可见。
+    await screen.findByLabelText("Bot Secret");
     for (const [label, value] of [
       ["连接 ID", "wecom-team"],
       ["连接名称", "Test bot"],
@@ -705,17 +704,27 @@ describe("production IM settings", () => {
       screen.getByRole("switch", { name: "启用 IM 连接" }),
     ).not.toBeChecked();
   });
-  it("shows six real steps and platform constraints before configuration, then starts and registers once", async () => {
+  it("shows the five-step guided flow with progress, then starts and registers once", async () => {
     const f = fixture(false);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    expect(
-      await screen.findByRole("list", { name: "IM 设置步骤" }),
-    ).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(await screen.findByText("设置进度 0/5")).toBeVisible();
+    for (const title of [
+      "连接服务",
+      "添加机器人",
+      "绑定我的账号",
+      "允许手机操作的项目",
+      "发一条测试任务",
+    ])
+      expect(
+        screen.getByRole("button", { name: new RegExp(`^${title}`) }),
+      ).toBeInTheDocument();
+    // D1：未注册设备的首次流程不出现总开关。
+    expect(screen.queryByRole("switch", { name: "启用 IM 连接" })).toBeNull();
+    // ②卡展开可见平台约束；回到①卡一键启动后进入②的渠道编辑。
+    await user.click(screen.getByRole("button", { name: /^添加机器人/ }));
     expect(screen.getByText("长连接或 HTTPS 回调")).toBeVisible();
-    expect(screen.getByRole("switch", { name: "启用 IM 连接" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: /^准备 Gateway/ }));
+    await user.click(screen.getByRole("button", { name: /^连接服务/ }));
     await user.click(screen.getByRole("button", { name: "一键启动并注册" }));
     await waitFor(() =>
       expect(f.manage).toHaveBeenCalledWith({ action: "setup-local" }),
@@ -739,11 +748,11 @@ describe("production IM settings", () => {
     expect(screen.getAllByRole("tab")).toHaveLength(8);
     expect(screen.getAllByRole("switch")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "重看设置指引" }));
+    // 回看引导流：进度实时推导，最早未完成步骤（④项目授权）自动展开。
+    expect(await screen.findByText("设置进度 3/5")).toBeVisible();
     expect(
-      screen
-        .getByRole("list", { name: "IM 设置步骤" })
-        .querySelector('[aria-current="step"]'),
-    ).toHaveTextContent("选择项目并启用");
+      screen.getByRole("button", { name: /^允许手机操作的项目/ }),
+    ).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getByRole("button", { name: "返回管理" }));
     expect(screen.getByRole("heading", { name: "应用凭据" })).toBeVisible();
     expect(f.save).not.toHaveBeenCalled();
@@ -935,9 +944,8 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await user.click(
-      await screen.findByRole("button", { name: /^绑定你的 IM 账号/ }),
-    );
+    // 引导流③卡自动展开，待批准请求直接可见。
+    await screen.findByRole("button", { name: "拒绝" });
     await user.click(screen.getByRole("button", { name: "拒绝" }));
     await waitFor(() =>
       expect(
@@ -1099,16 +1107,75 @@ describe("pairing code lifecycle", () => {
     await act(() => vi.advanceTimersByTimeAsync(300000));
     expect(screen.getByRole("button", { name: "复制配对指令" })).toBeDisabled();
   });
-  it("opens group setup directly from the first-time wizard", async () => {
-    fixture(false);
+  it("opens group setup from the completed test step in the first-time wizard", async () => {
+    const f = fixture();
+    imWriteTestConfirmed("test-device", true);
+    f.set({
+      settings: {
+        ...f.get().settings,
+        grants: [
+          {
+            projectId: "test-project",
+            tokenBudget: 100000,
+            approval: "ask",
+            mode: "plan",
+            network: false,
+            shell: false,
+            groups: [],
+            expiresAt: Date.now() + 60000,
+          },
+        ],
+      },
+    });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await user.click(await screen.findByRole("button", { name: /群消息接入/ }));
+    // 全部就绪自动进管理；回看引导流时⑤卡（已确认）提供群协作入口（D2）。
+    expect(
+      await screen.findByRole("heading", { name: "应用凭据" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
+    expect(await screen.findByText("设置进度 5/5")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "设置群协作（可选）" }),
+    );
     expect(screen.getByRole("tab", { name: "群消息接入" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     expect(screen.getByText("创建与连接 IM 群协作空间")).toBeVisible();
+  });
+  it("notifies once when a completed flow step regresses after a connection is removed", async () => {
+    const f = fixture();
+    imWriteTestConfirmed("test-device", true);
+    f.set({
+      settings: {
+        ...f.get().settings,
+        grants: [
+          {
+            projectId: "test-project",
+            tokenBudget: 100000,
+            approval: "ask",
+            mode: "plan",
+            network: false,
+            shell: false,
+            groups: [],
+            expiresAt: Date.now() + 60000,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
+    expect(await screen.findByText("设置进度 5/5")).toBeVisible();
+    // 删除连接后②③完成态回退，给出一次性提示（derive 单一事实源）。
+    f.set({ connections: [], identities: [] });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(await screen.findByText(/有已完成步骤被重置/)).toBeVisible();
+    expect(await screen.findByText("设置进度 3/5")).toBeVisible();
   });
   it("keeps group messages directly accessible in compact navigation", async () => {
     const select = vi.fn();

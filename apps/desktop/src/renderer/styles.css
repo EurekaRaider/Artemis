@@ -9989,6 +9989,86 @@ kbd {
   color: var(--warning);
   background: currentColor;
 }
+/* Guided 消息接入 flow: five step cards with progress in the header. */
+.im-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+}
+.im-flow-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-md, 10px);
+  background: var(--artemis-color-surface, transparent);
+}
+.im-flow-card[data-done="true"] {
+  border-color: color-mix(in srgb, var(--success) 26%, var(--border-soft));
+}
+.im-flow-head-h {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.im-flow-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+}
+.im-flow-head:hover {
+  background: var(--artemis-color-surface-sunken);
+}
+.im-flow-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 22px;
+  block-size: 22px;
+  flex: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  font-size: 11.5px;
+  font-weight: 510;
+  color: var(--muted);
+}
+.im-flow-card[data-done="true"] .im-flow-num {
+  border-color: var(--success);
+  color: var(--success);
+}
+.im-flow-title {
+  font-size: 13px;
+  font-weight: 560;
+}
+.im-flow-summary {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-flow-caret {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+.im-flow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--border-soft);
+}
 .im-layout {
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
@@ -10036,8 +10116,7 @@ kbd {
   background: var(--artemis-color-interaction-selected);
   border-color: var(--artemis-color-border-strong);
 }
-.im-detail,
-.im-wizard {
+.im-detail {
   min-width: 0;
   min-height: 0;
   /* The settings surface owns scrolling; keep room for controls' focus rings. */

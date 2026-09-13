@@ -176,3 +176,14 @@
 - 语义说明：组合入口总是把暂停中的服务重新启用（按钮文案即「保存并启用」，对齐原型④卡）；纯暂停/恢复仍走顶部开关，两者并存直至 P3 概览接管开关（D1）。
 - 测试：三场景——保存失败（单次调用、无启用、错误可见）、保存成功启用失败+重试启用（授权载荷逐字不变、grants 仍 1 条、通知消失）、两阶段全成功（暂停态保存→自动启用，两次调用断言 enabled false→true）。
 - e2e：verify-im.mjs 按钮名同步（全量适配在 P6）。
+
+### P3 面板骨架重写·guide 态五卡流（已落地）
+
+- **分区提取**：ImSettingsPanel 内 gateway / 渠道 / pairing / permissions 四个分区块原位提取为局部渲染函数 `renderGatewayBody/renderChannelBody/renderPairingBody/renderPermissionsBody`（闭包共享状态，零 props 穿线）；管理态 DOM 不变（既有用例零改动通过），guide 卡体与未来概览复用同一实现。
+- **im-flow-derive.ts**：五步完成态只从真实 status 推导（①deviceId ②任一连接 connected ③identities 非空 ④grants 非空 ⑤localStorage 按设备存的用户确认——D4 诚实自证），`imFirstPendingStep` 驱动卡片自动展开；含 4 条单元测试。
+- **ImFlowCard.tsx + styles**：可折叠步骤卡（num/title/summary/caret，aria-expanded）与进度胶囊；`.im-flow` 样式全用体系令牌。
+- **guide 态**：五卡流替换旧 im-wizard（六步 ImSetupGuide + 平台差异卡 + 群入口卡退场——ImSetupGuide 文件保留，管理态 setup-guide 分区仍用，P5 一并退役）；②卡内平台选择 `flowSelectChannel` 留在流内只重置渠道编辑态；⑤卡 = ImFirstTaskInstructions 指令 + 「我已收到回复（可撤销）」确认；①-④就绪时⑤卡提供群协作入口（D2）。
+- **header（D1）**：guide 态显示「设置进度 N/5」；总开关在 guide 态仅对已注册设备（回看场景）保留，未注册设备的首次流程无总开关；管理态 header 不变。
+- **级联回退**：flowDoneKey 前后对比，已完成步骤回退时在 guide 态给一次性提示（derive 是单一事实源，回退自然反映）。
+- **P3 妥协（P5 收口）**：①卡 setup-local 完成后仍 `selectView(channel)` 跳管理态渠道编辑；②③④卡内的深层链接（navigateStep/前往配对）仍跳管理视图；ready 自动进管理行为保留（完成后概览落地后改为 5/5 → 概览）。
+- **测试迁移**：六步用例→五卡（0/5、五标题、D1 无开关、②约束、①一键）；ready 回看指引用例→进度 3/5 + ④自动展开；群入口用例→⑤卡（5/5 + 确认标记）；两处旧「绑定你的 IM 账号/连接一个机器人」导航点击删除（卡体自动展开直达）；新增级联回退提示用例；afterEach 清 localStorage 保证⑤确认标记不串测。
