@@ -1,11 +1,12 @@
-import { confirmDesignLeave, hasDesignDraft } from "./design-drafts.js";
+import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
+import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
-import { ImMemberMentionMenu, useImMemberMentions } from "./ImMemberMentions";
+import { useImMemberMentions } from "./ImMemberMentions";
 import {
   lazy,
   Suspense,
@@ -231,7 +232,6 @@ import {
 } from "./composer-drafts.js";
 import {
   CustomAgentMentionMenu,
-  customAgentColorToken,
   useCustomAgentMention,
 } from "./CustomAgentMention.js";
 import { customAgentInstanceIdentity } from "./custom-agent-identity.js";
@@ -402,11 +402,6 @@ const loadResourceCenter = () => import("./ResourceCenter.js");
 const loadSettingsPanel = () => import("./SettingsPanel.js");
 const loadTerminalPanel = () => import("./TerminalPanel.js");
 const loadTokenUsagePage = () => import("./TokenUsagePage.js");
-const DesignPanel = lazy(() =>
-  import("./DesignPanel.js").then((module) => ({
-    default: module.DesignPanel,
-  })),
-);
 const AutomationPage = lazy(() =>
   loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
 );
@@ -490,8 +485,6 @@ const copy = {
     agentTeam: "Agent team",
     terminal: "Terminal",
     browser: "Browser",
-    designTab: "Design",
-    designWorkflowBadge: "Design workflow",
     browserAddress: "Enter a URL",
     browserBack: "Back",
     browserForward: "Forward",
@@ -640,6 +633,8 @@ const copy = {
       "The platform Shell and Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
     terminalLocked: "Terminal locked until the native executor is available.",
     refreshDiff: "Refresh",
+    refreshingDiff: "Refreshing…",
+    diffRefreshed: "Diff refreshed",
     addAttachments: "Add files or images",
     removeAttachment: "Remove attachment",
     removeSelectedSkill: "Remove loaded Skill",
@@ -801,8 +796,6 @@ const copy = {
     agentTeam: "Agent 团队",
     terminal: "终端",
     browser: "浏览器",
-    designTab: "设计",
-    designWorkflowBadge: "设计工作流",
     browserAddress: "输入网址",
     browserBack: "后退",
     browserForward: "前进",
@@ -948,6 +941,8 @@ const copy = {
       "平台 Shell 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
     terminalLocked: "原生执行器可用前，终端保持锁定。",
     refreshDiff: "刷新",
+    refreshingDiff: "正在刷新…",
+    diffRefreshed: "差异已刷新",
     addAttachments: "添加文件或图片",
     removeAttachment: "移除附件",
     removeSelectedSkill: "移除已加载 Skill",
@@ -1225,7 +1220,7 @@ export function WorkspaceTabIcon({
 }) {
   if (kind === "review") return <ReviewIcon />;
   if (kind === "terminal") return <TerminalIcon />;
-  if (kind === "browser" || kind === "design") return <BrowserIcon />;
+  if (kind === "browser") return <BrowserIcon />;
   if (kind === "markdown") return <MarkdownIcon />;
   if (kind === "sources") return <SourcesIcon />;
   if (kind === "goal")
@@ -1507,23 +1502,7 @@ export function App() {
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
-  const [activeThreadId, setActiveThreadIdUnchecked] = useState<string>();
-  const activeThreadIdRef = useRef(activeThreadId);
-  activeThreadIdRef.current = activeThreadId;
-  const threadSwitchGeneration = useRef(0);
-  const setActiveThreadId = useCallback((next: string | undefined) => {
-    const current = activeThreadIdRef.current;
-    const generation = ++threadSwitchGeneration.current;
-    if (next === current) return;
-    if (!hasDesignDraft(current)) {
-      setActiveThreadIdUnchecked(next);
-      return;
-    }
-    void confirmDesignLeave(current).then((allowed) => {
-      if (generation === threadSwitchGeneration.current && allowed)
-        setActiveThreadIdUnchecked(next);
-    });
-  }, []);
+  const [activeThreadId, setActiveThreadId] = useState<string>();
   const [composerDrafts, setComposerDrafts] = useState<ComposerDrafts>({});
   const [promptSubmittedAtByThread, setPromptSubmittedAtByThread] = useState<
     Record<string, number>
@@ -1668,6 +1647,7 @@ export function App() {
   const [selectedReviewFilePath, setSelectedReviewFilePath] =
     useState<string>();
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
   const [sidebarOpen, setSidebarOpen] = useState(
@@ -2025,6 +2005,8 @@ export function App() {
   const username = snapshot?.userName ?? t.local;
   const localeRef = useRef(locale);
   localeRef.current = locale;
+  const activeThreadIdRef = useRef(activeThreadId);
+  activeThreadIdRef.current = activeThreadId;
   workspaceDockWidthRef.current = workspaceDockWidth;
   projectSidebarWidthRef.current = projectSidebarWidth;
   const activeComposerDraftKey = conversationDraftKey(
@@ -2039,7 +2021,7 @@ export function App() {
     attachments,
     prompt,
     selectedSkillNames: selectedComposerSkillNames,
-    customAgentReference,
+    customAgentTasks = [],
   } = activeComposerDraft;
   const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
   draftAttachments.current.set(activeComposerDraftKey, attachments);
@@ -2067,22 +2049,27 @@ export function App() {
     setText: setPrompt,
     input: promptInput,
   });
-  const setCustomAgentReference = useCallback(
-    (reference: CustomAgentDraftReference | undefined) => {
-      updateActiveComposerDraft((current) => {
-        const next = { ...current };
-        if (reference === undefined) delete next.customAgentReference;
-        else next.customAgentReference = reference;
-        return next;
-      });
+  const [focusAgentTaskId, setFocusAgentTaskId] = useState<string>();
+  const setCustomAgentTasks = useCallback(
+    (tasks: NonNullable<ComposerDraft["customAgentTasks"]>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        customAgentTasks: tasks,
+      }));
     },
     [updateActiveComposerDraft],
   );
-  // In a confirmed IM group thread @ already means member targeting, so the
-  // sub-agent menu stays out of the way there.
-  const imGroupConfirmed = !!(
-    activeThreadId && imThreadStatus[activeThreadId]?.group?.confirmed
-  );
+  const addCustomAgentTask = (reference: CustomAgentDraftReference) => {
+    const id = crypto.randomUUID();
+    updateActiveComposerDraft((current) => ({
+      ...current,
+      customAgentTasks: [
+        ...(current.customAgentTasks ?? []),
+        { ...reference, id, text: "" },
+      ],
+    }));
+    setFocusAgentTaskId(id);
+  };
   const customAgentMention = useCustomAgentMention({
     definitions: runtimeSettings?.customAgents ?? [],
     projectId:
@@ -2091,8 +2078,9 @@ export function App() {
     text: prompt,
     setText: setPrompt,
     input: promptInput,
-    enabled: customAgentReference === undefined && !imGroupConfirmed,
-    onSelect: setCustomAgentReference,
+    enabled: customAgentTasks.length < AGENT_TEAM_LOGICAL_MAXIMUM,
+    members: groupMentions.open ? groupMentions : undefined,
+    onSelect: addCustomAgentTask,
   });
   const copyConversationText = useCallback(
     async (text: string) => {
@@ -2722,7 +2710,6 @@ export function App() {
       if (kind === "review") return t.reviewPanel;
       if (kind === "terminal") return t.terminal;
       if (kind === "browser") return t.browser;
-      if (kind === "design") return t.designTab;
       if (kind === "markdown") return t.markdownReader;
       if (kind === "sources") return t.sources;
       if (kind === "goal") return t.goalEditTitle;
@@ -2748,34 +2735,25 @@ export function App() {
 
   const closeWorkspaceTab = useCallback(
     (tabId: string, options?: { moveFocus?: boolean }) => {
-      const finishClose = async () => {
-        if (
-          workspaceTabs.tabs.find((tab) => tab.id === tabId)?.kind ===
-            "design" &&
-          !(await confirmDesignLeave(activeThreadId))
-        )
-          return;
-        const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
-        const focusTarget = workspaceTabFocusTargetAfterClose(
-          workspaceTabs.tabs,
-          tabId,
-          workspaceTabs.activeTabId,
-        );
-        dispatchWorkspaceTab({ type: "close", tabId });
-        if (closesLastTab) {
-          setWorkspaceDockOpen(false);
-          if (options?.moveFocus) {
-            workspaceDockToggleElement.current?.focus();
-          }
-          return;
-        }
+      const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
+      const focusTarget = workspaceTabFocusTargetAfterClose(
+        workspaceTabs.tabs,
+        tabId,
+        workspaceTabs.activeTabId,
+      );
+      dispatchWorkspaceTab({ type: "close", tabId });
+      if (closesLastTab) {
+        setWorkspaceDockOpen(false);
         if (options?.moveFocus) {
-          focusWorkspaceTab(focusTarget);
+          workspaceDockToggleElement.current?.focus();
         }
-      };
-      void finishClose();
+        return;
+      }
+      if (options?.moveFocus) {
+        focusWorkspaceTab(focusTarget);
+      }
     },
-    [activeThreadId, dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
+    [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
 
   const openWorkspaceTabForThread = useCallback(
@@ -2847,13 +2825,6 @@ export function App() {
 
   const openWorkspaceTab = useCallback(
     (kind: WorkspaceTabKind, options: WorkspaceTabOpenOptions = {}) => {
-      if (kind === "design")
-        setWorkspaceDockWidth((current) =>
-          Math.max(
-            current ?? 0,
-            Math.min(760, Math.round(window.innerWidth * 0.55)),
-          ),
-        );
       setWorkspaceDockOpen(true);
       setWorkspaceTabMenuOpen(false);
       if (activeThreadId) {
@@ -3082,46 +3053,10 @@ export function App() {
     () => openWorkspaceTab("terminal"),
     [openWorkspaceTab],
   );
-  const [designWorkflow, setDesignWorkflow] = useState<"code" | "design">(
-    "code",
-  );
-  const seenDesignWorkflow = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    setDesignWorkflow("code");
-  }, [activeThreadId]);
-  useEffect(() => {
-    if (!activeThreadId || !window.artemis.getDesignState) return;
-    let disposed = false;
-    const refresh = async () => {
-      try {
-        const result = await window.artemis.getDesignState(activeThreadId);
-        if (disposed) return;
-        setDesignWorkflow(result.workflow);
-        const key = `${activeThreadId}:${result.workflow}`;
-        if (result.workflow === "design" && seenDesignWorkflow.current !== key)
-          openWorkspaceTab("design");
-        seenDesignWorkflow.current = key;
-      } catch {
-        /* Tasks without a local workspace do not expose Design. */
-      }
-    };
-    void refresh();
-    const timer = setInterval(() => {
-      void refresh();
-    }, 1500);
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-    };
-  }, [activeThreadId, openWorkspaceTab]);
   const openBrowserPanel = useCallback(
     () => openWorkspaceTab("browser"),
     [openWorkspaceTab],
   );
-  useEffect(() => {
-    if (activeThreadId && window.artemis.setDesignMode)
-      void window.artemis.setDesignMode(activeThreadId, mode).catch(() => {});
-  }, [mode, activeThreadId, designWorkflow]);
   const openFilesPanel = useCallback(
     () => openWorkspaceTab("file"),
     [openWorkspaceTab],
@@ -4645,6 +4580,7 @@ export function App() {
         startReviewTransition(() => {
           setReviewDiff(diff);
         });
+        return diff;
       } catch (error) {
         if (requestId !== reviewRequestId.current) return;
         setReviewDiff({
@@ -5358,9 +5294,9 @@ export function App() {
       promptHistoryNavigation.current = { index: -1, draft: "" };
       setPrompt("");
       setSelectedComposerSkillNames([]);
-      setCustomAgentReference(undefined);
+      setCustomAgentTasks([]);
     },
-    [setPrompt, setSelectedComposerSkillNames, setCustomAgentReference],
+    [setPrompt, setSelectedComposerSkillNames, setCustomAgentTasks],
   );
 
   const recordPromptSubmission = useCallback(
@@ -5378,6 +5314,15 @@ export function App() {
     await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
     const pendingAttachments =
       draftAttachments.current.get(activeComposerDraftKey) ?? [];
+    if (customAgentTasks.some((task) => !task.text.trim())) {
+      setToast({
+        error: true,
+        message: locale.startsWith("zh")
+          ? "请填写每个子智能体的任务，或移除空任务块。"
+          : "Fill in each sub-agent task or remove the empty block.",
+      });
+      return;
+    }
     const rawPrompt = prompt.trim();
     const runModeCommand = parseRunModeCommand(rawPrompt);
     if (runModeCommand && runModeCommand.kind === "multiple") {
@@ -5394,7 +5339,10 @@ export function App() {
       runModeCommand?.kind === "command" ? runModeCommand.prompt : rawPrompt;
     // A @ sub-agent chip binds to a plain dispatch message. Control
     // commands (/plan, /goal, /compact, …) never carry one.
-    if (customAgentReference && commandPrompt.trimStart().startsWith("/")) {
+    if (
+      customAgentTasks.length > 0 &&
+      commandPrompt.trimStart().startsWith("/")
+    ) {
       setToast({ error: true, message: t.customAgentControlConflict });
       return;
     }
@@ -5459,7 +5407,7 @@ export function App() {
     const text = goalCommand
       ? visibleText
       : promptWithSelectedSkills(visibleText, selectedSkills);
-    if (!text || busy) return;
+    if ((!text && customAgentTasks.length === 0) || busy) return;
     const submittedAt = Date.now();
     let createdThread: Thread | undefined;
     if (compactMatch && activeThread) {
@@ -5533,7 +5481,7 @@ export function App() {
       if (activeThread && turnActive) {
         // Explicit @ dispatch requires an idle thread this phase; the
         // follow-up queue has no invocation-record carriage yet.
-        if (customAgentReference) {
+        if (customAgentTasks.length > 0) {
           setToast({ error: true, message: t.customAgentWhileRunning });
           return;
         }
@@ -5561,13 +5509,14 @@ export function App() {
         // The renderer mints one invocationId per submission; IPC retries
         // of this call reuse it and the store dedups by (thread, id) +
         // content fingerprint.
-        ...(customAgentReference
+        ...(customAgentTasks.length > 0
           ? {
-              customAgentReference: {
-                definitionId: customAgentReference.definitionId,
-                revision: customAgentReference.revision,
+              customAgentTasks: customAgentTasks.map((task) => ({
+                definitionId: task.definitionId,
+                revision: task.revision,
                 invocationId: crypto.randomUUID(),
-              },
+                text: task.text.trim(),
+              })),
             }
           : {}),
       });
@@ -5604,7 +5553,7 @@ export function App() {
     clearSubmittedPrompt,
     closeGoalEditor,
     createThread,
-    customAgentReference,
+    customAgentTasks,
     mode,
     openGoalEditor,
     prompt,
@@ -6508,15 +6457,7 @@ export function App() {
                             <>
                               <button
                                 className="thread-select"
-                                onClick={async () => {
-                                  if (
-                                    thread.id !== activeThreadIdRef.current &&
-                                    hasDesignDraft(activeThreadIdRef.current) &&
-                                    !(await confirmDesignLeave(
-                                      activeThreadIdRef.current,
-                                    ))
-                                  )
-                                    return;
+                                onClick={() => {
                                   discardNewConversationDraft();
                                   setActiveView("workspace");
                                   setActiveProjectId(project.id);
@@ -6774,13 +6715,7 @@ export function App() {
                   <>
                     <button
                       className="thread-select"
-                      onClick={async () => {
-                        if (
-                          thread.id !== activeThreadIdRef.current &&
-                          hasDesignDraft(activeThreadIdRef.current) &&
-                          !(await confirmDesignLeave(activeThreadIdRef.current))
-                        )
-                          return;
+                      onClick={() => {
                         discardNewConversationDraft();
                         setActiveView("workspace");
                         setActiveProjectId(undefined);
@@ -7809,31 +7744,27 @@ export function App() {
                               </div>
                             );
                           })}
-                        {!skillCommandMenuOpen && customAgentReference && (
-                          <div
-                            className="composer-selected-skill composer-selected-agent"
-                            data-custom-agent={
-                              customAgentReference.definitionId
+                        {customAgentTasks.length > 0 && (
+                          <CustomAgentTaskBlocks
+                            tasks={customAgentTasks}
+                            focusTaskId={focusAgentTaskId}
+                            zh={locale.startsWith("zh")}
+                            onChange={(id, text) =>
+                              setCustomAgentTasks(
+                                customAgentTasks.map((task) =>
+                                  task.id === id ? { ...task, text } : task,
+                                ),
+                              )
                             }
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`custom-agent-color custom-agent-color-${customAgentColorToken(customAgentReference.color)}`}
-                            />
-                            <span className="composer-selected-skill-copy">
-                              <small>{t.selectedCustomAgent}</small>
-                              <strong>@{customAgentReference.name}</strong>
-                            </span>
-                            <button
-                              aria-label={`${t.removeSelectedCustomAgent}: ${customAgentReference.name}`}
-                              className="composer-selected-skill-remove"
-                              onClick={() => setCustomAgentReference(undefined)}
-                              title={t.removeSelectedCustomAgent}
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          </div>
+                            onRemove={(id) => {
+                              setCustomAgentTasks(
+                                customAgentTasks.filter(
+                                  (task) => task.id !== id,
+                                ),
+                              );
+                              promptInput.current?.focus();
+                            }}
+                          />
                         )}
                         {attachments.length > 0 && (
                           <ComposerAttachments
@@ -7865,40 +7796,37 @@ export function App() {
                             }}
                           />
                         )}
-                        <ImMemberMentionMenu
-                          mentions={groupMentions}
-                          zh={locale.startsWith("zh")}
-                        />
                         <CustomAgentMentionMenu
                           mention={customAgentMention}
                           zh={locale.startsWith("zh")}
                         />
                         <div className="composer-input">
+                          {customAgentTasks.length > 0 && (
+                            <div className="composer-agent-main-label">
+                              {locale.startsWith("zh")
+                                ? "给主智能体的指令 · 输入 @ 继续添加任务"
+                                : "Main assistant instructions · Type @ to add another task"}
+                            </div>
+                          )}
                           <textarea
                             aria-activedescendant={
-                              groupMentions.open
-                                ? `im-member-mention-${groupMentions.activeIndex}`
-                                : customAgentMention.open
-                                  ? `custom-agent-mention-${customAgentMention.activeIndex}`
-                                  : skillCommandMenuOpen &&
-                                      slashCommandSuggestions.length > 0
-                                    ? `skill-command-option-${activeSlashSuggestion}`
-                                    : undefined
+                              customAgentMention.open
+                                ? `custom-agent-mention-${customAgentMention.activeIndex}`
+                                : skillCommandMenuOpen &&
+                                    slashCommandSuggestions.length > 0
+                                  ? `skill-command-option-${activeSlashSuggestion}`
+                                  : undefined
                             }
                             aria-autocomplete="list"
                             aria-controls={
-                              groupMentions.open
-                                ? "im-member-mention-menu"
-                                : customAgentMention.open
-                                  ? "custom-agent-mention-menu"
-                                  : skillCommandMenuOpen
-                                    ? "skill-command-menu"
-                                    : undefined
+                              customAgentMention.open
+                                ? "custom-agent-mention-menu"
+                                : skillCommandMenuOpen
+                                  ? "skill-command-menu"
+                                  : undefined
                             }
                             aria-expanded={
-                              groupMentions.open ||
-                              customAgentMention.open ||
-                              skillCommandMenuOpen
+                              customAgentMention.open || skillCommandMenuOpen
                             }
                             aria-label={t.prompt}
                             onChange={(event) => {
@@ -7925,7 +7853,6 @@ export function App() {
                               );
                             }}
                             onKeyDown={(event) => {
-                              if (groupMentions.keyDown(event)) return;
                               if (customAgentMention.keyDown(event)) return;
                               if (
                                 event.key === "Tab" &&
@@ -8042,20 +7969,11 @@ export function App() {
                                 : t.prompt
                             }
                             ref={promptInput}
-                            rows={2}
+                            rows={1}
                             value={prompt}
                           />
                         </div>
                         <div className="composer-toolbar">
-                          {designWorkflow === "design" && (
-                            <button
-                              type="button"
-                              className="design-workflow-badge"
-                              onClick={() => openWorkspaceTab("design")}
-                            >
-                              {t.designWorkflowBadge}
-                            </button>
-                          )}
                           <div className="composer-leading">
                             <button
                               aria-label={t.addAttachments}
@@ -8449,7 +8367,8 @@ export function App() {
                                 <button
                                   className="send-button"
                                   disabled={
-                                    (!prompt.trim() &&
+                                    (customAgentTasks.length === 0 &&
+                                      !prompt.trim() &&
                                       attachments.length === 0 &&
                                       selectedSkills.length === 0) ||
                                     busy
@@ -8480,7 +8399,8 @@ export function App() {
                               <button
                                 className="send-button"
                                 disabled={
-                                  (!prompt.trim() &&
+                                  (customAgentTasks.length === 0 &&
+                                    !prompt.trim() &&
                                     attachments.length === 0 &&
                                     selectedSkills.length === 0) ||
                                   busy
@@ -8551,7 +8471,12 @@ export function App() {
                             title={t.addTab}
                             type="button"
                           >
-                            <PlusIcon />
+                            <ArtemisIcon
+                              className="icon"
+                              height={14}
+                              name="plus"
+                              width={14}
+                            />
                           </button>
                           {workspaceTabMenuOpen && (
                             <div className="workspace-tab-menu">
@@ -8568,7 +8493,6 @@ export function App() {
                                     : []),
                                   ["terminal", t.terminal, <TerminalIcon />],
                                   ["browser", t.browser, <BrowserIcon />],
-                                  ["design", t.designTab, <BrowserIcon />],
                                   ["file", t.files, <FilesIcon />],
                                 ] as const
                               ).map(([kind, label, icon]) => (
@@ -8683,15 +8607,6 @@ export function App() {
                     <div className="workspace-tab-content">
                       {workspaceTabs.tabs.length === 0 && (
                         <WorkspaceLauncher label={t.rightSidebar}>
-                          <WorkspaceLauncherAction
-                            icon={<WorkspaceLauncherIcon kind="browser" />}
-                            label={
-                              designWorkflow === "design"
-                                ? t.designWorkflowBadge
-                                : t.designTab
-                            }
-                            onActivate={() => openWorkspaceTab("design")}
-                          />
                           {activeProject && (
                             <WorkspaceLauncherAction
                               icon={<WorkspaceLauncherIcon kind="review" />}
@@ -8761,10 +8676,31 @@ export function App() {
                                     />
                                   </div>
                                   <button
-                                    aria-label={t.refreshDiff}
+                                    aria-label={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
+                                    aria-busy={reviewRefreshing}
                                     className="review-toolbar-action"
-                                    onClick={() => void refreshDiff(true)}
-                                    title={t.refreshDiff}
+                                    disabled={
+                                      reviewRefreshing || !activeThreadId
+                                    }
+                                    onClick={async () => {
+                                      setReviewRefreshing(true);
+                                      try {
+                                        const diff = await refreshDiff(true);
+                                        if (diff?.available)
+                                          setToast(t.diffRefreshed);
+                                      } finally {
+                                        setReviewRefreshing(false);
+                                      }
+                                    }}
+                                    title={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
                                     type="button"
                                   >
                                     <RefreshIcon />
@@ -8829,6 +8765,11 @@ export function App() {
                                   {reviewDiff?.available &&
                                     selectedReviewFile && (
                                       <ReviewDiffSurface
+                                        data-language={
+                                          filePresentation(
+                                            selectedReviewFile.path,
+                                          ).language
+                                        }
                                         key={selectedReviewFile.id}
                                         state={
                                           commentLineId ? "dirty" : "selected"
@@ -9027,10 +8968,10 @@ export function App() {
                                                           </button>
                                                         )}
                                                         <span className="review-line-number">
-                                                          {line.oldLine ?? ""}
-                                                        </span>
-                                                        <span className="review-line-number">
-                                                          {line.newLine ?? ""}
+                                                          {line.kind ===
+                                                          "deletion"
+                                                            ? line.oldLine
+                                                            : line.newLine}
                                                         </span>
                                                         <code>
                                                           <HighlightedCodeLine
@@ -9247,25 +9188,6 @@ export function App() {
                                 title={tab.title}
                                 emptyMessage={t.terminalLocked}
                                 theme={runtimeSettings?.theme ?? "system"}
-                              />
-                            </Suspense>
-                          )}
-                          {tab.kind === "design" && (
-                            <Suspense
-                              fallback={<div className="view-loading">…</div>}
-                            >
-                              <DesignPanel
-                                threadId={activeThreadId}
-                                locale={locale}
-                                mode={mode}
-                                active={
-                                  workspaceDockOpen &&
-                                  workspaceTabs.activeTabId === tab.id
-                                }
-                                onConversation={(text, image) => {
-                                  setPrompt(text);
-                                  if (image) addPromptAttachments([image]);
-                                }}
                               />
                             </Suspense>
                           )}
@@ -11593,7 +11515,12 @@ export function Timeline({
                   <span>
                     {t.workedFor} {formatWorkedDuration(turn.durationMs)}
                   </span>
-                  <ChevronIcon />
+                  <ArtemisIcon
+                    className="icon"
+                    height={14}
+                    name="chev-right"
+                    width={14}
+                  />
                 </>
               }
             >

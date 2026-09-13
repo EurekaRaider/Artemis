@@ -174,11 +174,6 @@
 .project-thread-row:has(> .thread-action[aria-expanded="true"]) .thread-time {
   opacity: 0;
 }
-.thread-select .status-dot.idle,
-.thread-select .status-dot.completed {
-  background: var(--border);
-}
-
 .sidebar .sidebar-footer {
   gap: 7px;
   padding: 6px 10px 8px 14px;
@@ -968,6 +963,17 @@ textarea:focus {
   opacity: 1;
   pointer-events: auto;
 }
+/* Animate the shared reservation so history, status, composer and empty state
+   move together without delaying changes to the dock's own width. */
+@property --environment-panel-content-safe-inline-size {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+.conversation {
+  transition: --environment-panel-content-safe-inline-size
+    var(--sidebar-motion-duration) var(--sidebar-motion-ease);
+}
 [data-artemis-component="workspace-dock"]:not([data-state="resizing"]),
 [data-artemis-component="workspace-dock-resizer"] {
   transition-duration: var(--sidebar-motion-duration);
@@ -982,6 +988,7 @@ textarea:focus {
   .app-shell[data-sidebar-animating="true"],
   .app-shell[data-sidebar-animating="true"] .workspace-header,
   .sidebar > :is([data-part="main"], [data-part="rail"]),
+  .conversation,
   [data-artemis-component="workspace-dock"]:not([data-state="resizing"]),
   [data-artemis-component="workspace-dock-resizer"] {
     transition: none;

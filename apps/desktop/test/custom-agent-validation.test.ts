@@ -13,6 +13,7 @@ import {
   CUSTOM_AGENT_COLOR_TOKENS,
   customAgentRequestFingerprint,
   validateCustomAgentInput,
+  validateCustomAgentTasks,
   validateCustomAgentSendReference,
 } from "../src/main/custom-agent-validation.js";
 
@@ -46,6 +47,15 @@ describe("validateCustomAgentInput", () => {
     expect(result.name).toBe("Code Reviewer");
     expect(result.scope).toBe("selected");
     expect(result.projectIds).toEqual(["proj-1"]);
+  });
+
+  it("preserves long instructions for model-dependent validation at invocation", () => {
+    const instructions = "中文😀\n".repeat(110000);
+    expect(Buffer.byteLength(instructions)).toBeGreaterThan(1024 * 1024);
+    expect(
+      validateCustomAgentInput(validInput({ instructions }), projectExists)
+        .instructions,
+    ).toBe(instructions);
   });
 
   it("rejects selected scope with zero projects instead of widening to all", () => {
@@ -95,12 +105,6 @@ describe("validateCustomAgentInput", () => {
         projectExists,
       ),
     ).toThrowError(/CUSTOM_AGENT_INVALID.*description/);
-    expect(() =>
-      validateCustomAgentInput(
-        validInput({ instructions: "领".repeat(16 * 1024) }),
-        projectExists,
-      ),
-    ).toThrowError(/CUSTOM_AGENT_INVALID.*instructions/);
     expect(() =>
       validateCustomAgentInput(
         validInput({ triggers: Array.from({ length: 17 }, (_, i) => `t${i}`) }),
@@ -226,5 +230,69 @@ describe("validateCustomAgentSendReference", () => {
     expect(() => validateCustomAgentSendReference(null)).toThrowError(
       /CUSTOM_AGENT_INVALID/,
     );
+  });
+});
+
+describe("task block validation", () => {
+  it("preserves each task's independent text and reference", () => {
+    expect(
+      validateCustomAgentTasks([
+        {
+          definitionId: "one",
+          revision: 1,
+          invocationId: "a",
+          text: " Review only ",
+        },
+        {
+          definitionId: "two",
+          revision: 2,
+          invocationId: "b",
+          text: "Test only",
+        },
+      ]),
+    ).toEqual([
+      {
+        definitionId: "one",
+        revision: 1,
+        invocationId: "a",
+        text: "Review only",
+      },
+      {
+        definitionId: "two",
+        revision: 2,
+        invocationId: "b",
+        text: "Test only",
+      },
+    ]);
+  });
+  it("accepts more task blocks than the concurrent execution capacity", () => {
+    expect(
+      validateCustomAgentTasks(
+        Array.from({ length: 12 }, (_, index) => ({
+          definitionId: "one",
+          revision: 1,
+          invocationId: String(index),
+          text: `Task ${index}`,
+        })),
+      ),
+    ).toHaveLength(12);
+  });
+  it("rejects empty tasks, duplicate invocation ids and over-capacity batches", () => {
+    const task = {
+      definitionId: "one",
+      revision: 1,
+      invocationId: "a",
+      text: "task",
+    };
+    expect(() => validateCustomAgentTasks([{ ...task, text: " " }])).toThrow();
+    expect(() => validateCustomAgentTasks([task, task])).toThrow();
+    expect(() =>
+      validateCustomAgentTasks(
+        Array.from({ length: 65 }, (_, i) => ({
+          ...task,
+          invocationId: String(i),
+        })),
+      ),
+    ).toThrow();
   });
 });

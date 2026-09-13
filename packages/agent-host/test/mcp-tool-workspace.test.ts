@@ -408,77 +408,112 @@ describe("MCP task workspace propagation", () => {
     host.dispose();
   });
 
-  it("truncates oversized MCP text using a model-relative context budget", async () => {
-    const workspacePath = await mkdtemp(
-      join(tmpdir(), "artemis-mcp-text-budget-"),
-    );
-    cleanupPaths.push(workspacePath);
-    const oversized = `${"x".repeat(600 * 1024)}TAIL_SENTINEL`;
-    const host = new ArtemisAgentHost(
-      {
-        async request() {
-          return {
-            approved: true,
-            data: {
-              content: [{ type: "text", text: oversized }],
-              isError: false,
-              metrics: {
-                imageBytes: 0,
-                imageCount: 0,
-                omittedContentCount: 0,
-                textBytes: Buffer.byteLength(oversized),
-              },
-            },
-          };
-        },
-      },
-      { emit() {} },
-    );
-    await host.configure({
-      credentials: {},
-      mcpTools: [
+  it.each([
+    ["x".repeat(600 * 1024), true],
+    ["中".repeat(600 * 1024), true],
+    ["x".repeat(150 * 1024), false],
+  ])(
+    "budgets MCP text in tokens rather than bytes (%#)",
+    async (body, truncated) => {
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-text-budget-"),
+      );
+      cleanupPaths.push(workspacePath);
+      const oversized = `${body}TAIL_SENTINEL`;
+      const host = new ArtemisAgentHost(
         {
-          serverId: "large",
-          serverName: "Large",
-          transport: "stdio",
-          piName: "large_read",
-          toolName: "read",
-          description: "Return large text",
-          inputSchema: { type: "object", properties: {} },
-          readOnly: true,
+          async request() {
+            return {
+              approved: true,
+              data: {
+                content: [{ type: "text", text: oversized }],
+                isError: false,
+                metrics: {
+                  imageBytes: 0,
+                  imageCount: 0,
+                  omittedContentCount: 0,
+                  textBytes: Buffer.byteLength(oversized),
+                },
+              },
+            };
+          },
         },
-      ],
-    });
-    await host.openThread({
-      threadId: "mcp-large-thread",
-      workspacePath,
-      target: "local",
-    });
-    const thread = (
-      host as unknown as { threads: Map<string, InspectableThread> }
-    ).threads.get("mcp-large-thread");
-    if (thread) {
-      thread.currentTurnId = "turn-1";
-      thread.currentMode = "execute";
-    }
-    const tool = await activateMcpTool(thread, "large", "large_read");
-    const result = (await tool?.execute("mcp-call", {
-      arguments: {},
-      model_approval: {
-        risk: "low",
-        explicit_user_request: false,
-        reason: "Read-only content retrieval.",
-      },
-    })) as {
-      content: Array<{ type: string; text?: string }>;
-    };
-    const text =
-      result.content.find((item) => item.type === "text")?.text ?? "";
+        { emit() {} },
+      );
+      await host.configure({
+        credentials: {},
+        selection: {
+          providerId: "budget-test",
+          modelId: "model",
+          thinkingLevel: "off",
+        },
+        providers: [
+          {
+            id: "budget-test",
+            name: "Budget test",
+            baseUrl: "http://127.0.0.1:1/v1",
+            models: [
+              {
+                id: "model",
+                name: "Model",
+                input: ["text"],
+                reasoning: false,
+                contextWindow: 128000,
+                maxTokens: 16000,
+              },
+            ],
+          },
+        ],
+        mcpTools: [
+          {
+            serverId: "large",
+            serverName: "Large",
+            transport: "stdio",
+            piName: "large_read",
+            toolName: "read",
+            description: "Return large text",
+            inputSchema: { type: "object", properties: {} },
+            readOnly: true,
+          },
+        ],
+      });
+      await host.openThread({
+        threadId: "mcp-large-thread",
+        workspacePath,
+        target: "local",
+      });
+      const thread = (
+        host as unknown as { threads: Map<string, InspectableThread> }
+      ).threads.get("mcp-large-thread");
+      if (thread) {
+        thread.currentTurnId = "turn-1";
+        thread.currentMode = "execute";
+      }
+      const tool = await activateMcpTool(thread, "large", "large_read");
+      const result = (await tool?.execute("mcp-call", {
+        arguments: {},
+        model_approval: {
+          risk: "low",
+          explicit_user_request: false,
+          reason: "Read-only content retrieval.",
+        },
+      })) as {
+        content: Array<{ type: string; text?: string }>;
+      };
+      const text =
+        result.content.find((item) => item.type === "text")?.text ?? "";
 
-    expect(Buffer.byteLength(text)).toBeLessThan(oversized.length);
-    expect(text).toContain("MCP output truncated by Artemis");
-    expect(text).toContain("TAIL_SENTINEL");
+      if (truncated) {
+        expect(Buffer.byteLength(text)).toBeLessThan(
+          Buffer.byteLength(oversized),
+        );
+        expect(text).toContain("MCP output truncated by Artemis");
+      } else {
+        expect(text === oversized).toBe(true);
+      }
+      expect(text).toContain("TAIL_SENTINEL");
 
-    host.dispose();
-  });
+      host.dispose();
+    },
+  );
 });

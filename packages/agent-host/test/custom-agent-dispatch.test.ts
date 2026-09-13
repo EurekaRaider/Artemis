@@ -84,6 +84,7 @@ function frozenSnapshot(
 }
 
 interface HostedStub {
+  contextWindow?: number;
   currentTurnId: string;
   currentMode: "execute" | "plan" | "review";
   selection?: {
@@ -112,6 +113,15 @@ interface HostedStub {
 }
 
 interface HostInternals {
+  acceptExplicitCustomAgentTasks(
+    hosted: HostedStub,
+    tasks: Array<{
+      definitionId: string;
+      revision: number;
+      invocationId: string;
+      text: string;
+    }>,
+  ): unknown;
   configuration: { customAgents?: CustomAgentDefinition[] };
   threads: Map<string, HostedStub>;
   resolveCustomAgentDispatch(
@@ -153,6 +163,7 @@ describe("custom agent dispatch resolution", () => {
   it("freezes an inherited parent model and intersected capabilities at accept time", () => {
     const { internals } = makeHost([definition()]);
     const hosted: HostedStub = {
+      contextWindow: 32000,
       currentTurnId: "turn-1",
       currentMode: "execute",
       selection: {
@@ -172,9 +183,54 @@ describe("custom agent dispatch resolution", () => {
       providerId: "kimi-coding",
       modelId: "k3",
       thinkingLevel: "off",
+      contextWindow: 32000,
     });
+    hosted.contextWindow = 128000;
+    expect(snapshot?.resolvedModel).toHaveProperty("contextWindow", 32000);
     expect(snapshot?.effectiveCapabilities).toContain("shell");
     expect(snapshot?.effectiveCapabilities).not.toContain("spawn-agent");
+  });
+
+  it("inherits the immediate supervisor's model and empty-session capacity, not the root's", () => {
+    const { internals } = makeHost([definition()]);
+    const hosted: HostedStub = {
+      currentTurnId: "turn",
+      currentMode: "execute",
+      contextWindow: 16000,
+      selection: {
+        providerId: "root-provider",
+        modelId: "root-model",
+        thinkingLevel: "off",
+      },
+      childAgents: new Map([
+        [
+          "supervisor",
+          {
+            session: {
+              model: {
+                provider: "child-provider",
+                id: "child-model",
+                contextWindow: 128000,
+              },
+              thinkingLevel: "off",
+              messages: [{ content: "Used parent history" }],
+            },
+          },
+        ],
+      ]),
+    };
+    const snapshot = internals.resolveCustomAgentDispatch(
+      hosted,
+      "supervisor",
+      "def-1",
+      undefined,
+    );
+    expect(snapshot?.resolvedModel).toEqual({
+      providerId: "child-provider",
+      modelId: "child-model",
+      thinkingLevel: "off",
+      contextWindow: 128000,
+    });
   });
 
   it("fixed model policy wins over the parent selection", () => {
@@ -188,6 +244,7 @@ describe("custom agent dispatch resolution", () => {
       }),
     ]);
     const hosted: HostedStub = {
+      contextWindow: 16000,
       currentTurnId: "turn-1",
       currentMode: "execute",
       selection: {
@@ -204,6 +261,7 @@ describe("custom agent dispatch resolution", () => {
       undefined,
     );
     expect(snapshot?.resolvedModel.providerId).toBe("anthropic");
+    expect(snapshot?.resolvedModel).not.toHaveProperty("contextWindow");
   });
 
   it("plan mode strips shell and write capabilities from the frozen ceiling", () => {
@@ -477,6 +535,82 @@ describe("explicit user invocation acceptance", () => {
     };
     return hosted;
   }
+
+  it("dispatches independent task text through the existing team and deduplicates each block", () => {
+    const { internals } = makeHost([definition()]);
+    const log: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(log);
+    const tasks = [
+      {
+        definitionId: "def-1",
+        revision: 2,
+        invocationId: "a",
+        text: "Review only",
+      },
+      {
+        definitionId: "def-1",
+        revision: 2,
+        invocationId: "b",
+        text: "Test only",
+      },
+    ];
+    internals.acceptExplicitCustomAgentTasks(hosted, tasks);
+    internals.acceptExplicitCustomAgentTasks(hosted, tasks);
+    expect(log.map((entry) => entry.task)).toEqual([
+      "Review only",
+      "Test only",
+    ]);
+    expect(hosted.team?.spawnCount).toBe(2);
+    expect(hosted.team?.requiredAgentIds.size).toBe(2);
+  });
+
+  it("accepts twelve user task blocks without relaxing autonomous child limits", () => {
+    const { internals } = makeHost([definition()]);
+    const log: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(log);
+    internals.acceptExplicitCustomAgentTasks(
+      hosted,
+      Array.from({ length: 12 }, (_, index) => ({
+        definitionId: "def-1",
+        revision: 2,
+        invocationId: `block-${index}`,
+        text: `Task ${index}`,
+      })),
+    );
+    expect(log).toHaveLength(12);
+    expect(hosted.team?.requiredAgentIds.size).toBe(12);
+    expect(() =>
+      internals.acceptExplicitCustomAgentInvocation(
+        hosted,
+        { definitionId: "def-1", revision: 2, invocationId: "legacy" },
+        "legacy task",
+      ),
+    ).toThrow(/direct children/);
+  });
+
+  it("rejects a bad later block before launching the valid first block", () => {
+    const { internals } = makeHost([definition()]);
+    const log: Array<Record<string, unknown>> = [];
+    const hosted = explicitHosted(log);
+    expect(() =>
+      internals.acceptExplicitCustomAgentTasks(hosted, [
+        {
+          definitionId: "def-1",
+          revision: 2,
+          invocationId: "a",
+          text: "Review",
+        },
+        {
+          definitionId: "missing",
+          revision: 1,
+          invocationId: "b",
+          text: "Test",
+        },
+      ]),
+    ).toThrow(/CUSTOM_AGENT/);
+    expect(log).toHaveLength(0);
+    expect(hosted.team).toBeUndefined();
+  });
 
   it("materializes exactly one user-explicit instance and deducts budget once", () => {
     const { internals } = makeHost([definition()]);

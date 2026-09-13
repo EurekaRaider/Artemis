@@ -1,7 +1,3 @@
-import { DesignService } from "./design-service.js";
-import { DesignRepository } from "./design-repository.js";
-import { DesignPreviewHost, DESIGN_SCHEME } from "./design-preview-host.js";
-import type { DesignQueuedRequest, DesignPanelAction } from "@artemis/protocol";
 import {
   WorkspacePdfPreview,
   WORKSPACE_PDF_SCHEME,
@@ -12,6 +8,7 @@ import {
   customAgentRequestFingerprint,
   validateCustomAgentInput,
   validateCustomAgentSendReference,
+  validateCustomAgentTasks,
   validateCustomAgentToolPolicy,
 } from "./custom-agent-validation.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
@@ -63,6 +60,7 @@ import {
   protocol,
   session as electronSession,
   shell,
+  type MenuItemConstructorOptions,
   type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
@@ -1073,10 +1071,6 @@ function currentLocale(): AppLocale {
 }
 
 protocol.registerSchemesAsPrivileged([
-  {
-    scheme: DESIGN_SCHEME,
-    privileges: { standard: true, secure: true, supportFetchAPI: true },
-  },
   {
     scheme: WORKSPACE_PDF_SCHEME,
     privileges: {
@@ -4057,77 +4051,7 @@ async function handleBrokerRequest(
       return;
     }
   }
-  const designCheckpoint = store.getTurnCheckpoint(request.threadId);
-  if (
-    designCheckpoint?.workflow === "design" &&
-    !["design.operation", "user.input", "attachment.read"].includes(
-      request.kind,
-    )
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "This operation is unavailable in Design workflow.",
-    );
-    return;
-  }
   switch (request.kind) {
-    case "design.operation": {
-      try {
-        if (
-          activeTurns.get(request.threadId) !== request.turnId ||
-          designCheckpoint?.turnId !== request.turnId ||
-          store.getThread(request.threadId)?.mode !== request.mode ||
-          cancellingTurns.has(request.threadId)
-        )
-          throw new Error(
-            "Design operation requires the current host turn and mode.",
-          );
-        if (designCheckpoint.designRequestId) {
-          const owned = designService()
-            .repository.requests(request.threadId)
-            .find(
-              (item) =>
-                item.requestId === designCheckpoint.designRequestId &&
-                item.turnId === request.turnId,
-            );
-          const context = await designContext(request.threadId);
-          if (
-            !owned ||
-            owned.status !== "dispatched" ||
-            owned.workspaceBinding !== context.workspaceBinding ||
-            owned.projectId !== context.projectId ||
-            owned.mode !== context.mode ||
-            owned.workflow !== designCheckpoint.workflow
-          )
-            throw new Error(
-              "Design host request identity or workspace changed.",
-            );
-        }
-        const result = await designService().tool(
-          request.threadId,
-          request.operation,
-          designCheckpoint.workflow ?? "code",
-          designCheckpoint.designRef,
-        );
-        agentProcess.post({
-          type: "broker.resolve",
-          requestId: workerRequestId,
-          resolution: {
-            approvalId: request.approvalId,
-            nonce: randomUUID(),
-            approved: true,
-            scope: "once",
-            source: "policy",
-          },
-          result,
-        });
-      } catch (error) {
-        rejectBrokerRequest(workerRequestId, request, String(error));
-      }
-      return;
-    }
-
     case "attachment.read": {
       try {
         if (
@@ -5652,136 +5576,6 @@ async function createTaskThread(
   }
 }
 
-let designs: DesignService | undefined;
-async function designContext(threadId: string) {
-  const thread = store?.getThread(threadId);
-  if (!thread || thread.archived) throw new Error("Active task not found.");
-  if (imService?.profile(threadId))
-    throw new Error("Design is available in local desktop tasks only.");
-  const resolved = await resolveThreadWorkspace(thread);
-  return {
-    threadId,
-    projectId: resolved.project.id,
-    workspaceBinding: resolved.workspacePath,
-    mode: thread.mode,
-  };
-}
-function designService(): DesignService {
-  if (!designs)
-    designs = new DesignService(
-      new DesignRepository(join(app.getPath("userData"), "design")),
-      new DesignPreviewHost(
-        () => mainWindow,
-        async (threadId) => {
-          const context = await designContext(threadId);
-          if (context.mode !== "execute")
-            throw new Error("Live preview requires Execute.");
-        },
-      ),
-      designContext,
-      pumpDesignRequests,
-      currentLocale,
-    );
-  return designs;
-}
-const designPumps = new Set<string>();
-async function pumpDesignRequests(threadId: string): Promise<void> {
-  if (
-    shuttingDown ||
-    designPumps.has(threadId) ||
-    activeTurnDispatches.has(threadId) ||
-    activeTurns.has(threadId) ||
-    compactingThreads.has(threadId)
-  )
-    return;
-  designPumps.add(threadId);
-  let request: DesignQueuedRequest | undefined;
-  try {
-    request = designService().repository.claim(await designContext(threadId));
-    if (!request) return;
-    await startTaskTurnUnchecked(
-      {
-        threadId,
-        text: request.text,
-        mode: request.mode,
-        ...(request.attachments ? { attachments: request.attachments } : {}),
-      },
-      {
-        origin: "desktop",
-        designRequest: request,
-        ...(request.source ? { source: request.source } : {}),
-        ...(request.expectedGoalId
-          ? { expectedGoalId: request.expectedGoalId }
-          : {}),
-      },
-    );
-  } catch (error) {
-    if (request)
-      designService().repository.settle(
-        request.turnId,
-        "failed",
-        String(error),
-      );
-    else throw error;
-  } finally {
-    designPumps.delete(threadId);
-  }
-}
-function routesToDesignQueue(threadId: string, text: string) {
-  return (
-    /^\s*\/design(?:\s|$)/.test(text) ||
-    designService().repository.workflow(threadId) === "design" ||
-    designService()
-      .repository.requests(threadId)
-      .some((request) =>
-        ["pending", "dispatched", "paused", "needs-reconciliation"].includes(
-          request.status,
-        ),
-      )
-  );
-}
-async function enqueueDesignTurn(
-  input: StartTurnInput,
-  options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
-): Promise<StartTurnResult> {
-  if (input.customAgentReference)
-    throw new Error("Design workflow does not support sub-agent invocations.");
-  const context = await designContext(input.threadId);
-  const explicit = /^\s*\/design(?:\s|$)/.test(input.text);
-  const text = explicit
-    ? input.text.replace(/^\s*\/design(?:\s|$)/, "").trim() ||
-      "Explore a design for this project."
-    : input.text;
-  const attachments = await attachmentStore().bind(
-    attachmentScope(input.threadId),
-    promptAttachmentsSchema.parse(input.attachments ?? []),
-  );
-  if (
-    !activeTurnDispatches.has(input.threadId) &&
-    !activeTurns.has(input.threadId)
-  ) {
-    store!.updateThread(input.threadId, { mode: input.mode });
-    context.mode = input.mode;
-  }
-  const request = designService().repository.enqueue(
-    { ...context, mode: input.mode },
-    {
-      requestId: randomUUID(),
-      ...(options.source ? { source: options.source } : {}),
-      ...(options.expectedGoalId
-        ? { expectedGoalId: options.expectedGoalId }
-        : {}),
-      workflow: explicit
-        ? "design"
-        : designService().repository.workflow(input.threadId),
-      text,
-      ...(attachments.length ? { attachments } : {}),
-    },
-  );
-  await pumpDesignRequests(input.threadId);
-  return { turnId: request.turnId, thread: store!.getThread(input.threadId)! };
-}
-
 async function startTaskTurn(
   input: StartTurnInput,
   options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
@@ -5797,12 +5591,6 @@ async function startTaskTurn(
     options.origin === undefined ? undefined : options.origin === "im",
   );
   try {
-    if (
-      !options.designRequest &&
-      options.origin !== "im" &&
-      routesToDesignQueue(input.threadId, input.text)
-    )
-      return await enqueueDesignTurn(input, options);
     return await startTaskTurnUnchecked(input, options);
   } finally {
     release?.();
@@ -5816,7 +5604,6 @@ async function startTaskTurnUnchecked(
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
     afterCompaction?: boolean;
-    designRequest?: DesignQueuedRequest;
   } = {},
 ): Promise<StartTurnResult> {
   const mainReceivedAt = Date.now();
@@ -5845,16 +5632,23 @@ async function startTaskTurnUnchecked(
   ) {
     throw new Error("The Goal changed before its continuation could start.");
   }
+  if (input.customAgentReference && input.customAgentTasks?.length)
+    throw new Error(
+      "CUSTOM_AGENT_INVALID: use task blocks or the legacy reference, not both.",
+    );
+  const taskBlocks =
+    input.customAgentTasks === undefined
+      ? []
+      : validateCustomAgentTasks(input.customAgentTasks);
   const text = input.text.trim();
   const attachments = await attachmentStore().bind(
     attachmentScope(thread.id),
     promptAttachmentsSchema.parse(input.attachments ?? []),
   );
-  if (!text && attachments.length === 0) {
+  if (!text && attachments.length === 0 && taskBlocks.length === 0) {
     throw new Error("Prompt cannot be empty.");
   }
-  const turnId = options.designRequest?.turnId ?? randomUUID();
-  const workflow = options.designRequest?.workflow ?? "code";
+  const turnId = randomUUID();
   if (
     options.origin === "desktop" ||
     (options.origin !== "im" && !imService?.profile(thread.id))
@@ -5863,8 +5657,21 @@ async function startTaskTurnUnchecked(
   } else if (options.origin === "im" || imService?.profile(thread.id)) {
     imService?.authorizeThread(thread.id, input.mode);
   }
-  const requestText =
-    text || `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
+  const taskDefinitions = store.listEffectiveCustomAgents(
+    thread.projectId ?? null,
+  );
+  const requestText = taskBlocks.length
+    ? [
+        text,
+        ...taskBlocks.map(
+          (task) =>
+            `### @${taskDefinitions.find((definition) => definition.id === task.definitionId)?.name ?? task.definitionId}\n${task.text}`,
+        ),
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    : text ||
+      `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
   const collaborationContext = imService?.desktopGroupContext(
     thread.id,
     requestText,
@@ -5919,12 +5726,7 @@ async function startTaskTurnUnchecked(
     throw error;
   }
   await turnChangeSetCompletionTails.get(thread.id);
-  if (
-    workflow === "code" &&
-    input.mode === "execute" &&
-    !context.temporary &&
-    turnChangeSetService
-  ) {
+  if (input.mode === "execute" && !context.temporary && turnChangeSetService) {
     try {
       await turnChangeSetService.begin({
         threadId: thread.id,
@@ -6011,22 +5813,25 @@ async function startTaskTurnUnchecked(
   // dispatch time from the trusted projectId and frozen onto the
   // checkpoint; later edits apply to later turns only. The model can never
   // supply a projectId to widen this set.
-  const turnCustomAgents =
-    workflow === "design"
-      ? []
-      : store.listEffectiveCustomAgents(thread.projectId ?? null);
-  let customAgentInvocation:
-    | { invocationId: string; definitionId: string; revision: number }
-    | undefined;
-  let customAgentInvocationFingerprint: string | undefined;
-  if (input.customAgentReference !== undefined) {
-    const reference = validateCustomAgentSendReference(
-      input.customAgentReference,
-    );
+  const turnCustomAgents = store.listEffectiveCustomAgents(
+    thread.projectId ?? null,
+  );
+  const invocations = taskBlocks.length
+    ? taskBlocks
+    : input.customAgentReference
+      ? [
+          {
+            ...validateCustomAgentSendReference(input.customAgentReference),
+            text: requestText,
+          },
+        ]
+      : [];
+  const invocationStore = store;
+  const invocationRecords = invocations.map((reference) => {
     // Resolve against the full catalog so a definition disabled between
     // chip selection and send reports CUSTOM_AGENT_DISABLED, not
     // NOT_FOUND; scope effectiveness is checked separately.
-    const definition = store
+    const definition = invocationStore
       .listCustomAgents()
       .find((candidate) => candidate.id === reference.definitionId);
     if (!definition) {
@@ -6049,29 +5854,27 @@ async function startTaskTurnUnchecked(
         `CUSTOM_AGENT_REVISION_CONFLICT: custom sub-agent "${definition.name}" was edited; refresh the reference and retry.`,
       );
     }
-    customAgentInvocationFingerprint = customAgentRequestFingerprint({
+    return {
       threadId: thread.id,
-      text: requestText,
-      attachmentIds: attachments.map((attachment) => attachment.id),
-      definitionId: definition.id,
-      revision: definition.revision,
-    });
-    customAgentInvocation = {
       invocationId: reference.invocationId,
+      requestFingerprint: customAgentRequestFingerprint({
+        threadId: thread.id,
+        text: taskBlocks.length
+          ? JSON.stringify({ text, tasks: taskBlocks })
+          : requestText,
+        attachmentIds: attachments.map((attachment) => attachment.id),
+        definitionId: definition.id,
+        revision: definition.revision,
+      }),
       definitionId: definition.id,
-      revision: definition.revision,
+      definitionRevision: definition.revision,
+      definitionName: definition.name,
+      turnId,
+      instanceId: null,
+      status: "pending" as const,
     };
-  }
+  });
   const checkpoint: TurnCheckpoint = {
-    workflow,
-    ...(options.designRequest
-      ? {
-          designRequestId: options.designRequest.requestId,
-          ...(options.designRequest.designRef
-            ? { designRef: options.designRequest.designRef }
-            : {}),
-        }
-      : {}),
     threadId: thread.id,
     turnId,
     text: requestText,
@@ -6085,53 +5888,21 @@ async function startTaskTurnUnchecked(
     ...(collaborationContext ? { collaborationContext } : {}),
     customAgents: turnCustomAgents,
     customAgentProjectId: thread.projectId ?? null,
-    ...(customAgentInvocation ? { customAgentInvocation } : {}),
+    ...(taskBlocks.length
+      ? { customAgentTasks: taskBlocks }
+      : invocations[0]
+        ? { customAgentInvocation: invocations[0] }
+        : {}),
   };
-  if (customAgentInvocation && customAgentInvocationFingerprint) {
-    // Persist the dedup record BEFORE the dispatch can start a child
-    // instance. The unique key is (threadId, invocationId); a same-id
-    // different-content request is an INVOCATION_CONFLICT from the store.
-    // A dispatch-committed record with the same fingerprint is an IPC
-    // retry and is reused as-is.
-    const definition = turnCustomAgents.find(
-      (candidate) => candidate.id === customAgentInvocation.definitionId,
-    );
-    if (!definition) {
-      throw new Error("CUSTOM_AGENT_NOT_FOUND: definition vanished.");
-    }
-    const { record } = store.upsertCustomAgentInvocation({
-      threadId: thread.id,
-      invocationId: customAgentInvocation.invocationId,
-      requestFingerprint: customAgentInvocationFingerprint,
-      definitionId: definition.id,
-      definitionRevision: definition.revision,
-      definitionName: definition.name,
-      turnId,
-      instanceId: null,
-      status: "pending",
-    });
-    if (record.status === "dispatch-committed" && record.turnId) {
+  if (invocationRecords.length) {
+    const previousTurnId =
+      store.commitCustomAgentInvocations(invocationRecords);
+    if (previousTurnId) {
       turnLatencyTraces.delete(turnId);
       return {
-        turnId: record.turnId,
+        turnId: previousTurnId,
         thread: store.getThread(thread.id) ?? thread,
       };
-    }
-    if (record.status === "pending") {
-      store.transitionCustomAgentInvocation(
-        thread.id,
-        customAgentInvocation.invocationId,
-        "dispatch-committed",
-        { turnId },
-      );
-    } else if (record.status === "outcome-unknown") {
-      throw new Error(
-        "INVOCATION_OUTCOME_UNKNOWN: this invocation was left ambiguous after a crash; send a new message to re-execute it.",
-      );
-    } else if (record.status === "finished" || record.status === "cancelled") {
-      throw new Error(
-        "INVOCATION_CONFLICT: this invocation already completed; send a new message for a new execution.",
-      );
     }
   }
   try {
@@ -6145,10 +5916,10 @@ async function startTaskTurnUnchecked(
       checkpoint,
     );
   } catch (error) {
-    if (customAgentInvocation) {
+    for (const invocation of invocations) {
       store.transitionCustomAgentInvocation(
         thread.id,
-        customAgentInvocation.invocationId,
+        invocation.invocationId,
         "cancelled",
       );
     }
@@ -6191,7 +5962,6 @@ function dispatchCheckpoint(
   } = checkpoint;
   const process = agentProcess;
   const dispatchId = randomUUID();
-  let dispatchFailed: string | undefined;
   activeTurns.set(threadId, turnId);
   activeTurnDispatches.set(threadId, dispatchId);
   void process
@@ -6204,7 +5974,6 @@ function dispatchCheckpoint(
       ...(recovery ? { recovery } : {}),
     })
     .catch((error) => {
-      dispatchFailed = String(error);
       if (
         shuttingDown ||
         activeTurnDispatches.get(threadId) !== dispatchId ||
@@ -6220,22 +5989,6 @@ function dispatchCheckpoint(
       if (activeTurnDispatches.get(threadId) === dispatchId) {
         activeTurnDispatches.delete(threadId);
         if (activeTurns.get(threadId) === turnId) activeTurns.delete(threadId);
-        if (
-          checkpoint.designRequestId &&
-          !shuttingDown &&
-          agentProcess === process
-        )
-          designService().repository.settle(
-            turnId,
-            dispatchFailed || store?.getThread(threadId)?.status === "failed"
-              ? "failed"
-              : "completed",
-            dispatchFailed,
-          );
-        if (!shuttingDown && agentProcess === process)
-          void pumpDesignRequests(threadId).catch((error) =>
-            console.error("Design queue:", error),
-          );
       }
     });
 }
@@ -6254,12 +6007,6 @@ async function resumeInterruptedTurns(): Promise<void> {
     )
       continue;
     try {
-      if (checkpoint.designRequestId) {
-        designService().repository.reconcile(turnId);
-        throw new Error(
-          "Design dispatch needs explicit reconciliation before retrying.",
-        );
-      }
       if (checkpoint.remote && !imService?.profile(threadId))
         throw new Error(
           "Remote execution context is unavailable for recovery.",
@@ -6296,12 +6043,14 @@ async function resumeInterruptedTurns(): Promise<void> {
         ...(thread.goal ? { goal: thread.goal } : {}),
         recovery,
       };
-      if (checkpoint.customAgentInvocation) {
+      for (const invocation of checkpoint.customAgentTasks ??
+        (checkpoint.customAgentInvocation
+          ? [checkpoint.customAgentInvocation]
+          : [])) {
         // Crash window: the committed dispatch may or may not have started
         // the child before the process died. Never blindly re-dispatch —
         // mark outcome-unknown and resume the parent turn without the
         // explicit instance; the user re-executes with a new invocation.
-        const invocation = checkpoint.customAgentInvocation;
         const record = store?.getCustomAgentInvocation(
           threadId,
           invocation.invocationId,
@@ -6313,8 +6062,9 @@ async function resumeInterruptedTurns(): Promise<void> {
             "outcome-unknown",
           );
         }
-        delete resumed.customAgentInvocation;
       }
+      delete resumed.customAgentInvocation;
+      delete resumed.customAgentTasks;
       store.saveTurnCheckpoint(resumed);
       if (checkpoint.goalCreationAuthorized)
         goalCreationAuthorizations.add(turnId);
@@ -6416,17 +6166,6 @@ async function queueTurn(
 ): Promise<void> {
   if (!store || !agentProcess) {
     throw new Error("Agent process is not ready.");
-  }
-  if (routesToDesignQueue(input.threadId, input.text)) {
-    const current = store.getThread(input.threadId);
-    if (!current) throw new Error("Task not found.");
-    await enqueueDesignTurn({
-      threadId: input.threadId,
-      text: input.text,
-      mode: current.mode,
-      ...(input.attachments ? { attachments: input.attachments } : {}),
-    });
-    return;
   }
   const command = parseThreadCommand({ type, ...input });
   const thread = store.getThread(command.threadId);
@@ -10361,9 +10100,6 @@ function registerIpc(): void {
         throw error;
       } finally {
         compactingThreads.delete(thread.id);
-        void pumpDesignRequests(thread.id).catch((error) =>
-          console.error("Design queue after compaction", error),
-        );
         // The Pi queue owns successfully dispatched messages from here on.
         emitPayload(thread.id, `compaction-queue:${thread.id}`, {
           type: "queue.updated",
@@ -10715,53 +10451,6 @@ function registerIpc(): void {
     },
   );
 
-  ipcMain.handle(IPC.designMode, (_event, threadId: string, value: unknown) => {
-    const mode = runModeSchema.parse(value);
-    const thread = store?.getThread(threadId);
-    if (!thread || thread.archived || imService?.profile(threadId))
-      throw new Error("Active local task required.");
-    store!.updateThread(threadId, { mode });
-    if (mode !== "execute" && designService().preview.state(threadId))
-      designService().preview.stop();
-  });
-  ipcMain.handle(
-    IPC.designDraft,
-    (
-      _event,
-      threadId: string,
-      key: string,
-      input: Extract<DesignPanelAction, { action: "patch" }> | null,
-    ) => designService().draft(threadId, key, input),
-  );
-  ipcMain.handle(IPC.designLeave, (_event, threadId?: string) =>
-    designService().confirmLeave(threadId),
-  );
-  ipcMain.handle(IPC.designState, (_event, threadId: string) =>
-    designService().state(threadId),
-  );
-  ipcMain.handle(
-    IPC.designAction,
-    (_event, threadId: string, input: DesignPanelAction) =>
-      designService().action(threadId, input),
-  );
-  ipcMain.handle(
-    IPC.designBounds,
-    async (
-      _event,
-      threadId: string,
-      instanceId: string,
-      bounds: { x: number; y: number; width: number; height: number },
-      visible: boolean,
-    ) => {
-      const context = await designContext(threadId);
-      if (context.mode !== "execute") {
-        if (designService().preview.state(threadId))
-          designService().preview.stop();
-        return;
-      }
-      designService().preview.setBounds(threadId, instanceId, bounds, visible);
-    },
-  );
   ipcMain.handle(
     IPC.turnStart,
     (_event, input: StartTurnInput): Promise<StartTurnResult> =>
@@ -11837,9 +11526,7 @@ function seedSmokeTurnChangesFixture(): void {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   if (
     !store ||
-    (!view?.startsWith("turn-changes") &&
-      view !== "form-controls-composer" &&
-      view !== "design-workflow")
+    (!view?.startsWith("turn-changes") && view !== "form-controls-composer")
   ) {
     return;
   }
@@ -13118,19 +12805,19 @@ async function driveSmokeNavigationControlsEvidence(
     },
     "markdown-editor-navigation-toolbar": {
       activation: "Space",
-      expectedLabel: "Source",
+      expectedLabel: "Rich text",
       rootSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
       targetSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
     },
     "markdown-editor-navigation-preview": {
       activation: "Space",
-      expectedLabel: "Source",
+      expectedLabel: "Rich text",
       rootSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
       targetSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
@@ -13225,9 +12912,11 @@ async function driveSmokeNavigationControlsEvidence(
   await wait(300);
   const interaction = await evaluate<Record<string, unknown>>(`(() => {
     const root = document.querySelector(${JSON.stringify(target.rootSelector)});
-    const buttons = [...(root?.querySelectorAll('button') ?? [])];
+    const buttons = root instanceof HTMLButtonElement
+      ? [root]
+      : [...(root?.querySelectorAll('button') ?? [])];
     const active = document.activeElement;
-    const selected = buttons.find(
+    const selected = root instanceof HTMLButtonElement ? root : buttons.find(
       (button) =>
         button.getAttribute('aria-selected') === 'true' ||
         button.getAttribute('aria-pressed') === 'true',
@@ -13237,14 +12926,14 @@ async function driveSmokeNavigationControlsEvidence(
     window.__navigationControlsInteraction = {
       view: ${JSON.stringify(view)},
       activation: ${JSON.stringify(target.activation)},
-      activeText: active?.textContent?.trim() ?? null,
+      activeText: active?.getAttribute('aria-label') ?? active?.textContent?.trim() ?? null,
       before: window.__navigationControlsBefore,
       clickCount: window.__navigationControlsClickCount,
       expectedLabel: ${JSON.stringify(target.expectedLabel)},
       panelId,
       panelLabelledBy: panel?.getAttribute('aria-labelledby') ?? null,
       rootStable: root === window.__navigationControlsRoot,
-      selectedText: selected?.textContent?.trim() ?? null,
+      selectedText: selected?.getAttribute('aria-label') ?? selected?.textContent?.trim() ?? null,
       sourceSurfacePresent:
         document.querySelector(
           '[data-artemis-component="workspace-source-editor"] [data-part="source"]',
@@ -16018,15 +15707,6 @@ function createMainWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
-  window.on("close", (event) => {
-    if (designs?.hasDrafts()) {
-      event.preventDefault();
-      void designs.confirmLeave().then((allowed) => {
-        if (allowed && !window.isDestroyed()) window.close();
-      });
-    } else designs?.preview.stop();
-  });
-
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = undefined;
@@ -16067,7 +15747,6 @@ function createMainWindow(): BrowserWindow {
       if (smokeScreenshot) {
         const view = process.env.ARTEMIS_SMOKE_VIEW ?? "";
         const focusEvidenceView =
-          view === "design-workflow" ||
           view.startsWith("form-controls-") ||
           view === "mcp-editor-form-controls" ||
           view === "turn-changes-form-controls" ||
@@ -16118,19 +15797,28 @@ function createMainWindow(): BrowserWindow {
   });
   window.webContents.on("context-menu", (event, params) => {
     const linkUrl = externalHttpUrl(params.linkURL);
-    if (!linkUrl) return;
+    const hasSelection = params.selectionText.length > 0;
+    if (!linkUrl && !hasSelection) return;
     event.preventDefault();
     const locale = currentLocale();
-    Menu.buildFromTemplate([
-      {
-        label: mainText(locale, "openLink"),
-        click: () => void shell.openExternal(linkUrl),
-      },
-      {
-        label: mainText(locale, "copyLink"),
-        click: () => clipboard.writeText(linkUrl),
-      },
-    ]).popup({ window });
+    const items: MenuItemConstructorOptions[] = [];
+    if (hasSelection) {
+      items.push({ role: "copy" });
+    }
+    if (linkUrl) {
+      if (items.length > 0) items.push({ type: "separator" });
+      items.push(
+        {
+          label: mainText(locale, "openLink"),
+          click: () => void shell.openExternal(linkUrl),
+        },
+        {
+          label: mainText(locale, "copyLink"),
+          click: () => clipboard.writeText(linkUrl),
+        },
+      );
+    }
+    Menu.buildFromTemplate(items).popup({ window });
   });
   window.webContents.on("will-frame-navigate", (event) => {
     if (
@@ -16289,17 +15977,12 @@ function createMainWindow(): BrowserWindow {
       ) {
         window.webContents.focus();
       }
-      const prepareSmokeView =
-        requestedSmokeView === "design-workflow"
-          ? import("./design-smoke.js").then((module) =>
-              module.runDesignSmoke(window, designService(), smokeScreenshot!),
-            )
-          : process.env.ARTEMIS_SMOKE_USER_INPUT
-            ? window.webContents.executeJavaScript(
-                "document.querySelector('.thread-select')?.click()",
-              )
-            : requestedSmokeView
-              ? window.webContents.executeJavaScript(`
+      const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
+        ? window.webContents.executeJavaScript(
+            "document.querySelector('.thread-select')?.click()",
+          )
+        : requestedSmokeView
+          ? window.webContents.executeJavaScript(`
               (async () => {
                 const wait = (milliseconds) =>
                   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -18648,7 +18331,7 @@ function createMainWindow(): BrowserWindow {
                 }
               })()
             `)
-              : Promise.resolve();
+          : Promise.resolve();
       const requestedSettleDelay = Number(
         process.env.ARTEMIS_SMOKE_SETTLE_DELAY,
       );
@@ -18764,6 +18447,26 @@ function createMainWindow(): BrowserWindow {
               x: 0,
               y: 0,
             });
+            // Re-hit-test after releasing mouse capture before auditing the
+            // resting styles; Windows may retain hover during the drag.
+            window.webContents.sendInputEvent({
+              type: "mouseMove",
+              x: 0,
+              y: 0,
+            });
+            const resetDeadline = Date.now() + 2_000;
+            while (
+              await window.webContents.executeJavaScript(`
+                !!document.querySelector(
+                  '.goal-bar-actions button:is(:hover, :active)',
+                )
+              `)
+            ) {
+              if (Date.now() >= resetDeadline) {
+                throw new Error("Reduced-motion Goal action did not reset.");
+              }
+              await new Promise((resolve) => setTimeout(resolve, 25));
+            }
           }
           if (
             smokeMode &&
@@ -20381,13 +20084,16 @@ function createMainWindow(): BrowserWindow {
                     const roots = [
                       ...document.querySelectorAll(
                         '[data-artemis-component="tabs"], ' +
-                          '[data-artemis-component="segmented-control"]',
+                          '[data-artemis-component="segmented-control"], ' +
+                          '[data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
                       ),
                     ];
                     const describe = (root) => {
                       const rootBounds = root.getBoundingClientRect();
                       const rootStyle = getComputedStyle(root);
-                      const buttons = [...root.querySelectorAll('button')].map(
+                      const buttons = (root instanceof HTMLButtonElement
+                        ? [root]
+                        : [...root.querySelectorAll('button')]).map(
                         (button) => {
                           const bounds = button.getBoundingClientRect();
                           const style = getComputedStyle(button);
@@ -20398,7 +20104,7 @@ function createMainWindow(): BrowserWindow {
                             : null;
                           return {
                             id: button.id,
-                            label: button.textContent?.trim() ?? '',
+                            label: button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '',
                             part: button.getAttribute('data-part'),
                             state: button.getAttribute('data-state'),
                             role: button.getAttribute('role'),
@@ -20460,7 +20166,7 @@ function createMainWindow(): BrowserWindow {
                         size: root.getAttribute('data-size'),
                         className: root.getAttribute('class'),
                         groupLabel: root.getAttribute('aria-label'),
-                        role: root.getAttribute('role'),
+                        role: root.getAttribute('role') ?? (root instanceof HTMLButtonElement ? 'button' : null),
                         geometry: {
                           width: rootBounds.width,
                           height: rootBounds.height,
@@ -20475,7 +20181,8 @@ function createMainWindow(): BrowserWindow {
                         },
                         parts: [
                           'root',
-                          ...buttons.map((button) => button.part),
+                          ...Array.from(root.querySelectorAll('[data-part]'),
+                            (part) => part.getAttribute('data-part')),
                         ],
                         buttons,
                         portalCount:
@@ -21321,30 +21028,6 @@ app
       join(app.getPath("userData"), "settings.json"),
       safeStorage,
     );
-    if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "design-workflow") {
-      await settingsStore.saveProviderConnection({
-        id: "design-fixture",
-        name: "Design fixture",
-        baseUrl: "https://example.invalid/v1",
-        api: "openai-completions",
-        models: ["A", "B", "C"].map((name) => ({
-          id: `fixture-${name}`,
-          name: `Fixture ${name}`,
-          reasoning: true,
-          input: ["text", "image"],
-          contextWindow: 128000,
-          maxTokens: 8000,
-        })),
-      });
-      await settingsStore.setModel(
-        {
-          providerId: "design-fixture",
-          modelId: "fixture-A",
-          thinkingLevel: "high",
-        },
-        128000,
-      );
-    }
     imService = new ImService(
       app.getPath("userData"),
       safeStorage,
@@ -21714,16 +21397,9 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", (event) => {
-  if (designs?.hasDrafts()) {
-    event.preventDefault();
-    void designs.confirmLeave().then((allowed) => {
-      if (allowed) app.quit();
-    });
-    return;
-  }
-  designs?.preview.stop();
+app.on("before-quit", () => {
   shuttingDown = true;
+  imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     if (pending.value.timeout !== undefined) {
       clearTimeout(pending.value.timeout);

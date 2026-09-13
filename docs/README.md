@@ -21,12 +21,7 @@
 
 ## projects/ · 进行中专项
 
-| 文档                                                      | 说明                               |
-| --------------------------------------------------------- | ---------------------------------- |
-| [design-p0.md](projects/design-p0/README.md)              | 设计工作流 P0 方案                 |
-| [design-workflow.md](projects/design-workflow/README.md)  | 任务设计工作流实现                 |
-| [design-mode-proposal/](projects/design-mode-proposal/)   | 设计模式调研报告与方案(进行中)     |
-| [设计模式执行计划](projects/design-mode-proposal/plan.md) | 当前实现审核、分阶段任务与验收门槛 |
+暂无进行中专项文档。
 
 ## records/ · 台账
 

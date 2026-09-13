@@ -65,10 +65,12 @@ function Harness({
   enabled = true,
   onSelect,
   projectId,
+  members,
 }: {
   enabled?: boolean;
   onSelect(reference: CustomAgentDraftReference): void;
   projectId?: string | undefined;
+  members?: Parameters<typeof useCustomAgentMention>[0]["members"];
 }) {
   const [text, setText] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +82,7 @@ function Harness({
     input,
     enabled,
     onSelect,
+    members,
   });
   return (
     <>
@@ -102,6 +105,65 @@ function Harness({
     </>
   );
 }
+
+const memberCandidates = [
+  {
+    deviceId: "device-1",
+    name: "Reviewer",
+    deviceName: "Test Mac",
+    identity: {
+      channel: "slack" as const,
+      connectionId: "slack",
+      appId: "bot",
+      tenantId: "test",
+      userId: "user",
+    },
+    state: "online" as const,
+    token: "@Reviewer",
+  },
+];
+
+describe("combined member and sub-agent mentions", () => {
+  it("shows one list and selects the sub-agent after the member with the keyboard", async () => {
+    const user = userEvent.setup(),
+      onSelect = vi.fn(),
+      insert = vi.fn();
+    render(
+      <Harness
+        onSelect={onSelect}
+        members={{ candidates: memberCandidates, insert }}
+      />,
+    );
+    await user.type(screen.getByLabelText("prompt"), "@");
+    expect(screen.getAllByRole("listbox")).toHaveLength(1);
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionId: "def-1" }),
+    );
+    expect(insert).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("prompt")).toHaveValue("");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("keeps member selection available while a sub-agent is already attached", async () => {
+    const user = userEvent.setup(),
+      onSelect = vi.fn(),
+      insert = vi.fn();
+    render(
+      <Harness
+        enabled={false}
+        onSelect={onSelect}
+        members={{ candidates: memberCandidates, insert }}
+      />,
+    );
+    await user.type(screen.getByLabelText("prompt"), "@");
+    await user.click(screen.getByRole("button", { name: /Test Mac/ }));
+    expect(insert).toHaveBeenCalledWith("@Reviewer");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});
 
 describe("useCustomAgentMention", () => {
   it("lists only enabled definitions effective for the current project", async () => {
@@ -241,7 +303,7 @@ describe("custom agent mention helpers", () => {
 
 describe("composer send wiring (source contract)", () => {
   it("carries the reference on startTurn with a per-submission invocationId", () => {
-    expect(appSource).toContain("customAgentReference: {");
+    expect(appSource).toContain("customAgentTasks:");
     expect(appSource).toContain("invocationId: crypto.randomUUID()");
   });
 
@@ -256,6 +318,6 @@ describe("composer send wiring (source contract)", () => {
   it("clears the chip together with the submitted prompt", () => {
     const clearStart = appSource.indexOf("const clearSubmittedPrompt");
     const body = appSource.slice(clearStart, clearStart + 800);
-    expect(body).toContain("setCustomAgentReference(undefined)");
+    expect(body).toContain("setCustomAgentTasks([])");
   });
 });

@@ -3038,6 +3038,54 @@ export class AppStore {
     return { record: existing, inserted: inserted.changes > 0 };
   }
 
+  /** Commit all task blocks atomically; an IPC retry must match the whole batch. */
+  commitCustomAgentInvocations(
+    records: Array<
+      Omit<CustomAgentInvocationRecord, "createdAt" | "updatedAt">
+    >,
+  ): string | undefined {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const saved = records.map(
+        (record) => this.upsertCustomAgentInvocation(record).record,
+      );
+      const committed = saved.filter(
+        (record) => record.status === "dispatch-committed",
+      );
+      if (committed.length) {
+        if (
+          committed.length !== saved.length ||
+          new Set(committed.map((record) => record.turnId)).size !== 1
+        ) {
+          throw new Error(
+            "INVOCATION_CONFLICT: task batch does not match its original submission.",
+          );
+        }
+        this.database.exec("COMMIT");
+        return committed[0]!.turnId ?? undefined;
+      }
+      for (const record of saved) {
+        if (record.status === "outcome-unknown")
+          throw new Error(
+            "INVOCATION_OUTCOME_UNKNOWN: send a new message to re-execute.",
+          );
+        if (record.status !== "pending")
+          throw new Error("INVOCATION_CONFLICT: invocation already completed.");
+        this.transitionCustomAgentInvocation(
+          record.threadId,
+          record.invocationId,
+          "dispatch-committed",
+          { turnId: records[0]!.turnId! },
+        );
+      }
+      this.database.exec("COMMIT");
+      return undefined;
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   getCustomAgentInvocation(
     threadId: string,
     invocationId: string,

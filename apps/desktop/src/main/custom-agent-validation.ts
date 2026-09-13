@@ -12,9 +12,10 @@ import { createHash } from "node:crypto";
 
 import {
   CUSTOM_AGENT_ALLOWLIST_MAX,
+  AGENT_TEAM_LOGICAL_MAXIMUM,
+  type CustomAgentTaskInvocation,
   CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS,
   CUSTOM_AGENT_DESCRIPTION_MAX_LENGTH,
-  CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES,
   CUSTOM_AGENT_NAME_MAX_LENGTH,
   CUSTOM_AGENT_TRIGGER_MAX_LENGTH,
   CUSTOM_AGENT_TRIGGERS_MAX,
@@ -194,12 +195,8 @@ export function validateCustomAgentInput(
   if (typeof input.instructions !== "string") fail("instructions are required");
   const instructions = input.instructions;
   if (instructions.trim().length === 0) fail("instructions are required");
-  if (
-    Buffer.byteLength(instructions, "utf8") >
-    CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES
-  ) {
-    fail(`instructions exceed ${CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES} bytes`);
-  }
+  // Definitions are reusable across models. Check the complete token budget
+  // against the resolved child model at invocation, not a fixed byte ceiling.
 
   if (typeof input.color !== "string") fail("color is required");
   const color = input.color.trim();
@@ -335,3 +332,20 @@ export function validateCustomAgentSendReference(
 }
 
 export { CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS };
+
+export function validateCustomAgentTasks(
+  raw: unknown,
+): CustomAgentTaskInvocation[] {
+  if (!Array.isArray(raw) || raw.length > AGENT_TEAM_LOGICAL_MAXIMUM) {
+    fail("task blocks must be an array within the team task limit");
+  }
+  const ids = new Set<string>();
+  return raw.map((value) => {
+    const reference = validateCustomAgentSendReference(value);
+    if (typeof value.text !== "string" || !value.text.trim())
+      fail("task block text cannot be empty");
+    if (ids.has(reference.invocationId)) fail("duplicate task invocation id");
+    ids.add(reference.invocationId);
+    return { ...reference, text: value.text.trim() };
+  });
+}

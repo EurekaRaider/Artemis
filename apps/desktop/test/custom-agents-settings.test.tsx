@@ -196,11 +196,43 @@ describe("CustomAgentsSettingsSection", () => {
     renderSection({
       snapshotOverrides: {
         models: [
-          { providerId: "p1", modelId: "m1", name: "Model One" },
-          { providerId: "p1", modelId: "m1", name: "Model One" },
-          { providerId: "p2", modelId: "m2", name: "Model One" },
-          { providerId: "p1", modelId: "m3", name: "model  one" },
-          { providerId: "p1", modelId: "M3", name: "MODEL ONE" },
+          {
+            providerId: "p1",
+            modelId: "m1",
+            name: "Model One",
+            configured: true,
+          },
+          {
+            providerId: "p1",
+            modelId: "m1",
+            name: "Model One",
+            configured: true,
+          },
+          {
+            providerId: "p2",
+            modelId: "m2",
+            name: "Model One",
+            configured: true,
+          },
+          {
+            providerId: "p1",
+            modelId: "m3",
+            name: "model  one",
+            configured: true,
+          },
+          {
+            providerId: "p1",
+            modelId: "M3",
+            name: "MODEL ONE",
+            configured: true,
+          },
+        ],
+        addedModels: [
+          { providerId: "p1", modelId: "m1", contextWindow: 128_000 },
+          { providerId: "p1", modelId: "m1", contextWindow: 128_000 },
+          { providerId: "p2", modelId: "m2", contextWindow: 128_000 },
+          { providerId: "p1", modelId: "m3", contextWindow: 128_000 },
+          { providerId: "p1", modelId: "M3", contextWindow: 128_000 },
         ],
         customAgents: [{ ...summary, modelPolicy: fixedPolicy }],
       },
@@ -218,6 +250,89 @@ describe("CustomAgentsSettingsSection", () => {
     expect(
       await screen.findByText("Edit: Reviewer", { selector: "h3" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers only added models even when other catalog models share configured credentials", async () => {
+    const user = userEvent.setup();
+    const { api } = renderSection({
+      snapshotOverrides: {
+        addedModels: [
+          { providerId: "p2", modelId: "org/model", contextWindow: 128_000 },
+        ],
+        models: [
+          {
+            providerId: "p2",
+            modelId: "catalog",
+            name: "Catalog only",
+            configured: true,
+          },
+          {
+            providerId: "p2",
+            modelId: "org/model",
+            name: "Configured model",
+            configured: true,
+          },
+        ],
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Model Inherit from parent session",
+      }),
+    );
+    await user.click(screen.getByRole("option", { name: "Fixed model" }));
+    expect(
+      screen.getByRole("button", { name: "Save sub-agent" }),
+    ).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Fixed model Choose a configured model",
+      }),
+    );
+    expect(screen.queryByRole("option", { name: /Catalog only/ })).toBeNull();
+    expect(
+      screen
+        .getAllByRole("option")
+        .filter((option) => option.getAttribute("aria-disabled") !== "true"),
+    ).toHaveLength(1);
+    await user.type(screen.getByRole("combobox"), "Configured");
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
+    expect(api.customAgentsUpdate).toHaveBeenCalledWith(
+      "def-1",
+      3,
+      expect.objectContaining({
+        modelPolicy: { kind: "fixed", providerId: "p2", modelId: "org/model" },
+      }),
+    );
+  });
+
+  it("explains unavailable saved models and blocks saving until resolved", async () => {
+    const user = userEvent.setup();
+    renderSection({
+      api: {
+        customAgentsGet: vi.fn(async () => ({
+          ...definition,
+          modelPolicy: { kind: "fixed", providerId: "gone", modelId: "old" },
+        })),
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(
+      await screen.findByText(/This model is no longer configured/),
+    ).toBeVisible();
+    expect(screen.getByText(/Configure a model in Settings/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Save sub-agent" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Model Fixed model" }));
+    await user.click(
+      screen.getByRole("option", { name: "Inherit from parent session" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Save sub-agent" }),
+    ).toBeEnabled();
   });
 
   it("shows partial MCP grants and lets the user revoke them in one click", async () => {
@@ -363,35 +478,26 @@ describe("CustomAgentsSettingsSection", () => {
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
   });
 
-  it("blocks an over-limit dedicated prompt with a byte-accurate field error (issue #196)", async () => {
+  it("saves long dedicated instructions intact and distinguishes storage from token estimates", async () => {
     const user = userEvent.setup();
     const { api } = renderSection();
     await user.click(screen.getByRole("button", { name: "New sub-agent" }));
-    await user.type(screen.getByLabelText("Name"), "Verbose writer");
-
-    // 6,000 CJK characters = 18,000 UTF-8 bytes, past the 16,384-byte
-    // ceiling; a character count would not catch this.
-    fireEvent.change(screen.getByLabelText("Dedicated prompt"), {
-      target: { value: "字".repeat(6000) },
-    });
-    await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
-
     expect(
-      screen.getByText(/exceeds the 16 KB limit \(17\.6 KB\)/u),
-    ).toBeInTheDocument();
-    expect(api.customAgentsCreate).not.toHaveBeenCalled();
-    // The near-limit usage readout rides along in the field description.
-    expect(
-      screen.getByText(/17\.6 KB of the 16 KB limit used/u),
-    ).toBeInTheDocument();
-
-    // Trimming back under the ceiling lets the same save proceed.
+      screen.getByText(/0.0 KiB stored.*approximately 0 tokens/u),
+    ).toBeVisible();
+    await user.type(screen.getByLabelText("Name"), "Long instructions");
+    const instructions = "字".repeat(30000);
     fireEvent.change(screen.getByLabelText("Dedicated prompt"), {
-      target: { value: "字".repeat(4000) },
+      target: { value: instructions },
     });
+    expect(
+      screen.getByText(/87.9 KiB stored.*approximately 30000 tokens/u),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
     await waitFor(() =>
-      expect(api.customAgentsCreate).toHaveBeenCalledTimes(1),
+      expect(api.customAgentsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ instructions }),
+      ),
     );
   });
 

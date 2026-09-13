@@ -20,7 +20,7 @@ export function ThreadStatusIndicator({
       aria-label={label}
       role={unread ? "img" : undefined}
     >
-      {(!unread || thread.status !== "idle") && (
+      {thread.status !== "idle" && (
         <span aria-hidden="true" className={`status-dot ${thread.status}`} />
       )}
       {unread && thread.status !== "failed" && (

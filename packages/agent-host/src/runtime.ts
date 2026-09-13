@@ -1,10 +1,9 @@
-import { createDesignTools } from "./design-tools.js";
-import { DESIGN_WORKFLOW_INSTRUCTIONS } from "@artemis/protocol";
+import type { CustomAgentTaskInvocation } from "@artemis/protocol";
+import { assertCustomAgentContext } from "./custom-agent-context.js";
 import { createAttachmentTools } from "./attachment-tools.js";
 import { installCompactionBudget } from "./compaction-budget.js";
 import {
   withAttachmentContextBudget,
-  attachmentTextTokens,
   inputTokenLimit,
   estimateRequestTokens,
   attachmentImageTokens,
@@ -12,6 +11,8 @@ import {
 import {
   type AttachmentOperation,
   isAttachmentReference,
+  estimateTextTokens,
+  textWithinTokenBudget,
 } from "@artemis/protocol";
 import {
   createRemoteTools,
@@ -127,23 +128,19 @@ import {
   type ConnectionRecoveryUpdate,
 } from "./connection-recovery.js";
 
-const MINIMUM_MCP_TEXT_BUDGET_BYTES = 1024;
+const MINIMUM_MCP_TEXT_BUDGET_TOKENS = 256;
 const MAXIMUM_MCP_TEXT_BUDGET_BYTES = 2 * 1024 * 1024;
 const FALLBACK_MCP_CONTEXT_WINDOW = 128 * 1024;
 
-function mcpTextBudgetBytes(
+function mcpTextBudgetTokens(
   contextWindow?: number,
   currentContextTokens?: number | null,
 ): number {
   const window = contextWindow ?? FALLBACK_MCP_CONTEXT_WINDOW;
-  const current =
-    currentContextTokens ?? Math.floor(FALLBACK_MCP_CONTEXT_WINDOW * 0.5);
+  const current = currentContextTokens ?? Math.floor(window * 0.5);
   const reserve = compactionSettingsForContextWindow(window).reserveTokens;
   const availableTokens = Math.max(0, window - current - reserve);
-  return Math.min(
-    MAXIMUM_MCP_TEXT_BUDGET_BYTES,
-    Math.max(MINIMUM_MCP_TEXT_BUDGET_BYTES, availableTokens * 2),
-  );
+  return Math.max(MINIMUM_MCP_TEXT_BUDGET_TOKENS, availableTokens);
 }
 
 function truncateUtf8(value: string, maximumBytes: number): string {
@@ -174,12 +171,19 @@ function prepareMcpToolContent(
   omittedTextBytes: number;
   truncated: boolean;
 } {
-  const maximumBytes = mcpTextBudgetBytes(contextWindow, currentContextTokens);
+  const maximumTokens = mcpTextBudgetTokens(
+    contextWindow,
+    currentContextTokens,
+  );
+  const maximumBytes = MAXIMUM_MCP_TEXT_BUDGET_BYTES;
   const originalText = content
     .flatMap((block) => (block.type === "text" ? [block.text] : []))
     .join("\n");
   const originalTextBytes = Buffer.byteLength(originalText, "utf8");
-  if (originalTextBytes <= maximumBytes) {
+  if (
+    originalTextBytes <= maximumBytes &&
+    estimateTextTokens(originalText) <= maximumTokens
+  ) {
     return {
       content: content.length > 0 ? [...content] : [{ type: "text", text: "" }],
       deliveredTextBytes: originalTextBytes,
@@ -198,8 +202,19 @@ function prepareMcpToolContent(
       0,
       maximumBytes - Buffer.byteLength(notice, "utf8"),
     );
-    head = truncateUtf8(originalText, Math.ceil(bodyBudget * 0.6));
-    tail = truncateUtf8Tail(originalText, Math.floor(bodyBudget * 0.4));
+    const bodyTokens = Math.max(
+      0,
+      maximumTokens - estimateTextTokens(notice) - 2,
+    );
+    head = textWithinTokenBudget(
+      truncateUtf8(originalText, Math.ceil(bodyBudget * 0.6)),
+      Math.floor(bodyTokens * 0.6),
+    );
+    tail = textWithinTokenBudget(
+      truncateUtf8Tail(originalText, Math.floor(bodyBudget * 0.4)),
+      Math.floor(bodyTokens * 0.4),
+      true,
+    );
     const nextOmittedTextBytes = Math.max(
       0,
       originalTextBytes -
@@ -253,10 +268,6 @@ interface ContextTokenBreakdown {
 
 function parentConcurrencyLimit(limit: number): number {
   return Math.min(limit, Math.max(2, limit - 1));
-}
-
-function estimateTextTokens(value: string): number {
-  return Math.ceil(value.length / 4);
 }
 
 function contextFilesPrompt(
@@ -851,17 +862,6 @@ export interface OpenThreadRequest {
   contextWindow?: number;
 }
 
-const DESIGN_READ_TOOL_NAMES = new Set([
-  "design_save_revision",
-  "design_document",
-  "design_preview_check",
-  "read",
-  "request_user_input",
-  "attachment_list",
-  "attachment_read",
-  "attachment_search",
-]);
-
 interface HostedThread {
   threadId: string;
   workspacePath: string;
@@ -872,7 +872,6 @@ interface HostedThread {
   resourceLoader: DefaultResourceLoader;
   currentTurnId: string | undefined;
   currentMode: RunMode | undefined;
-  currentWorkflow?: "code" | "design";
   compacting: boolean;
   topLevelUserTurns: number;
   readTool: SessionTool;
@@ -2554,7 +2553,22 @@ export class ArtemisAgentHost {
         "CUSTOM_AGENT_OUT_OF_SCOPE: the definition is no longer effective for this project.",
       );
     }
-    const parentSelection = hosted.selection;
+    const supervisor =
+      senderAgentId === ROOT_AGENT_ID
+        ? undefined
+        : hosted.childAgents.get(senderAgentId);
+    const supervisorModel = supervisor?.session?.model;
+    const parentSelection = supervisorModel
+      ? {
+          providerId: supervisorModel.provider,
+          modelId: supervisorModel.id,
+          thinkingLevel: supervisor!.session!.thinkingLevel,
+        }
+      : (supervisor?.customAgentSnapshot?.resolvedModel ?? hosted.selection);
+    const inheritedContextWindow = supervisor
+      ? (supervisorModel?.contextWindow ??
+        supervisor.customAgentSnapshot?.resolvedModel.contextWindow)
+      : (hosted.session?.model?.contextWindow ?? hosted.contextWindow);
     const resolvedProviderId =
       definition.modelPolicy.kind === "fixed"
         ? definition.modelPolicy.providerId
@@ -2572,10 +2586,6 @@ export class ArtemisAgentHost {
       definition.thinkingPolicy.kind === "fixed"
         ? definition.thinkingPolicy.level
         : (parentSelection?.thinkingLevel ?? null);
-    const supervisor =
-      senderAgentId === ROOT_AGENT_ID
-        ? undefined
-        : hosted.childAgents.get(senderAgentId);
     const supervisorCaps: ReadonlySet<CapabilityClass> =
       supervisor?.customAgentSnapshot
         ? new Set(supervisor.customAgentSnapshot.effectiveCapabilities)
@@ -2605,6 +2615,10 @@ export class ArtemisAgentHost {
         providerId: resolvedProviderId,
         modelId: resolvedModelId,
         thinkingLevel: resolvedThinking,
+        ...(definition.modelPolicy.kind === "inherit" &&
+        inheritedContextWindow !== undefined
+          ? { contextWindow: inheritedContextWindow }
+          : {}),
       },
       effectiveCapabilities,
       toolPolicy: definition.toolPolicy,
@@ -2627,6 +2641,58 @@ export class ArtemisAgentHost {
    * instance; a stale binding whose instance is gone is outcome-unknown
    * and never silently re-dispatches.
    */
+  private acceptExplicitCustomAgentTasks(
+    hosted: HostedThread,
+    tasks: CustomAgentTaskInvocation[],
+  ) {
+    if (
+      tasks.length > AGENT_TEAM_LOGICAL_MAXIMUM ||
+      new Set(tasks.map((task) => task.invocationId)).size !== tasks.length
+    ) {
+      throw new Error("CUSTOM_AGENT_INVALID: invalid task batch.");
+    }
+    let newCount = 0;
+    // Validate the complete batch before any member is allocated or budget debited.
+    for (const task of tasks) {
+      if (!task.text.trim())
+        throw new Error("CUSTOM_AGENT_INVALID: empty task block.");
+      const bound = hosted.explicitCustomAgentInvocations.get(
+        task.invocationId,
+      );
+      if (bound !== undefined) {
+        if (!hosted.childAgents.has(bound))
+          throw new Error("INVOCATION_OUTCOME_UNKNOWN: task instance is gone.");
+        continue;
+      }
+      newCount++;
+      if (
+        !this.resolveCustomAgentDispatch(
+          hosted,
+          ROOT_AGENT_ID,
+          task.definitionId,
+          undefined,
+          task,
+        )
+      ) {
+        throw new Error(
+          "CUSTOM_AGENT_NOT_FOUND: task definition is not effective.",
+        );
+      }
+    }
+    if (
+      (hosted.team?.spawnCount ?? 0) + newCount > AGENT_TEAM_SPAWN_BUDGET ||
+      (hosted.team?.memberAgentIds.length ?? 0) + newCount >
+        AGENT_TEAM_LOGICAL_MAXIMUM
+    ) {
+      throw new Error(
+        "CUSTOM_AGENT_INVALID: task batch exceeds the team capacity.",
+      );
+    }
+    return tasks.map((task) =>
+      this.acceptExplicitCustomAgentInvocation(hosted, task, task.text, true),
+    );
+  }
+
   private acceptExplicitCustomAgentInvocation(
     hosted: HostedThread,
     invocation: {
@@ -2635,6 +2701,7 @@ export class ArtemisAgentHost {
       revision: number;
     },
     taskText: string,
+    taskBlock = false,
   ): { agentId: string; definitionName: string; duplicate: boolean } {
     const boundAgentId = hosted.explicitCustomAgentInvocations.get(
       invocation.invocationId,
@@ -2677,8 +2744,9 @@ export class ArtemisAgentHost {
       );
     }
     if (
+      !taskBlock &&
       this.directChildren(hosted, ROOT_AGENT_ID).length >=
-      AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
+        AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
     ) {
       throw new Error(
         `An agent may have at most ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children.`,
@@ -3400,7 +3468,11 @@ export class ArtemisAgentHost {
         mode: hosted.currentMode!,
         operation: {
           ...operation,
-          maxTokens: Math.min(4000, Math.max(0, remaining - 256)),
+          maxTokens: Math.min(
+            operation.maxTokens ?? 4000,
+            4000,
+            Math.max(0, remaining - 256),
+          ),
         },
       });
       if (!result.approved)
@@ -3422,37 +3494,6 @@ export class ArtemisAgentHost {
       }
       return result.data;
     };
-    const designTools = createDesignTools(async (operation) => {
-      const hosted = this.requireActiveThread(request.threadId);
-      if (operation.action === "save" || operation.action === "inspect") {
-        if (
-          hosted.currentWorkflow !== "design" ||
-          hosted.currentMode !== "execute"
-        )
-          throw new Error(
-            "Design mutations require Design workflow and Execute.",
-          );
-      }
-      if (
-        (operation.action === "inspect" ||
-          (operation.action === "read" && operation.visual)) &&
-        !hosted.session.model?.input.includes("image")
-      )
-        throw new Error(
-          "Select a vision model to inspect the design screenshot.",
-        );
-      const result = await this.broker.request({
-        kind: "design.operation",
-        approvalId: randomUUID(),
-        threadId: request.threadId,
-        turnId: hosted.currentTurnId!,
-        mode: hosted.currentMode!,
-        operation,
-      });
-      if (!result.approved)
-        throw new Error(result.error ?? "Design operation denied.");
-      return result.data;
-    });
     const attachmentTools = createAttachmentTools(invokeAttachmentOperation);
     const readTool = defineTool({
       name: "read",
@@ -5033,10 +5074,14 @@ export class ArtemisAgentHost {
                 .trim();
               throw new Error(message || "MCP tool returned an error.");
             }
+            const actorSession = actorAgentId
+              ? (hosted.childAgents.get(actorAgentId)?.session ??
+                hosted.session)
+              : hosted.session;
             const prepared = prepareMcpToolContent(
               data?.content ?? [],
-              hosted.session.model?.contextWindow,
-              hosted.session.getContextUsage()?.tokens,
+              actorSession.model?.contextWindow,
+              actorSession.getContextUsage()?.tokens,
             );
             return {
               content: prepared.content,
@@ -5359,21 +5404,24 @@ export class ArtemisAgentHost {
               };
 
               try {
+                const {
+                  contextWindow: _parentContextWindow,
+                  ...childConfiguration
+                } = this.configuration;
+                const childContextWindow = frozenSnapshot
+                  ? frozenSnapshot.resolvedModel.contextWindow
+                  : hosted.contextWindow;
                 const childOverrides = createResourceOverrides(
                   () => ({
-                    ...this.configuration,
+                    ...childConfiguration,
                     ...(frozenSelection
                       ? { selection: frozenSelection }
                       : hosted.selection
                         ? { selection: hosted.selection }
                         : {}),
-                    // Frozen instances keep the resolved child model's own
-                    // context window instead of copying the parent's.
-                    ...(frozenSnapshot
+                    ...(childContextWindow === undefined
                       ? {}
-                      : hosted.contextWindow
-                        ? { contextWindow: hosted.contextWindow }
-                        : {}),
+                      : { contextWindow: childContextWindow }),
                   }),
                   "child",
                 );
@@ -5412,7 +5460,9 @@ export class ArtemisAgentHost {
                 const selectedModel = catalogModel
                   ? configureModelContextWindow(
                       catalogModel,
-                      frozenSnapshot ? undefined : hosted.contextWindow,
+                      frozenSnapshot
+                        ? frozenSnapshot.resolvedModel.contextWindow
+                        : hosted.contextWindow,
                     )
                   : undefined;
                 const childBashTools = createObservedBashTools(() => ({
@@ -5644,6 +5694,7 @@ export class ArtemisAgentHost {
                         }\n`,
                       );
                     } else if (payload.type === "turn.failed") {
+                      child.error = payload.message;
                       scheduleActivityUpdate(`\n[failed] ${payload.message}\n`);
                     } else if (payload.type === "assistant.usage") {
                       this.sink.emit(
@@ -5673,9 +5724,22 @@ export class ArtemisAgentHost {
                     ),
                   );
                 }
-                await child.session.prompt(
-                  `${modeInstruction(input.mode)}\n\nYou are ${input.role}, an Artemis child agent at depth ${input.depth} of ${AGENT_TEAM_MAXIMUM_DEPTH}. Complete only this bounded task:\n${input.task}\n\nYour supervisor is ${input.parentAgentId}. You may create up to ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children when the task has independent workstreams and the team still has capacity. Your cooperative write scope is ${input.writePaths.length > 0 ? input.writePaths.join(", ") : "empty (workspace write calls are read-only)"}.${queuedGuidance}`,
-                );
+                const childPrompt = `${modeInstruction(input.mode)}\n\nYou are ${input.role}, an Artemis child agent at depth ${input.depth} of ${AGENT_TEAM_MAXIMUM_DEPTH}. Complete only this bounded task:\n${input.task}\n\nYour supervisor is ${input.parentAgentId}. You may create up to ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children when the task has independent workstreams and the team still has capacity. Your cooperative write scope is ${input.writePaths.length > 0 ? input.writePaths.join(", ") : "empty (workspace write calls are read-only)"}.${queuedGuidance}`;
+                if (frozenSnapshot && child.session.model) {
+                  assertCustomAgentContext(child.session.model, {
+                    systemPrompt: child.session.systemPrompt,
+                    tools: child.session.agent.state.tools,
+                    messages: [
+                      {
+                        role: "user",
+                        content: childPrompt,
+                        timestamp: Date.now(),
+                      },
+                    ],
+                  });
+                }
+                await child.session.prompt(childPrompt);
+                if (child.error) throw new Error(child.error);
                 if (
                   this.directChildren(hosted, child.agentId).length > 0 &&
                   !child.subtreeIntegrated
@@ -5856,7 +5920,6 @@ export class ArtemisAgentHost {
       resourceLoader,
       noTools: "builtin",
       customTools: [
-        ...designTools,
         ...attachmentTools,
         ...remoteTools,
         readTool,
@@ -5891,7 +5954,6 @@ export class ArtemisAgentHost {
         ...extensionTools,
       ],
       tools: [
-        ...designTools.map((tool) => tool.name),
         ...remoteTools.map((tool) => tool.name),
         "read",
         "web_search",
@@ -5937,21 +5999,6 @@ export class ArtemisAgentHost {
     });
     this.configureSessionCompaction(session);
     const mcpDirectToolNames = new Set(mcpTools.map((tool) => tool.name));
-    // Retained tools from a previous code turn must obey the current workflow
-    // at execution, even when the model cannot discover them in the active set.
-    for (const tool of session.agent.state.tools) {
-      const execute = tool.execute.bind(tool);
-      tool.execute = async (...args) => {
-        if (
-          this.threads.get(request.threadId)?.currentWorkflow === "design" &&
-          !DESIGN_READ_TOOL_NAMES.has(tool.name)
-        )
-          throw new Error(
-            `Tool ${tool.name} is unavailable in the design workflow.`,
-          );
-        return execute(...args);
-      };
-    }
     session.setActiveToolsByName(
       session
         .getActiveToolNames()
@@ -6052,7 +6099,6 @@ export class ArtemisAgentHost {
     }
     const executeTools = session.agent.state.tools.filter(
       (tool) =>
-        designTools.some((candidate) => candidate.name === tool.name) ||
         remoteTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "read" ||
         tool.name === "web_search" ||
@@ -6103,9 +6149,6 @@ export class ArtemisAgentHost {
       ),
       mcpDirectToolNames,
       delegatedTools: [
-        ...session.agent.state.tools.filter(
-          (tool) => tool.name === "design_document",
-        ),
         ...session.agent.state.tools.filter((tool) =>
           tool.name.startsWith("attachment_"),
         ),
@@ -6240,7 +6283,7 @@ export class ArtemisAgentHost {
       revision: number;
     },
     customAgentProjectId?: string | null,
-    workflow: "code" | "design" = "code",
+    customAgentTasks?: CustomAgentTaskInvocation[],
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -6249,27 +6292,12 @@ export class ArtemisAgentHost {
     if (hosted.compacting) {
       throw new Error("Cannot start a turn while context is compacting.");
     }
-    if (workflow !== "code" && workflow !== "design")
-      throw new Error("Invalid task workflow.");
-    if (
-      (workflow === "design" || hosted.currentWorkflow === "design") &&
-      (hosted.currentTurnId || hosted.activeLeases.size > 0)
-    )
-      throw new Error(
-        "A workflow change must wait for the current host turn and tools.",
-      );
-    if (workflow === "design" && customAgentInvocation)
-      throw new Error("Custom agents are unavailable in the design workflow.");
 
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
-    hosted.currentWorkflow = workflow;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
     hosted.customAgentProjectId = customAgentProjectId ?? null;
-    const turnCustomAgents =
-      workflow === "design"
-        ? []
-        : (customAgents ?? this.configuration.customAgents);
+    const turnCustomAgents = customAgents ?? this.configuration.customAgents;
     if (turnCustomAgents === undefined) {
       delete hosted.turnCustomAgents;
     } else {
@@ -6287,27 +6315,30 @@ export class ArtemisAgentHost {
       recovery ? `${turnId}:recovery:${recovery.attemptId}` : turnId,
     );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
-    const modeTools =
-      mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
     hosted.session.agent.state.tools =
-      workflow === "design"
-        ? modeTools.filter((tool) => DESIGN_READ_TOOL_NAMES.has(tool.name))
-        : modeTools;
+      mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
     let explicitDispatchNote: string | undefined;
-    if (customAgentInvocation) {
-      // The host materializes exactly one instance for a validated
-      // explicit user reference; the model cannot forge this source.
-      // Failures throw coded errors so the turn fails loudly instead of
-      // silently degrading into a free-form role.
+    if (customAgentTasks?.length) {
+      const accepted = this.acceptExplicitCustomAgentTasks(
+        hosted,
+        customAgentTasks,
+      );
+      explicitDispatchNote = [
+        "[Host dispatch] The user assigned separate task blocks. Each instance receives ONLY its own block, not the other tasks or the main assistant instructions.",
+        ...accepted.map(
+          (task) =>
+            `- ${task.definitionName}: instance ${task.agentId} is already materialized. Do not spawn a duplicate.`,
+        ),
+        "Follow the main assistant instructions, wait for these required team members, and integrate their results into your reply.",
+      ].join("\n");
+    } else if (customAgentInvocation) {
       const accepted = this.acceptExplicitCustomAgentInvocation(
         hosted,
         customAgentInvocation,
         text,
       );
-      explicitDispatchNote = accepted.duplicate
-        ? `[Host dispatch] The explicit invocation of custom sub-agent "${accepted.definitionName}" was already materialized as instance ${accepted.agentId}; do not spawn a duplicate. Wait for its result and integrate it into your reply.`
-        : `[Host dispatch] The user explicitly invoked custom sub-agent "${accepted.definitionName}" for this task. Instance ${accepted.agentId} is already running with the user's message as its task; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
+      explicitDispatchNote = `[Host dispatch] The explicit invocation of custom sub-agent "${accepted.definitionName}" is already materialized as instance ${accepted.agentId}; do not spawn a duplicate. Wait for its result and integrate it into your reply.`;
     }
 
     // Automatic routing catalog (D#152 PR5): the model-visible slice is
@@ -6353,12 +6384,7 @@ export class ArtemisAgentHost {
         collaborationContext,
       );
       const prompt = appendPromptFiles(
-        [
-          basePrompt,
-          workflow === "design" ? DESIGN_WORKFLOW_INSTRUCTIONS : undefined,
-          autoCatalogNote,
-          explicitDispatchNote,
-        ]
+        [basePrompt, autoCatalogNote, explicitDispatchNote]
           .filter((note): note is string => note !== undefined)
           .join("\n\n"),
         preparedAttachments,
@@ -6508,15 +6534,8 @@ export class ArtemisAgentHost {
           this.requestChildCancellation(hosted, child);
         }
       }
-      await Promise.all(
-        [...hosted.childAgents.values()]
-          .filter((child) => child.turnId === turnId)
-          .map((child) => child.done),
-      );
-      await this.bashExecutions.drainTurn(threadId, turnId);
       hosted.currentTurnId = undefined;
       hosted.currentMode = undefined;
-      delete hosted.currentWorkflow;
       hosted.currentMission = undefined;
       hosted.deferredTurnCompletion = undefined;
       hosted.adapter = undefined;
@@ -6617,7 +6636,7 @@ export class ArtemisAgentHost {
         continue;
       if (
         item.kind === "file" &&
-        (item.characters === undefined || item.characters > documentBudget)
+        (item.characters === undefined || item.characters > documentBudget * 4)
       )
         continue;
       const response = await this.broker.request({
@@ -6652,7 +6671,7 @@ export class ArtemisAgentHost {
       } else if (
         value.text &&
         value.nextOffset === undefined &&
-        attachmentTextTokens(value.text) <= documentBudget
+        estimateTextTokens(value.text) <= documentBudget
       ) {
         result.push({
           type: "file",
@@ -6660,7 +6679,7 @@ export class ArtemisAgentHost {
           mimeType: item.mimeType,
           content: value.text,
         });
-        const cost = attachmentTextTokens(value.text);
+        const cost = estimateTextTokens(value.text);
         documentBudget -= cost;
         remaining -= cost;
       }

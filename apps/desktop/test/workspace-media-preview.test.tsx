@@ -24,7 +24,7 @@ const labels = {
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"/>';
 
 describe("workspace media preview", () => {
-  it("previews SVG by default and retains the source editor", async () => {
+  it("previews SVG without a source toggle or empty toolbar", async () => {
     stubWindowArtemis({
       listWorkspaceDirectory: vi.fn().mockResolvedValue([]),
       readWorkspaceFile: vi.fn().mockResolvedValue({
@@ -49,11 +49,10 @@ describe("workspace media preview", () => {
     expect(
       screen.queryByRole("textbox", { name: "Edit: image.svg" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Source" }));
     expect(
-      screen.getByRole("textbox", { name: "Edit: image.svg" }),
-    ).toHaveValue(svg);
-    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+      screen.queryByRole("button", { name: "Source" }),
+    ).not.toBeInTheDocument();
+    expect(document.querySelector(".workspace-panel-toolbar")).toBeNull();
     fireEvent.error(screen.getByRole("img", { name: "image.svg" }));
     expect(screen.getByText("Image failed")).toBeInTheDocument();
   });

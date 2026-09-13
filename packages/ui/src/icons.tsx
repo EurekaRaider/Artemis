@@ -1,7 +1,13 @@
 import type { ReactNode, SVGProps } from "react";
+import {
+  ARTEMIS_CODE_ICON_PATH,
+  ARTEMIS_MARKDOWN_ICON_PATH,
+} from "./editor-icon-paths.js";
 
 export const ARTEMIS_ICON_SOURCE =
   "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html" as const;
+
+export { ARTEMIS_MARKDOWN_ICON_PATH } from "./editor-icon-paths.js";
 
 export const ARTEMIS_ICON_NAMES = [
   "artemis",
@@ -200,10 +206,11 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   terminal: <path d="M5 7.5l4.5 4.5L5 16.5M12 17h7" />,
   markdown: (
-    <>
-      <rect x="3.5" y="5" width="17" height="14" rx="2" />
-      <path d="M6.5 15v-6l2.5 3 2.5-3v6M15 12.5l2.5 3 2.5-3M17.5 9v6.5" />
-    </>
+    <path
+      d={ARTEMIS_MARKDOWN_ICON_PATH}
+      fill="var(--artemis-color-status-success, #60c878)"
+      stroke="none"
+    />
   ),
   plus: <path d="M12 5.5v13M5.5 12h13" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
@@ -576,7 +583,7 @@ const ARTEMIS_ICON_GLYPHS = {
   cloud: (
     <path d="M7 18.5a4.5 4.5 0 01-.6-8.96 5.5 5.5 0 0110.9-1.3A4 4 0 0117.5 18.5H7z" />
   ),
-  code: <path d="M8.5 8l-4 4 4 4M15.5 8l4 4-4 4" />,
+  code: <path d={ARTEMIS_CODE_ICON_PATH} />,
   "code-review": (
     <>
       <circle cx="6" cy="6" r="2.2" />

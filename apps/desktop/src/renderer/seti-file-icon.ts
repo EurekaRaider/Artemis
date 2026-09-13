@@ -1,3 +1,4 @@
+import { ARTEMIS_MARKDOWN_ICON_PATH } from "@artemis/ui/icons";
 import {
   filePresentation,
   type WorkspaceFilePresentation,
@@ -12,8 +13,7 @@ export interface SetiFileIcon {
 const glyphs = {
   document:
     '<rect x="4" y="2.5" width="12" height="15" rx="2"/><path d="M7 7h6M7 10h6M7 13h4"/>',
-  markdown:
-    '<path d="M11 2.5H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9Zm0 0v5h5M7 11h6M7 14h4"/>',
+  markdown: `<path d="${ARTEMIS_MARKDOWN_ICON_PATH}" fill="var(--artemis-color-status-success, currentColor)" stroke="none" transform="scale(0.833333)"/>`,
   code: '<path d="m7 5-5 5 5 5m6-10 5 5-5 5m-2-12-2 14"/>',
   braces:
     '<path d="M7 3H6a2 2 0 0 0-2 2v2c0 2-2 3-2 3s2 1 2 3v2a2 2 0 0 0 2 2h1m6-14h1a2 2 0 0 1 2 2v2c0 2 2 3 2 3s-2 1-2 3v2a2 2 0 0 1-2 2h-1"/><circle cx="8" cy="10" r=".5"/><circle cx="12" cy="10" r=".5"/>',
@@ -41,6 +41,7 @@ const glyphs = {
 
 const colors = {
   blue: ["#3978bc", "#77acee"],
+  green: ["#258347", "#60c878"],
   cyan: ["#328399", "#7bbecc"],
   amber: ["#a66b22", "#e8b16c"],
   mint: ["#31846f", "#72c4ae"],
@@ -65,7 +66,7 @@ const types: Record<string, readonly [IconKind, IconColor]> = {
   json: ["braces", "amber"],
   yaml: ["config", "purple"],
   config: ["config", "neutral"],
-  markdown: ["markdown", "blue"],
+  markdown: ["markdown", "green"],
   git: ["git", "coral"],
   prettier: ["format", "mint"],
   cmake: ["build", "mint"],

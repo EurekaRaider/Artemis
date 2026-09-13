@@ -15,44 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  design-p0:
-    name: Design workflow (${{ matrix.runner }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [macos-15, macos-15-intel, windows-2025]
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - name: Verify native design preview
-        run: npm run verify:design-p0
-        env:
-          ARTEMIS_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          ARTEMIS_DESIGN_P0_OUTPUT: ${{ runner.temp }}/artemis-design-p0
-      - name: Verify rendered design workflow
-        run: node apps/desktop/scripts/verify-design-workflow.mjs
-        env:
-          ARTEMIS_DESIGN_UI_OUTPUT: ${{ runner.temp }}/artemis-design-ui
-      - name: Verify design persistence and workflow policy
-        run: npx vitest run apps/desktop/test/design-source.test.ts apps/desktop/test/design-store.test.ts apps/desktop/test/design-watchdog.test.ts apps/desktop/test/design-repository.test.ts apps/desktop/test/design-image.test.ts apps/desktop/test/design-service.test.ts packages/agent-host/test/design-workflow.test.ts
-      - name: Upload design P0 evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: design-p0-${{ matrix.runner }}
-          path: |
-            ${{ runner.temp }}/artemis-design-p0/**/*report.json
-            ${{ runner.temp }}/artemis-design-ui/**/report.json
-          if-no-files-found: error
-
   verify:
     name: Test, typecheck, build and format
     runs-on: ubuntu-latest

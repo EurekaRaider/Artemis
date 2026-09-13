@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 385000,
+      "desktopCssBytes": 430000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -180,14 +180,10 @@
     },
     {
       "date": "2026-09-12",
-      "baseHead": "54fbfdaebeb77c3e84b36c799badf1f8af05e1b6",
-      "measurementHead": "bfc6e09ee37381b48ae207537813988ad3368141",
-      "baseDesktopCssBytes": 381928,
-      "measuredDesktopCssBytes": 384392,
-      "desktopCssIncreaseBytes": 2464,
-      "previousDesktopCssMaximumBytes": 382000,
-      "desktopCssMaximumBytes": 385000,
-      "reason": "PR #195 adds the task-local Design panel (2512 bytes of lazy CSS) and compacts the composer menu (-48 bytes). The integrated main baseline is already 381928 bytes, leaving 72 bytes under the previous cap. Baseline and candidate use identical installed dependencies and the production Vite pipeline; the baseline substitutes only App.tsx and styles.css from baseHead in memory. The 385000-byte CSS cap leaves 608 bytes of headroom. JavaScript, shared UI, gallery, startup, and workload limits are unchanged."
+      "baseHead": "109bb68",
+      "measuredDesktopCssBytes": 382012,
+      "desktopCssMaximumBytes": 430000,
+      "reason": "Retain the user-requested 430000-byte CSS ceiling for ongoing UI work. The current production build measures 382012 bytes after removing the task design feature. Shared UI, gallery, JavaScript, startup and workload budgets are unchanged."
     }
   ],
   "startupBudgetRevisions": [

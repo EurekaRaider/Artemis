@@ -282,7 +282,6 @@ describe("workspace editor toolbar", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Rich" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Source" })).toBeDisabled();
   });
 });

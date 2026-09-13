@@ -12,7 +12,7 @@ import type { AppLocale } from "@artemis/protocol";
 import {
   CUSTOM_AGENT_CATALOG_MAX_DEFINITIONS,
   CUSTOM_AGENT_CATALOG_TEXT_BUDGET,
-  CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES,
+  estimateTextTokens,
   checkCatalogBudget,
 } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
@@ -67,7 +67,6 @@ const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
 // UTF-8 byte size mirrors the main-process CUSTOM_AGENT_INVALID contract;
 // CJK text runs 3 bytes per character, so a character count would understate.
 const utf8Bytes = (text: string) => new TextEncoder().encode(text).length;
-const INSTRUCTIONS_LIMIT_KB = CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES / 1024;
 const formatKb = (bytes: number) => `${(bytes / 1024).toFixed(1)}`;
 
 const labels = {
@@ -93,9 +92,13 @@ const labels = {
     color: "Color",
     instructions: "Dedicated prompt",
     instructionsRequired: "The dedicated prompt is required",
-    instructionsUsage: "{used} KB of the {max} KB limit used",
-    instructionsOverLimit:
-      "The dedicated prompt exceeds the {max} KB limit ({used} KB). Trim it before saving.",
+    instructionsUsage: "{used} KiB stored · approximately {tokens} tokens",
+    instructionsLong:
+      "The complete input is checked against the actual child model at invocation. Load long reference files or skills when needed.",
+    instructionsInheritedWindow:
+      "Inherited model: the calling session's effective context window is used at invocation.",
+    instructionsFixedWindow:
+      "Model window: {tokens} tokens, shared with system instructions, tools, task input and output.",
     instructionsHint:
       "Appended to the child agent's system prompt; never overrides Artemis identity, mode, or team rules.",
     scope: "Project scope",
@@ -107,6 +110,12 @@ const labels = {
     modelPolicy: "Model",
     modelInherit: "Inherit from parent session",
     modelFixed: "Fixed model",
+    modelChoose: "Choose a configured model",
+    modelEmpty: "Configure a model in Settings → Models first.",
+    modelUnavailable:
+      "This model is no longer configured. Choose another model or inherit from the parent session.",
+    modelSearch: "Search configured models",
+    modelNoResults: "No matching configured models",
     thinkingPolicy: "Reasoning effort",
     thinkingInherit: "Inherit from parent session",
     thinkingFixed: "Fixed level",
@@ -160,9 +169,12 @@ const labels = {
     color: "颜色",
     instructions: "专用提示词",
     instructionsRequired: "请填写专用提示词",
-    instructionsUsage: "已用 {used} KB / 上限 {max} KB",
-    instructionsOverLimit:
-      "专用提示词超出 {max} KB 上限（当前 {used} KB），请精简后再保存。",
+    instructionsUsage: "存储 {used} KiB · 估算 {tokens} token",
+    instructionsLong:
+      "调用时按实际子智能体模型检查完整输入预算。较长的参考资料建议放入文件或技能，使用时再读取。",
+    instructionsInheritedWindow: "继承模型：调用时使用父会话的有效上下文窗口。",
+    instructionsFixedWindow:
+      "模型窗口 {tokens} token，由系统指令、工具、任务输入和输出共同使用。",
     instructionsHint:
       "追加到子智能体系统提示的受控位置，不会覆盖 Artemis 身份、模式约束与团队协议。",
     scope: "项目范围",
@@ -173,6 +185,11 @@ const labels = {
     modelPolicy: "模型",
     modelInherit: "继承父会话",
     modelFixed: "固定模型",
+    modelChoose: "选择已配置的模型",
+    modelEmpty: "请先在设置的模型页面配置模型。",
+    modelUnavailable: "此模型已不再配置，请重新选择或继承父会话。",
+    modelSearch: "搜索已配置的模型",
+    modelNoResults: "没有匹配的已配置模型",
     thinkingPolicy: "推理强度",
     thinkingInherit: "继承父会话",
     thinkingFixed: "固定档位",
@@ -316,6 +333,14 @@ export function CustomAgentsSettingsSection({
   const [editingName, setEditingName] = useState("");
   const [editingRevision, setEditingRevision] = useState<number>(0);
   const [form, setForm] = useState<CustomAgentFormState>(EMPTY_FORM);
+  const instructionsBytes = useMemo(
+    () => utf8Bytes(form.instructions),
+    [form.instructions],
+  );
+  const instructionsTokens = useMemo(
+    () => estimateTextTokens(form.instructions),
+    [form.instructions],
+  );
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [nameError, setNameError] = useState(false);
@@ -399,7 +424,14 @@ export function CustomAgentsSettingsSection({
     const seenValues = new Set<string>();
     const seenLabels = new Set<string>();
     const options: Array<{ value: string; label: string }> = [];
-    for (const model of settings.models) {
+    // Credentials configure a whole provider; only explicitly added models
+    // belong in this picker, matching the Models settings list.
+    for (const addedModel of settings.addedModels) {
+      const model = settings.models.find(
+        (candidate) =>
+          candidate.providerId === addedModel.providerId &&
+          candidate.modelId === addedModel.modelId,
+      ) ?? { ...addedModel, name: addedModel.modelId };
       const value = `${model.providerId}/${model.modelId}`;
       if (seenValues.has(value)) continue;
       seenValues.add(value);
@@ -416,7 +448,28 @@ export function CustomAgentsSettingsSection({
       options.push({ value, label });
     }
     return options;
-  }, [settings.models]);
+  }, [settings.models, settings.addedModels]);
+
+  const selectedModelValue =
+    form.modelProviderId && form.modelId
+      ? `${form.modelProviderId}/${form.modelId}`
+      : "";
+  const modelUnavailable =
+    form.modelKind === "fixed" &&
+    !modelOptions.some((option) => option.value === selectedModelValue);
+  const fixedModelOptions = [
+    { value: "", label: t.modelChoose, disabled: true },
+    ...modelOptions,
+  ];
+
+  const fixedModelInfo =
+    form.modelKind === "fixed"
+      ? settings.models.find(
+          (model) =>
+            model.providerId === form.modelProviderId &&
+            model.modelId === form.modelId,
+        )
+      : undefined;
 
   const modelBadge = (definition: CustomAgentSummary) => {
     const policy = definition.modelPolicy;
@@ -525,20 +578,11 @@ export function CustomAgentsSettingsSection({
     // rejection (issue #196 for the 16 KB instructions ceiling).
     const nameInvalid = !form.name.trim();
     const instructionsInvalid = !form.instructions.trim();
-    const instructionsBytes = utf8Bytes(form.instructions);
-    const instructionsOverLimit =
-      instructionsBytes > CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES;
     setNameError(nameInvalid);
     setInstructionsError(
-      instructionsOverLimit
-        ? t.instructionsOverLimit
-            .replace("{used}", formatKb(instructionsBytes))
-            .replace("{max}", String(INSTRUCTIONS_LIMIT_KB))
-        : instructionsInvalid
-          ? t.instructionsRequired
-          : undefined,
+      instructionsInvalid ? t.instructionsRequired : undefined,
     );
-    if (nameInvalid || instructionsInvalid || instructionsOverLimit) return;
+    if (nameInvalid || instructionsInvalid || modelUnavailable) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -800,6 +844,7 @@ export function CustomAgentsSettingsSection({
               {error && <InlineNotice tone="warning">{error}</InlineNotice>}
               <fieldset className="custom-agent-dialog-section">
                 <TextField
+                  size="compact"
                   disabled={busy}
                   error={nameError ? t.nameRequired : undefined}
                   inputRef={nameInputRef}
@@ -834,6 +879,7 @@ export function CustomAgentsSettingsSection({
                   </div>
                 </div>
                 <TextField
+                  size="compact"
                   disabled={busy}
                   label={t.description}
                   onValueChange={(description) =>
@@ -844,6 +890,7 @@ export function CustomAgentsSettingsSection({
               </fieldset>
               <fieldset className="custom-agent-dialog-section">
                 <Select
+                  size="compact"
                   disabled={busy}
                   label={t.modelPolicy}
                   labelVisibility="visible"
@@ -861,24 +908,39 @@ export function CustomAgentsSettingsSection({
                 />
                 {form.modelKind === "fixed" && (
                   <Select
-                    disabled={busy}
+                    size="compact"
+                    disabled={busy || modelOptions.length === 0}
+                    className="custom-agent-model-select"
+                    description={
+                      modelOptions.length === 0 ? t.modelEmpty : undefined
+                    }
+                    error={
+                      modelUnavailable && selectedModelValue
+                        ? t.modelUnavailable
+                        : undefined
+                    }
+                    searchPlaceholder={t.modelSearch}
+                    noResultsLabel={t.modelNoResults}
                     label={t.modelFixed}
                     labelVisibility="visible"
                     onValueChange={(value) => {
-                      const [providerId = "", modelId = ""] = value.split("/");
+                      const separator = value.indexOf("/");
+                      const providerId = value.slice(0, separator);
+                      const modelId = value.slice(separator + 1);
                       setForm((f) => ({
                         ...f,
                         modelProviderId: providerId,
                         modelId,
                       }));
                     }}
-                    options={modelOptions}
-                    value={`${form.modelProviderId}/${form.modelId}`}
+                    options={fixedModelOptions}
+                    value={modelUnavailable ? "" : selectedModelValue}
                   />
                 )}
               </fieldset>
               <fieldset className="custom-agent-dialog-section">
                 <Select
+                  size="compact"
                   disabled={busy}
                   label={t.thinkingPolicy}
                   labelVisibility="visible"
@@ -896,6 +958,7 @@ export function CustomAgentsSettingsSection({
                 />
                 {form.thinkingKind === "fixed" && (
                   <Select
+                    size="compact"
                     disabled={busy}
                     label={t.thinkingFixed}
                     labelVisibility="visible"
@@ -912,6 +975,7 @@ export function CustomAgentsSettingsSection({
               </fieldset>
               <fieldset className="custom-agent-dialog-section">
                 <Select
+                  size="compact"
                   disabled={busy}
                   label={t.toolPolicy}
                   labelVisibility="visible"
@@ -1020,17 +1084,24 @@ export function CustomAgentsSettingsSection({
                 )}
               </fieldset>
               <TextAreaField
-                description={
-                  utf8Bytes(form.instructions) >=
-                  CUSTOM_AGENT_INSTRUCTIONS_MAX_BYTES * 0.9
-                    ? `${t.instructionsHint} ${t.instructionsUsage
-                        .replace(
-                          "{used}",
-                          formatKb(utf8Bytes(form.instructions)),
+                size="compact"
+                description={[
+                  t.instructionsHint,
+                  t.instructionsUsage
+                    .replace("{used}", formatKb(instructionsBytes))
+                    .replace("{tokens}", String(instructionsTokens)),
+                  t.instructionsLong,
+                  form.modelKind === "inherit"
+                    ? t.instructionsInheritedWindow
+                    : fixedModelInfo
+                      ? t.instructionsFixedWindow.replace(
+                          "{tokens}",
+                          String(fixedModelInfo.contextWindow),
                         )
-                        .replace("{max}", String(INSTRUCTIONS_LIMIT_KB))}`
-                    : t.instructionsHint
-                }
+                      : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 disabled={busy}
                 error={instructionsError}
                 label={t.instructions}
@@ -1043,6 +1114,7 @@ export function CustomAgentsSettingsSection({
               />
               <fieldset className="custom-agent-dialog-section">
                 <TextField
+                  size="compact"
                   description={t.triggersHint}
                   disabled={busy}
                   label={t.triggers}
@@ -1069,6 +1141,7 @@ export function CustomAgentsSettingsSection({
                   }
                 />
                 <Select
+                  size="compact"
                   disabled={busy}
                   label={t.scope}
                   labelVisibility="visible"
@@ -1120,7 +1193,11 @@ export function CustomAgentsSettingsSection({
               <Button disabled={busy} onClick={requestClose} type="button">
                 {t.cancelEdit}
               </Button>
-              <Button disabled={busy} type="submit" variant="primary">
+              <Button
+                disabled={busy || modelUnavailable}
+                type="submit"
+                variant="primary"
+              >
                 {t.save}
               </Button>
             </footer>

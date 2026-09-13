@@ -2,9 +2,8 @@
  * Structured @ mention for custom sub-agents in the composer (D#152 PR4).
  * Mirrors the IM member-mention interaction (cursor-tracked @query,
  * listbox keyboard navigation, Escape dismissal) but selection produces a
- * draft reference chip instead of text: the @query fragment is removed and
- * the definition rides the draft until send. At most one reference per
- * message — the menu stays closed while a chip is attached.
+ * draft task block instead of text: the @query fragment is removed and
+ * each selected definition rides its own task block until send.
  */
 import {
   useEffect,
@@ -16,6 +15,7 @@ import {
 } from "react";
 import { Button } from "@artemis/ui/actions";
 
+import type { useImMemberMentions } from "./ImMemberMentions.js";
 import type { CustomAgentSummary } from "../shared/api.js";
 import type { CustomAgentDraftReference } from "./composer-drafts.js";
 
@@ -62,15 +62,19 @@ export function useCustomAgentMention({
   input,
   enabled,
   onSelect,
+  members,
 }: {
   definitions: readonly CustomAgentSummary[];
   projectId: string | undefined;
   text: string;
   setText(text: string): void;
   input: RefObject<HTMLTextAreaElement | null>;
-  /** False while a chip is attached or an IM group member menu owns @. */
+  /** Whether more sub-agent task blocks can be added; member targeting stays available. */
   enabled: boolean;
   onSelect(reference: CustomAgentDraftReference): void;
+  members?:
+    | Pick<ReturnType<typeof useImMemberMentions>, "candidates" | "insert">
+    | undefined;
 }) {
   const [cursor, setCursor] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -86,7 +90,7 @@ export function useCustomAgentMention({
   const match = text.slice(0, cursor).match(MENTION_QUERY);
   const query = match?.[1];
   const candidates =
-    query === undefined
+    !enabled || query === undefined
       ? []
       : definitions
           .filter((definition) =>
@@ -103,9 +107,11 @@ export function useCustomAgentMention({
               )
             );
           });
-  const open =
-    enabled && !dismissed && query !== undefined && candidates.length > 0;
-  const activeIndex = Math.min(active, Math.max(0, candidates.length - 1));
+  const memberCandidates =
+    query === undefined ? [] : (members?.candidates ?? []);
+  const candidateCount = memberCandidates.length + candidates.length;
+  const open = !dismissed && query !== undefined && candidateCount > 0;
+  const activeIndex = Math.min(active, Math.max(0, candidateCount - 1));
   useEffect(() => {
     setActive(0);
   }, [query, projectId]);
@@ -125,8 +131,14 @@ export function useCustomAgentMention({
       color: definition.color,
     });
   };
+  const selectMember = (token: string) => {
+    members?.insert(token);
+    setDismissed(true);
+  };
   return {
     open,
+    memberCandidates,
+    selectMember,
     candidates,
     activeIndex,
     select,
@@ -147,16 +159,19 @@ export function useCustomAgentMention({
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         setActive(
-          (activeIndex +
-            (event.key === "ArrowDown" ? 1 : candidates.length - 1)) %
-            candidates.length,
+          (activeIndex + (event.key === "ArrowDown" ? 1 : candidateCount - 1)) %
+            candidateCount,
         );
         return true;
       }
       if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
         event.preventDefault();
-        const candidate = candidates[activeIndex];
-        if (candidate) select(candidate);
+        const member = memberCandidates[activeIndex];
+        if (member) selectMember(member.token);
+        else {
+          const candidate = candidates[activeIndex - memberCandidates.length];
+          if (candidate) select(candidate);
+        }
         return true;
       }
       return false;
@@ -174,42 +189,72 @@ export function CustomAgentMentionMenu({
   if (!mention.open) return null;
   return (
     <div
-      aria-label={zh ? "选择自定义子智能体" : "Choose a custom sub-agent"}
+      aria-label={zh ? "选择成员或子智能体" : "Choose a member or sub-agent"}
       className="slash-command-menu custom-agent-mention-menu"
       id="custom-agent-mention-menu"
       role="listbox"
     >
-      <div className="slash-command-heading">
-        {zh
-          ? "@ 子智能体 · 绑定到这条消息"
-          : "@ Sub-agent · bind to this message"}
-      </div>
-      {mention.candidates.map((definition, index) => (
+      {mention.memberCandidates.length > 0 && (
+        <div className="slash-command-heading">
+          {zh ? "@ 成员 · 选择执行任务的电脑" : "@ Member · choose a computer"}
+        </div>
+      )}
+      {mention.memberCandidates.map((member, index) => (
         <div
           aria-selected={index === mention.activeIndex}
           id={`custom-agent-mention-${index}`}
-          key={definition.id}
+          key={member.deviceId}
           onMouseDown={(event) => event.preventDefault()}
           role="option"
         >
           <Button
             className={`slash-command-suggestion${index === mention.activeIndex ? " active" : ""}`}
-            onClick={() => mention.select(definition)}
+            onClick={() => mention.selectMember(member.token)}
             variant="quiet"
           >
-            <span
-              aria-hidden="true"
-              className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
-            />
             <span>
-              <strong>{definition.name}</strong>
-              <small title={definition.description}>
-                {definition.description}
-              </small>
+              <strong>{member.name}</strong>
+              <small>{member.deviceName}</small>
             </span>
           </Button>
         </div>
       ))}
+      {mention.candidates.length > 0 && (
+        <div className="slash-command-heading">
+          {zh
+            ? "@ 子智能体 · 绑定到这条消息"
+            : "@ Sub-agent · bind to this message"}
+        </div>
+      )}
+      {mention.candidates.map((definition, agentIndex) => {
+        const index = mention.memberCandidates.length + agentIndex;
+        return (
+          <div
+            aria-selected={index === mention.activeIndex}
+            id={`custom-agent-mention-${index}`}
+            key={definition.id}
+            onMouseDown={(event) => event.preventDefault()}
+            role="option"
+          >
+            <Button
+              className={`slash-command-suggestion${index === mention.activeIndex ? " active" : ""}`}
+              onClick={() => mention.select(definition)}
+              variant="quiet"
+            >
+              <span
+                aria-hidden="true"
+                className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
+              />
+              <span>
+                <strong>{definition.name}</strong>
+                <small title={definition.description}>
+                  {definition.description}
+                </small>
+              </span>
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }

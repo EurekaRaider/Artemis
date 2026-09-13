@@ -3177,7 +3177,8 @@ describe("default and synthetic stress skin conformance", () => {
     const navigationSnapshots = [
       ...container.querySelectorAll<HTMLElement>(navigationSelector),
     ].map(snapshotNavigationRoot);
-    expect(navigationSnapshots).toHaveLength(8);
+    // The editor mode switch is an IconButton, not a segmented control.
+    expect(navigationSnapshots).toHaveLength(7);
     expect(detailsTab.getAttribute("aria-selected")).toBe("true");
     expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
     expectCompleteTabRelations(container);

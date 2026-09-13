@@ -71,25 +71,25 @@ const steps = [
     view: "navigation-token-usage",
   },
   {
-    component: "segmented-control",
+    component: "icon-button",
     context: "workspace-editor",
-    expectedLabel: "Source",
-    expectedParts: ["root", "segment"],
+    expectedLabel: "Rich text",
+    expectedParts: ["root", "icon"],
     expectedSize: "compact",
     id: "workspace-editor",
     scenario:
-      "Workspace Markdown editor renders public SegmentedControl and uses real Space activation exactly once.",
+      "Workspace Markdown editor renders a public IconButton and uses real Space activation exactly once.",
     view: "markdown-editor-navigation-toolbar",
   },
   {
-    component: "segmented-control",
+    component: "icon-button",
     context: "markdown-reader",
-    expectedLabel: "Source",
-    expectedParts: ["root", "segment"],
+    expectedLabel: "Rich text",
+    expectedParts: ["root", "icon"],
     expectedSize: "compact",
     id: "markdown-reader",
     scenario:
-      "Markdown reader renders public SegmentedControl and uses real Space activation exactly once.",
+      "Markdown reader renders a public IconButton and uses real Space activation exactly once.",
     view: "markdown-editor-navigation-preview",
   },
 ];
@@ -318,26 +318,29 @@ try {
     assert(
       "named-root-role",
       Boolean(found.groupLabel) &&
-        found.role === (expectedComponent === "tabs" ? "tablist" : "group"),
+        found.role === (expectedComponent === "tabs" ? "tablist" : "button"),
       { groupLabel: found.groupLabel, role: found.role },
       {
         groupLabel: "non-empty",
-        role: expectedComponent === "tabs" ? "tablist" : "group",
+        role: expectedComponent === "tabs" ? "tablist" : "button",
       },
     );
     assert(
       "positive-button-geometry",
-      found.buttons.length >= 2 &&
+      found.buttons.length >= (expectedComponent === "tabs" ? 2 : 1) &&
         found.buttons.every(
           (button) => button.geometry.width > 0 && button.geometry.height > 0,
         ),
       found.buttons.map((button) => button.geometry),
-      "at least two positive button rectangles",
+      "positive rectangles for every navigation button",
     );
-    const selected = found.buttons.filter(
-      (button) =>
-        button.ariaSelected === "true" || button.ariaPressed === "true",
-    );
+    const selected =
+      expectedComponent === "icon-button"
+        ? found.buttons
+        : found.buttons.filter(
+            (button) =>
+              button.ariaSelected === "true" || button.ariaPressed === "true",
+          );
     assert(
       "single-selected-button",
       selected.length === 1,
@@ -350,20 +353,22 @@ try {
       selected[0]?.label ?? null,
       expectedLabel,
     );
-    assert(
-      "selected-state-redundant",
-      selected[0]?.state === "selected" &&
-        selected[0]?.computed.fontWeight !==
-          found.buttons.find((button) => button !== selected[0])?.computed
-            .fontWeight,
-      {
-        selectedState: selected[0]?.state,
-        selectedWeight: selected[0]?.computed.fontWeight,
-        peerWeight: found.buttons.find((button) => button !== selected[0])
-          ?.computed.fontWeight,
-      },
-      "selected data-state and distinct font weight",
-    );
+    if (expectedComponent === "tabs") {
+      assert(
+        "selected-state-redundant",
+        selected[0]?.state === "selected" &&
+          selected[0]?.computed.fontWeight !==
+            found.buttons.find((button) => button !== selected[0])?.computed
+              .fontWeight,
+        {
+          selectedState: selected[0]?.state,
+          selectedWeight: selected[0]?.computed.fontWeight,
+          peerWeight: found.buttons.find((button) => button !== selected[0])
+            ?.computed.fontWeight,
+        },
+        "selected data-state and distinct font weight",
+      );
+    }
     assert(
       "active-focus-visible",
       navigation.documentHasFocus === true &&
@@ -415,15 +420,15 @@ try {
       );
     } else {
       assert(
-        "pressed-native-tab-order",
+        "native-toggle-tab-order",
         found.buttons.every(
           (button) =>
             button.role === null &&
             button.tabIndex === 0 &&
-            ["true", "false"].includes(button.ariaPressed),
+            button.ariaPressed === null,
         ),
         found.buttons,
-        "native buttons in Tab order with aria-pressed",
+        "native action button in Tab order with its next action label",
       );
     }
     const interaction = navigation.interaction;

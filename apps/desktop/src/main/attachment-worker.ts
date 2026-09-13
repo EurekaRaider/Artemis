@@ -1,3 +1,5 @@
+import { estimateTextTokens, textWithinTokenBudget } from "@artemis/protocol";
+
 /** Read supported image headers before asking a native decoder to allocate pixels. */
 export function attachmentImageDimensions(bytes: Buffer): {
   width: number;
@@ -105,11 +107,6 @@ export async function processAttachment(
       await readFile(work.path, "utf8"),
     ) as AttachmentSegment[];
     const budget = Math.min(4000, work.maxTokens ?? 4000);
-    const bounded = (text: string, bytes: number) =>
-      Buffer.from(text)
-        .subarray(0, Math.max(0, bytes))
-        .toString("utf8")
-        .replace(/\uFFFD$/u, "");
     if (
       work.page !== undefined &&
       (!Number.isInteger(work.page) ||
@@ -129,7 +126,7 @@ export async function processAttachment(
             .toLocaleLowerCase()
             .indexOf(work.query.toLocaleLowerCase(), from);
           if (index < 0) break;
-          const excerpt = bounded(
+          const excerpt = textWithinTokenBudget(
             s.text.slice(Math.max(0, index - 100), index + 300),
             remaining,
           );
@@ -139,7 +136,7 @@ export async function processAttachment(
             offset: s.page ? index : globalOffset + index,
             text: excerpt,
           });
-          remaining -= Buffer.byteLength(excerpt) + 80;
+          remaining -= estimateTextTokens(excerpt) + 80;
           from = index + work.query.length;
           if (matches.length >= 20) break;
         }
@@ -159,7 +156,12 @@ export async function processAttachment(
       offset = work.offset ?? 0;
     if (!Number.isInteger(offset) || offset < 0 || offset > text.length)
       throw new Error("Invalid attachment offset");
-    const content = bounded(text.slice(offset), budget);
+    const content = textWithinTokenBudget(text.slice(offset), budget);
+    if (!content && offset < text.length) {
+      throw new Error(
+        "Attachment token budget is too small for the next character",
+      );
+    }
     let position = 0;
     const locations = selected
       .flatMap((s) => {

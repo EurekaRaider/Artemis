@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   WorkspaceContentState,
@@ -196,7 +195,6 @@ export function WorkspaceFilesPanel({
   editFileLabel,
   refreshLabel,
   richLabel,
-  previewLabel,
   saveLabel,
   savedLabel,
   savingLabel,
@@ -218,7 +216,6 @@ export function WorkspaceFilesPanel({
   const [filter, setFilter] = useState("");
   const [selectedFile, setSelectedFile] = useState<WorkspaceFileContent>();
   const [draft, setDraft] = useState("");
-  const [imageSource, setImageSource] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle",
@@ -361,7 +358,6 @@ export function WorkspaceFilesPanel({
     void loadDirectory("");
   };
   useEffect(() => {
-    setImageSource(false);
     setImageFailed(false);
   }, [selectedFile?.path, selectedFile?.preview?.data]);
   const imageSelected = selectedFile?.preview?.mimeType.startsWith("image/");
@@ -371,18 +367,8 @@ export function WorkspaceFilesPanel({
 
   return (
     <section className="workspace-files-panel">
-      <header className="workspace-panel-toolbar">
-        <strong>{title}</strong>
-        {imageSelected && selectedFile?.content !== undefined && (
-          <Button
-            variant="quiet"
-            size="compact"
-            onClick={() => setImageSource(!imageSource)}
-          >
-            {imageSource ? previewLabel : sourceLabel}
-          </Button>
-        )}
-        {markdownSelected && selectedFile && onOpenReader && readerLabel && (
+      {markdownSelected && selectedFile && onOpenReader && readerLabel && (
+        <header className="workspace-panel-toolbar">
           <button
             className="environment-text-action"
             onClick={() => onOpenReader(selectedFile.path)}
@@ -390,13 +376,13 @@ export function WorkspaceFilesPanel({
           >
             {readerLabel}
           </button>
-        )}
-      </header>
+        </header>
+      )}
       <WorkspaceFileLayout
         label={title}
         viewer={
           selectedFile ? (
-            imageSelected && !imageSource && selectedFile.preview ? (
+            imageSelected && selectedFile.preview ? (
               <>
                 <WorkspaceFileHeader path={selectedFile.path} readOnly />
                 {imageFailed ? (

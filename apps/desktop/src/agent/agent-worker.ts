@@ -174,7 +174,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           command.customAgents,
           command.customAgentInvocation,
           command.customAgentProjectId,
-          command.workflow,
+          command.customAgentTasks,
         );
         break;
       }

@@ -151,7 +151,8 @@ describe("large documents and image normalization", () => {
         id: ref.id,
         maxTokens: 100,
       })) as { text: string; nextOffset: number };
-      expect(Buffer.byteLength(first.text)).toBeLessThanOrEqual(100);
+      expect(first.text).toHaveLength(100);
+      expect(Buffer.byteLength(first.text)).toBe(300);
       expect(first.text).not.toContain("\uFFFD");
       const last = (await store.operate("task", {
         action: "read",

@@ -1,8 +1,3 @@
-import type {
-  DesignToolOperation,
-  DesignWorkflow,
-  DesignRef,
-} from "./design.js";
 import type { RemoteExecutionProfile, RemoteOperation } from "./im.js";
 import type {
   AgentPayload,
@@ -19,7 +14,10 @@ import type {
   UserInputOption,
 } from "./schema.js";
 import type { OfficeDocumentRequest } from "./office.js";
-import type { CustomAgentDefinition } from "./custom-agents.js";
+import type {
+  CustomAgentDefinition,
+  CustomAgentTaskInvocation,
+} from "./custom-agents.js";
 
 export const AGENT_CONCURRENCY_MINIMUM = 2;
 export const AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM = 16;
@@ -203,9 +201,6 @@ export type AgentHostCommand =
     }
   | {
       type: "turn.prompt";
-      workflow?: DesignWorkflow;
-      designRef?: DesignRef;
-      designRequestId?: string;
       requestId: string;
       threadId: string;
       turnId: string;
@@ -224,6 +219,7 @@ export type AgentHostCommand =
        */
       customAgents?: CustomAgentDefinition[];
       customAgentProjectId?: string | null;
+      customAgentTasks?: CustomAgentTaskInvocation[];
       /**
        * A validated explicit user invocation (structured @ reference).
        * The host must materialize exactly one instance for it; the model
@@ -322,14 +318,6 @@ export interface AttachmentOperation {
 }
 
 export type BrokerExecutionRequest =
-  | {
-      kind: "design.operation";
-      approvalId: string;
-      threadId: string;
-      turnId: string;
-      mode: RunMode;
-      operation: DesignToolOperation;
-    }
   | {
       kind: "attachment.read";
       approvalId: string;

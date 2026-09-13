@@ -10,7 +10,11 @@ import {
   type UIEvent,
 } from "react";
 
-import { SegmentedControl } from "./navigation.js";
+import { IconButton } from "./actions.js";
+import {
+  ARTEMIS_CODE_ICON_PATH,
+  ARTEMIS_MARKDOWN_ICON_PATH,
+} from "./editor-icon-paths.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -67,6 +71,8 @@ export const WORKSPACE_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze(
     "--artemis-color-border-strong",
     "--artemis-color-accent-primary",
     "--artemis-color-accent-on-primary",
+    "--artemis-color-status-info",
+    "--artemis-color-status-success",
     "--artemis-color-status-warning",
     "--artemis-color-status-danger",
     "--artemis-color-status-danger-subtle",
@@ -760,17 +766,56 @@ export function WorkspaceEditorToolbar({
         <span title={path}>{path}</span>
         <span data-part="actions">
           {modeToggle ? (
-            <span data-part="mode">
-              <SegmentedControl
+            <span
+              data-part="mode"
+              role="group"
+              aria-label={modeToggle.ariaLabel}
+            >
+              <IconButton
                 disabled={readOnly}
-                label={modeToggle.ariaLabel}
-                onValueChange={modeToggle.onChange}
-                options={[
-                  { value: "rich", label: modeToggle.richLabel },
-                  { value: "source", label: modeToggle.sourceLabel },
-                ]}
-                size="compact"
-                value={modeToggle.value}
+                iconSize="lg"
+                icon={
+                  <svg
+                    aria-hidden="true"
+                    data-artemis-icon={
+                      modeToggle.value === "rich" ? "markdown" : "code"
+                    }
+                    fill="none"
+                    focusable="false"
+                    height="1em"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    viewBox="0 0 24 24"
+                    width="1em"
+                  >
+                    {modeToggle.value === "rich" ? (
+                      <path
+                        d={ARTEMIS_MARKDOWN_ICON_PATH}
+                        fill="var(--artemis-color-status-success, #60c878)"
+                        stroke="none"
+                      />
+                    ) : (
+                      <path d={ARTEMIS_CODE_ICON_PATH} />
+                    )}
+                  </svg>
+                }
+                label={
+                  modeToggle.value === "rich"
+                    ? modeToggle.sourceLabel
+                    : modeToggle.richLabel
+                }
+                title={
+                  modeToggle.value === "rich"
+                    ? modeToggle.sourceLabel
+                    : modeToggle.richLabel
+                }
+                onClick={() =>
+                  modeToggle.onChange(
+                    modeToggle.value === "rich" ? "source" : "rich",
+                  )
+                }
               />
             </span>
           ) : null}
@@ -785,12 +830,28 @@ export function WorkspaceEditorToolbar({
                   : ""}
           </span>
           <button
+            aria-label={saveLabel}
             data-part="save"
             disabled={!canSave}
             onClick={onSave}
+            title={saveLabel}
             type="button"
           >
-            {saveLabel}
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              width="16"
+              height="16"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+              viewBox="0 0 24 24"
+            >
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z" />
+              <path d="M7 3v6h10V3M7 21v-8h10v8" />
+            </svg>
           </button>
         </span>
       </div>

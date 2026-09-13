@@ -1,0 +1,4 @@
+export const ARTEMIS_MARKDOWN_ICON_PATH =
+  "M1 18V6h3l3 4 3-4h3v12h-3v-7l-3 4-3-4v7Zm16-12h3v8h3l-4.5 5-4.5-5h3Z";
+
+export const ARTEMIS_CODE_ICON_PATH = "M8.5 8l-4 4 4 4M15.5 8l4 4-4 4";

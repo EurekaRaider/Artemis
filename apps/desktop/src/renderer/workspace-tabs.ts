@@ -2,7 +2,6 @@ export type WorkspaceTabKind =
   | "review"
   | "terminal"
   | "browser"
-  | "design"
   | "file"
   | "markdown"
   | "sources"

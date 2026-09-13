@@ -91,17 +91,6 @@ function errorMessage(error: unknown): string {
 
 export class ObservedBashRegistry {
   private readonly records = new Map<string, ObservedBashRecord>();
-  private readonly settling = new Map<string, ObservedBashRecord>();
-
-  async drainTurn(threadId: string, turnId: string): Promise<void> {
-    await Promise.all(
-      [...this.settling.values()]
-        .filter(
-          (record) => record.threadId === threadId && record.turnId === turnId,
-        )
-        .map((record) => record.settled),
-    );
-  }
 
   constructor(
     private readonly operations: ObservedShellOperations = createLocalBashOperations(),
@@ -153,7 +142,6 @@ export class ObservedBashRegistry {
       settle,
     };
     this.records.set(executionId, record);
-    this.settling.set(executionId, record);
 
     void this.operations
       .exec(input.command, input.cwd, {
@@ -194,7 +182,6 @@ export class ObservedBashRegistry {
       .finally(() => {
         record.lastActivityAt = Date.now();
         record.settle();
-        this.settling.delete(executionId);
       });
 
     const observationExpired = await this.observe(
