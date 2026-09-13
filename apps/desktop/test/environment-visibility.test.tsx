@@ -197,7 +197,7 @@ describe("environment agent activity", () => {
     );
     expect(screen.queryByRole("button", { name: /Layout check 3/ })).toBeNull();
     await userEvent.click(
-      screen.getByRole("button", { name: /Layout check\s*Started working/ }),
+      screen.getByRole("button", { name: /Layout check\s*Running/ }),
     );
     expect(onOpenAgent).toHaveBeenCalledWith(child);
   });

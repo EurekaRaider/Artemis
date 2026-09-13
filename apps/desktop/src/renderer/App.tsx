@@ -10975,7 +10975,7 @@ export function Timeline({
     {
       "zh-CN": {
         queued: "等待开始",
-        running: "已开始工作",
+        running: "运行中",
         blocked: "被阻塞",
         cancelling: "正在停止",
         completed: "已完成",
@@ -10984,7 +10984,7 @@ export function Timeline({
       },
       en: {
         queued: "Waiting to start",
-        running: "Started working",
+        running: "Running",
         blocked: "Blocked",
         cancelling: "Stopping",
         completed: "Completed",
