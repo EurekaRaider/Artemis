@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=162" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=163" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -821,6 +821,7 @@
 <div class="im-service-empty" data-im-service-empty="">
 <button class="btn btn-primary im-service-cta" data-im-service-start="" type="button">一键开启（推荐）</button>
 <p class="im-muted">消息服务负责收发消息，在本机自动运行。</p>
+<p class="im-fine" data-im-service-help="" hidden="">第一次启动会生成设备编号，几秒就好。</p>
 <p class="im-fine">使用团队服务器？展开下方「高级」。</p>
 </div>
 <div class="im-service-ready" data-im-service-ready="" hidden="">
@@ -847,6 +848,13 @@
 <div class="im-card-body" id="imCardBodyAccount">
 <div data-im-pairing-requests=""></div>
 <div class="im-code-card" data-im-instructions=""></div>
+<div class="im-code-card im-wait-card" data-im-wait-card="" hidden="">
+<span aria-hidden="true" class="im-dot pending"></span>
+<div class="im-wait-copy">
+<p class="im-wait-title">已复制。发给机器人私聊，等它回复确认——通常几秒内。</p>
+<p class="im-fine"><span class="im-countdown" data-im-wait-countdown="">0:10</span> · <button class="im-demo-link" data-im-pair-arrive="" type="button">演示：让确认现在到达</button></p>
+</div>
+</div>
 <div class="im-block">
 <h4>已绑定账号</h4>
 <ul class="im-binding-list" data-im-bindings=""></ul>
@@ -878,6 +886,7 @@
 <li>由空间管理员在群里发 <code class="im-identifier">/space-confirm</code>，全部确认后生效。</li>
 </ol>
 <ul class="im-group-rows" data-im-group-rows=""></ul>
+<div class="im-sim-row" data-im-group-sim=""></div>
 <button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>高级</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
 <div class="im-fold-body" hidden="">
 <label class="im-field field-wide"><span class="im-field-label">空间 JSON</span><textarea class="editor-area mono" rows="8" spellcheck="false">{
@@ -918,6 +927,8 @@
 </div>
 </div>
 </div>
+<!-- 模拟会话重置：回到 empty 快照（仅内存，不写 hash） -->
+<div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
 <!-- M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）才显示 -->
 <div class="im-ready" data-im-ready="" hidden="">
 <p class="im-ready-title">✓ 全部就绪　去聊天软件给机器人发条消息试试</p>
@@ -1013,6 +1024,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=148"></script>
+<script src="workspace/workspace.js?v=149"></script>
 </body>
 </html>

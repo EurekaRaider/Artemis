@@ -616,7 +616,9 @@
 
   /* ---------- 消息接入（方向 B：单列分区卡片流；derive 为单一事实源） ----------
      状态对象 → imDerive() → 各卡徽标/摘要/告警角标/胶囊聚合/自动展开；
-     #im-demo=empty|progress|alert 重放（applyDemo 全量重建，幂等）。 */
+     #im-demo=empty|progress|alert 重放（applyDemo 全量重建，幂等）。
+     第三轮升级：从头完全模拟——瞬态 starting/connecting、③配对 10s 双轨到达、
+     ⑤群发现/确认两拍支线、④待保存态、会话内模拟（sim）与「从头再来」重置。 */
   var imPanel = $("#settingsPanelIm");
   if (imPanel) {
     var IM_PLATFORMS = [
@@ -626,13 +628,35 @@
     ];
     var IM_CARD_ORDER = ["service", "bots", "account", "projects", "groups"];
     var IM_PAIR_CODES = ["7K2Q-XR9M", "3TD8-M52W", "9FJ4-QN7C"];
+    /* 时序常量：启动/连接过渡、配对等待、群确认；淡入淡出 200ms；脉冲 0.9s 仅
+       用于深链/胶囊定位/配对请求到达；④[保存]本地瞬时，不设假延迟 */
+    var IM_T_START = 1000,
+      IM_T_CONNECT = 900,
+      IM_T_PAIR_WAIT = 10000,
+      IM_T_GROUP = 800,
+      IM_T_FADE = 200;
     var IM_ICON_BELL = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg>';
     var IM_ICON_BELL_OFF = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg>';
     var IM_ICON_UNLINK = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg>';
 
-    /* 演示状态种子：empty=空态 / progress=进行中 / alert=告警 */
+    /* 演示状态种子：empty=空态 / progress=进行中 / alert=告警；
+       sim=会话内模拟（仅内存，不写 hash；任何用户操作即开启，applyDemo 回到快照） */
+    function imSimSeed() {
+      return {
+        session: false,
+        /* 凭据保存的确定性演示结果（选择器在凭据子卡内，不用随机） */
+        credOutcome: { feishu: "ok", wecom: "ok", slack: "ok" },
+        /* ③ 双轨：10s 倒计时自动到达 + 演示直达弱链接 */
+        pairWait: null /* { platform, leftMs } */,
+        projectsDirty: false,
+        /* ⑤ 群支线：idle → found → confirmed → done */
+        groupPhase: "idle",
+        hints: {}, /* 会话内「首次」引导旗标 */
+      };
+    }
     var IM_SEEDS = {
       empty: {
+        sim: imSimSeed(),
         gateway: { started: false, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: false,
         connections: { feishu: [], wecom: [], slack: [] },
@@ -647,6 +671,7 @@
         pairCode: IM_PAIR_CODES[0],
       },
       progress: {
+        sim: imSimSeed(),
         gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: true,
         connections: {
@@ -667,6 +692,7 @@
         pairCode: IM_PAIR_CODES[0],
       },
       alert: {
+        sim: imSimSeed(),
         gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
         masterOn: true,
         connections: {
@@ -702,6 +728,7 @@
     var imState = null; /* 当前演示状态（可变副本） */
     var imDerived = null; /* imDerive 缓存 */
     var imManual = {}; /* 用户手动展开/折叠：cardKey → boolean */
+    var imEpoch = 0; /* applyDemo 递增：作废在途过渡定时器 */
     var imCardEls = {};
     IM_CARD_ORDER.forEach(function (key) {
       var el = imPanel.querySelector('.im-card[data-im-card="' + key + '"]');
@@ -713,30 +740,36 @@
 
     /* ===== derive：状态 → 徽标 / 摘要 / 告警角标 / 胶囊 / 自动展开 ===== */
     function imDerive(s) {
+      var sim = s.sim || {};
       var platforms = {};
       var healthyTotal = 0,
         badTotal = 0,
-        reconnectTotal = 0;
+        reconnectTotal = 0,
+        connectingTotal = 0;
       IM_PLATFORMS.forEach(function (p) {
         var conns = (s.connections && s.connections[p.key]) || [];
         var ok = 0,
           bad = 0,
-          rc = 0;
+          rc = 0,
+          cg = 0;
         conns.forEach(function (c) {
           if (c.state === "ok") ok += 1;
           else if (c.state === "bad") bad += 1;
           else if (c.state === "reconnecting") rc += 1;
+          else if (c.state === "connecting") cg += 1;
         });
         healthyTotal += ok;
         badTotal += bad;
         reconnectTotal += rc;
+        connectingTotal += cg;
+        /* connecting 计入 pending 类聚合分支，不计入 healthyTotal（完成链不前进） */
         var agg;
         if (!conns.length) agg = "none";
         else if (bad && ok) agg = "partial";
         else if (bad && !ok) agg = "allbad";
-        else if (rc && !ok) agg = "reconnecting";
+        else if ((rc || cg) && !ok) agg = cg && !rc ? "connecting" : "reconnecting";
         else agg = "ok";
-        platforms[p.key] = { conns: conns, ok: ok, bad: bad, rc: rc, agg: agg };
+        platforms[p.key] = { conns: conns, ok: ok, bad: bad, rc: rc, cg: cg, agg: agg };
       });
 
       var serviceAlerts = s.gateway.linkBroken ? 1 : 0;
@@ -745,15 +778,22 @@
       var healthyPlatformNames = IM_PLATFORMS.filter(function (p) {
         return platforms[p.key].ok > 0;
       }).map(function (p) { return p.name; });
-      var connsTotal = healthyTotal + badTotal + reconnectTotal;
+      var connsTotal = healthyTotal + badTotal + reconnectTotal + connectingTotal;
       var groupMembers = s.groups.reduce(function (n, g) { return n + g.members; }, 0);
+      /* ⑤ 完成只看已生效（active/缺省视为 active）群；found=已发现未共享 */
+      var activeGroups = s.groups.filter(function (g) {
+        return !g.state || g.state === "active";
+      });
+      var foundGroups = s.groups.filter(function (g) { return g.state === "found"; });
 
+      var starting = !!s.gateway.starting;
       var serviceDone = s.gateway.started && !s.gateway.linkBroken;
       var botsDone = healthyTotal > 0;
       var accountDone = s.bindings.length > 0;
       var projectsDone = checkedProjects > 0 && expired === 0;
       var anyConfigured = connsTotal > 0;
       var paused = !s.masterOn && anyConfigured;
+      var pairWaiting = !!sim.pairWait;
 
       /* 完成链（⑤不参与、不阻塞）：第一个未完成卡即「当前步骤」 */
       var chain = [
@@ -774,10 +814,16 @@
       }
 
       var cards = {};
-      /* ① 连接服务 */
+      /* ① 连接服务（starting 为瞬态：徽标 busy「正在启动…」） */
       cards.service = {
-        state: s.gateway.linkBroken ? "warn" : serviceDone ? "done" : "current",
-        badgeText: s.gateway.linkBroken ? "服务断连" : serviceDone ? "已就绪" : "待开启",
+        state: starting ? "busy" : s.gateway.linkBroken ? "warn" : serviceDone ? "done" : "current",
+        badgeText: starting
+          ? "正在启动…"
+          : s.gateway.linkBroken
+            ? "服务断连"
+            : serviceDone
+              ? "已就绪"
+              : "待开启",
         alerts: serviceAlerts,
         summary: serviceDone
           ? "已就绪 · 本机运行 · " + s.gateway.deviceId
@@ -786,29 +832,34 @@
       /* ② 添加机器人 */
       var botsBadgeText = "待办";
       if (botsDone) botsBadgeText = "已连接 · " + healthyPlatformNames[0];
+      else if (connectingTotal) botsBadgeText = "连接中";
       else if (anyConfigured && !healthyTotal) botsBadgeText = "连接失败";
       else if (firstUndone === "bots") botsBadgeText = "当前步骤";
       else if (!serviceDone) botsBadgeText = "待开启";
       cards.bots = {
-        state: cardState("bots", botsDone, anyConfigured && !healthyTotal),
+        state: connectingTotal && !botsDone ? "busy" : cardState("bots", botsDone, anyConfigured && !healthyTotal),
         badgeText: botsBadgeText,
         alerts: badTotal,
         summary: botsDone
           ? "已连接 · " + healthyPlatformNames.join("、") + " · " + healthyTotal + " 个机器人"
-          : anyConfigured
-            ? "有连接故障，点开查看"
-            : "还没有机器人，先添加一个",
+          : connectingTotal
+            ? "正在连接机器人"
+            : anyConfigured
+              ? "有连接故障，点开查看"
+              : "还没有机器人，先添加一个",
       };
-      /* ③ 绑定我的账号 */
+      /* ③ 绑定我的账号（pairWait → busy「等待确认」） */
       cards.account = {
-        state: cardState("account", accountDone, false),
-        badgeText: accountDone
-          ? "已绑定 " + s.bindings.length + " 人"
-          : firstUndone === "account"
-            ? "当前步骤"
-            : serviceDone || botsDone
-              ? "待绑定"
-              : "待开启",
+        state: pairWaiting ? "busy" : cardState("account", accountDone, false),
+        badgeText: pairWaiting
+          ? "等待确认"
+          : accountDone
+            ? "已绑定 " + s.bindings.length + " 人"
+            : firstUndone === "account"
+              ? "当前步骤"
+              : serviceDone || botsDone
+                ? "待绑定"
+                : "待开启",
         alerts: s.pairingRequests.length,
         summary: s.pairingRequests.length
           ? s.pairingRequests.length + " 条绑定待确认"
@@ -816,28 +867,41 @@
             ? "已绑定 " + s.bindings.length + " 个账号"
             : "发一条配对指令即可绑定",
       };
-      /* ④ 允许手机操作的项目 */
+      /* ④ 允许手机操作的项目（勾选未保存 → busy「已选 N · 待保存」） */
+      var projectsBusy = !!sim.projectsDirty && checkedProjects > 0;
       cards.projects = {
-        state: cardState("projects", checkedProjects > 0, false),
-        badgeText: checkedProjects > 0
-          ? "已授权 " + checkedProjects + " 个"
-          : firstUndone === "projects"
-            ? "当前步骤"
-            : "待选择",
+        state: projectsBusy ? "busy" : cardState("projects", checkedProjects > 0, false),
+        badgeText: projectsBusy
+          ? "已选 " + checkedProjects + " · 待保存"
+          : checkedProjects > 0
+            ? "已授权 " + checkedProjects + " 个"
+            : firstUndone === "projects"
+              ? "当前步骤"
+              : "待选择",
         alerts: expired,
         summary: checkedProjects
           ? "已授权 " + checkedProjects + " 个项目" +
             (s.defaultProject ? " · 默认 " + s.defaultProject : "")
           : "还没有选择项目",
       };
-      /* ⑤ 群协作（可选） */
+      /* ⑤ 群协作（可选）：done 仅当存在已生效群；found → busy「待确认」 */
       cards.groups = {
-        state: s.groups.length ? "done" : "todo",
-        badgeText: s.groups.length ? "已连接 " + s.groups.length + " 群" : "未设置",
+        state: activeGroups.length
+          ? "done"
+          : foundGroups.length
+            ? "busy"
+            : "todo",
+        badgeText: activeGroups.length
+          ? "已连接 " + activeGroups.length + " 群"
+          : foundGroups.length
+            ? foundGroups.length + " 群待确认"
+            : "未设置",
         alerts: 0,
-        summary: s.groups.length
-          ? "已连接 " + s.groups.length + " 个群 · " + groupMembers + " 名成员"
-          : "未设置",
+        summary: activeGroups.length
+          ? "已连接 " + activeGroups.length + " 个群 · " + groupMembers + " 名成员"
+          : foundGroups.length
+            ? "已发现 " + foundGroups.length + " 个群 · 待确认"
+            : "未设置",
       };
 
       if (!s.gateway.started) {
@@ -853,9 +917,17 @@
         });
       }
 
-      /* 胶囊聚合：未接入任何平台 → 未开启；暂停优先于健康态；故障计数可点定位 */
+      /* 胶囊聚合：启动瞬态 busy；服务就绪但无连接 → 中间态（仍灰）；
+         暂停优先于健康态；故障计数可点定位 */
       var pill;
-      if (!connsTotal) pill = { tone: "off", html: "未开启", count: 0 };
+      if (starting)
+        pill = { tone: "busy", html: "正在启动消息服务", count: 0 };
+      else if (!connsTotal)
+        pill = {
+          tone: "off",
+          html: serviceDone ? "服务已就绪，还没有机器人" : "未开启",
+          count: 0,
+        };
       else if (!s.masterOn)
         pill = { tone: "paused", html: "已暂停响应 IM 指令", count: 0 };
       else if (badTotal + serviceAlerts > 0)
@@ -882,6 +954,7 @@
         healthyTotal: healthyTotal,
         badTotal: badTotal,
         reconnectTotal: reconnectTotal,
+        connectingTotal: connectingTotal,
         paused: paused,
         firstUndone: firstUndone,
         cards: cards,
@@ -892,6 +965,8 @@
         ready: serviceDone && botsDone && accountDone && projectsDone &&
           badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
         groupMembers: groupMembers,
+        activeGroups: activeGroups.length,
+        foundGroups: foundGroups.length,
       };
     }
 
@@ -900,7 +975,8 @@
       if (imDerived.paused) return "idle";
       if (st.agg === "ok") return "ok";
       if (st.agg === "allbad") return "bad";
-      if (st.agg === "partial" || st.agg === "reconnecting") return "pending";
+      if (st.agg === "partial" || st.agg === "reconnecting" || st.agg === "connecting")
+        return "pending";
       return "idle";
     }
 
@@ -964,8 +1040,10 @@
         '<div class="im-subcard-title">机器人信息（加密保存在本机，不回显）</div>' +
         '<div class="form-grid">' + fields + "</div>" +
         '<p class="im-fine">保存后机器人会用新密钥重新连接。</p>' +
+        '<p class="im-fine" data-im-connect-help="" hidden="">正在用新密钥连接机器人，通常几秒。</p>' +
         '<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并重连</button>' +
-        '<button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div></form>' +
+        '<button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>' +
+        '<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-sim-outcome=""><option value="ok">成功</option><option value="bad">失败（密钥失效）</option></select></p></form>' +
         '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>接入指引（权限与事件订阅）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
         '<div class="im-fold-body" hidden="">' + imGuideTemplate(p.key) + "</div></div>"
       );
@@ -1001,10 +1079,11 @@
       );
     }
 
-    /* 平台行动作：按聚合态派生（全部状态推导，不写死） */
+    /* 平台行动作：按聚合态派生（全部状态推导，不写死）；connecting 过渡期无行操作 */
     function imPlatformActions(st) {
       if (st.agg === "none")
         return '<button class="btn btn-ghost" data-im-add="" type="button">去添加</button>';
+      if (st.agg === "connecting") return "";
       if (st.agg === "allbad")
         return (
           '<button class="btn btn-ghost" data-im-view-reason="" type="button">查看原因</button>' +
@@ -1023,7 +1102,13 @@
         .map(function (c) {
           var dotClass = c.state === "ok" ? "ok" : c.state === "bad" ? "bad" : "pending";
           var stateText =
-            c.state === "ok" ? "已连接" : c.state === "bad" ? "连接失败" : "正在重连 · 第 " + (c.attempt || 1) + " 次";
+            c.state === "ok"
+              ? "已连接"
+              : c.state === "bad"
+                ? "连接失败"
+                : c.state === "connecting"
+                  ? "连接中"
+                  : "正在重连 · 第 " + (c.attempt || 1) + " 次";
           var note = c.state === "ok" ? c.note || "" : c.reason || "";
           return (
             '<div class="im-conn-row" title="' + c.conn + '">' +
@@ -1045,7 +1130,8 @@
           st.conns.length > 1 ||
           st.agg === "partial" ||
           st.agg === "allbad" ||
-          st.agg === "reconnecting";
+          st.agg === "reconnecting" ||
+          st.agg === "connecting";
         var li = document.createElement("li");
         li.className = "im-platform-row";
         li.setAttribute("data-im-platform", p.key);
@@ -1076,9 +1162,12 @@
         else if (st.agg === "ok") text = "已连接 · " + st.conns.length + " 个";
         else if (st.agg === "partial") text = st.bad + "/" + st.conns.length + " 连接故障";
         else if (st.agg === "allbad") text = "连接失败";
+        else if (st.agg === "connecting") text = "连接中";
         else if (st.agg === "reconnecting")
           text = "正在重连 · 第 " + ((st.conns[0] && st.conns[0].attempt) || 1) + " 次";
         status.textContent = text;
+        /* 行操作随聚合态原地刷新（不动子卡展开状态） */
+        row.querySelector(".im-platform-actions").innerHTML = imPlatformActions(st);
         var reason = row.querySelector(".im-platform-reason");
         if (st.agg === "allbad") {
           reason.hidden = false;
@@ -1106,6 +1195,11 @@
     function imRenewCode() {
       imSecondsLeft = 4 * 60 + 32;
       imCodeExpired = false;
+      /* [换一个] 终止等待（配对码作废，确认自然不会到达） */
+      if (imState.sim && imState.sim.pairWait) {
+        imState.sim.pairWait = null;
+        imRenderWaitCard();
+      }
       var i = IM_PAIR_CODES.indexOf(imState.pairCode);
       imState.pairCode = IM_PAIR_CODES[(i + 1) % IM_PAIR_CODES.length];
       imBuildInstructions();
@@ -1150,7 +1244,7 @@
           return c.state === "ok";
         })[0];
         html +=
-          '<div class="im-instr-line"><span class="im-instr-who">' +
+          '<div class="im-instr-line" data-im-instr-platform="' + p.key + '"><span class="im-instr-who">' +
           p.name + " · " + (conn && conn.app ? conn.app : "机器人") +
           '</span><code class="im-identifier">' + imPairCommand(p.key) +
           '</code><button class="btn btn-ghost" data-copy-pair="" type="button">复制指令</button></div>';
@@ -1161,17 +1255,62 @@
         '</span> · <button class="im-demo-link" data-im-renew-code="" type="button">换一个</button></p>' +
         '<p class="im-instr-title">2. 机器人回复确认后，账号会出现在下面。</p>';
       box.innerHTML = html;
-      /* 重建后重新挂复制反馈 */
+      /* 重建后重新挂复制反馈；复制指令开启 10s 双轨等待（幂等） */
       Array.prototype.forEach.call(
         box.querySelectorAll("[data-copy-pair]"),
         function (btn) {
           btn.addEventListener("click", function () {
+            var line = btn.closest("[data-im-instr-platform]");
             var original = btn.textContent;
             btn.textContent = "已复制";
             setTimeout(function () { btn.textContent = original; }, 1400);
+            imStartPairWait(line ? line.getAttribute("data-im-instr-platform") : healthy[0].key);
           });
         },
       );
+    }
+
+    /* ③ 双轨：10s 倒计时自动到达 + 「演示：让确认现在到达」弱链接（幂等） */
+    function imStartPairWait(platformKey) {
+      if (!imState.sim || imState.sim.pairWait) return;
+      imState.sim.session = true;
+      imState.sim.pairWait = { platform: platformKey, leftMs: IM_T_PAIR_WAIT };
+      imRenderWaitCard();
+      imRefresh();
+    }
+    function imPairWaitText() {
+      var w = imState.sim && imState.sim.pairWait;
+      var left = Math.max(0, Math.ceil(((w && w.leftMs) || 0) / 1000));
+      return "0:" + String(left).padStart(2, "0");
+    }
+    function imRenderWaitCard() {
+      var card = imPanel.querySelector("[data-im-wait-card]");
+      if (!card) return;
+      var w = imState.sim && imState.sim.pairWait;
+      card.hidden = !w;
+      if (w) {
+        var el = card.querySelector("[data-im-wait-countdown]");
+        if (el) el.textContent = imPairWaitText();
+      }
+    }
+    /* 到达：转入配对请求卡（到达脉冲是允许的三个脉冲场景之一） */
+    function imArrivePairing() {
+      var w = imState.sim && imState.sim.pairWait;
+      if (!w) return; /* 幂等：已到达/已取消 */
+      imState.sim.pairWait = null;
+      imRenderWaitCard();
+      imState.pairingRequests.push({
+        name: "我（演示账号）",
+        id: "u_me01",
+        platform: w.platform,
+      });
+      imBuildPairingRequests();
+      imRefresh();
+      var reqCard = imPanel.querySelector("[data-im-pairing-idx]");
+      if (reqCard) {
+        reqCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        imPulse(reqCard);
+      }
     }
 
     function imBuildBindings() {
@@ -1226,6 +1365,21 @@
         var checkbox = li.querySelector('input[type="checkbox"]');
         checkbox.addEventListener("change", function () {
           imState.projects[idx].checked = checkbox.checked;
+          imState.sim.session = true;
+          /* 首个勾选且未设默认项目 → 自动设默认（④引导 toast） */
+          if (
+            checkbox.checked &&
+            !imState.defaultProject &&
+            !imState.projects.some(function (pr) { return pr.checked && pr.id !== imState.projects[idx].id; })
+          ) {
+            imState.defaultProject = imState.projects[idx].id;
+            var sel = imPanel.querySelector("[data-im-default-project]");
+            if (sel) sel.value = imState.defaultProject;
+            notice("已把 " + imState.projects[idx].id + " 设为默认项目。");
+          }
+          imState.sim.projectsDirty = imState.projects.some(function (pr) {
+            return pr.checked;
+          });
           imRefresh();
         });
         list.appendChild(li);
@@ -1257,7 +1411,12 @@
       imStateText.innerHTML = pill.html;
       var dot = imPill.querySelector(".im-dot");
       dot.className =
-        "im-dot " + (pill.tone === "ok" ? "ok" : pill.tone === "warn" ? "pending" : "idle");
+        "im-dot " +
+        (pill.tone === "ok"
+          ? "ok"
+          : pill.tone === "warn" || pill.tone === "busy"
+            ? "pending"
+            : "idle");
       imPill.disabled = pill.tone !== "warn";
     }
 
@@ -1289,20 +1448,75 @@
       });
     }
 
+    /* ① 空态按钮/帮助行随 starting 瞬态（G1：1000ms 启动过渡） */
+    function imRenderService() {
+      var cta = imPanel.querySelector("[data-im-service-start]");
+      var help = imPanel.querySelector("[data-im-service-help]");
+      var starting = !!imState.gateway.starting;
+      if (cta) {
+        cta.disabled = starting;
+        cta.textContent = starting ? "正在启动…" : "一键开启（推荐）";
+      }
+      if (help) help.hidden = !starting;
+    }
+
+    /* ⑤ 模拟操作条：③未绑定禁用；found→confirmed 两拍（G4） */
+    function imRenderGroupSim() {
+      var bar = imPanel.querySelector("[data-im-group-sim]");
+      if (!bar) return;
+      var sim = imState.sim;
+      var bound = imState.bindings.length > 0;
+      var phase = sim ? sim.groupPhase : "idle";
+      var html = "";
+      if (!bound && phase === "idle") {
+        html = '<span class="im-fine">先完成 ③ 绑定，再试群协作。</span>';
+      } else if (phase === "idle") {
+        html =
+          '<button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button>' +
+          '<button class="im-demo-link" data-im-group-find="" type="button">演示：机器人发现了群</button>';
+      } else if (phase === "found") {
+        html =
+          '<span class="im-fine">还差一步：在群里发 /space-confirm。</span>' +
+          '<button class="im-chip" type="button"><code>/space-confirm</code><span aria-hidden="true">⧉</span></button>' +
+          '<button class="im-demo-link" data-im-group-confirm="" type="button">演示：已确认</button>';
+      } else if (phase === "confirmed") {
+        html =
+          '<span aria-hidden="true" class="im-dot pending"></span>' +
+          '<span class="im-fine">等待其他管理员确认…（演示：只有你 1 位，马上生效）</span>';
+      } else {
+        html = ""; /* done：行内已显示「已生效」 */
+      }
+      bar.innerHTML = html;
+    }
+
     function imRefresh() {
       imDerived = imDerive(imState);
       imRenderPill();
       imRenderCards();
-      /* ① 空态 / 就绪态 */
+      /* ① 空态 / 就绪态 + 启动瞬态 */
       imPanel.querySelector("[data-im-service-empty]").hidden = imState.gateway.started;
       imPanel.querySelector("[data-im-service-ready]").hidden = !imState.gateway.started;
+      imRenderService();
       /* ② 平台行信号灯与聚合文案（暂停时转 idle） */
       imUpdatePlatformRows();
-      /* ③ 衔接行：④未完成才显示 */
+      /* ③ 等待卡与衔接行 */
+      imRenderWaitCard();
       imPanel.querySelector("[data-im-goto-projects]").hidden = imDerived.projectsDone;
-      /* M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外） */
+      /* ⑤ 模拟操作条 */
+      imRenderGroupSim();
+      /* M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）；800ms 淡入 */
       var readyBar = imPanel.querySelector("[data-im-ready]");
-      if (readyBar) readyBar.hidden = !imDerived.ready;
+      if (readyBar) {
+        if (imDerived.ready) {
+          if (readyBar.hidden) {
+            readyBar.hidden = false;
+            imFadeIn(readyBar);
+          }
+        } else if (!readyBar.hidden) {
+          readyBar.hidden = true;
+          readyBar.classList.remove("im-enter", "im-enter-on");
+        }
+      }
       /* 主开关：服务未开启时禁用 */
       imMaster.disabled = !imState.gateway.started;
       imMaster.classList.toggle("on", imState.masterOn);
@@ -1315,8 +1529,8 @@
       );
     }
 
-    /* ⑤ 群列表行：名称 · 成员数 · 平台 [诊断] */
-    function imBuildGroups() {
+    /* ⑤ 群列表行：名称 · 成员数 · 平台 [诊断]；found=已发现未共享（pending 点） */
+    function imBuildGroups(fadeIn) {
       var list = imPanel.querySelector("[data-im-group-rows]");
       if (!list) return;
       list.textContent = "";
@@ -1327,17 +1541,32 @@
         list.appendChild(empty);
         return;
       }
-      imState.groups.forEach(function (g) {
+      imState.groups.forEach(function (g, idx) {
         var platformName = (IM_PLATFORMS.filter(function (p) {
           return p.key === g.platform;
         })[0] || {}).name || g.platform;
+        var found = g.state === "found";
         var li = document.createElement("li");
         li.className = "im-group-row";
+        li.setAttribute("data-im-group-idx", String(idx));
         li.innerHTML =
+          '<span aria-hidden="true" class="im-dot ' + (found ? "pending" : "ok") + '"></span>' +
           '<span class="im-group-name">' + g.name + "</span>" +
+          '<span class="im-group-state">' + (found ? "已发现 · 未共享" : "已生效") + "</span>" +
           '<span class="im-group-meta">' + g.members + " 名成员 · " + platformName + "</span>" +
-          '<button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">诊断</button>';
+          (found
+            ? ""
+            : '<button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">诊断</button>');
         list.appendChild(li);
+        if (fadeIn) imFadeIn(li);
+      });
+    }
+
+    /* 通用 200ms 淡入（绑定行/群行/请求卡共用） */
+    function imFadeIn(el) {
+      el.classList.add("im-enter");
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { el.classList.add("im-enter-on"); });
       });
     }
 
@@ -1355,10 +1584,13 @@
 
     function imApplyDemo(key) {
       if (!Object.hasOwn(IM_SEEDS, key)) key = "progress";
+      imEpoch += 1; /* 作废在途的启动/连接/群确认定时器（防串态） */
       imState = JSON.parse(JSON.stringify(IM_SEEDS[key]));
       imManual = {};
       imSecondsLeft = 4 * 60 + 32;
       imCodeExpired = false;
+      var readyBar = imPanel.querySelector("[data-im-ready]");
+      if (readyBar) readyBar.classList.remove("im-enter", "im-enter-on");
       imRenderAll();
     }
 
@@ -1385,12 +1617,26 @@
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
           head.scrollIntoView({ block: "center", behavior: "smooth" });
-          imPulse(opts.pulse || card);
+          if (opts.pulse !== false) imPulse(opts.pulse || card);
           if (opts.focus !== false) {
             setTimeout(function () { head.focus(); }, 400);
           }
         });
       });
+    }
+    /* 自动推进：只做展开+smooth 滚动到视口中央；仅当触发动作前焦点在刚完成的卡体内，
+       滚动后 +400ms 把焦点移到新卡卡头（鼠标用户不被抢焦点；不脉冲） */
+    function imAdvanceTo(key) {
+      var active = document.activeElement;
+      var prevCard =
+        active && active.closest ? active.closest(".im-card") : null;
+      imLocateCard(key, { focus: false, pulse: false });
+      if (prevCard && prevCard !== imCardEls[key]) {
+        setTimeout(function () {
+          var head = imCardEls[key].querySelector("[data-im-card-head]");
+          if (head) head.focus();
+        }, 400);
+      }
     }
 
     /* ===== 交互 ===== */
@@ -1416,23 +1662,34 @@
       imLocateCard("bots");
     });
 
-    /* ① 一键开启 */
+    /* ① 一键开启（G1：1000ms 启动过渡——按钮禁用「正在启动…」+帮助行，完成才落 ✓） */
     imPanel.querySelector("[data-im-service-start]").addEventListener("click", function () {
-      imState.gateway.started = true;
-      imState.masterOn = true;
+      if (imState.gateway.starting || imState.gateway.started) return;
+      imState.sim.session = true;
+      imState.gateway.starting = true;
       imRefresh();
-      notice("消息服务已在本机开启（演示）");
+      var epoch = imEpoch;
+      setTimeout(function () {
+        if (epoch !== imEpoch) return;
+        imState.gateway.starting = false;
+        imState.gateway.started = true;
+        imState.masterOn = true;
+        imRefresh();
+        notice("消息服务已在本机开启（演示）");
+        imAdvanceTo("bots"); /* ②自动展开●（不抢鼠标用户焦点） */
+      }, IM_T_START);
     });
 
-    /* ② 平台行操作与 M2b 凭据子卡（swap / cancel / save 三态流） */
+    /* ② 平台行操作与 M2b 凭据子卡（swap / cancel / save 三态流）；
+       重新输入密钥 = 已配置平台也直接进表单并聚焦密钥格 */
     function imOpenSubcard(platformKey, focusSecret) {
       var row = imPanel.querySelector('[data-im-platform="' + platformKey + '"]');
       var sub = row.querySelector("[data-im-subcard]");
       var st = imDerived.platforms[platformKey];
       var configured = st.conns.length > 0;
       sub.hidden = false;
-      sub.querySelector("[data-im-cred-saved]").hidden = !configured;
-      sub.querySelector("[data-im-cred-form]").hidden = configured;
+      sub.querySelector("[data-im-cred-saved]").hidden = configured && !focusSecret;
+      sub.querySelector("[data-im-cred-form]").hidden = configured && !focusSecret;
       var first = sub.querySelector(
         focusSecret ? 'input[type="password"]' : "input, select",
       );
@@ -1461,6 +1718,14 @@
     imPanel.addEventListener("change", function (ev) {
       var select = ev.target.closest("[data-im-receive-mode]");
       if (select) imApplyReceiveMode(select.closest("[data-im-cred-form]"));
+      /* 演示结果选择器（确定性，不随机） */
+      var outcomeSel = ev.target.closest("[data-im-sim-outcome]");
+      if (outcomeSel) {
+        var subKey = outcomeSel
+          .closest(".im-platform-row")
+          .getAttribute("data-im-platform");
+        imState.sim.credOutcome[subKey] = outcomeSel.value;
+      }
     });
 
     imPanel.addEventListener("click", function (ev) {
@@ -1527,28 +1792,74 @@
       }
       var save = ev.target.closest("[data-im-cred-save]");
       if (save) {
+        if (save.disabled) return;
         var form4 = ev.target.closest("[data-im-cred-form]");
         var sub4 = form4.closest("[data-im-subcard]");
         var rowKey = sub4.closest(".im-platform-row").getAttribute("data-im-platform");
-        form4.reset();
-        imApplyReceiveMode(form4);
-        form4.hidden = true;
-        sub4.querySelector("[data-im-cred-saved]").hidden = false;
-        /* 演示语义：新密钥重连成功，故障连接恢复健康（角标/胶囊随 derive 收敛） */
-        var conns = (imState.connections[rowKey] || []);
-        var healed = conns.some(function (c) { return c.state === "bad"; });
-        if (healed) {
-          conns.forEach(function (c) {
-            if (c.state === "bad") {
+        var isNew = (imState.connections[rowKey] || []).length === 0;
+        imState.sim.session = true;
+        /* 900ms 连接过渡：保存钮禁用「正在连接…」+帮助行；平台行 ◐ 连接中 */
+        save.disabled = true;
+        save.textContent = "正在连接…";
+        var help4 = form4.querySelector("[data-im-connect-help]");
+        if (help4) help4.hidden = false;
+        var connId =
+          "conn-" +
+          (IM_PLATFORMS.reduce(function (n, p) {
+            return n + ((imState.connections[p.key] || []).length);
+          }, 0) + 1);
+        if (isNew) {
+          imState.connections[rowKey] = [
+            { conn: connId, app: "Artemis 机器人", state: "connecting" },
+          ];
+        } else {
+          imState.connections[rowKey].forEach(function (c) {
+            if (c.state !== "ok") c.state = "connecting";
+          });
+        }
+        imRefresh();
+        var epoch = imEpoch;
+        setTimeout(function () {
+          if (epoch !== imEpoch) return;
+          var outcome =
+            imState.sim.credOutcome[rowKey] === "bad" ? "bad" : "ok";
+          var conns = imState.connections[rowKey] || [];
+          if (outcome === "ok") {
+            conns.forEach(function (c) {
               c.state = "ok";
               c.note = "已连接 · 刚刚";
               delete c.reason;
-            }
-          });
-          imBuildPlatformRows();
-        }
-        imRefresh();
-        notice("已保存，机器人正在用新密钥重新连接（演示）");
+            });
+            form4.reset();
+            imApplyReceiveMode(form4);
+            form4.hidden = true;
+            sub4.querySelector("[data-im-cred-saved]").hidden = false;
+            imBuildPlatformRows();
+            imRefresh();
+            imBuildInstructions(); /* ③ 指令区随首个健康连接重建 */
+            notice(
+              isNew
+                ? "机器人连上了。去 ③ 把它认成你。"
+                : "已保存，机器人正在用新密钥重新连接（演示）",
+            );
+            if (isNew) imAdvanceTo("account"); /* ③自动展开 */
+          } else {
+            /* 失败（确定性演示结果）：行内原因 + 现有失败 UI；表单保留可直接重试 */
+            var secretName =
+              rowKey === "wecom" ? "应用 Secret" : rowKey === "slack" ? "Bot Token" : "App Secret";
+            conns.forEach(function (c) {
+              if (c.state !== "ok") {
+                c.state = "bad";
+                c.reason =
+                  secretName + "已失效或不匹配——回后台重新复制一次，再点『保存并重连』。";
+              }
+            });
+            save.disabled = false;
+            save.textContent = "保存并重连";
+            if (help4) help4.hidden = true;
+            imRefresh();
+          }
+        }, IM_T_CONNECT);
         return;
       }
       /* 复制类按钮反馈（转发地址）与 chips 复制 */
@@ -1581,17 +1892,55 @@
       notice(imState.masterOn ? "已开始响应 IM 指令（演示）" : "已暂停响应 IM 指令，配置保留（演示）");
     });
 
-    /* ③ 配对请求：批准/拒绝后移除（角标与摘要随 derive 收敛） */
+    /* ③ 配对请求：批准=落绑定（G3）+绑定行淡入+④自动展开；拒绝=淡出+焦点回复制钮 */
     imPanel.addEventListener("click", function (ev) {
       var approve = ev.target.closest("[data-im-approve]");
       var reject = ev.target.closest("[data-im-reject]");
       if (!approve && !reject) return;
       var cardEl = (approve || reject).closest("[data-im-pairing-idx]");
       var idx = Number(cardEl.getAttribute("data-im-pairing-idx"));
-      if (Number.isFinite(idx)) imState.pairingRequests.splice(idx, 1);
-      imBuildPairingRequests();
-      imRefresh();
-      notice(approve ? "已批准配对，账号已绑定（演示）" : "已拒绝配对（演示）");
+      var req = imState.pairingRequests[idx];
+      if (!req) return;
+      imState.sim.session = true;
+      if (approve) {
+        imState.pairingRequests.splice(idx, 1);
+        imState.bindings.push({
+          name: req.id === "u_me01" ? "我（nicky）" : req.name,
+          id: req.id,
+          platform: req.platform,
+          mode: "Plan",
+          muted: false,
+        });
+        imBuildPairingRequests();
+        imBuildBindings();
+        imRefresh();
+        var newRow = imPanel.querySelector(
+          '[data-im-bindings] [data-im-binding-idx="' + (imState.bindings.length - 1) + '"]',
+        );
+        if (newRow) imFadeIn(newRow);
+        notice("已绑定。机器人以后只认这个账号。");
+        imAdvanceTo("projects"); /* ④自动展开 */
+      } else {
+        var platformKey2 = req.platform;
+        imState.pairingRequests.splice(idx, 1);
+        cardEl.classList.add("im-card-leaving");
+        var epoch = imEpoch;
+        setTimeout(function () {
+          if (epoch !== imEpoch) return;
+          imBuildPairingRequests();
+          imRefresh();
+          notice("已拒绝。配对码还在有效期，重新发送即可。");
+          /* 焦点回到该平台的复制指令按钮 */
+          var copyBtn = imPanel.querySelector(
+            '[data-im-instr-platform="' + platformKey2 + '"] [data-copy-pair]',
+          ) || imPanel.querySelector("[data-copy-pair]");
+          if (copyBtn) copyBtn.focus();
+        }, IM_T_FADE);
+      }
+    });
+    /* ③ 双轨：演示直达（幂等，pairWait 判空） */
+    imPanel.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-im-pair-arrive]")) imArrivePairing();
     });
     /* 配对码：[换一个] 重置倒计时并换新码 */
     imPanel.addEventListener("click", function (ev) {
@@ -1609,11 +1958,13 @@
       imRefresh();
     });
     imPanel.querySelector("[data-im-projects-save]").addEventListener("click", function () {
+      /* 本地保存瞬时，不设假延迟；清 dirty 徽标与到期角标随 derive 收敛 */
       var hadExpired = imState.projects.some(function (pr) { return pr.expired; });
       if (hadExpired) {
         imState.projects.forEach(function (pr) { pr.expired = false; });
         imBuildProjects();
       }
+      imState.sim.projectsDirty = false;
       imRefresh();
     });
     /* ④ 到期行 [去授权]：展开该行授权设置 + 一次性脉冲高亮到期字段 */
@@ -1725,8 +2076,57 @@
       if (caret) caret.textContent = open ? "▾" : "▸";
     });
 
+    /* ⑤ 群支线（G4）：发现 → found（淡入 pending 行）→ 确认 → 800ms → active */
+    imPanel.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-im-group-find]")) {
+        if (imState.sim.groupPhase !== "idle") return;
+        var firstHealthy = IM_PLATFORMS.filter(function (p) {
+          return imDerived.platforms[p.key].ok > 0;
+        })[0];
+        imState.sim.session = true;
+        imState.sim.groupPhase = "found";
+        imState.groups.push({
+          name: "artemis-演示群",
+          members: 1,
+          platform: firstHealthy ? firstHealthy.key : "feishu",
+          state: "found",
+        });
+        imBuildGroups(true);
+        imRefresh();
+        return;
+      }
+      if (ev.target.closest("[data-im-group-confirm]")) {
+        if (imState.sim.groupPhase !== "found") return;
+        imState.sim.groupPhase = "confirmed";
+        imRefresh();
+        var epoch = imEpoch;
+        setTimeout(function () {
+          if (epoch !== imEpoch) return;
+          imState.groups.forEach(function (g) {
+            if (g.state === "found") g.state = "active";
+          });
+          imState.sim.groupPhase = "done";
+          imBuildGroups();
+          imRefresh();
+        }, IM_T_GROUP);
+      }
+    });
+
+    /* 重置入口：从头再来一遍（回到 empty 快照，滚回面板顶，焦点落①卡头） */
+    imPanel.querySelector("[data-im-sim-reset]").addEventListener("click", function () {
+      imApplyDemo("empty");
+      notice("已回到初始状态（演示）");
+      var scroller = $(".settings-content");
+      if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(function () {
+        var head = imCardEls.service.querySelector("[data-im-card-head]");
+        if (head) head.focus();
+      }, 250);
+    });
+
     /* 配对码倒计时（tabular-nums；元素随指令区重建，逐 tick 查询）；
-       到期变「已过期 · [换一个]」，点击重置倒计时并换新码 */
+       到期变「已过期 · [换一个]」，点击重置倒计时并换新码；
+       ③ 双轨等待 10s 归零 → 确认自动到达（幂等） */
     function imTick() {
       if (imSecondsLeft > 0) imSecondsLeft -= 1;
       if (imSecondsLeft === 0) imCodeExpired = true;
@@ -1743,6 +2143,16 @@
             el.textContent = "已过期";
           },
         );
+      }
+      var wait = imState && imState.sim && imState.sim.pairWait;
+      if (wait) {
+        wait.leftMs -= 1000;
+        if (wait.leftMs <= 0) {
+          imArrivePairing();
+        } else {
+          var waitEl = imPanel.querySelector("[data-im-wait-countdown]");
+          if (waitEl) waitEl.textContent = imPairWaitText();
+        }
       }
     }
     var imTimer = setInterval(imTick, 1000);

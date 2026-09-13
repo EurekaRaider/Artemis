@@ -4026,7 +4026,8 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-card-summary::after {
   content: " →";
 }
-/* 徽标四态：✓已完成 / ●当前步骤 / ○待办 / ⚠，全部由 derive 推导 */
+/* 徽标四态：✓已完成 / ●当前步骤 / ○待办 / ⚠，全部由 derive 推导；
+   busy=瞬态进行中（配色同 current 的 --accent + pending 呼吸点） */
 .im-card-badge {
   flex: none;
   font-size: 11px;
@@ -4042,6 +4043,22 @@ body[data-archived-demo] .composer-wrap .composer {
 }
 .im-card-badge[data-state="warn"] {
   color: var(--warning-text);
+}
+.im-card-badge[data-state="busy"] {
+  color: var(--accent);
+  font-weight: 590;
+}
+.im-card-badge[data-state="busy"]::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: 0.5px;
+  background: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 22%, transparent);
+  animation: im-dot-pulse 1.6s ease-in-out infinite;
 }
 /* ⚠N 角标（带 aria-label）：软底一律 color-mix(var(--warning) N%, var(--surface)) */
 .im-card-alerts {
@@ -4090,6 +4107,9 @@ body[data-archived-demo] .composer-wrap .composer {
   border-color: color-mix(in srgb, var(--warning) 35%, transparent);
   background: color-mix(in srgb, var(--warning) 8%, var(--surface));
   color: var(--warning-text);
+}
+.im-head-state .im-status-pill[data-tone="busy"] {
+  color: var(--text);
 }
 .im-head-state .im-status-pill:disabled {
   opacity: 1;
@@ -4329,6 +4349,71 @@ body[data-archived-demo] .composer-wrap .composer {
   font-size: 12.5px;
   font-weight: 590;
   color: var(--success-text);
+}
+/* ③ 等待卡（.im-code-card 变体：pending 呼吸点 + mm:ss 倒计时 + 演示直达弱链接） */
+.im-wait-card {
+  align-items: flex-start;
+}
+.im-wait-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.im-wait-title {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+/* 模拟会话行：演示结果选择 / ⑤模拟操作条 / 重置（.im-fine 字号） */
+.im-sim-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.im-sim-row .im-chip {
+  flex: none;
+}
+.im-sim-outcome {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-2);
+  padding: 1px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+.im-sim-reset {
+  margin-top: 10px;
+}
+/* 通用 200ms 淡入（绑定行/群行/M6）；M6 用 800ms */
+.im-enter {
+  opacity: 0;
+}
+.im-enter.im-enter-on {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+.im-ready.im-enter-on {
+  transition-duration: 0.8s;
+}
+/* 配对请求卡拒绝淡出 */
+.im-card-leaving {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+/* ⑤ 群行状态（found=pending 已发现未共享 / active=ok 已生效） */
+.im-group-row .im-dot {
+  flex: none;
+}
+.im-group-state {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
 }
 /* 底部「高级」折叠组 */
 .im-advanced {
