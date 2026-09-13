@@ -45,6 +45,34 @@ try {
     await check('settings '+key,async()=>{await page.locator('.settings-tab[data-settings-panel="'+key+'"]').click();assert.equal(await page.locator('.settings-panel-content:visible').count(),1);assert.equal(await page.locator('.settings-panel-content:visible').getAttribute('data-panel'),key);await page.waitForTimeout(250);await page.screenshot({path:out+'/settings-'+key+'.png'});});
   }
   await check('settings keyboard/focus return',async()=>{await page.locator('#settingsClose').focus();await page.keyboard.press('Shift+Tab');assert.equal(await page.locator('.settings-panel').evaluate(e=>e.contains(document.activeElement)),true);await page.keyboard.press('Escape');assert.equal(await page.locator('#settingsBtn').evaluate(e=>e===document.activeElement),true);});
+  await check('im cards contract across demo states',async()=>{
+    const cards=()=>page.locator('[data-im-card-head]').evaluateAll(els=>els.map(e=>e.getAttribute('aria-expanded')));
+    /* alert：②③④ 展开（首张未完成+有⚠），胶囊 warn 计数 1，②③④ 角标 ⚠1 */
+    await page.goto(base+'#settings=1&im-demo=alert');await page.waitForTimeout(400);
+    assert.deepEqual(await cards(),['false','true','true','true','false']);
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'warn');
+    assert.match(await page.locator('#imStateText').textContent(),/^1 个机器人连接失败$/);
+    assert.deepEqual(await page.locator('[data-im-alerts]:not([hidden])').allTextContents(),['⚠1','⚠1','⚠1']);
+    assert.equal(await page.locator('[data-im-ready]').isHidden(),true);
+    /* progress：③ 当前步骤展开，胶囊 ok · 1 在线，就绪条隐藏（③未完成） */
+    await page.goto(base+'#settings=1&im-demo=progress');await page.waitForTimeout(400);
+    assert.deepEqual(await cards(),['false','false','true','false','false']);
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'ok');
+    assert.equal(await page.locator('#imMasterSwitch').getAttribute('aria-checked'),'true');
+    assert.equal(await page.locator('[data-im-ready]').isHidden(),true);
+    /* empty：仅①展开，主开关禁用，②-⑤摘要统一「先开启服务」 */
+    await page.goto(base+'#settings=1&im-demo=empty');await page.waitForTimeout(400);
+    assert.deepEqual(await cards(),['true','false','false','false','false']);
+    assert.equal(await page.locator('#imStateText').textContent(),'未开启');
+    assert.equal(await page.locator('#imMasterSwitch').isDisabled(),true);
+    assert.equal(await page.locator('[data-im-summary]').evaluateAll(els=>els.every(e=>e.textContent==='先开启服务')),true);
+    assert.equal(await page.locator('[data-im-service-start]').isVisible(),true);
+    /* hash 重放幂等：empty → alert 回放后聚合态完整重建 */
+    await page.evaluate(()=>{location.hash='#settings=1&im-demo=alert';});await page.waitForTimeout(400);
+    assert.deepEqual(await cards(),['false','true','true','true','false']);
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'warn');
+    await page.locator('#settingsClose').click();
+  });
   await check('resource panel switching',async()=>{await page.locator('.sidebar-main [data-goto="resources"]').click();for(const key of ['plugins','connectors','mcp','skills']){await page.locator('[data-resource="'+key+'"]').click();assert.equal(await page.locator('.resource-pane:visible').getAttribute('data-resource-panel'),key);}});
   for(const width of [1440,1280,1024,980,768,390]){
     await check('viewport '+width,async()=>{

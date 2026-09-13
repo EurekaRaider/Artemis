@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=161" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=162" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -872,6 +872,21 @@
 <button aria-controls="imCardBodyGroups" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">5</span><span class="im-card-title">群协作<span class="im-card-optional">（可选）</span></span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
 <div class="im-card-body" id="imCardBodyGroups">
 <p class="im-muted">可选。把机器人拉进群，和绑定的账号一起做群协作；不设置不影响单聊使用。</p>
+<ol class="im-steps-lite">
+<li>先绑定账号（见 ③）。</li>
+<li>在群里 @机器人 发 <code class="im-identifier">/help</code> 发现群——发现后还需配置才会共享。</li>
+<li>由空间管理员在群里发 <code class="im-identifier">/space-confirm</code>，全部确认后生效。</li>
+</ol>
+<ul class="im-group-rows" data-im-group-rows=""></ul>
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>高级</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<label class="im-field field-wide"><span class="im-field-label">空间 JSON</span><textarea class="editor-area mono" rows="8" spellcheck="false">{
+  "members": ["u_9f3a", "u_2c71"],
+  "gateway": "conn-1",
+  "defaultMode": "plan"
+}</textarea></label>
+<button class="btn btn-ghost" data-toast="群和成员已刷新（演示）" type="button">刷新群和成员</button>
+</div>
 </div>
 </section>
 </div>
@@ -888,6 +903,27 @@
 </div>
 <div class="setting-row"><span class="sp"></span><div class="btn-pair"><button class="btn btn-primary" data-toast="已注册设备（演示）" type="button">注册</button><code class="im-identifier">dev-3f9a</code></div></div>
 </div>
+<div class="im-block">
+<h4>连接诊断</h4>
+<div class="setting-row"><div><div class="label">诊断</div><div class="desc">最近一次：全部正常 · 2 分钟前</div></div><span class="sp"></span><button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">运行诊断</button></div>
+</div>
+<div class="im-block">
+<h4>指令速查</h4>
+<div class="im-chips">
+<button class="im-chip" type="button"><code>/pair</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>/status</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>/stop</code><span aria-hidden="true">⧉</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）才显示 -->
+<div class="im-ready" data-im-ready="" hidden="">
+<p class="im-ready-title">✓ 全部就绪　去聊天软件给机器人发条消息试试</p>
+<div class="im-chips">
+<button class="im-chip" type="button"><code>总结当前分支的改动</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>项目进度怎么样</code><span aria-hidden="true">⧉</span></button>
 </div>
 </div>
 </div>
@@ -977,6 +1013,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=147"></script>
+<script src="workspace/workspace.js?v=148"></script>
 </body>
 </html>

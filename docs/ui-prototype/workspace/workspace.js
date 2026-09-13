@@ -1212,13 +1212,16 @@
         li.innerHTML =
           '<label class="settings-checkbox im-project-head"><input type="checkbox"' +
           (pr.checked ? " checked" : "") + '><span><strong>' + pr.id + "</strong><small>" + pr.path + "</small></span></label>" +
+          (pr.expired
+            ? '<div class="im-project-expired"><span>⚠ 授权已到期</span><button class="btn btn-ghost" data-im-reauthorize="" type="button">去授权</button></div>'
+            : "") +
           '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>调整权限</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
           '<div class="im-fold-body" hidden=""><div class="form-grid">' +
           '<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option' + (pr.id === "Artemis" ? ' selected' : "") + '>Execute</option><option' + (pr.id === "token-lab" ? ' selected' : "") + '>Plan</option><option>Review</option></select></label>' +
           '<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option><option>每步确认</option></select></label>' +
           '<label class="im-field"><span class="im-field-label">沙箱</span><select class="im-field-input"><option selected="">默认（Seatbelt / AppContainer）</option><option>完整本机访问</option></select></label>' +
           '<label class="im-field"><span class="im-field-label">网络</span><select class="im-field-input"><option selected="">按服务器</option><option>允许全部</option></select></label>' +
-          '<label class="im-field"><span class="im-field-label">到期</span><input class="im-field-input" type="date" value="2026-10-05"/></label>' +
+          '<label class="im-field"><span class="im-field-label">到期</span><input class="im-field-input" data-im-expiry-field="" type="date" value="' + (pr.expired ? "2026-09-01" : "2026-10-05") + '"/></label>' +
           '</div><div class="setting-row"><div class="label">到期自动续期</div><span class="sp"></span><button aria-checked="true" aria-label="到期自动续期" class="switch on" role="switch" type="button"></button></div></div>';
         var checkbox = li.querySelector('input[type="checkbox"]');
         checkbox.addEventListener("change", function () {
@@ -1297,6 +1300,9 @@
       imUpdatePlatformRows();
       /* ③ 衔接行：④未完成才显示 */
       imPanel.querySelector("[data-im-goto-projects]").hidden = imDerived.projectsDone;
+      /* M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外） */
+      var readyBar = imPanel.querySelector("[data-im-ready]");
+      if (readyBar) readyBar.hidden = !imDerived.ready;
       /* 主开关：服务未开启时禁用 */
       imMaster.disabled = !imState.gateway.started;
       imMaster.classList.toggle("on", imState.masterOn);
@@ -1309,6 +1315,32 @@
       );
     }
 
+    /* ⑤ 群列表行：名称 · 成员数 · 平台 [诊断] */
+    function imBuildGroups() {
+      var list = imPanel.querySelector("[data-im-group-rows]");
+      if (!list) return;
+      list.textContent = "";
+      if (!imState.groups.length) {
+        var empty = document.createElement("li");
+        empty.className = "im-group-empty";
+        empty.textContent = "还没有连接任何群。";
+        list.appendChild(empty);
+        return;
+      }
+      imState.groups.forEach(function (g) {
+        var platformName = (IM_PLATFORMS.filter(function (p) {
+          return p.key === g.platform;
+        })[0] || {}).name || g.platform;
+        var li = document.createElement("li");
+        li.className = "im-group-row";
+        li.innerHTML =
+          '<span class="im-group-name">' + g.name + "</span>" +
+          '<span class="im-group-meta">' + g.members + " 名成员 · " + platformName + "</span>" +
+          '<button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">诊断</button>';
+        list.appendChild(li);
+      });
+    }
+
     function imRenderAll() {
       imDerived = imDerive(imState);
       imBuildPlatformRows();
@@ -1317,6 +1349,7 @@
       imBuildInstructions();
       imBuildBindings();
       imBuildProjects();
+      imBuildGroups();
       imRefresh();
     }
 
@@ -1496,10 +1529,25 @@
       if (save) {
         var form4 = ev.target.closest("[data-im-cred-form]");
         var sub4 = form4.closest("[data-im-subcard]");
+        var rowKey = sub4.closest(".im-platform-row").getAttribute("data-im-platform");
         form4.reset();
         imApplyReceiveMode(form4);
         form4.hidden = true;
         sub4.querySelector("[data-im-cred-saved]").hidden = false;
+        /* 演示语义：新密钥重连成功，故障连接恢复健康（角标/胶囊随 derive 收敛） */
+        var conns = (imState.connections[rowKey] || []);
+        var healed = conns.some(function (c) { return c.state === "bad"; });
+        if (healed) {
+          conns.forEach(function (c) {
+            if (c.state === "bad") {
+              c.state = "ok";
+              c.note = "已连接 · 刚刚";
+              delete c.reason;
+            }
+          });
+          imBuildPlatformRows();
+        }
+        imRefresh();
         notice("已保存，机器人正在用新密钥重新连接（演示）");
         return;
       }
@@ -1555,13 +1603,66 @@
       imLocateCard("projects");
     });
 
-    /* ④ 默认项目选择 */
+    /* ④ 默认项目选择；保存同时处理到期（授权续期语义，角标随 derive 收敛） */
     imPanel.querySelector("[data-im-default-project]").addEventListener("change", function () {
       imState.defaultProject = this.value;
       imRefresh();
     });
+    imPanel.querySelector("[data-im-projects-save]").addEventListener("click", function () {
+      var hadExpired = imState.projects.some(function (pr) { return pr.expired; });
+      if (hadExpired) {
+        imState.projects.forEach(function (pr) { pr.expired = false; });
+        imBuildProjects();
+      }
+      imRefresh();
+    });
+    /* ④ 到期行 [去授权]：展开该行授权设置 + 一次性脉冲高亮到期字段 */
+    imPanel.addEventListener("click", function (ev) {
+      var reauth = ev.target.closest("[data-im-reauthorize]");
+      if (!reauth) return;
+      var li = reauth.closest(".im-project");
+      var fold = li.querySelector("[data-im-fold]");
+      var body = li.querySelector(".im-fold-body");
+      body.hidden = false;
+      fold.setAttribute("aria-expanded", "true");
+      var caret = fold.querySelector(".im-guide-caret");
+      if (caret) caret.textContent = "▾";
+      requestAnimationFrame(function () {
+        var field = li.querySelector("[data-im-expiry-field]");
+        if (field) {
+          field.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          imPulse(field.closest(".im-field"));
+        }
+      });
+    });
 
-    /* 解绑行内二次确认：焦点移入确认钮，Esc 视为保留（不给弹窗关闭让路） */
+    /* 静音：行内标签切换 + 图标互换（不只 toast） */
+    imPanel.addEventListener("click", function (ev) {
+      var mute = ev.target.closest("[data-im-mute]");
+      if (!mute) return;
+      var row = mute.closest(".im-binding-row");
+      var idx = Number(row.getAttribute("data-im-binding-idx"));
+      var b = imState.bindings[idx];
+      if (!b) return;
+      b.muted = !b.muted;
+      var main = row.querySelector(".im-binding-main");
+      var tag = main.querySelector(".im-binding-tag");
+      if (b.muted && !tag) {
+        tag = document.createElement("span");
+        tag.className = "im-binding-tag";
+        tag.textContent = "已静音";
+        main.appendChild(tag);
+      } else if (!b.muted && tag) {
+        tag.remove();
+      }
+      mute.setAttribute("aria-label", b.muted ? "恢复输出" : "静音");
+      mute.title = b.muted ? "恢复输出" : "静音";
+      mute.innerHTML = b.muted ? IM_ICON_BELL : IM_ICON_BELL_OFF;
+      notice(b.muted ? "已静音（演示）" : "已恢复输出（演示）");
+    });
+
+    /* 解绑行内二次确认：焦点移入确认钮，Esc 视为保留（不给弹窗关闭让路）；
+       确认后 200ms 淡出移除，焦点移到下一行或卡头 */
     imPanel.addEventListener("click", function (ev) {
       var unbind = ev.target.closest("[data-im-unbind]");
       if (unbind) {
@@ -1583,10 +1684,20 @@
       if (done) {
         var row3 = done.closest(".im-binding-row");
         var idx = Number(row3.getAttribute("data-im-binding-idx"));
-        if (Number.isFinite(idx)) imState.bindings.splice(idx, 1);
-        imBuildBindings();
-        imRefresh();
-        notice("已解除绑定（演示）");
+        if (!Number.isFinite(idx)) return;
+        imState.bindings.splice(idx, 1);
+        row3.classList.add("im-binding-removing");
+        setTimeout(function () {
+          imBuildBindings();
+          imRefresh();
+          notice("已解除绑定（演示）");
+          var list = imPanel.querySelector("[data-im-bindings]");
+          var next = list.querySelector(
+            '[data-im-binding-idx="' + idx + '"] .im-icon-btn',
+          );
+          if (!next) next = imCardEls.account.querySelector("[data-im-card-head]");
+          if (next) next.focus();
+        }, 200);
       }
     });
     imPanel.addEventListener("keydown", function (ev) {

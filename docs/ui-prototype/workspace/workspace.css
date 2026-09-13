@@ -4239,7 +4239,7 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-instr-line .btn {
   margin-left: auto;
 }
-/* ③ 已绑定行的「已静音」灰标签 */
+/* ③ 已绑定行的「已静音」灰标签；解绑确认后 200ms 淡出移除 */
 .im-binding-tag {
   flex: none;
   font-size: 10.5px;
@@ -4247,6 +4247,88 @@ body[data-archived-demo] .composer-wrap .composer {
   border: 1px solid var(--border-soft);
   border-radius: 999px;
   padding: 0 7px;
+}
+.im-binding-removing {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+/* ④ 到期行：⚠ 授权已到期 [去授权]（软底从 --warning 派生） */
+.im-project-expired {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+  color: var(--warning-text);
+  font-size: 11.5px;
+}
+.im-project-expired .btn {
+  margin-left: auto;
+}
+/* ⑤ 群协作：三步说明 + 群列表行 */
+.im-steps-lite {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.im-group-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.im-group-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+.im-group-row:last-child {
+  border-bottom: none;
+}
+.im-group-name {
+  font-weight: 560;
+}
+.im-group-meta {
+  color: var(--text-3);
+  font-size: 11px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.im-group-row .btn {
+  flex: none;
+}
+.im-group-empty {
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding: 4px 0;
+}
+/* M6 全部就绪条（软底从 --success 派生） */
+.im-ready {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.im-ready-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--success-text);
 }
 /* 底部「高级」折叠组 */
 .im-advanced {
