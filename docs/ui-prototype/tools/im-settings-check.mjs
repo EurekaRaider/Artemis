@@ -17,7 +17,7 @@ try {
  const row=page.locator('[data-im-platform="feishu"]');
  await check('two essential Feishu fields, validation and secret reveal',async()=>{await row.locator('[data-im-add]').click();assert.equal(await row.locator('input:visible').count(),2);await row.locator('[data-im-cred-save]').click();assert.equal(await row.locator('[aria-invalid="true"]').count(),2);await row.locator('[data-im-fill-demo]').click();await row.locator('.im-reveal').first().click();assert.equal(await row.locator('[data-im-field-label="App Secret"] input').getAttribute('type'),'text');await row.locator('.im-reveal').first().click();});
  await check('failure preserves fields and retries successfully',async()=>{await row.locator('[data-im-sim-outcome]').selectOption('offline');await row.locator('[data-im-cred-save]').click();await page.waitForTimeout(1100);assert.match(await row.textContent(),/网络中断/);assert.equal(await row.locator('[data-im-field-label="App ID"] input').inputValue(),'cli_demo_artemis');await row.locator('[data-im-sim-outcome]').selectOption('ok');await row.locator('[data-im-cred-save]').click();await page.waitForTimeout(1500);assert.match(await row.locator('.im-platform-status').textContent(),/已连接/);});
- await check('pairing approval and project save confirmation',async()=>{await locate('account');await page.locator('[data-copy-pair]').first().click();await page.locator('[data-im-pair-arrive]').click();await page.locator('[data-im-approve]').click();await locate('projects');await page.locator('.im-project-head input').first().check();assert.equal(await page.locator('[data-im-default-project]').inputValue(),'Artemis');assert.equal(await page.locator('[data-im-ready]').isHidden(),true);await page.locator('[data-im-projects-save]').click();assert.equal(await page.locator('.im-confirm-dialog').evaluate(el=>el.open),true);await page.locator('[data-im-confirm-ok]').click();assert.equal(await page.locator('[data-im-ready]').isVisible(),true);});
+ await check('pairing approval and project save confirmation',async()=>{await locate('account');await page.locator('[data-copy-pair]').first().click();await page.locator('[data-im-pair-arrive]').click();await page.locator('[data-im-approve]').click();await locate('projects');await page.locator('.im-project-head input').first().check();assert.equal(await page.locator('[data-im-default-project]').inputValue(),'Artemis');await page.locator('[data-im-projects-save]').click();assert.equal(await page.locator('.im-confirm-dialog').evaluate(el=>el.open),true);await page.locator('[data-im-confirm-ok]').click();await page.waitForTimeout(300);assert.equal(await page.locator('[data-im-test-done]').isHidden(),true);assert.equal(await page.locator('[data-im-card="test"] [data-im-badge]').textContent(),'当前步骤');});
  await check('manage saved credentials displays saved view',async()=>{await locate('bots');await row.locator('[data-im-manage]').click();assert.equal(await row.locator('[data-im-cred-saved]').isVisible(),true);await row.locator('[data-im-cred-swap]').click();assert.equal(await row.locator('[data-im-field-label="App Secret"] input').inputValue(),'');});
  await check('all platform contracts and draft collapse',async()=>{for(const [key,count] of [['wecom',3],['slack',2]]){const r=page.locator('[data-im-platform="'+key+'"]');await r.locator('[data-im-add]').click();assert.equal(await r.locator('input:visible').count(),count);assert.equal(await r.locator('[data-im-receive-mode]').count(),0);await r.locator('[data-im-fill-demo]').click();await r.locator('[data-im-cred-cancel]').click();await r.locator('[data-im-add]').click();assert.ok(await r.locator('input').first().inputValue());} });
  await page.screenshot({path:out+'/credentials-light.png'});
@@ -156,18 +156,56 @@ try {
   await page.locator('[data-im-confirm-ok]').click();
   await page.waitForTimeout(300);
   assert.equal(await page.locator('[data-im-grant-partial]').isVisible(),true);
-  assert.equal(await page.locator('[data-im-ready]').isHidden(),true);
   assert.equal(await page.locator('[data-im-card="projects"] [data-im-alerts]').textContent(),'⚠1');
   await page.locator('[data-im-retry-enable]').click();
   assert.equal(await page.locator('[data-im-grant-partial]').isVisible(),true);
-  /* 场景三：恢复启用 → 重试启用成功 → 就绪条 */
+  /* 场景三：恢复启用 → 重试启用成功；配置完成≠端到端——⑤未确认前进度 4/5 */
   await page.locator('.im-simulation summary').click();
   await page.locator('[data-im-enable-failure]').click();
   await page.locator('.im-simulation summary').click();
   await page.locator('[data-im-retry-enable]').click();
   await page.waitForTimeout(300);
   assert.equal(await page.locator('[data-im-grant-partial]').isHidden(),true);
-  assert.equal(await page.locator('[data-im-ready]').isVisible(),true);
+  assert.match(await page.locator('[data-im-progress]').textContent(),/4\/5/);
+ });
+ await check('C4 test track, honest confirm and group flow',async()=>{
+  /* ⑤ 轨道：推进两段 → 模型失败支线（连接胶囊不受影响）→ 重试 → 送达 */
+  await locate('test');
+  assert.equal(await page.locator('[data-im-ready]').count(),0); /* M6 退场 */
+  await page.locator('[data-im-test-advance]').click();
+  await page.locator('[data-im-test-advance]').click();
+  await page.locator('[data-im-test-fail]').click();
+  assert.match(await page.locator('[data-im-test-error]').textContent(),/模型不可用/);
+  assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'ok');
+  await page.locator('[data-im-test-retry]').click();
+  await page.locator('[data-im-test-advance]').click();
+  /* 确认 → 你已确认（无「系统验证通过」措辞）→ 撤销可恢复 → 再确认 */
+  await page.locator('[data-im-test-confirm-btn]').click();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('[data-im-card="test"] [data-im-badge]').textContent(),'已确认');
+  const doneText=await page.locator('[data-im-test-done]').textContent();
+  assert.match(doneText,/全部就绪/);assert.doesNotMatch(doneText,/系统验证/);
+  await page.locator('[data-im-test-undo]').click();
+  assert.equal(await page.locator('[data-im-card="test"] [data-im-badge]').textContent(),'当前步骤');
+  await page.locator('[data-im-test-confirm-btn]').click();
+  /* 群协作独立流程：发现 → 保存 → 重新保存重置确认 → 确认 → 授权 → 返回 */
+  await page.locator('[data-im-open-group-flow]').click();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('[data-im-group-flow]').isVisible(),true);
+  await page.locator('[data-im-gf-find]').click();
+  await page.locator('[data-im-gf-save]').click();
+  assert.match(await page.locator('[data-im-group-state]').textContent(),/已保存，等待 1 个群确认/);
+  /* 重新保存空间 → 全部群确认重置（对齐生产行为） */
+  await page.locator('[data-im-gf-resave]').click();
+  await page.locator('[data-im-gf-save]').click();
+  assert.match(await page.locator('[data-im-group-state]').textContent(),/已保存，等待 1 个群确认/);
+  await page.locator('[data-im-gf-confirm]').click();
+  assert.match(await page.locator('[data-im-group-state]').textContent(),/群已确认，尚未授权项目/);
+  await page.locator('[data-im-gf-grant]').click();
+  assert.match(await page.locator('[data-im-group-state]').textContent(),/你的项目已就绪/);
+  await page.locator('[data-im-group-flow] > [data-im-group-back]').click();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('[data-im-group-flow]').isHidden(),true);
  });
  await check('scenes and expired pairing do not advance',async()=>{await page.locator('.im-simulation summary').click();await page.locator('[data-im-scene="expired"]').click();await page.locator('[data-im-confirm-ok]').click();await locate('account');assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),true);assert.equal(await page.locator('[data-im-wait-card]').isHidden(),true);assert.match(await page.locator('[data-im-renew-code]').textContent(),/生成新指令/);await page.locator('[data-im-renew-code]').click();assert.match(await page.locator('[data-im-countdown]').first().textContent(),/5:00|4:59/);assert.equal(await page.locator('[data-copy-pair]').first().isDisabled(),false);});
  await check('narrow dark and reduced motion',async()=>{await page.setViewportSize({width:620,height:850});await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>document.documentElement.dataset.theme='dark');await locate('bots');await page.screenshot({path:out+'/narrow-dark.png'});assert.equal(await page.locator('#settingsPanelIm').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);});

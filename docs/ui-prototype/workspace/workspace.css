@@ -4504,6 +4504,55 @@ body[data-archived-demo] .composer-wrap .composer {
   line-height: 1.5;
   color: var(--text-2);
 }
+/* ⑤ 测试任务四段轨道（收到消息 → 桌面任务 → 完成 → 回复送达） */
+.im-track {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.im-track li.cur {
+  color: var(--text-2);
+  font-weight: 560;
+}
+.im-track li.done::first-line {
+  color: var(--text-3);
+}
+.im-test-error {
+  color: var(--danger-text);
+}
+.im-test-done {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+.im-test-done .im-ready-title {
+  color: var(--success-text);
+}
+/* 群协作独立第二流程 */
+.im-group-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 8px;
+}
+.im-group-flow-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 620;
+}
+.im-group-flow .im-group-row {
+  flex-wrap: wrap;
+}
 .im-group-rows {
   list-style: none;
   margin: 0;
@@ -4534,22 +4583,16 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-group-row .btn {
   flex: none;
 }
+.im-group-state {
+  color: var(--text-3);
+  font-size: 11px;
+}
 .im-group-empty {
   font-size: 11.5px;
   color: var(--text-3);
   padding: 4px 0;
 }
-/* M6 全部就绪条（软底从 --success 派生） */
-.im-ready {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
-  border-radius: var(--r-card);
-  background: color-mix(in srgb, var(--success) 8%, var(--surface));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+/* 就绪标题（M6 退场后由⑤完成态沿用） */
 .im-ready-title {
   margin: 0;
   font-size: 12.5px;

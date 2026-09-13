@@ -122,7 +122,7 @@ try {
     await page.waitForTimeout(500);
     assert.equal(await page.locator('[data-im-bindings] .im-binding-row').count(),1);
     assert.equal(await page.locator('[data-im-card="projects"] [data-im-card-head]').getAttribute('aria-expanded'),'true');
-    /* ④：勾选 → 待保存徽标 + 自动默认 → 保存 → M6 就绪条 */
+    /* ④：勾选 → 待保存徽标 + 自动默认 → 保存并启用 → ⑤测试任务成为当前步骤（M6 已退场） */
     await page.locator('[data-im-project-idx="0"] .im-project-head input').check();
     await page.waitForTimeout(200);
     assert.equal(await badge('projects'),'已选 1 · 待保存');
@@ -130,17 +130,38 @@ try {
     await page.click('[data-im-projects-save]');
     await page.click('[data-im-confirm-ok]');
     await page.waitForTimeout(300);
-    assert.equal(await page.locator('[data-im-ready]').isVisible(),true);
-    /* ⑤ 支线：发现 → 确认 → 已连接 1 群 */
-    await page.click('[data-im-card="groups"] [data-im-card-head]');
+    assert.equal(await page.locator('[data-im-card="test"] [data-im-card-head]').getAttribute('aria-expanded'),'true');
+    assert.equal(await page.locator('[data-im-ready]').count(),0);
+    /* ⑤ 轨道：推进两段 → 模型失败支线（连接胶囊不受影响）→ 重试 → 送达 → 确认 */
+    await page.locator('[data-im-test-advance]').click();
+    await page.locator('[data-im-test-advance]').click();
+    await page.locator('[data-im-test-fail]').click();
+    assert.equal(await page.locator('[data-im-test-error]').isVisible(),true);
+    assert.equal(await page.locator('#imStatePill').getAttribute('data-tone'),'ok');
+    await page.locator('[data-im-test-retry]').click();
+    await page.locator('[data-im-test-advance]').click();
+    await page.locator('[data-im-test-confirm-btn]').click();
     await page.waitForTimeout(200);
-    await page.click('[data-im-group-find]');
-    await page.waitForTimeout(250);
-    assert.equal(await page.locator('.im-group-state').textContent(),'已发现 · 未共享');
-    await page.click('[data-im-group-confirm]');
-    await page.waitForTimeout(1000);
-    assert.equal(await page.locator('.im-group-state').textContent(),'已生效');
-    assert.equal(await badge('groups'),'已连接 1 群');
+    assert.equal(await badge('test'),'已确认');
+    assert.equal(await page.locator('[data-im-test-done]').isVisible(),true);
+    /* 撤销确认可恢复（D4：误勾可撤销） */
+    await page.locator('[data-im-test-undo]').click();
+    assert.equal(await badge('test'),'当前步骤');
+    await page.locator('[data-im-test-confirm-btn]').click();
+    /* 群协作独立流程（D2/PT-7）：入口 → 发现 → 保存 → 按群确认 → 授权 → 返回 */
+    await page.locator('[data-im-open-group-flow]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('[data-im-group-flow]').isVisible(),true);
+    await page.locator('[data-im-gf-find]').click();
+    await page.locator('[data-im-gf-save]').click();
+    assert.match(await page.locator('[data-im-group-state]').textContent(),/已保存，等待 1 个群确认/);
+    await page.locator('[data-im-gf-confirm]').click();
+    assert.match(await page.locator('[data-im-group-state]').textContent(),/群已确认，尚未授权项目/);
+    await page.locator('[data-im-gf-grant]').click();
+    assert.match(await page.locator('[data-im-group-state]').textContent(),/你的项目已就绪/);
+    await page.locator('[data-im-group-flow] > [data-im-group-back]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('[data-im-group-flow]').isHidden(),true);
     /* 重置：回到 empty 契约 */
     await page.click('[data-im-sim-reset]');
     await page.click('[data-im-confirm-ok]');

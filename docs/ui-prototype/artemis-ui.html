@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=168" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=169" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
@@ -916,42 +916,54 @@
 <p class="im-fine im-grant-partial" data-im-grant-partial="" hidden="">授权已保存，连接未启用。<button class="btn btn-ghost" data-im-retry-enable="" type="button">重试启用</button></p>
 </div>
 </section>
-<!-- ⑤ 群协作（可选） -->
-<section class="im-card" data-im-card="groups">
-<button aria-controls="imCardBodyGroups" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">5</span><span class="im-card-title">群协作<span class="im-card-optional">（可选）</span></span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyGroups">
-<p class="im-muted">可选。把机器人拉进群，和绑定的账号一起做群协作；不设置不影响单聊使用。</p>
-<ol class="im-steps-lite">
-<li>先绑定账号（见 ③）。</li>
-<li>在群里 @机器人 发 <code class="im-identifier">/help</code> 发现群——发现后还需配置才会共享。</li>
-<li>由空间管理员在群里发 <code class="im-identifier">/space-confirm</code>，全部确认后生效。</li>
-</ol>
-<ul class="im-group-rows" data-im-group-rows=""></ul>
-<div class="im-sim-row" data-im-group-sim=""></div>
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>高级</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<!-- ⑤ 发一条测试任务（提案第五步；完成链第 5 步） -->
+<section class="im-card" data-im-card="test">
+<button aria-controls="imCardBodyTest" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">5</span><span class="im-card-title">发一条测试任务</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyTest">
+<p class="im-muted">发一条真实消息走通全链路——配置成功不等于端到端成功，眼见为实。</p>
+<div data-im-test-commands=""></div>
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>其他指令（查看项目 / 查看状态）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
 <div class="im-fold-body" hidden="">
-<label class="im-field field-wide"><span class="im-field-label">空间 JSON</span><textarea class="editor-area mono" rows="8" spellcheck="false">{
-  "members": ["u_9f3a", "u_2c71"],
-  "gateway": "conn-1",
-  "defaultMode": "plan"
-}</textarea></label>
-<button class="btn btn-ghost" data-toast="群和成员已刷新（演示）" type="button">刷新群和成员</button>
+<div class="im-chips">
+<button class="im-chip" type="button"><code>projects</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>status</code><span aria-hidden="true">⧉</span></button>
+</div>
+</div>
+<ol class="im-track" data-im-track="" hidden=""></ol>
+<div class="im-sim-row" data-im-test-actions=""></div>
+<p class="im-fine im-test-error" data-im-test-error="" hidden="" role="alert"></p>
+<div data-im-test-confirm="" hidden="">
+<button class="btn btn-primary" data-im-test-confirm-btn="" type="button">我已收到回复</button>
+<p class="im-fine">只标记你的确认，不做系统验证。</p>
+</div>
+<div class="im-test-done" data-im-test-done="" hidden="">
+<p class="im-ready-title">✓ 全部就绪　整套设置已经走通</p>
+<div class="btn-pair">
+<button class="btn btn-primary" data-im-finish="" type="button">开始使用</button>
+<button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作（可选）</button>
+</div>
 </div>
 </div>
 </section>
+</div>
+<!-- 群协作独立第二流程（D2：从主流程抽离；完成设置后经⑤或概览进入） -->
+<div class="im-group-flow" data-im-group-flow="" hidden="">
+<button class="im-demo-link" data-im-group-back="" type="button">← 返回单聊设置</button>
+<h4 class="im-group-flow-title">群协作</h4>
+<p class="im-muted">把机器人拉进群，和绑定的账号一起协作；不设置不影响单聊使用。</p>
+<ol class="im-substages" data-im-group-steps="">
+<li data-gstep="1">发现群</li>
+<li data-gstep="2">选择群与成员</li>
+<li data-gstep="3">各群确认</li>
+<li data-gstep="4">授权我的项目</li>
+</ol>
+<div data-im-group-body=""></div>
+<p aria-live="polite" class="im-fine" data-im-group-state=""></p>
 </div>
 <!-- 模拟会话重置：回到 empty 快照（仅内存，不写 hash） -->
 <details class="im-simulation"><summary>演示场景</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。</p><div class="btn-pair im-scene-buttons">
 <button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-scene="team">团队服务</button><button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button><button type="button" class="btn btn-ghost" data-im-enable-failure aria-pressed="false">启用失败模拟</button>
 </div></details><div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
-<!-- M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）才显示 -->
-<div class="im-ready" data-im-ready="" hidden="">
-<p class="im-ready-title">✓ 全部就绪　去聊天软件给机器人发条消息试试</p>
-<div class="im-chips">
-<button class="im-chip" type="button"><code>总结当前分支的改动</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>项目进度怎么样</code><span aria-hidden="true">⧉</span></button>
-</div>
-</div>
 </div>
 <!-- Agent 配置（对齐真实：并发容量 / 全局 AGENTS.md / 导入现有配置） -->
 <div aria-labelledby="settingsTabAgents" class="settings-panel-content" data-panel="agents" hidden="" id="settingsPanelAgents" role="tabpanel">
@@ -1039,6 +1051,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=155"></script>
+<script src="workspace/workspace.js?v=156"></script>
 </body>
 </html>

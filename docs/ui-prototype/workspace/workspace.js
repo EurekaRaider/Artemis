@@ -626,15 +626,14 @@
       { key: "wecom", name: "企业微信" },
       { key: "slack", name: "Slack" },
     ];
-    var IM_CARD_ORDER = ["service", "bots", "account", "projects", "groups"];
-    var IM_STEP_TOTAL = 5; /* 设置进度总数：完成链四步 + 第 5 步「发一条测试任务」（群协作可选不计入） */
+    var IM_CARD_ORDER = ["service", "bots", "account", "projects", "test"];
+    var IM_STEP_TOTAL = 5; /* 设置进度总数：完成链五步（⑤=发一条测试任务）；群协作为可选独立流程不计入 */
     var IM_PAIR_CODES = ["7K2Q-XR9M", "3TD8-M52W", "9FJ4-QN7C"];
     /* 时序常量：启动/连接过渡、配对等待、群确认；淡入淡出 200ms；脉冲 0.9s 仅
        用于深链/胶囊定位/配对请求到达；④[保存]本地瞬时，不设假延迟 */
     var IM_T_START = 1000,
       IM_T_CONNECT = 900,
       IM_T_PAIR_WAIT = 10000,
-      IM_T_GROUP = 800,
       IM_T_FADE = 200;
     var IM_ICON_BELL = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg>';
     var IM_ICON_BELL_OFF = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg>';
@@ -655,8 +654,6 @@
         /* 保存/启用两阶段演示开关（确定性失败分支） */
         saveFailure: false,
         enableFailure: false,
-        /* ⑤ 群支线：idle → found → confirmed → done */
-        groupPhase: "idle",
         hints: {}, /* 会话内「首次」引导旗标 */
       };
     }
@@ -669,6 +666,8 @@
         grantEnableFailed: false,
         connections: { feishu: [], wecom: [], slack: [] },
         platformReady: { feishu: false, wecom: false, slack: false },
+        test: { stage: 0, failed: false, confirmed: false },
+        groupFlow: { open: false, phase: "discover", spaceSaved: false, groups: [] },
         pairingRequests: [],
         bindings: [],
         groups: [],
@@ -693,6 +692,8 @@
           slack: [],
         },
         platformReady: { feishu: false, wecom: false, slack: false },
+        test: { stage: 0, failed: false, confirmed: false },
+        groupFlow: { open: false, phase: "discover", spaceSaved: false, groups: [] },
         pairingRequests: [],
         bindings: [],
         groups: [],
@@ -722,6 +723,11 @@
           ],
         },
         platformReady: { feishu: true, wecom: true, slack: false },
+        test: { stage: 0, failed: false, confirmed: false },
+        groupFlow: { open: false, phase: "done", spaceSaved: true, groups: [
+          { name: "artemis-ui-评审群", platform: "feishu", members: 5, confirmed: true },
+          { name: "packaging-standby", platform: "wecom", members: 2, confirmed: true },
+        ] },
         pairingRequests: [{ name: "张伟", id: "u_33c1", platform: "feishu" }],
         bindings: [
           { name: "王小明", id: "u_9f3a", platform: "feishu", mode: "Plan", muted: true },
@@ -794,28 +800,25 @@
         return platforms[p.key].ok > 0;
       }).map(function (p) { return p.name; });
       var connsTotal = healthyTotal + badTotal + reconnectTotal + connectingTotal;
-      var groupMembers = s.groups.reduce(function (n, g) { return n + g.members; }, 0);
-      /* ⑤ 完成只看已生效（active/缺省视为 active）群；found=已发现未共享 */
-      var activeGroups = s.groups.filter(function (g) {
-        return !g.state || g.state === "active";
-      });
-      var foundGroups = s.groups.filter(function (g) { return g.state === "found"; });
 
       var starting = !!s.gateway.starting;
       var serviceDone = s.gateway.started && !s.gateway.linkBroken;
       var botsDone = healthyTotal > 0;
       var accountDone = s.bindings.length > 0;
       var projectsDone = checkedProjects > 0 && expired === 0 && !sim.projectsDirty;
+      /* ⑤ 发一条测试任务（提案第五步）：用户确认收到回复才算完成（D4 诚实版，无系统验证） */
+      var testDone = !!(s.test && s.test.confirmed);
       var anyConfigured = connsTotal > 0;
       var paused = !s.masterOn && anyConfigured;
       var pairWaiting = !!sim.pairWait;
 
-      /* 完成链（⑤不参与、不阻塞）：第一个未完成卡即「当前步骤」 */
+      /* 完成链五步（⑤=发一条测试任务）：第一个未完成卡即「当前步骤」；群协作独立流程不入链 */
       var chain = [
         ["service", serviceDone],
         ["bots", botsDone],
         ["account", accountDone],
         ["projects", projectsDone],
+        ["test", testDone],
       ];
       var firstUndone = null;
       for (var i = 0; i < chain.length; i += 1) {
@@ -901,24 +904,12 @@
               (s.defaultProject ? " · 默认 " + s.defaultProject : "")
             : "还没有选择项目",
       };
-      /* ⑤ 群协作（可选）：done 仅当存在已生效群；found → busy「待确认」 */
-      cards.groups = {
-        state: activeGroups.length
-          ? "done"
-          : foundGroups.length
-            ? "busy"
-            : "todo",
-        badgeText: activeGroups.length
-          ? "已连接 " + activeGroups.length + " 群"
-          : foundGroups.length
-            ? foundGroups.length + " 群待确认"
-            : "未设置",
+      /* ⑤ 发一条测试任务：轨道推进（stage 0-4）+ 用户确认（confirmed） */
+      cards.test = {
+        state: testDone ? "done" : cardState("test", testDone, false),
+        badgeText: testDone ? "已确认" : firstUndone === "test" ? "当前步骤" : "待办",
         alerts: 0,
-        summary: activeGroups.length
-          ? "已连接 " + activeGroups.length + " 个群 · " + groupMembers + " 名成员"
-          : foundGroups.length
-            ? "已发现 " + foundGroups.length + " 个群 · 待确认"
-            : "未设置",
+        summary: testDone ? "你已确认 · 全链路走通" : "发一条测试消息验证",
       };
 
       if (!s.gateway.started) {
@@ -929,7 +920,7 @@
       } else if (firstUndone) {
         /* 未来步骤：显示前置提示（完成链线性，先完成当前步骤） */
         var undoneIdx = IM_CARD_ORDER.indexOf(firstUndone);
-        var undoneTitles = { service: "连接服务", bots: "添加机器人", account: "绑定我的账号", projects: "选择项目" };
+        var undoneTitles = { service: "连接服务", bots: "添加机器人", account: "绑定我的账号", projects: "选择项目", test: "发测试任务" };
         IM_CARD_ORDER.forEach(function (key, i) {
           if (i > undoneIdx && key !== "groups" && cards[key].state === "todo") {
             cards[key].summary = "先完成第 " + (undoneIdx + 1) + " 步「" + undoneTitles[firstUndone] + "」";
@@ -988,13 +979,10 @@
         autoExpand: autoExpand,
         expired: expired,
         projectsDone: projectsDone,
-        /* 设置进度：完成链四步计数，总数 5（第 5 步「发一条测试任务」C4 落地后计入；⑤群协作可选不计入） */
+        /* 设置进度：完成链五步计数（第 5 步「发一条测试任务」C4 落地后计入；⑤群协作可选不计入） */
         progressDone: chain.filter(function (c) { return c[1]; }).length,
-        ready: s.masterOn && s.grantEnabled !== false && serviceDone && botsDone && accountDone && projectsDone &&
+        ready: s.masterOn && s.grantEnabled !== false && serviceDone && botsDone && accountDone && projectsDone && testDone &&
           badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
-        groupMembers: groupMembers,
-        activeGroups: activeGroups.length,
-        foundGroups: foundGroups.length,
       };
     }
 
@@ -1716,33 +1704,157 @@
       }
     }
 
-    /* ⑤ 模拟操作条：③未绑定禁用；found→confirmed 两拍（G4） */
-    function imRenderGroupSim() {
-      var bar = imPanel.querySelector("[data-im-group-sim]");
-      if (!bar) return;
-      var sim = imState.sim;
-      var bound = imState.bindings.length > 0;
-      var phase = sim ? sim.groupPhase : "idle";
-      var html = "";
-      if (!bound && phase === "idle") {
-        html = '<span class="im-fine">先完成 ③ 绑定，再试群协作。</span>';
-      } else if (phase === "idle") {
-        html =
-          '<button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button>' +
-          '<button class="im-demo-link" data-im-group-find="" type="button">演示：机器人发现了群</button>';
-      } else if (phase === "found") {
-        html =
-          '<span class="im-fine">还差一步：在群里发 /space-confirm。</span>' +
-          '<button class="im-chip" type="button"><code>/space-confirm</code><span aria-hidden="true">⧉</span></button>' +
-          '<button class="im-demo-link" data-im-group-confirm="" type="button">演示：已确认</button>';
-      } else if (phase === "confirmed") {
-        html =
-          '<span aria-hidden="true" class="im-dot pending"></span>' +
-          '<span class="im-fine">等待其他管理员确认…（演示：只有你 1 位，马上生效）</span>';
-      } else {
-        html = ""; /* done：行内已显示「已生效」 */
+    /* ===== ⑤ 发一条测试任务（提案第五步，D4 诚实版）：四段轨道 + 用户确认 ===== */
+    var IM_TEST_STEPS = ["消息已发出", "桌面出现任务", "任务完成", "IM 回复已送达"];
+    function imTestCommand(platformKey) {
+      /* 飞书/企微指令带 /，Slack 不带（与配对指令同一斜杠规则） */
+      return (platformKey === "slack" ? "" : "/") +
+        "new 请查看当前项目，告诉我它是做什么的，先不要修改文件。";
+    }
+    function imRenderTest() {
+      var box = imPanel.querySelector("[data-im-test-commands]");
+      var track = imPanel.querySelector("[data-im-track]");
+      var actions = imPanel.querySelector("[data-im-test-actions]");
+      var errEl = imPanel.querySelector("[data-im-test-error]");
+      var confirmBox = imPanel.querySelector("[data-im-test-confirm]");
+      var doneBox = imPanel.querySelector("[data-im-test-done]");
+      var t = imState.test || (imState.test = { stage: 0, failed: false, confirmed: false });
+      var healthy = IM_PLATFORMS.filter(function (p) {
+        return imDerived.platforms[p.key].ok > 0;
+      });
+      if (box) {
+        box.textContent = "";
+        if (!healthy.length) {
+          box.innerHTML = '<p class="im-muted">先在 ② 连接一个机器人，这里会给出测试指令。</p>';
+        } else {
+          healthy.forEach(function (p) {
+            var line = document.createElement("div");
+            line.className = "im-instr-line";
+            line.innerHTML =
+              '<span class="im-instr-who">' + p.name + " · Artemis 机器人</span>" +
+              '<code class="im-identifier">' + imTestCommand(p.key) + "</code>" +
+              '<button class="btn btn-ghost" data-im-copy-new="" type="button">复制指令</button>';
+            box.appendChild(line);
+          });
+        }
       }
-      bar.innerHTML = html;
+      if (track) {
+        track.hidden = false;
+        track.innerHTML = IM_TEST_STEPS.map(function (label, i) {
+          var n = i + 1;
+          var cls = t.stage >= n ? "done" : t.stage + 1 === n ? "cur" : "";
+          return '<li class="' + cls + '" data-track="' + n + '">' + (t.stage >= n ? "✓ " : n + " · ") + label + "</li>";
+        }).join("");
+      }
+      if (actions) {
+        var html = "";
+        if (t.failed) {
+          html = '<button class="btn btn-ghost" data-im-test-retry="" type="button">重试任务（演示）</button>';
+        } else if (t.stage === 0) {
+          html = '<span class="im-fine">复制后发到单聊，然后：</span><button class="im-demo-link" data-im-test-advance="" type="button">演示：消息已发出</button>';
+        } else if (t.stage === 1) {
+          html = '<button class="im-demo-link" data-im-test-advance="" type="button">演示：桌面已出现任务</button>';
+        } else if (t.stage === 2) {
+          html =
+            '<button class="im-demo-link" data-im-test-advance="" type="button">演示：任务已完成</button>' +
+            '<button class="im-demo-link" data-im-test-fail="" type="button">演示：模型不可用</button>';
+        } else if (t.stage === 3) {
+          html = '<button class="im-demo-link" data-im-test-advance="" type="button">演示：回复已送达</button>';
+        }
+        actions.innerHTML = html;
+      }
+      if (errEl) {
+        errEl.hidden = !t.failed;
+        if (t.failed)
+          errEl.textContent = "任务失败：模型不可用——这是任务的问题，不是机器人连接问题；连接状态不受影响。";
+      }
+      if (confirmBox) confirmBox.hidden = !(t.stage >= 4 && !t.confirmed);
+      if (doneBox) {
+        doneBox.hidden = !t.confirmed;
+        var undo = doneBox.querySelector("[data-im-test-undo]");
+        if (undo) undo.remove();
+        if (t.confirmed) {
+          var undoBtn = document.createElement("button");
+          undoBtn.className = "im-demo-link";
+          undoBtn.setAttribute("data-im-test-undo", "");
+          undoBtn.type = "button";
+          undoBtn.textContent = "撤销确认";
+          doneBox.appendChild(undoBtn);
+        }
+      }
+    }
+
+    /* ===== 群协作独立第二流程（D2/PT-7）：发现群 → 选择群与成员 → 各群确认 → 授权我的项目 ===== */
+    function imGroupStateText() {
+      var gf = imState.groupFlow;
+      if (gf.phase === "confirm") {
+        var pending = gf.groups.filter(function (g) { return !g.confirmed; }).length;
+        return pending ? "已保存，等待 " + pending + " 个群确认" : "全部群已确认";
+      }
+      if (gf.phase === "grant") return "群已确认，尚未授权项目";
+      if (gf.phase === "done") return "你的项目已就绪";
+      return "";
+    }
+    function imRenderGroupFlow() {
+      var flowEl = imPanel.querySelector("[data-im-group-flow]");
+      var mainFlow = imPanel.querySelector("#imFlow");
+      if (!flowEl) return;
+      var gf = imState.groupFlow;
+      flowEl.hidden = !gf.open;
+      if (mainFlow) mainFlow.hidden = !!gf.open;
+      if (!gf.open) return;
+      var body = imPanel.querySelector("[data-im-group-body]");
+      var stateEl = imPanel.querySelector("[data-im-group-state]");
+      var steps = imPanel.querySelectorAll("[data-gstep]");
+      var phaseIdx = { discover: 1, select: 2, confirm: 3, grant: 4, done: 5 }[gf.phase] || 1;
+      Array.prototype.forEach.call(steps, function (li) {
+        var n = Number(li.getAttribute("data-gstep"));
+        li.classList.toggle("done", gf.phase === "done" || n < phaseIdx);
+        li.classList.toggle("cur", gf.phase !== "done" && n === phaseIdx);
+      });
+      if (stateEl) stateEl.textContent = imGroupStateText();
+      if (!body) return;
+      var html = "";
+      if (imState.bindings.length === 0) {
+        html =
+          '<p class="im-muted">群协作需要每位成员先完成配对。</p>' +
+          '<button class="im-demo-link" data-im-group-back="" type="button">先回 ③ 绑定账号 →</button>';
+      } else if (gf.phase === "discover") {
+        html =
+          '<p class="im-fine">在群里 @机器人 发 <code class="im-identifier">/help</code> 发现群——发现不等于共享，还需保存空间并确认。</p>' +
+          '<div class="im-chips"><button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button></div>' +
+          '<button class="im-demo-link" data-im-gf-find="" type="button">演示：机器人发现了群</button>';
+      } else if (gf.phase === "select") {
+        html =
+          gf.groups.map(function (g) {
+            return '<div class="im-group-row"><span class="im-group-name">' + g.name + "</span>" +
+              '<span class="im-group-meta">' + g.members + " 名成员 · 已发现</span></div>";
+          }).join("") +
+          '<p class="im-fine">参与成员：' + imState.bindings.map(function (b) { return b.name; }).join("、") + "（各成员需已配对）</p>" +
+          '<div class="btn-pair"><button class="btn btn-primary" data-im-gf-save="" type="button">保存空间</button></div>' +
+          '<p class="im-fine">每次保存空间都会重置全部群确认（对齐生产行为）。</p>';
+      } else if (gf.phase === "confirm") {
+        html =
+          gf.groups.map(function (g, i) {
+            return '<div class="im-group-row">' +
+              '<span class="im-group-name">' + g.name + "</span>" +
+              '<span class="im-group-state">' + (g.confirmed ? "已确认" : "待确认") + "</span>" +
+              (g.confirmed ? "" :
+                '<button class="im-chip" type="button"><code>' + (g.platform === "slack" ? "" : "/") + 'space-confirm</code><span aria-hidden="true">⧉</span></button>' +
+                '<button class="im-demo-link" data-im-gf-confirm="' + i + '" type="button">演示：本群已确认</button>') +
+              "</div>";
+          }).join("") +
+          '<button class="im-demo-link" data-im-gf-resave="" type="button">修改群或成员？重新保存空间（会重置全部确认）</button>';
+      } else if (gf.phase === "grant") {
+        html =
+          '<p class="im-fine">每位成员在自己的电脑上授权项目和数据范围，空间管理员不能代开。</p>' +
+          '<button class="im-demo-link" data-im-gf-grant="" type="button">演示：我的授权已就绪</button>';
+      } else {
+        html =
+          '<p class="im-fine">已连接 ' + gf.groups.length + " 个群。群任务、公开进度与成果在空间内共享。</p>" +
+          '<div class="btn-pair"><button class="btn btn-primary" data-im-group-back="" type="button">返回单聊设置</button></div>';
+      }
+      body.innerHTML = html;
     }
 
     /* ② 三子阶段渲染：阶段条高亮（未连接=② / 已连接未确认=③）+ 阶段3 显隐与确认态 */
@@ -1831,21 +1943,9 @@
             "<br>回复仅发给你绑定的单聊"
           : "";
       }
-      /* ⑤ 模拟操作条 */
-      imRenderGroupSim();
-      /* M6 全部就绪条：①②③④ 全 ✓ 且无任何 ⚠（⑤除外）；800ms 淡入 */
-      var readyBar = imPanel.querySelector("[data-im-ready]");
-      if (readyBar) {
-        if (imDerived.ready) {
-          if (readyBar.hidden) {
-            readyBar.hidden = false;
-            imFadeIn(readyBar);
-          }
-        } else if (!readyBar.hidden) {
-          readyBar.hidden = true;
-          readyBar.classList.remove("im-enter", "im-enter-on");
-        }
-      }
+      /* ⑤ 测试任务轨道 + 群协作第二流程（M6 就绪条已退场，由⑤完成态承接） */
+      imRenderTest();
+      imRenderGroupFlow();
       /* D1：首次流程无总开关。设置进度 N/5 + ③ 五态行 */
       var progEl = imPanel.querySelector("[data-im-progress]");
       if (progEl)
@@ -1869,40 +1969,7 @@
       if (hasBot) el.innerHTML = "当前状态：<b>" + imPairPhase() + "</b>";
     }
 
-    /* ⑤ 群列表行：名称 · 成员数 · 平台 [诊断]；found=已发现未共享（pending 点） */
-    function imBuildGroups(fadeIn) {
-      var list = imPanel.querySelector("[data-im-group-rows]");
-      if (!list) return;
-      list.textContent = "";
-      if (!imState.groups.length) {
-        var empty = document.createElement("li");
-        empty.className = "im-group-empty";
-        empty.textContent = "还没有连接任何群。";
-        list.appendChild(empty);
-        return;
-      }
-      imState.groups.forEach(function (g, idx) {
-        var platformName = (IM_PLATFORMS.filter(function (p) {
-          return p.key === g.platform;
-        })[0] || {}).name || g.platform;
-        var found = g.state === "found";
-        var li = document.createElement("li");
-        li.className = "im-group-row";
-        li.setAttribute("data-im-group-idx", String(idx));
-        li.innerHTML =
-          '<span aria-hidden="true" class="im-dot ' + (found ? "pending" : "ok") + '"></span>' +
-          '<span class="im-group-name">' + g.name + "</span>" +
-          '<span class="im-group-state">' + (found ? "已发现 · 未共享" : "已生效") + "</span>" +
-          '<span class="im-group-meta">' + g.members + " 名成员 · " + platformName + "</span>" +
-          (found
-            ? ""
-            : '<button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">诊断</button>');
-        list.appendChild(li);
-        if (fadeIn) imFadeIn(li);
-      });
-    }
-
-    /* 通用 200ms 淡入（绑定行/群行/请求卡共用） */
+    /* 通用 200ms 淡入（绑定行/请求卡共用） */
     function imFadeIn(el) {
       el.classList.add("im-enter");
       requestAnimationFrame(function () {
@@ -1918,7 +1985,6 @@
       imBuildInstructions();
       imBuildBindings();
       imBuildProjects();
-      imBuildGroups();
       imRefresh();
     }
 
@@ -1933,8 +1999,6 @@
       var enableToggle = imPanel.querySelector("[data-im-enable-failure]"); if (enableToggle) enableToggle.setAttribute("aria-pressed", "false");
       imSecondsLeft = 5 * 60;
       imCodeExpired = false;
-      var readyBar = imPanel.querySelector("[data-im-ready]");
-      if (readyBar) readyBar.classList.remove("im-enter", "im-enter-on");
       imRenderAll();
     }
 
@@ -2620,39 +2684,111 @@
       if (caret) caret.textContent = open ? "▾" : "▸";
     });
 
-    /* ⑤ 群支线（G4）：发现 → found（淡入 pending 行）→ 确认 → 800ms → active */
+    /* ⑤ 测试任务轨道：复制 / 推进 / 模型失败支线 / 确认与撤销（D4 诚实版：只标记用户确认） */
     imPanel.addEventListener("click", function (ev) {
-      if (ev.target.closest("[data-im-group-find]")) {
-        if (imState.sim.groupPhase !== "idle") return;
-        var firstHealthy = IM_PLATFORMS.filter(function (p) {
-          return imDerived.platforms[p.key].ok > 0;
-        })[0];
+      var t = imState.test;
+      if (!t) return;
+      var copyNew = ev.target.closest("[data-im-copy-new]");
+      if (copyNew) {
+        imCopy(copyNew.closest(".im-instr-line").querySelector("code").textContent);
+        var original = copyNew.textContent;
+        copyNew.textContent = "已复制";
+        setTimeout(function () { copyNew.textContent = original; }, 1400);
+        return;
+      }
+      if (ev.target.closest("[data-im-test-advance]")) {
         imState.sim.session = true;
-        imState.sim.groupPhase = "found";
-        imState.groups.push({
-          name: "artemis-演示群",
-          members: 1,
-          platform: firstHealthy ? firstHealthy.key : "feishu",
-          state: "found",
-        });
-        imBuildGroups(true);
+        if (t.stage < 4) t.stage += 1;
         imRefresh();
         return;
       }
-      if (ev.target.closest("[data-im-group-confirm]")) {
-        if (imState.sim.groupPhase !== "found") return;
-        imState.sim.groupPhase = "confirmed";
+      if (ev.target.closest("[data-im-test-fail]")) {
+        t.failed = true;
         imRefresh();
-        var epoch = imEpoch;
-        setTimeout(function () {
-          if (epoch !== imEpoch) return;
-          imState.groups.forEach(function (g) {
-            if (g.state === "found") g.state = "active";
-          });
-          imState.sim.groupPhase = "done";
-          imBuildGroups();
-          imRefresh();
-        }, IM_T_GROUP);
+        return;
+      }
+      if (ev.target.closest("[data-im-test-retry]")) {
+        t.failed = false;
+        t.stage = 3;
+        imRefresh();
+        notice("任务重试成功（演示）");
+        return;
+      }
+      if (ev.target.closest("[data-im-test-confirm-btn]")) {
+        imState.sim.session = true;
+        t.confirmed = true;
+        imManual.test = true; /* 完成态锁定展开：庆祝与两动作可见 */
+        imRefresh();
+        notice("你已确认收到回复。整套设置走通了。");
+        return;
+      }
+      if (ev.target.closest("[data-im-test-undo]")) {
+        t.confirmed = false;
+        imRefresh();
+        return;
+      }
+      if (ev.target.closest("[data-im-finish]")) {
+        var closeBtn = $("#settingsClose");
+        if (closeBtn) closeBtn.click();
+        notice("开始使用！随时回到这里调整。");
+        return;
+      }
+      if (ev.target.closest("[data-im-open-group-flow]")) {
+        imState.groupFlow.open = true;
+        imRenderGroupFlow();
+        var scroller2 = $(".settings-content");
+        if (scroller2) scroller2.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+
+    /* 群协作第二流程（PT-7）：发现 → 保存空间（重置确认）→ 按群确认 → 各自授权 */
+    imPanel.addEventListener("click", function (ev) {
+      var gf = imState.groupFlow;
+      if (!gf) return;
+      if (ev.target.closest("[data-im-group-back]") && gf.open) {
+        gf.open = false;
+        imRenderGroupFlow();
+        return;
+      }
+      if (ev.target.closest("[data-im-gf-find]")) {
+        if (gf.phase !== "discover") return;
+        imState.sim.session = true;
+        var firstHealthy = IM_PLATFORMS.filter(function (p) {
+          return imDerived.platforms[p.key].ok > 0;
+        })[0];
+        gf.groups = [
+          { name: "artemis-ui-评审群", platform: firstHealthy ? firstHealthy.key : "feishu", members: 5, confirmed: false },
+        ];
+        gf.phase = "select";
+        imRefresh();
+        return;
+      }
+      if (ev.target.closest("[data-im-gf-save]")) {
+        gf.spaceSaved = true;
+        gf.groups.forEach(function (g) { g.confirmed = false; });
+        gf.phase = "confirm";
+        imRefresh();
+        return;
+      }
+      var confirmBtn = ev.target.closest("[data-im-gf-confirm]");
+      if (confirmBtn) {
+        gf.groups[Number(confirmBtn.getAttribute("data-im-gf-confirm"))].confirmed = true;
+        if (gf.groups.every(function (g) { return g.confirmed; })) gf.phase = "grant";
+        imRefresh();
+        return;
+      }
+      if (ev.target.closest("[data-im-gf-resave]")) {
+        gf.spaceSaved = false;
+        gf.groups.forEach(function (g) { g.confirmed = false; });
+        gf.phase = "select";
+        imRefresh();
+        notice("已重新编辑空间；保存后全部群确认会重置（演示）");
+        return;
+      }
+      if (ev.target.closest("[data-im-gf-grant]")) {
+        gf.phase = "done";
+        imRefresh();
+        notice("群协作已就绪（演示）");
       }
     });
 
@@ -2862,6 +2998,7 @@
             Object.values(imState.connections).flat().forEach(function (c) { c.state = "ok"; delete c.reason; });
             imState.pairingRequests = []; imState.projects.forEach(function (p) { p.expired = false; });
             imState.gateway.linkBroken = key === "offline";
+            if (key === "ready") { imState.test.stage = 4; imState.test.confirmed = true; }
             if (key === "expired") { imSecondsLeft = 0; imCodeExpired = true; imManual.account = true; }
             imRenderAll();
           }
