@@ -10115,6 +10115,45 @@ kbd {
   line-height: 1.7;
   color: var(--text-secondary, var(--muted));
 }
+/* ⑤卡：测试任务诚实版四段轨道。 */
+.im-test-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--artemis-color-surface-sunken);
+  list-style: none;
+}
+.im-test-track li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-test-track li::before {
+  content: "";
+  inline-size: 7px;
+  block-size: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+.im-test-track li[data-state="done"] {
+  color: var(--text);
+}
+.im-test-track li[data-state="done"]::before {
+  background: var(--success);
+  opacity: 1;
+}
+.im-test-track li[data-state="guide"] {
+  font-style: normal;
+  opacity: 0.85;
+}
 @media (max-width: 720px) {
   .im-mode-tiers {
     grid-template-columns: 1fr;

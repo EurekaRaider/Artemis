@@ -134,6 +134,7 @@ export function ImSettingsPanel({
   >({});
   const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(null);
   const [testConfirmed, setTestConfirmed] = useState(false);
+  const [taskSeen, setTaskSeen] = useState(false);
   useEffect(() => {
     setSavedMetadata({});
     setSavedPending({});
@@ -651,12 +652,19 @@ export function ImSettingsPanel({
   const flowDone = imFlowProgress(flowSteps);
   const flowOpenCard = flowCard ?? imFirstPendingStep(flowSteps) ?? "test";
   const flowSetupDone = flowSteps.slice(0, 4).every((step) => step.done);
+  const taskDetected = taskSeen || !!status?.remoteTasks?.length;
   const flowDoneKey = flowSteps.map((step) => (step.done ? "1" : "0")).join("");
   const prevFlowDoneKey = useRef(flowDoneKey);
   useEffect(() => {
     setTestConfirmed(imReadTestConfirmed(status?.settings.deviceId));
     setFlowCard(null);
   }, [status?.settings.deviceId]);
+  useEffect(() => {
+    const unsubscribe = window.artemis.onImTaskCreated?.(() =>
+      setTaskSeen(true),
+    );
+    return () => unsubscribe?.();
+  }, []);
   useEffect(() => {
     if (prevFlowDoneKey.current === flowDoneKey) return;
     const previous = prevFlowDoneKey.current;
@@ -2252,6 +2260,33 @@ export function ImSettingsPanel({
               slack={activePairingPlatform === "slack"}
               copy={(text) => void navigator.clipboard.writeText(text)}
             />
+            {/* D4 诚实版轨道：仅「桌面出现任务」由系统检测，完成与回复以用户确认为准。 */}
+            <ol
+              className="im-test-track"
+              aria-label={t("测试任务进度", "Test task progress")}
+            >
+              <li data-state="guide">
+                {t("你从手机发送任务指令", "You send the task command")}
+              </li>
+              <li data-state={taskDetected ? "done" : "pending"}>
+                {taskDetected
+                  ? t("桌面已出现任务", "A task appeared on the desktop")
+                  : t("等待桌面出现任务", "Waiting for a task on the desktop")}
+              </li>
+              <li data-state={testConfirmed ? "done" : "pending"}>
+                {testConfirmed
+                  ? t("你已确认任务完成", "You confirmed the task finished")
+                  : t("等待任务完成", "Waiting for the task to finish")}
+              </li>
+              <li data-state={testConfirmed ? "done" : "pending"}>
+                {testConfirmed
+                  ? t("你已确认收到回复", "You confirmed the reply arrived")
+                  : t(
+                      "等待回复送达手机",
+                      "Waiting for the reply on your phone",
+                    )}
+              </li>
+            </ol>
             <Checkbox
               label={t(
                 "我已在手机上收到 Artemis 的回复（可撤销）",

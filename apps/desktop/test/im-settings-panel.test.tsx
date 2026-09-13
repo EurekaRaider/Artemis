@@ -950,9 +950,7 @@ describe("production IM settings", () => {
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "选择目录或文件" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "选择目录或文件" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "自定义范围 ▸" }));
     expect(
       screen.getByRole("button", { name: "选择目录或文件" }),
@@ -978,14 +976,12 @@ describe("production IM settings", () => {
       shell: true,
       network: false,
     });
-    expect(
-      f.get().settings.grants[0]!.security!.scopes[0]!.writePaths,
-    ).toEqual(["src", "docs"]);
+    expect(f.get().settings.grants[0]!.security!.scopes[0]!.writePaths).toEqual(
+      ["src", "docs"],
+    );
     // 切回 Plan：命令与网络同步关闭，控件收起。
     await user.click(screen.getByRole("radio", { name: /Plan · 只读分析/ }));
-    expect(
-      screen.queryByRole("checkbox", { name: "允许沙箱命令" }),
-    ).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "允许沙箱命令" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "保存并启用" }));
     expect(f.get().settings.grants[0]).toMatchObject({
       mode: "plan",
@@ -1220,6 +1216,45 @@ describe("pairing code lifecycle", () => {
       "true",
     );
     expect(screen.getByText("创建与连接 IM 群协作空间")).toBeVisible();
+  });
+  it("advances the honest test track from real task signals only", async () => {
+    const f = fixture();
+    f.set({
+      settings: {
+        ...f.get().settings,
+        grants: [
+          {
+            projectId: "test-project",
+            tokenBudget: 100000,
+            approval: "ask",
+            mode: "plan",
+            network: false,
+            shell: false,
+            groups: [],
+            expiresAt: Date.now() + 60000,
+          },
+        ],
+      },
+      remoteTasks: [{ threadId: "task-1", channel: "wecom", kind: "task" }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
+    expect(await screen.findByText("设置进度 4/5")).toBeVisible();
+    // 仅「桌面出现任务」由真实信号点亮；完成与回复等用户确认（D4）。
+    const track = screen.getByRole("list", { name: "测试任务进度" });
+    expect(
+      track.children[1].getAttribute("data-state") === "done" &&
+        track.children[2].getAttribute("data-state") === "pending" &&
+        track.children[3].getAttribute("data-state") === "pending",
+    ).toBe(true);
+    await user.click(
+      screen.getByRole("checkbox", { name: /我已在手机上收到/ }),
+    );
+    expect(track.children[2].getAttribute("data-state")).toBe("done");
+    expect(track.children[3].getAttribute("data-state")).toBe("done");
+    expect(await screen.findByText("设置进度 5/5")).toBeVisible();
   });
   it("notifies once when a completed flow step regresses after a connection is removed", async () => {
     const f = fixture();
