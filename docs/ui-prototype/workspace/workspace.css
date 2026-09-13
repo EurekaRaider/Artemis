@@ -4361,7 +4361,7 @@ body[data-archived-demo] .composer-wrap .composer {
 }
 .im-instr-line {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 6px;
@@ -4911,7 +4911,7 @@ body[data-archived-demo] .composer-wrap .composer {
 /* 配对码卡（通用 → 配对与账号） */
 .im-code-card {
   display: flex;
-  align-items: center;
+  align-items: baseline; /* 混排（等宽码/灰字/按钮）共用一条文字基线，不再各自居中错落 */
   gap: 12px;
   flex-wrap: wrap;
   padding: 12px 14px;
