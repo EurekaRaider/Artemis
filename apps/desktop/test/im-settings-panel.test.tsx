@@ -916,6 +916,83 @@ describe("production IM settings", () => {
     expect(f.get().settings.grants).toHaveLength(1);
     expect(screen.queryByText(/授权已保存，连接未启用/)).toBeNull();
   });
+  it("shows the built-in ad-hoc conversations row outside project grants", async () => {
+    const f = fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("项目授权"));
+    const builtin = screen.getByRole("checkbox", {
+      name: "临时会话（内置，始终可用）",
+    }) as HTMLInputElement;
+    expect(builtin).toBeChecked();
+    expect(builtin).toBeDisabled();
+    expect(screen.getByText(/不绑定项目的会话/)).toBeVisible();
+    expect(f.get().settings.grants).toEqual([]);
+  });
+  it("gates the scope tree by mode tier and blocks Execute saves without a writable scope", async () => {
+    const f = fixture();
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "scope-entries")
+        return [
+          { path: "src", directory: true, protected: false },
+          { path: "docs", directory: true, protected: false },
+        ];
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("项目授权"));
+    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
+    // Plan 默认：范围声明行可见，范围树收在「自定义范围」后（D3）。
+    expect(
+      screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "选择目录或文件" }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "自定义范围 ▸" }));
+    expect(
+      screen.getByRole("button", { name: "选择目录或文件" }),
+    ).toBeVisible();
+    // Execute：范围树强制展开；未选可写范围时禁用保存并提示。
+    await user.click(screen.getByRole("radio", { name: /Execute/ }));
+    expect(screen.getByText(/Execute 需要选择可写范围/)).toBeVisible();
+    const save = screen.getByRole("button", { name: "保存并启用" });
+    expect(save).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
+    await user.click(screen.getByRole("button", { name: "全选可修改" }));
+    expect(save).toBeEnabled();
+    // 确认摘要五要素（项目/范围/回复对象/模式/有效期）保存前可见。
+    expect(screen.getByText(/确认摘要/).textContent).toContain("Test project");
+    expect(screen.getByText(/确认摘要/).textContent).toContain(
+      "仅回复你的单聊",
+    );
+    expect(screen.getByText(/确认摘要/).textContent).toContain("30 天有效");
+    await user.click(screen.getByRole("checkbox", { name: "允许沙箱命令" }));
+    await user.click(save);
+    expect(f.get().settings.grants[0]).toMatchObject({
+      mode: "execute",
+      shell: true,
+      network: false,
+    });
+    expect(
+      f.get().settings.grants[0]!.security!.scopes[0]!.writePaths,
+    ).toEqual(["src", "docs"]);
+    // 切回 Plan：命令与网络同步关闭，控件收起。
+    await user.click(screen.getByRole("radio", { name: /Plan · 只读分析/ }));
+    expect(
+      screen.queryByRole("checkbox", { name: "允许沙箱命令" }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    expect(f.get().settings.grants[0]).toMatchObject({
+      mode: "plan",
+      shell: false,
+      network: false,
+    });
+  });
   it("can pause a degraded active connection while blocking a new enable without a bot", async () => {
     const f = fixture();
     f.set({

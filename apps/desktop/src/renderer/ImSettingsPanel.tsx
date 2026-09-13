@@ -129,6 +129,9 @@ export function ImSettingsPanel({
     Partial<Record<ImChannel, boolean>>
   >({});
   const [enableFailedError, setEnableFailedError] = useState("");
+  const [customScopeOpen, setCustomScopeOpen] = useState<
+    Record<string, boolean>
+  >({});
   const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(null);
   const [testConfirmed, setTestConfirmed] = useState(false);
   useEffect(() => {
@@ -1534,6 +1537,19 @@ export function ImSettingsPanel({
   }
   function renderPermissionsBody() {
     const settings = activeSettings;
+    /* D3：Execute 必须显式选择可写范围（owner 受众），否则禁止保存。 */
+    const executeMissingWrite = settings.grants.some(
+      (g) =>
+        g.mode === "execute" &&
+        !g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
+          .length,
+    );
+    const hasWritableScope = settings.grants.every(
+      (g) =>
+        g.mode !== "execute" ||
+        !!g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
+          .length,
+    );
     return (
       <section id="im-permissions" tabIndex={-1}>
         <ManagementSection
@@ -1574,6 +1590,23 @@ export function ImSettingsPanel({
               )}
             </p>
           )}
+          {/* W4：临时会话是内置授权目标——已配对即可收发消息并获得指引，不占项目授权，不可取消。 */}
+          <div className="im-project im-project-builtin">
+            <Checkbox
+              label={t(
+                "临时会话（内置，始终可用）",
+                "Ad-hoc chats (built in, always available)",
+              )}
+              defaultChecked
+              disabled
+            />
+            <small>
+              {t(
+                "不绑定项目的会话：可收发消息并获得指引；不授权任何项目文件。",
+                "Conversations without a project: exchange messages and get guidance; no project files are authorized.",
+              )}
+            </small>
+          </div>
           {projects.map((project) => {
             const grant = settings.grants.find(
               (g) => g.projectId === project.id,
@@ -1630,61 +1663,115 @@ export function ImSettingsPanel({
                           ? t("有效", "Active")
                           : t("已过期", "Expired")}
                     </summary>
-                    <ImDataPermissions
-                      grant={grant}
-                      t={t}
-                      disabled={busy}
-                      onChange={(security) =>
-                        updateGrant(project.id, { security })
-                      }
-                      audiences={grant.groups.map((value) => {
-                        const space = (
-                          (status?.spaces ?? []) as CollaborationSpace[]
-                        ).find((s) => `space:${s.id}` === value);
-                        return {
-                          value,
-                          ...(space?.revision
-                            ? { revision: space.revision as string }
-                            : {}),
-                          label: space
-                            ? `${space.name} · ${(space.endpoints ?? []).map((e) => `${e.connectionId}: ${e.id}`).join(", ")} · ${(space.participants ?? []).map((p) => p.name || p.deviceId).join(", ")}`
-                            : value,
-                        };
-                      })}
-                    />
-                    <div className="im-grant-fields">
-                      <Select
-                        labelVisibility="visible"
-                        label={t("任务模式", "Task mode")}
-                        value={grant.mode}
-                        onValueChange={(mode) =>
-                          updateGrant(project.id, { mode })
+                    {/* 三档模式（D3）：档位切换收窄离开 Execute 时同步关闭命令与网络。 */}
+                    <div
+                      className="im-mode-tiers"
+                      role="radiogroup"
+                      aria-label={t("任务模式", "Task mode")}
+                    >
+                      {(
+                        [
+                          [
+                            "plan",
+                            t("Plan · 只读分析", "Plan · Read-only"),
+                            t(
+                              "可读整个项目，不修改文件",
+                              "Reads the whole project, changes nothing",
+                            ),
+                          ],
+                          [
+                            "review",
+                            t("Review · 只读审查", "Review · Read-only"),
+                            t(
+                              "同 Plan，用于复核结果",
+                              "Same reads, for reviewing results",
+                            ),
+                          ],
+                          [
+                            "execute",
+                            t("Execute · 允许修改", "Execute · May change"),
+                            t("需要选择可写范围", "Requires a writable scope"),
+                          ],
+                        ] as const
+                      ).map(([mode, label, desc]) => (
+                        <label
+                          className={
+                            "im-mode-tier" + (grant.mode === mode ? " on" : "")
+                          }
+                          key={mode}
+                        >
+                          <input
+                            type="radio"
+                            name={`imMode-${project.id}`}
+                            checked={grant.mode === mode}
+                            disabled={busy}
+                            onChange={() =>
+                              updateGrant(
+                                project.id,
+                                mode === "execute"
+                                  ? { mode }
+                                  : { mode, shell: false, network: false },
+                              )
+                            }
+                          />
+                          <strong>{label}</strong>
+                          <small>{desc}</small>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="im-fine">
+                      {grant.mode === "execute"
+                        ? t(
+                            "Execute 需要选择可写范围；可读默认为整个项目。",
+                            "Execute needs a writable scope; reads default to the whole project.",
+                          )
+                        : t(
+                            "默认范围：可读整个项目，不可写任何文件。",
+                            "Default scope: the whole project is readable; no file is writable.",
+                          )}
+                    </p>
+                    {grant.mode !== "execute" && (
+                      <Button
+                        size="compact"
+                        variant="quiet"
+                        onClick={() =>
+                          setCustomScopeOpen((open) => ({
+                            ...open,
+                            [project.id]: !open[project.id],
+                          }))
                         }
+                      >
+                        {customScopeOpen[project.id]
+                          ? t("收起自定义范围", "Collapse custom scope")
+                          : t("自定义范围 ▸", "Custom scope")}
+                      </Button>
+                    )}
+                    {(grant.mode === "execute" ||
+                      customScopeOpen[project.id]) && (
+                      <ImDataPermissions
+                        grant={grant}
+                        t={t}
                         disabled={busy}
-                        options={[
-                          {
-                            value: "plan",
-                            label: t(
-                              "Plan · 只读分析（首次推荐）",
-                              "Plan · Read-only analysis (start here)",
-                            ),
-                          },
-                          {
-                            value: "review",
-                            label: t(
-                              "Review · 只读审查",
-                              "Review · Read-only review",
-                            ),
-                          },
-                          {
-                            value: "execute",
-                            label: t(
-                              "Execute · 允许授权范围内修改",
-                              "Execute · Changes within your grant",
-                            ),
-                          },
-                        ]}
+                        onChange={(security) =>
+                          updateGrant(project.id, { security })
+                        }
+                        audiences={grant.groups.map((value) => {
+                          const space = (
+                            (status?.spaces ?? []) as CollaborationSpace[]
+                          ).find((s) => `space:${s.id}` === value);
+                          return {
+                            value,
+                            ...(space?.revision
+                              ? { revision: space.revision as string }
+                              : {}),
+                            label: space
+                              ? `${space.name} · ${(space.endpoints ?? []).map((e) => `${e.connectionId}: ${e.id}`).join(", ")} · ${(space.participants ?? []).map((p) => p.name || p.deviceId).join(", ")}`
+                              : value,
+                          };
+                        })}
                       />
+                    )}
+                    <div className="im-grant-fields">
                       <Select
                         labelVisibility="visible"
                         label={t("执行审批", "Execution approval")}
@@ -1707,43 +1794,46 @@ export function ImSettingsPanel({
                           },
                         ]}
                       />
-                      {status?.scopedShellSupported === false ? (
-                        <InlineNotice tone="warning">
-                          {t(
-                            "当前平台缺少受限文件与命令组件，请更新 Artemis 后使用目录枚举、新建文件和命令执行。",
-                            "Scoped file and command components are unavailable. Update Artemis to use directory listing, file creation and commands.",
-                          )}
-                        </InlineNotice>
-                      ) : null}
-                      <Checkbox
-                        label={t("允许沙箱命令", "Allow sandboxed commands")}
-                        checked={grant.shell}
-                        disabled={
-                          busy ||
-                          grant.mode !== "execute" ||
-                          status?.scopedShellSupported === false
-                        }
-                        onCheckedChange={(shell) =>
-                          updateGrant(project.id, { shell })
-                        }
-                      />
-                      <Checkbox
-                        label={t(
-                          "允许命令访问网络",
-                          "Allow command network access",
-                        )}
-                        description={t(
-                          "开启通用网络访问；首版不按域名或数据内容限制网络外发。",
-                          "Enables general network access; this version does not filter network destinations or payloads.",
-                        )}
-                        checked={grant.network}
-                        disabled={
-                          busy || !grant.shell || grant.mode !== "execute"
-                        }
-                        onCheckedChange={(network) =>
-                          updateGrant(project.id, { network })
-                        }
-                      />
+                      {grant.mode === "execute" && (
+                        <>
+                          {status?.scopedShellSupported === false ? (
+                            <InlineNotice tone="warning">
+                              {t(
+                                "当前平台缺少受限文件与命令组件，请更新 Artemis 后使用目录枚举、新建文件和命令执行。",
+                                "Scoped file and command components are unavailable. Update Artemis to use directory listing, file creation and commands.",
+                              )}
+                            </InlineNotice>
+                          ) : null}
+                          <Checkbox
+                            label={t(
+                              "允许沙箱命令",
+                              "Allow sandboxed commands",
+                            )}
+                            checked={grant.shell}
+                            disabled={
+                              busy || status?.scopedShellSupported === false
+                            }
+                            onCheckedChange={(shell) =>
+                              updateGrant(project.id, { shell })
+                            }
+                          />
+                          <Checkbox
+                            label={t(
+                              "允许命令访问网络",
+                              "Allow command network access",
+                            )}
+                            description={t(
+                              "开启通用网络访问；首版不按域名或数据内容限制网络外发。",
+                              "Enables general network access; this version does not filter network destinations or payloads.",
+                            )}
+                            checked={grant.network}
+                            disabled={busy || !grant.shell}
+                            onCheckedChange={(network) =>
+                              updateGrant(project.id, { network })
+                            }
+                          />
+                        </>
+                      )}
                       <div className="im-field-stack">
                         <h4>
                           {t(
@@ -1845,8 +1935,39 @@ export function ImSettingsPanel({
                 .map((p) => ({ value: p.id, label: p.name })),
             ]}
           />
+          {/* 确认摘要五要素：项目 / 文件范围 / 回复对象 / 模式 / 有效期。 */}
+          {settings.grants.length > 0 && (
+            <p className="im-grant-summary">
+              {t("确认摘要：", "Summary: ")}
+              {settings.grants
+                .map(
+                  (g) =>
+                    projects.find((p) => p.id === g.projectId)?.name ??
+                    g.projectId,
+                )
+                .join("、")}
+              {" · "}
+              {hasWritableScope
+                ? t("默认可读整个项目", "Whole project readable by default")
+                : t("含可写范围", "Includes writable scopes")}
+              {" · "}
+              {t("仅回复你的单聊", "Replies only to your direct chat")}
+              {" · "}
+              {[...new Set(settings.grants.map((g) => g.mode))].join("/")}
+              {" · "}
+              {t("30 天有效", "Valid for 30 days")}
+            </p>
+          )}
+          {executeMissingWrite && (
+            <InlineNotice tone="warning">
+              {t(
+                "Execute 项目还未选择可写范围，请先在范围树中勾选。",
+                "An Execute project still needs a writable scope; pick one in the scope tree first.",
+              )}
+            </InlineNotice>
+          )}
           <Button
-            disabled={busy || !settings.deviceId}
+            disabled={busy || !settings.deviceId || executeMissingWrite}
             onClick={() =>
               void run(async () => {
                 setEnableFailedError("");

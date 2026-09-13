@@ -10069,6 +10069,57 @@ kbd {
   padding: 4px 14px 14px;
   border-top: 1px solid var(--border-soft);
 }
+/* ④卡：三档模式与内置临时会话行。 */
+.im-mode-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.im-mode-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.im-mode-tier input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.im-mode-tier.on {
+  border-color: var(--artemis-color-border-strong);
+  background: var(--artemis-color-interaction-selected);
+}
+.im-mode-tier strong {
+  font-size: 12.5px;
+  font-weight: 560;
+}
+.im-mode-tier small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-project-builtin {
+  align-items: baseline;
+  gap: 10px;
+}
+.im-project-builtin small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-grant-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary, var(--muted));
+}
+@media (max-width: 720px) {
+  .im-mode-tiers {
+    grid-template-columns: 1fr;
+  }
+}
 .im-layout {
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
