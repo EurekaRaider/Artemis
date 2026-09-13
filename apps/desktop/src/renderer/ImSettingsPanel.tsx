@@ -29,6 +29,7 @@ import {
 } from "./ImSetupGuide";
 
 import { ImSlackSetup, SLACK_APP_MANIFEST } from "./ImSlackSetup";
+import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
 import {
   ImNavigation,
   IM_CHANNELS,
@@ -118,6 +119,7 @@ export function ImSettingsPanel({
   const [savedPending, setSavedPending] = useState<
     Partial<Record<ImChannel, boolean>>
   >({});
+  const [enableFailedError, setEnableFailedError] = useState("");
   useEffect(() => {
     setSavedMetadata({});
     setSavedPending({});
@@ -1739,8 +1741,8 @@ export function ImSettingsPanel({
                     </li>
                     <li>
                       {t(
-                        "保存授权后，使用顶部开关启用或暂停连接。保持 Artemis 运行，并在机器人中核对授权的项目。",
-                        "After saving permissions, use the switch at the top to enable or pause. Keep Artemis running and check that the bot lists your authorized projects.",
+                        "保存并启用后即可在手机上发起任务；随时可用顶部开关暂停或恢复，配置与授权都会保留。保持 Artemis 运行，并在机器人中核对授权的项目。",
+                        "Save and enable to start tasks from your phone; pause or resume anytime with the switch at the top—configuration and grants are kept. Keep Artemis running and check that the bot lists your authorized projects.",
                       )}
                     </li>
                   </ol>
@@ -2040,10 +2042,71 @@ export function ImSettingsPanel({
                   />
                   <Button
                     disabled={busy || !settings.deviceId}
-                    onClick={() => void run(() => save(settings))}
+                    onClick={() =>
+                      void run(async () => {
+                        setEnableFailedError("");
+                        const outcome = await imSaveAndEnable(
+                          (next) => window.artemis.saveImSettings(next),
+                          settings,
+                          status!.settings,
+                        );
+                        if (outcome.phase === "save-failed") {
+                          setMessageError(true);
+                          setMessage(outcome.error);
+                          return;
+                        }
+                        setStatus((previous) => ({
+                          ...previous,
+                          ...outcome.status,
+                        }));
+                        setSettings(outcome.status.settings);
+                        if (outcome.phase === "saved-enable-failed") {
+                          setEnableFailedError(outcome.error);
+                          return;
+                        }
+                        setMessage(
+                          t(
+                            "项目授权已保存，连接已启用。",
+                            "Project permissions saved and connection enabled.",
+                          ),
+                        );
+                      })
+                    }
                   >
-                    {t("保存项目授权", "Save project permissions")}
+                    {t("保存并启用", "Save and enable")}
                   </Button>
+                  {enableFailedError && (
+                    <InlineNotice tone="warning">
+                      {t(
+                        "授权已保存，连接未启用。",
+                        "Authorizations saved; connection not enabled.",
+                      )}{" "}
+                      {enableFailedError}{" "}
+                      <Button
+                        size="compact"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            const next = await imRetryEnable(
+                              (draft) => window.artemis.saveImSettings(draft),
+                              status!.settings,
+                            );
+                            setStatus((previous) => ({
+                              ...previous,
+                              ...next,
+                            }));
+                            setSettings(next.settings);
+                            setEnableFailedError("");
+                            setMessage(
+                              t("连接已启用。", "Connection enabled."),
+                            );
+                          })
+                        }
+                      >
+                        {t("重试启用", "Retry enable")}
+                      </Button>
+                    </InlineNotice>
+                  )}
                   <p>
                     {t(
                       "单聊发送 /help 查看项目选择、创建、继续、状态和停止等指令。IM 任务使用独立工具权限；MCP 与扩展暂不开放到远程入口。",

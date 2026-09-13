@@ -842,12 +842,70 @@ describe("production IM settings", () => {
     expect(
       screen.getByRole("checkbox", { name: "Test project" }),
     ).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "保存项目授权" }));
+    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    // 组合入口两阶段：先按当前（暂停）状态保存授权，成功后自动启用。
+    expect(f.save).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        enabled: false,
+        defaultProjectId: "test-project",
+      }),
+    );
+    expect(f.save).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        enabled: true,
+        grants: [expect.objectContaining({ mode: "plan", approval: "ask" })],
+      }),
+    );
     expect(f.get().settings).toMatchObject({
-      enabled: false,
+      enabled: true,
       defaultProjectId: "test-project",
       grants: [{ mode: "plan", approval: "ask", shell: false, network: false }],
     });
+  });
+  it("does not enable when saving authorizations fails", async () => {
+    const f = fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("项目授权"));
+    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
+    f.save.mockRejectedValueOnce(new Error("Grant rejected"));
+    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    expect(await screen.findByText("Grant rejected")).toBeVisible();
+    expect(f.save).toHaveBeenCalledTimes(1);
+    expect(f.save.mock.calls[0][0]).toMatchObject({ enabled: false });
+    expect(f.get().settings.enabled).toBe(false);
+  });
+  it("reports saved-but-not-enabled and retries only the enable phase", async () => {
+    const f = fixture();
+    const original = f.save.getMockImplementation()!;
+    f.save.mockImplementation(async (settings: ImSettings) => {
+      if (settings.enabled) throw new Error("Gateway enable rejected");
+      return original(settings);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("项目授权"));
+    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
+    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    expect(await screen.findByText(/授权已保存，连接未启用/)).toBeVisible();
+    expect(f.get().settings).toMatchObject({
+      enabled: false,
+      grants: [{ mode: "plan" }],
+    });
+    const savedGrants = f.get().settings.grants;
+    f.save.mockImplementation(original);
+    await user.click(screen.getByRole("button", { name: "重试启用" }));
+    expect(f.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
+    expect(f.save.mock.lastCall[0].grants).toEqual(savedGrants);
+    expect(f.get().settings.enabled).toBe(true);
+    expect(f.get().settings.grants).toHaveLength(1);
+    expect(screen.queryByText(/授权已保存，连接未启用/)).toBeNull();
   });
   it("can pause a degraded active connection while blocking a new enable without a bot", async () => {
     const f = fixture();

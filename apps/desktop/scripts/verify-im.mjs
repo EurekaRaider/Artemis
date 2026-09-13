@@ -1251,7 +1251,7 @@ try {
       `${nativeWindow}.setMinimumSize(${savedWindowSize.minimum[0]},${savedWindowSize.minimum[1]});${nativeWindow}.setSize(${savedWindowSize.size[0]},${savedWindowSize.size[1]})`,
     );
     await pause(200);
-    await click(button("保存项目授权"));
+    await click(button("保存并启用"));
     await click("document.querySelector('.im-header [role=switch]')");
     await until(
       async () =>

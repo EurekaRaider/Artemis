@@ -168,3 +168,11 @@
 - `styles.css`：`im-dot` 新增 `saving`（warning+脉冲）与 `partial_error`（danger）样式，含 reduced-motion 分支。
 - 测试：protocol 聚合器七例流转；panel 部分 failure 期望 `error→partial_error`；新增「保存≠已连接」两阶段用例（未配置→保存并连接→「已保存，待连接」→连接中→已连接）。
 - grep 验收：渲染层连接状态字符串全部落在类型化枚举上（群成员在线态、remoteTasks 租约态为独立轴，不混用）。
+
+### P2 PR-S2 两阶段「保存并启用」（已落地）
+
+- 新模块 `apps/desktop/src/renderer/im-save-enable.ts`：`imSaveAndEnable(save, draft, current)` —— 阶段一按当前启用状态保存授权；已启用即单阶段完成；未启用则阶段二 `{...已保存, enabled:true}` 启用。返回判别联合 `{phase:"enabled"|"save-failed"|"saved-enable-failed", status?, error?}`。`imRetryEnable` 仅重发启用阶段（同一载荷重发，save 为整体替换语义，无重复 grant）。
+- `ImSettingsPanel.tsx` permissions 区：原「保存项目授权」改为「保存并启用」组合入口；保存失败→错误归表单、不发起启用；保存成功启用失败→InlineNotice「授权已保存，连接未启用」+ 仅「重试启用」按钮；④区引导文案同步。
+- 语义说明：组合入口总是把暂停中的服务重新启用（按钮文案即「保存并启用」，对齐原型④卡）；纯暂停/恢复仍走顶部开关，两者并存直至 P3 概览接管开关（D1）。
+- 测试：三场景——保存失败（单次调用、无启用、错误可见）、保存成功启用失败+重试启用（授权载荷逐字不变、grants 仍 1 条、通知消失）、两阶段全成功（暂停态保存→自动启用，两次调用断言 enabled false→true）。
+- e2e：verify-im.mjs 按钮名同步（全量适配在 P6）。
