@@ -18,10 +18,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("requires explicit file selection and confirmation and keeps writes within reads", async () => {
+it("defaults to whole-project reads and keeps explicit writes inside narrowed reads", async () => {
   const user = userEvent.setup();
   const manage = vi.fn(async () => [
     { path: "src", directory: true, protected: false },
+    { path: "docs", directory: true, protected: false },
     { path: ".env", directory: false, protected: true },
   ]);
   stubWindowArtemis({ manageIm: manage });
@@ -48,17 +49,36 @@ it("requires explicit file selection and confirmation and keeps writes within re
   expect(value!.security).toBeUndefined();
   await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
   expect(screen.queryByRole("checkbox", { name: "可处理 .env" })).toBeNull();
+  // 默认整个项目可读：读框默认全选，写框可独立显式选择。
+  const read = screen.getByRole("checkbox", {
+    name: "可处理 src",
+  }) as HTMLInputElement;
+  expect(read.checked).toBe(true);
+  const write = screen.getByRole("checkbox", {
+    name: "可修改 src",
+  }) as HTMLInputElement;
+  expect(write.disabled).toBe(false);
+  await user.click(write);
+  expect(value!.security!.scopes[0]).toMatchObject({
+    audience: "owner",
+    readPaths: [],
+    writePaths: ["src"],
+  });
+  // 首次取消勾选读 = 从默认收窄为根级枚举；写范围随之裁剪到读范围内。
+  await user.click(read);
+  expect(value!.security!.scopes[0]).toMatchObject({
+    readPaths: ["docs"],
+    writePaths: [],
+  });
   expect(
-    (screen.getByRole("checkbox", { name: "可修改 src" }) as HTMLInputElement)
-      .disabled,
+    (
+      screen.getByRole("checkbox", {
+        name: "可修改 src",
+      }) as HTMLInputElement
+    ).disabled,
   ).toBe(true);
-  await user.click(screen.getByRole("checkbox", { name: "可处理 src" }));
-  await user.click(screen.getByRole("checkbox", { name: "可修改 src" }));
   await user.click(screen.getByRole("checkbox", { name: /我确认以上/ }));
   expect(value!.security!.confirmedAt).toBeGreaterThan(0);
-  await user.click(screen.getByRole("checkbox", { name: "可处理 src" }));
-  expect(value!.security!.scopes[0]!.writePaths).toEqual([]);
-  expect(value!.security!.confirmedAt).toBe(0);
 });
 
 it("bulk selects only explicit unprotected entries for the chosen audience and resets confirmation", async () => {
@@ -111,7 +131,7 @@ it("bulk selects only explicit unprotected entries for the chosen audience and r
     writePaths: [],
     spaceRevision: "v1",
   });
-  await user.click(screen.getByRole("button", { name: "清除此范围" }));
+  await user.click(screen.getByRole("button", { name: "恢复默认范围" }));
   expect(
     value!.security!.scopes.find((s) => s.audience === "space:team")!.readPaths,
   ).toEqual([]);
@@ -171,7 +191,8 @@ it("exposes disclosure state and preserves inherited permissions with keyboard c
   }) as HTMLInputElement;
   read.focus();
   await user.keyboard(" ");
-  expect(read.checked).toBe(false);
+  // 取消最后一个显式读根 = 回到默认（整个项目可读），仍显示为勾选。
+  expect(read.checked).toBe(true);
 });
 
 it("shows sensitive previews as inert text and sends only the reviewed content hash", async () => {

@@ -1133,12 +1133,12 @@ try {
       ),
       true,
     );
-    await click(button("清除此范围"));
+    await click(button("恢复默认范围"));
     assert.equal(
       await evaluate(
-        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).some(i=>i.checked)",
+        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).filter(i=>i.closest('label')?.textContent.includes('可修改')).every(i=>!i.checked)",
       ),
-      false,
+      true,
     );
     await click(button("全选可处理"));
     await click("document.querySelector('.im-scope-tree')");

@@ -157,7 +157,9 @@ export function buildScopedImShellLaunch(
       if (isImProtectedPath(p)) throw new Error("Protected shell scope.");
       return resolve(workspace, p);
     });
-  const read = roots(scope.readPaths),
+  // Empty readPaths means the whole project root; the dotfile and key denies
+  // below still apply to it.
+  const read = scope.readPaths.length ? roots(scope.readPaths) : [workspace],
     write = roots(scope.writePaths);
   const rules = (operation: string, paths: string[]) =>
     paths.length

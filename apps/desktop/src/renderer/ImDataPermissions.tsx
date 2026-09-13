@@ -163,7 +163,10 @@ export function ImDataPermissions({
                     className="im-scope-check"
                     label={`${t("可处理", "Read")} ${entry.path}`}
                     labelVisibility="hidden"
-                    checked={imPathWithinScope(entry.path, scope.readPaths)}
+                    checked={
+                      scope.readPaths.length === 0 ||
+                      imPathWithinScope(entry.path, scope.readPaths)
+                    }
                     disabled={
                       disabled ||
                       scope.readPaths.some(
@@ -172,7 +175,26 @@ export function ImDataPermissions({
                           imPathWithinScope(entry.path, [p]),
                       )
                     }
-                    onCheckedChange={(checked) =>
+                    onCheckedChange={(checked) => {
+                      if (scope.readPaths.length === 0) {
+                        // 默认=整个项目可读；首次取消勾选收窄为根级枚举。
+                        if (checked) return;
+                        const rootEntries = entries[""] ?? [];
+                        const paths = rootEntries
+                          .filter((e) => !e.protected && e.path !== entry.path)
+                          .map((e) => e.path);
+                        change(
+                          {
+                            ...scope,
+                            readPaths: paths,
+                            writePaths: scope.writePaths.filter((p) =>
+                              imPathWithinScope(p, paths),
+                            ),
+                          },
+                          rootEntries,
+                        );
+                        return;
+                      }
                       change({
                         ...scope,
                         readPaths: checked
@@ -185,8 +207,8 @@ export function ImDataPermissions({
                           : scope.writePaths.filter(
                               (p) => !imPathWithinScope(p, [entry.path]),
                             ),
-                      })
-                    }
+                      });
+                    }}
                   />
                   <Checkbox
                     className="im-scope-check"
@@ -195,7 +217,8 @@ export function ImDataPermissions({
                     checked={imPathWithinScope(entry.path, scope.writePaths)}
                     disabled={
                       disabled ||
-                      !imPathWithinScope(entry.path, scope.readPaths) ||
+                      (scope.readPaths.length > 0 &&
+                        !imPathWithinScope(entry.path, scope.readPaths)) ||
                       scope.writePaths.some(
                         (p) =>
                           p !== entry.path &&
@@ -245,7 +268,8 @@ export function ImDataPermissions({
       </p>
       <p>
         {t("可处理的文件：", "Readable: ")}
-        {scope.readPaths.join(", ") || t("尚未选择", "None selected")}
+        {scope.readPaths.join(", ") ||
+          t("整个项目（默认）", "Whole project (default)")}
       </p>
       <p>
         {t("可修改的文件：", "Writable: ")}
@@ -280,7 +304,7 @@ export function ImDataPermissions({
           disabled={disabled}
           onClick={() => change({ ...scope, readPaths: [], writePaths: [] })}
         >
-          {t("清除此范围", "Clear this scope")}
+          {t("恢复默认范围", "Reset to default scope")}
         </Button>
       </div>
       {entries[""] ? (
@@ -306,7 +330,8 @@ export function ImDataPermissions({
         <p key={s.audience}>
           {audiences.find((a) => a.value === s.audience)?.label ??
             t("主人单聊", "Owner direct chat")}{" "}
-          · {t("可处理", "Read")}: {s.readPaths.join(", ") || "—"} ·{" "}
+          · {t("可处理", "Read")}:{" "}
+          {s.readPaths.join(", ") || t("整个项目", "Whole project")} ·{" "}
           {t("可修改", "Write")}: {s.writePaths.join(", ") || "—"}
         </p>
       ))}

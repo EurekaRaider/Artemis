@@ -145,3 +145,17 @@
 | R3  | 临时会话 gateway 行为未知                              | W4 先核实再实现，需动 gateway 先回报                           |
 | R4  | verify:visual-convergence 在 main 上已坏               | W5：推送按用户指示；不在本分支顺手修（另案）                   |
 | R5  | i18n 双语言文案量                                      | 中文为准、英文对照，P3 起随组件同步补齐，不留待收尾            |
+
+## 7. 实施记录
+
+### P1b PR-S3 空 scope 方案 a（已落地）
+
+- `packages/protocol/src/im-security.ts`：`imDataScopeSchema` superRefine 改为——readPaths 为空（wholeProject）时 writePaths 不受 ⊆ 约束、filePaths 必须为空；readPaths 非空时两条旧不变量照旧。
+- `apps/desktop/src/main/im-policy.ts` `authorizeImPath`：read 分支空 readPaths = 放行（受保护路径检查在前，仍拦截）；write 分支不变——**空 writePaths 仍 = 不可写任何文件**。
+- `apps/desktop/src/main/im-sandbox.ts` `buildScopedImShellLaunch`：空 readPaths 时 seatbelt read 规则改为项目根 subpath；点文件/密钥 deny 规则照旧兜底。
+- `ImDataPermissions.tsx`：默认态文案「整个项目（默认）」；读框在默认态显示全选、首次取消勾选即收窄为根级枚举（写范围随之裁剪）；默认态写框可选；「清除此范围」改名「恢复默认范围」。
+- `ImSettingsPanel.tsx`：新勾项目即附默认 security（owner 受众，readPaths=[]/writePaths=[]，待确认）。
+- `packages/agent-host/src/remote-tools.ts`：系统提示词明示「空 readPaths=整个项目可读；空 writePaths=不可写」。
+- 测试：protocol 空 scope 三例、im-policy 全读不写一例、im-sandbox 根读 seatbelt 一例、im-security-ui 按新契约重写（默认全读/收窄/写⊆读）。
+- **语义迁移说明**：已持久化的 `readPaths=[]` grant 由「全拒读」翻转为「整个项目可读」——此类 grant 此前运行时全拒、无法实际使用，翻转符合 W3/D3 默认语义，不做数据迁移。
+- 门禁：仓库根 `npm test` 1664 通过 + `typecheck` 全绿。

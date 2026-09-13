@@ -58,6 +58,33 @@ describe("IM policy", () => {
       ),
     ).toThrow(/文件/);
   });
+  it("reads the whole project with empty readPaths but never writes by default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "im-universe-scope-"));
+    const scope = {
+      audience: "owner",
+      readPaths: [],
+      writePaths: [],
+    };
+    try {
+      await mkdir(join(root, "docs"), { recursive: true });
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "docs", "guide.txt"), "WHOLE_PROJECT");
+      await writeFile(join(root, "src", ".env"), "PROTECTED_SENTINEL");
+      expect(authorizeImPath(scope, "any/nested/file.txt")).toBe(
+        "any/nested/file.txt",
+      );
+      expect(
+        authorizeImPath({ ...scope, writePaths: ["src"] }, "src/out.txt", true),
+      ).toBe("src/out.txt");
+      expect(() => authorizeImPath(scope, "src/out.txt", true)).toThrow(/范围/);
+      expect(() => authorizeImPath(scope, "src/.env")).toThrow(/受保护/);
+      expect((await readImFile(root, "docs/guide.txt", scope)).toString()).toBe(
+        "WHOLE_PROJECT",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("enforces one file scope for reads, writes and publication bytes", async () => {
     const root = await mkdtemp(join(tmpdir(), "im-file-policy-"));
     const scope = {

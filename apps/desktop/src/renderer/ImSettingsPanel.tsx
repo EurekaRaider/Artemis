@@ -4,6 +4,7 @@ import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
 import {
   executionGrantSchema,
+  IM_SECURITY_VERSION,
   type AppLocale,
   type ImConnectionStatus,
   type ImSettings,
@@ -1741,6 +1742,19 @@ export function ImSettingsPanel({
                                     executionGrantSchema.parse({
                                       projectId: project.id,
                                       expiresAt: Date.now() + 30 * 86400000,
+                                      // 默认授权：整个项目可读、不可写任何文件（主人单聊）。
+                                      security: {
+                                        version: IM_SECURITY_VERSION,
+                                        revision: "draft",
+                                        confirmedAt: 0,
+                                        scopes: [
+                                          {
+                                            audience: "owner",
+                                            readPaths: [],
+                                            writePaths: [],
+                                          },
+                                        ],
+                                      },
                                     }),
                                   ]
                                 : settings.grants.filter(

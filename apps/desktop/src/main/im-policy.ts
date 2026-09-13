@@ -52,7 +52,12 @@ export function authorizeImPath(
     throw new Error("授权的是文件，不能将其替换为目录后扩大范围。");
   if (isImProtectedPath(path))
     throw new Error("此文件属于受保护配置，请在私人桌面任务中处理。");
-  if (!imPathWithinScope(path, write ? scope.writePaths : scope.readPaths))
+  // Empty readPaths grants the whole project root; empty writePaths still
+  // grants no writes.
+  const withinScope = write
+    ? imPathWithinScope(path, scope.writePaths)
+    : scope.readPaths.length === 0 || imPathWithinScope(path, scope.readPaths);
+  if (!withinScope)
     throw new Error(
       "文件不在此会话的授权范围内，请在桌面调整范围后重新发起任务。",
     );
