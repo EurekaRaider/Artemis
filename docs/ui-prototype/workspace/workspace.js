@@ -1677,7 +1677,7 @@
     }
 
     function imApplyDemo(key) {
-      if (!Object.hasOwn(IM_SEEDS, key)) key = "progress";
+      if (!Object.hasOwn(IM_SEEDS, key)) key = "empty";
       imEpoch += 1; /* 作废在途的启动/连接/群确认定时器（防串态） */
       imState = JSON.parse(JSON.stringify(IM_SEEDS[key]));
       imManual = {};
@@ -2331,10 +2331,11 @@
     }
     var imTimer = setInterval(imTick, 1000);
 
-    /* hash 直达桥（#settings=1&im-demo=empty|progress|alert）、定位桥与幂等态 setter */
+    /* hash 直达桥（#im-demo=empty|progress|alert）、定位桥与幂等态 setter；
+       无 hash 时默认未配置（empty），打开面板即处于可操作的从头模拟起点 */
     window.__imApplyDemo = imApplyDemo;
     window.__imLocateCard = imLocateCard;
-    imApplyDemo("progress");
+    imApplyDemo("empty");
   }
 
   /* 设置弹窗 */
