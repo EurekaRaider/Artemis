@@ -3,6 +3,9 @@ import type { ReactNode, SVGProps } from "react";
 export const ARTEMIS_ICON_SOURCE =
   "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html" as const;
 
+export const ARTEMIS_MARKDOWN_ICON_PATH =
+  "M1 18V6h3l3 4 3-4h3v12h-3v-7l-3 4-3-4v7Zm16-12h3v8h3l-4.5 5-4.5-5h3Z";
+
 export const ARTEMIS_ICON_NAMES = [
   "artemis",
   "message",
@@ -200,10 +203,11 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   terminal: <path d="M5 7.5l4.5 4.5L5 16.5M12 17h7" />,
   markdown: (
-    <>
-      <rect x="3.5" y="5" width="17" height="14" rx="2" />
-      <path d="M6.5 15v-6l2.5 3 2.5-3v6M15 12.5l2.5 3 2.5-3M17.5 9v6.5" />
-    </>
+    <path
+      d={ARTEMIS_MARKDOWN_ICON_PATH}
+      fill="var(--artemis-color-status-success, #60c878)"
+      stroke="none"
+    />
   ),
   plus: <path d="M12 5.5v13M5.5 12h13" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,

@@ -2526,7 +2526,7 @@
     display: flex;
     flex: 0 0
       calc(
-        var(--artemis-size-control-compact) + var(--artemis-space-2) +
+        var(--artemis-size-control-compact) + var(--artemis-space-1) +
           var(--artemis-border-width-default)
       );
     align-items: center;
@@ -2549,9 +2549,7 @@
 
   [data-artemis-component="workspace-tab-bar"] [data-part="scroll"] {
     box-sizing: border-box;
-    block-size: calc(
-      var(--artemis-size-control-compact) + var(--artemis-space-1)
-    );
+    block-size: var(--artemis-size-control-compact);
     min-inline-size: 0;
     inline-size: 100%;
     overflow-x: auto;
@@ -2656,14 +2654,12 @@
     align-items: center;
     min-inline-size: 0;
     max-inline-size: 15.625rem;
-    block-size: calc(
-      var(--artemis-size-control-compact) + var(--artemis-space-1)
-    );
+    block-size: calc(var(--artemis-size-control-compact) - 2px);
     overflow: hidden;
     color: var(--artemis-color-text-secondary);
     background: transparent;
     border: var(--artemis-border-width-default) solid transparent;
-    border-radius: var(--artemis-radius-control);
+    border-radius: calc(var(--artemis-space-1) * 1.5);
   }
 
   [data-artemis-component="workspace-tab"]:hover {
@@ -2674,7 +2670,7 @@
   [data-artemis-component="workspace-tab"][data-state="active"] {
     color: var(--artemis-color-text-primary);
     background: var(--artemis-color-surface-base);
-    border-color: var(--artemis-color-border-subtle);
+    border-color: transparent;
   }
 
   [data-artemis-component="workspace-tab"] > [data-part="select"] {
@@ -2685,8 +2681,7 @@
     gap: calc(var(--artemis-space-2) - 1px);
     min-inline-size: 0;
     block-size: 100%;
-    padding: 0 calc(var(--artemis-space-2) - 1px) 0
-      calc(var(--artemis-space-2) + 2px);
+    padding: 0 var(--artemis-space-2);
     color: inherit;
     background: transparent;
     border: 0;
@@ -2695,8 +2690,7 @@
   }
 
   [dir="rtl"] [data-artemis-component="workspace-tab"] > [data-part="select"] {
-    padding: 0 calc(var(--artemis-space-2) + 2px) 0
-      calc(var(--artemis-space-2) - 1px);
+    padding: 0 var(--artemis-space-2);
   }
 
   [data-artemis-component="workspace-tab"] > [data-part="select"]:focus-visible,
@@ -2738,7 +2732,7 @@
     justify-content: center;
     inline-size: calc(var(--artemis-space-4) + 1px);
     block-size: calc(var(--artemis-space-4) + 1px);
-    margin-inline-end: calc(var(--artemis-space-2) + 2px);
+    margin-inline-end: calc(var(--artemis-space-1) * 1.5);
     padding: 0;
     color: var(--artemis-color-text-tertiary);
     background: transparent;
@@ -2901,14 +2895,29 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: var(--artemis-space-2);
+    gap: var(--artemis-space-1);
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] {
+    display: inline-flex;
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"]
+    [data-artemis-component="icon-button"] {
+    border: 0;
+    background: transparent;
   }
 
   [data-artemis-component="workspace-editor-toolbar"] [data-part="status"] {
-    min-inline-size: calc(var(--artemis-space-6) + var(--artemis-space-5));
+    order: -1;
     color: var(--artemis-color-text-tertiary);
     font-size: var(--artemis-typography-metadata-size);
     text-align: end;
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"]
+    [data-part="status"]:empty {
+    display: none;
   }
 
   [data-artemis-component="workspace-editor-toolbar"][data-state="dirty"]
@@ -2935,8 +2944,26 @@
   }
 
   [data-artemis-component="workspace-editor-toolbar"]
+    [data-artemis-component="icon-button"]
+    [data-part="icon"] {
+    color: var(--artemis-color-status-info);
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"]
+    [data-part="mode"]
+    [data-artemis-component="icon-button"]
+    [data-part="icon"] {
+    color: var(--artemis-color-status-warning);
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"]
+    [data-part="save"]:enabled {
+    color: var(--artemis-color-status-success);
+  }
+
+  [data-artemis-component="workspace-editor-toolbar"]
     [data-part="save"]:enabled:hover {
-    color: var(--artemis-color-text-primary);
+    color: var(--artemis-color-status-success);
     background: var(--artemis-color-interaction-hover);
   }
 

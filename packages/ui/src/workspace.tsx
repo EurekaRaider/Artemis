@@ -10,7 +10,8 @@ import {
   type UIEvent,
 } from "react";
 
-import { SegmentedControl } from "./navigation.js";
+import { IconButton } from "./actions.js";
+import { ArtemisIcon } from "./icons.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -67,6 +68,8 @@ export const WORKSPACE_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze(
     "--artemis-color-border-strong",
     "--artemis-color-accent-primary",
     "--artemis-color-accent-on-primary",
+    "--artemis-color-status-info",
+    "--artemis-color-status-success",
     "--artemis-color-status-warning",
     "--artemis-color-status-danger",
     "--artemis-color-status-danger-subtle",
@@ -760,17 +763,34 @@ export function WorkspaceEditorToolbar({
         <span title={path}>{path}</span>
         <span data-part="actions">
           {modeToggle ? (
-            <span data-part="mode">
-              <SegmentedControl
+            <span
+              data-part="mode"
+              role="group"
+              aria-label={modeToggle.ariaLabel}
+            >
+              <IconButton
                 disabled={readOnly}
-                label={modeToggle.ariaLabel}
-                onValueChange={modeToggle.onChange}
-                options={[
-                  { value: "rich", label: modeToggle.richLabel },
-                  { value: "source", label: modeToggle.sourceLabel },
-                ]}
-                size="compact"
-                value={modeToggle.value}
+                iconSize="lg"
+                icon={
+                  <ArtemisIcon
+                    name={modeToggle.value === "rich" ? "markdown" : "code"}
+                  />
+                }
+                label={
+                  modeToggle.value === "rich"
+                    ? modeToggle.sourceLabel
+                    : modeToggle.richLabel
+                }
+                title={
+                  modeToggle.value === "rich"
+                    ? modeToggle.sourceLabel
+                    : modeToggle.richLabel
+                }
+                onClick={() =>
+                  modeToggle.onChange(
+                    modeToggle.value === "rich" ? "source" : "rich",
+                  )
+                }
               />
             </span>
           ) : null}

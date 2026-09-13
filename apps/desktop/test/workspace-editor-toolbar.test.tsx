@@ -270,34 +270,32 @@ describe("WorkspaceEditorToolbar contract (D#76 PR7 §5 shared toolbar)", () => 
     expect(handlers.onSave).not.toHaveBeenCalled();
   });
 
-  it("renders the mode toggle group with a single aria-pressed selection and reports switches (mode toggle)", async () => {
+  it("uses one button to switch both ways and updates its tooltip", async () => {
     const { handlers, modeToggle, rerenderToolbar } = renderToolbar({
       withModeToggle: true,
       overrides: { dirty: true },
     });
     const group = screen.getByRole("group", { name: "View mode" });
-    const rich = within(group).getByRole("button", {
-      name: labels.richLabel,
-    });
-    const source = within(group).getByRole("button", {
-      name: labels.sourceLabel,
-    });
-    expect(rich).toHaveAttribute("aria-pressed", "true");
-    expect(source).toHaveAttribute("aria-pressed", "false");
-
-    await userEvent.setup().click(source);
-    expect(handlers.onViewChange).toHaveBeenCalledWith("source");
-    await userEvent.setup().click(rich);
-    expect(handlers.onViewChange).toHaveBeenCalledWith("rich");
-
+    const button = within(group).getByRole("button");
+    expect(button).toHaveAccessibleName(labels.sourceLabel);
+    expect(button).toHaveAttribute("title", labels.sourceLabel);
+    expect(button.querySelector("svg")).toHaveAttribute(
+      "data-artemis-icon",
+      "markdown",
+    );
+    await userEvent.setup().click(button);
+    expect(handlers.onViewChange).toHaveBeenLastCalledWith("source");
     rerenderToolbar({ dirty: true, modeToggle: modeToggle("source") });
-    const updatedGroup = screen.getByRole("group", { name: "View mode" });
-    expect(
-      within(updatedGroup).getByRole("button", { name: labels.richLabel }),
-    ).toHaveAttribute("aria-pressed", "false");
-    expect(
-      within(updatedGroup).getByRole("button", { name: labels.sourceLabel }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(within(group).getAllByRole("button")).toHaveLength(1);
+    expect(within(group).getByRole("button")).toBe(button);
+    expect(button).toHaveAccessibleName(labels.richLabel);
+    expect(button).toHaveAttribute("title", labels.richLabel);
+    expect(button.querySelector("svg")).toHaveAttribute(
+      "data-artemis-icon",
+      "code",
+    );
+    await userEvent.setup().click(button);
+    expect(handlers.onViewChange).toHaveBeenLastCalledWith("rich");
   });
 
   it("omits the mode toggle when not provided while keeping the save controls (mode toggle)", () => {
@@ -312,9 +310,6 @@ describe("WorkspaceEditorToolbar contract (D#76 PR7 §5 shared toolbar)", () => 
       overrides: { dirty: true, readOnly: true },
     });
     const group = screen.getByRole("group", { name: "View mode" });
-    expect(
-      within(group).getByRole("button", { name: labels.richLabel }),
-    ).toBeDisabled();
     expect(
       within(group).getByRole("button", { name: labels.sourceLabel }),
     ).toBeDisabled();

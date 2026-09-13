@@ -137,28 +137,22 @@ describe("WorkspaceMarkdownEditor shared toolbar wiring (D#76 PR7 item 3)", () =
     ).toBeDisabled();
   });
 
-  it("wires the mode toggle: unique aria-pressed selection switches the editing surface", async () => {
+  it("switches the editing surface back and forth with one button", async () => {
     renderEditor({ dirty: true });
     const group = screen.getByRole("group", { name: labels.ariaLabel });
-    const rich = screen.getByRole("button", { name: labels.richLabel });
     const source = screen.getByRole("button", { name: labels.sourceLabel });
-    expect(rich).toHaveAttribute("aria-pressed", "true");
-    expect(source).toHaveAttribute("aria-pressed", "false");
-    expect(group).toContainElement(rich);
     expect(group).toContainElement(source);
     expect(
       screen.getByRole("heading", { name: "Meeting notes", level: 1 }),
     ).toBeInTheDocument();
 
     await userEvent.setup().click(source);
-    expect(source).toHaveAttribute("aria-pressed", "true");
-    expect(rich).toHaveAttribute("aria-pressed", "false");
+    expect(source).toHaveAccessibleName(labels.richLabel);
     const textarea = screen.getByRole("textbox", { name: labels.ariaLabel });
     expect(textarea).toHaveValue(content);
 
-    await userEvent.setup().click(rich);
-    expect(rich).toHaveAttribute("aria-pressed", "true");
-    expect(source).toHaveAttribute("aria-pressed", "false");
+    await userEvent.setup().click(source);
+    expect(source).toHaveAccessibleName(labels.sourceLabel);
     expect(
       screen.queryByRole("textbox", { name: labels.ariaLabel }),
     ).not.toBeInTheDocument();

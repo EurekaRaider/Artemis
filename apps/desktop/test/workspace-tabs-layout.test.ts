@@ -659,7 +659,7 @@ describe("Codex-like workspace tab layout contract", () => {
       .not.toMatch(/\bfont-style:\s*italic/u);
 
     expect(editorText).toMatch(
-      /\bfont-size:\s*calc\(var\(--artemis-typography-body-size\) \+ 1px\)/u,
+      /\bfont-size:\s*calc\(var\(--artemis-typography-label-size\) \+ 1px\)/u,
     );
     expect(editorText).toMatch(/\bline-height:\s*1\.5/u);
     expect(treeRow).toMatch(
@@ -738,9 +738,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(workspaceFilesSource).not.toContain(
       'className="preview-panel-header"',
     );
-    expect(
-      workspaceFilesSource.match(/<strong>\{title\}<\/strong>/gu),
-    ).toHaveLength(1);
+    expect(workspaceFilesSource).not.toContain("<strong>{title}</strong>");
     expect(workspaceFilesSource).toContain("onOpenReader");
   });
 

@@ -1,3 +1,4 @@
+import { IconButton } from "@artemis/ui/actions";
 import {
   useCallback,
   useEffect,
@@ -483,14 +484,13 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
       saveState={saveState}
       savingLabel={props.savingLabel}
       tools={
-        <button
-          className="text-button"
+        <IconButton
+          icon={<ArtemisIcon name="refresh" />}
+          label={props.refreshLabel}
+          title={props.refreshLabel}
           disabled={!props.path || loading}
           onClick={refresh}
-          type="button"
-        >
-          {props.refreshLabel}
-        </button>
+        />
       }
       unsavedLabel={props.unsavedLabel}
     >
