@@ -2372,7 +2372,7 @@
           imBuildInstructions();
           imRefresh();
           notice(removed ? "已删除连接；相关绑定与后续步骤状态已回退（演示）" : "已删除连接（演示）");
-        });
+        }, { danger: true });
         return;
       }
       if (ev.target.closest("[data-im-manage]")) {
@@ -2987,18 +2987,19 @@
     imConfirmEl.className = "prototype-dialog im-confirm-dialog";
     imConfirmEl.setAttribute("aria-labelledby", "im-confirm-title");
     imConfirmEl.innerHTML = '<h3 id="im-confirm-title"></h3><p id="im-confirm-description"></p><div class="btn-pair"></div>';
-    var imCancelButton = UI.button({ label: "取消", variant: "ghost", icon: UI.icon("close") });
+    var imCancelButton = UI.button({ label: "取消", variant: "ghost" });
     imCancelButton.setAttribute("data-im-confirm-cancel", "");
-    var imSaveButton = UI.button({ label: "确认保存", variant: "primary", icon: UI.icon("check") });
+    var imSaveButton = UI.button({ label: "确认保存", variant: "primary" });
     imSaveButton.setAttribute("data-im-confirm-ok", "");
     imConfirmEl.querySelector(".btn-pair").append(imCancelButton, imSaveButton);
     imConfirmEl.setAttribute("aria-describedby", "im-confirm-description");
     document.body.appendChild(imConfirmEl);
     var imConfirmController = UI.dialog(imConfirmEl, { initialFocus: imConfirmEl.querySelector("[data-im-confirm-cancel]") });
     var imConfirmAction;
-    function imConfirm(title, description, action) {
+    function imConfirm(title, description, action, options) {
       imConfirmEl.querySelector("h3").textContent = title;
       imConfirmEl.querySelector("p").textContent = description;
+      imSaveButton.dataset.variant = options && options.danger ? "danger" : "primary";
       imConfirmAction = action;
       imConfirmController.open(document.activeElement);
     }

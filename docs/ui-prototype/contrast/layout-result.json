@@ -17,12 +17,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":490,\"y\":592,\"width\":720,\"height\":203,\"top\":592,\"right\":1210,\"bottom\":795,\"left\":490}"
+     "detail": "composer={\"x\":500,\"y\":592,\"width\":720,\"height\":203,\"top\":592,\"right\":1220,\"bottom\":795,\"left\":500}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":503,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1197,\"bottom\":785,\"left\":503}"
+     "detail": "toolbar={\"x\":513,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1207,\"bottom\":785,\"left\":513}"
     },
     {
      "name": "toolbar-control-1",
@@ -107,7 +107,7 @@
     {
      "name": "resizer-pixel-range",
      "ok": true,
-     "detail": "360 <= 612 <= 612"
+     "detail": "440 <= 719 <= 833"
     },
     {
      "name": "resizer-controls",
@@ -144,12 +144,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":490,\"y\":592,\"width\":720,\"height\":203,\"top\":592,\"right\":1210,\"bottom\":795,\"left\":490}"
+     "detail": "composer={\"x\":500,\"y\":592,\"width\":720,\"height\":203,\"top\":592,\"right\":1220,\"bottom\":795,\"left\":500}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":503,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1197,\"bottom\":785,\"left\":503}"
+     "detail": "toolbar={\"x\":513,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1207,\"bottom\":785,\"left\":513}"
     },
     {
      "name": "toolbar-control-1",
@@ -234,7 +234,7 @@
     {
      "name": "resizer-pixel-range",
      "ok": true,
-     "detail": "360 <= 612 <= 612"
+     "detail": "440 <= 719 <= 833"
     },
     {
      "name": "resizer-controls",
@@ -271,12 +271,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":490,\"y\":592,\"width\":720,\"height\":203,\"top\":592,\"right\":1210,\"bottom\":795,\"left\":490}"
+     "detail": "composer={\"x\":500,\"y\":592,\"width\":720,\"height\":203,\"top\":592,\"right\":1220,\"bottom\":795,\"left\":500}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":503,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1197,\"bottom\":785,\"left\":503}"
+     "detail": "toolbar={\"x\":513,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1207,\"bottom\":785,\"left\":513}"
     },
     {
      "name": "toolbar-control-1",
@@ -316,37 +316,37 @@
     {
      "name": "toolbar-control-8",
      "ok": true,
-     "detail": "GLM-5.3✓"
+     "detail": "（收起浮层，跳过边界）GLM-5.3✓"
     },
     {
      "name": "toolbar-control-9",
      "ok": true,
-     "detail": "GLM-5.4 Air"
+     "detail": "（收起浮层，跳过边界）GLM-5.4 Air"
     },
     {
      "name": "toolbar-control-10",
      "ok": true,
-     "detail": "Claude Sonnet 4.6"
+     "detail": "（收起浮层，跳过边界）Claude Sonnet 4.6"
     },
     {
      "name": "toolbar-control-11",
      "ok": true,
-     "detail": "低"
+     "detail": "（收起浮层，跳过边界）低"
     },
     {
      "name": "toolbar-control-12",
      "ok": true,
-     "detail": "中✓"
+     "detail": "（收起浮层，跳过边界）中✓"
     },
     {
      "name": "toolbar-control-13",
      "ok": true,
-     "detail": "高"
+     "detail": "（收起浮层，跳过边界）高"
     },
     {
      "name": "toolbar-control-14",
      "ok": true,
-     "detail": "极致模式更快消耗使用额度"
+     "detail": "（收起浮层，跳过边界）极致模式更快消耗使用额度"
     },
     {
      "name": "toolbar-control-15",
@@ -361,7 +361,7 @@
     {
      "name": "resizer-pixel-range",
      "ok": true,
-     "detail": "360 <= 612 <= 612"
+     "detail": "440 <= 719 <= 833"
     },
     {
      "name": "resizer-controls",
