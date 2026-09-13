@@ -196,3 +196,17 @@
 - **范围显隐**（D3）：Plan/Review 默认只显示声明行「可读整个项目，不可写任何文件」（W3 语义），范围树收进「自定义范围 ▸」次级入口；Execute 强制展开范围树。
 - **Execute 保存闸**：owner 受众 writePaths 为空 ⇒ 保存并启用禁用 + 警示；选中后恢复（含确认摘要五要素：项目/文件范围/回复对象/模式/30 天有效期，保存前可见）。
 - 测试：内置行（勾选+禁用+不入 grants）；档位门控（Plan 声明行+树隐藏、自定义入口展开、Execute 树强制+未选可写禁保存+全选可修改后可保存+摘要五要素+切回 Plan 清 shell/network 落库断言）。
+
+### P5 完成概览 + 群协作第二流程 + 导航退场（已落地）
+
+- **P5a ⑤四段轨道**（提交 0f8ece6）：诚实版轨道——仅「桌面出现任务」由系统检测（`onImTaskCreated` 实时事件 + `remoteTasks` 存在性），「任务完成」「回复送达」随用户确认点亮，首段为指引文案；无任何「系统验证」措辞（D4）。
+- **P5b 屏幕状态机**：`screen: "flow" | "overview" | "group"`（undefined 时按 5/5 派生落概览）；「完成即概览」为粘性；回退时停留概览并由三态与「继续设置」呈现。
+- **完成概览**：三态胶囊（配置完整 N/5 / 服务健康（含部分异常与已暂停）/ 测试通过）+「继续设置」（回到流程并定位最早缺步卡）+「设置群协作」入口 + 五张与流程共用的步骤卡（同一 `renderStepCards()`，展开即编辑）。
+- **总开关新家（D1）**：仅概览常驻；流程中已注册设备回看时保留；群协作屏与未注册首次流程不出现。
+- **群协作第二流程**：`group` 屏 = 「← 返回单聊设置」+ `renderSpacesBody()`（spaces 分区已提取）；入口在概览与⑤卡（已配对即可见）；spaces 自动 admin/status 检测挂在 group 屏。
+- **ImNavigation 退场**：组件与隐藏 tabpanel、`.im-layout`、setup-guide 分区、ready 自动进管理 effect（wasReady/enteredManagement/reviewing）全部删除；ImNavigation.tsx 仅保留工具函数与类型。旧分区目标经 `selectView` 兼容映射到对应步骤卡/群流程。
+- **②卡平台选择行**：外包 span 携带 `data-connection-state`（Button 白名单不透传任意 data-*），并改用官方 `selected` 属性。
+- **交互补丁**：保存启用失败时钉住④卡；④保存成功后自动前进⑤（重新展开④可继续编辑）。
+- **测试迁移**：nav() 助手删除，新增 `openCard/platformCard/platformState/openGroupSetup` 助手；信号测试改查平台选择行 `data-connection-state`；~20 个管理态用例改走卡片导航；ready 用例改为「完成态直达概览」；tab 键导航改为卡头 Enter 切换；截图契约从 `.im-channel-card` 迁到 `.im-platform-card`；ImNavigation 独立 compact 用例删除。
+- **死 CSS 清理**：`.im-wizard/.im-guide-link/.im-channel-list/.im-channel-card/.im-common-*/.im-nav-*/.im-layout/.im-detail` 等全部移除，`verify:ui-convergence` 全绿。
+- 门禁：仓库根 `npm test` 1673 通过 + `typecheck` 全绿。

@@ -20,10 +20,7 @@ import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { ImSettingsPanel } from "../src/renderer/ImSettingsPanel.js";
 import { ImPairingCode } from "../src/renderer/ImAccountControls.js";
 import { imWriteTestConfirmed } from "../src/renderer/im-flow-derive.js";
-import {
-  ImNavigation,
-  imConnectionHealth,
-} from "../src/renderer/ImNavigation.js";
+import { imConnectionHealth } from "../src/renderer/ImNavigation.js";
 import { ImDiagnostics } from "../src/renderer/ImDiagnostics.js";
 
 const identity = {
@@ -128,6 +125,32 @@ afterEach(() => {
 const nav = (name: string) =>
   screen.getByRole("tab", { name: new RegExp(name) });
 
+const platformLabels = {
+  wecom: "企业微信",
+  feishu: "飞书 / Lark",
+  slack: "Slack",
+} as const;
+const cardHead = (title: RegExp | string) =>
+  screen.getByRole("button", { name: title });
+const openCard = async (
+  user: ReturnType<typeof userEvent.setup>,
+  title: RegExp | string,
+) => {
+  const head = await screen.findByRole("button", { name: title });
+  if (head.getAttribute("aria-expanded") !== "true") await user.click(head);
+};
+const platformCard = (channel: keyof typeof platformLabels) =>
+  within(document.querySelector(".im-platform-cards") as HTMLElement).getByRole(
+    "button",
+    { name: new RegExp(platformLabels[channel]) },
+  );
+const platformState = (channel: keyof typeof platformLabels) =>
+  platformCard(channel).closest("[data-connection-state]") as HTMLElement;
+const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
+  await openCard(user, /^发一条测试任务/);
+  await user.click(screen.getByRole("button", { name: "设置群协作（可选）" }));
+};
+
 describe("production IM settings", () => {
   it.each(["slack", "feishu", "wecom"] as const)(
     "refreshes %s connection signals after disconnect, failure, and recovery",
@@ -142,17 +165,30 @@ describe("production IM settings", () => {
       });
       render(<ImSettingsPanel locale="zh-CN" />);
       await act(async () => {});
-      const signal = () => document.querySelector(`#im-nav-${channel} .im-dot`);
-      expect(signal()).toHaveAttribute("data-state", "connected");
+      fireEvent.click(screen.getByRole("button", { name: /^添加机器人/ }));
+      const signal = () => platformCard(channel);
+      expect(platformState(channel)).toHaveAttribute(
+        "data-connection-state",
+        "connected",
+      );
       f.set({ connections: [{ ...connection, channel, state: "connecting" }] });
       await act(() => vi.advanceTimersByTimeAsync(2000));
-      expect(signal()).toHaveAttribute("data-state", "connecting");
+      expect(platformState(channel)).toHaveAttribute(
+        "data-connection-state",
+        "connecting",
+      );
       f.manage.mockRejectedValueOnce(new Error("Gateway offline"));
       await act(() => vi.advanceTimersByTimeAsync(2000));
-      expect(signal()).toHaveAttribute("data-state", "error");
+      expect(platformState(channel)).toHaveAttribute(
+        "data-connection-state",
+        "error",
+      );
       f.set({ connections: [{ ...connection, channel, state: "connected" }] });
-      await act(async () => window.dispatchEvent(new Event("focus")));
-      expect(signal()).toHaveAttribute("data-state", "connected");
+      await act(() => window.dispatchEvent(new Event("focus")));
+      expect(platformState(channel)).toHaveAttribute(
+        "data-connection-state",
+        "connected",
+      );
     },
   );
   it("preserves credential edits across disconnect and reconnect", async () => {
@@ -160,6 +196,7 @@ describe("production IM settings", () => {
     const f = fixture();
     render(<ImSettingsPanel locale="zh-CN" />);
     await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: /^添加机器人/ }));
     fireEvent.click(screen.getByRole("button", { name: "更换" }));
     fireEvent.change(screen.getByLabelText("Bot Secret"), {
       target: { value: "unsaved-secret" },
@@ -198,8 +235,8 @@ describe("production IM settings", () => {
     );
     const user = userEvent.setup();
     const first = render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群消息接入"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openGroupSetup(user);
     expect(
       await screen.findByRole("checkbox", {
         name: "Test bot · existing-group",
@@ -211,8 +248,8 @@ describe("production IM settings", () => {
     });
     first.unmount();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群消息接入"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openGroupSetup(user);
     await user.click(
       await screen.findByRole("button", { name: "打开已保存配置：Saved team" }),
     );
@@ -294,7 +331,8 @@ describe("production IM settings", () => {
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await user.click(await screen.findByRole("tab", { name: /飞书/ }));
+    await openCard(user, /^添加机器人/);
+    await user.click(platformCard("feishu"));
     const region = screen.getByRole("button", { name: /^应用区域/ });
     expect(region.closest("details")).toBeNull();
     await user.click(region);
@@ -398,6 +436,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^添加机器人/);
     await user.click(
       await screen.findByRole("button", { name: /^机器人连接/ }),
     );
@@ -427,8 +466,9 @@ describe("production IM settings", () => {
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("飞书"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^添加机器人/);
+    await user.click(platformCard("feishu"));
     expect(
       screen.getByText("高级设置（通常无需修改）").closest("details"),
     ).not.toHaveAttribute("open");
@@ -470,8 +510,9 @@ describe("production IM settings", () => {
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("飞书"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^添加机器人/);
+    await user.click(platformCard("feishu"));
     const pill = () =>
       document.querySelector("#im-bot .im-status-pill") as HTMLElement;
     expect(pill()).toHaveTextContent("未配置");
@@ -519,8 +560,8 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群消息接入"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openGroupSetup(user);
     const save = screen.getByRole("button", { name: "保存空间并等待各群确认" });
     expect(save).toBeDisabled();
     expect(screen.getByLabelText("空间配置（JSON）")).not.toBeVisible();
@@ -572,27 +613,23 @@ describe("production IM settings", () => {
       screen.queryByRole("button", { name: "复制群确认指令" }),
     ).not.toBeInTheDocument();
   });
-  it("keeps the compact header, channel status, credential action, and guide in management order", async () => {
+  it("keeps the compact header, step summaries and the credential action in flow order", async () => {
     fixture();
+    const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
+    await screen.findByRole("button", { name: /^连接服务/ });
     expect(
       document.querySelector('.im-header [data-artemis-component="switch"]'),
     ).toHaveAttribute("data-label-visibility", "hidden");
-    expect(
-      nav("企业微信").querySelector(".im-channel-status"),
-    ).toHaveTextContent("已配置(1)");
-    expect(document.querySelector(".im-block-header button")).toHaveAttribute(
-      "data-variant",
-      "quiet",
-    );
-    const guide = screen.getByRole("button", { name: "重看设置指引" });
+    expect(cardHead(/^添加机器人/)).toHaveTextContent("1 个连接");
+    await openCard(user, /^添加机器人/);
+    const change = screen.getByRole("button", { name: "更换" });
     const bot = document.getElementById("im-bot")!;
     expect(
-      bot.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING,
+      bot.compareDocumentPosition(change) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
-  it("keeps connection counts separate from partial failure and offers the existing guide in General", async () => {
+  it("keeps connection counts separate from partial failure in the step summaries", async () => {
     const f = fixture();
     const failed = {
       ...connection,
@@ -607,29 +644,27 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
+    await screen.findByRole("button", { name: /^连接服务/ });
     expect(imConnectionHealth([connection, failed])).toEqual({
       total: 2,
       failed: 1,
       state: "partial_error",
     });
-    expect(document.querySelector(".im-status-pill")).toHaveTextContent(
-      "2 个连接，1 个异常",
-    );
-    expect(nav("企业微信").querySelector(".im-dot")).toHaveAttribute(
-      "data-state",
+    expect(cardHead(/^添加机器人/)).toHaveTextContent("2 个连接，1 个异常");
+    await openCard(user, /^添加机器人/);
+    expect(platformState("wecom")).toHaveAttribute(
+      "data-connection-state",
       "partial_error",
     );
-    await user.click(nav("设置指引"));
-    expect(screen.getByRole("list", { name: "IM 设置步骤" })).toBeVisible();
     expect(f.get().identities).toEqual([identity]);
   });
   it("defaults a new Feishu bot to a long connection without callback secrets", async () => {
     fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("飞书"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^添加机器人/);
+    await user.click(platformCard("feishu"));
     expect(screen.getByLabelText("接入方式")).toHaveTextContent("长连接");
     expect(
       screen.queryByLabelText("Verification Token"),
@@ -677,7 +712,7 @@ describe("production IM settings", () => {
     await act(async () => {
       render(<ImSettingsPanel locale="zh-CN" />);
     });
-    expect(screen.getByRole("heading", { name: "应用凭据" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^连接服务/ })).toBeVisible();
     const old = structuredClone(f.get());
     let finishRefresh!: (value: Status) => void;
     f.manage.mockImplementationOnce(
@@ -738,39 +773,53 @@ describe("production IM settings", () => {
       screen.queryByLabelText("机器人配置的管理凭据"),
     ).not.toBeInTheDocument();
   });
-  it("opens management from connected and paired data and reviews the guide without clearing configuration", async () => {
+  it("opens the overview directly from completed data without rerunning the flow", async () => {
     const f = fixture();
+    imWriteTestConfirmed("test-device", true);
+    f.set({
+      settings: {
+        ...f.get().settings,
+        grants: [
+          {
+            projectId: "test-project",
+            tokenBudget: 100000,
+            approval: "ask",
+            mode: "plan",
+            network: false,
+            shell: false,
+            groups: [],
+            expiresAt: Date.now() + 60000,
+          },
+        ],
+      },
+    });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    expect(
-      await screen.findByRole("heading", { name: "应用凭据" }),
-    ).toBeVisible();
-    expect(screen.getAllByRole("tab")).toHaveLength(8);
+    // 完成态直接进入概览：三态可见、总开关新家（D1）、不重跑流程。
+    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
+    expect(screen.getByText(/服务健康/)).toBeVisible();
+    expect(screen.getByText(/测试通过/)).toBeVisible();
     expect(screen.getAllByRole("switch")).toHaveLength(1);
-    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
-    // 回看引导流：进度实时推导，最早未完成步骤（④项目授权）自动展开。
-    expect(await screen.findByText("设置进度 3/5")).toBeVisible();
+    expect(screen.queryByText("设置进度 5/5")).toBeNull();
+    // 概览分区可展开编辑，配置不被清除。
+    await openCard(user, /^允许手机操作的项目/);
     expect(
-      screen.getByRole("button", { name: /^允许手机操作的项目/ }),
-    ).toHaveAttribute("aria-expanded", "true");
-    await user.click(screen.getByRole("button", { name: "返回管理" }));
-    expect(screen.getByRole("heading", { name: "应用凭据" })).toBeVisible();
+      screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
+    ).toBeVisible();
     expect(f.save).not.toHaveBeenCalled();
     expect(f.get().identities).toEqual([identity]);
   });
-  it("supports tab arrow navigation and returns to the first/last entry", async () => {
+  it("toggles step cards with the keyboard", async () => {
     fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    nav("企业微信").focus();
-    await user.keyboard("{ArrowDown}");
-    expect(nav("飞书")).toHaveFocus();
-    expect(nav("飞书")).toHaveAttribute("aria-selected", "true");
-    await user.keyboard("{End}");
-    expect(nav("设置指引")).toHaveFocus();
-    await user.keyboard("{Home}");
-    expect(nav("企业微信")).toHaveFocus();
+    await screen.findByRole("button", { name: /^连接服务/ });
+    const service = cardHead(/^连接服务/);
+    service.focus();
+    await user.keyboard("{Enter}");
+    expect(service).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Enter}");
+    expect(service).toHaveAttribute("aria-expanded", "false");
   });
   it("replaces credentials using public identifiers, never fills secrets, and cancels locally", async () => {
     const f = fixture();
@@ -786,6 +835,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^添加机器人/);
     await user.click(await screen.findByRole("button", { name: "更换" }));
     expect(screen.getByLabelText("连接 ID")).toHaveValue("wecom-team");
     expect(screen.getByLabelText("Bot ID")).toHaveValue("test-bot");
@@ -800,6 +850,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^添加机器人/);
     await user.click(await screen.findByRole("button", { name: "更换" }));
     await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
     await user.type(
@@ -818,6 +869,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^添加机器人/);
     await user.click(await screen.findByRole("button", { name: "更换" }));
     await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
     await user.type(
@@ -841,8 +893,8 @@ describe("production IM settings", () => {
     f.set({ settings: { ...f.get().settings, enabled: true } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("项目授权"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     await user.click(screen.getByRole("switch", { name: "启用 IM 连接" }));
     expect(f.save).toHaveBeenLastCalledWith(
@@ -877,8 +929,8 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("项目授权"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     f.save.mockRejectedValueOnce(new Error("Grant rejected"));
     await user.click(screen.getByRole("button", { name: "保存并启用" }));
@@ -896,8 +948,8 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("项目授权"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     await user.click(screen.getByRole("button", { name: "保存并启用" }));
     expect(await screen.findByText(/授权已保存，连接未启用/)).toBeVisible();
@@ -920,8 +972,8 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("项目授权"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^允许手机操作的项目/);
     const builtin = screen.getByRole("checkbox", {
       name: "临时会话（内置，始终可用）",
     }) as HTMLInputElement;
@@ -943,8 +995,8 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("项目授权"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // Plan 默认：范围声明行可见，范围树收在「自定义范围」后（D3）。
     expect(
@@ -979,6 +1031,8 @@ describe("production IM settings", () => {
     expect(f.get().settings.grants[0]!.security!.scopes[0]!.writePaths).toEqual(
       ["src", "docs"],
     );
+    // 保存后④完成，自动前进到⑤；重新展开④继续编辑。
+    await openCard(user, /^允许手机操作的项目/);
     // 切回 Plan：命令与网络同步关闭，控件收起。
     await user.click(screen.getByRole("radio", { name: /Plan · 只读分析/ }));
     expect(screen.queryByRole("checkbox", { name: "允许沙箱命令" })).toBeNull();
@@ -1040,7 +1094,7 @@ describe("production IM settings", () => {
     );
     await user.click(await screen.findByRole("button", { name: "批准" }));
     expect(
-      await screen.findByRole("heading", { name: "应用凭据" }),
+      await screen.findByRole("button", { name: /^连接服务/ }),
     ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "批准" }),
@@ -1051,6 +1105,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^添加机器人/);
     const trigger = await screen.findByRole("button", { name: "解除绑定" });
     await user.click(trigger);
     expect(screen.getByRole("button", { name: "确认解除" })).toHaveFocus();
@@ -1073,8 +1128,8 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群消息接入"));
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openGroupSetup(user);
     const summary = screen.getByText("高级：查看诊断或手动编辑配置");
     expect(summary.closest("details")).not.toHaveAttribute("open");
     await user.click(summary);
@@ -1180,7 +1235,7 @@ describe("pairing code lifecycle", () => {
     await act(() => vi.advanceTimersByTimeAsync(300000));
     expect(screen.getByRole("button", { name: "复制配对指令" })).toBeDisabled();
   });
-  it("opens group setup from the completed test step in the first-time wizard", async () => {
+  it("opens group setup from the overview of a completed flow", async () => {
     const f = fixture();
     imWriteTestConfirmed("test-device", true);
     f.set({
@@ -1202,19 +1257,10 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 全部就绪自动进管理；回看引导流时⑤卡（已确认）提供群协作入口（D2）。
-    expect(
-      await screen.findByRole("heading", { name: "应用凭据" }),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
-    expect(await screen.findByText("设置进度 5/5")).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "设置群协作（可选）" }),
-    );
-    expect(screen.getByRole("tab", { name: "群消息接入" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    // 完成态直达概览，群协作入口在概览（D2）。
+    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "设置群协作" }));
+    expect(screen.getByRole("button", { name: /返回单聊设置/ })).toBeVisible();
     expect(screen.getByText("创建与连接 IM 群协作空间")).toBeVisible();
   });
   it("advances the honest test track from real task signals only", async () => {
@@ -1239,10 +1285,8 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
+    // ①-④就绪时⑤卡自动展开（D4）。
     expect(await screen.findByText("设置进度 4/5")).toBeVisible();
-    // 仅「桌面出现任务」由真实信号点亮；完成与回复等用户确认（D4）。
     const track = screen.getByRole("list", { name: "测试任务进度" });
     expect(
       track.children[1].getAttribute("data-state") === "done" &&
@@ -1252,9 +1296,8 @@ describe("pairing code lifecycle", () => {
     await user.click(
       screen.getByRole("checkbox", { name: /我已在手机上收到/ }),
     );
-    expect(track.children[2].getAttribute("data-state")).toBe("done");
-    expect(track.children[3].getAttribute("data-state")).toBe("done");
-    expect(await screen.findByText("设置进度 5/5")).toBeVisible();
+    // 确认后完成即概览（⑤卡收起，不再断言已卸载的轨道节点）。
+    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
   });
   it("notifies once when a completed flow step regresses after a connection is removed", async () => {
     const f = fixture();
@@ -1278,77 +1321,14 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(screen.getByRole("button", { name: "重看设置指引" }));
-    expect(await screen.findByText("设置进度 5/5")).toBeVisible();
-    // 删除连接后②③完成态回退，给出一次性提示（derive 单一事实源）。
+    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
+    // 删除连接后②③完成态回退：概览三态可见、给出一次性提示并出现「继续设置」。
     f.set({ connections: [], identities: [] });
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
     });
     expect(await screen.findByText(/有已完成步骤被重置/)).toBeVisible();
-    expect(await screen.findByText("设置进度 3/5")).toBeVisible();
-  });
-  it("keeps group messages directly accessible in compact navigation", async () => {
-    const select = vi.fn();
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <ImNavigation
-        view="slack"
-        onSelect={select}
-        connections={[connection]}
-        compact
-        t={t}
-      />,
-    );
-    const groups = screen.getByRole("tab", { name: "群消息接入" });
-    await user.click(groups);
-    expect(select).toHaveBeenLastCalledWith("spaces");
-    rerender(
-      <ImNavigation
-        view="spaces"
-        onSelect={select}
-        connections={[connection]}
-        compact
-        t={t}
-      />,
-    );
-    expect(groups).toHaveAttribute("aria-selected", "true");
-    expect(groups).toHaveAttribute("aria-controls", "im-panel-spaces");
-    expect(document.querySelectorAll("#im-nav-spaces")).toHaveLength(1);
-    await user.click(screen.getByRole("tab", { name: /通用/ }));
-    expect(
-      screen.queryByRole("menuitem", { name: "群消息接入" }),
-    ).not.toBeInTheDocument();
-  });
-  it("uses the compact general menu with keyboard selection and Escape focus restoration", async () => {
-    const select = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ImNavigation
-        view="wecom"
-        onSelect={select}
-        connections={[connection]}
-        compact
-        t={t}
-      />,
-    );
-    await user.click(screen.getByRole("tab", { name: /通用/ }));
-    const menu = await screen.findByRole("menu", { name: "通用设置" });
-    await waitFor(() =>
-      expect(
-        within(menu).getByRole("menuitem", { name: "Gateway 与设备" }),
-      ).toHaveFocus(),
-    );
-    await user.keyboard("{End}{Enter}");
-    expect(select).toHaveBeenCalledWith("setup-guide");
-    await user.click(screen.getByRole("tab", { name: /通用/ }));
-    await user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: /通用/ })).toHaveFocus(),
-    );
+    expect(await screen.findByText("配置完整 3/5")).toBeVisible();
+    expect(screen.getByRole("button", { name: "继续设置" })).toBeVisible();
   });
 });

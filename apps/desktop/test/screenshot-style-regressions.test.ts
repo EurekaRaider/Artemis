@@ -419,14 +419,11 @@ describe("screenshot visual contracts", () => {
       "border-radius": "0",
     });
   });
-  it("keeps IM navigation flat and its secondary actions compact", () => {
-    expect(declarations(desktop, ".im-channel-card")).toMatchObject({
-      border: "0",
-      background: "transparent",
+  it("keeps the IM platform chooser bordered and its secondary actions compact", () => {
+    expect(declarations(desktop, ".im-platform-card")).toMatchObject({
+      border: "1px solid var(--artemis-color-border-surface)",
+      "text-align": "start",
     });
-    expect(declarations(desktop, ".im-channel-status").display).toBe(
-      "inline-flex",
-    );
     expect(declarations(desktop, ".im-secondary-action")["align-self"]).toBe(
       "flex-start",
     );

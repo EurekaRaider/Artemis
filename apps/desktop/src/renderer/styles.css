@@ -2578,12 +2578,6 @@ button.environment-row:disabled {
 .resource-header-actions,
 .resource-row-actions,
 .resource-list-heading-actions,
-.im-channel-card > span {
-  align-items: center;
-  display: flex;
-  gap: 7px;
-}
-
 .turn-change-actions button {
   background: transparent;
   border: 0;
@@ -3110,11 +3104,6 @@ button.environment-row:disabled {
 .archive-card-copy,
 .resource-scope-tabs,
 .resource-management-tabs,
-.im-nav-item,
-.im-detail > section {
-  min-width: 0;
-}
-
 .tool-details section > span {
   color: var(--muted-2);
   display: block;
@@ -7938,7 +7927,6 @@ button.sources-panel-entry.attachment:focus-visible {
 
 /* D#76 PR8: feedback chrome rendered by McpEditorFeedback. */
 .mcp-editor-feedback,
-.im-detail,
 .resource-marketplace-content {
   display: flex;
   flex-direction: column;
@@ -10070,6 +10058,9 @@ kbd {
   border-top: 1px solid var(--border-soft);
 }
 /* ④卡：三档模式与内置临时会话行。 */
+.im-platform-choice {
+  display: contents;
+}
 .im-mode-tiers {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -10158,73 +10149,6 @@ kbd {
   .im-mode-tiers {
     grid-template-columns: 1fr;
   }
-}
-.im-layout {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
-}
-.im-channel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-self: start;
-  min-width: 0;
-  border-inline-end: 0;
-  padding-inline-end: 0;
-}
-.im-nav-label {
-  display: block;
-  padding: 6px 8px 3px;
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 620;
-  letter-spacing: 0.05em;
-}
-.im-channel-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  text-align: start;
-  width: 100%;
-  white-space: nowrap;
-  min-height: 34px;
-}
-.im-channel-card small {
-  color: var(--muted);
-  font-weight: normal;
-  font-size: 11px;
-  padding-inline-start: 0;
-  font-variant-numeric: tabular-nums;
-}
-.im-channel-card[aria-selected="true"],
-.im-common-trigger[aria-selected="true"] {
-  background: var(--artemis-color-interaction-selected);
-  border-color: var(--artemis-color-border-strong);
-}
-.im-detail {
-  min-width: 0;
-  min-height: 0;
-  /* The settings surface owns scrolling; keep room for controls' focus rings. */
-  padding: 4px;
-}
-.im-detail [data-artemis-component="management-section"],
-.resource-management-section {
-  border: 0;
-  background: transparent;
-  padding: 0;
-}
-.im-detail [data-artemis-component="management-section"] [data-part="title"] {
-  font-size: 13.5px;
-  font-weight: 620;
-}
-.im-guide-link {
-  align-self: flex-start;
-  font-size: 12px;
 }
 .im-block {
   padding-block: 12px;
@@ -10348,44 +10272,8 @@ kbd {
   font-size: 11px;
   color: var(--muted);
 }
-.im-settings[data-compact="true"] .im-layout {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
-}
-.im-settings[data-compact="true"] .im-channel-list {
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  border-inline-end: 0;
-  border-bottom: 1px solid var(--border-soft);
-  padding: 0 0 8px;
-}
 .plugin-market-copy {
   flex: 1;
-}
-.im-settings[data-compact="true"] .im-channel-card {
-  padding: 7px 9px;
-  align-items: center;
-  border: 1px solid var(--border-soft);
-  background: var(--artemis-color-surface-sunken);
-}
-.im-settings[data-compact="true"] .im-channel-card[aria-selected="true"] {
-  background: var(--artemis-color-interaction-selected);
-  border-color: var(--artemis-color-border-strong);
-}
-.im-common-trigger {
-  white-space: normal;
-  max-width: 36%;
-}
-.im-common-menu [data-part="content"],
-.im-platform-card [data-part="label"] {
-  display: grid;
-  gap: 4px;
-}
-.im-common-menu [role="menuitem"] {
-  justify-content: flex-start;
 }
 .im-settings :is(button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);
@@ -10395,31 +10283,8 @@ kbd {
   .im-dot {
     color: CanvasText;
   }
-  .im-channel-card[aria-selected="true"],
-  .im-common-trigger[aria-selected="true"] {
-    outline: 2px solid Highlight;
-  }
 }
 
-.im-channel-card,
-.im-common-trigger,
-.im-common-menu [role="menuitem"] {
-  font: inherit;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--artemis-radius-control);
-  cursor: pointer;
-  padding: 8px;
-}
-.im-channel-card:hover,
-.im-common-trigger:hover,
-.im-common-menu [role="menuitem"]:hover {
-  background: var(--artemis-color-interaction-hover);
-}
-.im-settings[data-compact="true"] .im-layout {
-  min-height: 240px;
-}
 .im-setup-steps .is-current {
   background: var(--artemis-color-interaction-selected);
 }
@@ -11200,11 +11065,6 @@ kbd {
   margin-inline-start: auto;
   gap: 12px;
   max-width: 100%;
-}
-
-.im-settings .im-channel-card {
-  gap: 6px;
-  padding: 7px 9px;
 }
 
 .im-setup-guide {
@@ -12054,46 +11914,11 @@ kbd {
   color: var(--muted);
   font-size: 12px;
 }
-.im-channel-card {
-  border: 0;
-  border-radius: var(--artemis-radius-control);
-  background: transparent;
-}
-.im-channel-card[aria-selected="true"] {
-  background: var(--artemis-color-interaction-selected);
-}
-.im-channel-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 560;
-}
-.im-channel-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.im-settings[data-compact="false"] .im-nav-item:nth-child(5) {
-  margin-top: 10px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border-soft);
-}
 .im-dot {
   background: currentColor;
 }
 .im-dot[data-state="connected"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-success-subtle);
-}
-.im-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.im-detail > section[tabindex="-1"]:focus {
-  outline: none;
 }
 .im-channel-section > [data-part="header"] {
   align-items: flex-start;
@@ -12261,10 +12086,6 @@ kbd {
 .im-pairing-request .im-actions {
   margin-inline-start: auto;
 }
-.im-guide-link {
-  align-self: flex-start;
-}
-
 /* Consecutive tool calls share one disclosure and a divided list. */
 .tool-card[data-artemis-component="tool-activity"] {
   gap: 6px;
@@ -12604,38 +12425,6 @@ kbd {
   width: 17px;
   height: 17px;
 }
-.im-common-trigger {
-  margin-inline-start: auto;
-  font-size: 12px;
-  line-height: 18px;
-  padding: 4px 8px;
-}
-.im-common-menu {
-  min-inline-size: 160px;
-  padding: 4px;
-  border-radius: 8px;
-}
-.im-common-menu [data-part="content"] {
-  gap: 0;
-}
-.im-common-menu [role="menuitem"] {
-  min-height: 28px;
-  padding: 4px 8px;
-  font-size: 12px;
-  line-height: 18px;
-  text-align: left;
-  border-radius: 6px;
-}
-.im-settings[data-compact="false"]
-  .im-nav-item:nth-child(n + 5)
-  .im-channel-title {
-  font-size: 12px;
-  font-weight: 510;
-}
-.im-channel-status {
-  flex: none;
-}
-
 .nested-project
   > .project-row:not(.active)
   > :is(.project-new-thread, .project-action) {
