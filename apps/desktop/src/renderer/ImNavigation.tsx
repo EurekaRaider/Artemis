@@ -1,5 +1,9 @@
 import { useRef, useState, type KeyboardEvent } from "react";
-import type { ImConnectionStatus } from "@artemis/protocol";
+import {
+  imAggregateConnectionStates,
+  type ImConnectionState,
+  type ImConnectionStatus,
+} from "@artemis/protocol";
 import { Popover } from "@artemis/ui/feedback";
 
 export type ImChannel = ImConnectionStatus["channel"];
@@ -22,36 +26,44 @@ export function imChannelConstraint(channel: ImChannel, t: ImTranslate) {
       : t("Socket Mode · Manifest 导入", "Socket Mode · Import manifest");
 }
 export function imConnectionLabel(
-  state: ImConnectionStatus["state"] | undefined,
+  state: ImConnectionState | undefined,
   t: ImTranslate,
 ) {
   return state === "connected"
     ? t("已连接", "Connected")
     : state === "connecting"
       ? t("连接中", "Connecting")
-      : state === "error"
-        ? t("连接错误", "Connection error")
-        : state === "disabled"
-          ? t("已停用", "Disabled")
-          : t("未配置", "Not configured");
+      : state === "saving"
+        ? t("保存中", "Saving")
+        : state === "saved"
+          ? t("已保存，待连接", "Saved, awaiting connection")
+          : state === "error"
+            ? t("连接错误", "Connection error")
+            : state === "partial_error"
+              ? t("部分连接异常", "Partial connection failure")
+              : t("未配置", "Not configured");
 }
 export function imConnectionHealth(connections: readonly ImConnectionStatus[]) {
   const failed = connections.filter((c) => c.state === "error").length;
-  const connecting = connections.some((c) => c.state === "connecting");
-  const connected = connections.some((c) => c.state === "connected");
   return {
     total: connections.length,
     failed,
-    state: failed
-      ? "error"
-      : connecting
-        ? "connecting"
-        : connected
-          ? "connected"
-          : connections.length
-            ? "disabled"
-            : undefined,
+    state: imAggregateConnectionStates(connections.map((c) => c.state)),
   } as const;
+}
+/**
+ * Merge renderer-side transients over the store aggregation: `saving` while
+ * a credential PUT is in flight, and `saved` for the gap between a
+ * successful save and the next refresh that reports the connection.
+ */
+export function imChannelConnectionState(
+  connections: readonly ImConnectionStatus[],
+  options: { saving?: boolean; savedCredentials?: boolean } = {},
+): ImConnectionState {
+  if (options.saving) return "saving";
+  const state = imAggregateConnectionStates(connections.map((c) => c.state));
+  if (state === "unconfigured" && options.savedCredentials) return "saved";
+  return state;
 }
 export function imConnectionSummary(
   connections: readonly ImConnectionStatus[],

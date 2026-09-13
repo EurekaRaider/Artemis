@@ -9979,11 +9979,13 @@ kbd {
   color: var(--success);
   background: currentColor;
 }
-.im-dot[data-state="error"] {
+.im-dot[data-state="error"],
+.im-dot[data-state="partial_error"] {
   color: var(--danger);
   background: currentColor;
 }
-.im-dot[data-state="connecting"] {
+.im-dot[data-state="connecting"],
+.im-dot[data-state="saving"] {
   color: var(--warning);
   background: currentColor;
 }
@@ -12389,10 +12391,12 @@ kbd {
 }
 
 /* Latest IM design: signal states and compact account actions. */
-.im-dot[data-state="error"] {
+.im-dot[data-state="error"],
+.im-dot[data-state="partial_error"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-danger-subtle);
 }
-.im-dot[data-state="connecting"] {
+.im-dot[data-state="connecting"],
+.im-dot[data-state="saving"] {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent);
   animation: im-dot-pulse 1.6s ease-in-out infinite;
 }
@@ -12406,7 +12410,8 @@ kbd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .im-dot[data-state="connecting"] {
+  .im-dot[data-state="connecting"],
+  .im-dot[data-state="saving"] {
     animation: none;
   }
 }

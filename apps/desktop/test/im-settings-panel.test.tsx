@@ -465,6 +465,39 @@ describe("production IM settings", () => {
       requireConfirmation: true,
     });
   });
+  it("separates saved credentials from an established connection in the lifecycle", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("飞书"));
+    const pill = () =>
+      document.querySelector("#im-bot .im-status-pill") as HTMLElement;
+    expect(pill()).toHaveTextContent("未配置");
+    await user.type(screen.getByLabelText("App ID"), "cli_example");
+    await user.type(
+      screen.getByLabelText("App Secret"),
+      "synthetic-app-secret",
+    );
+    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
+    // 保存成功但连接尚未建立：显示「已保存，待连接」而非「已连接」。
+    await waitFor(() => expect(pill()).toHaveTextContent("已保存，待连接"));
+    f.set({
+      connections: [{ ...connection, channel: "feishu", state: "connecting" }],
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(pill()).toHaveTextContent("连接中"));
+    f.set({
+      connections: [{ ...connection, channel: "feishu", state: "connected" }],
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(pill()).toHaveTextContent("已连接"));
+  });
   it("builds a group configuration from discovered groups and paired members without editing JSON", async () => {
     const f = fixture();
     f.set({ localGateway: { state: "running" } });
@@ -578,14 +611,14 @@ describe("production IM settings", () => {
     expect(imConnectionHealth([connection, failed])).toEqual({
       total: 2,
       failed: 1,
-      state: "error",
+      state: "partial_error",
     });
     expect(document.querySelector(".im-status-pill")).toHaveTextContent(
       "2 个连接，1 个异常",
     );
     expect(nav("企业微信").querySelector(".im-dot")).toHaveAttribute(
       "data-state",
-      "error",
+      "partial_error",
     );
     await user.click(nav("设置指引"));
     expect(screen.getByRole("list", { name: "IM 设置步骤" })).toBeVisible();

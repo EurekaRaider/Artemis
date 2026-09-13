@@ -159,3 +159,12 @@
 - 测试：protocol 空 scope 三例、im-policy 全读不写一例、im-sandbox 根读 seatbelt 一例、im-security-ui 按新契约重写（默认全读/收窄/写⊆读）。
 - **语义迁移说明**：已持久化的 `readPaths=[]` grant 由「全拒读」翻转为「整个项目可读」——此类 grant 此前运行时全拒、无法实际使用，翻转符合 W3/D3 默认语义，不做数据迁移。
 - 门禁：仓库根 `npm test` 1664 通过 + `typecheck` 全绿。
+
+### P1a PR-S1 连接状态枚举统一（已落地）
+
+- `packages/protocol/src/im.ts`：新增 `IM_CONNECTION_STATES` / `ImConnectionState`（`unconfigured|saving|saved|connecting|connected|error|partial_error`，比 plan.md 原列六值多一个 `error`——单连接失败是真实存在的态，`partial_error` 只由聚合产生）与纯聚合函数 `imAggregateConnectionStates`（gateway 四值映射：`disabled→saved`；`[connected,error]→partial_error`；`[error,…无 connected]→error`）。gateway `ChannelStatus.state` 原始四值契约不动。
+- `ImNavigation.tsx`：`imConnectionHealth` 改为委托聚合器；`imConnectionLabel` 覆盖七值（新增「保存中」「已保存，待连接」「部分连接异常」，删除连接语境的「已停用」）；新增 `imChannelConnectionState`（渲染层瞬态合并：`saving`=凭据 PUT 在途、`saved`=保存成功→下次刷新前的空窗）。
+- `ImSettingsPanel.tsx`：凭据保存挂 `savingChannel`/`savedPending` 瞬态（成功刷新即清）；渠道胶囊与单连接行改用统一推导；`stateLabels` 显式类型化为 `Record<ImStatus["state"], string>`（服务生命周期态与连接生命周期态两轴分离）。
+- `styles.css`：`im-dot` 新增 `saving`（warning+脉冲）与 `partial_error`（danger）样式，含 reduced-motion 分支。
+- 测试：protocol 聚合器七例流转；panel 部分 failure 期望 `error→partial_error`；新增「保存≠已连接」两阶段用例（未配置→保存并连接→「已保存，待连接」→连接中→已连接）。
+- grep 验收：渲染层连接状态字符串全部落在类型化枚举上（群成员在线态、remoteTasks 租约态为独立轴，不混用）。

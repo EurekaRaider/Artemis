@@ -34,12 +34,14 @@ import {
   IM_CHANNELS,
   imChannelLabel,
   imChannelConstraint,
+  imChannelConnectionState,
   imConnectionLabel,
   imConnectionHealth,
   imConnectionSummary,
   type ImView,
   type ImChannel,
 } from "./ImNavigation";
+import { imAggregateConnectionStates } from "@artemis/protocol";
 import {
   ImAccounts,
   ImPairingCode,
@@ -112,8 +114,14 @@ export function ImSettingsPanel({
   const [savedMetadata, setSavedMetadata] = useState<
     Partial<Record<ImChannel, BotMetadata>>
   >({});
+  const [savingChannel, setSavingChannel] = useState<ImChannel | null>(null);
+  const [savedPending, setSavedPending] = useState<
+    Partial<Record<ImChannel, boolean>>
+  >({});
   useEffect(() => {
     setSavedMetadata({});
+    setSavedPending({});
+    setSavingChannel(null);
     setDiagnostics(undefined);
     setSpaceJson("");
     setSpaceConfirmation("");
@@ -175,6 +183,8 @@ export function ImSettingsPanel({
         if (active && !running.current && epoch === refreshEpoch.current) {
           setStatus(current);
           setRefreshError("");
+          // The store is authoritative again; drop save-gap transients.
+          setSavedPending({});
         }
       } catch (error) {
         if (active && !running.current && epoch === refreshEpoch.current)
@@ -620,7 +630,7 @@ export function ImSettingsPanel({
         lines={3}
       />
     );
-  const stateLabels = {
+  const stateLabels: Record<NonNullable<ImStatus["state"]>, string> = {
     disabled: t("已暂停", "Paused"),
     connecting: t("连接中", "Connecting"),
     connected: t("已连接", "Connected"),
@@ -1009,13 +1019,20 @@ export function ImSettingsPanel({
                     <span className="im-status-pill">
                       <span
                         className="im-dot"
-                        data-state={
-                          imConnectionHealth(channelConnections).state
-                        }
+                        data-state={imChannelConnectionState(
+                          channelConnections,
+                          {
+                            saving: savingChannel === channel,
+                            savedCredentials: !!savedPending[channel],
+                          },
+                        )}
                         aria-hidden="true"
                       />
                       {imConnectionLabel(
-                        imConnectionHealth(channelConnections).state,
+                        imChannelConnectionState(channelConnections, {
+                          saving: savingChannel === channel,
+                          savedCredentials: !!savedPending[channel],
+                        }),
                         t,
                       )}
                     </span>
@@ -1227,7 +1244,8 @@ export function ImSettingsPanel({
                               feishuTransport === "webhook") ||
                             !requiredFields.every((key) => fields[key]?.trim())
                           }
-                          onClick={() =>
+                          onClick={() => {
+                            setSavingChannel(channel);
                             void run(async () => {
                               const token = adminToken;
                               setAdminToken("");
@@ -1295,6 +1313,10 @@ export function ImSettingsPanel({
                               }));
                               setFields({});
                               setEditingCredentials(false);
+                              setSavedPending((previous) => ({
+                                ...previous,
+                                [channel]: true,
+                              }));
                               setMessage(
                                 t(
                                   "机器人凭据已保存。",
@@ -1328,8 +1350,8 @@ export function ImSettingsPanel({
                                   ),
                                 );
                               }
-                            })
-                          }
+                            }).finally(() => setSavingChannel(null));
+                          }}
                         >
                           {t("保存并连接机器人", "Save and connect bot")}
                         </Button>
@@ -1432,11 +1454,18 @@ export function ImSettingsPanel({
                     <div className="im-connection" key={connection.id}>
                       <span
                         className="im-dot"
-                        data-state={connection.state}
+                        data-state={imAggregateConnectionStates([
+                          connection.state,
+                        ])}
                         aria-hidden="true"
                       />
                       <code>{connection.name}</code>
-                      <strong>{imConnectionLabel(connection.state, t)}</strong>
+                      <strong>
+                        {imConnectionLabel(
+                          imAggregateConnectionStates([connection.state]),
+                          t,
+                        )}
+                      </strong>
                       {connection.error && (
                         <InlineNotice tone="danger">
                           {connection.error}

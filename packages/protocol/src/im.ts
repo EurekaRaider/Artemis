@@ -70,6 +70,36 @@ export interface ImConnectionStatus {
     >
   >;
 }
+/** Channel-connection lifecycle shared by renderer and store. */
+export const IM_CONNECTION_STATES = [
+  "unconfigured",
+  "saving",
+  "saved",
+  "connecting",
+  "connected",
+  "error",
+  "partial_error",
+] as const;
+export type ImConnectionState = (typeof IM_CONNECTION_STATES)[number];
+/**
+ * Aggregate raw gateway connection states into the unified lifecycle.
+ * `partial_error` only arises from aggregation: some connections healthy,
+ * some failed. A `disabled` gateway entry maps to `saved` (registered,
+ * not yet live).
+ */
+export function imAggregateConnectionStates(
+  states: readonly ImConnectionStatus["state"][],
+): ImConnectionState {
+  if (!states.length) return "unconfigured";
+  const failed = states.filter((state) => state === "error").length;
+  if (failed)
+    return failed === states.length || !states.includes("connected")
+      ? "error"
+      : "partial_error";
+  if (states.includes("connecting")) return "connecting";
+  if (states.includes("connected")) return "connected";
+  return "saved";
+}
 export function imConversationKey(conversation: ImConversation): string {
   return JSON.stringify([
     conversation.connectionId,
