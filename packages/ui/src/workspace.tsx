@@ -11,7 +11,10 @@ import {
 } from "react";
 
 import { IconButton } from "./actions.js";
-import { ArtemisIcon } from "./icons.js";
+import {
+  ARTEMIS_CODE_ICON_PATH,
+  ARTEMIS_MARKDOWN_ICON_PATH,
+} from "./editor-icon-paths.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -772,9 +775,31 @@ export function WorkspaceEditorToolbar({
                 disabled={readOnly}
                 iconSize="lg"
                 icon={
-                  <ArtemisIcon
-                    name={modeToggle.value === "rich" ? "markdown" : "code"}
-                  />
+                  <svg
+                    aria-hidden="true"
+                    data-artemis-icon={
+                      modeToggle.value === "rich" ? "markdown" : "code"
+                    }
+                    fill="none"
+                    focusable="false"
+                    height="1em"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    viewBox="0 0 24 24"
+                    width="1em"
+                  >
+                    {modeToggle.value === "rich" ? (
+                      <path
+                        d={ARTEMIS_MARKDOWN_ICON_PATH}
+                        fill="var(--artemis-color-status-success, #60c878)"
+                        stroke="none"
+                      />
+                    ) : (
+                      <path d={ARTEMIS_CODE_ICON_PATH} />
+                    )}
+                  </svg>
                 }
                 label={
                   modeToggle.value === "rich"

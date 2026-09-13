@@ -1,10 +1,13 @@
 import type { ReactNode, SVGProps } from "react";
+import {
+  ARTEMIS_CODE_ICON_PATH,
+  ARTEMIS_MARKDOWN_ICON_PATH,
+} from "./editor-icon-paths.js";
 
 export const ARTEMIS_ICON_SOURCE =
   "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html" as const;
 
-export const ARTEMIS_MARKDOWN_ICON_PATH =
-  "M1 18V6h3l3 4 3-4h3v12h-3v-7l-3 4-3-4v7Zm16-12h3v8h3l-4.5 5-4.5-5h3Z";
+export { ARTEMIS_MARKDOWN_ICON_PATH } from "./editor-icon-paths.js";
 
 export const ARTEMIS_ICON_NAMES = [
   "artemis",
@@ -580,7 +583,7 @@ const ARTEMIS_ICON_GLYPHS = {
   cloud: (
     <path d="M7 18.5a4.5 4.5 0 01-.6-8.96 5.5 5.5 0 0110.9-1.3A4 4 0 0117.5 18.5H7z" />
   ),
-  code: <path d="M8.5 8l-4 4 4 4M15.5 8l4 4-4 4" />,
+  code: <path d={ARTEMIS_CODE_ICON_PATH} />,
   "code-review": (
     <>
       <circle cx="6" cy="6" r="2.2" />

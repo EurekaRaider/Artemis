@@ -12805,19 +12805,19 @@ async function driveSmokeNavigationControlsEvidence(
     },
     "markdown-editor-navigation-toolbar": {
       activation: "Space",
-      expectedLabel: "Source",
+      expectedLabel: "Rich text",
       rootSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
       targetSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
     },
     "markdown-editor-navigation-preview": {
       activation: "Space",
-      expectedLabel: "Source",
+      expectedLabel: "Rich text",
       rootSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
       targetSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
@@ -12912,9 +12912,11 @@ async function driveSmokeNavigationControlsEvidence(
   await wait(300);
   const interaction = await evaluate<Record<string, unknown>>(`(() => {
     const root = document.querySelector(${JSON.stringify(target.rootSelector)});
-    const buttons = [...(root?.querySelectorAll('button') ?? [])];
+    const buttons = root instanceof HTMLButtonElement
+      ? [root]
+      : [...(root?.querySelectorAll('button') ?? [])];
     const active = document.activeElement;
-    const selected = buttons.find(
+    const selected = root instanceof HTMLButtonElement ? root : buttons.find(
       (button) =>
         button.getAttribute('aria-selected') === 'true' ||
         button.getAttribute('aria-pressed') === 'true',
@@ -12924,14 +12926,14 @@ async function driveSmokeNavigationControlsEvidence(
     window.__navigationControlsInteraction = {
       view: ${JSON.stringify(view)},
       activation: ${JSON.stringify(target.activation)},
-      activeText: active?.textContent?.trim() ?? null,
+      activeText: active?.getAttribute('aria-label') ?? active?.textContent?.trim() ?? null,
       before: window.__navigationControlsBefore,
       clickCount: window.__navigationControlsClickCount,
       expectedLabel: ${JSON.stringify(target.expectedLabel)},
       panelId,
       panelLabelledBy: panel?.getAttribute('aria-labelledby') ?? null,
       rootStable: root === window.__navigationControlsRoot,
-      selectedText: selected?.textContent?.trim() ?? null,
+      selectedText: selected?.getAttribute('aria-label') ?? selected?.textContent?.trim() ?? null,
       sourceSurfacePresent:
         document.querySelector(
           '[data-artemis-component="workspace-source-editor"] [data-part="source"]',
@@ -18445,6 +18447,26 @@ function createMainWindow(): BrowserWindow {
               x: 0,
               y: 0,
             });
+            // Re-hit-test after releasing mouse capture before auditing the
+            // resting styles; Windows may retain hover during the drag.
+            window.webContents.sendInputEvent({
+              type: "mouseMove",
+              x: 0,
+              y: 0,
+            });
+            const resetDeadline = Date.now() + 2_000;
+            while (
+              await window.webContents.executeJavaScript(`
+                !!document.querySelector(
+                  '.goal-bar-actions button:is(:hover, :active)',
+                )
+              `)
+            ) {
+              if (Date.now() >= resetDeadline) {
+                throw new Error("Reduced-motion Goal action did not reset.");
+              }
+              await new Promise((resolve) => setTimeout(resolve, 25));
+            }
           }
           if (
             smokeMode &&
@@ -20062,13 +20084,16 @@ function createMainWindow(): BrowserWindow {
                     const roots = [
                       ...document.querySelectorAll(
                         '[data-artemis-component="tabs"], ' +
-                          '[data-artemis-component="segmented-control"]',
+                          '[data-artemis-component="segmented-control"], ' +
+                          '[data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
                       ),
                     ];
                     const describe = (root) => {
                       const rootBounds = root.getBoundingClientRect();
                       const rootStyle = getComputedStyle(root);
-                      const buttons = [...root.querySelectorAll('button')].map(
+                      const buttons = (root instanceof HTMLButtonElement
+                        ? [root]
+                        : [...root.querySelectorAll('button')]).map(
                         (button) => {
                           const bounds = button.getBoundingClientRect();
                           const style = getComputedStyle(button);
@@ -20079,7 +20104,7 @@ function createMainWindow(): BrowserWindow {
                             : null;
                           return {
                             id: button.id,
-                            label: button.textContent?.trim() ?? '',
+                            label: button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '',
                             part: button.getAttribute('data-part'),
                             state: button.getAttribute('data-state'),
                             role: button.getAttribute('role'),
@@ -20141,7 +20166,7 @@ function createMainWindow(): BrowserWindow {
                         size: root.getAttribute('data-size'),
                         className: root.getAttribute('class'),
                         groupLabel: root.getAttribute('aria-label'),
-                        role: root.getAttribute('role'),
+                        role: root.getAttribute('role') ?? (root instanceof HTMLButtonElement ? 'button' : null),
                         geometry: {
                           width: rootBounds.width,
                           height: rootBounds.height,
@@ -20156,7 +20181,8 @@ function createMainWindow(): BrowserWindow {
                         },
                         parts: [
                           'root',
-                          ...buttons.map((button) => button.part),
+                          ...Array.from(root.querySelectorAll('[data-part]'),
+                            (part) => part.getAttribute('data-part')),
                         ],
                         buttons,
                         portalCount:
