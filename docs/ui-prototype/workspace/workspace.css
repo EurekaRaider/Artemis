@@ -4127,7 +4127,7 @@ body[data-archived-demo] .composer-wrap .composer {
   font-size: 11px;
   color: var(--text-3);
 }
-/* ② 平台行：信号灯 + 名称 + 聚合状态（同平台多连接展开后按连接分行） */
+/* ② 平台行：信号灯 + 名称 + 聚合状态 + 行操作；多连接/故障展开连接分行 */
 .im-platform-rows {
   list-style: none;
   margin: 0;
@@ -4137,30 +4137,76 @@ body[data-archived-demo] .composer-wrap .composer {
 }
 .im-platform-row {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 0;
+  flex-direction: column;
   border-bottom: 1px solid var(--border-soft);
   font-size: 12px;
-  flex-wrap: wrap;
 }
 .im-platform-row:last-child {
   border-bottom: none;
+}
+.im-platform-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  flex-wrap: wrap;
 }
 .im-platform-name {
   font-weight: 560;
 }
 .im-platform-status {
-  margin-left: auto;
   color: var(--text-3);
   font-size: 11px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.im-platform-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .im-platform-reason {
-  flex-basis: 100%;
+  margin: 0;
   font-size: 11px;
   color: var(--warning-text);
-  padding-left: 17px;
+  padding: 0 0 6px 17px;
+}
+.im-conn-subrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 6px 17px;
+}
+.im-conn-app {
+  font-weight: 510;
+}
+/* M2b 机器人信息子卡（就地展开；接收方式条件化字段） */
+.im-subcard {
+  margin: 2px 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-card);
+  background: var(--sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-subcard-title {
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.im-subcard-saved {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.im-subcard .im-guide-toggle {
+  align-self: flex-start;
 }
 /* ③ 配对指令区（平台派生；chips 复制反馈复用） */
 .im-instr-title {

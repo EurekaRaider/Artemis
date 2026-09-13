@@ -904,17 +904,161 @@
       return "idle";
     }
 
+    /* M2b 凭据子卡：字段清单（接收方式条件化）+ 保存并重连三态流 + 接入指引 */
+    var IM_FIELD = function (label, inputHtml, extra) {
+      return (
+        '<label class="im-field' + (extra || "") + '"><span class="im-field-label">' +
+        label + "</span>" + inputHtml + "</label>"
+      );
+    };
+    var IM_RECEIVE_SELECT =
+      '<select class="im-field-input" data-im-receive-mode=""><option selected="" value="ws">长连接（推荐）</option><option value="https">HTTPS 回调</option></select>';
+    var IM_FORWARD_URL = function (platformKey) {
+      return (
+        '<div class="im-field field-wide" data-im-https-only="" hidden="">' +
+        '<span class="im-field-label">消息转发地址（复制到平台后台）</span>' +
+        '<div class="im-callback"><code class="im-identifier">https://gw.example.com/im/' +
+        platformKey + '/conn-1/callback</code>' +
+        '<button class="btn btn-ghost" data-copy="" type="button">复制</button></div></div>'
+      );
+    };
+
+    function imSubcardTemplate(p) {
+      var fields = "";
+      if (p.key === "feishu") {
+        fields =
+          IM_FIELD("App ID", '<input class="im-field-input" placeholder="cli_a5…" spellcheck="false"/>') +
+          IM_FIELD("机器人 Open ID", '<input class="im-field-input" placeholder="ou_…（不是 App ID）" spellcheck="false"/>') +
+          IM_FIELD("Tenant Key", '<input class="im-field-input" placeholder="tenant_id" spellcheck="false"/>') +
+          IM_FIELD("区域", '<select class="im-field-input"><option selected="">中国</option><option>新加坡</option><option>美国</option></select>') +
+          IM_FIELD("App Secret", '<input class="im-field-input" type="password"/>') +
+          IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
+          IM_FIELD("Verification Token", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
+          IM_FIELD("Encrypt Key", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
+          IM_FORWARD_URL(p.key);
+      } else if (p.key === "wecom") {
+        fields =
+          IM_FIELD("企业 ID", '<input class="im-field-input" placeholder="ww…" spellcheck="false"/>') +
+          IM_FIELD("Agent ID", '<input class="im-field-input"/>') +
+          IM_FIELD("应用 Secret", '<input class="im-field-input" type="password"/>') +
+          IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
+          IM_FIELD("Token", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
+          IM_FIELD("EncodingAESKey", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
+          IM_FORWARD_URL(p.key);
+      } else {
+        fields =
+          IM_FIELD("Bot Token", '<input class="im-field-input" placeholder="xoxb-…" spellcheck="false"/>') +
+          IM_FIELD("App ID", '<input class="im-field-input" placeholder="A1…"/>') +
+          IM_FIELD("Client ID", '<input class="im-field-input"/>') +
+          IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
+          IM_FIELD("Client Secret", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
+          IM_FIELD("Signing Secret", '<input class="im-field-input" type="password"/>', '" data-im-https-only="" hidden=""') +
+          IM_FORWARD_URL(p.key);
+      }
+      return (
+        '<div class="im-subcard" data-im-subcard="' + p.key + '" hidden="">' +
+        '<div class="im-subcard-saved" data-im-cred-saved="" hidden="">' +
+        '<p class="im-muted">机器人信息已加密保存在本机，不会回显。</p>' +
+        '<button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button></div>' +
+        '<form class="im-credentials-form" data-im-cred-form="">' +
+        '<div class="im-subcard-title">机器人信息（加密保存在本机，不回显）</div>' +
+        '<div class="form-grid">' + fields + "</div>" +
+        '<p class="im-fine">保存后机器人会用新密钥重新连接。</p>' +
+        '<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并重连</button>' +
+        '<button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div></form>' +
+        '<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>接入指引（权限与事件订阅）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
+        '<div class="im-fold-body" hidden="">' + imGuideTemplate(p.key) + "</div></div>"
+      );
+    }
+
+    function imGuideTemplate(platformKey) {
+      if (platformKey === "feishu") {
+        return (
+          '<ol class="im-guide"><li><p>在飞书开发者后台创建企业自建应用。</p></li>' +
+          '<li><p>开通以下权限：</p><div class="im-chips">' +
+          '<button class="im-chip" type="button"><code>im:message</code><span aria-hidden="true">⧉</span></button>' +
+          '<button class="im-chip" type="button"><code>im:message:send_as_bot</code><span aria-hidden="true">⧉</span></button>' +
+          '<button class="im-chip" type="button"><code>im:message.reaction:write</code><span aria-hidden="true">⧉</span></button>' +
+          '<button class="im-chip" type="button"><code>im:resource</code><span aria-hidden="true">⧉</span></button></div></li>' +
+          '<li><p>事件订阅方式选择「长连接」（选 HTTPS 回调时把上方转发地址填入平台后台）。</p></li>' +
+          '<li><p>订阅事件：</p><div class="im-chips"><button class="im-chip" type="button"><code>im.message.receive_v1</code><span aria-hidden="true">⧉</span></button></div></li>' +
+          '<li class="im-guide-warning"><p>在「回调配置」（不是事件订阅）添加：</p><div class="im-chips"><button class="im-chip" type="button"><code>card.action.trigger</code><span aria-hidden="true">⧉</span></button></div></li>' +
+          '<li><p>创建版本并发布。</p></li></ol>'
+        );
+      }
+      if (platformKey === "wecom") {
+        return (
+          '<ol class="im-guide"><li><p>在企业微信管理后台创建企业自建应用。</p></li>' +
+          '<li><p>记录企业 ID、Agent ID 与应用 Secret。</p></li>' +
+          '<li><p>在「接收消息」页配置回调凭证；长连接无需公网，HTTPS 回调需把上方转发地址加入白名单。</p></li>' +
+          '<li><p>把可信域名加入应用白名单。</p></li></ol>'
+        );
+      }
+      return (
+        '<ol class="im-guide"><li><p>在 Slack API 创建应用，或直接导入 Manifest。</p></li>' +
+        '<li><p>开启 Socket Mode（无需公网回调）。</p></li>' +
+        '<li><p>订阅 <code class="im-identifier">message.im</code> 等事件并授予权限。</p></li></ol>'
+      );
+    }
+
+    /* 平台行动作：按聚合态派生（全部状态推导，不写死） */
+    function imPlatformActions(st) {
+      if (st.agg === "none")
+        return '<button class="btn btn-ghost" data-im-add="" type="button">去添加</button>';
+      if (st.agg === "allbad")
+        return (
+          '<button class="btn btn-ghost" data-im-view-reason="" type="button">查看原因</button>' +
+          '<button class="btn btn-ghost" data-im-reenter="" type="button">重新输入密钥</button>'
+        );
+      if (st.agg === "reconnecting")
+        return (
+          '<button class="btn btn-ghost" data-im-retry="" type="button">重试</button>' +
+          '<button class="btn btn-ghost" data-im-manage="" type="button">管理</button>'
+        );
+      return '<button class="btn btn-ghost" data-im-manage="" type="button">管理</button>';
+    }
+
+    function imConnSubrows(st) {
+      return st.conns
+        .map(function (c) {
+          var dotClass = c.state === "ok" ? "ok" : c.state === "bad" ? "bad" : "pending";
+          var stateText =
+            c.state === "ok" ? "已连接" : c.state === "bad" ? "连接失败" : "正在重连 · 第 " + (c.attempt || 1) + " 次";
+          var note = c.state === "ok" ? c.note || "" : c.reason || "";
+          return (
+            '<div class="im-conn-row" title="' + c.conn + '">' +
+            '<span aria-hidden="true" class="im-dot ' + dotClass + '"></span>' +
+            '<span class="im-conn-app">' + (c.app || "机器人") + "</span>" +
+            '<span class="im-conn-state">' + stateText + "</span>" +
+            '<span class="im-conn-time">' + note + "</span></div>"
+          );
+        })
+        .join("");
+    }
+
     function imBuildPlatformRows() {
       var list = imPanel.querySelector("[data-im-platform-rows]");
       list.textContent = "";
       IM_PLATFORMS.forEach(function (p) {
+        var st = imDerived.platforms[p.key];
+        var showConns =
+          st.conns.length > 1 ||
+          st.agg === "partial" ||
+          st.agg === "allbad" ||
+          st.agg === "reconnecting";
         var li = document.createElement("li");
         li.className = "im-platform-row";
         li.setAttribute("data-im-platform", p.key);
         li.innerHTML =
+          '<div class="im-platform-line">' +
           '<span aria-hidden="true" class="im-dot"></span>' +
           '<span class="im-platform-name">' + p.name + "</span>" +
-          '<span class="im-platform-status"></span>';
+          '<span class="im-platform-status"></span>' +
+          '<span class="im-platform-actions">' + imPlatformActions(st) + "</span></div>" +
+          '<p class="im-platform-reason" hidden=""></p>' +
+          '<div class="im-conn-subrows"' + (showConns ? "" : ' hidden=""') + ">" +
+          imConnSubrows(st) + "</div>" +
+          imSubcardTemplate(p);
         list.appendChild(li);
       });
     }
@@ -924,7 +1068,7 @@
         var row = imPanel.querySelector('[data-im-platform="' + p.key + '"]');
         if (!row) return;
         var st = imDerived.platforms[p.key];
-        var dot = row.querySelector(".im-dot");
+        var dot = row.querySelector(".im-platform-line > .im-dot");
         var status = row.querySelector(".im-platform-status");
         dot.className = "im-dot " + imPlatformDotClass(st);
         var text;
@@ -933,18 +1077,16 @@
         else if (st.agg === "partial") text = st.bad + "/" + st.conns.length + " 连接故障";
         else if (st.agg === "allbad") text = "连接失败";
         else if (st.agg === "reconnecting")
-          text = "正在重连 · 第 " + (st.conns[0] && st.conns[0].attempt || 1) + " 次";
+          text = "正在重连 · 第 " + ((st.conns[0] && st.conns[0].attempt) || 1) + " 次";
         status.textContent = text;
         var reason = row.querySelector(".im-platform-reason");
         if (st.agg === "allbad") {
-          if (!reason) {
-            reason = document.createElement("span");
-            reason.className = "im-platform-reason";
-            row.appendChild(reason);
-          }
+          reason.hidden = false;
           reason.textContent =
             (st.conns[0] && st.conns[0].reason) || "连接失败，请检查凭据";
-        } else if (reason) reason.remove();
+        } else {
+          reason.hidden = true;
+        }
       });
     }
 
@@ -1164,6 +1306,140 @@
       imState.masterOn = true;
       imRefresh();
       notice("消息服务已在本机开启（演示）");
+    });
+
+    /* ② 平台行操作与 M2b 凭据子卡（swap / cancel / save 三态流） */
+    function imOpenSubcard(platformKey, focusSecret) {
+      var row = imPanel.querySelector('[data-im-platform="' + platformKey + '"]');
+      var sub = row.querySelector("[data-im-subcard]");
+      var st = imDerived.platforms[platformKey];
+      var configured = st.conns.length > 0;
+      sub.hidden = false;
+      sub.querySelector("[data-im-cred-saved]").hidden = !configured;
+      sub.querySelector("[data-im-cred-form]").hidden = configured;
+      var first = sub.querySelector(
+        focusSecret ? 'input[type="password"]' : "input, select",
+      );
+      if (first) first.focus();
+    }
+    function imCloseSubcard(platformKey) {
+      var row = imPanel.querySelector('[data-im-platform="' + platformKey + '"]');
+      var sub = row.querySelector("[data-im-subcard]");
+      sub.hidden = true;
+      var form = sub.querySelector("[data-im-cred-form]");
+      form.reset();
+      imApplyReceiveMode(form);
+    }
+    /* 接收方式：长连接隐藏 HTTPS 专属字段与转发地址 */
+    function imApplyReceiveMode(scope) {
+      var select = scope.querySelector("[data-im-receive-mode]");
+      if (!select) return;
+      var https = select.value === "https";
+      Array.prototype.forEach.call(
+        scope.querySelectorAll("[data-im-https-only]"),
+        function (el) {
+          el.hidden = !https;
+        },
+      );
+    }
+    imPanel.addEventListener("change", function (ev) {
+      var select = ev.target.closest("[data-im-receive-mode]");
+      if (select) imApplyReceiveMode(select.closest("[data-im-cred-form]"));
+    });
+
+    imPanel.addEventListener("click", function (ev) {
+      var platformRow = ev.target.closest(".im-platform-row");
+      var key = platformRow && platformRow.getAttribute("data-im-platform");
+      if (ev.target.closest("[data-im-manage]")) {
+        var sub = platformRow.querySelector("[data-im-subcard]");
+        if (sub.hidden) imOpenSubcard(key, false);
+        else imCloseSubcard(key);
+        return;
+      }
+      if (ev.target.closest("[data-im-add]")) {
+        imOpenSubcard(key, false);
+        return;
+      }
+      if (ev.target.closest("[data-im-reenter]")) {
+        imOpenSubcard(key, true);
+        return;
+      }
+      if (ev.target.closest("[data-im-view-reason]")) {
+        var subs = platformRow.querySelector(".im-conn-subrows");
+        subs.hidden = false;
+        var reasonEl = platformRow.querySelector(".im-platform-reason");
+        if (reasonEl && !reasonEl.hidden) {
+          reasonEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+        return;
+      }
+      if (ev.target.closest("[data-im-retry]")) {
+        var st = imDerived.platforms[key];
+        st.conns.forEach(function (c) {
+          if (c.state === "reconnecting") c.attempt = (c.attempt || 1) + 1;
+        });
+        imRefresh();
+        notice("已发起重连（演示）");
+        return;
+      }
+      /* 凭据三态流：更换 ↔ 表单（密钥不回显） */
+      var swap = ev.target.closest("[data-im-cred-swap]");
+      if (swap) {
+        var sub2 = swap.closest("[data-im-subcard]");
+        sub2.querySelector("[data-im-cred-saved]").hidden = true;
+        var form2 = sub2.querySelector("[data-im-cred-form]");
+        form2.hidden = false;
+        var firstInput = form2.querySelector("input, select");
+        if (firstInput) firstInput.focus();
+        return;
+      }
+      if (ev.target.closest("[data-im-cred-cancel]")) {
+        var form3 = ev.target.closest("[data-im-cred-form]");
+        var sub3 = form3.closest("[data-im-subcard]");
+        var row3 = sub3.closest(".im-platform-row");
+        var st3 = imDerived.platforms[row3.getAttribute("data-im-platform")];
+        form3.reset();
+        imApplyReceiveMode(form3);
+        if (st3.conns.length > 0) {
+          form3.hidden = true;
+          sub3.querySelector("[data-im-cred-saved]").hidden = false;
+        } else {
+          sub3.hidden = true;
+        }
+        return;
+      }
+      var save = ev.target.closest("[data-im-cred-save]");
+      if (save) {
+        var form4 = ev.target.closest("[data-im-cred-form]");
+        var sub4 = form4.closest("[data-im-subcard]");
+        form4.reset();
+        imApplyReceiveMode(form4);
+        form4.hidden = true;
+        sub4.querySelector("[data-im-cred-saved]").hidden = false;
+        notice("已保存，机器人正在用新密钥重新连接（演示）");
+        return;
+      }
+      /* 复制类按钮反馈（转发地址）与 chips 复制 */
+      var copy = ev.target.closest("[data-copy]");
+      if (copy) {
+        var original = copy.textContent;
+        copy.textContent = "已复制";
+        setTimeout(function () {
+          copy.textContent = original;
+        }, 1400);
+        return;
+      }
+      var chip = ev.target.closest(".im-chip");
+      if (chip && chip.contains(ev.target)) {
+        var mark = chip.querySelector("span[aria-hidden]");
+        var markText = mark ? mark.textContent : "";
+        chip.classList.add("copied");
+        if (mark) mark.textContent = "✓";
+        setTimeout(function () {
+          chip.classList.remove("copied");
+          if (mark) mark.textContent = markText;
+        }, 1400);
+      }
     });
 
     /* 主开关：开/关都触发全卡 derive */
