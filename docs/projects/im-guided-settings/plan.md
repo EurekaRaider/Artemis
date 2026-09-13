@@ -2,6 +2,18 @@
 
 日期：2026-09-13。依据：[README.md](README.md)（提案）+ [review.md](review.md)（评审反馈，含已拍板决议）。本计划为可执行任务清单，**每项附验收标准**；验收以可观察行为为准，原型侧验收项应尽量落为 `tools/im-settings-check.mjs` / `tools/workspace-check.mjs` 断言。
 
+## 实施记录（2026-09-13 原型侧阶段三完成）
+
+| 提交 | 范围 | 状态 |
+|------|------|------|
+| ffd8aeb | C1 = PT-1 骨架 + PT-2 ①对齐 + PT-3 ③五态 | ✅ 验收全过 |
+| 140e882 | C2 = PT-4 ②三子阶段（含团队态/Slack mismatch） | ✅ 验收全过 |
+| 58b8bbf | C3 = PT-5 ④三档+Execute 范围树+两阶段三场景 | ✅ 验收全过 |
+| c1bd8eb | C4 = PT-6 ⑤测试任务卡（M6 退场）+ PT-7 群协作独立流程 | ✅ 验收全过 |
+| 3550b90 | C5 = PT-8 完成后概览 + PT-9 门禁增补 | ✅ 验收全过 |
+
+门禁基线：`contrast/run-headless.zsh` 全绿 + `npm test`（library 12 + workspace 36）+ `im-settings-check.mjs` 13 检查块。生产侧先行项 PR-S1..S5 与文档修订 DOC-1/2 仍待做（阶段一/二）。PR-S1 的「保存中」瞬态未在原型单列（保存→连接连续呈现），待生产枚举落地后再对齐。
+
 ## 0. 决议记录（2026-09-13 用户拍板）
 
 | # | 决议 |
