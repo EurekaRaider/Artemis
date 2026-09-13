@@ -1502,6 +1502,13 @@
     function imBuildProjects() {
       var list = imPanel.querySelector("[data-im-project-rows]");
       list.textContent = "";
+      /* 临时会话：内置授权目标，默认开启且不可取消（2026-09-13 拍板）；
+         不占 projects 状态与默认项目逻辑，具体项目仍逐个勾选 */
+      var builtin = document.createElement("li");
+      builtin.className = "im-project im-project-builtin";
+      builtin.innerHTML =
+        '<label class="settings-checkbox im-project-head"><input type="checkbox" checked disabled="" aria-label="临时会话（内置，始终可用）"/><span><strong>临时会话</strong><small>不绑定项目的会话；手机上始终可用</small></span></label>';
+      list.appendChild(builtin);
       imState.projects.forEach(function (pr, idx) {
         pr.reads = pr.reads || [];
         pr.writes = pr.writes || [];
