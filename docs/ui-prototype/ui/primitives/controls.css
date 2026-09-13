@@ -82,12 +82,17 @@
   cursor: progress;
 }
 .ui-button.ui-button:focus-visible,
-.ui-field.ui-field:focus-visible,
 .ui-tab.ui-tab:focus-visible,
 .ui-menu-item:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
   box-shadow: 0 0 0 3px var(--focus-ring);
+}
+/* 文本类输入以光标为焦点指示（v139 既有决议），不画聚焦圈；
+   文本域在 Chromium 下聚焦必中 :focus-visible，故须在此显式关闭基础环 */
+.ui-field.ui-field:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .ui-field.ui-field {
   box-sizing: border-box;
