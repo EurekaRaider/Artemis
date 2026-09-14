@@ -150,6 +150,11 @@ export const executionGrantSchema = z
   })
   .strict();
 export type ExecutionGrant = z.infer<typeof executionGrantSchema>;
+/**
+ * defaultProjectId sentinel (and legacy empty string) meaning plain owner
+ * messages start a project-less ad-hoc task instead of a project task.
+ */
+export const IM_ADHOC_PROJECT_ID = "adhoc";
 export const imSettingsSchema = z
   .object({
     enabled: z.boolean().default(false),

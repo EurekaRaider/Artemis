@@ -10,6 +10,7 @@ import * as imSandbox from "../src/main/im-sandbox.js";
 import {
   executionGrantSchema,
   imConversationKey,
+  IM_ADHOC_PROJECT_ID,
   type AgentEvent,
   type ChannelEvent,
   type CollaborationTask,
@@ -1430,7 +1431,7 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/projects");
     expect(deliveries().at(-1)!.payload.text).toContain("临时任务");
   });
-  it("still guides ambiguous project selection instead of starting ad-hoc tasks", async () => {
+  it("defaults plain owner messages to the ad-hoc chat while groups still pick explicitly", async () => {
     const f = await fixture();
     f.ops.projects().push({ ...f.ops.projects()[0]!, id: "other-project" });
     await f.service.save({
@@ -1445,11 +1446,57 @@ describe("IM desktop and Gateway loop", () => {
         }),
       ],
     });
+    // 初始未设置默认项目：普通消息落临时会话，不卡在引导。
     await f.send("/new ambiguous");
-    expect(f.threads).toHaveLength(0);
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "plan" });
+    // 群聊没有临时会话语义：未配置空间时走群引导，不会静默落临时任务。
+    f.gateway.router.ingest({
+      version: 1 as const,
+      messageId: randomUUID(),
+      identity: f.identity,
+      conversation: {
+        connectionId: "w",
+        id: "group-1",
+        kind: "group" as const,
+        spaceId: "space-1",
+      },
+      text: "/new in group",
+      timestamp: Date.now(),
+      mentioned: true,
+      bot: false,
+      attachments: [],
+    });
+    await f.service.poll();
+    expect(f.threads).toHaveLength(1);
     const deliveries = () =>
       f.gateway.store.pending<{ text: string }>("outgoing");
-    expect(deliveries().at(-1)!.payload.text).toContain("请先 /projects");
+    expect(deliveries().at(-1)!.payload.text).toContain("群协作空间尚未配置");
+  });
+  it("keeps an explicit ad-hoc default and a real project default distinct", async () => {
+    const f = await fixture();
+    f.ops.projects().push({ ...f.ops.projects()[0]!, id: "other-project" });
+    await f.service.save({
+      ...f.service.status().settings,
+      defaultProjectId: IM_ADHOC_PROJECT_ID,
+      grants: [
+        ...f.service.status().settings.grants,
+        executionGrantSchema.parse({
+          projectId: "other-project",
+          security: security("owner"),
+          expiresAt: Date.now() + 600000,
+        }),
+      ],
+    });
+    // 哨兵默认：即使多个项目已授权，普通消息仍进临时会话。
+    await f.send("/new sentinel default");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "plan" });
+    // /project 显式选择后，普通消息回到所选项目。
+    await f.send("/project project");
+    await f.send("project follow-up");
+    expect(f.threads).toHaveLength(2);
+    expect(f.threads[1]).toMatchObject({ projectId: "project" });
   });
   it.each(["wecom", "feishu", "slack"] as const)(
     "%s creates a new task after deletion without replaying the deleted task",

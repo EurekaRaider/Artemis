@@ -4,6 +4,7 @@ import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
 import {
   executionGrantSchema,
+  IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
   type AppLocale,
   type ImConnectionStatus,
@@ -2014,21 +2015,25 @@ export function ImSettingsPanel({
           <Select
             labelVisibility="visible"
             label={t("默认项目", "Default project")}
-            value={settings.defaultProjectId}
+            value={settings.defaultProjectId || IM_ADHOC_PROJECT_ID}
             onValueChange={(defaultProjectId) =>
               setSettings({ ...settings, defaultProjectId })
             }
             disabled={busy}
             options={[
               {
-                value: "",
-                label: t("每次明确选择", "Choose explicitly"),
+                value: IM_ADHOC_PROJECT_ID,
+                label: t("临时会话", "Ad-hoc chats"),
               },
               ...projects
                 .filter((p) =>
                   settings.grants.some((g) => g.projectId === p.id),
                 )
                 .map((p) => ({ value: p.id, label: p.name })),
+              {
+                value: "",
+                label: t("每次明确选择", "Choose explicitly"),
+              },
             ]}
           />
           {/* 确认摘要五要素：项目 / 文件范围 / 回复对象 / 模式 / 有效期。 */}
@@ -2580,18 +2585,15 @@ export function ImSettingsPanel({
         >
           {renderPairingBody()}
         </ImFlowCard>
+        {/* 临时会话是内置授权目标，④摘要计作 1 个项目。 */}
         <ImFlowCard
           num={4}
           title={t("允许手机操作的项目", "Projects your phone may operate")}
           done={flowSteps[3]!.done}
-          summary={
-            settings.grants.length
-              ? t(
-                  `${settings.grants.length} 个项目`,
-                  `${settings.grants.length} projects`,
-                )
-              : ""
-          }
+          summary={t(
+            `${settings.grants.length + 1} 个项目`,
+            `${settings.grants.length + 1} projects`,
+          )}
           open={openStep("projects")}
           onToggle={() => setFlowCard(openStep("projects") ? null : "projects")}
           t={t}

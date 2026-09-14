@@ -808,6 +808,11 @@ describe("production IM settings", () => {
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
+    // 临时会话计入④摘要，且默认项目初始显示为临时会话。
+    expect(screen.getAllByText("2 个项目").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: /默认项目 临时会话/ }),
+    ).toBeVisible();
     expect(f.save).not.toHaveBeenCalled();
     expect(f.get().identities).toEqual([identity]);
   });

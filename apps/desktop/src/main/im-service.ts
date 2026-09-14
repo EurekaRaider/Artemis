@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
+  IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
   type ImSecurityContext,
   type ImOutboundCandidate,
@@ -874,6 +875,7 @@ export class ImService {
       throw new Error("Grant references an unavailable project.");
     if (
       settings.defaultProjectId &&
+      settings.defaultProjectId !== IM_ADHOC_PROJECT_ID &&
       !settings.grants.some(
         (grant) => grant.projectId === settings.defaultProjectId,
       )
@@ -2456,22 +2458,28 @@ export class ImService {
         threadId = undefined;
       }
     }
+    // 临时会话 participates in default resolution: an unset or sentinel
+    // default means plain owner messages start a project-less ad-hoc task.
+    const defaultProjectId = this.config.defaultProjectId;
+    const adhocDefault =
+      !defaultProjectId || defaultProjectId === IM_ADHOC_PROJECT_ID;
     const projectId =
       existing?.projectId ??
       selection.projectId ??
-      (projects.some((p) => p.id === this.config.defaultProjectId)
-        ? this.config.defaultProjectId
-        : projects.length === 1
-          ? projects[0]!.id
-          : undefined);
-    // Ad-hoc plan task (W4): zero project grants, or a selected temporary
-    // conversation, still starts a project-less plan task in the owner chat.
+      (adhocDefault
+        ? undefined
+        : projects.some((p) => p.id === defaultProjectId)
+          ? defaultProjectId
+          : projects.length === 1
+            ? projects[0]!.id
+            : undefined);
+    // Ad-hoc plan task (W4): with no project resolved, the owner chat still
+    // starts a project-less plan task instead of dead-ending.
     const adhoc =
       !projectId &&
       request.conversation.kind === "direct" &&
       !request.collaboration &&
-      !request.originator &&
-      (!projects.length || existing?.projectId === null);
+      !request.originator;
     if (!projectId && !adhoc)
       throw new Error(
         "请先 /projects 查看项目，然后 /project 项目编号 明确选择。",
