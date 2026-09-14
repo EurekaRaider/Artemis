@@ -10302,10 +10302,9 @@ kbd {
   padding: 10px;
   white-space: normal;
   border: 1px solid var(--artemis-color-border-surface);
-}
-/* 边框已表达选中：去掉 Button 的 ✓ 指示符，背景换干净的抬升面板色。 */
-.im-platform-card[data-state="selected"] {
-  background: var(--artemis-color-surface-raised);
+  /* 渠道选项卡：浅色白底黑字、深色黑底白字；选中仅由描边表达。 */
+  background: light-dark(var(--artemis-color-surface-base), #0a0a0a);
+  color: var(--artemis-color-text-primary);
 }
 .im-platform-card > [data-part="state-indicator"] {
   display: none;
