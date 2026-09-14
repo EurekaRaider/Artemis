@@ -915,7 +915,7 @@ export function ImSettingsPanel({
     return (
       <section id="im-bot" tabIndex={-1}>
         <ManagementSection
-          className="im-channel-section"
+          className="im-channel-section im-flow-section"
           title={imChannelLabel(channel, t)}
           description={imChannelConstraint(channel, t)}
           actions={
@@ -1469,6 +1469,7 @@ export function ImSettingsPanel({
       <>
         <section id="im-pair" tabIndex={-1}>
           <ManagementSection
+            className="im-flow-section"
             title={t("4 · 绑定你的 IM 账号", "4 · Pair your IM account")}
             description={t(
               `在 ${pairingPlatformLabel} 中找到刚配置的机器人，打开本人单聊。不要把配对码发到群里。`,
@@ -1662,6 +1663,7 @@ export function ImSettingsPanel({
     return (
       <section id="im-permissions" tabIndex={-1}>
         <ManagementSection
+          className="im-flow-section"
           title={t(
             "5 · 选择项目并启用连接",
             "5 · Allow a project and enable IM",

@@ -10159,6 +10159,14 @@ kbd {
   padding: 4px 14px 14px;
   border-top: 1px solid var(--border-soft);
 }
+/* 步骤卡是唯一容器：卡内管理分区去卡片壳（背景/边框/圆角/内距），
+   只保留标题、描述与内容的排版结构。 */
+.im-flow-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
 /* 卡内排版规整：正文从全局 14px 收到 12.5px，指令 code 12px 等宽，
    与分区标题（12px/650）、说明（11px）构成合理梯度。 */
 .im-flow-body p,

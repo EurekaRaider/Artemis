@@ -21,6 +21,7 @@ export function ImGatewayInstructions({
 }) {
   return (
     <ManagementSection
+      className="im-flow-section"
       title={t("1 · 启动内置 Gateway", "1 · Start the built-in Gateway")}
       description={t(
         "个人使用点击一次即可：自动启动服务、生成并加密保存凭据、注册当前设备。无需源码、安装工具或命令行。",
@@ -109,6 +110,7 @@ export function ImFirstTaskInstructions({
   ];
   return (
     <ManagementSection
+      className="im-flow-section"
       title={t("6 · 在 IM 发送第一条任务", "6 · Send your first task in IM")}
       description={t(
         "保持 Artemis 运行，在你刚配对的机器人单聊中依次发送下面的指令。复制按钮只复制文字，请自行粘贴到 IM 发送。",
