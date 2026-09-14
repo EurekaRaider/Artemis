@@ -795,14 +795,16 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 完成态直接进入概览：三态可见、总开关新家（D1）、不重跑流程。
-    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
-    expect(screen.getByText(/服务健康/)).toBeVisible();
-    expect(screen.getByText(/测试通过/)).toBeVisible();
+    // 完成态直接进入概览：五卡全绿可见、总开关新家（D1）、不重跑流程。
+    expect(
+      await screen.findByText("已确认", { selector: ".im-flow-summary" }),
+    ).toBeVisible();
+    expect(screen.getAllByText(/已绑定 1 个账号/)).toHaveLength(1);
     expect(screen.getAllByRole("switch")).toHaveLength(1);
     expect(screen.queryByText("设置进度 5/5")).toBeNull();
-    // 概览分区可展开编辑，配置不被清除。
+    // 概览分区可展开编辑，配置不被清除；授权设置在行右侧按钮的聚焦弹窗里。
     await openCard(user, /^允许手机操作的项目/);
+    await user.click(screen.getByRole("button", { name: /^plan · / }));
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
@@ -998,6 +1000,8 @@ describe("production IM settings", () => {
     await screen.findByRole("button", { name: /^连接服务/ });
     await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
+    // 授权设置收进行右侧按钮的聚焦弹窗。
+    await user.click(screen.getByRole("button", { name: /^plan · / }));
     // Plan 默认：范围声明行可见，范围树收在「自定义范围」后（D3）。
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
@@ -1258,7 +1262,9 @@ describe("pairing code lifecycle", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     // 完成态直达概览，群协作入口在概览（D2）。
-    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
+    expect(
+      await screen.findByRole("button", { name: "设置群协作" }),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "设置群协作" }));
     expect(screen.getByRole("button", { name: /返回单聊设置/ })).toBeVisible();
     expect(screen.getByText("创建与连接 IM 群协作空间")).toBeVisible();
@@ -1297,7 +1303,9 @@ describe("pairing code lifecycle", () => {
       screen.getByRole("checkbox", { name: /我已在手机上收到/ }),
     );
     // 确认后完成即概览（⑤卡收起，不再断言已卸载的轨道节点）。
-    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
+    expect(
+      await screen.findByRole("button", { name: "设置群协作" }),
+    ).toBeVisible();
   });
   it("notifies once when a completed flow step regresses after a connection is removed", async () => {
     const f = fixture();
@@ -1321,14 +1329,16 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    expect(await screen.findByText("配置完整 5/5")).toBeVisible();
-    // 删除连接后②③完成态回退：概览三态可见、给出一次性提示并出现「继续设置」。
+    expect(
+      await screen.findByRole("button", { name: "设置群协作" }),
+    ).toBeVisible();
+    // 删除连接后②③完成态回退：卡片摘要回退、给出一次性提示并出现「继续设置」。
     f.set({ connections: [], identities: [] });
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
     });
     expect(await screen.findByText(/有已完成步骤被重置/)).toBeVisible();
-    expect(await screen.findByText("配置完整 3/5")).toBeVisible();
+    expect(screen.getByText("未添加")).toBeVisible();
     expect(screen.getByRole("button", { name: "继续设置" })).toBeVisible();
   });
 });

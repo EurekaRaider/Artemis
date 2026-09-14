@@ -1122,8 +1122,8 @@ try {
     await click(
       "document.querySelector('#im-permissions .im-project:not(.im-project-builtin) input[type=checkbox]')",
     );
-    if (!(await evaluate("document.querySelector('.im-grant-details').open")))
-      await click("document.querySelector('.im-grant-details > summary')");
+    // 授权设置收进行右侧按钮的聚焦弹窗。
+    await click("document.querySelector('.im-grant-open')");
     await click(button("自定义范围 ▸"));
     await click(button("选择目录或文件"));
     await until(

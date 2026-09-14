@@ -9860,12 +9860,59 @@ kbd {
   gap: 8px;
 }
 .im-project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding-block: 12px;
+}
+.im-grant-open {
+  flex: none;
+  margin-inline-start: auto;
+}
+.im-project-builtin {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.im-project-builtin small {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* Per-project permission editor: focused dialog like the rename task dialog. */
+.im-grant-dialog {
+  inline-size: min(560px, calc(100vw - 48px));
+  padding: 24px;
+  border-radius: 24px;
+}
+.im-grant-dialog h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.im-grant-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-block-size: min(56vh, 540px);
+  overflow-y: auto;
+  margin-block: 12px 16px;
+  padding-inline: 2px;
+}
+.im-grant-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.im-grant-dialog footer span {
+  font-size: 12px;
+  color: var(--muted);
 }
 .im-grant-fields {
   display: grid;
   gap: 12px;
-  padding: 12px 0 0 24px;
+  padding-block-start: 12px;
 }
 .im-identifier {
   overflow-wrap: anywhere;
@@ -9975,6 +10022,8 @@ kbd {
   padding: 4px;
 }
 .im-flow-card {
+  /* border-radius: inherit on the head picks up 0 from its h3 wrapper. */
+  --im-flow-radius: calc(var(--artemis-radius-md, 10px) - 1px);
   border: 1px solid var(--border-soft);
   border-radius: var(--artemis-radius-md, 10px);
   background: var(--artemis-color-surface, transparent);
@@ -9994,14 +10043,17 @@ kbd {
   inline-size: 100%;
   padding: 10px 14px;
   border: 0;
-  border-radius: inherit;
+  border-radius: var(--im-flow-radius);
   background: transparent;
   text-align: start;
   font: inherit;
   color: inherit;
 }
+.im-flow-card[data-open="true"] .im-flow-head {
+  border-radius: var(--im-flow-radius) var(--im-flow-radius) 0 0;
+}
 .im-flow-head:hover {
-  background: var(--artemis-color-surface-sunken);
+  background: var(--artemis-color-interaction-hover);
 }
 .im-flow-num {
   display: inline-flex;
@@ -10077,14 +10129,6 @@ kbd {
   font-weight: 560;
 }
 .im-mode-tier small {
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.im-project-builtin {
-  align-items: baseline;
-  gap: 10px;
-}
-.im-project-builtin small {
   font-size: 11.5px;
   color: var(--muted);
 }
