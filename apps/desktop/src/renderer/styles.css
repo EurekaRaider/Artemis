@@ -10040,20 +10040,25 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  inline-size: 100%;
-  padding: 10px 14px;
+  /* Inset hover pill: the fill never touches the card border, so done-card
+     green and the neutral wash stay visually separate. */
+  inline-size: calc(100% - 6px);
+  margin: 3px;
+  padding: 9px 11px;
   border: 0;
-  border-radius: var(--im-flow-radius);
+  border-radius: calc(var(--im-flow-radius) - 3px);
   background: transparent;
   text-align: start;
   font: inherit;
   color: inherit;
 }
-.im-flow-card[data-open="true"] .im-flow-head {
-  border-radius: var(--im-flow-radius) var(--im-flow-radius) 0 0;
+.im-flow-head:hover,
+.im-flow-head:focus-visible {
+  background: var(--hover);
 }
-.im-flow-head:hover {
-  background: var(--artemis-color-interaction-hover);
+.im-flow-card[data-open="true"] .im-flow-head {
+  border-radius: calc(var(--im-flow-radius) - 3px)
+    calc(var(--im-flow-radius) - 3px) 0 0;
 }
 .im-flow-num {
   display: inline-flex;
