@@ -279,5 +279,17 @@ try {
     ),
   );
 } finally {
-  await rm(temporaryDirectory, { recursive: true, force: true });
+  // Windows briefly keeps handles on the smoke-launched executable (Defender
+  // scans), so unlink can transiently fail with EBUSY. Removal is
+  // best-effort: it must never fail an otherwise-successful verification.
+  await rm(temporaryDirectory, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 250,
+  }).catch((error) => {
+    console.warn(
+      `Temporary smoke directory left behind: ${error.code ?? error.message}`,
+    );
+  });
 }
