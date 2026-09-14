@@ -1983,12 +1983,13 @@ button.environment-row:disabled {
 
 .environment-git-dialog-backdrop {
   align-items: center;
-  background: rgb(0 0 0 / 42%);
+  background: var(--artemis-color-overlay-scrim);
   display: flex;
   inset: 0;
   justify-content: center;
   padding: 20px;
   position: fixed;
+  backdrop-filter: blur(3px);
   z-index: 140;
 }
 
@@ -5424,7 +5425,8 @@ button.environment-row:disabled {
   color: var(--text);
 }
 .composer-attachment-dialog::backdrop {
-  background: rgb(0 0 0 / 45%);
+  background: var(--artemis-color-overlay-scrim);
+  backdrop-filter: blur(3px);
 }
 .composer-attachment-dialog header {
   display: flex;
@@ -6879,12 +6881,13 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .source-image-preview-backdrop {
   align-items: center;
-  background: rgb(0 0 0 / 72%);
+  background: var(--artemis-color-overlay-scrim);
   display: flex;
   inset: 0;
   justify-content: center;
   padding: 40px;
   position: fixed;
+  backdrop-filter: blur(3px);
   z-index: 500;
 }
 
@@ -7681,8 +7684,8 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .confirmation-backdrop {
   align-items: center;
-  backdrop-filter: blur(7px);
-  background: rgb(0 0 0 / 58%);
+  backdrop-filter: blur(3px);
+  background: var(--artemis-color-overlay-scrim);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -10354,10 +10357,6 @@ kbd {
 .composer-context-trigger > svg:last-child {
   width: 9px;
   height: 9px;
-}
-.settings-panel::backdrop {
-  backdrop-filter: none;
-  background: rgb(0 0 0 / 32%);
 }
 .settings-header {
   border-block-end: 0;
