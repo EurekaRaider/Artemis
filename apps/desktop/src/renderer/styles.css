@@ -10309,6 +10309,10 @@ kbd {
 .im-platform-card > [data-part="state-indicator"] {
   display: none;
 }
+/* UI 包选中态（0,2,0 的 interaction-selected 灰）特异性更高，需以面板作用域压回。 */
+.im-settings .im-platform-card[data-state="selected"] {
+  background: light-dark(var(--artemis-color-surface-base), #0a0a0a);
+}
 .im-platform-card span {
   font-weight: normal;
   font-size: 11px;
