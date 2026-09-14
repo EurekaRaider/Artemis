@@ -10167,6 +10167,17 @@ kbd {
   border-radius: 0;
   padding: 0;
 }
+/* 卡内的旧向导编号标题（如「4 · 绑定你的 IM 账号」）与外层卡标题重复，
+   视觉隐藏（sr-only 保住 aria-labelledby 的可访问名），描述保留。 */
+.im-flow-section > header h2 {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 /* 卡内排版规整：正文从全局 14px 收到 12.5px，指令 code 12px 等宽，
    与分区标题（12px/650）、说明（11px）构成合理梯度。 */
 .im-flow-body p,
