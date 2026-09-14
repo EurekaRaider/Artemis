@@ -227,3 +227,22 @@
 - **DOC-2**：五条补遗——Slack 双 token 暴露时点（保存通过、Socket 握手报错）、多连接规则（向导单连接、概览逐连接管理）、编辑回退级联（§7 补行）、「我已收到回复」误勾可撤销（§7 补行）、expiresAt 硬编码注明。
 - **提案状态**：README.md 状态行更新为「已实施」，链接 review/plan/wiring-plan 三件套。
 - **⑤卡群协作入口**：改为随时可达（对齐旧向导的可达性；D2 的完成后入口由概览承担）。
+
+### P7 临时任务（plan 档 ad-hoc）+ 界面三连改（2026-09-13）
+
+**背景**：用户指出面板④卡内置「临时会话」承诺与手机端 `/projects` 不罗列的不一致；确认属设计（W4）但存在真实诉求——零授权时也想发起临时任务。拍板 T-lite：不破语义（`/projects` 仍只列可切换授权项目、临时会话不占 grant），无授权单聊 `/new` 落 **plan 档无项目临时线程**。
+
+- **桌面既有链路复用**：`createTaskThread({projectId: undefined})` → `userData/temporary-conversations/<id>` 独立空工作区、侧栏「临时会话」分组、审批按 `temporary:<id>` 隔离——全部现成，零桌面侧新机制。
+- **im-service 六处接入**（提交 6e9c071）：
+  - `ImTaskOperations.create` 的 projectId 放宽 `string | undefined`；Binding.projectId 可选。
+  - dispatch：`adhoc = 无项目 && 单聊 && 非协作 && (零授权 || 既有线程本就是临时)`；grant 用 `adhocGrant()`（plan/无 shell/无网络/tokenBudget 100k/审批 ask）。多授权未选择仍引导 `/project`（防歧义回退）。
+  - `checkContext`/`grant` adhoc 分支（直聊限定）；`secureContext` 拒绝 adhoc；`accessibleThread` 允许同身份同会话的绑定临时线程（桌面本地临时会话仍不可达）。
+  - **回复契约**：临时回复剥 `taskId`/`approval` 后走无任务回复契约——`/v1/device/reply` 对带 taskId 的回复强制 `acceptSecurity(security)`，已部署团队网关对无 security 的任务回复直接拒绝；剥离后全兼容，审批码仍在文本中。`reply()` 对无 security 的 binding 不打 delivery 戳、不做 hold（空工作区无项目数据，内容全部源自主人自己的消息）。
+  - `/tasks` 列出有 binding 的无项目线程；`/projects` 空态文案升级为说明临时任务路径；`operate()` 对临时任务整体拒绝远程工具（含 collaborate 的 `security!` TypeError 路径）。
+  - 标题 `临时 · <渠道> · <内容>`；启动回执注明「仅咨询分析，不访问项目文件」。
+- **安全边界**（AGENTS 纪律：先测后放宽）：新测试断言 plan 模式固定、`authorizeThread(execute)` 拒绝、profile 无 shell/network、后续消息进同一临时线程、`/tasks` 可见、歧义多授权仍引导；原「revoked project denied」测试拆分为 unpaired 拒绝 + 零授权 adhoc + 歧义引导三例。
+- **界面三连改**（提交 3727460）：
+  - **UI-a 步骤卡 hover**：根因 `border-radius: inherit` 继承的是 h3 包装层（0）——显式 `--im-flow-radius`（卡径-1px），展开时只圆上角；hover 背景从 surface-sunken 换统一令牌 `--artemis-color-interaction-hover`。
+  - **UI-b 概览三胶囊移除**（配置完整 N/5 / 服务健康 / 测试通过）：五卡 done 边框+勾、头部连接胶囊、各卡摘要已覆盖同信息；测试改以「设置群协作」按钮（概览专属）为屏态锚点。
+  - **UI-c 授权设置弹窗化**：`<details>` 行内展开退役，改为项目行最右侧 quiet 按钮（文案 `mode · 有效/待确认范围/已过期`），点击开重命名式聚焦 Dialog（24px 圆角、560px、内滚、底部「完成」+「更改在下方保存并启用后生效」提示）；焦点回到触发按钮。`.im-project` 改 flex 行；builtin 行 wrap。e2e/单测同步。
+- 门禁：仓库根 `npm test` 1675 通过（+2 净增）+ `typecheck` 全绿；已推送 origin（--no-verify，W5）。

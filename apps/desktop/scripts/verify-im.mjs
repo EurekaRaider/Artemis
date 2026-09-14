@@ -1271,6 +1271,8 @@ try {
       `${nativeWindow}.setMinimumSize(${savedWindowSize.minimum[0]},${savedWindowSize.minimum[1]});${nativeWindow}.setSize(${savedWindowSize.size[0]},${savedWindowSize.size[1]})`,
     );
     await pause(200);
+    // 关闭授权弹窗后才能点到卡片内的保存按钮（原生模态挡外部点击）。
+    await click(button("完成"));
     await click(button("保存并启用"));
     await until(
       async () =>
