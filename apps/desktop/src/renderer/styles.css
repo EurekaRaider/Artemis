@@ -9863,7 +9863,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-block: 12px;
+  padding-block: 5px;
 }
 .im-grant-open {
   flex: none;
@@ -9906,8 +9906,14 @@ kbd {
   gap: 12px;
 }
 .im-grant-dialog footer span {
+  flex: 1;
   font-size: 12px;
   color: var(--muted);
+}
+.im-grant-dialog-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
 }
 .im-grant-fields {
   display: grid;

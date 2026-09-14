@@ -318,7 +318,7 @@ export function ImSettingsPanel({
     setEditingCredentials(false);
   }
   const [firstTaskOpen, setFirstTaskOpen] = useState(false);
-  async function run(action: () => Promise<void>): Promise<boolean> {
+  async function run(action: () => Promise<unknown>): Promise<boolean> {
     if (running.current) return false;
     running.current = true;
     refreshEpoch.current++;
@@ -326,8 +326,8 @@ export function ImSettingsPanel({
     setMessage("");
     setMessageError(false);
     try {
-      await action();
-      return true;
+      const result = await action();
+      return result !== false;
     } catch (error) {
       if (mounted.current) {
         setMessage(error instanceof Error ? error.message : String(error));
@@ -1583,6 +1583,37 @@ export function ImSettingsPanel({
         !!g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
           .length,
     );
+    /* ④卡的「保存并启用」与弹窗的「确认设置」共用：false = 保存本身失败
+       （弹窗保持打开让用户修正）；启用失败已保存，返回 true 由外层收尾。 */
+    const performSaveAndEnable = async (): Promise<boolean> => {
+      setEnableFailedError("");
+      const outcome = await imSaveAndEnable(
+        (next) => window.artemis.saveImSettings(next),
+        settings,
+        status!.settings,
+      );
+      if (outcome.phase === "save-failed") {
+        setMessageError(true);
+        setMessage(outcome.error);
+        return false;
+      }
+      setStatus((previous) => ({ ...previous, ...outcome.status }));
+      setSettings(outcome.status.settings);
+      if (outcome.phase === "saved-enable-failed") {
+        setEnableFailedError(outcome.error);
+        // 授权已保存但启用失败：钉住④卡，保证提示与重试入口不被自动前进收起。
+        setFlowCard("projects");
+        return true;
+      }
+      setMessage(
+        t(
+          "项目授权已保存，连接已启用。",
+          "Project permissions saved and connection enabled.",
+        ),
+      );
+      flowAdvanceFrom();
+      return true;
+    };
     return (
       <section id="im-permissions" tabIndex={-1}>
         <ManagementSection
@@ -1648,7 +1679,14 @@ export function ImSettingsPanel({
             return (
               <div className="im-project" key={project.id}>
                 <Checkbox
-                  label={project.name}
+                  /* 已授权的项目在名称后带模式后缀（如 Test project.Plan）。 */
+                  label={
+                    grant
+                      ? `${project.name}.${grant.mode
+                          .charAt(0)
+                          .toUpperCase()}${grant.mode.slice(1)}`
+                      : project.name
+                  }
                   checked={!!grant}
                   disabled={busy}
                   onCheckedChange={(checked) =>
@@ -1700,13 +1738,7 @@ export function ImSettingsPanel({
                         setGrantDialog(project.id);
                       }}
                     >
-                      {`${grant.mode} · ${
-                        !grant.security?.confirmedAt
-                          ? t("待确认范围", "Confirm scope")
-                          : grant.expiresAt > Date.now()
-                            ? t("有效", "Active")
-                            : t("已过期", "Expired")
-                      }`}
+                      {t("授权配置", "Permissions")}
                     </Button>
                     {grantDialog === project.id && (
                       <Dialog
@@ -1997,13 +2029,36 @@ export function ImSettingsPanel({
                         <footer>
                           <span>
                             {t(
-                              "更改在下方「保存并启用」后生效。",
-                              "Changes apply after you press Save and enable below.",
+                              "确认后立即保存并启用，无需再到下方操作。",
+                              "Confirming saves and enables immediately—nothing else to press below.",
                             )}
                           </span>
-                          <Button onClick={() => setGrantDialog(null)}>
-                            {t("完成", "Done")}
-                          </Button>
+                          <div className="im-grant-dialog-actions">
+                            <Button
+                              variant="quiet"
+                              disabled={busy}
+                              onClick={() => setGrantDialog(null)}
+                            >
+                              {t("关闭", "Close")}
+                            </Button>
+                            <Button
+                              disabled={
+                                busy ||
+                                !settings.deviceId ||
+                                executeMissingWrite
+                              }
+                              onClick={() => {
+                                void (async () => {
+                                  // 保存失败（false）保持弹窗打开让用户修正；
+                                  // 已保存（含启用失败）关闭，重试入口在④卡。
+                                  if (await run(performSaveAndEnable))
+                                    setGrantDialog(null);
+                                })();
+                              }}
+                            >
+                              {t("确认设置", "Confirm settings")}
+                            </Button>
+                          </div>
                         </footer>
                       </Dialog>
                     )}
@@ -2069,39 +2124,7 @@ export function ImSettingsPanel({
           )}
           <Button
             disabled={busy || !settings.deviceId || executeMissingWrite}
-            onClick={() =>
-              void run(async () => {
-                setEnableFailedError("");
-                const outcome = await imSaveAndEnable(
-                  (next) => window.artemis.saveImSettings(next),
-                  settings,
-                  status!.settings,
-                );
-                if (outcome.phase === "save-failed") {
-                  setMessageError(true);
-                  setMessage(outcome.error);
-                  return;
-                }
-                setStatus((previous) => ({
-                  ...previous,
-                  ...outcome.status,
-                }));
-                setSettings(outcome.status.settings);
-                if (outcome.phase === "saved-enable-failed") {
-                  setEnableFailedError(outcome.error);
-                  // 授权已保存但启用失败：钉住④卡，保证提示与重试入口不被自动前进收起。
-                  setFlowCard("projects");
-                  return;
-                }
-                setMessage(
-                  t(
-                    "项目授权已保存，连接已启用。",
-                    "Project permissions saved and connection enabled.",
-                  ),
-                );
-                flowAdvanceFrom();
-              })
-            }
+            onClick={() => void run(performSaveAndEnable)}
           >
             {t("保存并启用", "Save and enable")}
           </Button>

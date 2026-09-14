@@ -804,7 +804,7 @@ describe("production IM settings", () => {
     expect(screen.queryByText("设置进度 5/5")).toBeNull();
     // 概览分区可展开编辑，配置不被清除；授权设置在行右侧按钮的聚焦弹窗里。
     await openCard(user, /^允许手机操作的项目/);
-    await user.click(screen.getByRole("button", { name: /^plan · / }));
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
@@ -908,7 +908,7 @@ describe("production IM settings", () => {
       expect.objectContaining({ enabled: false, grants: [] }),
     );
     expect(
-      screen.getByRole("checkbox", { name: "Test project" }),
+      screen.getByRole("checkbox", { name: "Test project.Plan" }),
     ).toBeChecked();
     await user.click(screen.getByRole("button", { name: "保存并启用" }));
     // 组合入口两阶段：先按当前（暂停）状态保存授权，成功后自动启用。
@@ -1006,7 +1006,7 @@ describe("production IM settings", () => {
     await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 授权设置收进行右侧按钮的聚焦弹窗。
-    await user.click(screen.getByRole("button", { name: /^plan · / }));
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
     // Plan 默认：范围声明行可见，范围树收在「自定义范围」后（D3）。
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
@@ -1051,6 +1051,33 @@ describe("production IM settings", () => {
       shell: false,
       network: false,
     });
+  });
+  it("applies grant settings from the focused dialog without the card-level save", async () => {
+    const f = fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openCard(user, /^允许手机操作的项目/);
+    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
+    // 授权后的项目行带模式后缀。
+    expect(
+      screen.getByRole("checkbox", { name: "Test project.Plan" }),
+    ).toBeChecked();
+    // 仅关闭不保存。
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    expect(f.save).not.toHaveBeenCalled();
+    // 「确认设置」直接保存并启用（两阶段各写一次），并关闭弹窗。
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
+    await user.click(screen.getByRole("button", { name: "确认设置" }));
+    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(2));
+    expect(f.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
+    expect(f.save.mock.lastCall![0].grants).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "确认设置" }),
+    ).not.toBeInTheDocument();
   });
   it("can pause a degraded active connection while blocking a new enable without a bot", async () => {
     const f = fixture();

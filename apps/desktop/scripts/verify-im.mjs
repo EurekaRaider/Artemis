@@ -1272,7 +1272,7 @@ try {
     );
     await pause(200);
     // 关闭授权弹窗后才能点到卡片内的保存按钮（原生模态挡外部点击）。
-    await click(button("完成"));
+    await click(button("关闭"));
     await click(button("保存并启用"));
     await until(
       async () =>
