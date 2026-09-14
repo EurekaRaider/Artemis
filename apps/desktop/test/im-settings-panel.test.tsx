@@ -808,10 +808,10 @@ describe("production IM settings", () => {
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
-    // 临时会话计入④摘要，且默认项目初始显示为临时会话。
+    // 临时会话计入④摘要；默认项目以临时会话行的徽章呈现（无下拉）。
     expect(screen.getAllByText("2 个项目").length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: /默认项目 临时会话/ }),
+      document.querySelector(".im-project-builtin .im-default-badge"),
     ).toBeVisible();
     expect(f.save).not.toHaveBeenCalled();
     expect(f.get().identities).toEqual([identity]);
@@ -895,7 +895,7 @@ describe("production IM settings", () => {
     expect(screen.queryByLabelText("Bot Secret")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "更换" })).toBeVisible();
   });
-  it("keeps saved grants when pausing, and does not silently save a project draft from the header", async () => {
+  it("saves a project grant immediately from the row and keeps it when pausing from the header", async () => {
     const f = fixture();
     f.set({ settings: { ...f.get().settings, enabled: true } });
     const user = userEvent.setup();
@@ -903,47 +903,52 @@ describe("production IM settings", () => {
     await screen.findByRole("button", { name: /^连接服务/ });
     await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    await user.click(screen.getByRole("switch", { name: "启用 IM 连接" }));
+    // 勾选即时生效：已启用的服务一次保存授权；首个项目自动成为默认并带徽章。
+    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(1));
     expect(f.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({ enabled: false, grants: [] }),
-    );
-    expect(
-      screen.getByRole("checkbox", { name: "Test project.Plan" }),
-    ).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "保存并启用" }));
-    // 组合入口两阶段：先按当前（暂停）状态保存授权，成功后自动启用。
-    expect(f.save).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        enabled: false,
-        defaultProjectId: "test-project",
-      }),
-    );
-    expect(f.save).toHaveBeenNthCalledWith(
-      3,
       expect.objectContaining({
         enabled: true,
+        defaultProjectId: "test-project",
         grants: [expect.objectContaining({ mode: "plan", approval: "ask" })],
       }),
     );
     expect(f.get().settings).toMatchObject({
       enabled: true,
-      defaultProjectId: "test-project",
-      grants: [{ mode: "plan", approval: "ask", shell: false, network: false }],
+      grants: [{ mode: "plan" }],
     });
+    await waitFor(() =>
+      expect(
+        document.querySelector(
+          ".im-project:not(.im-project-builtin) .im-default-badge",
+        ),
+      ).not.toBeNull(),
+    );
+    expect(
+      document.querySelector(".im-project-builtin .im-default-badge"),
+    ).toBeNull();
+    // 顶部暂停保留已保存的授权草稿不再丢失。
+    await user.click(screen.getByRole("switch", { name: "启用 IM 连接" }));
+    expect(f.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        enabled: false,
+        grants: [expect.objectContaining({ mode: "plan" })],
+      }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Test project.Plan" }),
+    ).toBeChecked();
   });
-  it("does not enable when saving authorizations fails", async () => {
+  it("does not enable when the immediate row save fails", async () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
     await openCard(user, /^允许手机操作的项目/);
-    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     f.save.mockRejectedValueOnce(new Error("Grant rejected"));
-    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     expect(await screen.findByText("Grant rejected")).toBeVisible();
     expect(f.save).toHaveBeenCalledTimes(1);
-    expect(f.save.mock.calls[0][0]).toMatchObject({ enabled: false });
+    expect(f.save.mock.calls[0]![0]).toMatchObject({ enabled: false });
     expect(f.get().settings.enabled).toBe(false);
   });
   it("reports saved-but-not-enabled and retries only the enable phase", async () => {
@@ -958,7 +963,7 @@ describe("production IM settings", () => {
     await screen.findByRole("button", { name: /^连接服务/ });
     await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    // 勾选即时保存：保存成功但启用失败 → 提示与重试入口出现在④卡。
     expect(await screen.findByText(/授权已保存，连接未启用/)).toBeVisible();
     expect(f.get().settings).toMatchObject({
       enabled: false,
@@ -1016,14 +1021,14 @@ describe("production IM settings", () => {
     expect(
       screen.getByRole("button", { name: "选择目录或文件" }),
     ).toBeVisible();
-    // Execute：范围树强制展开；未选可写范围时禁用保存并提示。
+    // Execute：范围树强制展开；未选可写范围时「确认设置」禁用并提示。
     await user.click(screen.getByRole("radio", { name: /Execute/ }));
     expect(screen.getByText(/Execute 需要选择可写范围/)).toBeVisible();
-    const save = screen.getByRole("button", { name: "保存并启用" });
-    expect(save).toBeDisabled();
+    const confirm = screen.getByRole("button", { name: "确认设置" });
+    expect(confirm).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
     await user.click(screen.getByRole("button", { name: "全选可修改" }));
-    expect(save).toBeEnabled();
+    expect(confirm).toBeEnabled();
     // 确认摘要五要素（项目/范围/回复对象/模式/有效期）保存前可见。
     expect(screen.getByText(/确认摘要/).textContent).toContain("Test project");
     expect(screen.getByText(/确认摘要/).textContent).toContain(
@@ -1031,7 +1036,9 @@ describe("production IM settings", () => {
     );
     expect(screen.getByText(/确认摘要/).textContent).toContain("30 天有效");
     await user.click(screen.getByRole("checkbox", { name: "允许沙箱命令" }));
-    await user.click(save);
+    await user.click(confirm);
+    // 勾选已即时保存过一次（plan）；确认再走两阶段（execute+启用）。
+    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(3));
     expect(f.get().settings.grants[0]).toMatchObject({
       mode: "execute",
       shell: true,
@@ -1040,41 +1047,59 @@ describe("production IM settings", () => {
     expect(f.get().settings.grants[0]!.security!.scopes[0]!.writePaths).toEqual(
       ["src", "docs"],
     );
-    // 保存后④完成，自动前进到⑤；重新展开④继续编辑。
+    // 确认后弹窗关闭；重新展开④继续编辑。
     await openCard(user, /^允许手机操作的项目/);
     // 切回 Plan：命令与网络同步关闭，控件收起。
+    await user.click(
+      await screen.findByRole("button", { name: "授权配置" }),
+    );
     await user.click(screen.getByRole("radio", { name: /Plan · 只读分析/ }));
     expect(screen.queryByRole("checkbox", { name: "允许沙箱命令" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "保存并启用" }));
+    await user.click(screen.getByRole("button", { name: "确认设置" }));
+    // 已启用的服务确认即单阶段保存（总计 4 次）。
+    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(4));
     expect(f.get().settings.grants[0]).toMatchObject({
       mode: "plan",
       shell: false,
       network: false,
     });
   });
-  it("applies grant settings from the focused dialog without the card-level save", async () => {
+  it("applies grant settings from the focused dialog and reverts on close", async () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
     await openCard(user, /^允许手机操作的项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    // 授权后的项目行带模式后缀。
-    expect(
-      screen.getByRole("checkbox", { name: "Test project.Plan" }),
-    ).toBeChecked();
-    // 仅关闭不保存。
-    await user.click(screen.getByRole("button", { name: "关闭" }));
-    expect(f.save).not.toHaveBeenCalled();
-    // 「确认设置」直接保存并启用（两阶段各写一次），并关闭弹窗。
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    await user.click(screen.getByRole("button", { name: "确认设置" }));
+    // 勾选即时生效（两阶段：保存 + 启用）。
     await waitFor(() => expect(f.save).toHaveBeenCalledTimes(2));
     expect(f.save).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: true }),
     );
-    expect(f.save.mock.lastCall![0].grants).toHaveLength(1);
+    // 授权后的项目行带模式后缀。
+    expect(
+      await screen.findByRole("checkbox", { name: "Test project.Plan" }),
+    ).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
+    // 关闭放弃未确认的改动：模式回退为已保存的 Plan。
+    await user.click(screen.getByRole("radio", { name: /Review · 只读审查/ }));
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    expect(
+      screen.getByRole("checkbox", { name: "Test project.Plan" }),
+    ).toBeChecked();
+    expect(f.save).toHaveBeenCalledTimes(2);
+    // 「确认设置」直接保存并启用，并关闭弹窗。
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
+    await user.click(screen.getByRole("radio", { name: /Review · 只读审查/ }));
+    await user.click(screen.getByRole("button", { name: "确认设置" }));
+    await waitFor(() =>
+      expect(f.save).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          enabled: true,
+          grants: [expect.objectContaining({ mode: "review" })],
+        }),
+      ),
+    );
     expect(
       screen.queryByRole("button", { name: "确认设置" }),
     ).not.toBeInTheDocument();

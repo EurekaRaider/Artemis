@@ -9870,7 +9870,40 @@ kbd {
 }
 .im-grant-open {
   flex: none;
+}
+/* 默认项目徽章与悬停切换（替代原「默认项目」下拉）。
+   行尾按钮组的左侧用 auto margin 吸收剩余空间。 */
+.im-default-badge {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: 10.5px;
+  line-height: 15px;
+  font-weight: 520;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.im-set-default {
+  /* 占位稳定：visibility 隐藏但保留布局，悬停/聚焦行时浮现。 */
+  visibility: hidden;
+  flex: none;
+}
+.im-project:hover .im-set-default,
+.im-project:focus-within .im-set-default {
+  visibility: visible;
+}
+.im-set-default,
+.im-project .im-default-badge,
+.im-project-builtin .im-default-badge {
   margin-inline-start: auto;
+}
+.im-set-default + .im-grant-open,
+.im-default-badge + .im-set-default {
+  margin-inline-start: 0;
+}
+.im-set-default:disabled {
+  visibility: hidden;
 }
 .im-project-builtin {
   flex-wrap: wrap;

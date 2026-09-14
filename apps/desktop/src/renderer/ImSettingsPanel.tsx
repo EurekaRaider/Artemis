@@ -1583,13 +1583,21 @@ export function ImSettingsPanel({
         !!g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
           .length,
     );
-    /* ④卡的「保存并启用」与弹窗的「确认设置」共用：false = 保存本身失败
-       （弹窗保持打开让用户修正）；启用失败已保存，返回 true 由外层收尾。 */
-    const performSaveAndEnable = async (): Promise<boolean> => {
+    /* 默认项目落点：未设置或哨兵 = 临时会话。 */
+    const adhocDefault =
+      !settings.defaultProjectId ||
+      settings.defaultProjectId === IM_ADHOC_PROJECT_ID;
+    /* 行内操作（勾选/撤销/设默认）与弹窗「确认设置」共用：next = 要保存的设置；
+       advance=false 供行内增量操作不触发流程自动前进。
+       返回 false = 保存本身失败（弹窗保持打开）；启用失败已保存，返回 true。 */
+    const performSaveAndEnable = async (
+      next: ImSettings = settings,
+      advance = true,
+    ): Promise<boolean> => {
       setEnableFailedError("");
       const outcome = await imSaveAndEnable(
-        (next) => window.artemis.saveImSettings(next),
-        settings,
+        (draft) => window.artemis.saveImSettings(draft),
+        next,
         status!.settings,
       );
       if (outcome.phase === "save-failed") {
@@ -1611,8 +1619,34 @@ export function ImSettingsPanel({
           "Project permissions saved and connection enabled.",
         ),
       );
-      flowAdvanceFrom();
+      if (advance) flowAdvanceFrom();
       return true;
+    };
+    /* 行内即时生效：更新草稿并立即保存启用；钉住④卡防止自动跟随在
+       完成瞬间把正在操作的卡片收起（显式完成动作才交回自动跟随）。 */
+    const applyNow = (next: ImSettings) => {
+      setSettings(next);
+      setFlowCard("projects");
+      void run(() => performSaveAndEnable(next, false));
+    };
+    const closeGrantDialog = (projectId: string) => {
+      // 关闭 = 放弃弹窗内未确认的改动，该项目的授权回退到已保存状态。
+      const saved = status?.settings.grants.find(
+        (g) => g.projectId === projectId,
+      );
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              grants: saved
+                ? current.grants.map((g) =>
+                    g.projectId === projectId ? saved! : g,
+                  )
+                : current.grants.filter((g) => g.projectId !== projectId),
+            }
+          : current,
+      );
+      setGrantDialog(null);
     };
     return (
       <section id="im-permissions" tabIndex={-1}>
@@ -1635,14 +1669,14 @@ export function ImSettingsPanel({
             </li>
             <li>
               {t(
-                "单聊测试时，协作空间 ID 留空，命令与网络权限保持关闭。选中首个项目时会自动设为默认项目，保存项目授权后，在顶部启用连接。",
-                "For private-chat testing, leave space IDs empty and command/network permissions off. Your first selected project becomes the default. Save project permissions, then enable the connection at the top.",
+                "勾选即生效；首个勾选的项目会自动设为默认，之后可悬停项目行切换默认。",
+                "Checking applies immediately; your first project becomes the default. Hover a row to switch defaults.",
               )}
             </li>
             <li>
               {t(
-                "保存并启用后即可在手机上发起任务；随时可用顶部开关暂停或恢复，配置与授权都会保留。保持 Artemis 运行，并在机器人中核对授权的项目。",
-                "Save and enable to start tasks from your phone; pause or resume anytime with the switch at the top—configuration and grants are kept. Keep Artemis running and check that the bot lists your authorized projects.",
+                "未设默认或默认为临时会话时，手机上的普通消息直接发起临时任务；随时可用顶部开关暂停或恢复，配置与授权都会保留。",
+                "With the ad-hoc chat as default, plain messages from your phone start temporary tasks. Pause or resume anytime with the switch at the top—configuration and grants are kept.",
               )}
             </li>
           </ol>
@@ -1665,6 +1699,29 @@ export function ImSettingsPanel({
               defaultChecked
               disabled
             />
+            {adhocDefault && (
+              <span
+                className="im-default-badge"
+                aria-label={t("默认项目", "Default project")}
+              >
+                {t("默认", "Default")}
+              </span>
+            )}
+            {!adhocDefault && (
+              <Button
+                className="im-set-default"
+                size="compact"
+                variant="quiet"
+                title={t(
+                  "把默认项目切回临时会话",
+                  "Make ad-hoc chats the default",
+                )}
+                disabled={busy}
+                onClick={() => applyNow({ ...settings, defaultProjectId: "" })}
+              >
+                {t("设为默认", "Set default")}
+              </Button>
+            )}
             <small>
               {t(
                 "不绑定项目的会话：可对话获得指引，也可直接发起临时任务（仅咨询分析，不访问任何项目文件）；不占项目授权。",
@@ -1690,7 +1747,7 @@ export function ImSettingsPanel({
                   checked={!!grant}
                   disabled={busy}
                   onCheckedChange={(checked) =>
-                    setSettings({
+                    applyNow({
                       ...settings,
                       grants: checked
                         ? [
@@ -1725,372 +1782,365 @@ export function ImSettingsPanel({
                     })
                   }
                 />
+                {settings.defaultProjectId === project.id && (
+                  <span
+                    className="im-default-badge"
+                    aria-label={t("默认项目", "Default project")}
+                  >
+                    {t("默认", "Default")}
+                  </span>
+                )}
+                {grant && settings.defaultProjectId !== project.id && (
+                  <Button
+                    className="im-set-default"
+                    size="compact"
+                    variant="quiet"
+                    title={t("设为默认项目", "Make the default project")}
+                    disabled={busy}
+                    onClick={() =>
+                      applyNow({
+                        ...settings,
+                        defaultProjectId: project.id,
+                      })
+                    }
+                  >
+                    {t("设为默认", "Set default")}
+                  </Button>
+                )}
                 {grant && (
-                  <>
-                    <Button
-                      className="im-grant-open"
-                      size="compact"
-                      variant="quiet"
-                      title={t("打开授权设置", "Open permission settings")}
-                      disabled={busy}
-                      onClick={(event) => {
-                        grantDialogAnchor.current = event.currentTarget;
-                        setGrantDialog(project.id);
-                      }}
-                    >
-                      {t("授权配置", "Permissions")}
-                    </Button>
-                    {grantDialog === project.id && (
-                      <Dialog
-                        className="im-grant-dialog"
-                        label={t(
+                  <Button
+                    className="im-grant-open"
+                    size="compact"
+                    variant="quiet"
+                    title={t("打开授权设置", "Open permission settings")}
+                    disabled={busy}
+                    onClick={(event) => {
+                      grantDialogAnchor.current = event.currentTarget;
+                      setGrantDialog(project.id);
+                    }}
+                  >
+                    {t("授权配置", "Permissions")}
+                  </Button>
+                )}
+                {grant && grantDialog === project.id && (
+                  <Dialog
+                    className="im-grant-dialog"
+                    label={t(
+                      `${project.name} · 授权设置`,
+                      `${project.name} · Permissions`,
+                    )}
+                    returnFocusRef={grantDialogAnchor}
+                    onOpenChange={(open) => {
+                      if (!open) closeGrantDialog(project.id);
+                    }}
+                    open
+                  >
+                    <header>
+                      <h2>
+                        {t(
                           `${project.name} · 授权设置`,
                           `${project.name} · Permissions`,
                         )}
-                        returnFocusRef={grantDialogAnchor}
-                        onOpenChange={(open) => {
-                          if (!open) setGrantDialog(null);
-                        }}
-                        open
+                      </h2>
+                    </header>
+                    <div className="im-grant-dialog-body">
+                      {/* 三档模式（D3）：档位切换收窄离开 Execute 时同步关闭命令与网络。 */}
+                      <div
+                        className="im-mode-tiers"
+                        role="radiogroup"
+                        aria-label={t("任务模式", "Task mode")}
                       >
-                        <header>
-                          <h2>
-                            {t(
-                              `${project.name} · 授权设置`,
-                              `${project.name} · Permissions`,
-                            )}
-                          </h2>
-                        </header>
-                        <div className="im-grant-dialog-body">
-                          {/* 三档模式（D3）：档位切换收窄离开 Execute 时同步关闭命令与网络。 */}
-                          <div
-                            className="im-mode-tiers"
-                            role="radiogroup"
-                            aria-label={t("任务模式", "Task mode")}
+                        {(
+                          [
+                            [
+                              "plan",
+                              t("Plan · 只读分析", "Plan · Read-only"),
+                              t(
+                                "可读整个项目，不修改文件",
+                                "Reads the whole project, changes nothing",
+                              ),
+                            ],
+                            [
+                              "review",
+                              t("Review · 只读审查", "Review · Read-only"),
+                              t(
+                                "同 Plan，用于复核结果",
+                                "Same reads, for reviewing results",
+                              ),
+                            ],
+                            [
+                              "execute",
+                              t("Execute · 允许修改", "Execute · May change"),
+                              t(
+                                "需要选择可写范围",
+                                "Requires a writable scope",
+                              ),
+                            ],
+                          ] as const
+                        ).map(([mode, label, desc]) => (
+                          <label
+                            className={
+                              "im-mode-tier" +
+                              (grant.mode === mode ? " on" : "")
+                            }
+                            key={mode}
                           >
-                            {(
-                              [
-                                [
-                                  "plan",
-                                  t("Plan · 只读分析", "Plan · Read-only"),
-                                  t(
-                                    "可读整个项目，不修改文件",
-                                    "Reads the whole project, changes nothing",
-                                  ),
-                                ],
-                                [
-                                  "review",
-                                  t("Review · 只读审查", "Review · Read-only"),
-                                  t(
-                                    "同 Plan，用于复核结果",
-                                    "Same reads, for reviewing results",
-                                  ),
-                                ],
-                                [
-                                  "execute",
-                                  t(
-                                    "Execute · 允许修改",
-                                    "Execute · May change",
-                                  ),
-                                  t(
-                                    "需要选择可写范围",
-                                    "Requires a writable scope",
-                                  ),
-                                ],
-                              ] as const
-                            ).map(([mode, label, desc]) => (
-                              <label
-                                className={
-                                  "im-mode-tier" +
-                                  (grant.mode === mode ? " on" : "")
-                                }
-                                key={mode}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`imMode-${project.id}`}
-                                  checked={grant.mode === mode}
-                                  disabled={busy}
-                                  onChange={() =>
-                                    updateGrant(
-                                      project.id,
-                                      mode === "execute"
-                                        ? { mode }
-                                        : {
-                                            mode,
-                                            shell: false,
-                                            network: false,
-                                          },
-                                    )
-                                  }
-                                />
-                                <strong>{label}</strong>
-                                <small>{desc}</small>
-                              </label>
-                            ))}
-                          </div>
-                          <p className="im-fine">
-                            {grant.mode === "execute"
-                              ? t(
-                                  "Execute 需要选择可写范围；可读默认为整个项目。",
-                                  "Execute needs a writable scope; reads default to the whole project.",
+                            <input
+                              type="radio"
+                              name={`imMode-${project.id}`}
+                              checked={grant.mode === mode}
+                              disabled={busy}
+                              onChange={() =>
+                                updateGrant(
+                                  project.id,
+                                  mode === "execute"
+                                    ? { mode }
+                                    : {
+                                        mode,
+                                        shell: false,
+                                        network: false,
+                                      },
                                 )
-                              : t(
-                                  "默认范围：可读整个项目，不可写任何文件。",
-                                  "Default scope: the whole project is readable; no file is writable.",
-                                )}
-                          </p>
-                          {grant.mode !== "execute" && (
-                            <Button
-                              size="compact"
-                              variant="quiet"
-                              onClick={() =>
-                                setCustomScopeOpen((open) => ({
-                                  ...open,
-                                  [project.id]: !open[project.id],
-                                }))
                               }
-                            >
-                              {customScopeOpen[project.id]
-                                ? t("收起自定义范围", "Collapse custom scope")
-                                : t("自定义范围 ▸", "Custom scope")}
-                            </Button>
-                          )}
-                          {(grant.mode === "execute" ||
-                            customScopeOpen[project.id]) && (
-                            <ImDataPermissions
-                              grant={grant}
-                              t={t}
-                              disabled={busy}
-                              onChange={(security) =>
-                                updateGrant(project.id, { security })
-                              }
-                              audiences={grant.groups.map((value) => {
-                                const space = (
-                                  (status?.spaces ?? []) as CollaborationSpace[]
-                                ).find((s) => `space:${s.id}` === value);
-                                return {
-                                  value,
-                                  ...(space?.revision
-                                    ? { revision: space.revision as string }
-                                    : {}),
-                                  label: space
-                                    ? `${space.name} · ${(space.endpoints ?? []).map((e) => `${e.connectionId}: ${e.id}`).join(", ")} · ${(space.participants ?? []).map((p) => p.name || p.deviceId).join(", ")}`
-                                    : value,
-                                };
-                              })}
                             />
-                          )}
-                          <div className="im-grant-fields">
-                            <Select
-                              labelVisibility="visible"
-                              label={t("执行审批", "Execution approval")}
-                              value={grant.approval}
-                              onValueChange={(approval) =>
-                                updateGrant(project.id, { approval })
-                              }
-                              disabled={busy}
-                              options={[
-                                {
-                                  value: "ask",
-                                  label: t("每次确认", "Ask each time"),
-                                },
-                                {
-                                  value: "automatic",
-                                  label: t(
-                                    "授权范围内自动执行",
-                                    "Automatic within this grant",
-                                  ),
-                                },
-                              ]}
-                            />
-                            {grant.mode === "execute" && (
-                              <>
-                                {status?.scopedShellSupported === false ? (
-                                  <InlineNotice tone="warning">
-                                    {t(
-                                      "当前平台缺少受限文件与命令组件，请更新 Artemis 后使用目录枚举、新建文件和命令执行。",
-                                      "Scoped file and command components are unavailable. Update Artemis to use directory listing, file creation and commands.",
-                                    )}
-                                  </InlineNotice>
-                                ) : null}
-                                <Checkbox
-                                  label={t(
-                                    "允许沙箱命令",
-                                    "Allow sandboxed commands",
-                                  )}
-                                  checked={grant.shell}
-                                  disabled={
-                                    busy ||
-                                    status?.scopedShellSupported === false
-                                  }
-                                  onCheckedChange={(shell) =>
-                                    updateGrant(project.id, { shell })
-                                  }
-                                />
-                                <Checkbox
-                                  label={t(
-                                    "允许命令访问网络",
-                                    "Allow command network access",
-                                  )}
-                                  description={t(
-                                    "开启通用网络访问；首版不按域名或数据内容限制网络外发。",
-                                    "Enables general network access; this version does not filter network destinations or payloads.",
-                                  )}
-                                  checked={grant.network}
-                                  disabled={busy || !grant.shell}
-                                  onCheckedChange={(network) =>
-                                    updateGrant(project.id, { network })
-                                  }
-                                />
-                              </>
+                            <strong>{label}</strong>
+                            <small>{desc}</small>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="im-fine">
+                        {grant.mode === "execute"
+                          ? t(
+                              "Execute 需要选择可写范围；可读默认为整个项目。",
+                              "Execute needs a writable scope; reads default to the whole project.",
+                            )
+                          : t(
+                              "默认范围：可读整个项目，不可写任何文件。",
+                              "Default scope: the whole project is readable; no file is writable.",
                             )}
-                            <div className="im-field-stack">
-                              <h4>
+                      </p>
+                      {grant.mode !== "execute" && (
+                        <Button
+                          size="compact"
+                          variant="quiet"
+                          onClick={() =>
+                            setCustomScopeOpen((open) => ({
+                              ...open,
+                              [project.id]: !open[project.id],
+                            }))
+                          }
+                        >
+                          {customScopeOpen[project.id]
+                            ? t("收起自定义范围", "Collapse custom scope")
+                            : t("自定义范围 ▸", "Custom scope")}
+                        </Button>
+                      )}
+                      {(grant.mode === "execute" ||
+                        customScopeOpen[project.id]) && (
+                        <ImDataPermissions
+                          grant={grant}
+                          t={t}
+                          disabled={busy}
+                          onChange={(security) =>
+                            updateGrant(project.id, { security })
+                          }
+                          audiences={grant.groups.map((value) => {
+                            const space = (
+                              (status?.spaces ?? []) as CollaborationSpace[]
+                            ).find((s) => `space:${s.id}` === value);
+                            return {
+                              value,
+                              ...(space?.revision
+                                ? { revision: space.revision as string }
+                                : {}),
+                              label: space
+                                ? `${space.name} · ${(space.endpoints ?? []).map((e) => `${e.connectionId}: ${e.id}`).join(", ")} · ${(space.participants ?? []).map((p) => p.name || p.deviceId).join(", ")}`
+                                : value,
+                            };
+                          })}
+                        />
+                      )}
+                      <div className="im-grant-fields">
+                        <Select
+                          labelVisibility="visible"
+                          label={t("执行审批", "Execution approval")}
+                          value={grant.approval}
+                          onValueChange={(approval) =>
+                            updateGrant(project.id, { approval })
+                          }
+                          disabled={busy}
+                          options={[
+                            {
+                              value: "ask",
+                              label: t("每次确认", "Ask each time"),
+                            },
+                            {
+                              value: "automatic",
+                              label: t(
+                                "授权范围内自动执行",
+                                "Automatic within this grant",
+                              ),
+                            },
+                          ]}
+                        />
+                        {grant.mode === "execute" && (
+                          <>
+                            {status?.scopedShellSupported === false ? (
+                              <InlineNotice tone="warning">
                                 {t(
-                                  "允许哪些群使用这个项目",
-                                  "Which groups may use this project",
+                                  "当前平台缺少受限文件与命令组件，请更新 Artemis 后使用目录枚举、新建文件和命令执行。",
+                                  "Scoped file and command components are unavailable. Update Artemis to use directory listing, file creation and commands.",
                                 )}
-                              </h4>
-                              {!availableSpaces.length && (
-                                <p>
-                                  {t(
-                                    "还没有可选的群空间。先到“群协作空间”保存配置，再回来选择。",
-                                    "No group spaces yet. Save a space in Group spaces, then return here.",
-                                  )}
-                                </p>
+                              </InlineNotice>
+                            ) : null}
+                            <Checkbox
+                              label={t(
+                                "允许沙箱命令",
+                                "Allow sandboxed commands",
                               )}
-                              {availableSpaces.map((space) => (
-                                <Checkbox
-                                  key={space.id}
-                                  label={space.name}
-                                  checked={grant.groups.includes(
-                                    `space:${space.id}`,
-                                  )}
-                                  disabled={busy}
-                                  onCheckedChange={(checked) =>
-                                    updateGrant(project.id, {
-                                      groups: checked
-                                        ? [...grant.groups, `space:${space.id}`]
-                                        : grant.groups.filter(
-                                            (id) => id !== `space:${space.id}`,
-                                          ),
-                                    })
-                                  }
-                                />
-                              ))}
-                            </div>
-                            <details>
-                              <summary>
-                                {t(
-                                  "高级：手动填写空间编号",
-                                  "Advanced: enter space IDs manually",
-                                )}
-                              </summary>
-                              <TextField
-                                label={t(
-                                  "允许的协作空间 ID（逗号分隔）",
-                                  "Allowed space IDs (comma separated)",
-                                )}
-                                value={grant.groups
-                                  .filter((g) => g.startsWith("space:"))
-                                  .map((g) => g.slice(6))
-                                  .join(", ")}
-                                onValueChange={(value) =>
-                                  updateGrant(project.id, {
-                                    groups: value
-                                      .split(",")
-                                      .map((v) => v.trim())
-                                      .filter(Boolean)
-                                      .map((v) => `space:${v}`),
-                                  })
-                                }
-                                disabled={busy}
-                              />
-                            </details>
-                            <p>
-                              {t("授权到期：", "Grant expires: ")}
-                              {new Date(grant.expiresAt).toLocaleString(
-                                locale,
-                              )}{" "}
-                              <Button
-                                disabled={busy}
-                                onClick={() =>
-                                  updateGrant(project.id, {
-                                    expiresAt: Date.now() + 30 * 86400000,
-                                  })
-                                }
-                              >
-                                {t("续期 30 天", "Renew for 30 days")}
-                              </Button>
-                            </p>
-                          </div>
-                        </div>
-                        <footer>
-                          <span>
-                            {t(
-                              "确认后立即保存并启用，无需再到下方操作。",
-                              "Confirming saves and enables immediately—nothing else to press below.",
-                            )}
-                          </span>
-                          <div className="im-grant-dialog-actions">
-                            <Button
-                              variant="quiet"
-                              disabled={busy}
-                              onClick={() => setGrantDialog(null)}
-                            >
-                              {t("关闭", "Close")}
-                            </Button>
-                            <Button
+                              checked={grant.shell}
                               disabled={
-                                busy ||
-                                !settings.deviceId ||
-                                executeMissingWrite
+                                busy || status?.scopedShellSupported === false
                               }
-                              onClick={() => {
-                                void (async () => {
-                                  // 保存失败（false）保持弹窗打开让用户修正；
-                                  // 已保存（含启用失败）关闭，重试入口在④卡。
-                                  if (await run(performSaveAndEnable))
-                                    setGrantDialog(null);
-                                })();
-                              }}
-                            >
-                              {t("确认设置", "Confirm settings")}
-                            </Button>
-                          </div>
-                        </footer>
-                      </Dialog>
-                    )}
-                  </>
+                              onCheckedChange={(shell) =>
+                                updateGrant(project.id, { shell })
+                              }
+                            />
+                            <Checkbox
+                              label={t(
+                                "允许命令访问网络",
+                                "Allow command network access",
+                              )}
+                              description={t(
+                                "开启通用网络访问；首版不按域名或数据内容限制网络外发。",
+                                "Enables general network access; this version does not filter network destinations or payloads.",
+                              )}
+                              checked={grant.network}
+                              disabled={busy || !grant.shell}
+                              onCheckedChange={(network) =>
+                                updateGrant(project.id, { network })
+                              }
+                            />
+                          </>
+                        )}
+                        <div className="im-field-stack">
+                          <h4>
+                            {t(
+                              "允许哪些群使用这个项目",
+                              "Which groups may use this project",
+                            )}
+                          </h4>
+                          {!availableSpaces.length && (
+                            <p>
+                              {t(
+                                "还没有可选的群空间。先到“群协作空间”保存配置，再回来选择。",
+                                "No group spaces yet. Save a space in Group spaces, then return here.",
+                              )}
+                            </p>
+                          )}
+                          {availableSpaces.map((space) => (
+                            <Checkbox
+                              key={space.id}
+                              label={space.name}
+                              checked={grant.groups.includes(
+                                `space:${space.id}`,
+                              )}
+                              disabled={busy}
+                              onCheckedChange={(checked) =>
+                                updateGrant(project.id, {
+                                  groups: checked
+                                    ? [...grant.groups, `space:${space.id}`]
+                                    : grant.groups.filter(
+                                        (id) => id !== `space:${space.id}`,
+                                      ),
+                                })
+                              }
+                            />
+                          ))}
+                        </div>
+                        <details>
+                          <summary>
+                            {t(
+                              "高级：手动填写空间编号",
+                              "Advanced: enter space IDs manually",
+                            )}
+                          </summary>
+                          <TextField
+                            label={t(
+                              "允许的协作空间 ID（逗号分隔）",
+                              "Allowed space IDs (comma separated)",
+                            )}
+                            value={grant.groups
+                              .filter((g) => g.startsWith("space:"))
+                              .map((g) => g.slice(6))
+                              .join(", ")}
+                            onValueChange={(value) =>
+                              updateGrant(project.id, {
+                                groups: value
+                                  .split(",")
+                                  .map((v) => v.trim())
+                                  .filter(Boolean)
+                                  .map((v) => `space:${v}`),
+                              })
+                            }
+                            disabled={busy}
+                          />
+                        </details>
+                        <p>
+                          {t("授权到期：", "Grant expires: ")}
+                          {new Date(grant.expiresAt).toLocaleString(
+                            locale,
+                          )}{" "}
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              updateGrant(project.id, {
+                                expiresAt: Date.now() + 30 * 86400000,
+                              })
+                            }
+                          >
+                            {t("续期 30 天", "Renew for 30 days")}
+                          </Button>
+                        </p>
+                      </div>
+                    </div>
+                    <footer>
+                      <span>
+                        {t(
+                          "确认后立即保存并启用，无需再到下方操作。",
+                          "Confirming saves and enables immediately—nothing else to press below.",
+                        )}
+                      </span>
+                      <div className="im-grant-dialog-actions">
+                        <Button
+                          variant="quiet"
+                          disabled={busy}
+                          onClick={() => closeGrantDialog(project.id)}
+                        >
+                          {t("关闭", "Close")}
+                        </Button>
+                        <Button
+                          disabled={
+                            busy || !settings.deviceId || executeMissingWrite
+                          }
+                          onClick={() => {
+                            void (async () => {
+                              // 保存失败（false）保持弹窗打开让用户修正；
+                              // 已保存（含启用失败）关闭，重试入口在④卡。
+                              if (await run(() => performSaveAndEnable()))
+                                setGrantDialog(null);
+                            })();
+                          }}
+                        >
+                          {t("确认设置", "Confirm settings")}
+                        </Button>
+                      </div>
+                    </footer>
+                  </Dialog>
                 )}
               </div>
             );
           })}
-          <Select
-            labelVisibility="visible"
-            label={t("默认项目", "Default project")}
-            value={settings.defaultProjectId || IM_ADHOC_PROJECT_ID}
-            onValueChange={(defaultProjectId) =>
-              setSettings({ ...settings, defaultProjectId })
-            }
-            disabled={busy}
-            options={[
-              {
-                value: IM_ADHOC_PROJECT_ID,
-                label: t("临时会话", "Ad-hoc chats"),
-              },
-              ...projects
-                .filter((p) =>
-                  settings.grants.some((g) => g.projectId === p.id),
-                )
-                .map((p) => ({ value: p.id, label: p.name })),
-              {
-                value: "",
-                label: t("每次明确选择", "Choose explicitly"),
-              },
-            ]}
-          />
           {/* 确认摘要五要素：项目 / 文件范围 / 回复对象 / 模式 / 有效期。 */}
           {settings.grants.length > 0 && (
             <p className="im-grant-summary">
@@ -2114,20 +2164,6 @@ export function ImSettingsPanel({
               {t("30 天有效", "Valid for 30 days")}
             </p>
           )}
-          {executeMissingWrite && (
-            <InlineNotice tone="warning">
-              {t(
-                "Execute 项目还未选择可写范围，请先在范围树中勾选。",
-                "An Execute project still needs a writable scope; pick one in the scope tree first.",
-              )}
-            </InlineNotice>
-          )}
-          <Button
-            disabled={busy || !settings.deviceId || executeMissingWrite}
-            onClick={() => void run(performSaveAndEnable)}
-          >
-            {t("保存并启用", "Save and enable")}
-          </Button>
           {enableFailedError && (
             <InlineNotice tone="warning">
               {t(

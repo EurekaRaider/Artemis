@@ -355,7 +355,10 @@ try {
   const click = async (expression) => {
     currentAction = expression;
     await until(
-      () => evaluate(`Boolean(${expression})`),
+      // Also wait out disabled controls: row actions briefly disable while
+      // their immediate save is in flight.
+      () =>
+        evaluate(`(()=>{const e=${expression};return !!e && !e.disabled})()`),
       `control: ${expression}`,
     );
     const rect = await evaluate(
@@ -1271,9 +1274,8 @@ try {
       `${nativeWindow}.setMinimumSize(${savedWindowSize.minimum[0]},${savedWindowSize.minimum[1]});${nativeWindow}.setSize(${savedWindowSize.size[0]},${savedWindowSize.size[1]})`,
     );
     await pause(200);
-    // 关闭授权弹窗后才能点到卡片内的保存按钮（原生模态挡外部点击）。
-    await click(button("关闭"));
-    await click(button("保存并启用"));
+    // 行内勾选即时保存；弹窗内改完范围后用「确认设置」直接生效。
+    await click(button("确认设置"));
     await until(
       async () =>
         (await evaluate("window.artemis.getImStatus()")).settings.grants
