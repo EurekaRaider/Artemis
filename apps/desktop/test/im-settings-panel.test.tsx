@@ -1049,9 +1049,7 @@ describe("production IM settings", () => {
       ),
     );
     // 切回 Plan：命令与网络同步关闭，控件收起。
-    await user.click(
-      await screen.findByRole("button", { name: "授权配置" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "授权配置" }));
     await user.click(screen.getByRole("radio", { name: /Plan · 只读分析/ }));
     expect(screen.queryByRole("checkbox", { name: "允许沙箱命令" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "确认设置" }));
