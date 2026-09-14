@@ -9866,7 +9866,16 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-block: 5px;
+  padding-block: 3px;
+}
+/* 项目行所在容器（management-section content）有 12px gap：相邻行用负
+   margin 压到 6px 视觉行距。 */
+.im-project + .im-project {
+  margin-block-start: -6px;
+}
+.im-project label {
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 .im-grant-open {
   flex: none;
