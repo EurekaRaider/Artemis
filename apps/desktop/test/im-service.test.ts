@@ -116,7 +116,7 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
     create: async (id, projectId, mode, title) => {
       const t: Thread = {
         id,
-        projectId,
+        projectId: projectId ?? null,
         mode,
         title,
         target: "local",
@@ -1385,17 +1385,71 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/stop");
     expect(f.threads[0]?.status).toBe("idle");
   });
-  it("denies an unpaired sender and a revoked project before task creation", async () => {
+  it("denies an unpaired sender before task creation", async () => {
     const f = await fixture();
     await f.send("/new steal", undefined, "bob");
     expect(f.starts).toHaveLength(0);
+    expect(f.threads).toHaveLength(0);
+  });
+  it("starts zero-grant owner chats as plan-only ad-hoc tasks and keeps them scoped", async () => {
+    const f = await fixture();
     await f.service.save({
       ...f.service.status().settings,
       defaultProjectId: "",
       grants: [],
     });
-    await f.send("/new no grant");
+    await f.send("/new quick advice");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]).toMatchObject({
+      projectId: null,
+      mode: "plan",
+      title: "临时 · 企业微信 · quick advice",
+    });
+    const deliveries = () =>
+      f.gateway.store.pending<{ text: string }>("outgoing");
+    expect(deliveries().at(-1)!.payload.text).toContain(
+      "已启动临时任务（仅咨询分析，不访问项目文件）",
+    );
+    // Follow-ups continue the same temporary conversation.
+    await f.send("more context");
+    expect(f.threads).toHaveLength(1);
+    expect(f.queued).toHaveLength(1);
+    expect(f.queued[0]).toContain("[IM ad-hoc plan task");
+    // Execute never leaves the built-in ad-hoc grant.
+    expect(() =>
+      f.service.authorizeThread(f.threads[0]!.id, "execute"),
+    ).toThrow("Remote Execute is not authorized for this project.");
+    expect(f.service.profile(f.threads[0]!.id)).toMatchObject({
+      network: false,
+      shell: false,
+    });
+    // /tasks lists the ad-hoc task for its owner chat.
+    await f.send("/tasks");
+    expect(deliveries().at(-1)!.payload.text).toContain("临时 · 企业微信");
+    // /projects explains the ad-hoc path instead of dead-ending.
+    await f.send("/projects");
+    expect(deliveries().at(-1)!.payload.text).toContain("临时任务");
+  });
+  it("still guides ambiguous project selection instead of starting ad-hoc tasks", async () => {
+    const f = await fixture();
+    f.ops.projects().push({ ...f.ops.projects()[0]!, id: "other-project" });
+    await f.service.save({
+      ...f.service.status().settings,
+      defaultProjectId: "",
+      grants: [
+        ...f.service.status().settings.grants,
+        executionGrantSchema.parse({
+          projectId: "other-project",
+          security: security("owner"),
+          expiresAt: Date.now() + 600000,
+        }),
+      ],
+    });
+    await f.send("/new ambiguous");
     expect(f.threads).toHaveLength(0);
+    const deliveries = () =>
+      f.gateway.store.pending<{ text: string }>("outgoing");
+    expect(deliveries().at(-1)!.payload.text).toContain("请先 /projects");
   });
   it.each(["wecom", "feishu", "slack"] as const)(
     "%s creates a new task after deletion without replaying the deleted task",

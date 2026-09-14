@@ -1620,7 +1620,8 @@ export function ImSettingsPanel({
               )}
             </p>
           )}
-          {/* W4：临时会话是内置授权目标——已配对即可收发消息并获得指引，不占项目授权，不可取消。 */}
+          {/* W4：临时会话是内置授权目标——已配对即可收发消息并获得指引，也可发起
+              plan 档临时任务（无项目工作区，不碰项目文件）；不占项目授权，不可取消。 */}
           <div className="im-project im-project-builtin">
             <Checkbox
               label={t(
@@ -1632,8 +1633,8 @@ export function ImSettingsPanel({
             />
             <small>
               {t(
-                "不绑定项目的会话：可收发消息并获得指引；不授权任何项目文件。",
-                "Conversations without a project: exchange messages and get guidance; no project files are authorized.",
+                "不绑定项目的会话：可对话获得指引，也可直接发起临时任务（仅咨询分析，不访问任何项目文件）；不占项目授权。",
+                "Conversations without a project: chat for guidance, or start an ad-hoc task right away (advisory analysis only, no project files); does not use a project grant.",
               )}
             </small>
           </div>
