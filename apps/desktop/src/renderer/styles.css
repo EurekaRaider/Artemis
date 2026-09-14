@@ -10150,6 +10150,17 @@ kbd {
   padding: 4px 14px 14px;
   border-top: 1px solid var(--border-soft);
 }
+/* 卡内排版规整：正文从全局 14px 收到 12.5px，指令 code 12px 等宽，
+   与分区标题（12px/650）、说明（11px）构成合理梯度。 */
+.im-flow-body p,
+.im-flow-body li,
+.im-flow-body summary {
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.im-flow-body .im-identifier {
+  font-size: 12px;
+}
 /* ④卡：三档模式与内置临时会话行。 */
 .im-platform-choice {
   display: contents;
