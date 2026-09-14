@@ -391,19 +391,36 @@ try {
       Buffer.from(capture.data, "base64"),
     );
   };
+  const clickCard = async (title) => {
+    const finder = `Array.from(document.querySelectorAll('.im-flow-head')).find(b=>b.textContent.includes(${JSON.stringify(title)}))`;
+    await until(() => evaluate(`Boolean(${finder})`), "flow card " + title);
+    if (!(await evaluate(`${finder}?.getAttribute('aria-expanded')==='true'`)))
+      await click(finder);
+  };
   const openView = async (view) => {
-    if (
-      !(await evaluate(`Boolean(document.querySelector('#im-nav-${view}'))`))
-    ) {
-      await click("document.querySelector('.im-common-trigger')");
-      const labels = {
-        gateway: "Gateway 与设备",
-        pairing: "配对与账号",
-        permissions: "项目授权",
-        spaces: "群协作空间",
-      };
-      await click(button(labels[view]));
-    } else await click(`document.querySelector('#im-nav-${view}')`);
+    if (await evaluate("Boolean(document.querySelector('.im-group-flow'))"))
+      await click(button("← 返回单聊设置"));
+    const channels = { wecom: "企业微信", feishu: "飞书", slack: "Slack" };
+    if (channels[view]) {
+      await clickCard("添加机器人");
+      await click(
+        `Array.from(document.querySelectorAll('.im-platform-cards button')).find(b=>b.textContent.includes(${JSON.stringify(channels[view])}))`,
+      );
+      return;
+    }
+    const cards = {
+      gateway: "连接服务",
+      pairing: "绑定我的账号",
+      permissions: "允许手机操作的项目",
+    };
+    if (cards[view]) {
+      await clickCard(cards[view]);
+      return;
+    }
+    if (view === "spaces") {
+      await clickCard("发一条测试任务");
+      await click(button("设置群协作（可选）"));
+    }
   };
   const fill = async (selector, text) => {
     await click(`document.querySelector(${JSON.stringify(selector)})`);
@@ -564,12 +581,12 @@ try {
     );
     await click("document.querySelector('#settings-tab-im-button')");
     await until(
-      () => evaluate("Boolean(document.querySelector('.im-setup-steps'))"),
-      "IM guide",
+      () => evaluate("Boolean(document.querySelector('.im-flow-head'))"),
+      "IM guided flow",
     );
     assert.equal(
-      await evaluate("document.querySelectorAll('.im-setup-steps li').length"),
-      6,
+      await evaluate("document.querySelectorAll('.im-flow-card').length"),
+      5,
     );
     await send("Emulation.setDeviceMetricsOverride", {
       width: 720,
@@ -578,10 +595,7 @@ try {
       mobile: false,
     });
     await pause(250);
-    await checkWheelScroll(
-      "document.querySelector('.im-wizard')",
-      "setup guide",
-    );
+    await checkWheelScroll("document.querySelector('.im-flow')", "guided flow");
     await send("Emulation.clearDeviceMetricsOverride");
     await pause(250);
     const wizardCapture = await send("Page.captureScreenshot", {
@@ -591,9 +605,7 @@ try {
       join(output, "wizard.png"),
       Buffer.from(wizardCapture.data, "base64"),
     );
-    await click(
-      "Array.from(document.querySelectorAll('.im-step-button')).find(b=>b.querySelector('strong')?.textContent.trim()==='准备 Gateway')",
-    );
+    await clickCard("连接服务");
     for (const width of [1280, 720]) {
       await send("Emulation.setDeviceMetricsOverride", {
         width,
@@ -607,7 +619,7 @@ try {
         for (const [area, selector] of [
           ["form", "#im-bot h4"],
           ["input", "#im-bot input"],
-          ["blank", ".im-detail"],
+          ["blank", ".im-flow"],
         ]) {
           await checkWheelScroll(
             `document.querySelector(${JSON.stringify(selector)})`,
@@ -730,9 +742,8 @@ try {
       );
       records.push({ ...variant, geometry });
     }
-    await click(button("返回设置指引"));
-    await click("document.querySelectorAll('.im-setup-steps button')[1]");
-    assert.equal(await evaluate("document.activeElement.id"), "im-device");
+    await clickCard("连接服务");
+    await click("document.querySelector('#im-device details > summary')");
     assert.equal(await evaluate(`${button("注册当前设备")}.disabled`), true);
     await evaluate(
       "document.querySelector('#im-device input[type=url]').focus(); document.querySelector('#im-device input[type=url]').select()",
@@ -750,6 +761,9 @@ try {
         localStatus.settings.deviceId,
       "device registration",
     );
+    // 注册成功后①完成，流程自动前进到②；重开①卡核对管理凭据已清空。
+    await clickCard("连接服务");
+    await click("document.querySelector('#im-device details > summary')");
     assert.equal(
       await evaluate(
         "document.querySelector('#im-device input[type=password]').value",
@@ -781,15 +795,20 @@ try {
       0,
     );
     await click(button("批准"));
+    // 批准后③完成，流程自动前进到④（项目授权）。
     await until(
-      () => evaluate("Boolean(document.querySelector('#im-bot'))"),
-      "automatic management after approval",
+      () =>
+        evaluate(
+          "Array.from(document.querySelectorAll('.im-flow-head')).find(b=>b.textContent.includes('允许手机操作的项目'))?.getAttribute('aria-expanded')==='true'",
+        ),
+      "flow advances after approval",
     );
     assert.equal(
       (await evaluate("window.artemis.getImStatus()")).identities[0].userId,
       "alice",
     );
     // Exercise the real saved-credential form and the existing Gateway admin API.
+    await openView("wecom");
     await click(button("更换"));
     assert.equal(
       await evaluate(
@@ -1030,7 +1049,7 @@ try {
       });
       await pause(250);
       const geometry = await evaluate(
-        `(() => { const panel = document.querySelector('.im-settings'); const detail = document.querySelector('.im-detail'); return { width: innerWidth, height: innerHeight, compact: panel.dataset.compact, contrast: document.documentElement.dataset.artemisContrast, panelWidth: panel.clientWidth, panelScrollWidth: panel.scrollWidth, detailWidth: detail.clientWidth, detailScrollWidth: detail.scrollWidth, dialogWidth: document.querySelector('.settings-panel').getBoundingClientRect().width }; })()`,
+        `(() => { const panel = document.querySelector('.im-settings'); const detail = document.querySelector('.im-flow'); return { width: innerWidth, height: innerHeight, compact: panel.dataset.compact, contrast: document.documentElement.dataset.artemisContrast, panelWidth: panel.clientWidth, panelScrollWidth: panel.scrollWidth, detailWidth: detail.clientWidth, detailScrollWidth: detail.scrollWidth, dialogWidth: document.querySelector('.settings-panel').getBoundingClientRect().width }; })()`,
       );
       assert.equal(
         geometry.contrast,
@@ -1083,7 +1102,7 @@ try {
       "document.querySelector('#im-bot').scrollIntoView({block:'start'})",
     );
     const zoomGeometry = await evaluate(
-      `(() => { const p = document.querySelector('.im-settings'); const d = document.querySelector('.im-detail'); return { width: innerWidth, height: innerHeight, compact: p.dataset.compact, panelWidth: p.clientWidth, panelScrollWidth: p.scrollWidth, detailWidth: d.clientWidth, detailScrollWidth: d.scrollWidth }; })()`,
+      `(() => { const p = document.querySelector('.im-settings'); const d = document.querySelector('.im-flow'); return { width: innerWidth, height: innerHeight, compact: p.dataset.compact, panelWidth: p.clientWidth, panelScrollWidth: p.scrollWidth, detailWidth: d.clientWidth, detailScrollWidth: d.scrollWidth }; })()`,
     );
     assert.equal(zoomGeometry.compact, "true");
     assert.ok(zoomGeometry.panelScrollWidth <= zoomGeometry.panelWidth + 1);
@@ -1101,10 +1120,11 @@ try {
     await pause(200);
     await openView("permissions");
     await click(
-      "document.querySelector('#im-permissions input[type=checkbox]')",
+      "document.querySelector('#im-permissions .im-project:not(.im-project-builtin) input[type=checkbox]')",
     );
     if (!(await evaluate("document.querySelector('.im-grant-details').open")))
       await click("document.querySelector('.im-grant-details > summary')");
+    await click(button("自定义范围 ▸"));
     await click(button("选择目录或文件"));
     await until(
       () =>
@@ -1232,7 +1252,7 @@ try {
       "read/write columns align at native narrow width",
     );
     const scopeGeometry = await evaluate(
-      "(()=>{const d=document.querySelector('.im-detail');return {viewport:innerWidth,width:d.clientWidth,scroll:d.scrollWidth};})()",
+      "(()=>{const d=document.querySelector('.im-flow');return {viewport:innerWidth,width:d.clientWidth,scroll:d.scrollWidth};})()",
     );
     assert.equal(scopeGeometry.viewport, 820);
     assert.ok(scopeGeometry.scroll <= scopeGeometry.width + 1);
@@ -1252,7 +1272,6 @@ try {
     );
     await pause(200);
     await click(button("保存并启用"));
-    await click("document.querySelector('.im-header [role=switch]')");
     await until(
       async () =>
         (await evaluate("window.artemis.getImStatus()")).settings.grants
@@ -1329,12 +1348,20 @@ try {
     await click(
       "Array.from(document.querySelectorAll('button')).find(b=>['关闭','Close'].includes(b.textContent.trim()))",
     );
-    if (
-      await evaluate(
-        "document.querySelector('.left-sidebar-toggle')?.getAttribute('aria-expanded') === 'false'",
-      )
-    )
-      await click("document.querySelector('.left-sidebar-toggle')");
+    await until(
+      () => evaluate("!document.querySelector('.settings-panel')"),
+      "settings dialog closed",
+    );
+
+    // 合成点击展开侧栏并等待其真正展开（坐标点击可能被残留缩放偏移）。
+    await evaluate("document.querySelector('.left-sidebar-toggle')?.click()");
+    await until(
+      () =>
+        evaluate(
+          "document.querySelector('.left-sidebar-toggle')?.getAttribute('aria-expanded') === 'true'",
+        ),
+      "sidebar expanded",
+    );
     assert.ok(
       (await evaluate("document.body.innerText")).includes(remote[0].title),
       "IM-created task appears in the sidebar without a reload",
@@ -1576,7 +1603,7 @@ try {
       "document.querySelector('.im-group-task-composer').scrollIntoView({block:'start'})",
     );
     const geometry = await evaluate(
-      "(()=>{const d=document.querySelector('.im-detail');return {width:d.clientWidth,scrollWidth:d.scrollWidth};})()",
+      "(()=>{const d=document.querySelector('.im-flow');return {width:d.clientWidth,scrollWidth:d.scrollWidth};})()",
     );
     assert.ok(
       geometry.scrollWidth <= geometry.width + 1,

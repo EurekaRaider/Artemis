@@ -576,6 +576,7 @@ export function ImSettingsPanel({
               ? t("配对已批准。", "Pairing approved.")
               : t("配对请求已拒绝。", "Pairing request rejected."),
           );
+          if (approve) flowAdvanceFrom();
         })
       }
       unpair={(identity) =>
@@ -656,6 +657,11 @@ export function ImSettingsPanel({
   } catch {
     /* The advanced editor may contain incomplete JSON. */
   }
+  /** 显式完成动作（批准配对、保存启用成功）后解除钉住，交回自动跟随显示最早缺步卡。 */
+  function flowAdvanceFrom() {
+    setFlowCard(null);
+  }
+
   /* 引导流 derive：必须在加载守卫之前，保证 Hook 顺序稳定。 */
   const flowSteps = imFlowSteps(status, testConfirmed);
   const flowDone = imFlowProgress(flowSteps);
@@ -697,6 +703,7 @@ export function ImSettingsPanel({
         ),
       );
   }, [flowDoneKey, activeScreen]);
+
   if (!settings)
     return message ? (
       <InlineNotice tone="danger">{message}</InlineNotice>
@@ -2021,6 +2028,7 @@ export function ImSettingsPanel({
                     "Project permissions saved and connection enabled.",
                   ),
                 );
+                flowAdvanceFrom();
               })
             }
           >
@@ -2578,11 +2586,9 @@ export function ImSettingsPanel({
               setTestConfirmed(checked);
             }}
           />
-          {!!status?.identities?.length && (
-            <Button onClick={() => selectView("spaces")}>
-              {t("设置群协作（可选）", "Set up group collaboration (optional)")}
-            </Button>
-          )}
+          <Button onClick={() => selectView("spaces")}>
+            {t("设置群协作（可选）", "Set up group collaboration (optional)")}
+          </Button>
         </ImFlowCard>
       </>
     );

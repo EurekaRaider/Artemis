@@ -216,3 +216,14 @@
 - **ImSetupGuide 主组件退役**：六步向导组件删除（ImGatewayInstructions/ImFirstTaskInstructions 保留且仍被④⑤卡使用）；配套 CSS（.im-setup-steps/.im-step-*/.is-current/.im-setup-guide）与收敛契约登记同步清理；分组规则中的仍存活选择器（.settings-section textarea 行距、.im-test-steps）已恢复。图标冻结清单 10→9。
 - **PR-S4 决议落档**：测试任务自动验收（消息→任务→完成→回执四段关联 + 防历史任务冒充）单独立项，本期为 D4 诚实版 V1；原「第 6 步 done 硬编码 false」的 ImSetupGuide 已随向导退役，新⑤卡由 im-flow-derive 的用户确认标记承载，无伪装自动验收。
 - **待办**：verify:im 真机 e2e 适配并跑通（按钮改名/范围树显隐/导航结构三处影响已在 P2/P4 记录）；PR-S5 im-gateway README 三处修订；DOC-1/2 提案修订；提案状态更新。
+
+### P6 完成（2026-09-14）
+
+- **verify:im 适配**：openView 换成卡片导航（clickCard + 平台选择行 + 群流程退出）；六步断言→五卡；`.im-wizard/.im-detail` 几何探针→`.im-flow`；旧「返回设置指引+六步按钮」→①卡+手动注册 details；Plan 档范围树前补「自定义范围 ▸」；项目复选框选择器排除临时会话内置行；两阶段「保存并启用」后删多余开关点击（组合入口已启用）；批准配对后等待④自动展开；注册成功断言前重开①卡；侧栏展开改合成点击（坐标点击被残留缩放偏移吃掉）。
+- **完成前进语义修正**：显式完成动作（批准配对/保存启用成功）后 `flowAdvanceFrom()` 解除钉住交回自动跟随；被动状态恢复（如连接恢复）不跳卡；启用失败的重试入口钉住不动。
+- **verify:im 现状与基线证据**：本分支全流程跑通至「群成员 @ 选择器」（:1671），此前所有本分支 UI 改动点全部验证通过。剩余两处失败为 **main 既有问题**：main 基线（2e4fa18 worktree 实测）全量 e2e 挂死在更早的同一区域（「IM-created task appears in the sidebar」，原版坐标点击展开侧栏不生效）；@ 成员选择器相关文件（App.tsx/ImMemberMentions/ImGroupMembers/提及协议）本分支零改动，main 因前项阻断未及验证。两问题建议另案在 main 修复后全量转绿。
+- **PR-S5**：docs/features/im-gateway/README.md 三处修订（飞书 Tenant Key/Bot Open ID 可留空自动获取；「保存并启用」两阶段语义；群空间表单优先、JSON 降为进阶）+ 六步→五步两处同步。
+- **DOC-1**：提案 §9 四项指控归位旧草稿（6706411 之前），保留「原型测试通过≠完成」声明。
+- **DOC-2**：五条补遗——Slack 双 token 暴露时点（保存通过、Socket 握手报错）、多连接规则（向导单连接、概览逐连接管理）、编辑回退级联（§7 补行）、「我已收到回复」误勾可撤销（§7 补行）、expiresAt 硬编码注明。
+- **提案状态**：README.md 状态行更新为「已实施」，链接 review/plan/wiring-plan 三件套。
+- **⑤卡群协作入口**：改为随时可达（对齐旧向导的可达性；D2 的完成后入口由概览承担）。
