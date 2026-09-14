@@ -1029,12 +1029,6 @@ describe("production IM settings", () => {
     await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
     await user.click(screen.getByRole("button", { name: "全选可修改" }));
     expect(confirm).toBeEnabled();
-    // 确认摘要五要素（项目/范围/回复对象/模式/有效期）保存前可见。
-    expect(screen.getByText(/确认摘要/).textContent).toContain("Test project");
-    expect(screen.getByText(/确认摘要/).textContent).toContain(
-      "仅回复你的单聊",
-    );
-    expect(screen.getByText(/确认摘要/).textContent).toContain("30 天有效");
     await user.click(screen.getByRole("checkbox", { name: "允许沙箱命令" }));
     await user.click(confirm);
     // 勾选已即时保存过一次（plan）；确认再走两阶段（execute+启用）。
@@ -1047,8 +1041,13 @@ describe("production IM settings", () => {
     expect(f.get().settings.grants[0]!.security!.scopes[0]!.writePaths).toEqual(
       ["src", "docs"],
     );
-    // 确认后弹窗关闭；重新展开④继续编辑。
+    // 确认后弹窗关闭；重新展开④，按项目摘要在行内呈现可写范围。
     await openCard(user, /^允许手机操作的项目/);
+    await waitFor(() =>
+      expect(document.querySelector(".im-row-summary")?.textContent).toContain(
+        "可写 src、docs",
+      ),
+    );
     // 切回 Plan：命令与网络同步关闭，控件收起。
     await user.click(
       await screen.findByRole("button", { name: "授权配置" }),

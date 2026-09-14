@@ -9905,6 +9905,15 @@ kbd {
 .im-set-default:disabled {
   visibility: hidden;
 }
+.im-row-summary {
+  flex: 1 1 auto;
+  min-inline-size: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--muted);
+}
 .im-project-builtin {
   flex-wrap: wrap;
   align-items: baseline;
@@ -10175,12 +10184,6 @@ kbd {
 .im-mode-tier small {
   font-size: 11.5px;
   color: var(--muted);
-}
-.im-grant-summary {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--text-secondary, var(--muted));
 }
 /* ⑤卡：测试任务诚实版四段轨道。 */
 .im-test-track {

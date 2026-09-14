@@ -7,6 +7,7 @@ import {
   IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
   type AppLocale,
+  type ExecutionGrant,
   type ImConnectionStatus,
   type ImSettings,
   type ImStatus,
@@ -1577,16 +1578,26 @@ export function ImSettingsPanel({
         !g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
           .length,
     );
-    const hasWritableScope = settings.grants.every(
-      (g) =>
-        g.mode !== "execute" ||
-        !!g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
-          .length,
-    );
     /* 默认项目落点：未设置或哨兵 = 临时会话。 */
     const adhocDefault =
       !settings.defaultProjectId ||
       settings.defaultProjectId === IM_ADHOC_PROJECT_ID;
+    /* 按项目摘要（替代原底部「确认摘要」行）：范围 + 异常状态。 */
+    const rowSummary = (grant: ExecutionGrant) => {
+      const write =
+        grant.security?.scopes.find((s) => s.audience === "owner")
+          ?.writePaths ?? [];
+      const scope =
+        grant.mode === "execute" && write.length
+          ? t(`可写 ${write.join("、")}`, `Writes ${write.join(", ")}`)
+          : t("整个项目可读", "Whole project readable");
+      const state = !grant.security?.confirmedAt
+        ? t("待确认范围", "Confirm scope")
+        : grant.expiresAt <= Date.now()
+          ? t("已过期", "Expired")
+          : "";
+      return state ? `${scope} · ${state}` : scope;
+    };
     /* 行内操作（勾选/撤销/设默认）与弹窗「确认设置」共用：next = 要保存的设置；
        advance=false 供行内增量操作不触发流程自动前进。
        返回 false = 保存本身失败（弹窗保持打开）；启用失败已保存，返回 true。 */
@@ -1782,6 +1793,9 @@ export function ImSettingsPanel({
                     })
                   }
                 />
+                {grant && (
+                  <span className="im-row-summary">{rowSummary(grant)}</span>
+                )}
                 {settings.defaultProjectId === project.id && (
                   <span
                     className="im-default-badge"
@@ -2141,29 +2155,7 @@ export function ImSettingsPanel({
               </div>
             );
           })}
-          {/* 确认摘要五要素：项目 / 文件范围 / 回复对象 / 模式 / 有效期。 */}
-          {settings.grants.length > 0 && (
-            <p className="im-grant-summary">
-              {t("确认摘要：", "Summary: ")}
-              {settings.grants
-                .map(
-                  (g) =>
-                    projects.find((p) => p.id === g.projectId)?.name ??
-                    g.projectId,
-                )
-                .join("、")}
-              {" · "}
-              {hasWritableScope
-                ? t("默认可读整个项目", "Whole project readable by default")
-                : t("含可写范围", "Includes writable scopes")}
-              {" · "}
-              {t("仅回复你的单聊", "Replies only to your direct chat")}
-              {" · "}
-              {[...new Set(settings.grants.map((g) => g.mode))].join("/")}
-              {" · "}
-              {t("30 天有效", "Valid for 30 days")}
-            </p>
-          )}
+          {/* 按项目的范围/状态摘要在各项目行内呈现（.im-row-summary）。 */}
           {enableFailedError && (
             <InlineNotice tone="warning">
               {t(
