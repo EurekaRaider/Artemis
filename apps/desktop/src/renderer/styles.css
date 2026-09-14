@@ -10303,6 +10303,13 @@ kbd {
   white-space: normal;
   border: 1px solid var(--artemis-color-border-surface);
 }
+/* 边框已表达选中：去掉 Button 的 ✓ 指示符，背景换干净的抬升面板色。 */
+.im-platform-card[data-state="selected"] {
+  background: var(--artemis-color-surface-raised);
+}
+.im-platform-card > [data-part="state-indicator"] {
+  display: none;
+}
 .im-platform-card span {
   font-weight: normal;
   font-size: 11px;
