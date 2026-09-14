@@ -10309,10 +10309,10 @@ kbd {
 .im-platform-card > [data-part="state-indicator"] {
   display: none;
 }
-/* UI 包的 secondary 变体底色与选中态（均 0,2,0）特异性更高，需以面板作用域
-   压回：浅色白底、深色纯黑，选中只由描边区分。 */
-.im-settings .im-platform-card,
-.im-settings .im-platform-card[data-state="selected"] {
+/* 管理页对 secondary 按钮有重上色规则（:is(...page,.settings-panel) 0,3,0 且
+   位于打包序列最后），须以更高特异性压回：浅色白底、深色纯黑，选中仅描边。 */
+.im-settings .im-platform-card.im-platform-card,
+.im-settings .im-platform-card.im-platform-card[data-state="selected"] {
   background: light-dark(var(--artemis-color-surface-base), #0a0a0a);
 }
 .im-platform-card span {
