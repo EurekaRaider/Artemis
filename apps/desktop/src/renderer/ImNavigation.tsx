@@ -6,7 +6,14 @@ import {
 
 export type ImChannel = ImConnectionStatus["channel"];
 export type ImView =
-  ImChannel | "gateway" | "pairing" | "permissions" | "spaces" | "setup-guide";
+  | ImChannel
+  | "gateway"
+  | "pairing"
+  | "permissions"
+  | "spaces"
+  | "setup-guide"
+  /* 三步版：②尾验证段作为独立定位目标（不新增卡） */
+  | "test";
 export type ImTranslate = (cn: string, en: string) => string;
 export const IM_CHANNELS = ["wecom", "feishu", "slack"] as const;
 export function imChannelLabel(channel: ImChannel, t: ImTranslate) {

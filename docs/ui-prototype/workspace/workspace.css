@@ -3864,7 +3864,9 @@ body[data-archived-demo] .composer-wrap .composer {
 }
 .settings-content {
   overflow-y: auto;
-  padding: 18px 22px;
+  /* 顶部留白以变量暴露：渠道吸顶条用 -1 倍值抵消，保证停靠线=overflow 裁剪线（无穿透带） */
+  --settings-pad-top: 18px;
+  padding: var(--settings-pad-top) 22px;
 }
 .setting-group {
   margin-bottom: 20px;
@@ -6182,3 +6184,155 @@ body.sidebar-collapsed .sidebar-brand .activity-mark {
 #settingsPanelIm .im-field-help[hidden] { /* Feedback keeps its slot despite the global hidden utility. */ display: block !important; visibility: hidden; }
 html { scrollbar-color: var(--border) transparent; scrollbar-width: thin; }
 @media (forced-colors: active) { html { scrollbar-color: auto; } }
+
+/* ===== 消息接入第四轮：②合并卡（渠道 tab + 四子阶段）与 ③生产对齐项目行 ===== */
+/* 渠道 tab（生产 im-platform-card 配方：边框即选中，无打勾、无状态点）：
+   浅色白底黑字 / 深色黑底白字 */
+.im-channel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.im-channel-tab {
+  flex: 1 1 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-quick), background var(--t-quick);
+}
+.im-channel-tab strong { font-size: 12.5px; font-weight: 590; }
+.im-channel-tab span { font-size: 11px; color: var(--text-3); }
+.im-channel-tab:hover { background: var(--hover); }
+.im-channel-tab[aria-selected="true"] { border-color: var(--text-3); }
+.im-channel-tab[aria-selected="true"] strong { color: var(--text); }
+/* 平台面板：互斥显示（合并卡内单渠道线性推进） */
+#settingsPanelIm .im-platform-rows { margin-top: 6px; }
+#settingsPanelIm .im-platform-row[hidden] { display: none; }
+.im-stage4 { margin-top: 14px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+/* 项目行（生产对齐）：勾选 + .Plan 后缀 + 行内摘要 + 默认徽章 + 悬停设默认 + 授权配置 */
+.im-project-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+.im-mode-suffix {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 590;
+  color: var(--text-3);
+  margin-left: 4px;
+}
+.im-row-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-default-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 470;
+  color: var(--text-2);
+}
+.im-set-default {
+  visibility: hidden;
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.im-set-default:hover { color: var(--text); background: var(--hover); }
+.im-project-line:hover .im-set-default,
+.im-set-default:focus-visible { visibility: visible; }
+.im-grant-btn { flex: none; margin-left: auto; }
+.im-grant-btn ~ .im-set-default { margin-left: 0; }
+/* 授权配置弹窗（生产对齐：关闭=回退草稿，确认设置=行内即时生效） */
+.im-grant-dialog { padding: 20px; width: min(560px, calc(100vw - 32px)); }
+.im-grant-dialog h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.im-grant-dialog-scroll { max-height: min(52vh, 420px); overflow: auto; margin-top: 12px; padding-right: 4px; }
+.im-grant-dialog-scroll .im-mode-tiers { margin-top: 0; }
+.im-grant-dialog .im-grant-dialog-error { margin: 10px 0 0; color: var(--danger-text); }
+.im-grant-dialog .btn-pair { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+html[data-theme="dark"] .im-channel-tab { background: #0a0a0a; color: #f5f5f5; }
+html[data-theme="dark"] .im-channel-tab span { color: rgba(245, 245, 245, 0.55); }
+html[data-theme="dark"] .im-channel-tab[aria-selected="true"] { border-color: rgba(245, 245, 245, 0.45); }
+html[data-theme="dark"] .im-channel-tab[aria-selected="true"] strong { color: #f5f5f5; }
+
+/* ===== 消息接入第五轮：三步版主面板（②尾顺手验证 / ③尾完成仪式 / 渠道 tab 吸顶 / 演示控制台隔离） ===== */
+/* 渠道 tab 吸顶：Chromium 的 sticky 停靠参照是滚动容器 content box 顶（= 裁剪线
+   + padding-top），而 overflow 裁剪线在 padding box 顶。若 top≥0，停靠线总在裁剪线
+   之下 padding-top 像素，滚过的内容会从吸顶条上方的穿透带里露出（子卡按钮行穿透）。
+   修复：top 取 -padding-top（联动变量），停靠线与裁剪线重合；条内出血 padding 放大
+   同一变量补回视觉呼吸。.stuck（scroll 监听）加投影与卡内其他内容区分 */
+.im-channel-tabs {
+  position: sticky;
+  top: calc(-1 * var(--settings-pad-top, 18px));
+  z-index: 6;
+  background: var(--surface);
+  margin: -3px -13px 4px;
+  padding: calc(13px + var(--settings-pad-top, 18px)) 13px 3px;
+}
+.im-channel-tabs.stuck {
+  box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.28);
+}
+html[data-theme="dark"] .im-channel-tabs.stuck {
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.7);
+}
+/* ②尾「顺手验证」折叠段：与卡内容同层级，仅细分隔 */
+.im-verify {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* ③尾完成仪式：三步全✓后的庆祝块（沿用验证走通的绿调配方） */
+.im-ceremony {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+.im-ceremony .im-ready-title { color: var(--success-text); }
+/* 演示条件设置口（原型专用，迁移生产代码时整块删除）：虚线框与真实 UI 明确区隔 */
+.im-demo-console {
+  margin-top: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-card);
+  padding: 2px 12px 10px;
+}
+.im-demo-outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}

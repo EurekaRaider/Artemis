@@ -1,14 +1,17 @@
 import type { ReactNode } from "react";
-import { ArtemisIcon } from "@artemis/ui/icons";
+import { ArtemisIcon, type ArtemisIconName } from "@artemis/ui/icons";
 
 export type ImFlowTranslate = (cn: string, en: string) => string;
 
 /**
  * One step card of the guided 消息接入 flow. The head collapses completed
- * steps to a summary line; the body carries the step's live controls.
+ * steps to a summary line; the body carries the step's live controls. The
+ * leading badge carries a per-step semantic icon (① connector, ② message,
+ * ③ folder); completion adds a small check badge instead of replacing the
+ * icon, so finished steps stay distinguishable at a glance.
  */
 export function ImFlowCard({
-  num,
+  icon,
   title,
   summary,
   done,
@@ -17,7 +20,7 @@ export function ImFlowCard({
   children,
   t,
 }: {
-  num: number;
+  icon: ArtemisIconName;
   title: string;
   summary?: ReactNode;
   done: boolean;
@@ -40,7 +43,12 @@ export function ImFlowCard({
           onClick={onToggle}
         >
           <span aria-hidden="true" className="im-flow-num">
-            {done ? <ArtemisIcon height={12} name="check" width={12} /> : num}
+            <ArtemisIcon height={13} name={icon} width={13} />
+            {done && (
+              <span className="im-flow-num-check">
+                <ArtemisIcon height={8} name="check" width={8} />
+              </span>
+            )}
           </span>
           <span className="im-flow-title">{title}</span>
           {summary ? <span className="im-flow-summary">{summary}</span> : null}

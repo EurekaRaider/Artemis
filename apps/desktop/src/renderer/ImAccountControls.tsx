@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   imIdentityKey,
   type ImIdentity,
@@ -6,7 +6,7 @@ import {
 } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { Button } from "@artemis/ui/actions";
-import { InlineNotice } from "@artemis/ui/feedback";
+import { Dialog, InlineNotice } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation";
 
 export interface ImPairCode {
@@ -19,6 +19,11 @@ export function ImPairingCode({
   busy,
   generate,
   copy,
+  onRefresh,
+  guide,
+  requests,
+  returnFocusRef,
+  onClose,
   t,
 }: {
   pair: ImPairCode | undefined;
@@ -26,6 +31,14 @@ export function ImPairingCode({
   busy: boolean;
   generate(): void;
   copy(text: string): void;
+  /** 用户已在机器人单聊发送指令后，手动重拉配对状态。 */
+  onRefresh(): void;
+  /** 弹窗内的提示信息（操作指引）。 */
+  guide?: ReactNode;
+  /** 待确认的配对请求卡片（批准/拒绝内聚在弹窗内）。 */
+  requests?: ReactNode;
+  returnFocusRef?: RefObject<HTMLButtonElement | null>;
+  onClose(): void;
   t: ImTranslate;
 }) {
   const [now, setNow] = useState(Date.now);
@@ -40,45 +53,69 @@ export function ImPairingCode({
     : 0;
   const command = pair ? `${slack ? "pair" : "/pair"} ${pair.code}` : "";
   return (
-    <div className="im-pairing-code">
-      {pair && (
-        <InlineNotice tone={seconds ? "info" : "warning"}>
-          <span role="status">
-            {seconds
-              ? t("配对码有效", "Pairing code active")
-              : t(
-                  "配对码已过期，请重新生成。",
-                  "Pairing code expired. Generate a new one.",
-                )}
-          </span>
-          {seconds > 0 && (
-            <span
-              className="im-countdown"
-              aria-label={t("剩余有效时间", "Time remaining")}
-            >
-              {" "}
-              · {Math.floor(seconds / 60)}:
-              {String(seconds % 60).padStart(2, "0")}
-            </span>
+    <Dialog
+      className="im-pair-dialog"
+      label={t("机器人配对码", "Bot pairing code")}
+      returnFocusRef={returnFocusRef}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      open
+    >
+      <header>
+        <h2>{t("机器人配对码", "Bot pairing code")}</h2>
+      </header>
+      <div className="im-pair-dialog-body">
+        {guide}
+        <span role="status">
+          {seconds
+            ? t("配对码有效", "Pairing code active")
+            : t(
+                "配对码已过期，请重新生成。",
+                "Pairing code expired. Generate a new one.",
+              )}
+        </span>
+        <div className="im-pair-code-line">
+          <span>{t("配对码", "Pairing code")}</span>
+          {pair && (
+            <>
+              <strong className="im-pair-code-value">{pair.code}</strong>
+              {seconds > 0 && (
+                <span
+                  className="im-countdown"
+                  aria-label={t("剩余有效时间", "Time remaining")}
+                >
+                  {" "}
+                  · {Math.floor(seconds / 60)}:
+                  {String(seconds % 60).padStart(2, "0")}
+                </span>
+              )}
+              <Button
+                disabled={busy || !seconds}
+                onClick={() => {
+                  if (pair.expiresAt > Date.now()) copy(command);
+                  else setNow(Date.now());
+                }}
+              >
+                {t("复制配对指令", "Copy pairing command")}
+              </Button>
+            </>
           )}
-          <p className="im-identifier">{command}</p>
-          <Button
-            disabled={busy || !seconds}
-            onClick={() => {
-              if (pair.expiresAt > Date.now()) copy(command);
-              else setNow(Date.now());
-            }}
-          >
-            {t("复制配对指令", "Copy pairing command")}
+        </div>
+        {requests}
+        <div className="im-actions">
+          <Button variant="quiet" disabled={busy} onClick={generate}>
+            {t("重新生成配对码", "Generate a new pairing code")}
           </Button>
-        </InlineNotice>
-      )}
-      <Button disabled={busy} onClick={generate}>
-        {pair
-          ? t("重新生成配对码", "Generate a new pairing code")
-          : t("生成一次性配对码", "Generate pairing code")}
-      </Button>
-    </div>
+          <Button variant="quiet" disabled={busy} onClick={onRefresh}>
+            {t("我已发送，刷新配对结果", "I sent it — refresh pairing")}
+          </Button>
+          <Button disabled={busy} onClick={onClose}>
+            {t("关闭", "Close")}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 export function ImAccounts({
@@ -169,7 +206,6 @@ export function ImAccounts({
           <div className="im-identity" key={key}>
             <span className="im-account-copy">
               <strong>{identity.userId}</strong>
-              <code>{identity.connectionId}</code>
             </span>
             {confirming === key ? (
               <div

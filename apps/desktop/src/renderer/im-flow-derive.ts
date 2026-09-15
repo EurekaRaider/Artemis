@@ -6,13 +6,14 @@ export type ImFlowStatus = ImStatus & {
   spaces?: unknown[];
 };
 
-export const IM_FLOW_STEP_IDS = [
-  "service",
-  "bots",
-  "account",
-  "projects",
-  "test",
-] as const;
+/**
+ * Guided-flow completion chain, three steps total (2026-09 三步版原型迁移):
+ * ① connect the service, ② onboard one channel end-to-end (a connected bot
+ * AND a paired account on the same channel — the pairing predicate), ③ allow
+ * at least one project. The optional end-to-end verify at the tail of ② and
+ * the separate group-collaboration flow never enter the chain.
+ */
+export const IM_FLOW_STEP_IDS = ["service", "channel", "projects"] as const;
 export type ImFlowStepId = (typeof IM_FLOW_STEP_IDS)[number];
 
 export interface ImFlowStep {
@@ -20,26 +21,22 @@ export interface ImFlowStep {
   done: boolean;
 }
 
-/**
- * Guided-flow step completion, derived only from real store state:
- * ① device registered, ② some bot connection established, ③ an account
- * paired, ④ at least one saved grant, ⑤ the owner confirmed the test task.
- */
-export function imFlowSteps(
-  status: ImFlowStatus | undefined,
-  testConfirmed: boolean,
-): ImFlowStep[] {
+export function imFlowSteps(status: ImFlowStatus | undefined): ImFlowStep[] {
   const settings = status?.settings;
   const connections = (status?.connections ?? []) as ImConnectionStatus[];
+  /* ② 配对谓词按渠道成立：该渠道有 connected 连接，且该渠道绑定了账号。 */
+  const connectedChannels = new Set(
+    connections
+      .filter((connection) => connection.state === "connected")
+      .map((connection) => connection.channel),
+  );
+  const channelDone = (status?.identities ?? []).some((identity) =>
+    connectedChannels.has(identity.channel as never),
+  );
   return [
     { id: "service", done: !!settings?.deviceId },
-    {
-      id: "bots",
-      done: connections.some((connection) => connection.state === "connected"),
-    },
-    { id: "account", done: !!status?.identities?.length },
+    { id: "channel", done: channelDone },
     { id: "projects", done: !!settings?.grants?.length },
-    { id: "test", done: testConfirmed },
   ];
 }
 
@@ -54,30 +51,55 @@ export function imFirstPendingStep(
   return steps.find((step) => !step.done)?.id;
 }
 
-const testConfirmedKey = (deviceId: string) =>
+/** Honest owner self-confirmation of the optional end-to-end verify (②尾). */
+export interface ImVerifyState {
+  confirmed: boolean;
+  /** Channel the owner confirmed on, so the ② summary can say 已验证 · 飞书. */
+  channel?: string | undefined;
+}
+
+const verifyKey = (deviceId: string) =>
+  `artemis.im.flow.verify.${deviceId}`;
+const legacyTestConfirmedKey = (deviceId: string) =>
   `artemis.im.flow.testConfirmed.${deviceId}`;
 
 /**
- * Step ⑤ is an honest owner self-confirmation (D4), so it lives in local
- * storage per registered device rather than in the shared settings.
+ * The verify tail is an honest owner self-confirmation (D4), so it lives in
+ * local storage per registered device rather than in the shared settings.
+ * Reads fall back to the pre-three-step key so an existing confirmation
+ * survives the migration.
  */
-export function imReadTestConfirmed(deviceId?: string): boolean {
-  if (!deviceId || typeof localStorage === "undefined") return false;
+export function imReadVerify(deviceId?: string): ImVerifyState {
+  if (!deviceId || typeof localStorage === "undefined") return { confirmed: false };
   try {
-    return localStorage.getItem(testConfirmedKey(deviceId)) === "1";
+    const raw = localStorage.getItem(verifyKey(deviceId));
+    if (raw) {
+      const parsed = JSON.parse(raw) as { confirmed?: boolean; channel?: string };
+      return {
+        confirmed: !!parsed.confirmed,
+        channel: parsed.channel || undefined,
+      };
+    }
+    if (localStorage.getItem(legacyTestConfirmedKey(deviceId)) === "1")
+      return { confirmed: true };
+    return { confirmed: false };
   } catch {
-    return false;
+    return { confirmed: false };
   }
 }
 
-export function imWriteTestConfirmed(
+export function imWriteVerify(
   deviceId: string | undefined,
-  confirmed: boolean,
+  next: ImVerifyState,
 ): void {
   if (!deviceId || typeof localStorage === "undefined") return;
   try {
-    if (confirmed) localStorage.setItem(testConfirmedKey(deviceId), "1");
-    else localStorage.removeItem(testConfirmedKey(deviceId));
+    if (next.confirmed)
+      localStorage.setItem(
+        verifyKey(deviceId),
+        JSON.stringify({ confirmed: true, channel: next.channel ?? "" }),
+      );
+    else localStorage.removeItem(verifyKey(deviceId));
   } catch {
     // Storage unavailable: the confirmation simply does not persist.
   }
