@@ -1689,7 +1689,7 @@ try {
   await until(
     () =>
       evaluate(
-        "document.querySelector('#im-member-mention-menu')?.textContent.includes('后端开发机')",
+        "document.querySelector('#custom-agent-mention-menu')?.textContent.includes('后端开发机')",
       ),
     "friendly @ member picker",
   );
@@ -1701,7 +1701,7 @@ try {
     Buffer.from(mentionCapture.data, "base64"),
   );
   await click(
-    "Array.from(document.querySelectorAll('#im-member-mention-menu [role=option]')).find(e=>e.textContent.includes('小博')).querySelector('button')",
+    "Array.from(document.querySelectorAll('#custom-agent-mention-menu [role=option]')).find(e=>e.textContent.includes('小博')).querySelector('button')",
   );
   assert.equal(
     await evaluate("document.querySelector('.composer-input textarea').value"),
@@ -1709,7 +1709,7 @@ try {
   );
   await replaceText(".composer-input textarea", "@小博 检查接口，同时 @");
   await click(
-    "Array.from(document.querySelectorAll('#im-member-mention-menu [role=option]')).find(e=>e.textContent.includes('Carol')).querySelector('button')",
+    "Array.from(document.querySelectorAll('#custom-agent-mention-menu [role=option]')).find(e=>e.textContent.includes('Carol')).querySelector('button')",
   );
   const composed = await evaluate(
     "document.querySelector('.composer-input textarea').value",

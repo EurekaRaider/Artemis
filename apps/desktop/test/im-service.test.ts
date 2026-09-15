@@ -1392,6 +1392,43 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.starts).toHaveLength(0);
     expect(f.threads).toHaveLength(0);
   });
+  it("requires renewed consent when legacy empty read scopes acquire whole-project meaning", async () => {
+    const f = await fixture();
+    const settings = f.service.status().settings;
+    await f.service.save({
+      ...settings,
+      grants: settings.grants.map((grant) => ({
+        ...grant,
+        security: {
+          ...grant.security!,
+          scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+        },
+      })),
+    });
+    await f.service.close();
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    db.prepare(
+      "DELETE FROM im_state WHERE namespace='migrations' AND id='whole-project-reads'",
+    ).run();
+    db.close();
+    const upgraded = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => upgraded.close());
+    expect(upgraded.status().settings.grants[0]!.security!.confirmedAt).toBe(0);
+    const current = upgraded.status().settings;
+    await upgraded.save({
+      ...current,
+      grants: current.grants.map((grant) => ({
+        ...grant,
+        security: { ...grant.security!, confirmedAt: Date.now() },
+      })),
+    });
+    await upgraded.close();
+    const reopened = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => reopened.close());
+    expect(
+      reopened.status().settings.grants[0]!.security!.confirmedAt,
+    ).toBeGreaterThan(0);
+  });
   it("starts zero-grant owner chats as plan-only ad-hoc tasks and keeps them scoped", async () => {
     const f = await fixture();
     await f.service.save({

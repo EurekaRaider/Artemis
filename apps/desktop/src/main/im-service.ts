@@ -202,6 +202,15 @@ export class ImService {
         this.get("settings", "current") ??
         {},
     );
+    if (!this.get<boolean>("migrations", "whole-project-reads")) {
+      // Old empty scopes granted no reads. Their consent cannot authorize
+      // the new whole-project default without a fresh desktop confirmation.
+      for (const grant of this.config.grants)
+        if (grant.security?.scopes.some((scope) => !scope.readPaths.length))
+          grant.security.confirmedAt = 0;
+      this.put("settings", "current", this.config);
+      this.put("migrations", "whole-project-reads", true);
+    }
     const encrypted = this.get<string>("credentials", "device");
     if (encrypted) {
       try {
@@ -965,7 +974,15 @@ export class ImService {
         if (!previous?.security || semantic(previous) !== semantic(grant)) {
           grant.security.revision = randomUUID();
           grant.security.confirmedAt = Date.now();
-        } else grant.security = previous.security;
+        } else if (previous.security.confirmedAt) {
+          grant.security = previous.security;
+        } else {
+          // This branch is inside `if (grant.security?.confirmedAt)` above:
+          // preserve the explicit confirmation supplied by the desktop form.
+          // Unconfirmed input never enters here. Rotate the revision so old
+          // task bindings cannot inherit the newly confirmed scope.
+          grant.security.revision = randomUUID();
+        }
       }
     }
     this.config = settings;
