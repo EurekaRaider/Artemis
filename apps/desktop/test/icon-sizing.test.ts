@@ -279,12 +279,13 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(dingbats).toEqual({
       "App.tsx": { check: 6, star: 2 },
       "EnvironmentPanel.tsx": { check: 1, star: 0 },
+      "WorktreeManager.tsx": { check: 1, star: 0 },
     });
     const total = Object.values(dingbats).reduce(
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(9);
+    expect(total).toBe(10);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
     ).toContain('<ArtemisIcon height={16} name="skill" width={16} />');
