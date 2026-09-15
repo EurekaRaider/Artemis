@@ -321,6 +321,7 @@ const snapshot = () => {
   const appShell = document.querySelector(".app-shell");
   const nativeSidebar = appShell?.dataset.platform === "darwin";
   const darkTheme = root.dataset.artemisTheme === "dark";
+  const opaqueSidebar = matchMedia("(prefers-reduced-transparency: reduce), (forced-colors: active)").matches;
   const sidebarMain = document.querySelector(
     '[data-artemis-component="navigation-sidebar"] > [data-part="main"]',
   );
@@ -381,6 +382,7 @@ const snapshot = () => {
       direction: getComputedStyle(root).direction,
       zoomFactor: preload?.zoomFactor() ?? null,
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      opaqueSidebar,
       sidebarOpen: appShell?.dataset.sidebarOpen ?? null,
       appShellTransitionDuration: appShell
         ? getComputedStyle(appShell).transitionDuration
@@ -422,10 +424,10 @@ const snapshot = () => {
       },
       sidebar: surfaceStyle(
         sidebarMain,
-        nativeSidebar && !darkTheme
+        nativeSidebar && !darkTheme && !opaqueSidebar
           ? "--artemis-color-surface-raised"
           : "--artemis-color-background-sidebar",
-        nativeSidebar ? (darkTheme ? 12 : 84)
+        opaqueSidebar ? undefined : nativeSidebar ? (darkTheme ? 12 : 84)
           : navigationSidebar?.dataset.state === "collapsed" ? 78 : 72,
       ),
       composer: surfaceStyle(
@@ -1939,7 +1941,9 @@ async function driveElectron() {
         [
           snapshot.surfaces?.sidebar,
           snapshot.tokens?.[
-            process.platform === "darwin" && configuration.theme === "light"
+            process.platform === "darwin" &&
+            configuration.theme === "light" &&
+            !snapshot.environment.opaqueSidebar
               ? "color.surface.raised"
               : "color.background.sidebar"
           ],
