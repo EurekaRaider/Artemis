@@ -89,6 +89,8 @@ export const ARTEMIS_ICON_NAMES = [
   "token-usage",
   "review-empty",
   "agents",
+  "bot-add",
+  "copy",
   "bug",
   "calendar",
   "checklist",
@@ -560,6 +562,23 @@ const ARTEMIS_ICON_GLYPHS = {
       <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
       <circle cx="16.5" cy="9.5" r="2.5" />
       <path d="M15.5 14.2c2.7.3 5 2.2 5 4.8" />
+    </>
+  ),
+  "bot-add": (
+    <>
+      <rect height="10" rx="2.5" width="11" x="3.5" y="7.5" />
+      <path d="M9 7.5V5.5" />
+      <circle cx="9" cy="4.5" r="1" />
+      <path d="M7 11.5v2" />
+      <path d="M11 11.5v2" />
+      <path d="M18.75 14.5v5" />
+      <path d="M16.25 17h5" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect height="11" rx="2" width="11" x="9.5" y="9.5" />
+      <path d="M5.5 14.5h-1A1.5 1.5 0 0 1 3 13V4.5A1.5 1.5 0 0 1 4.5 3H13a1.5 1.5 0 0 1 1.5 1.5v1" />
     </>
   ),
   bug: (

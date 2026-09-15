@@ -419,17 +419,15 @@ describe("screenshot visual contracts", () => {
       "border-radius": "0",
     });
   });
-  it("keeps IM navigation flat and its secondary actions compact", () => {
-    expect(declarations(desktop, ".im-channel-card")).toMatchObject({
-      border: "0",
-      background: "transparent",
+  it("keeps the IM platform chooser bordered and its secondary actions compact", () => {
+    expect(declarations(desktop, ".im-channel-tab")).toMatchObject({
+      border: "1px solid var(--border-soft)",
+      "text-align": "start",
     });
-    expect(declarations(desktop, ".im-channel-status").display).toBe(
-      "inline-flex",
-    );
-    expect(declarations(desktop, ".im-secondary-action")["align-self"]).toBe(
-      "flex-start",
-    );
+    expect(declarations(desktop, ".im-icon-action")).toMatchObject({
+      width: "28px",
+      height: "28px",
+    });
     expect(declarations(desktop, ".im-block").border).toBe("0");
   });
   it("renders calls as a divided group with per-call status instead of individual outlined buttons", () => {

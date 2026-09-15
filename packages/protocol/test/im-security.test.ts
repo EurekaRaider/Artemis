@@ -51,4 +51,31 @@ describe("IM data boundaries", () => {
       }).success,
     ).toBe(false);
   });
+  it("treats empty read paths as the whole project root", () => {
+    // Default grant: read everything, write nothing.
+    expect(
+      imDataScopeSchema.safeParse({
+        audience: "owner",
+        readPaths: [],
+        writePaths: [],
+      }).success,
+    ).toBe(true);
+    // With the whole root readable, writable paths are not constrained by it.
+    expect(
+      imDataScopeSchema.safeParse({
+        audience: "owner",
+        readPaths: [],
+        writePaths: ["src"],
+      }).success,
+    ).toBe(true);
+    // File roots (anti directory-swap markers) require explicit readable paths.
+    expect(
+      imDataScopeSchema.safeParse({
+        audience: "owner",
+        readPaths: [],
+        filePaths: ["src/a.ts"],
+        writePaths: [],
+      }).success,
+    ).toBe(false);
+  });
 });

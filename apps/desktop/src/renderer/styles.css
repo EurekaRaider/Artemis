@@ -1274,12 +1274,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 .environment-rows,
 .environment-activity-list,
 .model-picker-options > button.ultra-mode-option > span,
-.im-step-button [data-part="label"] {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
 .environment-rows {
   margin-inline: 0;
   width: 100%;
@@ -1989,12 +1983,13 @@ button.environment-row:disabled {
 
 .environment-git-dialog-backdrop {
   align-items: center;
-  background: rgb(0 0 0 / 42%);
+  background: var(--artemis-color-overlay-scrim);
   display: flex;
   inset: 0;
   justify-content: center;
   padding: 20px;
   position: fixed;
+  backdrop-filter: blur(3px);
   z-index: 140;
 }
 
@@ -2578,12 +2573,6 @@ button.environment-row:disabled {
 .resource-header-actions,
 .resource-row-actions,
 .resource-list-heading-actions,
-.im-channel-card > span {
-  align-items: center;
-  display: flex;
-  gap: 7px;
-}
-
 .turn-change-actions button {
   background: transparent;
   border: 0;
@@ -3110,11 +3099,6 @@ button.environment-row:disabled {
 .archive-card-copy,
 .resource-scope-tabs,
 .resource-management-tabs,
-.im-nav-item,
-.im-detail > section {
-  min-width: 0;
-}
-
 .tool-details section > span {
   color: var(--muted-2);
   display: block;
@@ -5441,7 +5425,8 @@ button.environment-row:disabled {
   color: var(--text);
 }
 .composer-attachment-dialog::backdrop {
-  background: rgb(0 0 0 / 45%);
+  background: var(--artemis-color-overlay-scrim);
+  backdrop-filter: blur(3px);
 }
 .composer-attachment-dialog header {
   display: flex;
@@ -6896,12 +6881,13 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .source-image-preview-backdrop {
   align-items: center;
-  background: rgb(0 0 0 / 72%);
+  background: var(--artemis-color-overlay-scrim);
   display: flex;
   inset: 0;
   justify-content: center;
   padding: 40px;
   position: fixed;
+  backdrop-filter: blur(3px);
   z-index: 500;
 }
 
@@ -7267,10 +7253,6 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .review-line.addition,
-.im-setup-steps [data-done="true"] .im-step-status {
-  color: var(--success);
-}
-
 .review-line.deletion,
 .review-empty.error,
 .text-button.danger {
@@ -7702,8 +7684,8 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .confirmation-backdrop {
   align-items: center;
-  backdrop-filter: blur(7px);
-  background: rgb(0 0 0 / 58%);
+  backdrop-filter: blur(3px);
+  background: var(--artemis-color-overlay-scrim);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -7938,7 +7920,6 @@ button.sources-panel-entry.attachment:focus-visible {
 
 /* D#76 PR8: feedback chrome rendered by McpEditorFeedback. */
 .mcp-editor-feedback,
-.im-detail,
 .resource-marketplace-content {
   display: flex;
   flex-direction: column;
@@ -9428,9 +9409,36 @@ kbd {
 }
 
 .automation-list,
-.im-pairing-code {
+/* 配对码弹窗：提示信息 + 大号配对码行。 */
+.im-pair-dialog-body {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+}
+.im-pair-guide {
+  display: grid;
+  gap: 4px;
+}
+.im-pair-guide > p {
+  margin: 0;
+}
+.im-pair-guide > ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-inline-start: 16px;
+}
+.im-pair-code-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.im-pair-code-value {
+  font-family: var(--artemis-typography-mono-family);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
 }
 
 .automation-card {
@@ -9636,8 +9644,7 @@ kbd {
 }
 
 .automation-time-clock,
-.im-credentials > [data-artemis-component="button"],
-.im-pairing-code > [data-artemis-component="button"] {
+.im-bots > [data-artemis-component="button"] {
   justify-self: start;
 }
 
@@ -9882,12 +9889,116 @@ kbd {
   gap: 8px;
 }
 .im-project {
-  padding-block: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block: 3px;
+}
+/* 项目行所在容器（management-section content）有 12px gap：相邻行用负
+   margin 压到 6px 视觉行距。 */
+.im-project + .im-project {
+  margin-block-start: -6px;
+}
+.im-project label {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.im-grant-open {
+  flex: none;
+}
+/* 默认项目徽章与悬停切换（替代原「默认项目」下拉）。
+   行尾按钮组的左侧用 auto margin 吸收剩余空间。 */
+.im-default-badge {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-size: 10.5px;
+  line-height: 15px;
+  font-weight: 520;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.im-set-default {
+  /* 占位稳定：visibility 隐藏但保留布局，悬停/聚焦行时浮现。 */
+  visibility: hidden;
+  flex: none;
+}
+.im-project:hover .im-set-default,
+.im-project:focus-within .im-set-default {
+  visibility: visible;
+}
+.im-set-default,
+.im-project .im-default-badge,
+.im-project-builtin .im-default-badge {
+  margin-inline-start: auto;
+}
+.im-set-default + .im-grant-open,
+.im-default-badge + .im-set-default {
+  margin-inline-start: 0;
+}
+.im-set-default:disabled {
+  visibility: hidden;
+}
+.im-row-summary {
+  flex: 1 1 auto;
+  min-inline-size: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-project-builtin {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.im-project-builtin small {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* Per-project permission editor: focused dialog like the rename task dialog. */
+.im-grant-dialog {
+  inline-size: min(560px, calc(100vw - 48px));
+  padding: 24px;
+  border-radius: 24px;
+}
+.im-grant-dialog h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.im-grant-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-block-size: min(56vh, 540px);
+  overflow-y: auto;
+  margin-block: 12px 16px;
+  padding-inline: 2px;
+}
+.im-grant-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.im-grant-dialog footer span {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-grant-dialog-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
 }
 .im-grant-fields {
   display: grid;
   gap: 12px;
-  padding: 12px 0 0 24px;
+  padding-block-start: 12px;
 }
 .im-identifier {
   overflow-wrap: anywhere;
@@ -9897,17 +10008,15 @@ kbd {
   cursor: pointer;
   padding-block: 12px;
 }
-.im-setup-steps,
-.im-test-steps {
-  display: grid;
-  gap: 16px;
-  padding-inline-start: 24px;
-}
-.im-setup-steps p,
 .settings-section
   > [data-part="content"]
   > :is([data-artemis-component="textarea-field"], .configuration-import) {
   margin-block: 6px;
+}
+.im-test-steps {
+  display: grid;
+  gap: 16px;
+  padding-inline-start: 24px;
 }
 .im-command {
   white-space: pre-wrap;
@@ -9979,93 +10088,487 @@ kbd {
   color: var(--success);
   background: currentColor;
 }
-.im-dot[data-state="error"] {
+.im-dot[data-state="error"],
+.im-dot[data-state="partial_error"] {
   color: var(--danger);
   background: currentColor;
 }
-.im-dot[data-state="connecting"] {
+.im-dot[data-state="connecting"],
+.im-dot[data-state="saving"] {
   color: var(--warning);
   background: currentColor;
 }
-.im-layout {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
-}
-.im-channel-list {
+/* Guided 消息接入 flow: five step cards with progress in the header. */
+.im-flow {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  align-self: start;
-  min-width: 0;
-  border-inline-end: 0;
-  padding-inline-end: 0;
-}
-.im-nav-label {
-  display: block;
-  padding: 6px 8px 3px;
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 620;
-  letter-spacing: 0.05em;
-}
-.im-channel-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  text-align: start;
-  width: 100%;
-  white-space: nowrap;
-  min-height: 34px;
-}
-.im-channel-card small {
-  color: var(--muted);
-  font-weight: normal;
-  font-size: 11px;
-  padding-inline-start: 0;
-  font-variant-numeric: tabular-nums;
-}
-.im-channel-card[aria-selected="true"],
-.im-common-trigger[aria-selected="true"] {
-  background: var(--artemis-color-interaction-selected);
-  border-color: var(--artemis-color-border-strong);
-}
-.im-detail,
-.im-wizard {
+  gap: 10px;
   min-width: 0;
   min-height: 0;
-  /* The settings surface owns scrolling; keep room for controls' focus rings. */
   padding: 4px;
 }
-.im-detail [data-artemis-component="management-section"],
-.resource-management-section {
+.im-flow-card {
+  /* border-radius: inherit on the head picks up 0 from its h3 wrapper. */
+  --im-flow-radius: calc(var(--artemis-radius-md, 10px) - 1px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-md, 10px);
+  background: var(--artemis-color-surface, transparent);
+}
+.im-flow-card[data-done="true"] {
+  border-color: color-mix(in srgb, var(--success) 26%, var(--border-soft));
+}
+.im-flow-head-h {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.im-flow-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 10px 14px;
   border: 0;
+  border-radius: var(--im-flow-radius);
   background: transparent;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+}
+/* Barely-there wash of the text color: reads as a highlight, not a gray fill. */
+.im-flow-head:hover,
+.im-flow-head:focus-visible {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+}
+.im-flow-card[data-open="true"] .im-flow-head {
+  border-radius: var(--im-flow-radius) var(--im-flow-radius) 0 0;
+}
+.im-flow-num {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 22px;
+  block-size: 22px;
+  flex: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  color: var(--muted);
+}
+.im-flow-card[data-done="true"] .im-flow-num {
+  border-color: var(--success);
+  color: var(--success);
+}
+/* 完成角标：语义图标保留，右下角小 ✓ 徽章表达完成（不再整位换成对勾） */
+.im-flow-num-check {
+  position: absolute;
+  right: -3.5px;
+  bottom: -3.5px;
+  display: grid;
+  place-items: center;
+  inline-size: 11px;
+  block-size: 11px;
+  border-radius: 50%;
+  background: var(--success);
+  /* 深色主题 success 为亮绿（#4ade80 档），徽章前景换深色保对比 */
+  color: light-dark(#fff, #0a2210);
+  line-height: 0;
+}
+.im-flow-num-check svg {
+  stroke-width: 3;
+}
+.im-flow-title {
+  font-size: 13px;
+  font-weight: 560;
+}
+.im-flow-summary {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-flow-caret {
+  flex: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+.im-flow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+/* 步骤卡是唯一容器：卡内管理分区去卡片壳（背景/边框/圆角/内距），
+   只保留标题、描述与内容的排版结构。 */
+.im-flow-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   padding: 0;
 }
-.im-detail [data-artemis-component="management-section"] [data-part="title"] {
-  font-size: 13.5px;
-  font-weight: 620;
+/* 卡内的旧向导编号标题（如「4 · 绑定你的 IM 账号」）与外层卡标题重复，
+   视觉隐藏（sr-only 保住 aria-labelledby 的可访问名），描述保留。 */
+.im-flow-section > header h2 {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-.im-guide-link {
-  align-self: flex-start;
+/* 卡内排版规整：正文从全局 14px 收到 12.5px，指令 code 12px 等宽，
+   与分区标题（12px/650）、说明（11px）构成合理梯度。 */
+.im-flow-body p,
+.im-flow-body li,
+.im-flow-body summary {
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.im-flow-body .im-identifier {
   font-size: 12px;
+}
+/* ④卡：三档模式与内置临时会话行。 */
+.im-mode-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.im-mode-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.im-mode-tier input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.im-mode-tier.on {
+  border-color: var(--artemis-color-border-strong);
+  background: var(--artemis-color-interaction-selected);
+}
+.im-mode-tier strong {
+  font-size: 12.5px;
+  font-weight: 560;
+}
+.im-mode-tier small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* ⑤卡：测试任务诚实版四段轨道。 */
+.im-test-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--artemis-color-surface-sunken);
+  list-style: none;
+}
+.im-test-track li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-test-track li::before {
+  content: "";
+  inline-size: 7px;
+  block-size: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+.im-test-track li[data-state="done"] {
+  color: var(--text);
+}
+.im-test-track li[data-state="done"]::before {
+  background: var(--success);
+  opacity: 1;
+}
+.im-test-track li[data-state="guide"] {
+  font-style: normal;
+  opacity: 0.85;
+}
+/* ===== 三步版（2026-09 原型迁移）：② 渠道 tab 条 / ②尾验证段 / ③尾完成仪式 ===== */
+/* 渠道 tab 吸顶：停靠线必须与滚动容器的 overflow 裁剪线重合。Chromium 的 sticky
+   参照滚动容器 content box 顶（= 裁剪线 + padding-top）；设置面板滚动容器是
+   [data-part="content"]（packages/ui，padding 18px 22px）——top: -18px 抵消这段
+   padding，否则停靠线上方留出穿透带，滚过的内容从 tab 条上方露出（原型已踩）。
+   背景必须不透明（surface-base 与面板同底），否则内容从条后透出。 */
+.im-channel-tabs {
+  position: sticky;
+  top: -18px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* 下 margin 负值抵消 .im-flow-body 的 12px gap：条底 padding 直接贴住
+     渠道主体，避免 margin+gap+padding 三层间距叠加把内容推远 */
+  margin: 0 -14px -12px;
+  padding: 4px 14px 8px;
+  background: var(--artemis-color-surface-base);
+}
+.im-channel-tab {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  background: var(--artemis-color-surface-base);
+  cursor: pointer;
+  text-align: start;
+}
+.im-channel-tab[aria-selected="true"] {
+  border-color: var(--artemis-color-border-strong, var(--border));
+  background: var(--selected);
+}
+/* tab 仅渠道名 + 信号灯：未配置渠道名降为次要色，已配置（有连接/已存
+   凭据）提亮区分；连接状态由名称前信号灯表达（绿=正常/红=异常/黄=连接中）。 */
+.im-channel-tab strong {
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--muted);
+}
+.im-channel-tab[data-configured] strong {
+  color: var(--text);
+}
+.im-channel-tab .im-dot {
+  flex: none;
+}
+.im-channel-tab[data-connection-state="error"] {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-soft));
+}
+/* 吸顶停靠态投影（scroll 监听加 .stuck）：与卡内滚过内容区分。 */
+.im-channel-tabs.stuck {
+  box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.28);
+}
+html[data-theme="dark"] .im-channel-tabs.stuck,
+:root[data-theme="dark"] .im-channel-tabs.stuck {
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.7);
+}
+/* ②尾「顺手验证」折叠段：与卡内容同层级，仅细分隔。 */
+.im-verify {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+.im-verify-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.im-verify-toggle:hover {
+  color: var(--accent);
+}
+.im-verify-caret {
+  font-size: 13px;
+  color: var(--muted);
+}
+.im-verify-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-fine {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+/* ③尾完成仪式：三步全✓后的完成块（克制绿调，同已完成卡的语义色）。 */
+.im-ceremony {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: var(--artemis-radius-md, 10px);
+  background: color-mix(
+    in srgb,
+    var(--success) 8%,
+    var(--artemis-color-surface-base)
+  );
+}
+.im-ceremony-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 590;
+  color: var(--success);
+}
+.im-ceremony-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* ===== ③卡重排：说明/提示统一子区（边框包裹、可收起）+ 项目列表分区标题 ===== */
+.im-perm-guide {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  padding: 2px 10px;
+}
+.im-perm-guide summary {
+  cursor: pointer;
+  padding: 5px 0;
+  font-size: 11.5px;
+  font-weight: 510;
+  color: var(--muted);
+}
+.im-perm-guide summary:hover {
+  color: var(--text);
+}
+.im-perm-guide[open] summary {
+  border-bottom: 1px dashed var(--border-soft);
+  margin-bottom: 8px;
+}
+.im-perm-guide-body p {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.im-perm-guide-body p:last-child {
+  margin-bottom: 6px;
+}
+/* 渠道顶部接入指引：标题条无边框；边框圆角加在展开后的内容容器上。
+   summary 选择器带 .im-settings/details 前缀，压过全局 details summary
+   的 12px 纵向内边距。 */
+.im-settings details.im-setup-guide-top > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+.im-setup-guide-top summary::-webkit-details-marker {
+  display: none;
+}
+.im-setup-guide-top summary::after {
+  content: "▾";
+  color: var(--muted);
+  font-size: 13px;
+}
+.im-setup-guide-top:not([open]) summary::after {
+  content: "▸";
+}
+.im-setup-guide-top summary:hover {
+  color: var(--accent);
+}
+.im-setup-guide-top[open] summary {
+  margin-bottom: 4px;
+}
+/* 展开后的指引内容：圆角全边框容器。 */
+.im-setup-guide-top[open] .im-setup-guide-body {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  padding: 10px;
+}
+.im-project-list-title {
+  margin: 2px 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-2, var(--muted));
+}
+.im-connection .im-icon-action {
+  flex: none;
+}
+.im-icon-action:focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: 1px;
+}
+/* 行内动作组（更换凭据/刷新/配对码）推到行尾，移除按钮跟随其后；
+   hover 不上底色，仅提亮（移除按钮保持 danger 红的警示语义）。 */
+.im-connection > .im-icon-action:first-of-type {
+  flex: none;
+  margin-inline-start: auto;
+}
+.im-connection > .im-icon-action:hover {
+  color: var(--text);
+}
+/* 从属账号子列表：整行换行、缩进对齐机器人名称。 */
+.im-connection > .im-accounts {
+  flex-basis: 100%;
+  padding-inline-start: 14px;
+  margin-block-start: 3px;
+  gap: 5px;
+}
+.im-connection > .im-accounts .im-identity {
+  padding-block: 2px;
+}
+/* 连接 ID 浮窗：bot 名称后的信息图标，点开展示完整 ID + 复制。 */
+.im-bot-id {
+  position: relative;
+  display: inline-flex;
+}
+.im-bot-id .im-icon-action:hover {
+  color: var(--text);
+}
+.im-bot-id-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  white-space: nowrap;
+}
+.im-bot-id-pop code {
+  font-family: var(--artemis-typography-mono-family);
+  font-size: 11px;
+  color: var(--muted);
+}
+@media (max-width: 720px) {
+  .im-mode-tiers {
+    grid-template-columns: 1fr;
+  }
 }
 .im-block {
   padding-block: 12px;
   border-block: 1px solid var(--border-soft);
 }
-.im-block-header h4 {
-  margin-inline-end: auto;
-}
 .im-settings h4 {
   margin-block: 0 8px;
 }
-.im-credentials {
+.im-bots {
   display: grid;
   gap: 12px;
 }
@@ -10114,107 +10617,8 @@ kbd {
   font-family: var(--artemis-typography-mono-family);
   overflow-wrap: anywhere;
 }
-.im-setup-steps {
-  list-style: none;
-  padding-inline-start: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-}
-.im-settings .im-setup-steps li {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  column-gap: 8px;
-  margin: 0;
-  padding: 9px 10px;
-  border-bottom: 0;
-  align-items: center;
-  gap: 10px;
-  border: 0;
-  border-radius: 8px;
-}
-.im-setup-steps button {
-  justify-content: flex-start;
-  white-space: normal;
-  text-align: start;
-}
-.im-setup-steps p {
-  display: none;
-  grid-column: 1 / -1;
-  color: var(--muted);
-}
-.im-setup-steps .is-current p {
-  display: block;
-}
-.im-setup-steps .is-current button {
-  color: var(--blue);
-}
-.im-step-status {
-  font-size: 11px;
-  margin: 0;
-  color: var(--muted);
-}
-.im-platform-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-block: 12px;
-}
-.im-platform-card {
-  display: flex;
-  flex-direction: column;
-  text-align: start;
-  align-items: flex-start;
-  padding: 10px;
-  white-space: normal;
-  border: 1px solid var(--artemis-color-border-surface);
-}
-.im-platform-card span {
-  font-weight: normal;
-  font-size: 11px;
-  color: var(--muted);
-}
-.im-settings[data-compact="true"] .im-layout {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
-}
-.im-settings[data-compact="true"] .im-channel-list {
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  border-inline-end: 0;
-  border-bottom: 1px solid var(--border-soft);
-  padding: 0 0 8px;
-}
 .plugin-market-copy {
   flex: 1;
-}
-.im-settings[data-compact="true"] .im-channel-card {
-  padding: 7px 9px;
-  align-items: center;
-  border: 1px solid var(--border-soft);
-  background: var(--artemis-color-surface-sunken);
-}
-.im-settings[data-compact="true"] .im-channel-card[aria-selected="true"] {
-  background: var(--artemis-color-interaction-selected);
-  border-color: var(--artemis-color-border-strong);
-}
-.im-common-trigger {
-  white-space: normal;
-  max-width: 36%;
-}
-.im-common-menu [data-part="content"],
-.im-platform-card [data-part="label"] {
-  display: grid;
-  gap: 4px;
-}
-.im-common-menu [role="menuitem"] {
-  justify-content: flex-start;
 }
 .im-settings :is(button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);
@@ -10224,34 +10628,8 @@ kbd {
   .im-dot {
     color: CanvasText;
   }
-  .im-channel-card[aria-selected="true"],
-  .im-common-trigger[aria-selected="true"] {
-    outline: 2px solid Highlight;
-  }
 }
 
-.im-channel-card,
-.im-common-trigger,
-.im-common-menu [role="menuitem"] {
-  font: inherit;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--artemis-radius-control);
-  cursor: pointer;
-  padding: 8px;
-}
-.im-channel-card:hover,
-.im-common-trigger:hover,
-.im-common-menu [role="menuitem"]:hover {
-  background: var(--artemis-color-interaction-hover);
-}
-.im-settings[data-compact="true"] .im-layout {
-  min-height: 240px;
-}
-.im-setup-steps .is-current {
-  background: var(--artemis-color-interaction-selected);
-}
 /* At high zoom, keep every outer tab reachable without consuming the IM viewport. */
 @media (max-width: 52rem) and (max-height: 36rem) {
   .settings-panel:has(.im-settings)
@@ -10324,10 +10702,6 @@ kbd {
 .composer-context-trigger > svg:last-child {
   width: 9px;
   height: 9px;
-}
-.settings-panel::backdrop {
-  backdrop-filter: none;
-  background: rgb(0 0 0 / 32%);
 }
 .settings-header {
   border-block-end: 0;
@@ -11029,64 +11403,6 @@ kbd {
   margin-inline-start: auto;
   gap: 12px;
   max-width: 100%;
-}
-
-.im-settings .im-channel-card {
-  gap: 6px;
-  padding: 7px 9px;
-}
-
-.im-setup-guide {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  gap: 12px;
-}
-
-.im-setup-guide > [data-part="header"] [data-part="title"] {
-  font-size: 12.5px;
-  font-weight: 510;
-  color: var(--artemis-color-text-secondary);
-}
-
-.im-setup-guide > [data-part="header"] [data-part="description"] {
-  font-size: 11.5px;
-}
-
-.im-step-mark {
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  color: var(--artemis-color-text-tertiary);
-}
-
-.im-setup-steps .im-step-button {
-  justify-content: flex-start;
-  align-items: stretch;
-  min-width: 0;
-  min-height: 0;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  text-align: start;
-}
-
-.im-step-button strong {
-  font-size: 12.5px;
-  font-weight: 590;
-  line-height: 18.75px;
-  color: var(--artemis-color-text-primary);
-}
-
-.im-step-button small {
-  font-size: 11px;
-  line-height: 16.5px;
-  color: var(--artemis-color-text-tertiary);
-}
-
-.im-setup-steps .is-current .im-step-mark {
-  color: var(--artemis-color-accent-primary);
 }
 
 .settings-header [data-variant="quiet"] {
@@ -11883,67 +12199,39 @@ kbd {
   color: var(--muted);
   font-size: 12px;
 }
-.im-channel-card {
-  border: 0;
-  border-radius: var(--artemis-radius-control);
-  background: transparent;
-}
-.im-channel-card[aria-selected="true"] {
-  background: var(--artemis-color-interaction-selected);
-}
-.im-channel-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 560;
-}
-.im-channel-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.im-settings[data-compact="false"] .im-nav-item:nth-child(5) {
-  margin-top: 10px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border-soft);
-}
 .im-dot {
   background: currentColor;
 }
 .im-dot[data-state="connected"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-success-subtle);
 }
-.im-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.im-detail > section[tabindex="-1"]:focus {
-  outline: none;
-}
-.im-channel-section > [data-part="header"] {
-  align-items: flex-start;
-}
-.im-channel-section > [data-part="content"] {
-  gap: 12px;
-}
-.im-channel-section [data-artemis-component="button"] {
-  min-height: 28px;
-  font-size: 12px;
-}
 .im-block {
   border: 0;
   padding-block: 8px;
 }
-.im-credentials {
-  gap: 8px;
+.im-bots {
+  gap: 6px;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
 }
-.im-settings
+/* 带从属账号的条目与下一条目之间拉开少量分组间隔。 */
+.im-bots .im-connection:has(> .im-accounts:not(:empty)) {
+  margin-block-end: 4px;
+}
+/* 「机器人列表」标题行：新建入口推到行尾。 */
+.im-bots .im-block-header h4 {
+  margin-inline-end: auto;
+}
+.im-bots .im-block-header .im-icon-action svg {
+  width: 20px;
+  height: 20px;
+}
+/* 凭据弹窗：表单纵向节奏与渠道内容区一致。 */
+.im-bot-dialog-body {
+  display: grid;
+  gap: 12px;
+}
+:is(.im-settings, .im-bot-dialog, .im-grant-dialog)
   :is(
     [data-artemis-component="text-field"],
     [data-artemis-component="select"],
@@ -11952,7 +12240,7 @@ kbd {
   min-width: 0;
   max-width: 100%;
 }
-.im-settings
+:is(.im-settings, .im-bot-dialog, .im-grant-dialog)
   :is([data-artemis-component="text-field"], [data-artemis-component="select"])
   :is([data-part="control"], [data-part="trigger"]) {
   box-sizing: border-box;
@@ -11979,9 +12267,8 @@ kbd {
   align-content: start;
 }
 .im-platform-setup {
-  padding: 4px 0 12px;
+  padding: 0;
   gap: 8px;
-  border-bottom: 1px solid var(--border-soft);
 }
 .im-platform-setup details > summary,
 .im-advanced-fields > summary {
@@ -12036,23 +12323,19 @@ kbd {
 .im-advanced-fields {
   margin-block: 4px;
 }
-.im-credential-location,
 .im-connection,
 .im-account-copy {
   font-size: 12px;
-}
-.im-credential-location {
-  color: var(--muted);
-  margin: 0;
 }
 .im-settings h4 {
   font-size: 12px;
   margin: 4px 0;
 }
-.im-block-header h4 {
-  margin-inline-end: auto;
+/* 机器人名称：纯文本（无背板）；指令码保留背板。 */
+.im-connection code {
+  color: var(--text);
+  font-size: 12px;
 }
-.im-connection code,
 .im-account-copy code {
   border: 1px solid var(--border-soft);
   border-radius: 6px;
@@ -12060,8 +12343,22 @@ kbd {
   color: var(--muted);
   font-size: 11px;
 }
-.im-secondary-action {
-  align-self: flex-start;
+/* 渠道内容区统一纵向节奏：条目间距由容器 gap 承担，清零子项自带的
+   外边距/内边距，避免大段留白与贴行混排。 */
+.im-channel-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.im-channel-body > * {
+  margin-block: 0;
+}
+.im-channel-body h4 {
+  margin-block: 0;
+}
+.im-channel-body .im-block {
+  padding-block: 0;
 }
 .im-account-copy {
   display: flex;
@@ -12090,10 +12387,6 @@ kbd {
 .im-pairing-request .im-actions {
   margin-inline-start: auto;
 }
-.im-guide-link {
-  align-self: flex-start;
-}
-
 /* Consecutive tool calls share one disclosure and a divided list. */
 .tool-card[data-artemis-component="tool-activity"] {
   gap: 6px;
@@ -12389,10 +12682,12 @@ kbd {
 }
 
 /* Latest IM design: signal states and compact account actions. */
-.im-dot[data-state="error"] {
+.im-dot[data-state="error"],
+.im-dot[data-state="partial_error"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-danger-subtle);
 }
-.im-dot[data-state="connecting"] {
+.im-dot[data-state="connecting"],
+.im-dot[data-state="saving"] {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent);
   animation: im-dot-pulse 1.6s ease-in-out infinite;
 }
@@ -12406,7 +12701,8 @@ kbd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .im-dot[data-state="connecting"] {
+  .im-dot[data-state="connecting"],
+  .im-dot[data-state="saving"] {
     animation: none;
   }
 }
@@ -12430,38 +12726,6 @@ kbd {
   width: 17px;
   height: 17px;
 }
-.im-common-trigger {
-  margin-inline-start: auto;
-  font-size: 12px;
-  line-height: 18px;
-  padding: 4px 8px;
-}
-.im-common-menu {
-  min-inline-size: 160px;
-  padding: 4px;
-  border-radius: 8px;
-}
-.im-common-menu [data-part="content"] {
-  gap: 0;
-}
-.im-common-menu [role="menuitem"] {
-  min-height: 28px;
-  padding: 4px 8px;
-  font-size: 12px;
-  line-height: 18px;
-  text-align: left;
-  border-radius: 6px;
-}
-.im-settings[data-compact="false"]
-  .im-nav-item:nth-child(n + 5)
-  .im-channel-title {
-  font-size: 12px;
-  font-weight: 510;
-}
-.im-channel-status {
-  flex: none;
-}
-
 .nested-project
   > .project-row:not(.active)
   > :is(.project-new-thread, .project-action) {

@@ -62,12 +62,27 @@ export const imDataScopeSchema = z
   })
   .strict()
   .superRefine((scope, ctx) => {
-    if (scope.filePaths?.some((p) => !scope.readPaths.includes(p)))
+    // An empty readPaths grants the whole project root (default grant: read
+    // everything, write nothing), so writable paths are not constrained by
+    // it; non-empty readPaths keep the explicit subset invariants.
+    const wholeProject = scope.readPaths.length === 0;
+    if (wholeProject && scope.filePaths?.length)
+      ctx.addIssue({
+        code: "custom",
+        message: "File roots require explicit readable paths",
+      });
+    if (
+      !wholeProject &&
+      scope.filePaths?.some((p) => !scope.readPaths.includes(p))
+    )
       ctx.addIssue({
         code: "custom",
         message: "File roots must be explicitly readable",
       });
-    if (scope.writePaths.some((p) => !imPathWithinScope(p, scope.readPaths)))
+    if (
+      !wholeProject &&
+      scope.writePaths.some((p) => !imPathWithinScope(p, scope.readPaths))
+    )
       ctx.addIssue({
         code: "custom",
         message: "Writable paths must be inside readable paths",

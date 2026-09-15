@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@artemis/ui/actions";
+import { Dialog } from "@artemis/ui/feedback";
 import { TextField } from "@artemis/ui/forms";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import type { ImTranslate } from "./ImNavigation";
 
+/**
+ * Connection-row trash action: an icon button inline with the row; the
+ * confirmation (and the team-Gateway administrator token field when needed)
+ * opens in a modal dialog instead of expanding in place.
+ */
 export function ImConnectionRemoval({
   name,
   local,
@@ -19,76 +26,79 @@ export function ImConnectionRemoval({
   const [confirming, setConfirming] = useState(false);
   const [token, setToken] = useState("");
   const trigger = useRef<HTMLButtonElement>(null);
-  const confirmation = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (confirming) confirmation.current?.focus();
-  }, [confirming]);
   function cancel() {
     setConfirming(false);
     setToken("");
-    trigger.current?.focus();
   }
   return (
     <div className="im-connection-removal">
-      <Button
-        variant="quiet"
-        className="management-text-action is-destructive"
+      {/* ui Button 契约要求可见文字；纯图标动作用原生按钮（aria-label 可达性）。 */}
+      <button
+        type="button"
+        className="im-icon-action"
         disabled={busy}
+        title={t("移除连接", "Remove connection")}
+        aria-label={t(`移除连接 ${name}`, `Remove connection ${name}`)}
         onClick={(event) => {
           trigger.current = event.currentTarget;
           setConfirming(true);
         }}
       >
-        {t("移除连接", "Remove connection")}
-      </Button>
+        <ArtemisIcon height={13} name="trash" width={13} />
+      </button>
       {confirming && (
-        <div
-          ref={confirmation}
-          tabIndex={-1}
-          className="im-field-stack"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && !busy) {
-              event.preventDefault();
-              event.stopPropagation();
-              cancel();
-            }
+        <Dialog
+          className="im-removal-dialog"
+          label={t(`移除连接 · ${name}`, `Remove connection · ${name}`)}
+          returnFocusRef={trigger}
+          onOpenChange={(open) => {
+            if (!open) cancel();
           }}
+          open
         >
-          <p>
-            {t(
-              `确认移除“${name}”？将停止机器人连接、删除保存的应用凭据并解除该连接的账号绑定。重新连接需要再次填写凭据和配对。`,
-              `Remove “${name}”? This stops the bot, deletes its saved credentials and unpairs its accounts. Reconnecting requires credentials and pairing again.`,
+          <header>
+            <h2>{t(`确认移除“${name}”？`, `Remove “${name}”?`)}</h2>
+          </header>
+          <div className="im-removal-dialog-body">
+            <p>
+              {t(
+                "将停止机器人连接、删除保存的应用凭据并解除该连接的账号绑定。重新连接需要再次填写凭据和配对。",
+                "This stops the bot, deletes its saved credentials and unpairs its accounts. Reconnecting requires credentials and pairing again.",
+              )}
+            </p>
+            {!local && (
+              <TextField
+                label={t(
+                  "移除连接的管理凭据",
+                  "Administrator token for removal",
+                )}
+                type="password"
+                value={token}
+                onValueChange={setToken}
+                autoComplete="off"
+                disabled={busy}
+              />
             )}
-          </p>
-          {!local && (
-            <TextField
-              label={t("移除连接的管理凭据", "Administrator token for removal")}
-              type="password"
-              value={token}
-              onValueChange={setToken}
-              autoComplete="off"
-              disabled={busy}
-            />
-          )}
-          <div className="im-actions">
-            <Button
-              variant="danger"
-              disabled={busy || (!local && !token)}
-              onClick={() => {
-                const credential = token;
-                setToken("");
-                void remove(credential).then((success) => {
-                  if (success) setConfirming(false);
-                });
-              }}
-            >
-              {t("确认移除", "Confirm removal")}
-            </Button>
-            <Button disabled={busy} onClick={cancel}>
-              {t("取消", "Cancel")}
-            </Button>
+            <div className="im-actions">
+              <Button
+                variant="danger"
+                disabled={busy || (!local && !token)}
+                onClick={() => {
+                  const credential = token;
+                  setToken("");
+                  void remove(credential).then((success) => {
+                    if (success) setConfirming(false);
+                  });
+                }}
+              >
+                {t("确认移除", "Confirm removal")}
+              </Button>
+              <Button disabled={busy} onClick={cancel}>
+                {t("取消", "Cancel")}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

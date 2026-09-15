@@ -10,6 +10,7 @@ import * as imSandbox from "../src/main/im-sandbox.js";
 import {
   executionGrantSchema,
   imConversationKey,
+  IM_ADHOC_PROJECT_ID,
   type AgentEvent,
   type ChannelEvent,
   type CollaborationTask,
@@ -116,7 +117,7 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
     create: async (id, projectId, mode, title) => {
       const t: Thread = {
         id,
-        projectId,
+        projectId: projectId ?? null,
         mode,
         title,
         target: "local",
@@ -1385,17 +1386,154 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/stop");
     expect(f.threads[0]?.status).toBe("idle");
   });
-  it("denies an unpaired sender and a revoked project before task creation", async () => {
+  it("denies an unpaired sender before task creation", async () => {
     const f = await fixture();
     await f.send("/new steal", undefined, "bob");
     expect(f.starts).toHaveLength(0);
+    expect(f.threads).toHaveLength(0);
+  });
+  it("requires renewed consent when legacy empty read scopes acquire whole-project meaning", async () => {
+    const f = await fixture();
+    const settings = f.service.status().settings;
+    await f.service.save({
+      ...settings,
+      grants: settings.grants.map((grant) => ({
+        ...grant,
+        security: {
+          ...grant.security!,
+          scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+        },
+      })),
+    });
+    await f.service.close();
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    db.prepare(
+      "DELETE FROM im_state WHERE namespace='migrations' AND id='whole-project-reads'",
+    ).run();
+    db.close();
+    const upgraded = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => upgraded.close());
+    expect(upgraded.status().settings.grants[0]!.security!.confirmedAt).toBe(0);
+    const current = upgraded.status().settings;
+    await upgraded.save({
+      ...current,
+      grants: current.grants.map((grant) => ({
+        ...grant,
+        security: { ...grant.security!, confirmedAt: Date.now() },
+      })),
+    });
+    await upgraded.close();
+    const reopened = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => reopened.close());
+    expect(
+      reopened.status().settings.grants[0]!.security!.confirmedAt,
+    ).toBeGreaterThan(0);
+  });
+  it("starts zero-grant owner chats as plan-only ad-hoc tasks and keeps them scoped", async () => {
+    const f = await fixture();
     await f.service.save({
       ...f.service.status().settings,
       defaultProjectId: "",
       grants: [],
     });
-    await f.send("/new no grant");
-    expect(f.threads).toHaveLength(0);
+    await f.send("/new quick advice");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]).toMatchObject({
+      projectId: null,
+      mode: "plan",
+      title: "临时 · 企业微信 · quick advice",
+    });
+    const deliveries = () =>
+      f.gateway.store.pending<{ text: string }>("outgoing");
+    expect(deliveries().at(-1)!.payload.text).toContain(
+      "已启动临时任务（仅咨询分析，不访问项目文件）",
+    );
+    // Follow-ups continue the same temporary conversation.
+    await f.send("more context");
+    expect(f.threads).toHaveLength(1);
+    expect(f.queued).toHaveLength(1);
+    expect(f.queued[0]).toContain("[IM ad-hoc plan task");
+    // Execute never leaves the built-in ad-hoc grant.
+    expect(() =>
+      f.service.authorizeThread(f.threads[0]!.id, "execute"),
+    ).toThrow("Remote Execute is not authorized for this project.");
+    expect(f.service.profile(f.threads[0]!.id)).toMatchObject({
+      network: false,
+      shell: false,
+    });
+    // /tasks lists the ad-hoc task for its owner chat.
+    await f.send("/tasks");
+    expect(deliveries().at(-1)!.payload.text).toContain("临时 · 企业微信");
+    // /projects explains the ad-hoc path instead of dead-ending.
+    await f.send("/projects");
+    expect(deliveries().at(-1)!.payload.text).toContain("临时任务");
+  });
+  it("defaults plain owner messages to the ad-hoc chat while groups still pick explicitly", async () => {
+    const f = await fixture();
+    f.ops.projects().push({ ...f.ops.projects()[0]!, id: "other-project" });
+    await f.service.save({
+      ...f.service.status().settings,
+      defaultProjectId: "",
+      grants: [
+        ...f.service.status().settings.grants,
+        executionGrantSchema.parse({
+          projectId: "other-project",
+          security: security("owner"),
+          expiresAt: Date.now() + 600000,
+        }),
+      ],
+    });
+    // 初始未设置默认项目：普通消息落临时会话，不卡在引导。
+    await f.send("/new ambiguous");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "plan" });
+    // 群聊没有临时会话语义：未配置空间时走群引导，不会静默落临时任务。
+    f.gateway.router.ingest({
+      version: 1 as const,
+      messageId: randomUUID(),
+      identity: f.identity,
+      conversation: {
+        connectionId: "w",
+        id: "group-1",
+        kind: "group" as const,
+        spaceId: "space-1",
+      },
+      text: "/new in group",
+      timestamp: Date.now(),
+      mentioned: true,
+      bot: false,
+      attachments: [],
+    });
+    await f.service.poll();
+    expect(f.threads).toHaveLength(1);
+    const deliveries = () =>
+      f.gateway.store.pending<{ text: string }>("outgoing");
+    expect(deliveries().at(-1)!.payload.text).toContain("群协作空间尚未配置");
+  });
+  it("keeps an explicit ad-hoc default and a real project default distinct", async () => {
+    const f = await fixture();
+    f.ops.projects().push({ ...f.ops.projects()[0]!, id: "other-project" });
+    await f.service.save({
+      ...f.service.status().settings,
+      defaultProjectId: IM_ADHOC_PROJECT_ID,
+      grants: [
+        ...f.service.status().settings.grants,
+        executionGrantSchema.parse({
+          projectId: "other-project",
+          security: security("owner"),
+          expiresAt: Date.now() + 600000,
+        }),
+      ],
+    });
+    // 哨兵默认：即使多个项目已授权，普通消息仍进临时会话。
+    await f.send("/new sentinel default");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "plan" });
+    // /project 显式选择后，普通消息回到所选项目。
+    await f.send("/project project");
+    await f.send("project follow-up");
+    expect(f.threads).toHaveLength(2);
+    expect(f.threads[1]).toMatchObject({ projectId: "project" });
   });
   it.each(["wecom", "feishu", "slack"] as const)(
     "%s creates a new task after deletion without replaying the deleted task",

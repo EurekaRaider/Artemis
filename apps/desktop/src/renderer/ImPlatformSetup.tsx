@@ -21,12 +21,12 @@ export function ImPlatformSetup({
     );
   return (
     <div className="im-platform-setup">
-      <h4>{t("1 · 准备机器人", "1 · Prepare your bot")}</h4>
+      <h4>{t("准备机器人", "Prepare your bot")}</h4>
       <p>
         {feishu
           ? t(
-              "在飞书里创建一个应用机器人，再把应用凭据粘贴到下方。默认只需 App ID 和 App Secret，企业标识和机器人编号会自动获取。",
-              "Create a Feishu app bot and paste its credentials below. By default, only App ID and App Secret are needed; tenant and bot IDs are retrieved automatically.",
+              "在飞书开放平台创建企业自建应用并添加机器人能力，然后点「新建 BOT 连接」，在弹窗里填入 App ID 和 App Secret 即可；企业标识和机器人编号会自动获取。",
+              "Create a custom app with the Bot capability on the Feishu developer console, then click New bot connection and fill in App ID and App Secret in the dialog; tenant and bot IDs are retrieved automatically.",
             )
           : t(
               "在企业微信里创建智能机器人，使用长连接接入。这台电脑无需公网地址，也不用部署服务器。",
@@ -55,12 +55,12 @@ export function ImPlatformSetup({
           <p>
             {feishu
               ? t(
-                  "Tenant Key 是团队的内部标识，不是团队名称、企业编号或 App ID。默认无需查询；自动获取失败时，可在飞书 API 调试台运行「获取企业信息」，复制 data.tenant.tenant_key 到高级设置。",
-                  "Tenant Key identifies the team; it is not a team name, enterprise display ID or App ID. Normally no lookup is needed. If automatic lookup fails, use Get tenant information in the API Explorer and copy data.tenant.tenant_key into Advanced settings.",
+                  "Tenant Key 是团队的内部标识，不是团队名称、企业编号或 App ID。默认无需查询；自动获取失败时，可在飞书 API 调试台运行「获取企业信息」，复制 data.tenant.tenant_key 到「新建 BOT 连接」的高级设置。",
+                  "Tenant Key identifies the team; it is not a team name, enterprise display ID or App ID. Normally no lookup is needed. If automatic lookup fails, use Get tenant information in the API Explorer and copy data.tenant.tenant_key into Advanced settings of New bot connection.",
                 )
               : t(
-                  "企业 ID 获取路径：企业微信官网 → 企业登录 → 我的企业 → 企业信息 → 页面底部「企业 ID」（Corp ID，通常以 ww 开头）。复制到下方；它不是营业执照编号、个人微信号或 Bot ID。",
-                  "Get your Corp ID: WeCom website → Enterprise login → My enterprise → Enterprise information → Enterprise ID at the bottom (usually starts with ww). Copy it below; it is not a business registration number, personal WeChat ID or Bot ID.",
+                  "企业 ID 获取路径：企业微信官网 → 企业登录 → 我的企业 → 企业信息 → 页面底部「企业 ID」（Corp ID，通常以 ww 开头）。复制到「新建 BOT 连接」弹窗；它不是营业执照编号、个人微信号或 Bot ID。",
+                  "Get your Corp ID: WeCom website → Enterprise login → My enterprise → Enterprise information → Enterprise ID at the bottom (usually starts with ww). Paste it into the New bot connection dialog; it is not a business registration number, personal WeChat ID or Bot ID.",
                 )}
           </p>
         </details>
@@ -89,18 +89,18 @@ export function ImPlatformSetup({
                 <li>
                   {transport === "webhook"
                     ? t(
-                        "使用有公网 HTTPS 地址的团队服务。在飞书「事件与回调」中复制 Verification Token 和 Encrypt Key，和应用凭据一起保存到 Artemis。再复制 Artemis 显示的回调地址，填入飞书的事件配置，订阅「接收消息」（im.message.receive_v1），保存并发布。",
-                        "Use a team service with a public HTTPS URL. Copy Verification Token and Encrypt Key from Feishu Events & callbacks and save them with the app credentials in Artemis. Copy the callback URL displayed by Artemis into Feishu event settings, subscribe to Receive message (im.message.receive_v1), save and publish.",
+                        "使用有公网 HTTPS 地址的团队服务。在飞书「事件与回调」中复制 Verification Token 和 Encrypt Key，与应用凭据一起在「新建 BOT 连接」弹窗中保存。保存后复制机器人行下的回调地址，填入飞书的事件配置，订阅「接收消息」（im.message.receive_v1），保存并发布。",
+                        "Use a team service with a public HTTPS URL. Copy Verification Token and Encrypt Key from Feishu Events & callbacks and save them with the app credentials in the New bot connection dialog. Copy the callback URL under the bot row into Feishu event settings, subscribe to Receive message (im.message.receive_v1), save and publish.",
                       )
                     : t(
-                        "回到 Artemis 填写下方两项凭据并保存，先建立长连接。再回飞书「事件与回调」→「事件配置」，选择「使用长连接接收事件」，添加「接收消息」（im.message.receive_v1），保存并发布。若提示未建立连接，请保持 Artemis 打开并检查连接状态。",
-                        "Save the two credentials in Artemis to establish a long connection first. Then open Events & callbacks → Event configuration in Feishu, select long connection delivery, add Receive message (im.message.receive_v1), save and publish. Keep Artemis open if the console cannot find the connection.",
+                        "回 Artemis 点「新建 BOT 连接」，填入 App ID 和 App Secret 并保存，先建立长连接。再回飞书「事件与回调」→「事件配置」，选择「使用长连接接收事件」，添加「接收消息」（im.message.receive_v1），保存并发布。若提示未建立连接，保持 Artemis 打开并检查连接状态。",
+                        "Back in Artemis, click New bot connection, fill in App ID and App Secret and save to establish the long connection first. Then open Events & callbacks → Event configuration in Feishu, select long connection delivery, add Receive message (im.message.receive_v1), save and publish. Keep Artemis open if the console cannot find the connection.",
                       )}
                 </li>
                 <li>
                   {t(
-                    "在飞书搜索应用名称并打开机器人单聊。完成下面第 3 步的账号绑定和项目授权，即可发送任务。需要审批卡片时，在回调配置中再订阅 card.action.trigger。",
-                    "Search the app name in Feishu and open its private chat. Complete account pairing and project permissions in step 3 below to send tasks. Subscribe to card.action.trigger in callback settings for approval cards.",
+                    "在飞书搜索应用名称并打开机器人单聊。点机器人行的「生成配对码」完成账号绑定，再到「授权项目」勾选项目，即可发送任务。需要审批卡片时，在回调配置中再订阅 card.action.trigger。",
+                    "Search the app name in Feishu and open its private chat. Use Generate pairing code on the bot row to pair your account, tick projects under Authorize projects, then send tasks. Subscribe to card.action.trigger in callback settings for approval cards.",
                   )}
                 </li>
               </>
@@ -120,8 +120,8 @@ export function ImPlatformSetup({
                 </li>
                 <li>
                   {t(
-                    "登录企业微信管理后台 → 我的企业 → 企业信息，从底部复制企业 ID。将企业 ID、Bot ID 和 Secret 填入下方，保存后等待“已连接”。",
-                    "In the WeCom admin console, open My enterprise → Enterprise information and copy Enterprise ID at the bottom. Paste it with Bot ID and Secret below, save and wait for Connected.",
+                    "登录企业微信管理后台 → 我的企业 → 企业信息，从底部复制企业 ID。点「新建 BOT 连接」，把企业 ID、Bot ID 和 Secret 填入弹窗保存，等待信号灯变绿。",
+                    "In the WeCom admin console, open My enterprise → Enterprise information and copy Enterprise ID at the bottom. Click New bot connection, paste Enterprise ID, Bot ID and Secret in the dialog, save and wait for the green status light.",
                   )}
                 </li>
               </>

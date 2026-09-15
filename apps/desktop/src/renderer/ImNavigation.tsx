@@ -1,10 +1,19 @@
-import { useRef, useState, type KeyboardEvent } from "react";
-import type { ImConnectionStatus } from "@artemis/protocol";
-import { Popover } from "@artemis/ui/feedback";
+import {
+  imAggregateConnectionStates,
+  type ImConnectionState,
+  type ImConnectionStatus,
+} from "@artemis/protocol";
 
 export type ImChannel = ImConnectionStatus["channel"];
 export type ImView =
-  ImChannel | "gateway" | "pairing" | "permissions" | "spaces" | "setup-guide";
+  | ImChannel
+  | "gateway"
+  | "pairing"
+  | "permissions"
+  | "spaces"
+  | "setup-guide"
+  /* 三步版：②尾验证段作为独立定位目标（不新增卡） */
+  | "test";
 export type ImTranslate = (cn: string, en: string) => string;
 export const IM_CHANNELS = ["wecom", "feishu", "slack"] as const;
 export function imChannelLabel(channel: ImChannel, t: ImTranslate) {
@@ -22,36 +31,44 @@ export function imChannelConstraint(channel: ImChannel, t: ImTranslate) {
       : t("Socket Mode · Manifest 导入", "Socket Mode · Import manifest");
 }
 export function imConnectionLabel(
-  state: ImConnectionStatus["state"] | undefined,
+  state: ImConnectionState | undefined,
   t: ImTranslate,
 ) {
   return state === "connected"
     ? t("已连接", "Connected")
     : state === "connecting"
       ? t("连接中", "Connecting")
-      : state === "error"
-        ? t("连接错误", "Connection error")
-        : state === "disabled"
-          ? t("已停用", "Disabled")
-          : t("未配置", "Not configured");
+      : state === "saving"
+        ? t("保存中", "Saving")
+        : state === "saved"
+          ? t("已保存，待连接", "Saved, awaiting connection")
+          : state === "error"
+            ? t("连接错误", "Connection error")
+            : state === "partial_error"
+              ? t("部分连接异常", "Partial connection failure")
+              : t("未配置", "Not configured");
 }
 export function imConnectionHealth(connections: readonly ImConnectionStatus[]) {
   const failed = connections.filter((c) => c.state === "error").length;
-  const connecting = connections.some((c) => c.state === "connecting");
-  const connected = connections.some((c) => c.state === "connected");
   return {
     total: connections.length,
     failed,
-    state: failed
-      ? "error"
-      : connecting
-        ? "connecting"
-        : connected
-          ? "connected"
-          : connections.length
-            ? "disabled"
-            : undefined,
+    state: imAggregateConnectionStates(connections.map((c) => c.state)),
   } as const;
+}
+/**
+ * Merge renderer-side transients over the store aggregation: `saving` while
+ * a credential PUT is in flight, and `saved` for the gap between a
+ * successful save and the next refresh that reports the connection.
+ */
+export function imChannelConnectionState(
+  connections: readonly ImConnectionStatus[],
+  options: { saving?: boolean; savedCredentials?: boolean } = {},
+): ImConnectionState {
+  if (options.saving) return "saving";
+  const state = imAggregateConnectionStates(connections.map((c) => c.state));
+  if (state === "unconfigured" && options.savedCredentials) return "saved";
+  return state;
 }
 export function imConnectionSummary(
   connections: readonly ImConnectionStatus[],
@@ -64,178 +81,4 @@ export function imConnectionSummary(
         `${total} connections, ${failed} failed`,
       )
     : t(`${total} 个连接`, `${total} connections`);
-}
-export function ImNavigation({
-  view,
-  onSelect,
-  connections,
-  compact,
-  t,
-  busy = false,
-}: {
-  view: ImView;
-  onSelect(view: ImView): void;
-  connections: ImConnectionStatus[];
-  compact: boolean;
-  busy?: boolean;
-  t: ImTranslate;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const anchor = useRef<HTMLButtonElement>(null);
-  const common = [
-    { id: "gateway", label: t("Gateway 与设备", "Gateway & device") },
-    { id: "pairing", label: t("配对与账号", "Pairing & accounts") },
-    { id: "permissions", label: t("项目授权", "Project permissions") },
-    { id: "setup-guide", label: t("设置指引", "Setup guide") },
-  ] as const;
-  const options = [
-    ...IM_CHANNELS.map((id) => ({ id, label: imChannelLabel(id, t) })),
-    { id: "spaces" as const, label: t("群消息接入", "Group messages") },
-    ...common,
-  ];
-  const commonSelected = common.some((item) => item.id === view);
-  function navigate(event: KeyboardEvent, selector: string) {
-    const keys = [
-      "ArrowDown",
-      "ArrowUp",
-      "ArrowLeft",
-      "ArrowRight",
-      "Home",
-      "End",
-    ];
-    if (busy || !keys.includes(event.key)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const items = [
-      ...event.currentTarget.querySelectorAll<HTMLElement>(selector),
-    ];
-    const current = items.indexOf(document.activeElement as HTMLElement);
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : (current +
-              (event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1) +
-              items.length) %
-            items.length;
-    items[next]?.focus();
-    if (items[next]?.getAttribute("role") === "tab") items[next]?.click();
-  }
-  return (
-    <div
-      className="im-channel-list"
-      role="tablist"
-      aria-label={t("消息接入导航", "Message integration navigation")}
-      aria-orientation={compact ? "horizontal" : "vertical"}
-      onKeyDown={(event) => navigate(event, '[role="tab"], .im-common-trigger')}
-    >
-      {options
-        .filter(
-          (item) =>
-            !compact ||
-            IM_CHANNELS.includes(item.id as ImChannel) ||
-            item.id === "spaces",
-        )
-        .map((item, index) => {
-          const channel = IM_CHANNELS.includes(item.id as ImChannel);
-          const channelConnections = connections.filter(
-            (c) => c.channel === item.id,
-          );
-          const health = imConnectionHealth(channelConnections);
-          return (
-            <div className="im-nav-item" key={item.id} role="presentation">
-              {!compact && (index === 0 || index === 4) && (
-                <span className="im-nav-label" role="presentation">
-                  {index === 0 ? t("渠道", "Channels") : t("通用", "General")}
-                </span>
-              )}
-              <button
-                disabled={busy}
-                type="button"
-                id={`im-nav-${item.id}`}
-                className="im-channel-card"
-                role="tab"
-                aria-selected={view === item.id}
-                aria-controls={`im-panel-${item.id}`}
-                title={
-                  channel
-                    ? `${imConnectionSummary(channelConnections, t)} · ${imConnectionLabel(health.state, t)}`
-                    : undefined
-                }
-                tabIndex={view === item.id ? 0 : -1}
-                onClick={() => onSelect(item.id)}
-              >
-                <span className="im-channel-title">{item.label}</span>
-                {channel && (
-                  <small className="im-channel-status">
-                    <span
-                      aria-hidden="true"
-                      className="im-dot"
-                      data-state={health.state}
-                    />
-                    {!compact &&
-                      (health.failed
-                        ? imConnectionSummary(channelConnections, t)
-                        : health.total
-                          ? t(
-                              `已配置(${health.total})`,
-                              `Configured (${health.total})`,
-                            )
-                          : t("未配置", "Not configured"))}
-                  </small>
-                )}
-              </button>
-            </div>
-          );
-        })}
-      {compact && (
-        <>
-          <button
-            disabled={busy}
-            type="button"
-            ref={anchor}
-            className="im-common-trigger"
-            id={commonSelected ? `im-nav-${view}` : "im-common-trigger"}
-            role="tab"
-            aria-selected={commonSelected}
-            aria-controls={commonSelected ? `im-panel-${view}` : undefined}
-            tabIndex={commonSelected ? 0 : -1}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            {common.find((item) => item.id === view)?.label ??
-              t("通用", "General")}{" "}
-            ▾
-          </button>
-          <Popover
-            anchorRef={anchor}
-            portalContainer={anchor.current?.closest("dialog")}
-            label={t("通用设置", "General settings")}
-            role="menu"
-            open={menuOpen}
-            onOpenChange={setMenuOpen}
-            className="im-common-menu"
-            onKeyDown={(event) => navigate(event, '[role="menuitem"]')}
-          >
-            {common.map((item) => (
-              <button
-                disabled={busy}
-                type="button"
-                key={item.id}
-                role="menuitem"
-                onClick={() => {
-                  onSelect(item.id);
-                  setMenuOpen(false);
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </Popover>
-        </>
-      )}
-    </div>
-  );
 }

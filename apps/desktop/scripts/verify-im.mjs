@@ -355,7 +355,10 @@ try {
   const click = async (expression) => {
     currentAction = expression;
     await until(
-      () => evaluate(`Boolean(${expression})`),
+      // Also wait out disabled controls: row actions briefly disable while
+      // their immediate save is in flight.
+      () =>
+        evaluate(`(()=>{const e=${expression};return !!e && !e.disabled})()`),
       `control: ${expression}`,
     );
     const rect = await evaluate(
@@ -391,19 +394,42 @@ try {
       Buffer.from(capture.data, "base64"),
     );
   };
+  const clickCard = async (title) => {
+    const finder = `Array.from(document.querySelectorAll('.im-flow-head')).find(b=>b.textContent.includes(${JSON.stringify(title)}))`;
+    await until(() => evaluate(`Boolean(${finder})`), "flow card " + title);
+    if (!(await evaluate(`${finder}?.getAttribute('aria-expanded')==='true'`)))
+      await click(finder);
+  };
   const openView = async (view) => {
-    if (
-      !(await evaluate(`Boolean(document.querySelector('#im-nav-${view}'))`))
-    ) {
-      await click("document.querySelector('.im-common-trigger')");
-      const labels = {
-        gateway: "Gateway 与设备",
-        pairing: "配对与账号",
-        permissions: "项目授权",
-        spaces: "群协作空间",
-      };
-      await click(button(labels[view]));
-    } else await click(`document.querySelector('#im-nav-${view}')`);
+    if (await evaluate("Boolean(document.querySelector('.im-group-flow'))"))
+      await click(button("← 返回单聊设置"));
+    const channels = { wecom: "企业微信", feishu: "飞书", slack: "Slack" };
+    if (channels[view]) {
+      await clickCard("接入渠道");
+      await click(
+        `Array.from(document.querySelectorAll('.im-channel-tabs button')).find(b=>b.textContent.includes(${JSON.stringify(channels[view])}))`,
+      );
+      return;
+    }
+    const cards = {
+      gateway: "连接服务",
+      pairing: "接入渠道",
+      permissions: "授权项目",
+    };
+    if (cards[view]) {
+      await clickCard(cards[view]);
+      return;
+    }
+    if (view === "spaces") {
+      await clickCard("接入渠道");
+      if (
+        !(await evaluate(
+          "document.querySelector('.im-verify-toggle').getAttribute('aria-expanded')==='true'",
+        ))
+      )
+        await click("document.querySelector('.im-verify-toggle')");
+      await click(button("设置群协作（可选）"));
+    }
   };
   const fill = async (selector, text) => {
     await click(`document.querySelector(${JSON.stringify(selector)})`);
@@ -431,7 +457,7 @@ try {
       const r = target.getBoundingClientRect();
       const bounds = scroll.getBoundingClientRect();
       const x = ${edge} ? r.right - 2 : r.x + r.width / 2;
-      const y = Math.max(bounds.top + 15, Math.min(bounds.bottom - 15, r.y + 15));
+      const y = Math.max(bounds.top + 15, Math.min(bounds.bottom - 15, r.y + r.height / 2));
       return {
         x, y,
         hit: target.contains(document.elementFromPoint(x, y)),
@@ -564,12 +590,12 @@ try {
     );
     await click("document.querySelector('#settings-tab-im-button')");
     await until(
-      () => evaluate("Boolean(document.querySelector('.im-setup-steps'))"),
-      "IM guide",
+      () => evaluate("Boolean(document.querySelector('.im-flow-head'))"),
+      "IM guided flow",
     );
     assert.equal(
-      await evaluate("document.querySelectorAll('.im-setup-steps li').length"),
-      6,
+      await evaluate("document.querySelectorAll('.im-flow-card').length"),
+      3,
     );
     await send("Emulation.setDeviceMetricsOverride", {
       width: 720,
@@ -578,10 +604,7 @@ try {
       mobile: false,
     });
     await pause(250);
-    await checkWheelScroll(
-      "document.querySelector('.im-wizard')",
-      "setup guide",
-    );
+    await checkWheelScroll("document.querySelector('.im-flow')", "guided flow");
     await send("Emulation.clearDeviceMetricsOverride");
     await pause(250);
     const wizardCapture = await send("Page.captureScreenshot", {
@@ -591,9 +614,7 @@ try {
       join(output, "wizard.png"),
       Buffer.from(wizardCapture.data, "base64"),
     );
-    await click(
-      "Array.from(document.querySelectorAll('.im-step-button')).find(b=>b.querySelector('strong')?.textContent.trim()==='准备 Gateway')",
-    );
+    await clickCard("连接服务");
     for (const width of [1280, 720]) {
       await send("Emulation.setDeviceMetricsOverride", {
         width,
@@ -605,9 +626,9 @@ try {
       for (const channel of ["wecom", "feishu", "slack"]) {
         await openView(channel);
         for (const [area, selector] of [
-          ["form", "#im-bot h4"],
-          ["input", "#im-bot input"],
-          ["blank", ".im-detail"],
+          ["form", ".im-bots h4"],
+          ["input", ".im-channel-tabs button"],
+          ["blank", ".im-flow"],
         ]) {
           await checkWheelScroll(
             `document.querySelector(${JSON.stringify(selector)})`,
@@ -657,7 +678,9 @@ try {
       ).includes("机器人配置的管理凭据"),
     );
     await openView("slack");
-    await click("document.querySelector('#im-bot details:last-child summary')");
+    await click(
+      "document.querySelector('#im-bot .im-setup-guide-top > summary')",
+    );
     await evaluate(
       "window.__copiedImCommand=''; navigator.clipboard.writeText=async text=>{window.__copiedImCommand=text;}",
     );
@@ -668,9 +691,10 @@ try {
       "message.im",
       "app_mention",
     ]);
+    await click(button("新建 BOT 连接"));
     assert.equal(
       await evaluate(
-        "document.querySelectorAll('#im-bot input[type=password]').length",
+        "document.querySelectorAll('.im-bot-dialog input[type=password]').length",
       ),
       2,
     );
@@ -679,16 +703,19 @@ try {
         await evaluate("document.querySelector('#im-bot').textContent")
       ).includes("事件回调地址："),
     );
-    await openView("pairing");
-    await click(button("生成一次性配对码"));
-    await click(button("复制配对指令"));
-    assert.match(
-      await evaluate("window.__copiedImCommand"),
-      /^pair [a-f0-9]{16}$/u,
+    await click(button("取消"));
+    assert.equal(
+      await evaluate(
+        "Boolean(document.querySelector('button[title=生成配对码]'))",
+      ),
+      false,
     );
-    await click(
-      "document.querySelector('#im-test').closest('details').querySelector('summary')",
-    );
+    if (
+      !(await evaluate(
+        "document.querySelector('.im-verify-toggle').getAttribute('aria-expanded')==='true'",
+      ))
+    )
+      await click("document.querySelector('.im-verify-toggle')");
     await click("document.querySelector('#im-test button')");
     assert.equal(await evaluate("window.__copiedImCommand"), "projects");
     await openView("slack");
@@ -730,9 +757,8 @@ try {
       );
       records.push({ ...variant, geometry });
     }
-    await click(button("返回设置指引"));
-    await click("document.querySelectorAll('.im-setup-steps button')[1]");
-    assert.equal(await evaluate("document.activeElement.id"), "im-device");
+    await clickCard("连接服务");
+    await click("document.querySelector('#im-device details > summary')");
     assert.equal(await evaluate(`${button("注册当前设备")}.disabled`), true);
     await evaluate(
       "document.querySelector('#im-device input[type=url]').focus(); document.querySelector('#im-device input[type=url]').select()",
@@ -750,6 +776,9 @@ try {
         localStatus.settings.deviceId,
       "device registration",
     );
+    // 注册成功后①完成，流程自动前进到②；重开①卡核对管理凭据已清空。
+    await clickCard("连接服务");
+    await click("document.querySelector('#im-device details > summary')");
     assert.equal(
       await evaluate(
         "document.querySelector('#im-device input[type=password]').value",
@@ -757,7 +786,7 @@ try {
       "",
     );
     await openView("wecom");
-    await click(button("刷新机器人连接状态"));
+    await click("document.querySelector('button[title=刷新机器人连接状态]')");
     await until(
       async () =>
         (await evaluate("window.artemis.getImStatus()")).connections?.[0]
@@ -765,12 +794,10 @@ try {
       "bot refresh while paused",
     );
     await openView("pairing");
-    await click(button("生成一次性配对码"));
+    await click("document.querySelector('button[title=生成配对码]')");
     const pairCode = await until(
       () =>
-        evaluate(
-          "/\\/pair ([a-f0-9]{16})/.exec(document.querySelector('#im-pair').innerText)?.[1]",
-        ),
+        evaluate("document.querySelector('.im-pair-code-value')?.textContent"),
       "pair code",
     );
     receive(message("pair", `/pair ${pairCode}`));
@@ -781,23 +808,28 @@ try {
       0,
     );
     await click(button("批准"));
+    // 批准后③完成，流程自动前进到④（项目授权）。
     await until(
-      () => evaluate("Boolean(document.querySelector('#im-bot'))"),
-      "automatic management after approval",
+      () =>
+        evaluate(
+          "Array.from(document.querySelectorAll('.im-flow-head')).find(b=>b.textContent.includes('授权项目'))?.getAttribute('aria-expanded')==='true'",
+        ),
+      "flow advances after approval",
     );
     assert.equal(
       (await evaluate("window.artemis.getImStatus()")).identities[0].userId,
       "alice",
     );
     // Exercise the real saved-credential form and the existing Gateway admin API.
-    await click(button("更换"));
+    await openView("wecom");
+    await click("document.querySelector('button[title=更换凭据]')");
     assert.equal(
       await evaluate(
-        "document.querySelector('#im-bot input[type=password]').value",
+        "document.querySelector('.im-bot-dialog input[type=password]').value",
       ),
       "",
     );
-    await click("document.querySelector('#im-bot input')");
+    await click("document.querySelector('.im-bot-dialog input')");
     const credentialGeometry = await evaluate(`(() => {
     const input = document.activeElement, r = input.getBoundingClientRect();
     const clips = [];
@@ -823,12 +855,20 @@ try {
       join(output, "credentials.png"),
       Buffer.from(credentialCapture.data, "base64"),
     );
-    await fill("#im-bot input[type=password]", "synthetic-rotated-secret");
-    await click("document.querySelectorAll('#im-bot input[type=password]')[1]");
+    await fill(
+      ".im-bot-dialog input[type=password]",
+      "synthetic-rotated-secret",
+    );
+    await click(
+      "document.querySelectorAll('.im-bot-dialog input[type=password]')[1]",
+    );
     await send("Input.insertText", { text: "test-administrator-".repeat(3) });
     await click(button("保存并连接机器人"));
     await until(
-      () => evaluate("!document.querySelector('#im-bot input[type=password]')"),
+      () =>
+        evaluate(
+          "!document.querySelector('.im-bot-dialog input[type=password]')",
+        ),
       "saved credential form collapses",
     );
     assert.equal(
@@ -1030,7 +1070,7 @@ try {
       });
       await pause(250);
       const geometry = await evaluate(
-        `(() => { const panel = document.querySelector('.im-settings'); const detail = document.querySelector('.im-detail'); return { width: innerWidth, height: innerHeight, compact: panel.dataset.compact, contrast: document.documentElement.dataset.artemisContrast, panelWidth: panel.clientWidth, panelScrollWidth: panel.scrollWidth, detailWidth: detail.clientWidth, detailScrollWidth: detail.scrollWidth, dialogWidth: document.querySelector('.settings-panel').getBoundingClientRect().width }; })()`,
+        `(() => { const panel = document.querySelector('.im-settings'); const detail = document.querySelector('.im-flow'); return { width: innerWidth, height: innerHeight, compact: panel.dataset.compact, contrast: document.documentElement.dataset.artemisContrast, panelWidth: panel.clientWidth, panelScrollWidth: panel.scrollWidth, detailWidth: detail.clientWidth, detailScrollWidth: detail.scrollWidth, dialogWidth: document.querySelector('.settings-panel').getBoundingClientRect().width }; })()`,
       );
       assert.equal(
         geometry.contrast,
@@ -1083,7 +1123,7 @@ try {
       "document.querySelector('#im-bot').scrollIntoView({block:'start'})",
     );
     const zoomGeometry = await evaluate(
-      `(() => { const p = document.querySelector('.im-settings'); const d = document.querySelector('.im-detail'); return { width: innerWidth, height: innerHeight, compact: p.dataset.compact, panelWidth: p.clientWidth, panelScrollWidth: p.scrollWidth, detailWidth: d.clientWidth, detailScrollWidth: d.scrollWidth }; })()`,
+      `(() => { const p = document.querySelector('.im-settings'); const d = document.querySelector('.im-flow'); return { width: innerWidth, height: innerHeight, compact: p.dataset.compact, panelWidth: p.clientWidth, panelScrollWidth: p.scrollWidth, detailWidth: d.clientWidth, detailScrollWidth: d.scrollWidth }; })()`,
     );
     assert.equal(zoomGeometry.compact, "true");
     assert.ok(zoomGeometry.panelScrollWidth <= zoomGeometry.panelWidth + 1);
@@ -1101,10 +1141,11 @@ try {
     await pause(200);
     await openView("permissions");
     await click(
-      "document.querySelector('#im-permissions input[type=checkbox]')",
+      "document.querySelector('#im-permissions .im-project:not(.im-project-builtin) input[type=checkbox]')",
     );
-    if (!(await evaluate("document.querySelector('.im-grant-details').open")))
-      await click("document.querySelector('.im-grant-details > summary')");
+    // 授权设置收进行右侧按钮的聚焦弹窗。
+    await click("document.querySelector('.im-grant-open')");
+    await click(button("自定义范围 ▸"));
     await click(button("选择目录或文件"));
     await until(
       () =>
@@ -1133,12 +1174,12 @@ try {
       ),
       true,
     );
-    await click(button("清除此范围"));
+    await click(button("恢复默认范围"));
     assert.equal(
       await evaluate(
-        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).some(i=>i.checked)",
+        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).filter(i=>i.closest('label')?.textContent.includes('可修改')).every(i=>!i.checked)",
       ),
-      false,
+      true,
     );
     await click(button("全选可处理"));
     await click("document.querySelector('.im-scope-tree')");
@@ -1232,7 +1273,7 @@ try {
       "read/write columns align at native narrow width",
     );
     const scopeGeometry = await evaluate(
-      "(()=>{const d=document.querySelector('.im-detail');return {viewport:innerWidth,width:d.clientWidth,scroll:d.scrollWidth};})()",
+      "(()=>{const d=document.querySelector('.im-flow');return {viewport:innerWidth,width:d.clientWidth,scroll:d.scrollWidth};})()",
     );
     assert.equal(scopeGeometry.viewport, 820);
     assert.ok(scopeGeometry.scroll <= scopeGeometry.width + 1);
@@ -1251,8 +1292,8 @@ try {
       `${nativeWindow}.setMinimumSize(${savedWindowSize.minimum[0]},${savedWindowSize.minimum[1]});${nativeWindow}.setSize(${savedWindowSize.size[0]},${savedWindowSize.size[1]})`,
     );
     await pause(200);
-    await click(button("保存项目授权"));
-    await click("document.querySelector('.im-header [role=switch]')");
+    // 行内勾选即时保存；弹窗内改完范围后用「确认设置」直接生效。
+    await click(button("确认设置"));
     await until(
       async () =>
         (await evaluate("window.artemis.getImStatus()")).settings.grants
@@ -1329,12 +1370,20 @@ try {
     await click(
       "Array.from(document.querySelectorAll('button')).find(b=>['关闭','Close'].includes(b.textContent.trim()))",
     );
-    if (
-      await evaluate(
-        "document.querySelector('.left-sidebar-toggle')?.getAttribute('aria-expanded') === 'false'",
-      )
-    )
-      await click("document.querySelector('.left-sidebar-toggle')");
+    await until(
+      () => evaluate("!document.querySelector('.settings-panel')"),
+      "settings dialog closed",
+    );
+
+    // 合成点击展开侧栏并等待其真正展开（坐标点击可能被残留缩放偏移）。
+    await evaluate("document.querySelector('.left-sidebar-toggle')?.click()");
+    await until(
+      () =>
+        evaluate(
+          "document.querySelector('.left-sidebar-toggle')?.getAttribute('aria-expanded') === 'true'",
+        ),
+      "sidebar expanded",
+    );
     assert.ok(
       (await evaluate("document.body.innerText")).includes(remote[0].title),
       "IM-created task appears in the sidebar without a reload",
@@ -1576,7 +1625,7 @@ try {
       "document.querySelector('.im-group-task-composer').scrollIntoView({block:'start'})",
     );
     const geometry = await evaluate(
-      "(()=>{const d=document.querySelector('.im-detail');return {width:d.clientWidth,scrollWidth:d.scrollWidth};})()",
+      "(()=>{const d=document.querySelector('.im-flow');return {width:d.clientWidth,scrollWidth:d.scrollWidth};})()",
     );
     assert.ok(
       geometry.scrollWidth <= geometry.width + 1,
@@ -1640,7 +1689,7 @@ try {
   await until(
     () =>
       evaluate(
-        "document.querySelector('#im-member-mention-menu')?.textContent.includes('后端开发机')",
+        "document.querySelector('#custom-agent-mention-menu')?.textContent.includes('后端开发机')",
       ),
     "friendly @ member picker",
   );
@@ -1652,7 +1701,7 @@ try {
     Buffer.from(mentionCapture.data, "base64"),
   );
   await click(
-    "Array.from(document.querySelectorAll('#im-member-mention-menu [role=option]')).find(e=>e.textContent.includes('小博')).querySelector('button')",
+    "Array.from(document.querySelectorAll('#custom-agent-mention-menu [role=option]')).find(e=>e.textContent.includes('小博')).querySelector('button')",
   );
   assert.equal(
     await evaluate("document.querySelector('.composer-input textarea').value"),
@@ -1660,7 +1709,7 @@ try {
   );
   await replaceText(".composer-input textarea", "@小博 检查接口，同时 @");
   await click(
-    "Array.from(document.querySelectorAll('#im-member-mention-menu [role=option]')).find(e=>e.textContent.includes('Carol')).querySelector('button')",
+    "Array.from(document.querySelectorAll('#custom-agent-mention-menu [role=option]')).find(e=>e.textContent.includes('Carol')).querySelector('button')",
   );
   const composed = await evaluate(
     "document.querySelector('.composer-input textarea').value",

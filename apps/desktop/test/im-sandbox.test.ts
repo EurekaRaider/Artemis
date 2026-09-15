@@ -31,6 +31,20 @@ it("never falls back to a broad Windows or Linux shell for scoped work", () => {
     ).toThrow(/细粒度/);
 });
 
+it("grants whole-project reads for an empty read scope while writes stay closed", () => {
+  const launch = buildScopedImShellLaunch(
+    "/project",
+    "echo test",
+    false,
+    { audience: "owner", readPaths: [], writePaths: [] },
+    "darwin",
+  );
+  const profile = launch.args[1] as string;
+  expect(profile).toContain('(allow file-read* (subpath "/project"))');
+  expect(profile).not.toContain("(allow file-write*");
+  expect(profile).toContain("(deny file-read-data file-write* (regex");
+});
+
 it.runIf(process.platform === "darwin")(
   "enforces scoped native reads, writes and protected files independently of command text",
   async () => {

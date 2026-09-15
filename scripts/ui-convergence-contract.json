@@ -1,6 +1,17 @@
 {
   "dynamicClassConsumers": [
     {
+      "classNameSets": [["im-channel-tabs", "stuck"]],
+      "owner": "IM channel sticky tabs",
+      "reason": "The scroll listener toggles the stuck state when tabs meet their sticky edge.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/ImSettingsPanel.tsx",
+          "contains": "strip.classList.toggle(\"stuck\", stuck)"
+        }
+      ]
+    },
+    {
       "classNameSets": [
         ["nested-project", "drop-before"],
         ["nested-project", "drop-after"],
@@ -383,7 +394,7 @@
     },
     {
       "atRules": [],
-      "selector": ".im-settings :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "selector": ":is(.im-settings, .im-bot-dialog, .im-grant-dialog) :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
       "property": "padding",
       "value": "5px 10px",
       "important": false,
@@ -482,7 +493,7 @@
     },
     {
       "atRules": [],
-      "selector": ".im-setup-steps p, .settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
+      "selector": ".settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
       "property": "margin-block",
       "value": "6px",
       "important": false,

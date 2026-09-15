@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertImGatewayUrl,
   channelEventSchema,
+  imAggregateConnectionStates,
   imIdentityKey,
   imSettingsSchema,
   remoteInvocationSchema,
@@ -80,5 +81,20 @@ describe("IM trust boundary", () => {
     ])
       expect(() => assertImGatewayUrl(url)).toThrow();
     expect(assertImGatewayUrl("http://127.0.0.1:7447").port).toBe("7447");
+  });
+  it("aggregates raw gateway states into the connection lifecycle", () => {
+    expect(imAggregateConnectionStates([])).toBe("unconfigured");
+    expect(imAggregateConnectionStates(["disabled"])).toBe("saved");
+    expect(imAggregateConnectionStates(["disabled", "connecting"])).toBe(
+      "connecting",
+    );
+    expect(imAggregateConnectionStates(["disabled", "connected"])).toBe(
+      "connected",
+    );
+    expect(imAggregateConnectionStates(["error", "error"])).toBe("error");
+    expect(imAggregateConnectionStates(["error", "disabled"])).toBe("error");
+    expect(imAggregateConnectionStates(["connected", "error"])).toBe(
+      "partial_error",
+    );
   });
 });

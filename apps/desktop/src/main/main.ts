@@ -21107,7 +21107,7 @@ app
           const existing = store!.getThread(id);
           if (existing) return existing;
           const thread = await createTaskThread(
-            { projectId, mode, target: "local" },
+            { ...(projectId ? { projectId } : {}), mode, target: "local" },
             title,
             id,
           );

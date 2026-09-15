@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=174" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=178" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=128"/>
 </head>
@@ -809,7 +809,7 @@
 <p class="im-head-hint">在聊天软件里发消息，就能指挥这台电脑干活。</p>
 </div>
 <div class="im-head-state">
-<span class="im-progress" data-im-progress="">设置进度 <b>0</b>/5</span>
+<span class="im-progress" data-im-progress="">设置进度 <b>0</b>/3</span>
 <button aria-live="polite" class="im-status-pill" id="imStatePill" title="机器人接入状态；不代表聊天软件客户端在线状态。" type="button"><span aria-hidden="true" class="im-dot idle"></span><span id="imStateText">未开启</span></button>
 </div>
 </div>
@@ -825,7 +825,7 @@
 <p class="im-muted">消息服务负责收发消息，在本机自动运行。</p>
 <p class="im-fine" data-im-service-help="" hidden="">启动服务并注册电脑，几秒就好。</p>
 <p class="im-fine im-service-error" data-im-service-error="" hidden="" role="alert"></p>
-<p class="im-sim-row">演示结果：<select aria-label="演示结果" class="im-sim-outcome" data-im-service-outcome=""><option value="ok">成功</option><option value="port">端口被占用</option><option value="register">注册失败</option></select></p>
+<!-- 条件设置口（演示结果选择等）已隔离至面板底部 #imDemoConsole（原型专用，迁移生产代码时删除） -->
 <p class="im-fine">个人使用可直接开启；团队配置在本步骤下方。</p>
 </div>
 <div class="im-service-ready" data-im-service-ready="" hidden="">
@@ -858,77 +858,20 @@
 </div>
 </div>
 </section>
-<!-- ② 添加机器人 -->
-<section class="im-card" data-im-card="bots">
-<button aria-controls="imCardBodyBots" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">2</span><span class="im-card-title">添加机器人</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyBots">
-<p class="im-muted">先接一个平台就够用，其余随时可补。</p>
-
+<!-- ② 接入渠道并绑定账号（合并原②③：按渠道线性推进——凭据 → 平台接收 → 绑定账号） -->
+<section class="im-card" data-im-card="channel">
+<button aria-controls="imCardBodyChannel" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">2</span><span class="im-card-title">接入渠道并绑定账号</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyChannel">
+<p class="im-muted">选一个渠道：先把机器人接进来，再绑定你自己的账号——同一步里线性完成，先接一个渠道就够用。</p>
+<div class="im-channel-tabs" data-im-channel-tabs="" role="tablist" aria-label="选择渠道"></div>
 <ul class="im-platform-rows" data-im-platform-rows=""></ul>
-</div>
-</section>
-<!-- ③ 绑定我的账号 -->
-<section class="im-card" data-im-card="account">
-<button aria-controls="imCardBodyAccount" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">3</span><span class="im-card-title">绑定我的账号</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyAccount">
-<div data-im-pairing-requests=""></div>
-<p class="im-fine im-pair-phase" data-im-pair-phase="" hidden=""></p>
-<div class="im-code-card" data-im-instructions=""></div>
-<div class="im-code-card im-wait-card" data-im-wait-card="" hidden="">
-<span aria-hidden="true" class="im-dot pending"></span>
-<div class="im-wait-copy">
-<p class="im-wait-title">已复制。发给机器人私聊，等它回复确认——通常几秒内。</p>
-<p class="im-fine"><span class="im-countdown" data-im-wait-countdown="">0:10</span> · <button class="im-demo-link" data-im-pair-arrive="" type="button">演示：让确认现在到达</button></p>
-</div>
-</div>
-<div class="im-block">
-<h4>已绑定账号</h4>
-<ul class="im-binding-list" data-im-bindings=""></ul>
-<p class="im-muted" data-im-binding-empty="" hidden="">还没有绑定任何账号。</p>
-</div>
-<button class="im-demo-link" data-im-goto-projects="" hidden="" type="button">先去 ④ 选择项目 →</button>
-<div class="im-block">
-<h4>指令速查</h4>
-<div class="im-chips">
-<button class="im-chip" type="button"><code>/pair</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>/status</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>/stop</code><span aria-hidden="true">⧉</span></button>
-</div>
-</div>
-</div>
-</section>
-<!-- ④ 允许手机操作的项目 -->
-<section class="im-card" data-im-card="projects">
-<button aria-controls="imCardBodyProjects" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">4</span><span class="im-card-title">允许手机操作的项目</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyProjects">
-<p class="im-muted" data-im-projects-guide="">临时会话始终可用（内置授权，不可关闭）；要让手机操作具体项目，至少勾一个。</p>
-<p class="im-muted">勾选后，绑定的账号才能通过聊天消息操作这个项目。</p>
-<p class="im-fine">没有想授权的项目？<button class="im-demo-link" data-im-open-project="" type="button">先打开项目</button>，再回来勾选。</p>
-<ul class="im-project-list" data-im-project-rows=""></ul>
-<p class="im-fine" data-im-audience="">回复仅发给你绑定的单聊；群分享在「群协作」里单独配置。</p>
-<div aria-live="polite" class="im-grant-summary" data-im-grant-summary=""></div>
-<p class="im-fine im-grant-error" data-im-grant-error="" hidden="" role="alert"></p>
-<div class="im-block">
-<div class="setting-row" data-im-default-row=""><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill" data-im-default-project=""></select></div>
-<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-im-projects-save="" type="button">保存并启用</button></div>
-</div>
-<p class="im-fine im-grant-partial" data-im-grant-partial="" hidden="">授权已保存，连接未启用。<button class="btn btn-ghost" data-im-retry-enable="" type="button">重试启用</button></p>
-</div>
-</section>
-<!-- ⑤ 发一条测试任务（提案第五步；完成链第 5 步） -->
-<section class="im-card" data-im-card="test">
-<button aria-controls="imCardBodyTest" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">5</span><span class="im-card-title">发一条测试任务</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyTest">
-<p class="im-muted">发一条真实消息走通全链路——配置成功不等于端到端成功，眼见为实。</p>
+<p class="im-fine">指令速查：<span class="im-chips"><button class="im-chip" type="button"><code>/pair</code><span aria-hidden="true">⧉</span></button><button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button><button class="im-chip" type="button"><code>/status</code><span aria-hidden="true">⧉</span></button><button class="im-chip" type="button"><code>/stop</code><span aria-hidden="true">⧉</span></button></span></p>
+<!-- 顺手验证（可选）：原④并入②尾部折叠段——不计入三步完成链，随时可做可跳过 -->
+<div class="im-verify" data-im-verify="">
+<button aria-controls="imVerifyBody" aria-expanded="false" class="im-guide-toggle" data-im-fold="" data-im-verify-toggle="" type="button"><span>顺手验证（可选）：发一条真实消息走通全链路</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="" id="imVerifyBody">
+<p class="im-fine">配置成功不等于端到端成功。绑定账号后随时可发；跳过不影响使用，之后再验证也一样。</p>
 <div data-im-test-commands=""></div>
-<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>其他指令（查看项目 / 查看状态）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="">
-<div class="im-chips">
-<button class="im-chip" type="button"><code>projects</code><span aria-hidden="true">⧉</span></button>
-<button class="im-chip" type="button"><code>status</code><span aria-hidden="true">⧉</span></button>
-</div>
-</div>
 <ol class="im-track" data-im-track="" hidden=""></ol>
 <div class="im-sim-row" data-im-test-actions=""></div>
 <p class="im-fine im-test-error" data-im-test-error="" hidden="" role="alert"></p>
@@ -937,12 +880,34 @@
 <p class="im-fine">只标记你的确认，不做系统验证。</p>
 </div>
 <div class="im-test-done" data-im-test-done="" hidden="">
-<p class="im-ready-title">✓ 全部就绪　整套设置已经走通</p>
+<p class="im-ready-title">✓ 全链路走通（你已确认）</p>
+<div class="btn-pair"><button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作（可选）</button></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ③ 允许手机操作的项目（生产对齐：行内即时生效 + 授权配置弹窗 + 默认项目徽章） -->
+<section class="im-card" data-im-card="projects">
+<button aria-controls="imCardBodyProjects" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">3</span><span class="im-card-title">允许手机操作的项目</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
+<div class="im-card-body" id="imCardBodyProjects">
+<p class="im-muted" data-im-projects-guide="">临时会话始终可用（内置授权，不可关闭）；要让手机操作具体项目，勾选即生效。</p>
+<p class="im-fine">没有想授权的项目？<button class="im-demo-link" data-im-open-project="" type="button">先打开项目</button>，再回来勾选；模式与范围点行内「授权配置」调整。</p>
+<ul class="im-project-list" data-im-project-rows=""></ul>
+<p class="im-fine">之后随时改：手机上发 <code class="im-identifier">/projects</code> 就能查看和调整授权的项目。</p>
+<p class="im-fine" data-im-audience="">回复仅发给你绑定的单聊；群分享在「群协作」里单独配置。</p>
+<p class="im-fine im-grant-error" data-im-grant-error="" hidden="" role="alert"></p>
+<p class="im-fine im-grant-partial" data-im-grant-partial="" hidden="">授权已保存，连接未启用。<button class="btn btn-ghost" data-im-retry-enable="" type="button">重试启用</button></p>
+<!-- 完成仪式（三步版）：三步完成链全✓后出现；验证引导指向②尾部可选验证段 -->
+<div class="im-ceremony" data-im-ceremony="" hidden="">
+<p class="im-ready-title">✓ 三步配置完成，手机现在可以派活了</p>
 <div class="btn-pair">
 <button class="btn btn-primary" data-im-finish="" type="button">开始使用</button>
+<button class="btn btn-ghost" data-im-verify-now="" type="button">发测试消息验证（可选）</button>
 <button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作（可选）</button>
 <button class="btn btn-ghost" data-im-view-overview="" type="button">查看连接概览</button>
 </div>
+<p class="im-fine">没验证也能用：第 ② 步底部的「顺手验证」随时可以补做。</p>
 </div>
 </div>
 </section>
@@ -971,10 +936,28 @@
 </div>
 <div class="im-ov-sections" data-im-ov-sections=""></div>
 </div>
-<!-- 模拟会话重置：回到 empty 快照（仅内存，不写 hash） -->
-<details class="im-simulation"><summary>演示场景</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。</p><div class="btn-pair im-scene-buttons">
-<button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-scene="team">团队服务</button><button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button><button type="button" class="btn btn-ghost" data-im-enable-failure aria-pressed="false">启用失败模拟</button>
-</div></details><div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
+<!-- ============================================================
+     imDemoConsole —— 原型模拟专用「条件设置口」，与真实 UI 严格隔离。
+     面板内所有演示条件（场景重放、失败分支、各步结果选择）集中于此；
+     迁移到生产代码时整块删除 #imDemoConsole，并删除 workspace.js 中
+     以 IM DEMO CONSOLE 标记的接线段，即可剥离全部模拟逻辑。
+     ============================================================ -->
+<div class="im-demo-console" id="imDemoConsole" data-im-demo-console="">
+<details class="im-simulation"><summary>演示场景与条件设置（原型专用）</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。真实产品无此区块。</p><div class="btn-pair im-scene-buttons">
+<button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-scene="team">团队服务</button>
+</div>
+<div class="btn-pair im-scene-buttons">
+<button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button><button type="button" class="btn btn-ghost" data-im-enable-failure aria-pressed="false">启用失败模拟</button>
+</div>
+<div class="im-demo-outcomes">
+<div class="im-sim-row">启动结果：<select aria-label="启动结果" class="im-sim-outcome" data-im-service-outcome=""><option value="ok">成功</option><option value="port">端口被占用</option><option value="register">注册失败</option></select></div>
+<div class="im-sim-row">飞书保存结果：<select aria-label="飞书保存结果" class="im-sim-outcome" data-im-cred-outcome="feishu"><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option></select></div>
+<div class="im-sim-row">企业微信保存结果：<select aria-label="企业微信保存结果" class="im-sim-outcome" data-im-cred-outcome="wecom"><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option></select></div>
+<div class="im-sim-row">Slack 保存结果：<select aria-label="Slack 保存结果" class="im-sim-outcome" data-im-cred-outcome="slack"><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option><option value="mismatch">两 Token 不同应用</option></select></div>
+</div>
+<div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
+</details>
+</div>
 </div>
 <!-- Agent 配置（对齐真实：并发容量 / 全局 AGENTS.md / 导入现有配置） -->
 <div aria-labelledby="settingsTabAgents" class="settings-panel-content" data-panel="agents" hidden="" id="settingsPanelAgents" role="tabpanel">
@@ -1062,6 +1045,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js?v=1"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
 <script src="workspace/fixtures.js?v=1"></script>
-<script src="workspace/workspace.js?v=161"></script>
+<script src="workspace/workspace.js?v=168"></script>
 </body>
 </html>
