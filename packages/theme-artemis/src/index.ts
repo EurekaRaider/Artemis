@@ -51,7 +51,7 @@ const foundationTokens = {
 } as const satisfies Readonly<Record<string, ThemeTokenValue>>;
 
 const lightColors = {
-  "color.canvas": color("#fafafa"),
+  "color.canvas": color("#ffffff"),
   "color.background.sidebar": color("#f3f4f5"),
   "color.background.activity": color("#f3f4f5"),
   "color.surface.base": color("#ffffff"),
@@ -96,7 +96,7 @@ const lightColors = {
   "color.overlay.scrim": color("#00000052"),
   "color.selection.background": color("#1717171a"),
   "color.selection.text": color("#27272a"),
-  "color.surface.header": color("#fafafa"),
+  "color.surface.header": color("#ffffff"),
   "color.surface.dock": color("#ffffff"),
   "color.surface.popover": color("#ffffff"),
   "color.surface.composerHead": color("#f5f5f5"),
@@ -128,7 +128,7 @@ const lightColors = {
 } as const;
 
 const darkColors = {
-  "color.canvas": color("#141414"),
+  "color.canvas": color("#181818"),
   "color.background.sidebar": color("#1d1d1d"),
   "color.background.activity": color("#1d1d1d"),
   "color.surface.base": color("#202020"),
@@ -173,8 +173,8 @@ const darkColors = {
   "color.overlay.scrim": color("#00000052"),
   "color.selection.background": color("#f5f5f51a"),
   "color.selection.text": color("#e5e5e5"),
-  "color.surface.header": color("#141414"),
-  "color.surface.dock": color("#141414"),
+  "color.surface.header": color("#181818"),
+  "color.surface.dock": color("#181818"),
   "color.surface.popover": color("#2b2b2b"),
   "color.surface.composerHead": color("#303030"),
   "color.switch.on": color("#22c55e"),

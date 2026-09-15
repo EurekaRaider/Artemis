@@ -12,6 +12,12 @@
 }
 .app-shell {
   --sidebar-expanded-width: 280px;
+  --sidebar-native-tint: 84%;
+  --sidebar-native-color: var(--artemis-color-surface-raised);
+}
+[data-theme="dark"] .app-shell {
+  --sidebar-native-tint: 12%;
+  --sidebar-native-color: var(--artemis-color-background-sidebar);
 }
 .sidebar-top {
   padding: 10px 10px 8px;
@@ -794,6 +800,32 @@ textarea:focus {
     0 8px 24px rgb(0 0 0 / 0.3);
   --sidebar-rail-tint: 46%;
 }
+/* Let the native macOS material show through the document and shell. The
+   workspace keeps its opaque canvas so only the sidebar reveals the backdrop. */
+body:has(.app-shell[data-platform="darwin"]),
+.app-shell[data-platform="darwin"] {
+  background: transparent;
+}
+.sidebar[data-state="ready"] {
+  border-inline-end-width: 0.5px;
+}
+.sidebar[data-state="ready"] > [data-part="main"] {
+  background: color-mix(
+    in srgb,
+    var(--artemis-color-background-sidebar) 72%,
+    transparent
+  );
+  backdrop-filter: blur(24px) saturate(1.35);
+  box-shadow: none;
+}
+.sidebar .project-thread-row.selected,
+.sidebar-nav .nav-row[aria-current="page"] {
+  background:
+    linear-gradient(rgb(255 255 255 / 0.025), transparent), var(--selected);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
 .app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
   padding-block-start: 38px;
 }
@@ -893,7 +925,7 @@ textarea:focus {
 }
 .sidebar-rail,
 .sidebar[data-state="collapsed"] > [data-part="main"] {
-  border: 1px solid var(--border-soft);
+  border: 0.5px solid var(--border-soft);
   border-block-start: 0;
   border-inline-start: 0;
   border-radius: 0 12px 12px 0;
@@ -920,6 +952,27 @@ textarea:focus {
     transform 560ms var(--sidebar-motion-ease),
     opacity 420ms var(--sidebar-motion-ease),
     visibility 0s linear 560ms;
+}
+.app-shell[data-platform="darwin"] .sidebar > [data-part="main"],
+.app-shell[data-platform="darwin"] .sidebar-rail {
+  background: color-mix(
+    in srgb,
+    var(--sidebar-native-color) var(--sidebar-native-tint),
+    transparent
+  );
+  backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+.app-shell[data-platform="darwin"] .sidebar[data-state="collapsed"] {
+  background: transparent;
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .app-shell[data-platform] .sidebar > [data-part="main"],
+  .app-shell[data-platform] .sidebar-rail {
+    background: var(--artemis-color-background-sidebar);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
 }
 .sidebar[data-state="collapsed"][data-peek="true"] > [data-part="main"] {
   transition-delay: 0s;

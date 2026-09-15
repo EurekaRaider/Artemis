@@ -335,25 +335,52 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeVisible();
   });
 
-  it.each(["unmanaged", "failed"])(
-    "keeps a started conversation closed when Git is %s",
-    async (state) => {
-      const getGit = vi.mocked(window.artemis.getProjectGitInfo);
-      if (state === "failed")
-        getGit.mockRejectedValue(new Error("Git unavailable"));
-      else getGit.mockResolvedValue({ managed: false } as never);
-      await act(async () => {
-        render(fixture());
-      });
-      expect(getGit).toHaveBeenCalled();
-      resize(1900);
-      expect(dialog()).toBeNull();
-      await userEvent.click(
-        screen.getByRole("button", { name: "Task environment" }),
-      );
-      expect(dialog()).toBeNull();
-    },
-  );
+  it("keeps an empty panel closed automatically but allows manual opening", async () => {
+    const getGit = vi.mocked(window.artemis.getProjectGitInfo);
+    getGit.mockResolvedValue({ managed: false } as never);
+    await act(async () => {
+      render(fixture());
+    });
+    expect(getGit).toHaveBeenCalled();
+    resize(1900);
+    expect(dialog()).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    expect(dialog()).toBeVisible();
+    expect(
+      screen.getByText("This project is not a Git repository."),
+    ).toBeVisible();
+    resize(1800);
+    expect(dialog()).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    expect(dialog()).toBeNull();
+  });
+
+  it("shows an initial Git failure and recovers through retry", async () => {
+    const getGit = vi.mocked(window.artemis.getProjectGitInfo);
+    getGit.mockRejectedValue(
+      new Error("You have not agreed to the Xcode license agreements."),
+    );
+    await act(async () => {
+      render(fixture());
+    });
+    expect(dialog()).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Xcode license");
+    expect(screen.getByRole("heading", { name: "Git" })).toBeVisible();
+    getGit.mockResolvedValue({
+      managed: true,
+      branches: [],
+      changeCount: 0,
+      ahead: 0,
+      behind: 0,
+    } as never);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByRole("heading", { name: "Git" })).toBeVisible();
+  });
 
   it.each(["agents", "sources", "both"] as const)(
     "shows %s without Git and hides the panel when the last content disappears",

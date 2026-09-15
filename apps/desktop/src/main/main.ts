@@ -686,6 +686,7 @@ function stopAgentCapacityMonitoring(): void {
 }
 
 function windowBackgroundColor(): string {
+  if (process.platform === "darwin") return "#00000000";
   return nativeTheme.shouldUseDarkColors ? "#0f1012" : "#f7f7f6";
 }
 
@@ -15754,7 +15755,11 @@ function createMainWindow(): BrowserWindow {
     enableLargerThanScreen: smokeArtifacts && process.platform === "darwin",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 18, y: 17 } }
+      ? {
+          trafficLightPosition: { x: 18, y: 17 },
+          vibrancy: "sidebar" as const,
+          visualEffectState: "followWindow" as const,
+        }
       : {}),
     webPreferences: {
       preload: join(import.meta.dirname, "preload.cjs"),

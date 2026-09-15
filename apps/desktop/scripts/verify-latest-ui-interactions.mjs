@@ -155,7 +155,7 @@ export async function verifyLatestUiInteractions({
       await page
         .locator(".sidebar-rail")
         .evaluate((el) => getComputedStyle(el).backdropFilter),
-      /railGlass/,
+      process.platform === "darwin" ? /^none$/ : /railGlass/,
     );
     const openingFrames = trackSidebarOverlap();
     await page.mouse.move(24, 200);

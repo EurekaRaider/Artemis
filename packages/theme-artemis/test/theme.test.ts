@@ -62,7 +62,7 @@ const EXPECTED_FOUNDATION = Object.freeze({
 } satisfies Readonly<Record<string, ThemeTokenValue>>);
 
 const LIGHT_NORMAL = Object.freeze({
-  "color.canvas": "#fafafa",
+  "color.canvas": "#ffffff",
   "color.background.sidebar": "#f3f4f5",
   "color.background.activity": "#f3f4f5",
   "color.surface.base": "#ffffff",
@@ -107,7 +107,7 @@ const LIGHT_NORMAL = Object.freeze({
   "color.overlay.scrim": "#00000052",
   "color.selection.background": "#1717171a",
   "color.selection.text": "#27272a",
-  "color.surface.header": "#fafafa",
+  "color.surface.header": "#ffffff",
   "color.surface.dock": "#ffffff",
   "color.surface.popover": "#ffffff",
   "color.surface.composerHead": "#f5f5f5",
@@ -139,7 +139,7 @@ const LIGHT_NORMAL = Object.freeze({
 } as const);
 
 const DARK_NORMAL = Object.freeze({
-  "color.canvas": "#141414",
+  "color.canvas": "#181818",
   "color.background.sidebar": "#1d1d1d",
   "color.background.activity": "#1d1d1d",
   "color.surface.base": "#202020",
@@ -184,8 +184,8 @@ const DARK_NORMAL = Object.freeze({
   "color.overlay.scrim": "#00000052",
   "color.selection.background": "#f5f5f51a",
   "color.selection.text": "#e5e5e5",
-  "color.surface.header": "#141414",
-  "color.surface.dock": "#141414",
+  "color.surface.header": "#181818",
+  "color.surface.dock": "#181818",
   "color.surface.popover": "#2b2b2b",
   "color.surface.composerHead": "#303030",
   "color.switch.on": "#22c55e",

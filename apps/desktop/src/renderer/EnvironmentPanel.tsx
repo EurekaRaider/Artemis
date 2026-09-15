@@ -935,11 +935,12 @@ export function EnvironmentPanel({
 
   const hasPanelContent =
     gitInfo?.managed === true ||
+    Boolean(gitError) ||
     displayAgents.length > 0 ||
     teams.length > 0 ||
     hasSourcePanelDetails ||
     Boolean(imGroup);
-  const panelVisible = open && hasPanelContent;
+  const panelVisible = open && (hasPanelContent || manuallyOpened.current);
 
   const hidePanel = useCallback(() => {
     manuallyOpened.current = false;
@@ -1080,7 +1081,7 @@ export function EnvironmentPanel({
       // Preserve explicit opening and menu focus until the reading area
       // becomes too narrow. Dock transitions restore automatic visibility.
       const nextOpen =
-        hasPanelContent &&
+        (hasPanelContent || manuallyOpened.current) &&
         (wantsOpen.current ?? defaultOpen) &&
         space.enoughSpace &&
         (manuallyOpened.current || !dockOpen);
@@ -1721,6 +1722,30 @@ export function EnvironmentPanel({
               onRemove={onRemoveMember}
               removalDisabled={memberRemovalDisabled}
             />
+          )}
+          {!gitInfo?.managed && (gitError || manuallyOpened.current) && (
+            <EnvironmentSection
+              className="git-environment-section"
+              title={
+                <>
+                  <EnvironmentGithubIcon />
+                  <span>Git</span>
+                </>
+              }
+            >
+              {gitError ? (
+                <div className="environment-inline-error" role="alert">
+                  <span>{gitError}</span>
+                  <button onClick={() => void loadGit()} type="button">
+                    {t.retry}
+                  </button>
+                </div>
+              ) : (
+                <div className="environment-setting-row" role="status">
+                  <span>{gitInfo ? t.notGit : t.loading}</span>
+                </div>
+              )}
+            </EnvironmentSection>
           )}
           {gitInfo?.managed && (
             <EnvironmentSection
