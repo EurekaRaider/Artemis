@@ -10233,9 +10233,6 @@ kbd {
   font-size: 12px;
 }
 /* ④卡：三档模式与内置临时会话行。 */
-.im-platform-choice {
-  display: contents;
-}
 .im-mode-tiers {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -12208,16 +12205,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 .im-dot[data-state="connected"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-success-subtle);
 }
-.im-channel-section > [data-part="header"] {
-  align-items: flex-start;
-}
-.im-channel-section > [data-part="content"] {
-  gap: 12px;
-}
-.im-channel-section [data-artemis-component="button"] {
-  min-height: 28px;
-  font-size: 12px;
-}
 .im-block {
   border: 0;
   padding-block: 8px;
@@ -12244,7 +12231,7 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   display: grid;
   gap: 12px;
 }
-.im-settings
+:is(.im-settings, .im-bot-dialog, .im-grant-dialog)
   :is(
     [data-artemis-component="text-field"],
     [data-artemis-component="select"],
@@ -12253,7 +12240,7 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   min-width: 0;
   max-width: 100%;
 }
-.im-settings
+:is(.im-settings, .im-bot-dialog, .im-grant-dialog)
   :is([data-artemis-component="text-field"], [data-artemis-component="select"])
   :is([data-part="control"], [data-part="trigger"]) {
   box-sizing: border-box;

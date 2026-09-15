@@ -49,7 +49,18 @@ export function ImDataPermissions({
   function change(
     next: ImDataScope,
     knownEntries = Object.values(entries).flat(),
+    reset = false,
   ) {
+    if (!reset && next.readPaths.length === 0) {
+      setError(
+        t(
+          "请保留至少一个可读范围；如需禁止项目访问，请撤销项目授权。",
+          "Keep at least one readable path; revoke the project grant to deny project access.",
+        ),
+      );
+      return;
+    }
+    setError("");
     onChange({
       version: IM_SECURITY_VERSION,
       revision: grant.security?.revision ?? "draft",
@@ -169,6 +180,7 @@ export function ImDataPermissions({
                     }
                     disabled={
                       disabled ||
+                      (scope.readPaths.length === 0 && path !== "") ||
                       scope.readPaths.some(
                         (p) =>
                           p !== entry.path &&
@@ -226,14 +238,18 @@ export function ImDataPermissions({
                       )
                     }
                     onCheckedChange={(checked) =>
-                      change({
-                        ...scope,
-                        writePaths: checked
-                          ? [...scope.writePaths, entry.path]
-                          : scope.writePaths.filter(
-                              (p) => !imPathWithinScope(p, [entry.path]),
-                            ),
-                      })
+                      change(
+                        {
+                          ...scope,
+                          writePaths: checked
+                            ? [...scope.writePaths, entry.path]
+                            : scope.writePaths.filter(
+                                (p) => !imPathWithinScope(p, [entry.path]),
+                              ),
+                        },
+                        undefined,
+                        scope.readPaths.length === 0,
+                      )
                     }
                   />
                 </>
@@ -302,7 +318,9 @@ export function ImDataPermissions({
         <Button
           size="compact"
           disabled={disabled}
-          onClick={() => change({ ...scope, readPaths: [], writePaths: [] })}
+          onClick={() =>
+            change({ ...scope, readPaths: [], writePaths: [] }, undefined, true)
+          }
         >
           {t("恢复默认范围", "Reset to default scope")}
         </Button>

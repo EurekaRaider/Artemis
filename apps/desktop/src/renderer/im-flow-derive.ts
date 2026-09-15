@@ -36,7 +36,15 @@ export function imFlowSteps(status: ImFlowStatus | undefined): ImFlowStep[] {
   return [
     { id: "service", done: !!settings?.deviceId },
     { id: "channel", done: channelDone },
-    { id: "projects", done: !!settings?.grants?.length },
+    {
+      id: "projects",
+      done: !!settings?.grants?.some(
+        (grant) =>
+          grant.expiresAt > Date.now() &&
+          !!grant.security?.confirmedAt &&
+          grant.security.scopes.some((scope) => scope.audience === "owner"),
+      ),
+    },
   ];
 }
 
@@ -58,8 +66,7 @@ export interface ImVerifyState {
   channel?: string | undefined;
 }
 
-const verifyKey = (deviceId: string) =>
-  `artemis.im.flow.verify.${deviceId}`;
+const verifyKey = (deviceId: string) => `artemis.im.flow.verify.${deviceId}`;
 const legacyTestConfirmedKey = (deviceId: string) =>
   `artemis.im.flow.testConfirmed.${deviceId}`;
 
@@ -70,11 +77,15 @@ const legacyTestConfirmedKey = (deviceId: string) =>
  * survives the migration.
  */
 export function imReadVerify(deviceId?: string): ImVerifyState {
-  if (!deviceId || typeof localStorage === "undefined") return { confirmed: false };
+  if (!deviceId || typeof localStorage === "undefined")
+    return { confirmed: false };
   try {
     const raw = localStorage.getItem(verifyKey(deviceId));
     if (raw) {
-      const parsed = JSON.parse(raw) as { confirmed?: boolean; channel?: string };
+      const parsed = JSON.parse(raw) as {
+        confirmed?: boolean;
+        channel?: string;
+      };
       return {
         confirmed: !!parsed.confirmed,
         channel: parsed.channel || undefined,
@@ -94,6 +105,7 @@ export function imWriteVerify(
 ): void {
   if (!deviceId || typeof localStorage === "undefined") return;
   try {
+    localStorage.removeItem(legacyTestConfirmedKey(deviceId));
     if (next.confirmed)
       localStorage.setItem(
         verifyKey(deviceId),

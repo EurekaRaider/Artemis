@@ -149,9 +149,7 @@ const platformState = (channel: keyof typeof platformLabels) =>
 /* 三步版：群协作入口在②尾「顺手验证」段（或③尾仪式/概览）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
   await openCard(user, /^接入渠道/);
-  await user.click(
-    screen.getByRole("button", { name: /^顺手验证/ }),
-  );
+  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   await user.click(screen.getByRole("button", { name: "设置群协作（可选）" }));
 };
 
@@ -540,9 +538,10 @@ describe("production IM settings", () => {
         "data-connection-state",
         "connected",
       );
-      expect(
-        platformState("feishu").querySelector(".im-dot"),
-      ).toHaveAttribute("data-state", "connected");
+      expect(platformState("feishu").querySelector(".im-dot")).toHaveAttribute(
+        "data-state",
+        "connected",
+      );
     });
   });
   it("builds a group configuration from discovered groups and paired members without editing JSON", async () => {
@@ -628,9 +627,7 @@ describe("production IM settings", () => {
       document.querySelector('.im-header [data-artemis-component="switch"]'),
     ).toHaveAttribute("data-label-visibility", "hidden");
     /* 三步版②摘要：配对谓词优先（已连接+已绑定 → 已连接 · 渠道名）。 */
-    expect(cardHead(/^接入渠道/)).toHaveTextContent(
-      "已连接 · 企业微信",
-    );
+    expect(cardHead(/^接入渠道/)).toHaveTextContent("已连接 · 企业微信");
     await openCard(user, /^接入渠道/);
     const change = screen.getByRole("button", { name: /^更换凭据/ });
     const bot = document.getElementById("im-bot")!;
@@ -661,9 +658,7 @@ describe("production IM settings", () => {
     });
     /* 三步版：②摘要按配对谓词（该渠道已连接+已绑定）优先；部分失败明细
        留给渠道 tab 的连接状态（partial_error），不再挤进步骤摘要。 */
-    expect(cardHead(/^接入渠道/)).toHaveTextContent(
-      "已连接 · 企业微信",
-    );
+    expect(cardHead(/^接入渠道/)).toHaveTextContent("已连接 · 企业微信");
     await openCard(user, /^接入渠道/);
     expect(platformState("wecom")).toHaveAttribute(
       "data-connection-state",
@@ -767,9 +762,7 @@ describe("production IM settings", () => {
     // ②卡展开可见渠道 tab（仅渠道名+信号灯）；回到①卡一键启动后进入②的渠道编辑。
     await user.click(screen.getByRole("button", { name: /^接入渠道/ }));
     expect(screen.getByRole("tab", { name: /飞书 \/ Lark/ })).toBeVisible();
-    expect(
-      screen.queryByText("长连接或 HTTPS 回调"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("长连接或 HTTPS 回调")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^连接服务/ }));
     await user.click(screen.getByRole("button", { name: "一键启动并注册" }));
     await waitFor(() =>
@@ -801,6 +794,12 @@ describe("production IM settings", () => {
             shell: false,
             groups: [],
             expiresAt: Date.now() + 60000,
+            security: {
+              version: 2,
+              revision: "confirmed",
+              confirmedAt: 1,
+              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+            },
           },
         ],
       },
@@ -856,9 +855,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openCard(user, /^接入渠道/);
-    await user.click(
-      await screen.findByRole("button", { name: /^更换凭据/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
     expect(screen.getByLabelText("连接 ID")).toHaveValue("wecom-team");
     expect(screen.getByLabelText("Bot ID")).toHaveValue("test-bot");
     expect(screen.getByLabelText("Bot Secret")).toHaveValue("");
@@ -931,6 +928,12 @@ describe("production IM settings", () => {
       enabled: true,
       grants: [{ mode: "plan" }],
     });
+    expect(f.get().settings.grants[0]!.security!.confirmedAt).toBe(0);
+    await user.click(screen.getByRole("button", { name: "授权配置" }));
+    expect(
+      screen.getByRole("checkbox", { name: /我确认以上文件范围/ }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "关闭", exact: true }));
     await waitFor(() =>
       expect(
         document.querySelector(
@@ -1029,11 +1032,13 @@ describe("production IM settings", () => {
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 授权设置收进行右侧按钮的聚焦弹窗。
     await user.click(screen.getByRole("button", { name: "授权配置" }));
-    // Plan 默认：范围声明行可见，范围树收在「自定义范围」后（D3）。
+    // 未确认的 Plan 授权直接展示范围确认入口。
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
-    expect(screen.queryByRole("button", { name: "选择目录或文件" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "选择目录或文件" }),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "自定义范围 ▸" }));
     expect(
       screen.getByRole("button", { name: "选择目录或文件" }),
@@ -1345,6 +1350,12 @@ describe("pairing code lifecycle", () => {
             shell: false,
             groups: [],
             expiresAt: Date.now() + 60000,
+            security: {
+              version: 2,
+              revision: "confirmed",
+              confirmedAt: 1,
+              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+            },
           },
         ],
       },
@@ -1374,6 +1385,12 @@ describe("pairing code lifecycle", () => {
             shell: false,
             groups: [],
             expiresAt: Date.now() + 60000,
+            security: {
+              version: 2,
+              revision: "confirmed",
+              confirmedAt: 1,
+              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+            },
           },
         ],
       },
@@ -1386,9 +1403,7 @@ describe("pairing code lifecycle", () => {
       await screen.findByRole("button", { name: "设置群协作" }),
     ).toBeVisible();
     await openCard(user, /^接入渠道/);
-    await user.click(
-      screen.getByRole("button", { name: /^顺手验证/ }),
-    );
+    await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     const track = screen.getByRole("list", { name: "测试任务进度" });
     /* 真实信号推进：仅「桌面出现任务」由系统检测置 done；后续两段等用户确认。 */
     expect(
@@ -1419,6 +1434,12 @@ describe("pairing code lifecycle", () => {
             shell: false,
             groups: [],
             expiresAt: Date.now() + 60000,
+            security: {
+              version: 2,
+              revision: "confirmed",
+              confirmedAt: 1,
+              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+            },
           },
         ],
       },

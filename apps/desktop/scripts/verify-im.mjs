@@ -405,23 +405,29 @@ try {
       await click(button("← 返回单聊设置"));
     const channels = { wecom: "企业微信", feishu: "飞书", slack: "Slack" };
     if (channels[view]) {
-      await clickCard("添加机器人");
+      await clickCard("接入渠道");
       await click(
-        `Array.from(document.querySelectorAll('.im-platform-cards button')).find(b=>b.textContent.includes(${JSON.stringify(channels[view])}))`,
+        `Array.from(document.querySelectorAll('.im-channel-tabs button')).find(b=>b.textContent.includes(${JSON.stringify(channels[view])}))`,
       );
       return;
     }
     const cards = {
       gateway: "连接服务",
-      pairing: "绑定我的账号",
-      permissions: "允许手机操作的项目",
+      pairing: "接入渠道",
+      permissions: "授权项目",
     };
     if (cards[view]) {
       await clickCard(cards[view]);
       return;
     }
     if (view === "spaces") {
-      await clickCard("发一条测试任务");
+      await clickCard("接入渠道");
+      if (
+        !(await evaluate(
+          "document.querySelector('.im-verify-toggle').getAttribute('aria-expanded')==='true'",
+        ))
+      )
+        await click("document.querySelector('.im-verify-toggle')");
       await click(button("设置群协作（可选）"));
     }
   };
@@ -451,7 +457,7 @@ try {
       const r = target.getBoundingClientRect();
       const bounds = scroll.getBoundingClientRect();
       const x = ${edge} ? r.right - 2 : r.x + r.width / 2;
-      const y = Math.max(bounds.top + 15, Math.min(bounds.bottom - 15, r.y + 15));
+      const y = Math.max(bounds.top + 15, Math.min(bounds.bottom - 15, r.y + r.height / 2));
       return {
         x, y,
         hit: target.contains(document.elementFromPoint(x, y)),
@@ -589,7 +595,7 @@ try {
     );
     assert.equal(
       await evaluate("document.querySelectorAll('.im-flow-card').length"),
-      5,
+      3,
     );
     await send("Emulation.setDeviceMetricsOverride", {
       width: 720,
@@ -620,8 +626,8 @@ try {
       for (const channel of ["wecom", "feishu", "slack"]) {
         await openView(channel);
         for (const [area, selector] of [
-          ["form", "#im-bot h4"],
-          ["input", "#im-bot input"],
+          ["form", ".im-bots h4"],
+          ["input", ".im-channel-tabs button"],
           ["blank", ".im-flow"],
         ]) {
           await checkWheelScroll(
@@ -672,7 +678,9 @@ try {
       ).includes("机器人配置的管理凭据"),
     );
     await openView("slack");
-    await click("document.querySelector('#im-bot details:last-child summary')");
+    await click(
+      "document.querySelector('#im-bot .im-setup-guide-top > summary')",
+    );
     await evaluate(
       "window.__copiedImCommand=''; navigator.clipboard.writeText=async text=>{window.__copiedImCommand=text;}",
     );
@@ -683,9 +691,10 @@ try {
       "message.im",
       "app_mention",
     ]);
+    await click(button("新建 BOT 连接"));
     assert.equal(
       await evaluate(
-        "document.querySelectorAll('#im-bot input[type=password]').length",
+        "document.querySelectorAll('.im-bot-dialog input[type=password]').length",
       ),
       2,
     );
@@ -694,16 +703,19 @@ try {
         await evaluate("document.querySelector('#im-bot').textContent")
       ).includes("事件回调地址："),
     );
-    await openView("pairing");
-    await click(button("生成一次性配对码"));
-    await click(button("复制配对指令"));
-    assert.match(
-      await evaluate("window.__copiedImCommand"),
-      /^pair [a-f0-9]{16}$/u,
+    await click(button("取消"));
+    assert.equal(
+      await evaluate(
+        "Boolean(document.querySelector('button[title=生成配对码]'))",
+      ),
+      false,
     );
-    await click(
-      "document.querySelector('#im-test').closest('details').querySelector('summary')",
-    );
+    if (
+      !(await evaluate(
+        "document.querySelector('.im-verify-toggle').getAttribute('aria-expanded')==='true'",
+      ))
+    )
+      await click("document.querySelector('.im-verify-toggle')");
     await click("document.querySelector('#im-test button')");
     assert.equal(await evaluate("window.__copiedImCommand"), "projects");
     await openView("slack");
@@ -774,7 +786,7 @@ try {
       "",
     );
     await openView("wecom");
-    await click(button("刷新机器人连接状态"));
+    await click("document.querySelector('button[title=刷新机器人连接状态]')");
     await until(
       async () =>
         (await evaluate("window.artemis.getImStatus()")).connections?.[0]
@@ -782,12 +794,10 @@ try {
       "bot refresh while paused",
     );
     await openView("pairing");
-    await click(button("生成一次性配对码"));
+    await click("document.querySelector('button[title=生成配对码]')");
     const pairCode = await until(
       () =>
-        evaluate(
-          "/\\/pair ([a-f0-9]{16})/.exec(document.querySelector('#im-pair').innerText)?.[1]",
-        ),
+        evaluate("document.querySelector('.im-pair-code-value')?.textContent"),
       "pair code",
     );
     receive(message("pair", `/pair ${pairCode}`));
@@ -802,7 +812,7 @@ try {
     await until(
       () =>
         evaluate(
-          "Array.from(document.querySelectorAll('.im-flow-head')).find(b=>b.textContent.includes('允许手机操作的项目'))?.getAttribute('aria-expanded')==='true'",
+          "Array.from(document.querySelectorAll('.im-flow-head')).find(b=>b.textContent.includes('授权项目'))?.getAttribute('aria-expanded')==='true'",
         ),
       "flow advances after approval",
     );
@@ -812,14 +822,14 @@ try {
     );
     // Exercise the real saved-credential form and the existing Gateway admin API.
     await openView("wecom");
-    await click(button("更换"));
+    await click("document.querySelector('button[title=更换凭据]')");
     assert.equal(
       await evaluate(
-        "document.querySelector('#im-bot input[type=password]').value",
+        "document.querySelector('.im-bot-dialog input[type=password]').value",
       ),
       "",
     );
-    await click("document.querySelector('#im-bot input')");
+    await click("document.querySelector('.im-bot-dialog input')");
     const credentialGeometry = await evaluate(`(() => {
     const input = document.activeElement, r = input.getBoundingClientRect();
     const clips = [];
@@ -845,12 +855,20 @@ try {
       join(output, "credentials.png"),
       Buffer.from(credentialCapture.data, "base64"),
     );
-    await fill("#im-bot input[type=password]", "synthetic-rotated-secret");
-    await click("document.querySelectorAll('#im-bot input[type=password]')[1]");
+    await fill(
+      ".im-bot-dialog input[type=password]",
+      "synthetic-rotated-secret",
+    );
+    await click(
+      "document.querySelectorAll('.im-bot-dialog input[type=password]')[1]",
+    );
     await send("Input.insertText", { text: "test-administrator-".repeat(3) });
     await click(button("保存并连接机器人"));
     await until(
-      () => evaluate("!document.querySelector('#im-bot input[type=password]')"),
+      () =>
+        evaluate(
+          "!document.querySelector('.im-bot-dialog input[type=password]')",
+        ),
       "saved credential form collapses",
     );
     assert.equal(

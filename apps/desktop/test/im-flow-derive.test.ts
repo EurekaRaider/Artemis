@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   imFirstPendingStep,
   imFlowProgress,
@@ -8,6 +8,12 @@ import {
   imWriteVerify,
 } from "../src/renderer/im-flow-derive.js";
 import type { ImConnectionStatus } from "@artemis/protocol";
+
+beforeEach(() => {
+  vi.stubGlobal("localStorage", window.localStorage);
+  localStorage.clear();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 const connected: ImConnectionStatus = {
   id: "bot",
@@ -22,7 +28,13 @@ function status(patch: Record<string, unknown> = {}) {
     settings: {
       enabled: true,
       deviceId: "device",
-      grants: patch.grants ?? [{ projectId: "p", expiresAt: 1 }],
+      grants: patch.grants ?? [
+        {
+          projectId: "p",
+          expiresAt: Date.now() + 60000,
+          security: { confirmedAt: 1, scopes: [{ audience: "owner" }] },
+        },
+      ],
     },
     identities: patch.identities ?? [{ channel: "wecom" }],
     connections: patch.connections ?? [connected],
@@ -59,11 +71,7 @@ describe("im flow derive (three-step chain)", () => {
     const crossChannel = imFlowSteps(
       status({ identities: [{ channel: "feishu" }] }),
     );
-    expect(crossChannel.map((step) => step.done)).toEqual([
-      true,
-      false,
-      true,
-    ]);
+    expect(crossChannel.map((step) => step.done)).toEqual([true, false, true]);
     /* 同渠道成立。 */
     const sameChannel = imFlowSteps(status());
     expect(sameChannel[1]!.done).toBe(true);
@@ -78,6 +86,26 @@ describe("im flow derive (three-step chain)", () => {
     const confirmed = imFlowSteps(status());
     expect(imFlowProgress(confirmed)).toBe(3);
   });
+  it("does not finish project setup for unconfirmed or expired grants", () => {
+    expect(
+      imFlowSteps(
+        status({ grants: [{ projectId: "p", expiresAt: Date.now() + 60000 }] }),
+      )[2]!.done,
+    ).toBe(false);
+    expect(
+      imFlowSteps(
+        status({
+          grants: [
+            {
+              projectId: "p",
+              expiresAt: 1,
+              security: { confirmedAt: 1, scopes: [{ audience: "owner" }] },
+            },
+          ],
+        }),
+      )[2]!.done,
+    ).toBe(false);
+  });
   it("persists the optional verify per device with its channel", () => {
     expect(imReadVerify().confirmed).toBe(false);
     expect(imReadVerify("missing").confirmed).toBe(false);
@@ -89,5 +117,11 @@ describe("im flow derive (three-step chain)", () => {
     expect(imReadVerify("device-b").confirmed).toBe(false);
     imWriteVerify("device-a", { confirmed: false });
     expect(imReadVerify("device-a").confirmed).toBe(false);
+  });
+  it("keeps a migrated verification revoked after reopening settings", () => {
+    localStorage.setItem("artemis.im.flow.testConfirmed.legacy-device", "1");
+    expect(imReadVerify("legacy-device").confirmed).toBe(true);
+    imWriteVerify("legacy-device", { confirmed: false });
+    expect(imReadVerify("legacy-device").confirmed).toBe(false);
   });
 });

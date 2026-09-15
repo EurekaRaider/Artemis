@@ -77,6 +77,9 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
       }) as HTMLInputElement
     ).disabled,
   ).toBe(true);
+  await user.click(screen.getByRole("checkbox", { name: "可处理 docs" }));
+  expect(value!.security!.scopes[0]!.readPaths).toEqual(["docs"]);
+  expect(screen.getByText(/撤销项目授权/)).toBeVisible();
   await user.click(screen.getByRole("checkbox", { name: /我确认以上/ }));
   expect(value!.security!.confirmedAt).toBeGreaterThan(0);
 });
@@ -191,7 +194,7 @@ it("exposes disclosure state and preserves inherited permissions with keyboard c
   }) as HTMLInputElement;
   read.focus();
   await user.keyboard(" ");
-  // 取消最后一个显式读根 = 回到默认（整个项目可读），仍显示为勾选。
+  // 禁止取消最后一个显式读根，避免扩大为整个项目。
   expect(read.checked).toBe(true);
 });
 
