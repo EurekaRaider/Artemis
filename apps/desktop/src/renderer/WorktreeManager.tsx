@@ -112,8 +112,20 @@ export function WorktreeManager({
       )}
       <div className="worktree-manager-list">
         {items.map((item) => (
-          <label key={item.worktree.id} className="worktree-manager-item">
+          <label
+            key={item.worktree.id}
+            className="worktree-manager-item"
+            data-artemis-component="checkbox"
+            data-state={
+              busy || item.busy || !item.clean
+                ? "disabled"
+                : selected.includes(item.worktree.threadId)
+                  ? "checked"
+                  : "ready"
+            }
+          >
             <input
+              data-part="control"
               type="checkbox"
               disabled={busy || item.busy || !item.clean}
               checked={selected.includes(item.worktree.threadId)}
@@ -126,6 +138,9 @@ export function WorktreeManager({
                 );
               }}
             />
+            <span aria-hidden="true" data-part="indicator">
+              {selected.includes(item.worktree.threadId) ? "✓" : ""}
+            </span>
             <span>
               <strong>
                 {item.projectName} · {item.title}

@@ -674,20 +674,32 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    inline-size: calc(var(--artemis-space-4) + var(--artemis-space-2));
-    block-size: calc(var(--artemis-space-4) + var(--artemis-space-2));
+    inline-size: calc(
+      var(--artemis-space-4) - 2 * var(--artemis-border-width-default)
+    );
+    block-size: calc(
+      var(--artemis-space-4) - 2 * var(--artemis-border-width-default)
+    );
     color: var(--artemis-color-accent-on-primary);
     background: var(--artemis-color-surface-base);
     border: var(--artemis-border-width-default) solid
       var(--artemis-color-border-default);
-    border-radius: var(--artemis-radius-control);
-    font-size: var(--artemis-typography-label-size);
+    border-radius: calc(
+      var(--artemis-space-1) - var(--artemis-border-width-default)
+    );
+    font-size: calc(
+      var(--artemis-space-3) - var(--artemis-border-width-default)
+    );
   }
 
   [data-artemis-component="checkbox"][data-size="compact"]
     [data-part="indicator"] {
-    inline-size: calc(var(--artemis-space-4) + var(--artemis-space-1));
-    block-size: calc(var(--artemis-space-4) + var(--artemis-space-1));
+    inline-size: calc(
+      var(--artemis-space-4) - 2 * var(--artemis-border-width-default)
+    );
+    block-size: calc(
+      var(--artemis-space-4) - 2 * var(--artemis-border-width-default)
+    );
   }
 
   [data-artemis-component="checkbox"][data-state="checked"]

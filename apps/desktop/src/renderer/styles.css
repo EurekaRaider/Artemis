@@ -2159,41 +2159,10 @@ button.environment-row:disabled {
   cursor: pointer;
   display: grid;
   gap: 8px;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   min-height: 46px;
   padding: 0 10px 8px;
   position: relative;
-}
-
-.environment-git-include input {
-  height: 20px;
-  inset-inline-start: 10px;
-  margin: 0;
-  opacity: 0;
-  position: absolute;
-  width: 20px;
-}
-
-.environment-git-include > span[aria-hidden="true"] {
-  align-items: center;
-  border: 1px solid var(--muted-2);
-  border-radius: 7px;
-  color: transparent;
-  display: inline-flex;
-  height: 20px;
-  justify-content: center;
-  width: 20px;
-}
-
-.environment-git-include input:checked + span {
-  background: #287be8;
-  border-color: #287be8;
-  color: #fff;
-}
-
-.environment-git-include input:focus-visible + span {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
 }
 
 .environment-git-include strong,
@@ -8245,16 +8214,6 @@ button.sources-panel-entry.attachment:focus-visible {
   font-size: 12px;
 }
 
-.configuration-import
-  [data-artemis-component="checkbox"]
-  [data-part="indicator"] {
-  inline-size: 16px;
-  block-size: 16px;
-  border-radius: var(--artemis-space-1);
-  font-size: 11px;
-  line-height: 1;
-}
-
 .configuration-import-sources {
   border: 1px solid var(--artemis-color-border-subtle);
   border-radius: 10px;
@@ -10114,12 +10073,15 @@ kbd {
 .im-flow-card {
   /* border-radius: inherit on the head picks up 0 from its h3 wrapper. */
   --im-flow-radius: calc(var(--artemis-radius-md, 10px) - 1px);
-  border: 1px solid var(--border-soft);
+  border: 0;
   border-radius: var(--artemis-radius-md, 10px);
-  background: var(--artemis-color-surface, transparent);
+  background: transparent;
 }
-.im-flow-card[data-done="true"] {
-  border-color: color-mix(in srgb, var(--success) 26%, var(--border-soft));
+.im-flow-card + .im-flow-card::before {
+  content: "";
+  display: block;
+  margin: 0 14px 10px 46px;
+  border-top: 1px solid var(--border-soft);
 }
 .im-flow-head-h {
   margin: 0;
@@ -10154,9 +10116,6 @@ kbd {
   inline-size: 24px;
   block-size: 24px;
   flex: none;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, currentColor 10%, transparent);
   color: light-dark(#276eaf, #7dbbfa);
 }
 .im-flow-num[data-icon="message"] {
@@ -10214,15 +10173,7 @@ kbd {
 .im-grant-dialog [data-artemis-component="checkbox"] {
   min-block-size: 28px;
 }
-.im-settings [data-artemis-component="checkbox"] [data-part="indicator"],
-.im-grant-dialog [data-artemis-component="checkbox"] [data-part="indicator"] {
-  inline-size: 14px;
-  block-size: 14px;
-  border-radius: calc(
-    var(--artemis-space-1) - var(--artemis-border-width-default)
-  );
-  font-size: 11px;
-}
+
 .im-settings [data-artemis-component="switch"] [data-part="track"] {
   inline-size: 34px;
   block-size: 20px;
@@ -12688,16 +12639,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   cursor: pointer;
 }
 
-.im-scope-check[data-artemis-component="checkbox"] [data-part="indicator"] {
-  inline-size: 14px;
-  block-size: 14px;
-  border-radius: calc(
-    var(--artemis-space-1) - var(--artemis-border-width-default)
-  );
-  font-size: 11px;
-  line-height: 1;
-}
-
 .im-scope-check input:checked + [data-part="indicator"] {
   background: var(--artemis-color-accent-primary);
   border-color: var(--artemis-color-accent-primary);
@@ -13008,7 +12949,7 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   align-items: flex-start;
   gap: 10px;
 }
-.worktree-manager-item > span {
+.worktree-manager-item > span:not([data-part="indicator"]) {
   display: grid;
   gap: 4px;
   min-width: 0;

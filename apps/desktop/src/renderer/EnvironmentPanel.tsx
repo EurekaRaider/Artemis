@@ -2291,14 +2291,23 @@ export function EnvironmentPanel({
                 />
               </label>
 
-              <label className="environment-git-include">
+              <label
+                className="environment-git-include"
+                data-artemis-component="checkbox"
+                data-state={
+                  gitBusy ? "disabled" : includeUnstaged ? "checked" : "ready"
+                }
+              >
                 <input
+                  data-part="control"
                   checked={includeUnstaged}
                   disabled={Boolean(gitBusy)}
                   onChange={(event) => setIncludeUnstaged(event.target.checked)}
                   type="checkbox"
                 />
-                <span aria-hidden="true">✓</span>
+                <span aria-hidden="true" data-part="indicator">
+                  {includeUnstaged ? "✓" : ""}
+                </span>
                 <strong>{t.includeUnstaged}</strong>
                 <span className="environment-diff-total">
                   <i>
