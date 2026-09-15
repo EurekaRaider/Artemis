@@ -319,6 +319,8 @@ const snapshot = () => {
     '[data-artemis-component="terminal-host"]',
   );
   const appShell = document.querySelector(".app-shell");
+  const nativeSidebar = appShell?.dataset.platform === "darwin";
+  const darkTheme = root.dataset.artemisTheme === "dark";
   const sidebarMain = document.querySelector(
     '[data-artemis-component="navigation-sidebar"] > [data-part="main"]',
   );
@@ -413,15 +415,18 @@ const snapshot = () => {
         ]),
       ),
       shell: surfaceStyle(appShell, "--artemis-color-canvas"),
+      workspace: surfaceStyle(workspace, "--artemis-color-canvas"),
       sidebarParts: {
         main: navigationSidebar?.querySelectorAll(':scope > [data-part="main"]').length,
         rail: navigationSidebar?.querySelectorAll(':scope > [data-part="rail"]').length,
       },
       sidebar: surfaceStyle(
         sidebarMain,
-        "--artemis-color-background-sidebar",
-        navigationSidebar?.dataset.state === "collapsed" ? 78
-          : root.dataset.artemisTheme === "dark" ? 92 : 72,
+        nativeSidebar && !darkTheme
+          ? "--artemis-color-surface-raised"
+          : "--artemis-color-background-sidebar",
+        nativeSidebar ? (darkTheme ? 12 : 84)
+          : navigationSidebar?.dataset.state === "collapsed" ? 78 : 72,
       ),
       composer: surfaceStyle(
         composerSurface,
@@ -1798,8 +1803,8 @@ async function driveElectron() {
 
     const expectedCanvas = {
       default: {
-        light: { normal: "#fafafa", high: "#fafafa" },
-        dark: { normal: "#141414", high: "#141414" },
+        light: { normal: "#fff", high: "#fff" },
+        dark: { normal: "#181818", high: "#181818" },
       },
       stress: {
         light: { normal: "#fff0a6", high: "#ffffff" },
@@ -1927,16 +1932,29 @@ async function driveElectron() {
         `Public surface identity failed: ${JSON.stringify({ configuration, surfaces: snapshot.surfaces })}`,
       );
       const surfaceTokenBindings = [
-        [snapshot.surfaces?.shell, snapshot.tokens?.["color.canvas"]],
+        [snapshot.surfaces?.workspace, snapshot.tokens?.["color.canvas"]],
+        ...(process.platform === "darwin"
+          ? []
+          : [[snapshot.surfaces?.shell, snapshot.tokens?.["color.canvas"]]]),
         [
           snapshot.surfaces?.sidebar,
-          snapshot.tokens?.["color.background.sidebar"],
+          snapshot.tokens?.[
+            process.platform === "darwin" && configuration.theme === "light"
+              ? "color.surface.raised"
+              : "color.background.sidebar"
+          ],
         ],
         [
           snapshot.surfaces?.composer,
           snapshot.tokens?.["color.surface.composer"],
         ],
       ];
+      if (process.platform === "darwin") {
+        assert(
+          snapshot.surfaces?.shell?.backgroundColor === "rgba(0, 0, 0, 0)",
+          "macOS shell must reveal the native sidebar material.",
+        );
+      }
       assert(
         surfaceTokenBindings.every(
           ([surface, token]) =>
