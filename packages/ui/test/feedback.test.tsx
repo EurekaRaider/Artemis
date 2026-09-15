@@ -268,6 +268,21 @@ describe("Feedback overlays", () => {
     expect(screen.queryByRole("dialog", { name: "Project menu" })).toBeNull();
   });
 
+  it("keeps tooltips inside the owning native dialog top layer", async () => {
+    const user = userEvent.setup();
+    render(
+      <dialog open aria-label="Settings">
+        <Tooltip label="Add bot">
+          <button>Add</button>
+        </Tooltip>
+      </dialog>,
+    );
+    await user.hover(screen.getByRole("button", { name: "Add" }));
+    expect(
+      screen.getByRole("tooltip", { name: "Add bot" }).closest("dialog"),
+    ).toBe(screen.getByRole("dialog", { name: "Settings" }));
+  });
+
   it("connects tooltip text, dismisses it with Escape, and reopens normally", async () => {
     const user = userEvent.setup();
     render(

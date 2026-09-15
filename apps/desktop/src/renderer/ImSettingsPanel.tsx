@@ -16,7 +16,12 @@ import {
   type Project,
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
-import { Dialog, InlineNotice, LoadingState } from "@artemis/ui/feedback";
+import {
+  Dialog,
+  InlineNotice,
+  LoadingState,
+  Tooltip,
+} from "@artemis/ui/feedback";
 import {
   Checkbox,
   Select,
@@ -281,6 +286,8 @@ export function ImSettingsPanel({
     }
     if (next === "overview") {
       setScreen("overview");
+      setFlowCard(null);
+      setFocusTarget("im-overview");
       return;
     }
     if (next === "guide" || next === "flow" || next === "setup-guide") {
@@ -1055,21 +1062,25 @@ export function ImSettingsPanel({
             <h4>{t("机器人列表", "Bot list")}</h4>
             {/* 标题行尾的「机器人+加号」新建入口（ui Button 契约要求
                   可见文字，纯图标动作用原生按钮 + aria-label）。 */}
-            <button
-              type="button"
-              className="im-icon-action"
-              disabled={busy}
-              title={t("新建 BOT 连接", "New bot connection")}
-              aria-label={t("新建 BOT 连接", "New bot connection")}
-              onClick={(event) => {
-                botDialogTrigger.current = event.currentTarget;
-                setFields({});
-                setAdminToken("");
-                setBotDialog({});
-              }}
+            <Tooltip
+              label={t("新建 BOT 连接", "New bot connection")}
+              align="end"
             >
-              <ArtemisIcon height={13} name="bot-add" width={13} />
-            </button>
+              <button
+                type="button"
+                className="im-icon-action"
+                disabled={busy}
+                aria-label={t("新建 BOT 连接", "New bot connection")}
+                onClick={(event) => {
+                  botDialogTrigger.current = event.currentTarget;
+                  setFields({});
+                  setAdminToken("");
+                  setBotDialog({});
+                }}
+              >
+                <ArtemisIcon height={13} name="bot-add" width={13} />
+              </button>
+            </Tooltip>
           </div>
           {!channelConnections.length && (
             <p>
@@ -1095,63 +1106,72 @@ export function ImSettingsPanel({
               {connection.error && (
                 <InlineNotice tone="danger">{connection.error}</InlineNotice>
               )}
-              <button
-                type="button"
-                className="im-icon-action"
-                disabled={busy}
-                title={t("更换凭据", "Replace credentials")}
-                aria-label={t(
-                  `更换凭据 ${connection.name}`,
-                  `Replace credentials ${connection.name}`,
-                )}
-                onClick={(event) => {
-                  botDialogTrigger.current = event.currentTarget;
-                  setFields(
-                    Object.fromEntries(
-                      PUBLIC_BOT_FIELDS.flatMap((key) =>
-                        typeof connection.configuration?.[key] === "string"
-                          ? [[key, connection.configuration[key]!]]
-                          : [],
+              <Tooltip label={t("更换凭据", "Replace credentials")} align="end">
+                <button
+                  type="button"
+                  className="im-icon-action"
+                  disabled={busy}
+                  aria-label={t(
+                    `更换凭据 ${connection.name}`,
+                    `Replace credentials ${connection.name}`,
+                  )}
+                  onClick={(event) => {
+                    botDialogTrigger.current = event.currentTarget;
+                    setFields(
+                      Object.fromEntries(
+                        PUBLIC_BOT_FIELDS.flatMap((key) =>
+                          typeof connection.configuration?.[key] === "string"
+                            ? [[key, connection.configuration[key]!]]
+                            : [],
+                        ),
                       ),
-                    ),
-                  );
-                  setBotDialog({ connectionId: connection.id });
-                }}
+                    );
+                    setBotDialog({ connectionId: connection.id });
+                  }}
+                >
+                  <ArtemisIcon height={13} name="edit" width={13} />
+                </button>
+              </Tooltip>
+              <Tooltip
+                label={t("刷新机器人连接状态", "Refresh bot connection status")}
+                align="end"
               >
-                <ArtemisIcon height={13} name="edit" width={13} />
-              </button>
-              <button
-                type="button"
-                className="im-icon-action"
-                disabled={busy || !settings.deviceId}
-                title={t("刷新机器人连接状态", "Refresh bot connection status")}
-                aria-label={t(
-                  `刷新 ${connection.name} 连接状态`,
-                  `Refresh ${connection.name} connection status`,
-                )}
-                onClick={() => void run(refresh)}
+                <button
+                  type="button"
+                  className="im-icon-action"
+                  disabled={busy || !settings.deviceId}
+                  aria-label={t(
+                    `刷新 ${connection.name} 连接状态`,
+                    `Refresh ${connection.name} connection status`,
+                  )}
+                  onClick={() => void run(refresh)}
+                >
+                  <ArtemisIcon height={13} name="refresh" width={13} />
+                </button>
+              </Tooltip>
+              <Tooltip
+                label={t("生成配对码", "Generate pairing code")}
+                align="end"
               >
-                <ArtemisIcon height={13} name="refresh" width={13} />
-              </button>
-              <button
-                type="button"
-                className="im-icon-action"
-                disabled={busy || !settings.deviceId}
-                title={t("生成配对码", "Generate pairing code")}
-                aria-label={t(
-                  `生成配对码 ${connection.name}`,
-                  `Generate pairing code ${connection.name}`,
-                )}
-                onClick={(event) => {
-                  pairDialogTrigger.current = event.currentTarget;
-                  setPairDialogId(connection.id);
-                  if (!pairCode || pairCode.expiresAt <= Date.now()) {
-                    void run(generatePairCode);
-                  }
-                }}
-              >
-                <ArtemisIcon height={13} name="send" width={13} />
-              </button>
+                <button
+                  type="button"
+                  className="im-icon-action"
+                  disabled={busy || !settings.deviceId}
+                  aria-label={t(
+                    `生成配对码 ${connection.name}`,
+                    `Generate pairing code ${connection.name}`,
+                  )}
+                  onClick={(event) => {
+                    pairDialogTrigger.current = event.currentTarget;
+                    setPairDialogId(connection.id);
+                    if (!pairCode || pairCode.expiresAt <= Date.now()) {
+                      void run(generatePairCode);
+                    }
+                  }}
+                >
+                  <ArtemisIcon height={13} name="send" width={13} />
+                </button>
+              </Tooltip>
               <ImConnectionRemoval
                 key={`${settings.deviceId}:${connection.id}`}
                 name={connection.name}
@@ -2739,14 +2759,7 @@ export function ImSettingsPanel({
                 <Button onClick={() => selectView("overview")}>
                   {t("查看连接概览", "Review connections")}
                 </Button>
-                <Button
-                  variant="quiet"
-                  onClick={() => {
-                    verifyTouched.current = true;
-                    setVerifyOpen(true);
-                    setFocusTarget("im-verify");
-                  }}
-                >
+                <Button variant="quiet" onClick={() => selectView("test")}>
                   {t(
                     "发测试消息验证（可选）",
                     "Send a test message (optional)",
@@ -2892,7 +2905,7 @@ export function ImSettingsPanel({
           {renderSpacesBody()}
         </div>
       ) : (
-        <div className="im-flow im-overview">
+        <div id="im-overview" className="im-flow im-overview" tabIndex={-1}>
           <div className="im-overview-actions">
             {!allDone && (
               <Button
@@ -2937,28 +2950,30 @@ function ImBotIdTag({ id, t }: { id: string; t: ImTranslate }) {
   }, [open]);
   return (
     <span className="im-bot-id" ref={root}>
-      <button
-        type="button"
-        className="im-icon-action im-bot-id-btn"
-        aria-expanded={open}
-        aria-label={t("查看连接 ID", "View connection ID")}
-        title={t("查看连接 ID", "View connection ID")}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <ArtemisIcon height={12} name="info" width={12} />
-      </button>
+      <Tooltip label={t("查看连接 ID", "View connection ID")} align="end">
+        <button
+          type="button"
+          className="im-icon-action im-bot-id-btn"
+          aria-expanded={open}
+          aria-label={t("查看连接 ID", "View connection ID")}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <ArtemisIcon height={12} name="info" width={12} />
+        </button>
+      </Tooltip>
       {open && (
         <span className="im-bot-id-pop">
           <code>{id}</code>
-          <button
-            type="button"
-            className="im-icon-action im-bot-id-btn"
-            aria-label={t("复制连接 ID", "Copy connection ID")}
-            title={t("复制连接 ID", "Copy connection ID")}
-            onClick={() => void navigator.clipboard.writeText(id)}
-          >
-            <ArtemisIcon height={12} name="copy" width={12} />
-          </button>
+          <Tooltip label={t("复制连接 ID", "Copy connection ID")} align="end">
+            <button
+              type="button"
+              className="im-icon-action im-bot-id-btn"
+              aria-label={t("复制连接 ID", "Copy connection ID")}
+              onClick={() => void navigator.clipboard.writeText(id)}
+            >
+              <ArtemisIcon height={12} name="copy" width={12} />
+            </button>
+          </Tooltip>
         </span>
       )}
     </span>

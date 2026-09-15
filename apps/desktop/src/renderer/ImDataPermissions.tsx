@@ -282,15 +282,6 @@ export function ImDataPermissions({
           "Selected data may be used in automatic replies to every member of this audience. Directories include future contents; credentials and execution configuration remain protected.",
         )}
       </p>
-      <p>
-        {t("可处理的文件：", "Readable: ")}
-        {scope.readPaths.join(", ") ||
-          t("整个项目（默认）", "Whole project (default)")}
-      </p>
-      <p>
-        {t("可修改的文件：", "Writable: ")}
-        {scope.writePaths.join(", ") || t("无", "None")}
-      </p>
       <div className="im-scope-actions">
         <Button
           size="compact"
@@ -344,15 +335,6 @@ export function ImDataPermissions({
           )}
         </InlineNotice>
       ) : null}
-      {(grant.security?.scopes ?? []).map((s) => (
-        <p key={s.audience}>
-          {audiences.find((a) => a.value === s.audience)?.label ??
-            t("主人单聊", "Owner direct chat")}{" "}
-          · {t("可处理", "Read")}:{" "}
-          {s.readPaths.join(", ") || t("整个项目", "Whole project")} ·{" "}
-          {t("可修改", "Write")}: {s.writePaths.join(", ") || "—"}
-        </p>
-      ))}
       <Checkbox
         label={t(
           "我确认以上文件范围与全部分享对象，保存后生效",

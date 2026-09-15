@@ -154,6 +154,61 @@ const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("production IM settings", () => {
+  it.each(["overview", "verify"])(
+    "navigates from the completion action to %s",
+    async (destination) => {
+      const f = fixture();
+      f.set({
+        settings: {
+          ...f.get().settings,
+          grants: [
+            {
+              projectId: "test-project",
+              tokenBudget: 100000,
+              approval: "ask",
+              mode: "plan",
+              network: false,
+              shell: false,
+              groups: [],
+              expiresAt: Date.now() + 60000,
+              security: {
+                version: 2,
+                revision: "confirmed",
+                confirmedAt: 1,
+                scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+              },
+            },
+          ],
+        },
+      });
+      const user = userEvent.setup();
+      render(<ImSettingsPanel locale="zh-CN" />);
+      await screen.findByRole("button", { name: "设置群协作" });
+      await openCard(user, /^授权项目/);
+      await user.click(
+        screen.getByRole("button", {
+          name:
+            destination === "overview"
+              ? "查看连接概览"
+              : "发测试消息验证（可选）",
+        }),
+      );
+      expect(cardHead(/^授权项目/)).toHaveAttribute("aria-expanded", "false");
+      if (destination === "overview") {
+        expect(document.querySelector(".im-overview")).toHaveFocus();
+        expect(cardHead(/^接入渠道/)).toHaveAttribute("aria-expanded", "false");
+      } else {
+        expect(cardHead(/^接入渠道/)).toHaveAttribute("aria-expanded", "true");
+        expect(
+          screen.getByRole("button", { name: /^顺手验证/ }),
+        ).toHaveAttribute("aria-expanded", "true");
+        expect(document.getElementById("im-verify")).toHaveFocus();
+        expect(
+          screen.getByRole("list", { name: "测试任务进度" }),
+        ).toBeVisible();
+      }
+    },
+  );
   it.each(["slack", "feishu", "wecom"] as const)(
     "refreshes %s connection signals after disconnect, failure, and recovery",
     async (channel) => {
@@ -1208,8 +1263,10 @@ describe("production IM settings", () => {
     expect(screen.getByRole("button", { name: "确认解除" })).toHaveFocus();
     expect(f.manage).not.toHaveBeenCalled();
     await user.keyboard("{Escape}");
-    await waitFor(() => expect(trigger).toHaveFocus());
-    await user.click(trigger);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "解除绑定" })).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("button", { name: "解除绑定" }));
     f.manage.mockRejectedValueOnce(new Error("Cannot unpair"));
     await user.click(screen.getByRole("button", { name: "确认解除" }));
     expect(await screen.findByText("Cannot unpair")).toBeVisible();

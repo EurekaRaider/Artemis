@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Button } from "@artemis/ui/actions";
-import { Dialog } from "@artemis/ui/feedback";
+import { Dialog, Tooltip } from "@artemis/ui/feedback";
 import { TextField } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import type { ImTranslate } from "./ImNavigation";
@@ -33,19 +33,20 @@ export function ImConnectionRemoval({
   return (
     <div className="im-connection-removal">
       {/* ui Button 契约要求可见文字；纯图标动作用原生按钮（aria-label 可达性）。 */}
-      <button
-        type="button"
-        className="im-icon-action"
-        disabled={busy}
-        title={t("移除连接", "Remove connection")}
-        aria-label={t(`移除连接 ${name}`, `Remove connection ${name}`)}
-        onClick={(event) => {
-          trigger.current = event.currentTarget;
-          setConfirming(true);
-        }}
-      >
-        <ArtemisIcon height={13} name="trash" width={13} />
-      </button>
+      <Tooltip label={t("移除连接", "Remove connection")} align="end">
+        <button
+          type="button"
+          className="im-icon-action"
+          disabled={busy}
+          aria-label={t(`移除连接 ${name}`, `Remove connection ${name}`)}
+          onClick={(event) => {
+            trigger.current = event.currentTarget;
+            setConfirming(true);
+          }}
+        >
+          <ArtemisIcon height={13} name="trash" width={13} />
+        </button>
+      </Tooltip>
       {confirming && (
         <Dialog
           className="im-removal-dialog"

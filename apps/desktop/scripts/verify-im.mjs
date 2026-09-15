@@ -706,7 +706,7 @@ try {
     await click(button("取消"));
     assert.equal(
       await evaluate(
-        "Boolean(document.querySelector('button[title=生成配对码]'))",
+        "Boolean(document.querySelector('button[aria-label^=生成配对码]'))",
       ),
       false,
     );
@@ -786,7 +786,7 @@ try {
       "",
     );
     await openView("wecom");
-    await click("document.querySelector('button[title=刷新机器人连接状态]')");
+    await click("document.querySelector('button[aria-label^=刷新]')");
     await until(
       async () =>
         (await evaluate("window.artemis.getImStatus()")).connections?.[0]
@@ -794,7 +794,7 @@ try {
       "bot refresh while paused",
     );
     await openView("pairing");
-    await click("document.querySelector('button[title=生成配对码]')");
+    await click("document.querySelector('button[aria-label^=生成配对码]')");
     const pairCode = await until(
       () =>
         evaluate("document.querySelector('.im-pair-code-value')?.textContent"),
@@ -822,7 +822,56 @@ try {
     );
     // Exercise the real saved-credential form and the existing Gateway admin API.
     await openView("wecom");
-    await click("document.querySelector('button[title=更换凭据]')");
+    for (const label of [
+      "新建 BOT 连接",
+      "更换凭据",
+      "刷新",
+      "生成配对码",
+      "移除连接",
+      "解除绑定",
+    ]) {
+      const target = await evaluate(
+        `(() => { const b = Array.from(document.querySelectorAll('button')).find(b => b.getAttribute('aria-label')?.startsWith(${JSON.stringify(label)})); b.scrollIntoView({block:'center',behavior:'instant'}); const r = b.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`,
+      );
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...target });
+      await until(
+        () =>
+          evaluate(
+            `Array.from(document.querySelectorAll('[role=tooltip]')).some(t => t.textContent.startsWith(${JSON.stringify(label)}) && getComputedStyle(t).visibility === 'visible')`,
+          ),
+        "icon tooltip " + label,
+      );
+      records.push({
+        name: "icon-tooltip",
+        label,
+        text: await evaluate(
+          `Array.from(document.querySelectorAll('[role=tooltip]')).find(t => t.textContent.startsWith(${JSON.stringify(label)})).textContent`,
+        ),
+      });
+    }
+    await evaluate(
+      "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+    );
+    await writeFile(
+      join(output, "tooltip-geometry.json"),
+      JSON.stringify(
+        await evaluate(
+          `Array.from(document.querySelectorAll('[role=tooltip]')).map(t=>({text:t.textContent,parent:t.parentElement.tagName,rect:t.getBoundingClientRect().toJSON(),style:{visibility:getComputedStyle(t).visibility,opacity:getComputedStyle(t).opacity,position:getComputedStyle(t).position},dialog:t.closest('dialog')?.getBoundingClientRect().toJSON()}))`,
+        ),
+        null,
+        2,
+      ),
+    );
+    const tooltipCapture = await send("Page.captureScreenshot", {
+      format: "png",
+    });
+    await writeFile(
+      join(output, "icon-tooltip.png"),
+      Buffer.from(tooltipCapture.data, "base64"),
+    );
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
+
+    await click("document.querySelector('button[aria-label^=更换凭据]')");
     assert.equal(
       await evaluate(
         "document.querySelector('.im-bot-dialog input[type=password]').value",
@@ -1220,8 +1269,8 @@ try {
       })()`);
       assert.equal(controls.arrowBorder, "0px");
       assert.equal(controls.arrowWidth, 14);
-      assert.equal(controls.checkboxWidth, 16);
-      assert.equal(controls.checkboxRadius, "4px");
+      assert.equal(controls.checkboxWidth, 14);
+      assert.equal(controls.checkboxRadius, "3px");
       assert.ok(controls.hitWidth >= 32);
       assert.equal(controls.inheritedFill, controls.selectedFill);
       const capture = await send("Page.captureScreenshot", { format: "png" });

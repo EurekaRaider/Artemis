@@ -2856,7 +2856,9 @@ button.environment-row:disabled {
 }
 
 .markdown-body a.external-http-link.with-icon:focus-visible {
-  border-radius: 3px;
+  border-radius: calc(
+    var(--artemis-space-1) - var(--artemis-border-width-default)
+  );
   outline: 2px solid color-mix(in srgb, var(--blue) 68%, transparent);
   outline-offset: 2px;
 }
@@ -10032,6 +10034,8 @@ kbd {
   min-height: 0;
 }
 .im-settings {
+  --success: light-dark(#078b3c, #07c160);
+  --artemis-color-switch-on: #07c160;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -10125,9 +10129,9 @@ kbd {
 .im-flow-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   inline-size: 100%;
-  padding: 10px 14px;
+  padding: 9px 14px;
   border: 0;
   border-radius: var(--im-flow-radius);
   background: transparent;
@@ -10144,33 +10148,33 @@ kbd {
   border-radius: var(--im-flow-radius) var(--im-flow-radius) 0 0;
 }
 .im-flow-num {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 22px;
-  block-size: 22px;
+  inline-size: 24px;
+  block-size: 24px;
   flex: none;
-  border: 1px solid var(--border-soft);
-  border-radius: 50%;
-  color: var(--muted);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: light-dark(#276eaf, #7dbbfa);
 }
-.im-flow-card[data-done="true"] .im-flow-num {
-  border-color: var(--success);
-  color: var(--success);
+.im-flow-num[data-icon="message"] {
+  color: light-dark(#187c73, #77d6c8);
 }
-/* 完成角标：语义图标保留，右下角小 ✓ 徽章表达完成（不再整位换成对勾） */
+.im-flow-num[data-icon="folder"] {
+  color: light-dark(#996611, #f2c363);
+}
+/* 完成状态跟随标题，不遮挡步骤图标。 */
 .im-flow-num-check {
-  position: absolute;
-  right: -3.5px;
-  bottom: -3.5px;
   display: grid;
   place-items: center;
   inline-size: 11px;
   block-size: 11px;
+  flex: none;
   border-radius: 50%;
   background: var(--success);
-  /* 深色主题 success 为亮绿（#4ade80 档），徽章前景换深色保对比 */
+  /* Keep the completion mark legible against the muted green badge. */
   color: light-dark(#fff, #0a2210);
   line-height: 0;
 }
@@ -10178,8 +10182,11 @@ kbd {
   stroke-width: 3;
 }
 .im-flow-title {
-  font-size: 13px;
-  font-weight: 560;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
 }
 .im-flow-summary {
   flex: 1;
@@ -10187,13 +10194,54 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--muted);
 }
 .im-flow-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
-  font-size: 13px;
+  inline-size: 20px;
+  block-size: 20px;
   color: var(--muted);
+  transform: rotate(-90deg);
+}
+.im-flow-head[aria-expanded="true"] .im-flow-caret {
+  transform: rotate(0deg);
+}
+.im-settings [data-artemis-component="checkbox"],
+.im-grant-dialog [data-artemis-component="checkbox"] {
+  min-block-size: 28px;
+}
+.im-settings [data-artemis-component="checkbox"] [data-part="indicator"],
+.im-grant-dialog [data-artemis-component="checkbox"] [data-part="indicator"] {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: calc(
+    var(--artemis-space-1) - var(--artemis-border-width-default)
+  );
+  font-size: 11px;
+}
+.im-settings [data-artemis-component="switch"] [data-part="track"] {
+  inline-size: 34px;
+  block-size: 20px;
+  padding: var(--artemis-border-width-default);
+}
+.im-settings [data-artemis-component="switch"] [data-part="thumb"] {
+  inline-size: 16px;
+  block-size: 16px;
+}
+.im-settings
+  [data-artemis-component="switch"][data-state="checked"]
+  [data-part="thumb"] {
+  transform: translateX(14px);
+}
+[dir="rtl"]
+  .im-settings
+  [data-artemis-component="switch"][data-state="checked"]
+  [data-part="thumb"] {
+  transform: translateX(-14px);
 }
 .im-flow-body {
   display: flex;
@@ -10510,11 +10558,10 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 }
 /* 行内动作组（更换凭据/刷新/配对码）推到行尾，移除按钮跟随其后；
    hover 不上底色，仅提亮（移除按钮保持 danger 红的警示语义）。 */
-.im-connection > .im-icon-action:first-of-type {
-  flex: none;
-  margin-inline-start: auto;
+.im-connection > .im-bot-id {
+  margin-inline-end: auto;
 }
-.im-connection > .im-icon-action:hover {
+.im-connection .im-icon-action:hover {
   color: var(--text);
 }
 /* 从属账号子列表：整行换行、缩进对齐机器人名称。 */
@@ -12566,8 +12613,8 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   grid-template-columns: minmax(0, 1fr) 64px 64px;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 4px 12px;
+  min-height: 32px;
+  padding: 2px 10px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -12642,10 +12689,12 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 }
 
 .im-scope-check[data-artemis-component="checkbox"] [data-part="indicator"] {
-  inline-size: 16px;
-  block-size: 16px;
-  border-radius: var(--artemis-space-1);
-  font-size: 12px;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: calc(
+    var(--artemis-space-1) - var(--artemis-border-width-default)
+  );
+  font-size: 11px;
   line-height: 1;
 }
 

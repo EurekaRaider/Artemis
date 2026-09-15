@@ -1,5 +1,16 @@
 import type { ReactNode } from "react";
-import { ArtemisIcon, type ArtemisIconName } from "@artemis/ui/icons";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import {
+  ChatCircleDotsIcon,
+  FolderIcon,
+  PlugIcon,
+} from "@phosphor-icons/react";
+
+const stepIcons = {
+  connector: PlugIcon,
+  message: ChatCircleDotsIcon,
+  folder: FolderIcon,
+};
 
 export type ImFlowTranslate = (cn: string, en: string) => string;
 
@@ -7,8 +18,8 @@ export type ImFlowTranslate = (cn: string, en: string) => string;
  * One step card of the guided 消息接入 flow. The head collapses completed
  * steps to a summary line; the body carries the step's live controls. The
  * leading badge carries a per-step semantic icon (① connector, ② message,
- * ③ folder); completion adds a small check badge instead of replacing the
- * icon, so finished steps stay distinguishable at a glance.
+ * ③ folder); a separate completion check follows the title so the colored
+ * icons stay unobstructed and distinguishable at a glance.
  */
 export function ImFlowCard({
   icon,
@@ -20,7 +31,7 @@ export function ImFlowCard({
   children,
   t,
 }: {
-  icon: ArtemisIconName;
+  icon: keyof typeof stepIcons;
   title: string;
   summary?: ReactNode;
   done: boolean;
@@ -29,6 +40,7 @@ export function ImFlowCard({
   children: ReactNode;
   t: ImFlowTranslate;
 }) {
+  const StepIcon = stepIcons[icon];
   return (
     <section
       className="im-flow-card"
@@ -42,18 +54,20 @@ export function ImFlowCard({
           aria-expanded={open}
           onClick={onToggle}
         >
-          <span aria-hidden="true" className="im-flow-num">
-            <ArtemisIcon height={13} name={icon} width={13} />
+          <span aria-hidden="true" className="im-flow-num" data-icon={icon}>
+            <StepIcon size={16} weight="fill" />
+          </span>
+          <span className="im-flow-title">
+            {title}
             {done && (
-              <span className="im-flow-num-check">
+              <span aria-hidden="true" className="im-flow-num-check">
                 <ArtemisIcon height={8} name="check" width={8} />
               </span>
             )}
           </span>
-          <span className="im-flow-title">{title}</span>
           {summary ? <span className="im-flow-summary">{summary}</span> : null}
           <span aria-hidden="true" className="im-flow-caret">
-            {open ? "▾" : "▸"}
+            <ArtemisIcon name="chevron" width={16} height={16} />
           </span>
         </button>
       </h3>

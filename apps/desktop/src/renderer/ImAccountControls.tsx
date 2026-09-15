@@ -12,7 +12,7 @@ import {
 } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { Button } from "@artemis/ui/actions";
-import { Dialog, InlineNotice } from "@artemis/ui/feedback";
+import { Dialog, InlineNotice, Tooltip } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation";
 
 export interface ImPairCode {
@@ -143,6 +143,7 @@ export function ImAccounts({
 }) {
   const [confirming, setConfirming] = useState("");
   const trigger = useRef<HTMLButtonElement | null>(null);
+  const triggerKey = useRef("");
   const confirm = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -247,21 +248,26 @@ export function ImAccounts({
                 </Button>
               </div>
             ) : null}
-            <span hidden={confirming === key}>
-              <button
-                type="button"
-                aria-label={t("解除绑定", "Unpair")}
-                title={t("解除绑定", "Unpair")}
-                className="im-icon-action"
-                disabled={busy}
-                onClick={(event) => {
-                  trigger.current = event.currentTarget;
-                  setConfirming(key);
-                }}
-              >
-                <ArtemisIcon name="unlink" />
-              </button>
-            </span>
+            {confirming !== key && (
+              <Tooltip label={t("解除绑定", "Unpair")} align="end">
+                <button
+                  type="button"
+                  ref={(node) => {
+                    if (triggerKey.current === key) trigger.current = node;
+                  }}
+                  aria-label={t("解除绑定", "Unpair")}
+                  className="im-icon-action"
+                  disabled={busy}
+                  onClick={(event) => {
+                    triggerKey.current = key;
+                    trigger.current = event.currentTarget;
+                    setConfirming(key);
+                  }}
+                >
+                  <ArtemisIcon name="unlink" />
+                </button>
+              </Tooltip>
+            )}
           </div>
         );
       })}

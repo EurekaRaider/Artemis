@@ -537,7 +537,10 @@ export function Tooltip({
   ]
     .filter(Boolean)
     .join(" ");
-  const target = portalTarget(portalContainer);
+  const target = portalTarget(
+    portalContainer ??
+      anchorRef.current?.closest<HTMLDialogElement>("dialog[open]"),
+  );
   useEffect(() => {
     if (!open) return;
     const unregister = registerDismissibleOverlay({
