@@ -1489,6 +1489,10 @@ async function driveElectron() {
     connection = await CdpConnection.connect(target.webSocketDebuggerUrl);
     await connection.send("Runtime.enable");
     await connection.send("Page.enable");
+    // Keep paint-based checks running when another native window covers the app.
+    await connection.send("Emulation.setFocusEmulationEnabled", {
+      enabled: true,
+    });
     await connection.send("Page.bringToFront").catch(() => undefined);
     await waitFor(
       connection,
