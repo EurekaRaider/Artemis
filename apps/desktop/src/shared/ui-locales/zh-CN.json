@@ -971,7 +971,7 @@
   "ImSlackSetup.message16": "打开 Slack 应用管理页，选择 Create New App → From a manifest，选择工作区并粘贴已复制的配置。权限、消息事件及 Socket Mode 会自动配置。",
   "ImSlackSetup.message18": "在 OAuth & Permissions → Bot Token Scopes 确认包含 channels:read 和 groups:read，再点击 Install to Workspace，授权后复制 Bot User OAuth Token（xoxb- 开头）。",
   "ImSlackSetup.message19": "在 Basic Information → App-Level Tokens 创建一个令牌，勾选 connections:write，复制生成的 App-Level Token（xapp- 开头）。两个令牌必须来自同一个应用。",
-  "ImSlackSetup.message20": "粘贴下方令牌并保存。连接成功后，在机器人的 Messages 页发送 pair 配对码。Slack 指令使用普通消息，不加开头的 /；群聊先邀请机器人，再 @ 机器人发起任务。",
+  "ImSlackSetup.message20": "在下方粘贴令牌并保存。连接成功后，点击下方连接条目右侧的{{pairingIcon}}获取配对码，再到 Slack 机器人的 Messages 页发送 pair 配对码（将“配对码”替换为实际代码）。Slack 指令使用普通消息，不加开头的 /；群聊先邀请机器人，再 @ 机器人发起任务。",
   "McpServerEditor_labels.addMcp": "添加 MCP 服务器",
   "McpServerEditor_labels.updateMcp": "更新 {name} MCP",
   "McpServerEditor_labels.newServerHint": "填写 Artemis 要启动的命令。",

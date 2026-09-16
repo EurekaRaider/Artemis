@@ -971,7 +971,7 @@
   "ImSlackSetup.message16": "Buka pengelolaan aplikasi Slack, pilih Create New App → From a manifest, pilih ruang kerja dan tempel konfigurasi yang disalin. Izin, peristiwa pesan, dan Socket Mode akan dikonfigurasi.",
   "ImSlackSetup.message18": "Di OAuth & Permissions → Bot Token Scopes, pastikan channels:read dan groups:read tersedia, lalu pilih Install to Workspace, beri otorisasi, dan salin Bot User OAuth Token (berawalan xoxb-).",
   "ImSlackSetup.message19": "Di Basic Information → App-Level Tokens, buat token dengan connections:write dan salin App-Level Token (berawalan xapp-). Kedua token harus berasal dari aplikasi yang sama.",
-  "ImSlackSetup.message20": "Tempel token di bawah dan simpan. Setelah terhubung, kirim pair CODE di tab Messages bot. Gunakan pesan biasa tanpa / di awal. Untuk kanal, undang bot dan sebut namanya untuk memulai tugas.",
+  "ImSlackSetup.message20": "Tempel token di bawah dan simpan. Setelah terhubung, klik {{pairingIcon}} di sebelah kanan entri koneksi di bawah untuk mendapatkan kode pemasangan, lalu kirim pair CODE di tab Messages bot di Slack (ganti CODE dengan kode tersebut). Gunakan pesan biasa tanpa / di awal. Untuk kanal, undang bot dan sebut namanya untuk memulai tugas.",
   "McpServerEditor_labels.addMcp": "Tambahkan server MCP",
   "McpServerEditor_labels.updateMcp": "Perbarui MCP {name}",
   "McpServerEditor_labels.newServerHint": "Masukkan perintah yang harus dijalankan Artemis.",

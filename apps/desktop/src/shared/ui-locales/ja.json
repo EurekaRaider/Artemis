@@ -971,7 +971,7 @@
   "ImSlackSetup.message16": "Slack アプリ管理で Create New App → From a manifest を選び、ワークスペースを選択してコピーした設定を貼り付けます。権限、メッセージイベント、Socket Mode が自動設定されます。",
   "ImSlackSetup.message18": "OAuth & Permissions → Bot Token Scopes に channels:read と groups:read があることを確認し、Install to Workspace で承認して Bot User OAuth Token（xoxb- で始まる）をコピーします。",
   "ImSlackSetup.message19": "Basic Information → App-Level Tokens で connections:write を付けたトークンを作成し、App-Level Token（xapp- で始まる）をコピーします。両トークンは同じアプリのものを使用してください。",
-  "ImSlackSetup.message20": "下にトークンを貼り付けて保存します。接続後、ボットの Messages タブで pair CODE を送信してください。Slack のコマンドは / を付けず通常メッセージとして送信します。グループではボットを招待し、@ メンションしてタスクを開始します。",
+  "ImSlackSetup.message20": "下にトークンを貼り付けて保存します。接続後、下の接続項目の右側にある{{pairingIcon}}をクリックしてペアリングコードを取得し、Slack のボットの Messages タブで pair CODE を送信してください（CODE を取得したコードに置き換えます）。Slack のコマンドは / を付けず通常メッセージとして送信します。グループではボットを招待し、@ メンションしてタスクを開始します。",
   "McpServerEditor_labels.addMcp": "MCP サーバーを追加",
   "McpServerEditor_labels.updateMcp": "{name} MCP を更新",
   "McpServerEditor_labels.newServerHint": "Artemis が起動するコマンドを入力してください。",

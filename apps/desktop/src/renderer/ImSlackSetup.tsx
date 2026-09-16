@@ -1,5 +1,6 @@
 import { type UiTranslate } from "../shared/ui-text.js";
 import { Button } from "@artemis/ui/actions";
+import { ArtemisIcon } from "@artemis/ui/icons";
 
 export const slackAppManifest = (userName: string) => JSON.stringify(
   {
@@ -55,6 +56,9 @@ export function ImSlackSetup({
   copy(): void;
   busy: boolean;
 }) {
+  const [beforePairingIcon, afterPairingIcon] =
+    t("ImSlackSetup.message20").split("{{pairingIcon}}");
+
   return (
     <>
       <p>{t("ImSlackSetup.message1")}</p>
@@ -110,7 +114,18 @@ export function ImSlackSetup({
           </li>
           <li>{t("ImSlackSetup.message18")}</li>
           <li>{t("ImSlackSetup.message19")}</li>
-          <li>{t("ImSlackSetup.message20")}</li>
+          <li>
+            {beforePairingIcon}
+            <span role="img" aria-label={t("ImSettingsPanel.message74")}>
+              <ArtemisIcon
+                name="send"
+                width={16}
+                height={16}
+                style={{ display: "inline-block", verticalAlign: "text-bottom" }}
+              />
+            </span>
+            {afterPairingIcon}
+          </li>
         </ol>
       </details>
     </>

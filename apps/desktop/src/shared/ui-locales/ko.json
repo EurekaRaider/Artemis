@@ -971,7 +971,7 @@
   "ImSlackSetup.message16": "Slack 앱 관리에서 Create New App → From a manifest를 선택하고 워크스페이스를 선택한 뒤 복사한 설정을 붙여넣으세요. 권한, 메시지 이벤트, Socket Mode가 자동으로 설정됩니다.",
   "ImSlackSetup.message18": "OAuth & Permissions → Bot Token Scopes에 channels:read와 groups:read가 있는지 확인하고 Install to Workspace를 선택해 승인한 뒤 Bot User OAuth Token(xoxb-로 시작)을 복사하세요.",
   "ImSlackSetup.message19": "Basic Information → App-Level Tokens에서 connections:write 권한이 있는 토큰을 만들고 App-Level Token(xapp-로 시작)을 복사하세요. 두 토큰은 같은 앱의 것이어야 합니다.",
-  "ImSlackSetup.message20": "아래에 토큰을 붙여넣고 저장하세요. 연결되면 봇의 Messages 탭에 pair CODE를 보내세요. Slack에서는 / 없이 일반 메시지로 명령을 보냅니다. 채널에서는 봇을 초대한 후 @멘션하여 작업을 시작하세요.",
+  "ImSlackSetup.message20": "아래에 토큰을 붙여넣고 저장하세요. 연결되면 아래 연결 항목 오른쪽의 {{pairingIcon}}을 클릭하여 페어링 코드를 받은 다음, Slack에서 봇의 Messages 탭에 pair CODE를 보내세요(CODE를 받은 코드로 바꾸세요). Slack에서는 / 없이 일반 메시지로 명령을 보냅니다. 채널에서는 봇을 초대한 후 @멘션하여 작업을 시작하세요.",
   "McpServerEditor_labels.addMcp": "MCP 서버 추가",
   "McpServerEditor_labels.updateMcp": "{name} MCP 업데이트",
   "McpServerEditor_labels.newServerHint": "Artemis가 시작할 명령을 입력하세요.",

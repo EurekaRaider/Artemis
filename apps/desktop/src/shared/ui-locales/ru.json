@@ -971,7 +971,7 @@
   "ImSlackSetup.message16": "Откройте управление приложениями Slack, выберите Create New App → From a manifest, укажите рабочую область и вставьте скопированную конфигурацию. Разрешения, события сообщений и Socket Mode настроятся автоматически.",
   "ImSlackSetup.message18": "В OAuth & Permissions → Bot Token Scopes проверьте channels:read и groups:read, нажмите Install to Workspace, авторизуйте и скопируйте Bot User OAuth Token (начинается с xoxb-).",
   "ImSlackSetup.message19": "В Basic Information → App-Level Tokens создайте токен с connections:write и скопируйте App-Level Token (начинается с xapp-). Оба токена должны принадлежать одному приложению.",
-  "ImSlackSetup.message20": "Вставьте токены ниже и сохраните. После подключения отправьте pair CODE на вкладке Messages бота. Используйте обычные сообщения без начального /. Для каналов сначала пригласите бота, затем упомяните его для запуска задачи.",
+  "ImSlackSetup.message20": "Вставьте токены ниже и сохраните. После подключения нажмите на {{pairingIcon}} справа от записи подключения ниже, чтобы получить код сопряжения. Затем отправьте pair CODE на вкладке Messages бота в Slack (замените CODE полученным кодом). Используйте обычные сообщения без начального /. Для каналов сначала пригласите бота, затем упомяните его для запуска задачи.",
   "McpServerEditor_labels.addMcp": "Добавить сервер MCP",
   "McpServerEditor_labels.updateMcp": "Обновить MCP {name}",
   "McpServerEditor_labels.newServerHint": "Укажите команду, которую должен запускать Artemis.",

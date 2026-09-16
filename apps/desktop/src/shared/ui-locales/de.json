@@ -971,7 +971,7 @@
   "ImSlackSetup.message16": "Öffne die Slack-App-Verwaltung, wähle Create New App → From a manifest, wähle deinen Arbeitsbereich und füge die kopierte Konfiguration ein. Berechtigungen, Nachrichtenereignisse und Socket Mode werden eingerichtet.",
   "ImSlackSetup.message18": "Prüfe unter OAuth & Permissions → Bot Token Scopes channels:read und groups:read. Wähle Install to Workspace, autorisiere und kopiere Bot User OAuth Token (beginnt mit xoxb-).",
   "ImSlackSetup.message19": "Erstelle unter Basic Information → App-Level Tokens ein Token mit connections:write und kopiere App-Level Token (beginnt mit xapp-). Beide Tokens müssen zur selben App gehören.",
-  "ImSlackSetup.message20": "Füge unten die Tokens ein und speichere. Sende nach der Verbindung pair CODE im Messages-Tab des Bots. Verwende normale Nachrichten ohne führenden /. Lade den Bot für Kanäle ein und erwähne ihn, um eine Aufgabe zu starten.",
+  "ImSlackSetup.message20": "Füge unten die Tokens ein und speichere. Klicke nach dem Verbinden auf das {{pairingIcon}} rechts am Verbindungseintrag unten, um einen Kopplungscode zu erhalten. Sende dann pair CODE im Messages-Tab des Bots in Slack (ersetze CODE durch diesen Code). Verwende normale Nachrichten ohne führenden /. Lade den Bot für Kanäle ein und erwähne ihn, um eine Aufgabe zu starten.",
   "McpServerEditor_labels.addMcp": "MCP-Server hinzufügen",
   "McpServerEditor_labels.updateMcp": "MCP {name} aktualisieren",
   "McpServerEditor_labels.newServerHint": "Gib den Befehl ein, den Artemis starten soll.",
