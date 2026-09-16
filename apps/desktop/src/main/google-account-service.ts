@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type ServerResponse } from "node:http";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -38,7 +40,7 @@ const GOOGLE_SCOPE_EQUIVALENTS: Readonly<Record<string, readonly string[]>> = {
   profile: ["profile", "https://www.googleapis.com/auth/userinfo.profile"],
 };
 
-type GoogleAuthorizationLanguage = "en" | "zh";
+type GoogleAuthorizationLanguage = AppLocale | "zh";
 
 export interface GoogleOAuthClient {
   clientId: string;
@@ -614,16 +616,22 @@ async function loopbackCallback(
       );
       response
         .writeHead(400, { "Content-Type": "text/plain; charset=utf-8" })
-        .end("Authorization failed. Return to Artemis.");
+        .end(
+          uiText(
+            language === "zh" ? "zh-CN" : language,
+            "google.authorizationFailed",
+          ),
+        );
       return;
     }
     if (completionResponse) {
       response
         .writeHead(409, { "Content-Type": "text/plain; charset=utf-8" })
         .end(
-          language === "zh"
-            ? "Google 授权正在由 Artemis 处理，请返回 Artemis。"
-            : "Google authorization is already being processed by Artemis.",
+          uiText(
+            language === "zh" ? "zh-CN" : language,
+            "google.authorizationProcessing",
+          ),
         );
       return;
     }
@@ -648,13 +656,12 @@ async function loopbackCallback(
         "Content-Type": "text/plain; charset=utf-8",
       })
       .end(
-        language === "zh"
-          ? success
-            ? "Google 授权已完成。你可以关闭此页面并返回 Artemis。"
-            : "Google 授权未完成。请返回 Artemis 查看具体原因。"
-          : success
-            ? "Google authorization completed. You can close this tab and return to Artemis."
-            : "Google authorization was not completed. Return to Artemis for details.",
+        uiText(
+          language === "zh" ? "zh-CN" : language,
+          success
+            ? "google.authorizationComplete"
+            : "google.authorizationIncomplete",
+        ),
       );
     completionResponse = undefined;
   };

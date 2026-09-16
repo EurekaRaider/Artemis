@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -30,9 +31,11 @@ describe("agent-team workbench", () => {
   it("shows collaboration messages and complete team runtime states", () => {
     expect(appSource).toContain("function AgentTeamPanel(");
     expect(appSource).toContain("message.fromAgentId");
-    expect(appSource).toContain('blocked: "存在阻塞"');
-    expect(appSource).toContain('integrating: "等待主 Agent 集成"');
-    expect(appSource).toContain('aborted: "已中止"');
+    expect(uiText("zh-CN", "App_teamStatusLabels.blocked")).toBe("存在阻塞");
+    expect(uiText("zh-CN", "App_teamStatusLabels.integrating")).toBe(
+      "等待主 Agent 集成",
+    );
+    expect(uiText("zh-CN", "App_teamStatusLabels.aborted")).toBe("已中止");
     expect(stylesSource).toContain(".agent-team-grid");
     expect(stylesSource).toContain(".agent-team-skeleton");
   });

@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArtemisIcon } from "@artemis/ui/icons";
@@ -8,14 +10,14 @@ export function FileAttachment({
   id,
   content,
   threadId,
-  zh,
+  locale,
   compact = false,
 }: {
   name: string;
   id?: string | undefined;
   content?: string | undefined;
   threadId?: string | undefined;
-  zh: boolean;
+  locale: AppLocale;
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -58,7 +60,7 @@ export function FileAttachment({
             ? "user-message-attachment"
             : "attachment-image-button attachment-file-card"
         }
-        aria-label={`${zh ? "预览文件" : "Preview file"}: ${name}`}
+        aria-label={`${uiText(locale, "FileAttachment.inline1")}: ${name}`}
         title={name}
         onClick={() => {
           setOffsets([0]);
@@ -95,7 +97,7 @@ export function FileAttachment({
               <strong>{name}</strong>
               <button
                 type="button"
-                aria-label={zh ? "关闭预览" : "Close preview"}
+                aria-label={uiText(locale, "AttachmentImagePreview.inline1")}
                 onClick={(event) =>
                   event.currentTarget.closest("dialog")?.close()
                 }
@@ -103,12 +105,14 @@ export function FileAttachment({
                 ×
               </button>
             </header>
-            {loading && <p role="status">{zh ? "正在读取…" : "Loading…"}</p>}
+            {loading && (
+              <p role="status">{uiText(locale, "FileAttachment.inline2")}</p>
+            )}
             {error && (
               <div
                 className="attachment-file-fallback"
                 role="img"
-                aria-label={`${zh ? "文件预览" : "File preview"}: ${name}`}
+                aria-label={`${uiText(locale, "FileAttachment.inline3")}: ${name}`}
               >
                 <ArtemisIcon name="file" width={64} height={64} />
                 <span>{name}</span>
@@ -116,7 +120,7 @@ export function FileAttachment({
             )}
             {page && (
               <pre className="attachment-file-content">
-                {page.text || (zh ? "空文件" : "Empty file")}
+                {page.text || uiText(locale, "FileAttachment.inline4")}
               </pre>
             )}
             {offsets.length > 1 && (
@@ -129,7 +133,7 @@ export function FileAttachment({
                   void read(previous.at(-1));
                 }}
               >
-                {zh ? "上一页" : "Previous page"}
+                {uiText(locale, "FileAttachment.inline5")}
               </button>
             )}
             {page?.nextOffset !== undefined && (
@@ -141,7 +145,7 @@ export function FileAttachment({
                   void read(page.nextOffset);
                 }}
               >
-                {zh ? "下一页" : "Next page"}
+                {uiText(locale, "FileAttachment.inline6")}
               </button>
             )}
           </dialog>,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { I18N_RESOURCES } from "../src/shared/i18n-resources.js";
 
 import {
   PROTOCOL_VERSION,
@@ -48,6 +49,21 @@ function promptEvent(threadId: string, timestamp: string): AgentEvent {
 }
 
 describe("sidebar conversation order", () => {
+  it("recognizes generated workspace drafts in every application language", () => {
+    for (const { main } of Object.values(I18N_RESOURCES)) {
+      for (const title of [main.newTask, main.waitingForTask]) {
+        const draft = {
+          ...thread("draft", "idle", "2026-08-02T03:00:00.000Z"),
+          title,
+        };
+        expect(isWorkspaceDraftThread(draft), title).toBe(true);
+        expect(
+          isWorkspaceDraftThread({ ...draft, sessionFile: "session.jsonl" }),
+          title,
+        ).toBe(false);
+      }
+    }
+  });
   it("uses a persisted manual order without changing the default order", () => {
     const threads = [
       thread("first", "idle", "2026-08-02T03:00:00.000Z"),

@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -16,9 +17,15 @@ const stylesSource = source("../src/renderer/styles.css");
 describe("composer project and Git context menus", () => {
   it("renders the context bar with real project switching actions", () => {
     expect(appSource).toContain("<ComposerContextBar");
-    expect(contextSource).toContain("搜索项目");
-    expect(contextSource).toContain("新建项目");
-    expect(contextSource).toContain("不在项目中工作");
+    expect(uiText("zh-CN", "ComposerContextBar_labels.searchProjects")).toBe(
+      "搜索项目",
+    );
+    expect(uiText("zh-CN", "ComposerContextBar_labels.addProject")).toBe(
+      "新建项目",
+    );
+    expect(uiText("zh-CN", "ComposerContextBar_labels.clearProject")).toBe(
+      "不在项目中工作",
+    );
     expect(contextSource).toContain("onSelectProject(project)");
     expect(contextSource).toContain("onOpenProject().catch");
     expect(contextSource).toContain("onClearProject()");
@@ -63,7 +70,9 @@ describe("composer project and Git context menus", () => {
     expect(contextSource).toContain('event.key !== "Escape"');
     expect(contextSource).toContain('role="status"');
     expect(contextSource).toContain('role="alert"');
-    expect(contextSource).toContain("没有匹配的本地分支");
+    expect(uiText("zh-CN", "ComposerContextBar_labels.noBranches")).toBe(
+      "没有匹配的本地分支",
+    );
     expect(stylesSource).toContain(".composer-context-menu-skeleton");
     expect(stylesSource).toContain(".composer-context-trigger:focus-visible");
   });

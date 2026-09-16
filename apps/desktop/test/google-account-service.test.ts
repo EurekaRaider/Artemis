@@ -132,8 +132,11 @@ describe("GoogleAccountService", () => {
 
     await service.authorize("google-workspace");
     await expect(callbackResponses[0]).resolves.toMatchObject({ status: 200 });
-    await service.authorize("gmail");
+    await service.authorize("gmail", "ja");
     await expect(callbackResponses[1]).resolves.toMatchObject({ status: 200 });
+    await expect((await callbackResponses[1]!).text()).resolves.toContain(
+      "承認が完了",
+    );
     const status = await service.status();
     expect(status.email).toBe("owner@example.com");
     expect(status.grants["google-workspace"].scopes).toEqual(

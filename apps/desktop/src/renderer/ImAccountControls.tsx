@@ -61,7 +61,7 @@ export function ImPairingCode({
   return (
     <Dialog
       className="im-pair-dialog"
-      label={t("机器人配对码", "Bot pairing code")}
+      label={t("ImAccountControls.message1")}
       returnFocusRef={returnFocusRef}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -69,27 +69,24 @@ export function ImPairingCode({
       open
     >
       <header>
-        <h2>{t("机器人配对码", "Bot pairing code")}</h2>
+        <h2>{t("ImAccountControls.message1")}</h2>
       </header>
       <div className="im-pair-dialog-body">
         {guide}
         <span role="status">
           {seconds
-            ? t("配对码有效", "Pairing code active")
-            : t(
-                "配对码已过期，请重新生成。",
-                "Pairing code expired. Generate a new one.",
-              )}
+            ? t("ImAccountControls.message3")
+            : t("ImAccountControls.message2")}
         </span>
         <div className="im-pair-code-line">
-          <span>{t("配对码", "Pairing code")}</span>
+          <span>{t("ImAccountControls.message4")}</span>
           {pair && (
             <>
               <strong className="im-pair-code-value">{pair.code}</strong>
               {seconds > 0 && (
                 <span
                   className="im-countdown"
-                  aria-label={t("剩余有效时间", "Time remaining")}
+                  aria-label={t("ImAccountControls.message5")}
                 >
                   {" "}
                   · {Math.floor(seconds / 60)}:
@@ -103,7 +100,7 @@ export function ImPairingCode({
                   else setNow(Date.now());
                 }}
               >
-                {t("复制配对指令", "Copy pairing command")}
+                {t("ImAccountControls.message6")}
               </Button>
             </>
           )}
@@ -111,13 +108,13 @@ export function ImPairingCode({
         {requests}
         <div className="im-actions">
           <Button variant="quiet" disabled={busy} onClick={generate}>
-            {t("重新生成配对码", "Generate a new pairing code")}
+            {t("ImAccountControls.message7")}
           </Button>
           <Button variant="quiet" disabled={busy} onClick={onRefresh}>
-            {t("我已发送，刷新配对结果", "I sent it — refresh pairing")}
+            {t("ImAccountControls.message8")}
           </Button>
           <Button disabled={busy} onClick={onClose}>
-            {t("关闭", "Close")}
+            {t("App_copy.renameClose")}
           </Button>
         </div>
       </div>
@@ -158,7 +155,7 @@ export function ImAccounts({
       ref={root}
       className="im-accounts"
       tabIndex={-1}
-      aria-label={t("已绑定账号与配对请求", "Paired accounts and requests")}
+      aria-label={t("ImAccountControls.message22")}
     >
       {requests.map((request) => (
         <InlineNotice
@@ -166,18 +163,11 @@ export function ImAccounts({
           tone="warning"
           className="im-pairing-request"
         >
-          <p>
-            {t("配对请求 · 待确认", "Pairing request · Awaiting confirmation")}
-          </p>
+          <p>{t("ImAccountControls.message11")}</p>
           <p className="im-identifier">
             {request.identity.userId} · {request.identity.connectionId}
           </p>
-          <p>
-            {t(
-              "请核对这是你本人的 IM 账号。",
-              "Verify that this is your own IM account.",
-            )}
-          </p>
+          <p>{t("ImAccountControls.message12")}</p>
           <div className="im-actions">
             <Button
               variant="primary"
@@ -186,7 +176,7 @@ export function ImAccounts({
                 void resolve(request.id, true).then(() => root.current?.focus())
               }
             >
-              {t("批准", "Approve")}
+              {t("ImAccountControls.message13")}
             </Button>
             <Button
               variant="quiet"
@@ -198,14 +188,14 @@ export function ImAccounts({
                 )
               }
             >
-              {t("拒绝", "Reject")}
+              {t("ImAccountControls.message14")}
             </Button>
           </div>
         </InlineNotice>
       ))}
-      {showAccounts && <h4>{t("已绑定账号", "Paired accounts")}</h4>}
+      {showAccounts && <h4>{t("ImAccountControls.message15")}</h4>}
       {showAccounts && !identities.length && (
-        <p>{t("尚未绑定账号", "No paired accounts yet")}</p>
+        <p>{t("ImAccountControls.message16")}</p>
       )}
       {identities.map((identity) => {
         const key = imIdentityKey(identity);
@@ -226,9 +216,7 @@ export function ImAccounts({
                   }
                 }}
               >
-                <span>
-                  {t("确认解除与该账号的绑定？", "Unpair this account?")}
-                </span>
+                <span>{t("ImAccountControls.message17")}</span>
                 <Button
                   variant="danger"
                   disabled={busy}
@@ -241,21 +229,21 @@ export function ImAccounts({
                     })
                   }
                 >
-                  {t("确认解除", "Confirm unpair")}
+                  {t("ImAccountControls.message18")}
                 </Button>
                 <Button disabled={busy} onClick={cancel}>
-                  {t("保留", "Keep paired")}
+                  {t("ImAccountControls.message19")}
                 </Button>
               </div>
             ) : null}
             {confirming !== key && (
-              <Tooltip label={t("解除绑定", "Unpair")} align="end">
+              <Tooltip label={t("ImAccountControls.message20")} align="end">
                 <button
                   type="button"
                   ref={(node) => {
                     if (triggerKey.current === key) trigger.current = node;
                   }}
-                  aria-label={t("解除绑定", "Unpair")}
+                  aria-label={t("ImAccountControls.message20")}
                   className="im-icon-action"
                   disabled={busy}
                   onClick={(event) => {

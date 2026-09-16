@@ -1,3 +1,5 @@
+import { statusText } from "../shared/status-text.js";
+import { uiText } from "../shared/ui-text.js";
 import {
   WorkspacePdfPreview,
   WORKSPACE_PDF_SCHEME,
@@ -6589,7 +6591,7 @@ function automationRunNotification(
       : mainText(currentLocale(), "automationNeedsAttention");
   const notification = new Notification({
     title,
-    body: `${automation.name}: ${run.reason ?? run.state}`,
+    body: `${automation.name}: ${run.reason ?? statusText(currentLocale(), run.state)}`,
   });
   notification.on("click", () => {
     if (!mainWindow) return;
@@ -6865,9 +6867,14 @@ function registerIpc(): void {
     if (action.action === "preview-legacy") {
       if (!mainWindow) throw new Error("Desktop window is not ready.");
       const result = await dialog.showOpenDialog(mainWindow, {
-        title: "选择旧版 Artemis settings.json",
+        title: uiText(currentLocale(), "native.legacySettings"),
         properties: ["openFile"],
-        filters: [{ name: "Artemis settings", extensions: ["json"] }],
+        filters: [
+          {
+            name: uiText(currentLocale(), "native.settingsFilter"),
+            extensions: ["json"],
+          },
+        ],
       });
       return result.canceled || !result.filePaths[0]
         ? undefined
@@ -6876,9 +6883,14 @@ function registerIpc(): void {
     if (action.action === "export-gateway") {
       if (!mainWindow) throw new Error("Desktop window is not ready.");
       const result = await dialog.showSaveDialog(mainWindow, {
-        title: "Export Artemis Gateway",
+        title: uiText(currentLocale(), "native.exportGateway"),
         defaultPath: "artemis-gateway.tar.gz",
-        filters: [{ name: "Gateway package", extensions: ["tar.gz"] }],
+        filters: [
+          {
+            name: uiText(currentLocale(), "native.gatewayPackage"),
+            extensions: ["tar.gz"],
+          },
+        ],
       });
       if (result.canceled || !result.filePath) return undefined;
       await copyFile(
@@ -8349,9 +8361,12 @@ function registerIpc(): void {
     const selection = await dialog.showOpenDialog(mainWindow, {
       properties: ["openFile", "openDirectory"],
       filters: [
-        { name: "Artemis offline marketplace", extensions: ["gz", "tgz"] },
+        {
+          name: uiText(currentLocale(), "native.offlineMarketplace"),
+          extensions: ["gz", "tgz"],
+        },
       ],
-      title: "Select an Artemis offline marketplace package or directory",
+      title: uiText(currentLocale(), "native.selectOfflineMarketplace"),
     });
     restoreResourceDialogFocus(event.sender);
     const path = selection.filePaths[0];
@@ -8460,7 +8475,7 @@ function registerIpc(): void {
       }
       const status = await googleAccountService.authorize(
         grant,
-        currentLocale().startsWith("zh") ? "zh" : "en",
+        currentLocale(),
       );
       if (grantServerIds.length > 0) {
         await enableReadyInstalledGoogleMcpServers(grantServerIds);
@@ -8866,7 +8881,7 @@ function registerIpc(): void {
         title: mainText(currentLocale(), "selectPiExtension"),
         filters: [
           {
-            name: "Pi extension",
+            name: uiText(currentLocale(), "native.extensionFilter"),
             extensions: ["js", "mjs", "cjs", "ts", "mts", "cts"],
           },
         ],
@@ -9140,7 +9155,7 @@ function registerIpc(): void {
     }
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory"],
-      title: "Open a project",
+      title: uiText(currentLocale(), "native.openProject"),
     });
     const path = result.filePaths[0];
     if (result.canceled || !path) {
@@ -9399,7 +9414,7 @@ function registerIpc(): void {
         throw new Error("Application window is not ready.");
       }
       const result = await dialog.showOpenDialog(mainWindow, {
-        title: "Attach files or images",
+        title: uiText(currentLocale(), "native.attachFiles"),
         properties: ["openFile", "multiSelections"],
       });
       if (result.canceled || result.filePaths.length === 0) {
@@ -9533,7 +9548,7 @@ function registerIpc(): void {
       threadId: string,
       selection: ModelSelection,
     ): Promise<Thread> => {
-      if (!store || !agentProcess) {
+      if (!store || !agentProcess || !settingsStore) {
         throw new Error("Application is not ready.");
       }
       const thread = store.getThread(String(threadId ?? ""));
@@ -9565,6 +9580,8 @@ function registerIpc(): void {
           contextWindow: command.contextWindow,
         });
       }
+      // Remember manual choices for future conversations without reconfiguring other threads.
+      await settingsStore.setModel(command.selection, command.contextWindow);
       return store.updateThread(thread.id, {
         modelSelection: command.selection,
         contextWindow: command.contextWindow,
@@ -15867,7 +15884,7 @@ function createMainWindow(): BrowserWindow {
     const locale = currentLocale();
     const items: MenuItemConstructorOptions[] = [];
     if (hasSelection) {
-      items.push({ role: "copy" });
+      items.push({ role: "copy", label: I18N_RESOURCES[locale].common.copy });
     }
     if (linkUrl) {
       if (items.length > 0) items.push({ type: "separator" });
@@ -16080,8 +16097,8 @@ function createMainWindow(): BrowserWindow {
                     (candidate) =>
                       candidate.checkVisibility({ visibilityProperty: true }) &&
                       !candidate.closest('[inert], [aria-hidden="true"]') &&
-                      (candidate.getAttribute('aria-label') === 'Settings' ||
-                      candidate.getAttribute('title') === 'Settings'),
+                      (candidate.getAttribute('aria-label') === ${JSON.stringify(uiText(currentLocale(), "App_copy.settings"))} ||
+                      candidate.getAttribute('title') === ${JSON.stringify(uiText(currentLocale(), "App_copy.settings"))}),
                   );
                   if (!(activity instanceof HTMLButtonElement)) {
                     throw new Error('Settings activity button missing.');
@@ -16443,12 +16460,25 @@ function createMainWindow(): BrowserWindow {
                     return null;
                   };
                   const clickActivity = (label) => {
+                    const localizedLabels = ${JSON.stringify({
+                      Settings: uiText(currentLocale(), "App_copy.settings"),
+                      Automations: uiText(
+                        currentLocale(),
+                        "App_copy.automations",
+                      ),
+                      Archive: uiText(
+                        currentLocale(),
+                        "App.archiveConversations",
+                      ),
+                    })};
+                    const expectedLabel = localizedLabels[label] ?? label;
                     const button = [
-                      ...document.querySelectorAll('.activity-button'),
+                      ...document.querySelectorAll('.activity-button, .rail-item, .sidebar-nav [data-nav-view]'),
                     ].find(
-                      (candidate) =>
-                        candidate.getAttribute('aria-label') === label ||
-                        candidate.getAttribute('title') === label,
+                      (candidate) => candidate.checkVisibility({ visibilityProperty: true }) &&
+                        !candidate.closest('[inert], [aria-hidden="true"]') &&
+                        (candidate.getAttribute('aria-label') === expectedLabel ||
+                        candidate.getAttribute('title') === expectedLabel),
                     );
                     button?.click();
                     return Boolean(button);
@@ -16542,12 +16572,25 @@ function createMainWindow(): BrowserWindow {
                     return null;
                   };
                   const clickActivity = (label) => {
+                    const localizedLabels = ${JSON.stringify({
+                      Settings: uiText(currentLocale(), "App_copy.settings"),
+                      Automations: uiText(
+                        currentLocale(),
+                        "App_copy.automations",
+                      ),
+                      Archive: uiText(
+                        currentLocale(),
+                        "App.archiveConversations",
+                      ),
+                    })};
+                    const expectedLabel = localizedLabels[label] ?? label;
                     const button = [
-                      ...document.querySelectorAll('.activity-button'),
+                      ...document.querySelectorAll('.activity-button, .rail-item, .sidebar-nav [data-nav-view]'),
                     ].find(
-                      (candidate) =>
-                        candidate.getAttribute('aria-label') === label ||
-                        candidate.getAttribute('title') === label,
+                      (candidate) => candidate.checkVisibility({ visibilityProperty: true }) &&
+                        !candidate.closest('[inert], [aria-hidden="true"]') &&
+                        (candidate.getAttribute('aria-label') === expectedLabel ||
+                        candidate.getAttribute('title') === expectedLabel),
                     );
                     button?.click();
                     return Boolean(button);

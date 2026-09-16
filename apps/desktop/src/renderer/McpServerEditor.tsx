@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import { useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
@@ -15,8 +16,6 @@ import type {
   McpServerStatus,
   SettingsSnapshot,
 } from "../shared/api.js";
-import { legacyLocale } from "../shared/locales.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
 import {
   McpEditorFeedback,
   type McpEditorTestConnectionState,
@@ -36,122 +35,7 @@ interface McpServerEditorProps {
   onSaved(settings: SettingsSnapshot): void;
 }
 
-const labels = {
-  en: {
-    addMcp: "Add MCP server",
-    updateMcp: "Update {name} MCP",
-    newServerHint: "Enter the command Artemis should launch.",
-    transportChangeHint:
-      "To change the MCP server type, uninstall the current configuration first.",
-    launchCommand: "Launch command",
-    serverUrl: "Server URL",
-    arguments: "Arguments",
-    addArgument: "Add argument",
-    environmentVariables: "Environment variables",
-    environmentKey: "Key",
-    environmentValue: "Value",
-    addEnvironment: "Add environment variable",
-    environmentVariablePassthrough: "Environment variable passthrough",
-    environmentVariableName: "Variable name",
-    addEnvironmentVariable: "Add variable",
-    workspace: "Working directory",
-    authentication: "Authentication",
-    authNone: "None",
-    authBearer: "Bearer token",
-    authOAuth: "OAuth 2.1",
-    authHeaders: "Registry headers",
-    bearer: "Bearer token (optional, encrypted)",
-    oauthHint:
-      "Authorization opens your browser and stores tokens with OS encryption.",
-    registryHeadersHint:
-      "Registry headers are encrypted. Reinstall from the Registry to change their values.",
-    registryCredentialsHint:
-      "This Registry command is locked to prevent sending its encrypted credentials to another program. Uninstall and reinstall to change it.",
-    mcpSecurity: "Permissions",
-    mcpAllowNetwork: "Allow network access",
-    mcpAllowNetworkHint:
-      "Off by default for manually added servers. The OS sandbox still limits file access to the task workspace.",
-    mcpFullAccess: "Full local access (compatibility mode)",
-    mcpFullAccessHint:
-      "Disables the OS sandbox and restores desktop filesystem, environment, and unrestricted network access for this server. Enable only when a trusted server cannot run sandboxed.",
-    saveServer: "Save and connect",
-    uninstall: "Uninstall",
-    cancel: "Back to MCP servers",
-    delete: "Delete",
-    savingServer: "Saving…",
-    removingServer: "Removing…",
-    tryAgain: "Try again",
-    validationHeading: "Fix these issues before saving:",
-    validationCommandRequired: "Enter the launch command for the MCP server.",
-    validationUrlRequired: "Enter the server URL.",
-    validationUrlInvalid: "Enter a valid http:// or https:// server URL.",
-    testConnection: "Test connection",
-    testConnectionBusy: "Testing the connection…",
-    testConnectionSuccess: "Connected.",
-    testConnectionFailure: "Connection failed.",
-    testConnectionNotConnected:
-      "The server did not report a connected state after reconnecting.",
-    testSavedOnlyHint:
-      "Tests the saved configuration — save your changes first",
-    confirmUninstall:
-      "Uninstall {name}? This removes the saved configuration only; files on the server are not deleted.",
-  },
-  "zh-CN": {
-    addMcp: "添加 MCP 服务器",
-    updateMcp: "更新 {name} MCP",
-    newServerHint: "填写 Artemis 要启动的命令。",
-    transportChangeHint: "如需切换 MCP 服务器类型，请先卸载当前配置。",
-    launchCommand: "启动命令",
-    serverUrl: "服务器 URL",
-    arguments: "参数",
-    addArgument: "添加参数",
-    environmentVariables: "环境变量",
-    environmentKey: "键",
-    environmentValue: "值",
-    addEnvironment: "添加环境变量",
-    environmentVariablePassthrough: "环境变量传递",
-    environmentVariableName: "变量名",
-    addEnvironmentVariable: "添加变量",
-    workspace: "工作目录",
-    authentication: "身份验证",
-    authNone: "无",
-    authBearer: "Bearer Token",
-    authOAuth: "OAuth 2.1",
-    authHeaders: "Registry Header",
-    bearer: "Bearer Token（可选，加密保存）",
-    oauthHint: "授权将在浏览器中完成，Token 由操作系统加密保存。",
-    registryHeadersHint:
-      "Registry Header 已加密保存；如需更改，请从 Registry 重新安装。",
-    registryCredentialsHint:
-      "这个 Registry 启动命令已锁定，避免把加密凭据交给其他程序；如需更改，请卸载后重新安装。",
-    mcpSecurity: "权限",
-    mcpAllowNetwork: "允许网络访问",
-    mcpAllowNetworkHint:
-      "手动添加的服务器默认关闭；即使开启，操作系统沙盒仍只允许访问任务工作区。",
-    mcpFullAccess: "完整本机访问（兼容模式）",
-    mcpFullAccessHint:
-      "关闭该服务器的操作系统沙盒，并恢复桌面文件、进程环境和不受限网络访问。仅在可信服务器无法受限运行时开启。",
-    saveServer: "保存并连接",
-    uninstall: "卸载",
-    cancel: "返回 MCP 服务器",
-    delete: "删除",
-    savingServer: "正在保存…",
-    removingServer: "正在移除…",
-    tryAgain: "重试",
-    validationHeading: "请先修正以下问题再保存：",
-    validationCommandRequired: "请填写 MCP 服务器的启动命令。",
-    validationUrlRequired: "请填写服务器 URL。",
-    validationUrlInvalid: "请输入有效的 http:// 或 https:// 服务器 URL。",
-    testConnection: "测试连接",
-    testConnectionBusy: "正在测试连接…",
-    testConnectionSuccess: "已连接。",
-    testConnectionFailure: "连接失败。",
-    testConnectionNotConnected: "重新连接后服务器未进入已连接状态。",
-    testSavedOnlyHint: "测试的是已保存配置——请先保存修改",
-    confirmUninstall:
-      "卸载 {name}？此操作只删除保存的配置，不会删除服务器上的文件。",
-  },
-} as const;
+const labels = UI_COPY.McpServerEditor_labels;
 
 function deriveMcpIdentity(
   transport: McpServerConfig["transport"],
@@ -230,7 +114,7 @@ export function McpServerEditor({
   onRemoved,
   onSaved,
 }: McpServerEditorProps) {
-  const t = localizedCopy(locale, "resources", labels[legacyLocale(locale)]);
+  const t = labels[locale];
   const [transport] = useState<McpServerConfig["transport"]>(
     server?.config.transport ?? "stdio",
   );

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+import { APP_LOCALES, type AppLocale } from "@artemis/protocol";
+import { I18N_RESOURCES } from "../src/shared/i18n-resources.js";
 
 type FormatToolInput = (toolName: string, input: unknown) => string | undefined;
 type FormatToolOutput = (
@@ -23,7 +25,7 @@ type ToolActivityKind = (
 type SummarizeToolActivity = (
   toolName: string,
   input: unknown,
-  locale: "en" | "zh-CN",
+  locale: AppLocale,
 ) => string;
 type SummarizeToolGroup = (
   tools: Array<{
@@ -32,7 +34,7 @@ type SummarizeToolGroup = (
     output: string;
     status: "running" | "completed" | "failed";
   }>,
-  locale: "en" | "zh-CN",
+  locale: AppLocale,
 ) => string;
 type SummarizeToolDetail = (
   tool: {
@@ -41,7 +43,7 @@ type SummarizeToolDetail = (
     output: string;
     status: "running" | "completed" | "failed";
   },
-  locale: "en" | "zh-CN",
+  locale: AppLocale,
 ) => string;
 
 const modulePath: string = "../src/renderer/tool-presentation.js";
@@ -73,6 +75,47 @@ const patternsSource = readFileSync(
 );
 
 describe("tool presentation", () => {
+  it("uses complete localized sentences for running and completed tools in every language", () => {
+    expect(toolPresentation.summarizeToolDetail).toBeTypeOf("function");
+    for (const locale of APP_LOCALES) {
+      const t = I18N_RESOURCES[locale].toolActivity;
+      const tool = {
+        name: "bash",
+        input: { command: "npm test" },
+        output: "",
+        status: "running" as const,
+      };
+      expect(toolPresentation.summarizeToolDetail!(tool, locale)).toBe(t.tests);
+      expect(
+        toolPresentation.summarizeToolDetail!(
+          { ...tool, status: "completed" },
+          locale,
+        ),
+      ).toBe(t.testsCompleted);
+      expect(
+        toolPresentation.summarizeToolGroup!(
+          [{ ...tool, name: "read" }],
+          locale,
+        ),
+      ).toBe(t.readingFiles);
+      expect(
+        toolPresentation.summarizeToolGroup!(
+          [{ ...tool, name: "read", status: "completed" }],
+          locale,
+        ),
+      ).toBe(t.readFiles);
+      const search = {
+        ...tool,
+        input: { command: "rg button src/styles.css" },
+        status: "completed" as const,
+      };
+      const target = locale === "ar" ? "\u2068button\u2069" : "button";
+      expect(toolPresentation.summarizeToolGroup!([search], locale)).toBe(
+        t.stylesForCompleted.replace("{{target}}", target),
+      );
+    }
+  });
+
   it("summarizes Bash searches and workspace checks without exposing raw commands", () => {
     expect(toolPresentation.summarizeToolActivity).toBeTypeOf("function");
     if (!toolPresentation.summarizeToolActivity) return;
@@ -82,7 +125,7 @@ describe("tool presentation", () => {
         "rg -n -C 12 'automation-primary|automation-header|automation-page' apps/desktop/src/renderer/styles.css",
     };
     expect(toolPresentation.summarizeToolActivity("bash", search, "en")).toBe(
-      "Searching styles for automation-primary",
+      "Searching for styles related to automation-primary",
     );
     expect(
       toolPresentation.summarizeToolActivity("bash", search, "zh-CN"),

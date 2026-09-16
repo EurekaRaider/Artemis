@@ -4,7 +4,80 @@ import { APP_LOCALES } from "@artemis/protocol";
 import { mainText } from "../src/main/i18n.js";
 import { I18N_RESOURCES, localizedCopy } from "../src/shared/i18n-resources.js";
 
+import { GOAL_RESOURCES } from "../src/shared/goal-resources.js";
+import { TASK_NOTIFICATION_RESOURCES } from "../src/shared/task-notification-resources.js";
+import { taskNotificationCopy } from "../src/shared/task-notification-copy.js";
+
 describe("i18n resources", () => {
+  it("keeps the goal and notification packs complete without English fallback", () => {
+    for (const catalog of [GOAL_RESOURCES, TASK_NOTIFICATION_RESOURCES]) {
+      for (const locale of APP_LOCALES) {
+        expect(Object.keys(catalog[locale])).toEqual(Object.keys(catalog.en));
+        for (const [key, source] of Object.entries(catalog.en)) {
+          const value = (catalog[locale] as Record<string, string>)[key]!;
+          expect(value.trim()).not.toBe("");
+          expect(value.match(/\{\{\w+\}\}/g) ?? []).toEqual(
+            source.match(/\{\{\w+\}\}/g) ?? [],
+          );
+        }
+      }
+    }
+    for (const locale of APP_LOCALES.filter((locale) => locale !== "en")) {
+      expect(taskNotificationCopy(locale).titles["approval-required"]).not.toBe(
+        taskNotificationCopy("en").titles["approval-required"],
+      );
+      expect(GOAL_RESOURCES[locale].stale).not.toBe(GOAL_RESOURCES.en.stale);
+    }
+    expect(taskNotificationCopy("zh-TW").titles.assigned).toBe(
+      "群組內有新任務",
+    );
+  });
+
+  it("preserves the authoritative Chinese page copy", () => {
+    const copy = { running: "正在运行", completed: "完成", plan: "规划" };
+    expect(localizedCopy("zh-CN", "app", copy)).toEqual(copy);
+  });
+
+  it("does not replace page-specific meanings with a same-named catalog key", () => {
+    for (const locale of APP_LOCALES) {
+      expect(
+        localizedCopy(locale, "app", { running: "Running" }).running,
+      ).not.toBe(I18N_RESOURCES[locale].app.running);
+      expect(
+        localizedCopy(locale, "resources", { workspace: "Working directory" })
+          .workspace,
+      ).toBe("Working directory");
+    }
+  });
+
+  it("never substitutes a string for a formatter or a non-string value", () => {
+    const running = (count: number) => `${count} running`;
+    for (const locale of APP_LOCALES) {
+      const copy = localizedCopy(locale, "app", { running, completed: false });
+      expect(copy.running).toBe(running);
+      expect(copy.running(2)).toBe("2 running");
+      expect(copy.completed).toBe(false);
+    }
+  });
+
+  it("keeps shared phrases within their namespace and preserves English copy", () => {
+    expect(
+      localizedCopy("en", "app", {
+        inspectAttachments: "Inspect the attached files.",
+      }),
+    ).toEqual({ inspectAttachments: "Inspect the attached files." });
+    expect(localizedCopy("ja", "app", { nextStep: "Next" }).nextStep).toBe(
+      I18N_RESOURCES.ja.common.next,
+    );
+    expect(
+      localizedCopy("ja", "automations", { nextOccurrence: "Next" })
+        .nextOccurrence,
+    ).toBe(I18N_RESOURCES.ja.automations.nextRun);
+    expect(localizedCopy("de", "app", { renameSave: "Save" }).renameSave).toBe(
+      I18N_RESOURCES.de.common.save,
+    );
+  });
+
   it("provides the same non-empty keys for every locale and namespace", () => {
     const namespaces = Object.keys(I18N_RESOURCES.en) as Array<
       keyof (typeof I18N_RESOURCES)["en"]
@@ -24,8 +97,8 @@ describe("i18n resources", () => {
 
   it("keeps interpolation placeholders aligned with English", () => {
     const placeholders = (value: string) =>
-      [...value.matchAll(/\{\{\s*([\w.-]+)\s*\}\}/gu)]
-        .map((match) => match[1])
+      [...value.matchAll(/\{\{\s*([\w.-]+)\s*\}\}|\{([\w.-]+)\}/gu)]
+        .map((match) => match[1] ?? match[2])
         .sort();
     for (const locale of APP_LOCALES) {
       for (const namespace of Object.keys(I18N_RESOURCES.en) as Array<
@@ -43,6 +116,58 @@ describe("i18n resources", () => {
           ).toEqual(placeholders(source));
         }
       }
+    }
+  });
+
+  it("preserves unambiguous shared translations without mixing task and tool states", () => {
+    for (const locale of APP_LOCALES.filter((value) => value !== "en")) {
+      expect(
+        localizedCopy(locale, "app", { loadingSettings: "Loading settings…" })
+          .loadingSettings,
+      ).toBe(I18N_RESOURCES[locale].settings.loading);
+      expect(localizedCopy(locale, "app", { running: "Running" }).running).toBe(
+        I18N_RESOURCES[locale].toolActivity.running,
+      );
+      expect(
+        localizedCopy(locale, "app", { running: "Thinking" }).running,
+      ).toBe(I18N_RESOURCES[locale].app.running);
+    }
+  });
+
+  it("translates every tool activity phrase and keeps resource headings consistent", () => {
+    for (const locale of APP_LOCALES) {
+      expect(I18N_RESOURCES[locale].resources.title).toBe(
+        I18N_RESOURCES[locale].app.resourceCenter,
+      );
+      if (locale === "en") continue;
+      for (const key of Object.keys(I18N_RESOURCES.en.toolActivity)) {
+        expect(
+          I18N_RESOURCES[locale].toolActivity[
+            key as keyof typeof I18N_RESOURCES.en.toolActivity
+          ],
+          `${locale}.${key}`,
+        ).not.toBe(
+          I18N_RESOURCES.en.toolActivity[
+            key as keyof typeof I18N_RESOURCES.en.toolActivity
+          ],
+        );
+      }
+    }
+  });
+
+  it("distinguishes installing resources from managing installed resources", () => {
+    for (const locale of APP_LOCALES) {
+      const copy = localizedCopy(locale, "resources", {
+        marketDescription: I18N_RESOURCES.en.resources.installDescription,
+        manageDescription: I18N_RESOURCES.en.resources.marketDescription,
+      });
+      expect(copy.marketDescription).toBe(
+        I18N_RESOURCES[locale].resources.installDescription,
+      );
+      expect(copy.manageDescription).toBe(
+        I18N_RESOURCES[locale].resources.marketDescription,
+      );
+      expect(copy.marketDescription).not.toBe(copy.manageDescription);
     }
   });
 
@@ -87,9 +212,9 @@ describe("i18n resources", () => {
       goalCommand: "/goal",
       goalCommandDetail: "Set a persistent task goal",
       compactCommand: "/compact",
-      compactCommandDetail: "Summarize older context now",
+      compactCommandDetail: "Compact older context now",
       initCommand: "/init",
-      initCommandDetail: "Create a project-level AGENTS.md file",
+      initCommandDetail: "Create an AGENTS.md file with project instructions",
       planCommand: "/plan",
       planCommandDetail: "Switch to Plan mode",
       executeCommand: "/execute",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { I18N_RESOURCES } from "../src/shared/i18n-resources.js";
 
 import {
   deriveTaskTitle,
@@ -26,7 +27,7 @@ describe("task titles", () => {
 
   it("uses a localized attachment title when the prompt has no text", () => {
     expect(deriveTaskTitle("", "zh-CN")).toBe("分析附件");
-    expect(deriveTaskTitle("", "en")).toBe("Inspect attachments");
+    expect(deriveTaskTitle("", "en")).toBe("Analyze attachments");
   });
 
   it("uses a localized title for project initialization", () => {
@@ -48,13 +49,25 @@ describe("task titles", () => {
     expect(isAutomaticTaskTitle("Waiting for task")).toBe(true);
     expect(isAutomaticTaskTitle("新任务")).toBe(true);
     expect(isAutomaticTaskTitle("New task")).toBe(true);
+    for (const legacy of [
+      "タスクを待機中",
+      "Warten auf Aufgabe",
+      "في انتظار مهمة",
+      "En attente d’une tâche",
+    ]) {
+      expect(isAutomaticTaskTitle(legacy)).toBe(true);
+    }
+    for (const { main } of Object.values(I18N_RESOURCES)) {
+      expect(isAutomaticTaskTitle(main.waitingForTask)).toBe(true);
+      expect(isAutomaticTaskTitle(main.newTask)).toBe(true);
+    }
     expect(isAutomaticTaskTitle("User supplied title")).toBe(false);
   });
 
   it("localizes generated defaults for the expanded locale set", () => {
     expect(deriveTaskTitle("/init", "ja")).toBe("プロジェクトを初期化");
-    expect(deriveTaskTitle("", "de")).toBe("Anhänge prüfen");
-    expect(deriveTaskTitle("", "ar")).toBe("فحص المرفقات");
+    expect(deriveTaskTitle("", "de")).toBe("Anhänge analysieren");
+    expect(deriveTaskTitle("", "ar")).toBe("تحليل المرفقات");
     expect(isAutomaticTaskTitle("Новая задача")).toBe(true);
   });
 });

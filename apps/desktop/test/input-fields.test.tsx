@@ -204,7 +204,7 @@ async function openAutomationDraftDialog() {
 async function fillValidDraft() {
   await userEvent.type(screen.getByLabelText("Name"), "Synthetic sweep");
   await userEvent.type(
-    screen.getByLabelText("Prompt"),
+    screen.getByLabelText("Task instructions"),
     "Run the synthetic sweep.",
   );
 }

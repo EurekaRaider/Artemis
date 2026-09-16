@@ -3061,10 +3061,14 @@ button.environment-row:disabled {
 .tool-details {
   display: grid;
   gap: 8px;
-  margin: 4px 0 12px 29px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 4px 12px 12px 29px;
 }
 
-.tool-details section,
+.tool-details section {
+  min-width: 0;
+}
+
 .archive-card-copy,
 .resource-scope-tabs,
 .resource-management-tabs,
@@ -3084,6 +3088,7 @@ button.environment-row:disabled {
   line-height: 1.55;
   margin: 0;
   overflow: auto;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
@@ -5464,6 +5469,12 @@ button.environment-row:disabled {
 .settings-tabs [data-part="tab"] {
   align-items: center;
   display: flex;
+}
+
+.settings-tabs[aria-orientation="vertical"] [data-part="tab"] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .composer-leading,
@@ -10500,6 +10511,19 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 }
 .im-connection .im-icon-action {
   flex: none;
+}
+.im-connection-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+.im-connection-error {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .im-icon-action:focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);

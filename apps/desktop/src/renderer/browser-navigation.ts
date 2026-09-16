@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 const explicitScheme = /^[a-z][a-z\d+.-]*:/iu;
 const hostWithPort =
   /^(?:localhost|127(?:\.\d{1,3}){3}|\[[^\]]+\]):\d+(?:\/|$)/iu;
@@ -32,19 +34,27 @@ export function browserNavigationSnapshot(
   }
 }
 
-export function normalizeBrowserAddress(address: string): string {
+export function normalizeBrowserAddress(
+  address: string,
+  locale: AppLocale = "en",
+): string {
   const value = address.trim();
   if (!value) {
-    throw new Error("Enter a web address.");
+    throw new Error(uiText(locale, "browser.address"));
   }
 
   const candidate =
     explicitScheme.test(value) && !hostWithPort.test(value)
       ? value
       : `https://${value}`;
-  const url = new URL(candidate);
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error(uiText(locale, "browser.address"));
+  }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Only HTTP and HTTPS addresses are supported.");
+    throw new Error(uiText(locale, "browser.protocol"));
   }
   return url.href;
 }

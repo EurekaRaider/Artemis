@@ -1,7 +1,5 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import type { AgentEvent, AppLocale } from "@artemis/protocol";
-
-import { localizedCopy } from "../shared/i18n-resources.js";
-import { legacyLocale } from "../shared/locales.js";
 
 export type TokenUsageLocale = AppLocale;
 export type TokenUsageView = "daily" | "weekly" | "cumulative";
@@ -41,98 +39,7 @@ export interface TokenUsageModelSummary {
 export const ALL_USAGE_MODELS = "all";
 export const UNATTRIBUTED_USAGE_MODEL = "unattributed";
 
-export const TOKEN_USAGE_COPY = {
-  en: {
-    title: "Token usage",
-    subtitle: "Model usage recorded by Artemis",
-    activity: "Token activity",
-    modelFilter: "Model",
-    allModels: "All models",
-    unattributedModel: "Earlier usage (model unavailable)",
-    usageByModel: "Usage by model",
-    modelColumn: "Model",
-    dailyTab: "Daily",
-    weeklyTab: "Weekly",
-    cumulativeTab: "Cumulative",
-    totalTokens: "Total Tokens",
-    modelTotalTokens: "Total Tokens",
-    peakDay: "Peak daily Tokens",
-    peakWeek: "Peak weekly Tokens",
-    activeDays: "Active days",
-    longestStreak: "Longest streak",
-    insights: "Activity insights",
-    averageActiveDay: "Average per active day",
-    mostActiveDay: "Most active day",
-    currentStreak: "Current streak",
-    recordedSpan: "Recorded activity",
-    recordedResponses: "Recorded responses",
-    tokenComposition: "Token composition",
-    inputTokens: "Input Tokens",
-    outputTokens: "Output Tokens",
-    cacheReadTokens: "Cache read Tokens",
-    cacheWriteTokens: "Cache write Tokens",
-    cacheHitTokens: "Cache hit Tokens",
-    cacheHitRate: "Cache hit rate",
-    cacheHitRateDescription:
-      "Cache read Tokens divided by cache-reported input Tokens (input + cache read + cache write).",
-    cacheDataCoverage: "Cache data coverage",
-    automaticPolicyDistribution: "Automatic cache policies",
-    policyDisabled: "Disabled",
-    policyShort: "Short",
-    policyLong: "24h",
-    policyExplicit30m: "Explicit 30m",
-    days: "days",
-    ofDays: "of {total} days",
-    loading: "Loading usage…",
-    empty: "Token usage will appear after your next model response.",
-    error: "Past usage could not be loaded. Live usage will still be recorded.",
-  },
-  "zh-CN": {
-    title: "Token 用量",
-    subtitle: "Artemis 记录的模型调用用量",
-    activity: "Token 活动",
-    modelFilter: "模型",
-    allModels: "全部模型",
-    unattributedModel: "较早用量（模型信息不可用）",
-    usageByModel: "按模型统计",
-    modelColumn: "模型",
-    dailyTab: "每日",
-    weeklyTab: "每周",
-    cumulativeTab: "累计",
-    totalTokens: "累计 Token 数",
-    modelTotalTokens: "总 Token",
-    peakDay: "单日峰值 Token 数",
-    peakWeek: "单周峰值 Token 数",
-    activeDays: "活跃天数",
-    longestStreak: "最长连续天数",
-    insights: "活动观察",
-    averageActiveDay: "平均活跃日用量",
-    mostActiveDay: "最活跃日期",
-    currentStreak: "当前连续天数",
-    recordedSpan: "有记录的活跃度",
-    recordedResponses: "已记录的模型回复",
-    tokenComposition: "Token 构成",
-    inputTokens: "输入 Token",
-    outputTokens: "输出 Token",
-    cacheReadTokens: "缓存读取 Token",
-    cacheWriteTokens: "缓存写入 Token",
-    cacheHitTokens: "缓存命中 Token",
-    cacheHitRate: "缓存命中率",
-    cacheHitRateDescription:
-      "缓存读取 Token ÷ 已报告缓存数据的输入 Token（输入 + 缓存读取 + 缓存写入）。",
-    cacheDataCoverage: "缓存数据覆盖率",
-    automaticPolicyDistribution: "自动缓存策略分布",
-    policyDisabled: "禁用",
-    policyShort: "短缓存",
-    policyLong: "24 小时",
-    policyExplicit30m: "显式 30 分钟",
-    days: "天",
-    ofDays: "/ {total} 天",
-    loading: "正在加载用量…",
-    empty: "下一次模型回复后，这里会显示 Token 用量。",
-    error: "历史用量暂时无法加载，实时用量仍会继续记录。",
-  },
-} as const;
+export const TOKEN_USAGE_COPY = UI_COPY.token_usage_TOKEN_USAGE_COPY;
 
 export function tokenUsageModelKey(event: AgentEvent): string | undefined {
   if (event.payload.type !== "assistant.usage") return undefined;
@@ -274,18 +181,7 @@ export function buildCacheUsageMetrics(
   return metrics;
 }
 
-const TOKEN_USAGE_TOOLTIP_COPY = {
-  en: {
-    daily: "{{date}} used {{value}} Tokens",
-    weekly: "Week containing {{date}} used {{value}} Tokens",
-    cumulative: "Through {{date}}, {{value}} Tokens used",
-  },
-  "zh-CN": {
-    daily: "{{date}}使用了 {{value}} 个 Token",
-    weekly: "{{date}}当周使用了 {{value}} 个 Token",
-    cumulative: "截至{{date}}累计使用 {{value}} 个 Token",
-  },
-} as const;
+const TOKEN_USAGE_TOOLTIP_COPY = UI_COPY.token_usage_TOKEN_USAGE_TOOLTIP_COPY;
 
 function dateKey(timestamp: string | number | Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -401,10 +297,6 @@ export function formatTokenUsageTooltip(
   const value = new Intl.NumberFormat(locale).format(
     tokenUsageValue(cell, view),
   );
-  const template = localizedCopy(
-    locale,
-    "usage",
-    TOKEN_USAGE_TOOLTIP_COPY[legacyLocale(locale)],
-  )[view];
+  const template = TOKEN_USAGE_TOOLTIP_COPY[locale][view];
   return template.replace("{{date}}", date).replace("{{value}}", value);
 }

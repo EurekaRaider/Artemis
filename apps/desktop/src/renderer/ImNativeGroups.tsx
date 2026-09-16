@@ -101,7 +101,7 @@ export function ImNativeGroups({
         ? "Lark"
         : channel
           ? imChannelLabel(channel, t)
-          : t("IM 群", "IM group");
+          : t("ImNativeGroups.message1");
     const name =
       group.name?.trim() ||
       native.find(
@@ -117,24 +117,19 @@ export function ImNativeGroups({
   }
   return (
     <div className="im-field-stack">
-      <p>
-        {t(
-          "选择一个群，设置接收任务的项目和分享范围。启用后，群成员可以直接 @ 机器人，无需与接收方电脑配对。",
-          "Choose a group and authorize its project and shared scope. Members can then mention the bot without pairing to its computer.",
-        )}
-      </p>
+      <p>{t("ImNativeGroups.message2")}</p>
       <TextField
-        label={t("搜索群", "Search groups")}
+        label={t("ImNativeGroups.message3")}
         value={query}
         onValueChange={setQuery}
       />
       <Select
         labelVisibility="visible"
-        label={t("已发现的群", "Discovered group")}
+        label={t("ImNativeGroups.message4")}
         value={selected}
         disabled={busy}
         options={[
-          { value: "", label: t("选择群", "Choose group") },
+          { value: "", label: t("ImNativeGroups.message5") },
           ...groups
             .filter(
               (g) =>
@@ -176,9 +171,9 @@ export function ImNativeGroups({
             <span>
               {group.nativeGroup?.enabled
                 ? group.nativeGroup.capability === "events"
-                  ? t("已启用 · IM 自动协作", "Enabled · IM cooperation")
-                  : t("已启用 · 人工派工", "Enabled · Manual assignment")
-                : t("已暂停", "Paused")}
+                  ? t("ImNativeGroups.message8")
+                  : t("ImNativeGroups.message7")
+                : t("AutomationPage_text.paused")}
             </span>
             <Button
               disabled={busy}
@@ -193,7 +188,7 @@ export function ImNativeGroups({
                 })
               }
             >
-              {t("打开群对话", "Open group conversation")}
+              {t("ImNativeGroups.message9")}
             </Button>
             <Button
               disabled={busy}
@@ -219,46 +214,30 @@ export function ImNativeGroups({
                 })
               }
             >
-              {t("暂停接入，保留历史", "Pause and keep history")}
+              {t("ImNativeGroups.message10")}
             </Button>
           </div>
         ))}
-      {!groups.length ? (
-        <p>
-          {t(
-            "尚未发现群。请先在群里 @机器人，再刷新。",
-            "No groups discovered. Mention your bot in the group, then refresh.",
-          )}
-        </p>
-      ) : null}
+      {!groups.length ? <p>{t("ImNativeGroups.message11")}</p> : null}
       {current && (
         <>
           {current?.nameError ? (
             <InlineNotice tone="warning">
               {current.nameError === "missing-scope"
-                ? t(
-                    "读取 Slack 群名缺少权限：请在 Slack 应用的 OAuth & Permissions 中添加 channels:read（公开频道）和 groups:read（私有频道），重新安装应用到工作区后刷新群列表。",
-                    "Slack channel names require channels:read (public) and groups:read (private). Add these under OAuth & Permissions, reinstall the app to the workspace, then refresh groups.",
-                  )
+                ? t("ImNativeGroups.message14")
                 : current.nameError === "access-denied" ||
                     current.nameError === "removed"
-                  ? t(
-                      "机器人无法访问该群，请确认它仍在群内且具有访问权限。",
-                      "The bot cannot access this group. Check its membership and access.",
-                    )
-                  : t(
-                      "群名暂未查询成功，将自动重试。请检查连接状态与群信息读取权限。",
-                      "Group name lookup has not succeeded yet and will retry. Check connection status and group metadata permissions.",
-                    )}
+                  ? t("ImNativeGroups.message13")
+                  : t("ImNativeGroups.message12")}
             </InlineNotice>
           ) : null}
           <Select
             labelVisibility="visible"
-            label={t("本地项目", "Local project")}
+            label={t("AutomationPage_text.local")}
             value={projectId}
             disabled={busy}
             options={[
-              { value: "", label: t("选择项目", "Choose project") },
+              { value: "", label: t("ImNativeGroups.message16") },
               ...projects.map((p) => ({ value: p.id, label: p.name })),
             ]}
             onValueChange={(value) => {
@@ -269,14 +248,8 @@ export function ImNativeGroups({
           />
           <p>
             {existing
-              ? t(
-                  `沿用该项目的 ${existing.mode} 操作权限；其他权限请在项目授权中修改。`,
-                  `Uses this project's ${existing.mode} policy. Change other permissions in Project permissions.`,
-                )
-              : t(
-                  "新项目授权默认为 Plan，仅咨询与读取，不允许修改或执行命令。",
-                  "New grants default to Plan: advice and reading, without writes or commands.",
-                )}
+              ? t("ImNativeGroups.message18", { value1: existing.mode })
+              : t("ImNativeGroups.message17")}
           </p>
           {projectId ? (
             <ImGroupPathTree
@@ -292,10 +265,7 @@ export function ImNativeGroups({
             />
           ) : null}
           <Checkbox
-            label={t(
-              "我确认上述项目范围可用于回复本群所有成员，并允许群成员 @ 此机器人提交任务",
-              "I allow this project scope to be shared with all group members and allow members to mention this bot to submit tasks",
-            )}
+            label={t("ImNativeGroups.message19")}
             checked={confirmed}
             onCheckedChange={setConfirmed}
             disabled={busy}
@@ -342,7 +312,7 @@ export function ImNativeGroups({
               })
             }
           >
-            {t("确认并启用群聊", "Confirm and enable group")}
+            {t("ImNativeGroups.message20")}
           </Button>
         </>
       )}

@@ -1,3 +1,4 @@
+import { type UiTranslate } from "../shared/ui-text.js";
 import { useState } from "react";
 import { CaretRightIcon } from "@phosphor-icons/react";
 import {
@@ -20,7 +21,7 @@ export function ImDataPermissions({
 }: {
   grant: ExecutionGrant;
   onChange: (security: NonNullable<ExecutionGrant["security"]>) => void;
-  t: (cn: string, en: string) => string;
+  t: UiTranslate;
   audiences: Array<{ value: string; label: string; revision?: string }>;
   disabled: boolean;
 }) {
@@ -52,12 +53,7 @@ export function ImDataPermissions({
     reset = false,
   ) {
     if (!reset && next.readPaths.length === 0) {
-      setError(
-        t(
-          "请保留至少一个可读范围；如需禁止项目访问，请撤销项目授权。",
-          "Keep at least one readable path; revoke the project grant to deny project access.",
-        ),
-      );
+      setError(t("ImDataPermissions.message1"));
       return;
     }
     setError("");
@@ -155,7 +151,7 @@ export function ImDataPermissions({
                     variant="quiet"
                     icon={<CaretRightIcon aria-hidden="true" />}
                     disabled={pending || disabled}
-                    label={`${entries[entry.path] ? t("收起", "Collapse") : t("展开", "Expand")} ${entry.path}`}
+                    label={`${entries[entry.path] ? t("App_disclosureLabels.collapse") : t("App_disclosureLabels.expand")} ${entry.path}`}
                     aria-expanded={!!entries[entry.path]}
                     onClick={() => void expand(entry.path)}
                   />
@@ -166,13 +162,13 @@ export function ImDataPermissions({
               </div>
               {entry.protected ? (
                 <span className="im-scope-protected">
-                  {t("受保护", "Protected")}
+                  {t("ImDataPermissions.message6")}
                 </span>
               ) : (
                 <>
                   <Checkbox
                     className="im-scope-check"
-                    label={`${t("可处理", "Read")} ${entry.path}`}
+                    label={`${t("ImDataPermissions.message4")} ${entry.path}`}
                     labelVisibility="hidden"
                     checked={
                       scope.readPaths.length === 0 ||
@@ -224,7 +220,7 @@ export function ImDataPermissions({
                   />
                   <Checkbox
                     className="im-scope-check"
-                    label={`${t("可修改", "Write")} ${entry.path}`}
+                    label={`${t("ImDataPermissions.message5")} ${entry.path}`}
                     labelVisibility="hidden"
                     checked={imPathWithinScope(entry.path, scope.writePaths)}
                     disabled={
@@ -265,23 +261,18 @@ export function ImDataPermissions({
   }
   return (
     <fieldset className="im-security-scope" disabled={disabled || pending}>
-      <legend>{t("数据与分享范围", "Data and sharing scope")}</legend>
+      <legend>{t("ImDataPermissions.message7")}</legend>
       <Select
         labelVisibility="visible"
-        label={t("分享给谁", "Audience")}
+        label={t("ImDataPermissions.message8")}
         value={audience}
         onValueChange={setAudience}
         options={[
-          { value: "owner", label: t("主人单聊", "Owner direct chat") },
+          { value: "owner", label: t("ImDataPermissions.message9") },
           ...audiences,
         ]}
       />
-      <p>
-        {t(
-          "所选文件可用于向该会话的全部成员自动回复。目录包含未来新增内容；凭据与执行控制文件始终受保护。",
-          "Selected data may be used in automatic replies to every member of this audience. Directories include future contents; credentials and execution configuration remain protected.",
-        )}
-      </p>
+      <p>{t("ImDataPermissions.message10")}</p>
       <div className="im-scope-actions">
         <Button
           size="compact"
@@ -289,22 +280,22 @@ export function ImDataPermissions({
           onClick={() => void expand("")}
         >
           {entries[""]
-            ? t("收起目录", "Collapse files")
-            : t("选择目录或文件", "Choose files or directories")}
+            ? t("ImDataPermissions.message12")
+            : t("ImDataPermissions.message11")}
         </Button>
         <Button
           size="compact"
           disabled={pending || disabled}
           onClick={() => void selectAll(false)}
         >
-          {t("全选可处理", "Select all readable")}
+          {t("ImDataPermissions.message13")}
         </Button>
         <Button
           size="compact"
           disabled={pending || disabled}
           onClick={() => void selectAll(true)}
         >
-          {t("全选可修改", "Select all writable")}
+          {t("ImDataPermissions.message14")}
         </Button>
         <Button
           size="compact"
@@ -313,15 +304,15 @@ export function ImDataPermissions({
             change({ ...scope, readPaths: [], writePaths: [] }, undefined, true)
           }
         >
-          {t("恢复默认范围", "Reset to default scope")}
+          {t("ImDataPermissions.message15")}
         </Button>
       </div>
       {entries[""] ? (
         <div className="im-scope-tree">
           <div className="im-scope-row im-scope-heading" aria-hidden="true">
-            <span>{t("目录或文件", "Directory or file")}</span>
-            <span>{t("可处理", "Read")}</span>
-            <span>{t("可修改", "Write")}</span>
+            <span>{t("ImDataPermissions.message16")}</span>
+            <span>{t("ImDataPermissions.message4")}</span>
+            <span>{t("ImDataPermissions.message5")}</span>
           </div>
           {renderEntries("")}
         </div>
@@ -329,17 +320,11 @@ export function ImDataPermissions({
       {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
       {!confirmed ? (
         <InlineNotice tone="warning">
-          {t(
-            "需要确认数据与分享范围；保存确认前不会启动远程任务。",
-            "Confirm the data and audience scopes before remote work can start.",
-          )}
+          {t("ImDataPermissions.message19")}
         </InlineNotice>
       ) : null}
       <Checkbox
-        label={t(
-          "我确认以上文件范围与全部分享对象，保存后生效",
-          "I confirm the file scopes and all recipients; apply when saved",
-        )}
+        label={t("ImDataPermissions.message20")}
         checked={confirmed}
         disabled={disabled || !grant.security?.scopes.length}
         onCheckedChange={(checked) => {

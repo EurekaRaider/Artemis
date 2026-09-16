@@ -3,12 +3,27 @@ import type { AgentEvent, AppLocale, Thread } from "@artemis/protocol";
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import { mainText } from "./i18n.js";
 
-const AUTOMATIC_TITLES = new Set(
-  Object.values(I18N_RESOURCES).flatMap(({ main }) => [
+// Persisted default titles from earlier releases must remain recognizable.
+const AUTOMATIC_TITLES = new Set([
+  "Waiting for task",
+  "等待任务内容",
+  "等待任務內容",
+  "タスクを待機中",
+  "작업 대기 중",
+  "Esperando una tarea",
+  "En attente d’une tâche",
+  "Warten auf Aufgabe",
+  "Aguardando tarefa",
+  "In attesa di un’attività",
+  "Ожидание задачи",
+  "في انتظار مهمة",
+  "कार्य की प्रतीक्षा",
+  "Menunggu tugas",
+  ...Object.values(I18N_RESOURCES).flatMap(({ main }) => [
     main.newTask,
     main.waitingForTask,
   ]),
-);
+]);
 
 const TITLE_LIMIT = 64;
 

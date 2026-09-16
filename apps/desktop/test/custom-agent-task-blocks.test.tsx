@@ -35,7 +35,7 @@ function Harness() {
     <CustomAgentTaskBlocks
       tasks={value}
       focusTaskId={undefined}
-      zh={false}
+      locale="en"
       onChange={(id, text) =>
         setValue((current) =>
           current.map((task) => (task.id === id ? { ...task, text } : task)),

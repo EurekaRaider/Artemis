@@ -1,10 +1,15 @@
+import type { AppLocale } from "@artemis/protocol";
+import { GOAL_RESOURCES } from "../shared/goal-resources.js";
 export type GoalCommand =
   | { kind: "show" }
   | { kind: "pause" | "resume" | "clear" | "edit" }
   | { kind: "set"; objective: string; tokenBudget?: number }
   | { kind: "invalid"; message: string };
 
-export function parseGoalCommand(prompt: string): GoalCommand | undefined {
+export function parseGoalCommand(
+  prompt: string,
+  locale: AppLocale = "en",
+): GoalCommand | undefined {
   const match = prompt.match(/^\/goal(?:\s+([\s\S]*))?$/iu);
   if (!match) return undefined;
   const argument = match[1]?.trim();
@@ -23,12 +28,15 @@ export function parseGoalCommand(prompt: string): GoalCommand | undefined {
   const objective = budgetMatch[1]?.trim() ?? "";
   const rawBudget = budgetMatch[2] ?? "";
   if (!objective) {
-    return { kind: "invalid", message: "A Goal objective is required." };
+    return {
+      kind: "invalid",
+      message: GOAL_RESOURCES[locale].objectiveRequired,
+    };
   }
   if (!/^\d+$/u.test(rawBudget) || Number(rawBudget) <= 0) {
     return {
       kind: "invalid",
-      message: "--token-budget must be a positive integer.",
+      message: GOAL_RESOURCES[locale].budgetInvalid,
     };
   }
   return {

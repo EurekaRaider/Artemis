@@ -269,7 +269,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     const webview = webviewRef.current;
     if (!webview || !webviewReadyRef.current) return;
     try {
-      const url = normalizeBrowserAddress(address);
+      const url = normalizeBrowserAddress(address, props.locale);
       setNavigationError(undefined);
       void webview.loadURL(url).catch((reason) => {
         setNavigationError(

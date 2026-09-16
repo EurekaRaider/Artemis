@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import {
   useEffect,
   useId,
@@ -18,8 +19,6 @@ import type {
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { UserInputFrame } from "@artemis/ui/patterns";
 
-import { localizedCopy } from "../shared/i18n-resources.js";
-import { legacyLocale } from "../shared/locales.js";
 import { formatUserInputCountdown } from "./user-input-countdown.js";
 import {
   moveUserInputOptionFocus,
@@ -33,49 +32,16 @@ import {
 // is derived from the reducer's MultiQuestionUserInputState; this component
 // never mutates question status locally.
 
-const multiQuestionCopy = {
-  "zh-CN": {
-    questionProgress: "第 {{index}}/{{count}} 题",
-    answeredProgress: "已答 {{count}}/{{total}}",
-    progressLabel: "已答题目",
-    questionNavLabel: "题目导航",
-    questionTabLabel: "第 {{index}} 题 {{question}}",
-    recommended: "模型推荐",
-    otherAnswer: "其他…",
-    otherAnswerDetail: "输入一个不在以上列表中的答案",
-    customAnswer: "输入其他答案",
-    submitAnswer: "提交",
-    submitSelection: "提交选择",
-    waitingSelection: "等待选择",
-    timeoutHint: "5 分钟内未选择将自动采用模型推荐项",
-    answered: "已选择",
-    timedOut: "5 分钟未选择，已采用模型推荐项",
-    inputCancelled: "已取消",
-  },
-  en: {
-    questionProgress: "Question {{index}} of {{count}}",
-    answeredProgress: "{{count}}/{{total}} answered",
-    progressLabel: "Answered questions",
-    questionNavLabel: "Question navigation",
-    questionTabLabel: "Question {{index}}: {{question}}",
-    recommended: "Recommended",
-    otherAnswer: "Other…",
-    otherAnswerDetail: "Type an answer that is not listed above",
-    customAnswer: "Type another answer",
-    submitAnswer: "Submit",
-    submitSelection: "Submit selection",
-    waitingSelection: "Waiting for selection",
-    timeoutHint: "The recommended option is used automatically after 5 minutes",
-    answered: "Selected",
-    timedOut: "No response for 5 minutes; used the model recommendation",
-    inputCancelled: "Cancelled",
-  },
-} satisfies Record<string, Record<string, string>>;
+const multiQuestionCopy =
+  UI_COPY.MultiQuestionUserInputCard_multiQuestionCopy satisfies Record<
+    string,
+    Record<string, string>
+  >;
 
 type MultiQuestionCopy = (typeof multiQuestionCopy)["en"];
 
 function multiQuestionAppCopy(locale: AppLocale): MultiQuestionCopy {
-  return localizedCopy(locale, "app", multiQuestionCopy[legacyLocale(locale)]);
+  return multiQuestionCopy[locale];
 }
 
 function fill(

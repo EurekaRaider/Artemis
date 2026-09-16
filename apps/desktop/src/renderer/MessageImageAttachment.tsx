@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import { useEffect, useRef, useState } from "react";
 import type { PromptImage } from "@artemis/protocol";
 import { AttachmentImagePreview } from "./AttachmentImagePreview.js";
@@ -7,13 +9,13 @@ export function MessageImageAttachment({
   sourceId,
   name,
   thumbnail,
-  zh,
+  locale,
 }: {
   threadId: string;
   sourceId: string;
   name: string;
   thumbnail?: string | undefined;
-  zh: boolean;
+  locale: AppLocale;
 }) {
   const button = useRef<HTMLButtonElement>(null);
   const [image, setImage] = useState<PromptImage>();
@@ -57,7 +59,7 @@ export function MessageImageAttachment({
         type="button"
         className="attachment-image-button"
         title={name}
-        aria-label={`${zh ? "查看图片" : "View image"}: ${name}`}
+        aria-label={`${uiText(locale, "ComposerAttachments.inline2")}: ${name}`}
         onClick={() => {
           if (unavailable) request.current = undefined;
           setUnavailable(false);
@@ -84,11 +86,7 @@ export function MessageImageAttachment({
           <span>
             {name}
             {unavailable && (
-              <small>
-                {zh
-                  ? "图片不可用，点击重试"
-                  : "Image unavailable; click to retry"}
-              </small>
+              <small>{uiText(locale, "MessageImageAttachment.inline1")}</small>
             )}
           </span>
         )}
@@ -96,7 +94,7 @@ export function MessageImageAttachment({
       {preview && image && (
         <AttachmentImagePreview
           image={image}
-          zh={zh}
+          locale={locale}
           onClose={() => setPreview(false)}
         />
       )}

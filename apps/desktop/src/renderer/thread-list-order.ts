@@ -1,4 +1,5 @@
 import type { AgentEvent, Thread } from "@artemis/protocol";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 
 type EventsByThread = Readonly<
   Record<string, readonly AgentEvent[] | undefined>
@@ -9,8 +10,13 @@ export type ThreadDropEdge = "before" | "after";
 const WORKSPACE_DRAFT_TITLES = new Set([
   "New task",
   "Waiting for task",
+  "Waiting for task details",
   "新任务",
   "等待任务内容",
+  ...Object.values(I18N_RESOURCES).flatMap(({ main }) => [
+    main.newTask,
+    main.waitingForTask,
+  ]),
 ]);
 
 export function isWorkspaceDraftThread(thread: Thread): boolean {

@@ -10,6 +10,42 @@ import {
 } from "../src/remote-tools.js";
 
 describe("remote Pi tool boundary", () => {
+  it("rejects the screenshot's malformed calls before dispatch and accepts a corrected delegate", async () => {
+    const calls: unknown[] = [];
+    const tool = createRemoteTools(async (operation) => {
+      calls.push(operation);
+      return [{ id: "task" }];
+    }).find((t) => t.name === "collaborate")!;
+    await expect(
+      tool.execute("bad-delegate", {
+        action: "delegate",
+        assignments: [{ participantId: "solar", text: "Memory?" }],
+      } as never),
+    ).rejects.toThrow("delegate-many");
+    await expect(
+      tool.execute("bad-message", {
+        action: "message",
+        participantId: "solar",
+        text: "Memory?",
+      } as never),
+    ).rejects.toThrow("taskId");
+    expect(calls).toEqual([]);
+    await tool.execute("corrected", {
+      action: "delegate",
+      participantId: "solar",
+      text: "Memory?",
+    } as never);
+    expect(calls).toEqual([
+      {
+        action: "collaborate",
+        command: {
+          action: "delegate",
+          participantId: "solar",
+          text: "Memory?",
+        },
+      },
+    ]);
+  });
   it("requires the same restricted tool boundary for desktop group sessions", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-local-group-"));
     const calls: BrokerExecutionRequest[] = [];

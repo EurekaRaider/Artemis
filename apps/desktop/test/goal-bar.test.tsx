@@ -3,7 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ThreadGoal } from "@artemis/protocol";
+import { APP_LOCALES, type ThreadGoal } from "@artemis/protocol";
+
+import { GOAL_RESOURCES } from "../src/shared/goal-resources.js";
 
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
@@ -28,6 +30,43 @@ const goal = (changes: Partial<ThreadGoal> = {}): ThreadGoal => ({
 });
 
 describe("compact Goal rail", () => {
+  it("uses the selected language for visible status and accessible controls", () => {
+    for (const locale of APP_LOCALES) {
+      const copy = GOAL_RESOURCES[locale];
+      const markup = renderToStaticMarkup(
+        <GoalBar
+          clockMs={Date.parse(goal().updatedAt)}
+          goal={goal()}
+          locale={locale}
+          onClear={vi.fn()}
+          onEdit={vi.fn()}
+          onPause={vi.fn()}
+          onResume={vi.fn()}
+        />,
+      );
+      const host = document.createElement("div");
+      host.innerHTML = markup;
+      expect(host.querySelector("section")?.getAttribute("aria-label")).toBe(
+        copy.active,
+      );
+      expect(host.querySelector(".goal-bar-status")?.textContent).toBe(
+        copy.running,
+      );
+      expect(
+        [...host.querySelectorAll("button")].map((button) =>
+          button.getAttribute("aria-label"),
+        ),
+      ).toEqual(expect.arrayContaining([copy.pause, copy.edit, copy.clear]));
+    }
+  });
+
+  it("localizes elapsed units without changing the elapsed duration", () => {
+    const clock = Date.parse(goal().updatedAt) + 4_000;
+    expect(
+      formatGoalProgress(goal({ tokenBudget: undefined }), "zh-CN", clock),
+    ).toBe("1小时 0分钟 4秒");
+  });
+
   it("shows budget progress for active and budget-limited Goals", () => {
     expect(formatGoalProgress(goal(), "en", Date.parse(goal().updatedAt))).toBe(
       "2.5K / 10K",
@@ -67,7 +106,7 @@ describe("compact Goal rail", () => {
         onResume={vi.fn()}
       />,
     );
-    expect(markup).toContain("Pursuing goal");
+    expect(markup).toContain("Goal in progress");
     expect(markup).toContain("Ship the Goal UI");
     expect(markup).toContain('data-artemis-component="button"');
     expect(markup).toContain('data-artemis-component="icon-button"');
@@ -160,7 +199,7 @@ describe("GoalBar interactions (jsdom)", () => {
       />,
     );
     expect(
-      screen.getByRole("region", { name: "Pursuing goal" }),
+      screen.getByRole("region", { name: "Goal in progress" }),
     ).toHaveAttribute("aria-busy", "true");
     const pause = screen.getByRole("button", { name: "Pause goal" });
     expect(pause).toBeDisabled();

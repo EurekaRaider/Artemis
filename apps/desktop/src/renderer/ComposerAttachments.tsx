@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import { FileAttachment } from "./FileAttachment.js";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { useEffect, useRef, useState } from "react";
@@ -19,11 +21,11 @@ function thumbnail(attachment: PromptAttachment) {
 
 export function ComposerAttachments({
   attachments,
-  zh,
+  locale,
   onRemove,
 }: {
   attachments: PromptAttachment[];
-  zh: boolean;
+  locale: AppLocale;
   onRemove: (index: number) => void;
 }) {
   const [preview, setPreview] = useState<PromptImage>();
@@ -47,7 +49,7 @@ export function ComposerAttachments({
       if (request === previewRequest.current) setPreview(image);
     } catch {
       if (request === previewRequest.current)
-        setPreviewError(zh ? "无法预览图片" : "Image preview unavailable");
+        setPreviewError(uiText(locale, "ComposerAttachments.inline1"));
     }
   }
 
@@ -63,7 +65,7 @@ export function ComposerAttachments({
               <button
                 type="button"
                 className="attachment-image-button"
-                aria-label={`${zh ? "查看图片" : "View image"}: ${attachment.name}`}
+                aria-label={`${uiText(locale, "ComposerAttachments.inline2")}: ${attachment.name}`}
                 title={attachment.name}
                 onClick={() => void openPreview(attachment)}
               >
@@ -76,7 +78,7 @@ export function ComposerAttachments({
             ) : (
               <FileAttachment
                 name={attachment.name}
-                zh={zh}
+                locale={locale}
                 id={
                   isAttachmentReference(attachment) ? attachment.id : undefined
                 }
@@ -90,7 +92,7 @@ export function ComposerAttachments({
             <button
               type="button"
               className="attachment-image-remove"
-              aria-label={`${attachmentIsImage(attachment) ? (zh ? "移除图片" : "Remove image") : zh ? "移除文件" : "Remove file"}: ${attachment.name}`}
+              aria-label={`${attachmentIsImage(attachment) ? uiText(locale, "ComposerAttachments.inline4") : uiText(locale, "ComposerAttachments.inline3")}: ${attachment.name}`}
               onClick={() => onRemove(index)}
             >
               <ArtemisIcon name="close" width={14} height={14} />
@@ -102,7 +104,7 @@ export function ComposerAttachments({
       {preview && (
         <AttachmentImagePreview
           image={preview}
-          zh={zh}
+          locale={locale}
           onClose={() => {
             previewRequest.current++;
             setPreview(undefined);

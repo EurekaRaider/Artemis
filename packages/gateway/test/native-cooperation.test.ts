@@ -121,13 +121,184 @@ function pair(database = ":memory:") {
   const request = a.router.groupConversationContext(a.device.id, a.group.id);
   return { a, b, request };
 }
-function delegate(f: ReturnType<typeof pair>, text = "Build result") {
+function delegate(
+  f: ReturnType<typeof pair>,
+  text = "Build result",
+  newTask = false,
+) {
   return f.a.router.native.command(f.request, "coordinator", randomUUID(), {
     action: "delegate",
     participantId: "B",
+    newTask,
     text,
   }) as Array<{ id: string }>;
 }
+it("continues the same peer session across coordinator turns, with an explicit fresh-task escape", () => {
+  const f = pair();
+  const [first] = delegate(f);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native.tasks(f.b.group.id)[0]!;
+  expect(() => delegate(f, "Too soon")).toThrow(/Wait/);
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "worker-session",
+    text: "Done",
+    final: true,
+    outcome: "completed",
+  });
+  exchange(f.b, f.a);
+  const nextRequest = { ...f.request, id: randomUUID() };
+  f.a.store.put("invocations", nextRequest.id, nextRequest);
+  const [next] = f.a.router.native.command(
+    nextRequest,
+    "coordinator",
+    "follow-up",
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "Continue with the result",
+    },
+  ) as Array<{ id: string }>;
+  const continuation = f.a.router.native
+    .tasks(f.a.group.id)
+    .find((t) => t.id === next!.id)!.envelope;
+  expect(
+    f.a.router.canDeliver({
+      conversation: { ...f.a.event.conversation, spaceId: f.a.group.id },
+      text: "",
+      native: { ...continuation, expiresAt: Date.now() - 1 },
+    }),
+  ).toBe(false);
+  // Continuation cannot borrow a different peer's or group's session.
+  for (const patch of [
+    { peer: "other-bot" },
+    { groupId: "other-group" },
+    { state: "running" as const },
+  ]) {
+    f.b.store.put("native-tasks", incoming.id, {
+      ...f.b.router.native
+        .tasks(f.b.group.id)
+        .find((t) => t.id === incoming.id)!,
+      ...patch,
+    });
+    const count = f.b.store.pending("device").length;
+    expect(
+      f.b.router.native.receive({
+        ...f.b.event,
+        bot: true,
+        identity: { ...f.b.event.identity, userId: "A" },
+        text: encodeNativeEnvelope(continuation),
+      }),
+    ).toBe(false);
+    expect(f.b.store.pending("device")).toHaveLength(count);
+    f.b.store.put("native-tasks", incoming.id, {
+      ...incoming,
+      state: "completed",
+      threadId: "worker-session",
+    });
+  }
+  exchange(f.a, f.b);
+  const resumed = f.b.router.native
+    .tasks(f.b.group.id)
+    .find((t) => t.id === next!.id)!;
+  expect(next!.id).not.toBe(first!.id);
+  expect(
+    f.b.store.get<RemoteInvocationContext>("invocations", resumed.invocationId),
+  ).toMatchObject({
+    taskId: "worker-session",
+    nativeTaskId: next!.id,
+    collaboration: { taskId: next!.id },
+  });
+  // Retrying the same transport message must not schedule another turn.
+  const count = f.b.store.pending("device").length;
+  f.b.router.ingest({
+    ...f.b.event,
+    messageId: randomUUID(),
+    bot: true,
+    identity: { ...f.b.event.identity, userId: "A" },
+    text: encodeNativeEnvelope(resumed.envelope),
+  });
+  expect(f.b.store.pending("device")).toHaveLength(count);
+  const [fresh] = f.a.router.native.command(
+    nextRequest,
+    "coordinator",
+    "fresh",
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "Independent task",
+      newTask: true,
+    },
+  ) as Array<{ id: string }>;
+  exchange(f.a, f.b);
+  const freshTask = f.b.router.native
+    .tasks(f.b.group.id)
+    .find((t) => t.id === fresh!.id)!;
+  expect(
+    f.b.store.get<RemoteInvocationContext>(
+      "invocations",
+      freshTask.invocationId,
+    )?.taskId,
+  ).toBeUndefined();
+  const [separate] = f.a.router.native.command(
+    nextRequest,
+    "another-coordinator",
+    "separate",
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "A different coordinator session",
+    },
+  ) as Array<{ id: string }>;
+  expect(
+    f.a.router.native.tasks(f.a.group.id).find((t) => t.id === separate!.id)
+      ?.envelope.action,
+  ).toBe("delegate");
+});
+it("reports malformed delegation separately from authorization without dispatching", () => {
+  const f = pair();
+  expect(
+    f.a.router.native.command(f.request, "coordinator", "peers", {
+      action: "participants",
+      text: "",
+    }),
+  ).toMatchObject([{ id: "B" }]);
+  const outgoing = f.a.store.pending("outgoing");
+  expect(() =>
+    f.a.router.native.command(f.request, "coordinator", "bad", {
+      action: "delegate",
+      text: "",
+      assignments: [{ participantId: "B", text: "Memory?" }],
+    }),
+  ).toThrow("delegate-many");
+  expect(() => delegate(f, "  ")).toThrow("nonempty text");
+  expect(() =>
+    f.a.router.native.command(f.request, "coordinator", "note", {
+      action: "message",
+      participantId: "B",
+      text: "Memory?",
+    }),
+  ).toThrow("taskId");
+  expect(f.a.router.native.tasks(f.a.group.id)).toEqual([]);
+  expect(f.a.store.pending("outgoing")).toEqual(outgoing);
+  expect(() =>
+    f.a.router.native.command(f.request, "coordinator", "unauthorized", {
+      action: "delegate",
+      participantId: "unknown",
+      text: "Memory?",
+    }),
+  ).toThrow("Bot is not authorized or verified");
+  const [task] = delegate(f);
+  expect(
+    f.a.router.native.command(f.request, "coordinator", "valid-note", {
+      action: "message",
+      taskId: task!.id,
+      text: "Memory?",
+    }),
+  ).toMatchObject({ state: "note-queued", taskId: task!.id });
+});
 it("requires authenticated bot identity and a correlated IM proof before authorizing peers", () => {
   const a = instance("A"),
     b = instance("B");
@@ -291,7 +462,7 @@ it("allows more than 16 handoffs while preserving command idempotence and author
       limit: 16,
     },
   );
-  for (let i = 1; i < 32; i++) delegate(f);
+  for (let i = 1; i < 32; i++) delegate(f, "Independent work", true);
   expect(f.a.router.native.tasks(f.a.group.id)).toHaveLength(32);
   f.b.router.native.authorize(f.b.group.id, []);
   exchange(f.a, f.b);
@@ -356,7 +527,12 @@ it("marks restart uncertainty without resending and queues IM cancellation when 
     f.request,
     "coordinator",
     "second",
-    { action: "delegate", participantId: "B", text: "Other work" },
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "Other work",
+      newTask: true,
+    },
   ) as Array<{ id: string }>;
   exchange(f.a, f.b);
   exchange(f.b, f.a);
@@ -539,7 +715,7 @@ it("discovers bots from the roster but requires owner permission and proof befor
   exchange(a, b);
   expect(b.store.pending("device")).toHaveLength(1);
   b.router.native.setMemberAssignment(b.group.id, "A", false);
-  delegate({ a, b, request });
+  delegate({ a, b, request }, "Independent work", true);
   exchange(a, b);
   expect(b.store.pending("device")).toHaveLength(1);
   const saved = saveNativeGroup(a.store, {

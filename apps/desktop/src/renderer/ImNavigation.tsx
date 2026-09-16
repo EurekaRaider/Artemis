@@ -1,3 +1,4 @@
+import { type UiTranslate } from "../shared/ui-text.js";
 import {
   imAggregateConnectionStates,
   type ImConnectionState,
@@ -14,39 +15,39 @@ export type ImView =
   | "setup-guide"
   /* 三步版：②尾验证段作为独立定位目标（不新增卡） */
   | "test";
-export type ImTranslate = (cn: string, en: string) => string;
+export type ImTranslate = UiTranslate;
 export const IM_CHANNELS = ["wecom", "feishu", "slack"] as const;
 export function imChannelLabel(channel: ImChannel, t: ImTranslate) {
   return channel === "wecom"
-    ? t("企业微信", "WeCom")
+    ? t("ImNavigation.message2")
     : channel === "feishu"
-      ? t("飞书 / Lark", "Feishu / Lark")
+      ? t("ImNavigation.message1")
       : "Slack";
 }
 export function imChannelConstraint(channel: ImChannel, t: ImTranslate) {
   return channel === "feishu"
-    ? t("长连接或 HTTPS 回调", "Long connection or HTTPS callback")
+    ? t("ImNavigation.message5")
     : channel === "wecom"
-      ? t("长连接 · 无需公网地址", "Long connection · No public URL")
-      : t("Socket Mode · Manifest 导入", "Socket Mode · Import manifest");
+      ? t("ImNavigation.message4")
+      : t("ImNavigation.message3");
 }
 export function imConnectionLabel(
   state: ImConnectionState | undefined,
   t: ImTranslate,
 ) {
   return state === "connected"
-    ? t("已连接", "Connected")
+    ? t("ImNavigation.message12")
     : state === "connecting"
-      ? t("连接中", "Connecting")
+      ? t("ImNavigation.message11")
       : state === "saving"
-        ? t("保存中", "Saving")
+        ? t("ImNavigation.message10")
         : state === "saved"
-          ? t("已保存，待连接", "Saved, awaiting connection")
+          ? t("ImNavigation.message9")
           : state === "error"
-            ? t("连接错误", "Connection error")
+            ? t("ImNavigation.message8")
             : state === "partial_error"
-              ? t("部分连接异常", "Partial connection failure")
-              : t("未配置", "Not configured");
+              ? t("ImNavigation.message7")
+              : t("ImNavigation.message6");
 }
 export function imConnectionHealth(connections: readonly ImConnectionStatus[]) {
   const failed = connections.filter((c) => c.state === "error").length;
@@ -76,9 +77,6 @@ export function imConnectionSummary(
 ) {
   const { total, failed } = imConnectionHealth(connections);
   return failed
-    ? t(
-        `${total} 个连接，${failed} 个异常`,
-        `${total} connections, ${failed} failed`,
-      )
-    : t(`${total} 个连接`, `${total} connections`);
+    ? t("ImNavigation.message14", { value1: total, value2: failed })
+    : t("ImNavigation.message13", { value1: total });
 }

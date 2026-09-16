@@ -69,7 +69,7 @@ export function createRemoteTools(
       name: "collaborate",
       label: "Collaborate through IM",
       description:
-        "Delegate through the current native IM group only. Query participants for verified platform bot IDs; never guess an identity. Use delegate or delegate-many with assignments [{participantId,text,dependsOn?}], where dependsOn contains existing task IDs from this workflow. Dependencies advance only after successful, nonempty results. Use status for receipts/results, cancel to request remote cancellation, and finish for the combined summary. A sent request is not acceptance; cancel-sent is not cancellation confirmation. The initiating bot coordinates the workflow. Receiving bots return results and do not delegate further. Results must be IM message text or IM attachments; local paths are not shared artifacts. Plan and Review cannot dispatch.",
+        'Delegate through the current native IM group only. Query participants for verified platform bot IDs; never guess an identity. For one bot use {action:"delegate",participantId,text} with top-level fields. Later delegate calls to the same bot from this coordinator session continue its existing session after the previous result. Use newTask:true only for an independent new session. For batch assignments use {action:"delegate-many",assignments:[{participantId,text,dependsOn?}]}; assignments is only for delegate-many and creates independent sessions. dependsOn contains existing task IDs from this workflow. Dependencies advance only after successful, nonempty results. Use {action:"message",taskId,text} to append a note to an existing task, never to message a participantId directly. Use status for task IDs and receipts/results, {action:"cancel",taskId} to request remote cancellation, and {action:"finish",text} for the combined summary. A sent request is not acceptance; cancel-sent is not cancellation confirmation. The initiating bot coordinates the workflow. Receiving bots return results and do not delegate further. Results must be IM message text or IM attachments; local paths are not shared artifacts. Plan and Review cannot dispatch.',
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -83,6 +83,7 @@ export function createRemoteTools(
           ].map((x) => Type.Literal(x)),
         ),
         participantId: Type.Optional(Type.String()),
+        newTask: Type.Optional(Type.Boolean()),
         assignments: Type.Optional(
           Type.Array(
             Type.Object({

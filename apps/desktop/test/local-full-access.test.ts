@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -62,30 +63,32 @@ describe("local full access setting", () => {
   });
 
   it("shows a bilingual master switch and saves its checked state", () => {
-    expect(settingsPanelSource).toContain(
-      'localFullAccess: "Full local access"',
+    expect(uiText("en", "SettingsPanel_labels.localFullAccess")).toBe(
+      "Full local access",
     );
-    expect(settingsPanelSource).toContain('localFullAccess: "完整本机访问"');
+    expect(uiText("zh-CN", "SettingsPanel_labels.localFullAccess")).toBe(
+      "完整本机访问",
+    );
     expect(settingsPanelSource).toContain("checked={settings.localFullAccess}");
     expect(settingsPanelSource).toMatch(
       /onCheckedChange=\{\(checked\)\s*=>[\s\S]*?window\.artemis\.setLocalFullAccess\(checked\)/u,
     );
     expect(settingsPanelSource).toContain("setSettings(updated)");
     expect(settingsPanelSource).toContain("onSettingsChange(updated)");
-    expect(settingsPanelSource).toMatch(
-      /localFullAccessDetail:\s*"Allow executable extensions to run with your desktop permissions\."/u,
+    expect(uiText("en", "SettingsPanel_labels.localFullAccessDetail")).toBe(
+      "Allow executable extensions to run with your desktop permissions.",
     );
-    expect(settingsPanelSource).toContain(
-      'localFullAccessDetail: "允许可执行扩展使用当前桌面用户权限运行。"',
+    expect(uiText("zh-CN", "SettingsPanel_labels.localFullAccessDetail")).toBe(
+      "允许可执行扩展使用当前桌面用户权限运行。",
     );
   });
 
   it("makes stdio MCP network and compatibility access explicit per-server choices", () => {
-    expect(mcpServerEditorSource).toMatch(
-      /mcpAllowNetwork:\s*"Allow network access"/u,
+    expect(uiText("en", "McpServerEditor_labels.mcpAllowNetwork")).toBe(
+      "Allow network access",
     );
-    expect(mcpServerEditorSource).toContain(
-      'mcpFullAccess: "完整本机访问（兼容模式）"',
+    expect(uiText("zh-CN", "McpServerEditor_labels.mcpFullAccess")).toBe(
+      "完整本机访问（兼容模式）",
     );
     expect(mcpServerEditorSource).toContain("{t.mcpFullAccessHint}");
     expect(mcpServerEditorSource).toContain("setMcpAllowNetwork");

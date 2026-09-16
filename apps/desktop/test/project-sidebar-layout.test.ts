@@ -26,7 +26,7 @@ describe("project sidebar layout", () => {
     expect(label(60_000)).toBe("1 minute ago");
     expect(label(3_600_000)).toBe("1 hour ago");
     expect(label(86_400_000)).toBe("yesterday");
-    expect(label(2 * 86_400_000, "zh-CN")).toBe("2 天前");
+    expect(label(2 * 86_400_000, "zh-CN")).toBe("前天");
     expect(label(7 * 86_400_000)).toBe("Sep 1");
     expect(formatSidebarTime("invalid", now, "en")).toBe("");
   });

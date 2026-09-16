@@ -139,7 +139,8 @@ export type ChannelEvent = z.infer<typeof channelEventSchema>;
 export const executionGrantSchema = z
   .object({
     projectId: id,
-    tokenBudget: z.number().int().min(1024).max(1000000).default(100000),
+    // Accepted only for compatibility with saved grants; no usage cap is enforced.
+    tokenBudget: z.number().int().min(1024).max(1000000).optional(),
     approval: z.enum(["ask", "automatic"]).default("ask"),
     mode: z.enum(["plan", "review", "execute"]).default("plan"),
     network: z.boolean().default(false),
@@ -385,6 +386,7 @@ export const collaborationCommandSchema = z
       "finish",
     ]),
     participantId: id.optional(),
+    newTask: z.boolean().optional(),
     assignments: z
       .array(
         z
@@ -401,7 +403,51 @@ export const collaborationCommandSchema = z
     taskId: id.optional(),
     text: text.default(""),
   })
-  .strict();
+  .strict()
+  .superRefine((command, ctx) => {
+    const issue = (path: (string | number)[], message: string) =>
+      ctx.addIssue({ code: "custom", path, message });
+    if (command.newTask !== undefined && command.action !== "delegate")
+      issue(["newTask"], "newTask is only supported for delegate.");
+    if (command.action === "delegate") {
+      if (command.assignments !== undefined)
+        issue(
+          ["assignments"],
+          'Use action "delegate-many" with assignments; delegate requires top-level participantId and text.',
+        );
+      if (!command.participantId?.trim())
+        issue(
+          ["participantId"],
+          "delegate requires a top-level participantId from participants.",
+        );
+    }
+    if (command.action === "delegate-many") {
+      if (!command.assignments?.length)
+        issue(
+          ["assignments"],
+          "delegate-many requires assignments [{participantId, text, dependsOn?}].",
+        );
+      command.assignments?.forEach((assignment, index) => {
+        if (!assignment.text.trim())
+          issue(
+            ["assignments", index, "text"],
+            "Each assignment requires nonempty text.",
+          );
+      });
+    }
+    if (command.action === "message" || command.action === "cancel") {
+      if (!command.taskId?.trim())
+        issue(
+          ["taskId"],
+          `${command.action} requires an existing taskId from delegate, delegate-many or status; participantId cannot address a task.`,
+        );
+    }
+    if (
+      ["delegate", "message", "finish"].includes(command.action) &&
+      !command.text.trim()
+    )
+      issue(["text"], `${command.action} requires nonempty text.`);
+  });
 export type CollaborationCommand = z.infer<typeof collaborationCommandSchema>;
 export interface CollaborationSpace {
   /** Internal compatibility projection: exactly one native group, never a bridge. */

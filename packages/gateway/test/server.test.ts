@@ -193,6 +193,75 @@ describe("Gateway lifecycle and delivery authorization", () => {
     expect((await request("a".repeat(32))).status).toBe(410);
     expect(f.gateway.store.list("spaces")).toEqual([]);
   });
+  it("removes associated collaboration spaces with a connection and preserves other connections' spaces", async () => {
+    const f = await fixture();
+    for (const [namespace, id, connectionId] of [
+      ["native-groups", "native-selected", "wecom"],
+      ["spaces", "legacy-selected", "wecom"],
+      ["native-groups", "native-other", "other"],
+    ] as const) {
+      f.gateway.store.put(namespace, id, {
+        id,
+        endpoints: [{ connectionId, kind: "group", id: "channel" }],
+      });
+      f.gateway.store.put("space-confirmations", id, ["confirmed"]);
+      f.gateway.store.put("native-group-info", id, { next: 123 });
+      const conversation = { connectionId, kind: "group" as const, id };
+      f.gateway.store.put("observed-groups", imConversationKey(conversation), {
+        conversation,
+      });
+      f.gateway.store.enqueue("outgoing", id, "offline", {
+        conversation: { ...conversation, spaceId: id },
+      });
+    }
+    const remove = (token: string) =>
+      fetch(`${f.url}/v1/admin/remove-connection`, {
+        method: "PUT",
+        headers: { authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: "wecom" }),
+      });
+    expect((await remove("invalid")).status).toBe(401);
+    expect(
+      f.gateway.store.get("native-groups", "native-selected"),
+    ).toBeDefined();
+    expect((await remove("a".repeat(32))).status).toBe(200);
+    for (const id of ["native-selected", "legacy-selected"]) {
+      for (const namespace of [
+        "native-groups",
+        "spaces",
+        "space-confirmations",
+        "native-group-info",
+      ])
+        expect(f.gateway.store.get(namespace, id)).toBeUndefined();
+      expect(f.gateway.store.get("removed-spaces", id)).toEqual({ id });
+      expect(
+        f.gateway.store.get(
+          "observed-groups",
+          imConversationKey({ connectionId: "wecom", kind: "group", id }),
+        ),
+      ).toBeUndefined();
+    }
+    expect(f.gateway.store.get("native-groups", "native-other")).toBeDefined();
+    expect(f.gateway.store.get("space-confirmations", "native-other")).toEqual([
+      "confirmed",
+    ]);
+    expect(f.gateway.store.get("native-group-info", "native-other")).toEqual({
+      next: 123,
+    });
+    expect(f.gateway.store.pending("outgoing").map((item) => item.id)).toEqual([
+      "native-other",
+    ]);
+    expect(
+      f.gateway.store.get(
+        "observed-groups",
+        imConversationKey({
+          connectionId: "other",
+          kind: "group",
+          id: "native-other",
+        }),
+      ),
+    ).toBeDefined();
+  });
   it("removes a connection only for administrators, revokes pairing, and never reuses its routing ID", async () => {
     const f = await fixture();
     const pendingDevice = f.gateway.store.register("Pending");

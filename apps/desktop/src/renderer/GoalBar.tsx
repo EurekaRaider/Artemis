@@ -1,3 +1,4 @@
+import { GOAL_RESOURCES } from "../shared/goal-resources.js";
 import { useEffect, useState } from "react";
 import { Tooltip } from "@artemis/ui/feedback";
 import { PauseIcon, PlayIcon } from "@phosphor-icons/react";
@@ -9,33 +10,6 @@ import {
   type ActionTone,
 } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
-
-const LABELS = {
-  en: {
-    active: "Pursuing goal",
-    paused: "Paused goal",
-    blocked: "Goal stalled",
-    usageLimited: "Goal usage limited",
-    budgetLimited: "Goal limited",
-    complete: "Goal achieved",
-    pause: "Pause goal",
-    resume: "Resume goal",
-    edit: "Edit goal",
-    clear: "Clear goal",
-  },
-  "zh-CN": {
-    active: "进行中的目标",
-    paused: "已暂停的目标",
-    blocked: "目标已停滞",
-    usageLimited: "目标使用受限",
-    budgetLimited: "目标受限",
-    complete: "已达成目标",
-    pause: "暂停目标",
-    resume: "继续目标",
-    edit: "编辑目标",
-    clear: "清除目标",
-  },
-} as const;
 
 const GOAL_OBJECTIVE_PREVIEW_MARKER = "\n\nObjective preview:\n";
 
@@ -79,9 +53,17 @@ export function formatGoalProgress(
   const hours = Math.floor(total / 3_600);
   const minutes = Math.floor((total % 3_600) / 60);
   const seconds = total % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  const unit = (value: number, name: "hour" | "minute" | "second") =>
+    new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: name,
+      unitDisplay: "narrow",
+    }).format(value);
+  if (hours > 0)
+    return `${unit(hours, "hour")} ${unit(minutes, "minute")} ${unit(seconds, "second")}`;
+  if (minutes > 0)
+    return `${unit(minutes, "minute")} ${unit(seconds, "second")}`;
+  return unit(seconds, "second");
 }
 
 export function GoalBar({
@@ -103,7 +85,7 @@ export function GoalBar({
   onPause(): void;
   onResume(): void;
 }) {
-  const copy = locale.startsWith("zh") ? LABELS["zh-CN"] : LABELS.en;
+  const copy = GOAL_RESOURCES[locale];
   const objective = displayGoalObjective(goal.objective);
   const resumable = ["paused", "blocked", "usageLimited"].includes(goal.status);
   const tone = GOAL_TONES[goal.status];
@@ -131,26 +113,15 @@ export function GoalBar({
       cancelled = true;
     };
   }, [previewOpen, managed, goal.threadId, goal.goalId, goal.objective]);
-  const chinese = locale.startsWith("zh");
   const preview = !managed
     ? objective
     : (fullObjective ??
-      (loadFailed
-        ? chinese
-          ? "无法载入完整目标，请点击编辑重试。"
-          : "Unable to load the full goal. Open the editor to retry."
-        : chinese
-          ? "正在载入完整目标…"
-          : "Loading full goal…"));
+      (loadFailed ? copy.previewFailed : copy.previewLoading));
   const status =
     goal.status === "active"
-      ? chinese
-        ? "运行中"
-        : "Running"
+      ? copy.running
       : goal.status === "paused"
-        ? chinese
-          ? "已暂停"
-          : "Paused"
+        ? copy.statusPaused
         : copy[goal.status];
   return (
     <section

@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -837,7 +838,9 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain(
       "risk: effectiveApprovalRisk(approvalOperation)",
     );
-    expect(appSource).toContain("自动批准低、中风险及你明确要求的高风险操作");
+    expect(uiText("zh-CN", "App_copy.agentApprovalDetail")).toBe(
+      "自动批准低、中风险及你明确要求的高风险操作",
+    );
   });
 
   it("collapses resolved approval details and keeps pending cards aligned", () => {
@@ -870,7 +873,9 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("activePendingUserInputId");
     expect(toolActivityGroupsSource).toContain('"request_user_input"');
     expect(appSource).toContain("recommendation-badge");
-    expect(appSource).toContain("5 分钟内未选择将自动采用模型推荐项");
+    expect(uiText("zh-CN", "App_copy.timeoutHint")).toBe(
+      "5 分钟内未选择将自动采用模型推荐项",
+    );
   });
 
   it("keeps the active workflow choice inline in the timeline with its countdown in the header", () => {
@@ -1174,12 +1179,18 @@ describe("renderer layout contract", () => {
   });
 
   it("renders context compaction progress and completion in the timeline", () => {
-    expect(appSource).toContain('running: "Thinking"');
-    expect(appSource).toContain('running: "思考中"');
-    expect(appSource).toContain('contextCompacting: "Compacting context"');
-    expect(appSource).toContain('contextCompacting: "正在压缩上下文"');
-    expect(appSource).toContain('contextCompacted: "Compact completed"');
-    expect(appSource).toContain('contextCompacted: "Compact 已完成"');
+    expect(uiText("en", "App_copy.running")).toBe("Thinking");
+    expect(uiText("zh-CN", "App_copy.running")).toBe("思考中");
+    expect(uiText("en", "App_copy.contextCompacting")).toBe(
+      "Compacting context",
+    );
+    expect(uiText("zh-CN", "App_copy.contextCompacting")).toBe(
+      "正在压缩上下文",
+    );
+    expect(uiText("en", "App_copy.contextCompacted")).toBe(
+      "Context compaction completed",
+    );
+    expect(uiText("zh-CN", "App_copy.contextCompacted")).toBe("Compact 已完成");
     expect(appSource).toContain('if (kind === "compaction")');
     expect(appSource).toContain("state.contextCompactions[id]");
     expect(appSource).toContain("COMPACTION_COMPLETION_NOTICE_MILLISECONDS");
@@ -1218,7 +1229,7 @@ describe("renderer layout contract", () => {
     const failedToolRule = cssRule(".tool-card.failed .tool-summary-label");
     expect(failedToolRule).toMatch(/\bcolor:\s*var\(--muted\)/u);
     expect(failedToolRule).not.toMatch(/\bcolor:\s*var\(--danger\)/u);
-    expect(appSource).toContain('failed: "Failed"');
+    expect(uiText("en", "App_copy.failed")).toBe("Failed");
     expect(appSource).toContain("formatToolOutput(tool.name, tool.output)");
   });
 
@@ -1294,10 +1305,12 @@ describe("renderer layout contract", () => {
     );
     expect(modelPickerSource).toContain("ultra-mode-option");
     expect(modelPickerSource).toContain("{t.ultraModeQuota}");
-    expect(appSource).toContain('ultraMode: "Ultra Mode"');
-    expect(appSource).toContain('ultraMode: "极致模式"');
-    expect(appSource).toContain('ultraModeQuota: "Uses your quota faster"');
-    expect(appSource).toContain('ultraModeQuota: "更快消耗使用额度"');
+    expect(uiText("en", "App_copy.ultraMode")).toBe("Ultra Mode");
+    expect(uiText("zh-CN", "App_copy.ultraMode")).toBe("极致模式");
+    expect(uiText("en", "App_copy.ultraModeQuota")).toBe(
+      "Uses your quota faster",
+    );
+    expect(uiText("zh-CN", "App_copy.ultraModeQuota")).toBe("更快消耗使用额度");
     expect(appSource).toContain("activeSelection?.ultraMode === true");
     expect(appSource).toContain(
       "selectionForModelSwitch(model, activeSelection)",
@@ -1382,8 +1395,8 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       "highestThinkingLevel: providerHighestThinkingLevel",
     );
-    expect(settingsSource).toContain(
-      'highestReasoningLevel: "支持的最高推理档位"',
+    expect(uiText("zh-CN", "SettingsPanel_labels.highestReasoningLevel")).toBe(
+      "支持的最高推理档位",
     );
     expect(settingsSource).toContain("<Select<ProviderThinkingLevel>");
     expect(settingsSource).toContain(
@@ -1576,8 +1589,12 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain('activeTab === "agents"');
     expect(settingsSource).toContain('activeTab === "capabilities"');
     expect(settingsSource).toContain('activeTab === "maintenance"');
-    expect(settingsSource).toContain('tabProviders: "Providers & models"');
-    expect(settingsSource).toContain('tabProviders: "供应商及模型配置"');
+    expect(uiText("en", "SettingsPanel_labels.tabProviders")).toBe(
+      "Providers & models",
+    );
+    expect(uiText("zh-CN", "SettingsPanel_labels.tabProviders")).toBe(
+      "供应商及模型配置",
+    );
     expect(settingsSource).toContain('className="provider-config-tabs"');
     expect(settingsSource).toContain('value: "builtin"');
     expect(settingsSource).toContain('value: "custom"');
@@ -2022,7 +2039,9 @@ describe("renderer layout contract", () => {
 
     expect(externalLinkStart).toBeGreaterThan(-1);
     expect(externalLinkEnd).toBeGreaterThan(externalLinkStart);
-    expect(externalLinkSource).toContain("normalizeBrowserAddress(href)");
+    expect(externalLinkSource).toContain(
+      "normalizeBrowserAddress(href, locale)",
+    );
     expect(externalLinkSource).toContain('openWorkspaceTab("browser"');
     expect(externalLinkSource).toContain("reuseKind: true");
     expect(externalLinkSource).toContain("url");
@@ -2127,8 +2146,8 @@ describe("renderer layout contract", () => {
     );
 
     expect(appSource).toContain("function LeftSidebarIcon()");
-    expect(appSource).toContain('leftSidebar: "Left sidebar"');
-    expect(appSource).toContain('leftSidebar: "左侧边栏"');
+    expect(uiText("en", "App_copy.leftSidebar")).toBe("Left sidebar");
+    expect(uiText("zh-CN", "App_copy.leftSidebar")).toBe("左侧边栏");
     expect(appSource).toContain('className="left-sidebar-toggle"');
     expect(appSource).toContain('className="status-pill-label"');
     expect(appSource).toContain("aria-expanded={sidebarOpen}");
@@ -2256,12 +2275,18 @@ describe("renderer layout contract", () => {
     expect(stylesSource).not.toContain(
       ".project-tree > .temporary-conversations",
     );
-    expect(appSource).toContain('temporaryConversations: "Temporary chats"');
-    expect(appSource).toContain('temporaryConversation: "Temporary chat"');
-    expect(composerContextSource).toContain(
-      'temporaryConversation: "Temporary chat"',
+    expect(uiText("en", "App_copy.temporaryConversations")).toBe(
+      "Temporary chats",
     );
-    expect(archivePageSource).toContain('archiveTemporary: "Temporary chat"');
+    expect(uiText("en", "App_copy.temporaryConversation")).toBe(
+      "Temporary chat",
+    );
+    expect(uiText("en", "App_copy.temporaryConversation")).toBe(
+      "Temporary chat",
+    );
+    expect(uiText("en", "App_copy.temporaryConversation")).toBe(
+      "Temporary chat",
+    );
     expect(appSource).toContain("`project-group nested-project${");
     expect(appSource).toContain('data-tree-kind="project"');
     expect(appSource).toContain("onClick={() => toggleProjectsExpansion()}");
@@ -2313,9 +2338,9 @@ describe("renderer layout contract", () => {
   });
 
   it("localizes every task mode in the Simplified Chinese menu", () => {
-    expect(appSource).toContain('execute: "执行"');
-    expect(appSource).toContain('plan: "计划"');
-    expect(appSource).toContain('review: "审查"');
+    expect(uiText("zh-CN", "App_copy.execute")).toBe("执行");
+    expect(uiText("zh-CN", "App_copy.plan")).toBe("计划");
+    expect(uiText("zh-CN", "App_copy.review")).toBe("审查");
   });
 
   it("uses a standalone structured MCP editor for installed stdio servers", () => {
@@ -2398,22 +2423,22 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain(
       "googleAccount?.grants[grant].authorized ? (",
     );
-    expect(resourceCenterSource).toContain('"已授权"');
-    expect(resourceCenterSource).toContain('"Authorized"');
+    expect(uiText("zh-CN", "ResourceCenter.inline14")).toBe("已授权");
+    expect(uiText("en", "ResourceCenter.inline14")).toBe("Authorized");
     expect(resourceCenterSource).not.toContain("Workspace 本地边界");
     expect(resourceCenterSource).not.toContain("Local Workspace boundary");
     expect(resourceCenterSource).not.toContain("saveGoogleBoundary");
     expect(resourceCenterSource).not.toContain("setGoogleWorkspaceBoundary");
-    expect(resourceCenterSource).toContain(
+    expect(uiText("zh-CN", "ResourceCenter.inline5")).toContain(
       "此版本的 Artemis 未包含应用级 Google OAuth 客户端",
     );
-    expect(resourceCenterSource).toContain(
+    expect(uiText("en", "ResourceCenter.inline5")).toContain(
       "This Artemis build does not include its application-level Google OAuth client.",
     );
-    expect(resourceCenterSource).toContain(
+    expect(uiText("zh-CN", "ResourceCenter.inline1")).toBe(
       "Google 未授予此插件所需的全部权限。请在授权页面允许所有请求的权限后重试。",
     );
-    expect(resourceCenterSource).toContain(
+    expect(uiText("en", "ResourceCenter.inline1")).toBe(
       "Google did not grant all permissions required by this plugin. Allow every requested permission and try again.",
     );
     expect(mainProcessSource).toContain(
@@ -2610,8 +2635,8 @@ describe("renderer layout contract", () => {
   });
 
   it("installs a local Skill only from the Skills tab and refreshes the installed cache", () => {
-    expect(resourceCenterSource).toContain(
-      'installLocalSkill: "Install local Skill"',
+    expect(uiText("en", "ResourceCenter_labels.installLocalSkill")).toBe(
+      "Install local Skill",
     );
     expect(resourceCenterSource).toContain('managementTab === "skills" &&');
     expect(resourceCenterSource).toContain(
@@ -2666,8 +2691,8 @@ describe("renderer layout contract", () => {
   });
 
   it("routes multi-marketplace plugin compatibility through isolated Resource Center IPC", () => {
-    expect(resourceCenterSource).toContain('plugins: "Plugins"');
-    expect(resourceCenterSource).toContain('plugins: "插件"');
+    expect(uiText("en", "ResourceCenter_labels.plugins")).toBe("Plugins");
+    expect(uiText("zh-CN", "ResourceCenter_labels.plugins")).toBe("插件");
     expect(resourceCenterSource).toContain(
       "window.artemis.getCodexPluginMarketplaces()",
     );
@@ -2691,7 +2716,7 @@ describe("renderer layout contract", () => {
     );
     expect(resourceCenterSource).toContain("window.artemis.updateCodexPlugin(");
     expect(resourceCenterSource).toContain("window.artemis.removeCodexPlugin(");
-    expect(resourceCenterSource).toContain(
+    expect(uiText("en", "ResourceCenter_labels.confirmPlugin")).toContain(
       "MCP servers and Connectors will be installed disabled",
     );
 
@@ -2771,7 +2796,7 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).not.toContain(
       't.pluginWarnings.replace("{count}"',
     );
-    expect(resourceCenterSource.match(/trust\.repository/gu)).toHaveLength(6);
+    expect(resourceCenterSource.match(/trust\.repository/gu)).toHaveLength(3);
     expect(resourceCenterSource).toContain(
       "`${source.displayName} · ${source.repository}`",
     );

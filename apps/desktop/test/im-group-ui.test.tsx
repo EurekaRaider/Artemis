@@ -1,3 +1,4 @@
+import { uiTranslator } from "../src/shared/ui-text.js";
 // @vitest-environment jsdom
 import {
   act,
@@ -84,7 +85,7 @@ describe("group collaboration UI", () => {
         }}
         projects={[]}
         busy={false}
-        t={(cn) => cn}
+        t={uiTranslator("zh-CN")}
         run={async (fn) => {
           await fn();
           return true;
@@ -123,7 +124,7 @@ describe("group collaboration UI", () => {
         diagnostics={{ identities: [], groups: [], spaces: [], deliveries: [] }}
         projects={[]}
         busy={false}
-        t={(cn) => cn}
+        t={uiTranslator("zh-CN")}
         run={async (fn) => {
           await fn();
           return true;
@@ -181,7 +182,7 @@ describe("group collaboration UI", () => {
                 send(text);
             }}
           />
-          <ImMemberMentionMenu mentions={mentions} zh />
+          <ImMemberMentionMenu mentions={mentions} locale="zh-CN" />
         </>
       );
     }

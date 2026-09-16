@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -60,8 +61,8 @@ describe("automation desktop integration", () => {
   it("adds a localized and accessible Automation activity", () => {
     expect(app).toContain('"workspace" | "archive" | "resources"');
     expect(app).toContain('"token-usage" | "automations"');
-    expect(app).toContain('automations: "Automations"');
-    expect(app).toContain('automations: "定时任务"');
+    expect(uiText("en", "App_copy.automations")).toBe("Automations");
+    expect(uiText("zh-CN", "App_copy.automations")).toBe("定时任务");
     expect(app).toContain("<AutomationPage");
     expect(page).toContain("<Dialog");
     expect(page).toContain('className="automation-dialog-shell"');

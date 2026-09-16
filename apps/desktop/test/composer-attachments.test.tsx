@@ -13,7 +13,11 @@ it("shows attachment cards without a summary row and preserves removal", () => {
     data: "AA==",
   }));
   const { container } = render(
-    <ComposerAttachments attachments={attachments} zh onRemove={onRemove} />,
+    <ComposerAttachments
+      attachments={attachments}
+      locale="zh-CN"
+      onRemove={onRemove}
+    />,
   );
   expect(container.querySelector("details, summary")).toBeNull();
   expect(screen.queryByText("20 个附件")).toBeNull();

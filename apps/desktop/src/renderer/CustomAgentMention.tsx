@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 /**
  * Structured @ mention for custom sub-agents in the composer (D#152 PR4).
  * Mirrors the IM member-mention interaction (cursor-tracked @query,
@@ -181,22 +183,22 @@ export function useCustomAgentMention({
 
 export function CustomAgentMentionMenu({
   mention,
-  zh,
+  locale,
 }: {
   mention: ReturnType<typeof useCustomAgentMention>;
-  zh: boolean;
+  locale: AppLocale;
 }) {
   if (!mention.open) return null;
   return (
     <div
-      aria-label={zh ? "选择成员或子智能体" : "Choose a member or sub-agent"}
+      aria-label={uiText(locale, "CustomAgentMention.inline2")}
       className="slash-command-menu custom-agent-mention-menu"
       id="custom-agent-mention-menu"
       role="listbox"
     >
       {mention.memberCandidates.length > 0 && (
         <div className="slash-command-heading">
-          {zh ? "@ 成员 · 选择执行任务的电脑" : "@ Member · choose a computer"}
+          {uiText(locale, "CustomAgentMention.inline1")}
         </div>
       )}
       {mention.memberCandidates.map((member, index) => (
@@ -221,9 +223,7 @@ export function CustomAgentMentionMenu({
       ))}
       {mention.candidates.length > 0 && (
         <div className="slash-command-heading">
-          {zh
-            ? "@ 子智能体 · 绑定到这条消息"
-            : "@ Sub-agent · bind to this message"}
+          {uiText(locale, "App_copy.customAgentMentionHeading")}
         </div>
       )}
       {mention.candidates.map((definition, agentIndex) => {

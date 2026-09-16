@@ -32,6 +32,15 @@ const settings = imSettingsSchema.parse({
   grants: [{ projectId: "project", expiresAt: 2000 }],
 });
 describe("IM trust boundary", () => {
+  it("does not impose a default cumulative token budget and accepts legacy grants", () => {
+    expect(settings.grants[0]?.tokenBudget).toBeUndefined();
+    expect(
+      imSettingsSchema.parse({
+        ...settings,
+        grants: [{ ...settings.grants[0], tokenBudget: 100000 }],
+      }).grants,
+    ).toHaveLength(1);
+  });
   it("isolates identities by tenant, app and channel account", () => {
     expect(imIdentityKey(identity)).not.toBe(
       imIdentityKey({ ...identity, tenantId: "other" }),

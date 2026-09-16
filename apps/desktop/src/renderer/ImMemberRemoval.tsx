@@ -23,8 +23,8 @@ export function ImMemberRemoval({
   const [pending, setPending] = useState(false);
   const label =
     scope === "space"
-      ? t("从整个空间移除", "Remove from entire space")
-      : t("从本对话移除", "Remove from this conversation");
+      ? t("ImMemberRemoval.message2")
+      : t("ImMemberRemoval.message1");
   if (!confirming && compact)
     return (
       <Tooltip label={`${label}：${name}`} align="end">
@@ -52,14 +52,8 @@ export function ImMemberRemoval({
     <div className="im-member-removal">
       <InlineNotice tone="warning">
         {scope === "space"
-          ? t(
-              `将“${name}”从整个协作空间移除，所有连接的群与协作对话都不能再向其派发任务。原生 IM 群与已有对话历史保留。`,
-              `Remove ${name} from the entire space. Connected groups and collaboration conversations will no longer be able to delegate to them. Native IM groups and conversation history remain.`,
-            )
-          : t(
-              `将“${name}”从本对话的目标成员中移除。该成员仍可在空间内的其他对话和 IM 群中参与协作，已有对话历史保留。`,
-              `Remove ${name} from this conversation's targets. They can still collaborate in other conversations and IM groups in the space. Conversation history remains.`,
-            )}
+          ? t("ImMemberRemoval.message4", { value1: name })
+          : t("ImMemberRemoval.message3", { value1: name })}
       </InlineNotice>
       <div className="im-inline-actions">
         <Button
@@ -74,14 +68,14 @@ export function ImMemberRemoval({
             }
           }}
         >
-          {t("确认移除成员", "Confirm member removal")}
+          {t("ImMemberRemoval.message5")}
         </Button>
         <Button
           variant="quiet"
           disabled={pending}
           onClick={() => setConfirming(false)}
         >
-          {t("取消", "Cancel")}
+          {t("App_copy.renameCancel")}
         </Button>
       </div>
     </div>

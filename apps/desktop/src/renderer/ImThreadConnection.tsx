@@ -1,3 +1,4 @@
+import { uiText } from "../shared/ui-text.js";
 import { useEffect, useState } from "react";
 import type {
   AppLocale,
@@ -107,31 +108,29 @@ export function ImThreadConnection({
   status: ThreadConnection;
   locale: AppLocale;
 }) {
-  const zh = locale.startsWith("zh");
   const channel =
     status.channel === "slack"
       ? "Slack"
       : status.channel === "feishu" || status.channel === "lark"
-        ? zh
-          ? "飞书 / Lark"
-          : "Feishu / Lark"
+        ? uiText(locale, "ImNavigation.message1")
         : status.channel === "wecom"
-          ? zh
-            ? "企业微信"
-            : "WeCom"
+          ? uiText(locale, "ImNavigation.message2")
           : "IM";
   const state =
     status.group?.native && !status.group.confirmed
       ? "disabled"
       : status.connectionState;
   const label = {
-    connected: zh ? "已连接" : "Connected",
-    connecting: zh ? "连接中" : "Connecting",
-    error: zh ? "连接异常" : "Connection error",
-    disabled: zh ? "已停用" : "Disabled",
-    unknown: zh ? "状态未知" : "Status unknown",
+    connected: uiText(locale, "ImNavigation.message12"),
+    connecting: uiText(locale, "ImNavigation.message11"),
+    error: uiText(locale, "ImThreadConnection.inline1"),
+    disabled: uiText(
+      locale,
+      "CustomAgentsSettingsSection_labels.disabledBadge",
+    ),
+    unknown: uiText(locale, "ImGroupMembers.message6"),
   }[state];
-  const summary = `${channel} · ${zh ? "IM 连接" : "IM connection"}：${label}`;
+  const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
   const group = status.group;
   const members = group ? imGroupMentionTargets(group) : [];
   const computerState =
@@ -149,24 +148,18 @@ export function ImThreadConnection({
           : "unknown";
   const computerLabel =
     computerState === "online"
-      ? zh
-        ? "群协作电脑：有成员在线"
-        : "Group computers: members online"
+      ? uiText(locale, "ImThreadConnection.inline5")
       : computerState === "offline"
-        ? zh
-          ? "群协作电脑：所有成员离线"
-          : "Group computers: all members offline"
-        : zh
-          ? "群协作电脑：状态未知"
-          : "Group computers: status unknown";
+        ? uiText(locale, "ImThreadConnection.inline4")
+        : uiText(locale, "ImThreadConnection.inline3");
   return (
     <span className="im-thread-indicators">
       {group && (
         <span
           className="im-thread-group"
           role="img"
-          aria-label={zh ? "群协作对话" : "Group collaboration conversation"}
-          title={zh ? "群协作对话" : "Group collaboration conversation"}
+          aria-label={uiText(locale, "ImThreadConnection.inline6")}
+          title={uiText(locale, "ImThreadConnection.inline6")}
         >
           <ArtemisIcon name="agents" width={16} height={16} />
         </span>

@@ -1,14 +1,11 @@
+import { type UiTranslate } from "../shared/ui-text.js";
 import { useState } from "react";
 import type { ImOutboundCandidate } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
 import { TextAreaField } from "@artemis/ui/forms";
 import { InlineNotice } from "@artemis/ui/feedback";
 
-export function ImOutboundReview({
-  t,
-}: {
-  t: (cn: string, en: string) => string;
-}) {
+export function ImOutboundReview({ t }: { t: UiTranslate }) {
   const [items, setItems] = useState<ImOutboundCandidate[]>([]);
   const [selected, setSelected] = useState<
     ImOutboundCandidate & { body: unknown }
@@ -46,7 +43,7 @@ export function ImOutboundReview({
       item.kind === "reply"
         ? (item.body.text ?? "")
         : item.kind === "artifact"
-          ? `${item.body.name}\n${t("文件未自动发送；请核对原文件和下列内容指纹。", "File has not been sent. Check the original file and this content fingerprint.")}\nSHA-256: ${item.contentHash}\n${t("编码大小", "Encoded size")}: ${item.body.data?.length ?? 0}`
+          ? `${item.body.name}\n${t("ImOutboundReview.message1")}\nSHA-256: ${item.contentHash}\n${t("ImOutboundReview.message2")}: ${item.body.data?.length ?? 0}`
           : JSON.stringify(item.body.command, null, 2),
     );
   }
@@ -66,17 +63,12 @@ export function ImOutboundReview({
   return (
     <section
       className="im-outbound-review"
-      aria-label={t("待审外发结果", "Pending deliveries")}
+      aria-label={t("ImOutboundReview.message3")}
     >
-      <h3>{t("待审外发结果", "Pending deliveries")}</h3>
-      <p>
-        {t(
-          "任务成果保留在桌面；确认只适用于当前内容与接收对象。",
-          "Results stay on this desktop. Approval applies only to these contents and recipients.",
-        )}
-      </p>
+      <h3>{t("ImOutboundReview.message3")}</h3>
+      <p>{t("ImOutboundReview.message4")}</p>
       <Button disabled={busy} onClick={() => void run(refresh)}>
-        {t("刷新待审结果", "Refresh pending results")}
+        {t("ImOutboundReview.message5")}
       </Button>
       {items.map((item) => (
         <p key={item.id}>
@@ -95,7 +87,7 @@ export function ImOutboundReview({
           </p>
           {selected.kind === "reply" ? (
             <TextAreaField
-              label={t("预览或修改发送内容", "Preview or edit delivery")}
+              label={t("ImOutboundReview.message6")}
               value={text}
               onValueChange={setText}
               disabled={busy}
@@ -104,13 +96,13 @@ export function ImOutboundReview({
             <pre>{text}</pre>
           )}
           <Button disabled={busy} onClick={() => void run(() => resolve(true))}>
-            {t("仅发送这一次", "Send once")}
+            {t("ImOutboundReview.message7")}
           </Button>
           <Button
             disabled={busy}
             onClick={() => void run(() => resolve(false))}
           >
-            {t("拒绝发送", "Reject")}
+            {t("ImOutboundReview.message8")}
           </Button>
         </>
       ) : null}

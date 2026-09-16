@@ -20,8 +20,6 @@ import {
   type TokenUsageLocale,
   type TokenUsageView,
 } from "./token-usage.js";
-import { legacyLocale } from "../shared/locales.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
 import { userInitials } from "./user-profile.js";
 import { TokenUsageHeatmap } from "./TokenUsageHeatmap.js";
 
@@ -93,11 +91,7 @@ export function TokenUsagePage({
   profileAvatar?: string;
   username: string;
 }) {
-  const t = localizedCopy(
-    locale,
-    "usage",
-    TOKEN_USAGE_COPY[legacyLocale(locale)],
-  );
+  const t = TOKEN_USAGE_COPY[locale];
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);

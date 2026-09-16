@@ -32,7 +32,7 @@ const props = {
   threadId: "task",
   sourceId: "source",
   name: image.name,
-  zh: true,
+  locale: "zh-CN" as const,
 };
 it("renders a persisted thumbnail without reading originals and opens and closes the task-scoped image", async () => {
   const read = vi.fn().mockResolvedValue(image);

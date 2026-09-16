@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import { useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
 import { Button, Icon, IconButton } from "@artemis/ui/actions";
@@ -11,8 +12,6 @@ import {
   promptWithoutSelectedSkills,
   selectedSkillNamesForPrompt,
 } from "./skill-commands.js";
-import { legacyLocale } from "../shared/locales.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
 
 interface ArchivePageProps {
   locale: AppLocale;
@@ -31,51 +30,7 @@ function visibleThreadTitle(title: string): string {
   );
 }
 
-const labels = {
-  en: {
-    archiveTitle: "Archived conversations",
-    archiveDescription:
-      "Archived tasks stay searchable and keep their complete local history.",
-    archiveSearch: "Search archived conversations or projects",
-    archiveOpen: "Open conversation",
-    archiveRestore: "Restore to tasks",
-    archiveDelete: "Delete conversation",
-    archiveSectionTitle: "Conversation history",
-    archiveCountOne: "{count} archived conversation",
-    archiveCountOther: "{count} archived conversations",
-    archiveMatchOne: "{count} match",
-    archiveMatchOther: "{count} matches",
-    archiveEmptyTitle: "No archived conversations yet",
-    archiveEmptyDescription:
-      "Conversations you archive will appear here, ready to open, restore, or delete.",
-    archiveNoResultsTitle: "No matching conversations",
-    archiveNoResultsDescription: "Try another title, goal, or project name.",
-    archiveClearSearch: "Clear search",
-    archiveGoal: "Goal",
-    archiveTemporary: "Temporary chat",
-  },
-  "zh-CN": {
-    archiveTitle: "已归档对话",
-    archiveDescription: "归档任务仍可查询，并完整保留本地对话历史。",
-    archiveSearch: "搜索已归档对话或项目",
-    archiveOpen: "打开对话",
-    archiveRestore: "恢复到任务",
-    archiveDelete: "删除对话",
-    archiveSectionTitle: "归档记录",
-    archiveCountOne: "{count} 个归档对话",
-    archiveCountOther: "{count} 个归档对话",
-    archiveMatchOne: "{count} 个结果",
-    archiveMatchOther: "{count} 个结果",
-    archiveEmptyTitle: "还没有归档对话",
-    archiveEmptyDescription:
-      "归档后的任务会显示在这里，可随时打开、恢复或删除。",
-    archiveNoResultsTitle: "没有找到匹配的对话",
-    archiveNoResultsDescription: "请尝试搜索其他标题、目标或项目名称。",
-    archiveClearSearch: "清除搜索",
-    archiveGoal: "目标",
-    archiveTemporary: "临时会话",
-  },
-} as const;
+const labels = UI_COPY.ArchivePage_labels;
 
 export function ArchivePage({
   locale,
@@ -86,7 +41,7 @@ export function ArchivePage({
   onDelete,
 }: ArchivePageProps) {
   const [query, setQuery] = useState("");
-  const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
+  const t = labels[locale];
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects],

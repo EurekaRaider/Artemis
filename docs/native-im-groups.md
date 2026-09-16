@@ -20,11 +20,15 @@ A group entry is independent of its current default project. Child tasks use the
 
 The 30-minute assignment deadline applies before execution starts. A started native task remains bounded by its project grant, identity and group authorization, including grant expiry and revocation.
 
+IM tasks have no cumulative token-use cap. Saved legacy `tokenBudget` values are accepted but ignored. Model context limits and Pi's automatic context compaction still apply; usage reporting remains available independently of authorization.
+
 ## Automatic cooperation
 
 Artemis generates and parses versioned text envelopes through the same IM group. Platform sender identity, tenant, group, recipient, expiry and local authorization are checked before execution. Human copies of protocol text cannot dispatch tasks. Receiving bots persist dispatches before sending acceptance receipts, then use the existing Pi executor.
 
 The initiating bot coordinates the workflow. There is no cumulative handoff limit or manual continuation gate. Dependencies reference existing tasks in that workflow and advance only after successful, nonempty results. Progress does not start new Pi tasks. Failed, missing, expired or oversized results require attention rather than silently advancing dependencies.
+
+Single-bot `delegate` calls from the same coordinator session continue that peer's previous session after its result arrives, including across coordinator turns. Each turn has a separate task ID and correlated receipts. Use `newTask: true` for an independent session; batch `delegate-many` assignments remain independent. `message` only appends a note and never executes it. Continuations require both instances to support the continuation envelope, preserve peer/group identity checks, and reject inaccessible or changed authorization contexts instead of silently creating a new session.
 
 Outgoing requests distinguish queued/platform-sent from peer-accepted. Cancellation uses an IM request and remains pending until the peer confirms its outcome. Authorization revocation blocks new work and results, and requests cancellation of affected work. Dispatch expiry does not terminate already running tasks.
 

@@ -128,7 +128,7 @@ describe("GoalEditorPanel interactions", () => {
     });
     renderPanel();
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/failed to load goal objective/i);
+    expect(alert).toHaveTextContent(/failed to load the goal/i);
     expect(api.getThreadGoalObjective).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
@@ -211,7 +211,7 @@ describe("GoalEditorPanel interactions", () => {
       .setup()
       .click(screen.getByRole("button", { name: /^save$/i }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/failed to save goal objective/i);
+    expect(alert).toHaveTextContent(/failed to save the goal/i);
     expect(box).toHaveValue("Loaded objective more");
 
     await userEvent

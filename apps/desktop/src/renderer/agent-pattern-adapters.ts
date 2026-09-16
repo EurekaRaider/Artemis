@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import type {
   ApprovalScope,
   ApprovalState,
@@ -9,8 +10,6 @@ import type {
   TaskPlanStep as TaskPlanPatternStep,
 } from "@artemis/ui/patterns";
 
-import { localizedCopy } from "../shared/i18n-resources.js";
-import { legacyLocale } from "../shared/locales.js";
 import {
   formatBashTranscript,
   summarizeToolGroup,
@@ -19,35 +18,10 @@ import {
 } from "./tool-presentation.js";
 import { isTaskPlanCompleted, type TaskPlan } from "./task-plan.js";
 
-const taskPlanStatusLabels = {
-  en: {
-    pending: "Not started",
-    in_progress: "In progress",
-    completed: "Completed",
-    failed: "Failed",
-  },
-  "zh-CN": {
-    pending: "尚未开始",
-    in_progress: "正在进行",
-    completed: "已完成",
-    failed: "失败",
-  },
-} as const;
+const taskPlanStatusLabels =
+  UI_COPY.agent_pattern_adapters_taskPlanStatusLabels;
 
-const taskPlanLabels = {
-  en: {
-    collapse: "Collapse",
-    expand: "Expand",
-    progress: "Step {{current}} of {{total}}",
-    taskSteps: "Task steps",
-  },
-  "zh-CN": {
-    collapse: "收起",
-    expand: "展开",
-    progress: "第 {{current}} / {{total}} 步",
-    taskSteps: "任务步骤",
-  },
-} as const;
+const taskPlanLabels = UI_COPY.agent_pattern_adapters_taskPlanLabels;
 
 export interface TaskPlanPatternView {
   readonly collapseLabel: string;
@@ -65,16 +39,8 @@ export function taskPlanPatternView(
   plan: TaskPlan,
   locale: AppLocale,
 ): TaskPlanPatternView {
-  const copy = localizedCopy(
-    locale,
-    "app",
-    taskPlanLabels[legacyLocale(locale)],
-  );
-  const statusCopy = localizedCopy(
-    locale,
-    "common",
-    taskPlanStatusLabels[legacyLocale(locale)],
-  );
+  const copy = taskPlanLabels[locale];
+  const statusCopy = taskPlanStatusLabels[locale];
   const number = new Intl.NumberFormat(locale);
   const progressLabel = copy.progress
     .replace("{{current}}", number.format(plan.currentIndex + 1))
@@ -198,22 +164,7 @@ export function toolActivityPatternView(
   const kind = representative
     ? toolActivityKind(representative.name, representative.input)
     : "generic";
-  const copy = localizedCopy(
-    locale,
-    "app",
-    {
-      en: {
-        toolRunning: "Running",
-        completed: "Completed",
-        failed: "Failed",
-      },
-      "zh-CN": {
-        toolRunning: "正在运行",
-        completed: "已完成",
-        failed: "失败",
-      },
-    }[legacyLocale(locale)],
-  );
+  const copy = UI_COPY.agent_pattern_adapters_copy[locale];
   return {
     actualStatus,
     ...(kind === "bash" ? { bashTranscript: formatBashTranscript(tools) } : {}),

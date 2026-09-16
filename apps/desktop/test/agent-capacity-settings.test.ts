@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -31,7 +32,7 @@ describe("agent capacity settings surface", () => {
     expect(settingsSource).toContain(
       "settings.agentConcurrency.automaticSafeLimit",
     );
-    expect(settingsSource).toContain(
+    expect(uiText("zh-CN", "SettingsPanel_labels.concurrencyHighWarning")).toBe(
       "高并发会更快消耗额度并可能触发 Provider 限流；系统压力下 Artemis 仍会自动降载。",
     );
   });

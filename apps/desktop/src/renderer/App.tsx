@@ -1,3 +1,8 @@
+import { reviewMessage } from "../shared/review-copy.js";
+import { GOAL_RESOURCES } from "../shared/goal-resources.js";
+import { statusText } from "../shared/status-text.js";
+import { uiText } from "../shared/ui-text.js";
+import { UI_COPY } from "../shared/ui-copy.js";
 import { FileAttachment } from "./FileAttachment.js";
 import { MessageImageAttachment } from "./MessageImageAttachment.js";
 import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
@@ -128,8 +133,8 @@ import type {
   SettingsSnapshot,
   WorkspaceFileLink,
 } from "../shared/api.js";
-import { legacyLocale, localeDirection } from "../shared/locales.js";
-import { I18N_RESOURCES, localizedCopy } from "../shared/i18n-resources.js";
+import { localeDirection } from "../shared/locales.js";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import { ArchivePage } from "./ArchivePage.js";
 import {
   isMultiQuestionUserInput,
@@ -421,621 +426,13 @@ const TokenUsagePage = lazy(() =>
   loadTokenUsagePage().then((module) => ({ default: module.TokenUsagePage })),
 );
 
-const copy = {
-  en: {
-    appName: "Artemis",
-    activityBar: "Activity bar",
-    projects: "Projects",
-    expandProjects: "Expand projects",
-    collapseProjects: "Collapse projects",
-    expandTemporaryConversations: "Expand temporary chats",
-    collapseTemporaryConversations: "Collapse temporary chats",
-    resizeProjectsSidebar: "Resize conversations sidebar",
-    temporaryConversations: "Temporary chats",
-    temporaryConversation: "Temporary chat",
-    automations: "Automations",
-    tasks: "Tasks",
-    newTask: "New task",
-    openProject: "Open project",
-    removeProject: "Remove project",
-    removeProjectConfirm:
-      "Remove this project from the sidebar? Files and task history will not be deleted.",
-    moreProjectActions: "More project actions",
-    stopTasksBeforeRemove: "Stop active tasks before removing this project",
-    search: "Search tasks",
-    noTasks: "No tasks yet",
-    activeTasks: "Active tasks",
-    archivedTasks: "Archived tasks",
-    showArchived: "Show archived",
-    showActive: "Show active",
-    renameTask: "Rename",
-    renameTaskTitle: "Rename task",
-    renameTaskHint: "Keep it short and easy to recognize",
-    renameSave: "Save",
-    renameCancel: "Cancel",
-    renameClose: "Close",
-    forkTask: "Fork",
-    archiveTask: "Archive",
-    restoreTask: "Restore",
-    deleteTask: "Delete conversation",
-    deleteTaskConfirm:
-      "Delete this conversation and its local history? This cannot be undone.",
-    confirmationTitle: "Confirm action",
-    confirmationDangerTitle: "This action cannot be undone",
-    confirmationCancel: "Cancel",
-    confirmationAccept: "Confirm",
-    showMoreTasks: "Show more",
-    showFewerTasks: "Show less",
-    expandProjectHistory: "Expand conversation history",
-    collapseProjectHistory: "Collapse conversation history",
-    collapseAllProjectHistories: "Collapse all project conversations",
-    expandAllProjectHistories: "Expand all project conversations",
-    moreActions: "More task actions",
-    taskNamePrompt: "Task name",
-    archiveConfirm: "Archive this task?",
-    emptyTitle: "Build with Artemis",
-    emptyBody:
-      "Open a local project to start a Pi-powered coding or work task. Your workspace stays on this computer.",
-    prompt: "Ask Artemis to work, plan, review, or build…",
-    send: "Send",
-    stop: "Stop",
-    execute: "Execute",
-    plan: "Plan",
-    review: "Review",
-    local: "Local",
-    taskMode: "Task mode",
-    reviewPanel: "Review",
-    agentTeam: "Agent team",
-    terminal: "Terminal",
-    browser: "Browser",
-    browserAddress: "Enter a URL",
-    browserBack: "Back",
-    browserForward: "Forward",
-    browserGo: "Go",
-    markdownReader: "Markdown",
-    files: "Files",
-    sources: "Sources",
-    addTab: "Add tab",
-    closeTab: "Close tab",
-    scrollTabsLeft: "Scroll tabs left",
-    scrollTabsRight: "Scroll tabs right",
-    resizeRightSidebar: "Resize right sidebar",
-    dismissTurnError: "Dismiss task error",
-    dismissNotice: "Dismiss notification",
-    editFile: "Edit file",
-    saveFile: "Save",
-    saved: "Saved",
-    saving: "Saving…",
-    unsaved: "Unsaved",
-    noHtmlPreview: "No HTML file has been generated for this task.",
-    noMarkdownPreview: "No Markdown file has been changed for this task.",
-    filterFiles: "Filter files…",
-    openFileFromTree: "Choose a file from the workspace tree.",
-    binaryFile: "Binary files cannot be previewed.",
-    imageFailedToLoad: "image failed to load",
-    previewFile: "Preview",
-    fileLinkMenu: "File actions",
-    openLinkedFile: "Open in reader",
-    revealLinkedFile: "Show in folder",
-    runLinkedFile: "Run file",
-    runLinkedFileStarted: "Started",
-    richText: "Rich text",
-    sourceText: "Source",
-    refreshPreview: "Refresh",
-    changedFiles: "Changed files",
-    noChanges: "No workspace changes",
-    changesAppearHere: "Changes in this project will appear here.",
-    noMatchingFiles: "No matching files",
-    comparison: "Comparison",
-    lastTurn: "Last turn",
-    thisTurn: "This turn",
-    workedFor: "Worked for",
-    taskPeriodChanges: "Workspace changes during this task",
-    editedFile: "Edited",
-    editedFiles: "Edited {{count}} files",
-    showMoreFiles: "Show {{count}} more files",
-    binaryChange: "Binary file",
-    reviewChanges: "Review",
-    undoChanges: "Undo",
-    changesUndone: "Undone",
-    undoTurnConfirm:
-      "Undo all file changes from this turn? Artemis will create a recovery copy first and will not change the conversation.",
-    undoTurnComplete: "Turn file changes were undone",
-    unstaged: "Unstaged",
-    staged: "Staged",
-    branch: "Branch",
-    baseRef: "Base ref",
-    stage: "Stage",
-    unstage: "Unstage",
-    revert: "Revert",
-    revertConfirm:
-      "Revert this change? Artemis will create a recovery copy first.",
-    recoverySaved: "Recovery copy saved",
-    additions: "additions",
-    deletions: "deletions",
-    addComment: "Add inline comment",
-    commentPlaceholder: "Write a Review comment…",
-    saveComment: "Save comment",
-    cancelComment: "Cancel",
-    deleteComment: "Delete comment",
-    approveOnce: "Approve once",
-    approveSession: "Approve for task",
-    approveProject: "Always allow",
-    approvalScopeHint: "Always allow: the same operation in this project.",
-    deny: "Deny",
-    approvalApproved: "Approved",
-    approvalDenied: "Denied",
-    recommended: "Recommended",
-    otherAnswer: "Other…",
-    otherAnswerDetail: "Type an answer that is not listed above",
-    customAnswer: "Type another answer",
-    submitAnswer: "Submit",
-    waitingSelection: "Waiting for selection",
-    navigateChoices: "Move",
-    selectChoice: "Select",
-    answered: "Selected",
-    timedOut: "No response for 5 minutes; used the model recommendation",
-    timeoutHint: "The recommended option is used automatically after 5 minutes",
-    inputCancelled: "Cancelled",
-    cancelCurrentTask: "Cancel the current task",
-    skip: "Skip",
-    skipAndCancelTask: "Skip and cancel the current task",
-    modelReason: "Model decision",
-    agentActor: "Requested by",
-    thinking: "Reasoning",
-    running: "Thinking",
-    queuedForAgent: "Waiting for Agent slot",
-    waitingForModel: "Waiting for model",
-    waitingNetwork: "Waiting for network · retrying in {{seconds}}s",
-    reconnecting:
-      "Reconnecting {{attempt}}/{{maximum}} · retrying in {{seconds}}s",
-    modelRetrying:
-      "Model silent · retry {{attempt}}/{{maximum}} in {{seconds}}s",
-    modelStreamStalled:
-      "The model remains unresponsive. Use the model selector at the bottom right of the composer to choose another model, then resend your message. If other models also fail, check the provider endpoint and network connection in Settings.",
-    rateLimited: "Service rate limited · retrying in {{seconds}}s",
-    connectionRecovered: "Connection restored",
-    taskInterrupted:
-      "Task interrupted; confirm before continuing to avoid duplicate writes",
-    waiting: "Needs approval",
-    waitingInput: "Waiting for your choice",
-    completed: "Completed",
-    failed: "Failed",
-    ready: "Ready",
-    elapsed: "Elapsed",
-    model: "Pi auto",
-    modelPicker: "Model and reasoning",
-    modelPickerModel: "Model",
-    ultraMode: "Ultra Mode",
-    ultraModeQuota: "Uses your quota faster",
-    modelSwitchFailed: "The model setting could not be changed.",
-    steer: "Steer",
-    followUp: "Follow-up",
-    queuedMessages: "{{count}} queued after the current task",
-    queueItem: "Queued message {{number}}",
-    queueSteer: "Steer",
-    queueSteerHint: "Steer this queued message into the active task",
-    queueMoveToFront: "Move to front",
-    queueMoveToFrontHint: "Run this queued message next",
-    queueDelete: "Delete queued message",
-    queueEdit: "Edit queued message",
-    queueSave: "Save queued message",
-    queueCancel: "Cancel edit",
-    queueSaveError: "Couldn't save the queued message",
-    queueRetry: "Retry",
-    copyMessage: "Copy message",
-    editAndResend: "Edit and resend",
-    messageCopied: "Message copied",
-    messageCopyFailed: "The message could not be copied.",
-    conversation: "Conversation",
-    conversationHistory: "Conversation history",
-    emptyConversationPrompt: "What should we build in {{workspace}}?",
-    temporaryConversationPrompt: "What should we build in Artemis?",
-    sandboxUnavailable: "Native command sandbox is not installed",
-    sandboxDetail:
-      "The platform Shell and Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
-    terminalLocked: "Terminal locked until the native executor is available.",
-    refreshDiff: "Refresh",
-    refreshingDiff: "Refreshing…",
-    diffRefreshed: "Diff refreshed",
-    addAttachments: "Add files or images",
-    removeAttachment: "Remove attachment",
-    removeSelectedSkill: "Remove loaded Skill",
-    customAgentMentionHeading: "@ Sub-agent · bind to this message",
-    selectedCustomAgent: "Sub-agent",
-    removeSelectedCustomAgent: "Remove sub-agent",
-    customAgentWhileRunning:
-      "@ sub-agent dispatch needs an idle task. Stop the current run first.",
-    customAgentControlConflict:
-      "Remove the @ sub-agent chip before running a / command.",
-    attachmentLimit: "Attach up to 20 images and 10 documents, 200 MiB total.",
-    inspectAttachments: "Inspect the attached file(s).",
-    dropAttachments: "Drop files to attach",
-    dropAttachmentsDetail:
-      "Images, text, code, PDF, Word, Excel, or PowerPoint",
-    approvalPolicy: "How should Artemis approve actions?",
-    askApproval: "Request approval",
-    askApprovalDetail:
-      "Always ask before non-MCP external changes or network access",
-    agentApproval: "Approve for me",
-    agentApprovalDetail:
-      "Low and medium risk run automatically; high risk runs only when you explicitly requested it",
-    fullAccess: "Full access",
-    fullAccessDetail:
-      "Auto-approve supported Execute operations, including explicitly requested local paths",
-    fullAccessUnavailable: "Requires the native command sandbox",
-    customApproval: "Custom",
-    customApprovalDetail:
-      "Use saved approvals; sandboxed MCP calls run automatically",
-    openFolder: "Open folder",
-    leftSidebar: "Left sidebar",
-    rightSidebar: "Right sidebar",
-    toggleReview: "Toggle review",
-    toggleTerminal: "Toggle terminal",
-    noProject: "Open a project first.",
-    taskError: "The task could not be started.",
-    turnError: "The task failed.",
-    hostRestart:
-      "The previous Artemis process stopped before this turn completed.",
-    hostRecovering: "Resuming the task…",
-    streamInterrupted:
-      "Streaming stopped after output began. Automatic replay was disabled to avoid duplicate text or tool side effects; confirm before continuing.",
-    agentHostInterrupted:
-      "The Agent Host restarted. Session state was restored, but the active prompt was not replayed because completed writes could not be proven safe to repeat.",
-    settings: "Settings",
-    loadingSettings: "Loading settings…",
-    currentVersion: "Current version",
-    archiveLibrary: "Archive",
-    resourceCenter: "MCP & Skills",
-    tokenUsage: "Token usage",
-    goal: "Goal",
-    goalEditTitle: "Edit goal",
-    goalSet: "Persistent goal saved",
-    goalCleared: "Persistent goal cleared",
-    goalReplaceConfirm:
-      "Replace this task's existing Goal and reset its accumulated budget?",
-    goalClearConfirm: "Clear this Goal and stop any automatic continuation?",
-    goalResumeTitle: "Resume goal?",
-    goalResumeConfirm:
-      "This task has a paused or interrupted Goal. Resume automatic continuation?",
-    goalResumeAccept: "Resume",
-    goalResumeLater: "Not now",
-    goalSetWhileRunning: "Stop the active turn before replacing its Goal.",
-    noGoal: "This task has no persistent goal.",
-    goalCommand: "/goal",
-    goalCommandDetail: "Set a persistent task goal",
-    compactCommand: "/compact",
-    compactCommandDetail: "Summarize older context now",
-    contextCompacting: "Compacting context",
-    contextCompacted: "Compact completed",
-    contextCompactionFailed: "Context compaction failed",
-    contextCompactionCancelled: "Context compaction cancelled",
-    compactRequiresTask: "Open an existing task before compacting context.",
-    compactWhileRunning: "Wait for the active turn before compacting context.",
-    compactFailed: "Context could not be compacted.",
-    initCommand: "/init",
-    initCommandDetail: "Create a project-level AGENTS.md file",
-    planCommand: "/plan",
-    planCommandDetail: "Switch to Plan mode",
-    executeCommand: "/execute",
-    executeCommandDetail: "Switch to Execute mode",
-    reviewCommand: "/review",
-    reviewCommandDetail: "Switch to Review mode",
-    multipleModeCommands:
-      "Only one /plan, /execute, or /review command is allowed per message.",
-    modeCommandWhileRunning:
-      "Stop the active turn before switching task modes.",
-    installedSkills: "Installed Skills",
-    installedPlugins: "Installed Plugins",
-    loadingSkills: "Loading installed Skills…",
-    noInstalledSkills: "No enabled Skills are installed.",
-    noMatchingSkills: "No installed Skills match this command.",
-    selectedSkill: "Loaded Skill",
-    archivedReadOnly: "Archived conversation",
-    archivedReadOnlyDetail:
-      "This conversation is read-only while archived. Restore it to continue.",
-  },
-  "zh-CN": {
-    appName: "Artemis",
-    activityBar: "活动栏",
-    projects: "项目",
-    expandProjects: "展开项目",
-    collapseProjects: "收起项目",
-    expandTemporaryConversations: "展开临时会话",
-    collapseTemporaryConversations: "收起临时会话",
-    resizeProjectsSidebar: "调整会话侧栏宽度",
-    temporaryConversations: "临时会话",
-    temporaryConversation: "临时会话",
-    automations: "定时任务",
-    tasks: "任务",
-    newTask: "新任务",
-    openProject: "打开项目",
-    removeProject: "移除项目",
-    removeProjectConfirm: "从侧栏移除这个项目？不会删除磁盘文件和任务历史。",
-    moreProjectActions: "更多项目操作",
-    stopTasksBeforeRemove: "请先停止项目中正在执行的任务",
-    search: "搜索任务",
-    noTasks: "还没有任务",
-    activeTasks: "当前任务",
-    archivedTasks: "已归档任务",
-    showArchived: "查看已归档",
-    showActive: "查看当前任务",
-    renameTask: "重命名",
-    renameTaskTitle: "重命名任务",
-    renameTaskHint: "保持简短且易于识别",
-    renameSave: "保存",
-    renameCancel: "取消",
-    renameClose: "关闭",
-    forkTask: "分叉",
-    archiveTask: "归档",
-    restoreTask: "恢复",
-    deleteTask: "删除对话",
-    deleteTaskConfirm: "删除这个对话及其本地历史？此操作无法撤销。",
-    confirmationTitle: "确认操作",
-    confirmationDangerTitle: "此操作无法撤销",
-    confirmationCancel: "取消",
-    confirmationAccept: "确认",
-    showMoreTasks: "显示更多",
-    showFewerTasks: "收起更多",
-    expandProjectHistory: "展开对话记录",
-    collapseProjectHistory: "折叠对话记录",
-    collapseAllProjectHistories: "收起全部项目会话",
-    expandAllProjectHistories: "展开全部项目会话",
-    moreActions: "更多任务操作",
-    taskNamePrompt: "任务名称",
-    archiveConfirm: "归档这个任务？",
-    emptyTitle: "使用 Artemis 开始构建",
-    emptyBody:
-      "打开本地项目即可创建由 Pi 驱动的编码或办公任务。工作区数据保留在这台电脑上。",
-    prompt: "让 Artemis 工作、规划、审查或实现…",
-    send: "发送",
-    stop: "停止",
-    execute: "执行",
-    plan: "计划",
-    review: "审查",
-    local: "本地",
-    taskMode: "任务模式",
-    reviewPanel: "审查",
-    agentTeam: "Agent 团队",
-    terminal: "终端",
-    browser: "浏览器",
-    browserAddress: "输入网址",
-    browserBack: "后退",
-    browserForward: "前进",
-    browserGo: "打开",
-    markdownReader: "Markdown 阅读器",
-    files: "文件",
-    sources: "来源",
-    addTab: "添加选项卡",
-    closeTab: "关闭选项卡",
-    scrollTabsLeft: "向左滚动选项卡",
-    scrollTabsRight: "向右滚动选项卡",
-    resizeRightSidebar: "调整右侧边栏宽度",
-    dismissTurnError: "关闭任务错误",
-    dismissNotice: "关闭通知",
-    editFile: "编辑文件",
-    saveFile: "保存",
-    saved: "已保存",
-    saving: "正在保存…",
-    unsaved: "未保存",
-    noHtmlPreview: "此任务尚未生成 HTML 文件。",
-    noMarkdownPreview: "此任务尚未修改 Markdown 文件。",
-    filterFiles: "筛选文件…",
-    openFileFromTree: "从工作区目录树中选择文件。",
-    binaryFile: "二进制文件无法预览。",
-    imageFailedToLoad: "图片加载失败",
-    previewFile: "预览",
-    fileLinkMenu: "文件操作",
-    openLinkedFile: "在阅读器中打开",
-    revealLinkedFile: "打开文件目录",
-    runLinkedFile: "直接执行",
-    runLinkedFileStarted: "已启动",
-    richText: "富文本",
-    sourceText: "原始文本",
-    refreshPreview: "刷新",
-    changedFiles: "已改文件",
-    noChanges: "工作区没有改动",
-    changesAppearHere: "此项目中的改动将显示在这里。",
-    noMatchingFiles: "没有匹配的文件",
-    comparison: "比较范围",
-    lastTurn: "上轮修改",
-    thisTurn: "本轮修改",
-    workedFor: "用时",
-    taskPeriodChanges: "任务期间的工作区变化",
-    editedFile: "已编辑",
-    editedFiles: "已编辑 {{count}} 个文件",
-    showMoreFiles: "再显示 {{count}} 个文件",
-    binaryChange: "二进制文件",
-    reviewChanges: "审核",
-    undoChanges: "撤销",
-    changesUndone: "已撤销",
-    undoTurnConfirm:
-      "撤销本轮的全部文件变化？Artemis 会先创建恢复副本，且不会修改对话历史。",
-    undoTurnComplete: "已撤销本轮文件变化",
-    unstaged: "未暂存",
-    staged: "已暂存",
-    branch: "分支比较",
-    baseRef: "基准引用",
-    stage: "暂存",
-    unstage: "取消暂存",
-    revert: "还原",
-    revertConfirm: "确认还原这项改动？Artemis 会先创建恢复副本。",
-    recoverySaved: "恢复副本已保存",
-    additions: "新增",
-    deletions: "删除",
-    addComment: "添加行内评论",
-    commentPlaceholder: "输入审查评论…",
-    saveComment: "保存评论",
-    cancelComment: "取消",
-    deleteComment: "删除评论",
-    approveOnce: "仅批准本次",
-    approveSession: "本任务内批准",
-    approveProject: "始终允许",
-    approvalScopeHint: "始终允许：仅限本项目中的相同操作。",
-    deny: "拒绝",
-    approvalApproved: "已批准",
-    approvalDenied: "已拒绝",
-    recommended: "模型推荐",
-    otherAnswer: "其他…",
-    otherAnswerDetail: "输入一个不在以上列表中的答案",
-    customAnswer: "输入其他答案",
-    submitAnswer: "提交",
-    waitingSelection: "等待选择",
-    navigateChoices: "移动",
-    selectChoice: "选择",
-    answered: "已选择",
-    timedOut: "5 分钟未选择，已采用模型推荐项",
-    timeoutHint: "5 分钟内未选择将自动采用模型推荐项",
-    inputCancelled: "已取消",
-    cancelCurrentTask: "取消当前任务",
-    skip: "跳过",
-    skipAndCancelTask: "跳过并取消当前任务",
-    modelReason: "模型判断",
-    agentActor: "发起成员",
-    thinking: "推理",
-    running: "思考中",
-    queuedForAgent: "等待 Agent 槽位",
-    waitingForModel: "等待模型",
-    waitingNetwork: "正在等待网络恢复 · {{seconds}} 秒后重试",
-    reconnecting: "正在重新连接 {{attempt}}/{{maximum}} · {{seconds}} 秒后重试",
-    modelRetrying:
-      "模型暂无响应 · {{seconds}} 秒后重试 {{attempt}}/{{maximum}}",
-    modelStreamStalled:
-      "模型持续无响应。请从输入框右下角的模型选择器切换模型，再重新发送消息；若其他模型也失败，请在设置中检查服务商地址和网络连接。",
-    rateLimited: "服务暂时限流 · {{seconds}} 秒后重试",
-    connectionRecovered: "连接已恢复",
-    taskInterrupted: "任务已中断；为避免重复执行写操作，需要确认后继续",
-    waiting: "等待批准",
-    waitingInput: "等待你选择",
-    completed: "已完成",
-    failed: "失败",
-    ready: "就绪",
-    elapsed: "用时",
-    model: "Pi 自动选择",
-    modelPicker: "模型与推理强度",
-    modelPickerModel: "模型",
-    ultraMode: "极致模式",
-    ultraModeQuota: "更快消耗使用额度",
-    modelSwitchFailed: "无法切换模型设置。",
-    steer: "引导当前执行",
-    followUp: "完成后继续",
-    queuedMessages: "当前任务后等待 {{count}} 条",
-    queueItem: "第 {{number}} 条排队消息",
-    queueSteer: "引导",
-    queueSteerHint: "将此排队消息引导到当前任务",
-    queueMoveToFront: "移到队首",
-    queueMoveToFrontHint: "让此排队消息下一条执行",
-    queueDelete: "删除排队消息",
-    queueEdit: "编辑排队消息",
-    queueSave: "保存排队消息",
-    queueCancel: "取消编辑",
-    queueSaveError: "保存排队消息失败",
-    queueRetry: "重试",
-    copyMessage: "复制消息",
-    editAndResend: "编辑后重新发送",
-    messageCopied: "已复制消息",
-    messageCopyFailed: "无法复制消息。",
-    conversation: "会话",
-    conversationHistory: "会话历史",
-    emptyConversationPrompt: "想在 {{workspace}} 中构建什么？",
-    temporaryConversationPrompt: "想在 Artemis 中构建什么？",
-    sandboxUnavailable: "尚未安装原生命令沙箱",
-    sandboxDetail:
-      "平台 Shell 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
-    terminalLocked: "原生执行器可用前，终端保持锁定。",
-    refreshDiff: "刷新",
-    refreshingDiff: "正在刷新…",
-    diffRefreshed: "差异已刷新",
-    addAttachments: "添加文件或图片",
-    removeAttachment: "移除附件",
-    removeSelectedSkill: "移除已加载 Skill",
-    customAgentMentionHeading: "@ 子智能体 · 绑定到这条消息",
-    selectedCustomAgent: "子智能体",
-    removeSelectedCustomAgent: "移除子智能体",
-    customAgentWhileRunning: "@ 调用子智能体需要任务空闲，请先停止当前执行。",
-    customAgentControlConflict: "使用 / 指令前请先移除 @ 子智能体。",
-    attachmentLimit: "最多添加 20 张图片和 10 个文档，合计 200 MiB。",
-    inspectAttachments: "请查看已附加的文件。",
-    dropAttachments: "松开即可添加文件",
-    dropAttachmentsDetail:
-      "支持图片、文本、代码、PDF、Word、Excel 和 PowerPoint",
-    approvalPolicy: "应如何批准 Artemis 操作？",
-    askApproval: "请求批准",
-    askApprovalDetail: "外部更改和联网前询问（MCP 除外）",
-    agentApproval: "帮我批准",
-    agentApprovalDetail: "自动批准低、中风险及你明确要求的高风险操作",
-    fullAccess: "完全访问权限",
-    fullAccessDetail: "自动批准执行操作，包括你明确要求的本机路径",
-    fullAccessUnavailable: "需要先安装原生命令沙箱",
-    customApproval: "自定义",
-    customApprovalDetail: "使用已保存的批准；沙箱内 MCP 自动调用",
-    openFolder: "打开文件夹",
-    leftSidebar: "左侧边栏",
-    rightSidebar: "右侧边栏",
-    toggleReview: "切换审查面板",
-    toggleTerminal: "切换终端",
-    noProject: "请先打开一个项目。",
-    taskError: "任务无法启动。",
-    turnError: "任务执行失败。",
-    hostRestart: "上次 Artemis 进程在本轮任务完成前已停止。",
-    hostRecovering: "正在恢复任务…",
-    streamInterrupted:
-      "输出开始后连接中断；为避免重复文本或工具副作用，已停止自动重放，请确认后再继续。",
-    agentHostInterrupted:
-      "Agent Host 已重启并恢复会话状态；由于无法证明已完成的写操作可安全重复，当前提示没有自动重放。",
-    settings: "设置",
-    loadingSettings: "正在加载设置…",
-    currentVersion: "当前版本",
-    archiveLibrary: "归档",
-    resourceCenter: "MCP 与 Skills",
-    tokenUsage: "Token 用量",
-    goal: "目标",
-    goalEditTitle: "编辑目标",
-    goalSet: "持久目标已保存",
-    goalCleared: "持久目标已清除",
-    goalReplaceConfirm: "替换当前任务的目标并重置已累计的预算吗？",
-    goalClearConfirm: "清除此目标并停止自动续跑吗？",
-    goalResumeTitle: "继续目标？",
-    goalResumeConfirm: "此任务有已暂停或中断的目标。要恢复自动续跑吗？",
-    goalResumeAccept: "继续",
-    goalResumeLater: "暂不",
-    goalSetWhileRunning: "请先停止当前执行，再替换目标。",
-    noGoal: "当前任务没有持久目标。",
-    goalCommand: "/goal",
-    goalCommandDetail: "设置任务级持久目标",
-    compactCommand: "/compact",
-    compactCommandDetail: "立即压缩较早的上下文",
-    contextCompacting: "正在压缩上下文",
-    contextCompacted: "Compact 已完成",
-    contextCompactionFailed: "上下文压缩失败",
-    contextCompactionCancelled: "上下文压缩已取消",
-    compactRequiresTask: "请先打开已有任务，再压缩上下文。",
-    compactWhileRunning: "请等待当前任务执行结束后再压缩上下文。",
-    compactFailed: "上下文压缩失败。",
-    initCommand: "/init",
-    initCommandDetail: "创建包含项目说明的 AGENTS.md 文件",
-    planCommand: "/plan",
-    planCommandDetail: "切换到 Plan 模式",
-    executeCommand: "/execute",
-    executeCommandDetail: "切换到 Execute 模式",
-    reviewCommand: "/review",
-    reviewCommandDetail: "切换到 Review 模式",
-    multipleModeCommands:
-      "每条消息只能包含一个 /plan、/execute 或 /review 指令。",
-    modeCommandWhileRunning: "请先停止当前执行，再切换任务模式。",
-    installedSkills: "已安装的 Skills",
-    installedPlugins: "已安装的插件",
-    loadingSkills: "正在加载已安装的 Skills…",
-    noInstalledSkills: "尚未安装并启用任何 Skill。",
-    noMatchingSkills: "没有匹配此命令的已安装 Skill。",
-    selectedSkill: "已加载 Skill",
-    archivedReadOnly: "已归档对话",
-    archivedReadOnlyDetail: "归档状态下只能阅读；恢复后才能继续对话。",
-  },
-} satisfies Record<"en" | "zh-CN", Record<string, string>>;
+const copy = UI_COPY.App_copy satisfies Record<
+  AppLocale,
+  Record<string, string>
+>;
 
 function appCopy(locale: Locale): (typeof copy)["en"] {
-  return localizedCopy(locale, "app", copy[legacyLocale(locale)]);
+  return copy[locale];
 }
 
 function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
@@ -2872,7 +2269,7 @@ export function App() {
   const openConversationExternalLink = useCallback(
     (href: string) => {
       try {
-        const url = normalizeBrowserAddress(href);
+        const url = normalizeBrowserAddress(href, locale);
         openWorkspaceTab("browser", { reuseKind: true, url });
       } catch (error) {
         setToast({
@@ -4283,6 +3680,17 @@ export function App() {
           thread.id,
           nextSelection,
         );
+        setRuntimeSettings((current) =>
+          current
+            ? {
+                ...current,
+                selection: updated.modelSelection ?? nextSelection,
+                ...(updated.contextWindow !== undefined
+                  ? { contextWindow: updated.contextWindow }
+                  : {}),
+              }
+            : current,
+        );
         setSnapshot((current) =>
           current
             ? {
@@ -4332,6 +3740,17 @@ export function App() {
         const updated = await window.artemis.setThreadModelSelection(
           thread.id,
           nextSelection,
+        );
+        setRuntimeSettings((current) =>
+          current
+            ? {
+                ...current,
+                selection: updated.modelSelection ?? nextSelection,
+                ...(updated.contextWindow !== undefined
+                  ? { contextWindow: updated.contextWindow }
+                  : {}),
+              }
+            : current,
         );
         setSnapshot((current) =>
           current
@@ -4901,7 +4320,7 @@ export function App() {
       if (deletingThreadIds.current.has(thread.id)) return;
       deletingThreadIds.current.add(thread.id);
       setThreadMenuId(undefined);
-      setToast(locale === "zh-CN" ? "正在删除会话…" : "Deleting conversation…");
+      setToast(uiText(locale, "App.inline1"));
       const siblingThreads = (snapshot?.threads ?? []).filter(
         (item) => item.projectId === thread.projectId && !item.archived,
       );
@@ -4979,14 +4398,15 @@ export function App() {
     );
     if (!threads.length) return;
     const deleting = operation === "delete";
-    const message =
-      locale === "zh-CN"
-        ? deleting
-          ? `删除“${project.name}”下全部 ${threads.length} 个会话（包括已归档）？此操作不可撤销，不会删除项目文件。`
-          : `归档“${project.name}”下全部 ${threads.length} 个未归档会话？可以从归档中恢复。`
-        : deleting
-          ? `Delete all ${threads.length} conversations in "${project.name}", including archived ones? This cannot be undone. Project files are kept.`
-          : `Archive all ${threads.length} unarchived conversations in "${project.name}"? They can be restored from the archive.`;
+    const message = deleting
+      ? uiText(locale, "App.inline2", {
+          value1: project.name,
+          value2: threads.length,
+        })
+      : uiText(locale, "App.inline3", {
+          value1: project.name,
+          value2: threads.length,
+        });
     projectBulkBusy.current = true;
     try {
       if (
@@ -5438,9 +4858,7 @@ export function App() {
     if (customAgentTasks.some((task) => !task.text.trim())) {
       setToast({
         error: true,
-        message: locale.startsWith("zh")
-          ? "请填写每个子智能体的任务，或移除空任务块。"
-          : "Fill in each sub-agent task or remove the empty block.",
+        message: uiText(locale, "App.inline4"),
       });
       return;
     }
@@ -5490,7 +4908,7 @@ export function App() {
       setToast(t.compactWhileRunning);
       return;
     }
-    const goalCommand = parseGoalCommand(commandPrompt);
+    const goalCommand = parseGoalCommand(commandPrompt, locale);
     if (goalCommand?.kind === "invalid") {
       setToast({ error: true, message: goalCommand.message });
       return;
@@ -5498,7 +4916,7 @@ export function App() {
     if (goalCommand?.kind === "show") {
       setToast(
         activeThread?.goal
-          ? `${t.goal}: ${activeThread.goal.objective} · ${activeThread.goal.status} · ${activeThread.goal.tokensUsed}${activeThread.goal.tokenBudget === undefined ? "" : `/${activeThread.goal.tokenBudget}`} Token`
+          ? `${t.goal}: ${activeThread.goal.objective} · ${GOAL_RESOURCES[locale][activeThread.goal.status]} · ${activeThread.goal.tokensUsed}${activeThread.goal.tokenBudget === undefined ? "" : `/${activeThread.goal.tokenBudget}`} Token`
           : t.noGoal,
       );
       clearSubmittedPrompt(rawPrompt);
@@ -5904,22 +5322,10 @@ export function App() {
   }
 
   const navigationItems = [
-    [
-      "resources",
-      locale.startsWith("zh") ? "插件市场" : t.resourceCenter,
-      <ResourceIcon />,
-    ],
-    [
-      "token-usage",
-      locale.startsWith("zh") ? "用量统计" : t.tokenUsage,
-      <TokenUsageIcon />,
-    ],
+    ["resources", uiText(locale, "App.inline5"), <ResourceIcon />],
+    ["token-usage", uiText(locale, "App.inline6"), <TokenUsageIcon />],
     ["automations", t.automations, <AutomationIcon />],
-    [
-      "archive",
-      locale.startsWith("zh") ? "归档会话" : t.archiveLibrary,
-      <ArchiveIcon />,
-    ],
+    ["archive", uiText(locale, "App.archiveConversations"), <ArchiveIcon />],
   ] as const;
 
   return (
@@ -6074,7 +5480,7 @@ export function App() {
                 className={`update-btn ${runtimeSettings.update.state}`}
                 type="button"
                 aria-label={`${t.currentVersion} ${runtimeSettings.update.availableVersion}`}
-                title={`${runtimeSettings.update.availableVersion} · ${runtimeSettings.update.state}`}
+                title={`${runtimeSettings.update.availableVersion} · ${statusText(locale, runtimeSettings.update.state)}`}
                 disabled={["checking", "downloading"].includes(
                   runtimeSettings.update.state,
                 )}
@@ -6153,9 +5559,7 @@ export function App() {
                   onClick={() => beginNewConversation()}
                 >
                   <ArtemisIcon name="edit-square" />
-                  <span>
-                    {locale.startsWith("zh") ? "新建会话" : t.newTask}
-                  </span>
+                  <span>{uiText(locale, "App.inline9")}</span>
                 </button>
               </nav>
             </div>
@@ -6473,9 +5877,7 @@ export function App() {
                               width={16}
                               height={16}
                             />
-                            <span>
-                              {locale === "zh-CN" ? "归档全部" : "Archive all"}
-                            </span>
+                            <span>{uiText(locale, "App.inline7")}</span>
                           </button>
                           <button
                             className="danger"
@@ -6490,9 +5892,7 @@ export function App() {
                             }
                           >
                             <ArtemisIcon name="trash" width={16} height={16} />
-                            <span>
-                              {locale === "zh-CN" ? "删除全部" : "Delete all"}
-                            </span>
+                            <span>{uiText(locale, "App.inline8")}</span>
                           </button>
                           <button
                             className="danger"
@@ -7162,11 +6562,7 @@ export function App() {
                             threadId: activeThread.id,
                             deviceId,
                           });
-                          setToast(
-                            locale.startsWith("zh")
-                              ? "成员已从本对话移除。"
-                              : "Member removed from this conversation.",
-                          );
+                          setToast(uiText(locale, "App.inline10"));
                           return true;
                         } catch (error) {
                           setToast({
@@ -7913,7 +7309,7 @@ export function App() {
                           <CustomAgentTaskBlocks
                             tasks={customAgentTasks}
                             focusTaskId={focusAgentTaskId}
-                            zh={locale.startsWith("zh")}
+                            locale={locale}
                             onChange={(id, text) =>
                               setCustomAgentTasks(
                                 customAgentTasks.map((task) =>
@@ -7935,7 +7331,7 @@ export function App() {
                           <ComposerAttachments
                             key={activeComposerDraftKey}
                             attachments={attachments}
-                            zh={locale.startsWith("zh")}
+                            locale={locale}
                             onRemove={(index) => {
                               const attachment = attachments[index];
                               if (
@@ -7955,14 +7351,12 @@ export function App() {
                         )}
                         <CustomAgentMentionMenu
                           mention={customAgentMention}
-                          zh={locale.startsWith("zh")}
+                          locale={locale}
                         />
                         <div className="composer-input">
                           {customAgentTasks.length > 0 && (
                             <div className="composer-agent-main-label">
-                              {locale.startsWith("zh")
-                                ? "给主智能体的指令 · 输入 @ 继续添加任务"
-                                : "Main assistant instructions · Type @ to add another task"}
+                              {uiText(locale, "App.inline11")}
                             </div>
                           )}
                           <textarea
@@ -8120,9 +7514,7 @@ export function App() {
                             placeholder={
                               activeThread &&
                               imThreadStatus[activeThread.id]?.group
-                                ? locale.startsWith("zh")
-                                  ? "输入 @ 选择成员，描述要它完成的任务…"
-                                  : "Type @ to choose a member and describe their task…"
+                                ? uiText(locale, "App.inline12")
                                 : t.prompt
                             }
                             ref={promptInput}
@@ -8402,9 +7794,10 @@ export function App() {
                                         className="model-picker-empty"
                                         role="status"
                                       >
-                                        {locale.startsWith("zh")
-                                          ? "没有匹配的模型"
-                                          : "No matching models"}
+                                        {uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearchEmpty",
+                                        )}
                                       </span>
                                     )}
                                   <div
@@ -8916,7 +8309,10 @@ export function App() {
                                     )}
                                   {reviewDiff && !reviewDiff.available && (
                                     <ReviewState state="error">
-                                      {reviewDiff.message ?? ""}
+                                      {reviewMessage(
+                                        locale,
+                                        reviewDiff.message ?? "",
+                                      )}
                                     </ReviewState>
                                   )}
                                   {reviewDiff?.available &&
@@ -9729,28 +9125,8 @@ export function App() {
 }
 
 function agentMemberStatus(status: ChildAgentState["status"], locale: Locale) {
-  const copy = {
-    "zh-CN": {
-      queued: "等待开始",
-      running: "运行中",
-      blocked: "被依赖阻塞",
-      cancelling: "正在停止",
-      completed: "已完成",
-      failed: "失败",
-      cancelled: "已停止",
-    },
-    en: {
-      queued: "Queued",
-      running: "Running",
-      blocked: "Blocked by dependency",
-      cancelling: "Stopping",
-      completed: "Completed",
-      failed: "Failed",
-      cancelled: "Stopped",
-    },
-  }[legacyLocale(locale)];
-  return localizedCopy(locale, "app", { agentMemberStatusLabel: copy[status] })
-    .agentMemberStatusLabel;
+  const copy = UI_COPY.App_copy_9734[locale];
+  return { agentMemberStatusLabel: copy[status] }.agentMemberStatusLabel;
 }
 
 function agentMemberTone(status: ChildAgentState["status"]) {
@@ -9785,80 +9161,9 @@ export function AgentTeamPanel({
   team: AgentTeamState | undefined;
 }) {
   const messageList = useRef<HTMLDivElement>(null);
-  const labels = localizedCopy(
-    locale,
-    "app",
-    {
-      "zh-CN": {
-        title: "Agent 团队",
-        teamMembers: "成员",
-        teamMessages: "团队消息",
-        teamView: "查看",
-        noMessages: "团队消息会在这里按顺序出现。",
-        unavailable: "团队记录尚未加载或当前不可用。",
-        history: "历史只读",
-        teamStop: "停止团队",
-        parent: "主 Agent",
-        everyone: "全体成员",
-        expand: "展开子树",
-        collapse: "折叠子树",
-      },
-      en: {
-        title: "Agent team",
-        teamMembers: "Members",
-        teamMessages: "Team messages",
-        teamView: "View",
-        noMessages: "Team messages will appear here in sequence.",
-        unavailable: "The team record is not loaded or is unavailable.",
-        history: "Read-only history",
-        teamStop: "Stop team",
-        parent: "Parent agent",
-        everyone: "Everyone",
-        expand: "Expand subtree",
-        collapse: "Collapse subtree",
-      },
-    }[legacyLocale(locale)],
-  );
-  const teamStatusLabels = localizedCopy(
-    locale,
-    "app",
-    {
-      "zh-CN": {
-        forming: "正在组队",
-        teamRunning: "运行中",
-        blocked: "存在阻塞",
-        integrating: "等待主 Agent 集成",
-        completed: "已完成",
-        aborted: "已中止",
-      },
-      en: {
-        forming: "Forming",
-        teamRunning: "Running",
-        blocked: "Blocked",
-        integrating: "Awaiting parent integration",
-        completed: "Completed",
-        aborted: "Aborted",
-      },
-    }[legacyLocale(locale)],
-  );
-  const messageKindLabels = localizedCopy(
-    locale,
-    "app",
-    {
-      "zh-CN": {
-        finding: "发现",
-        request: "请求",
-        blocker: "阻塞",
-        handoff: "交接",
-      },
-      en: {
-        finding: "Finding",
-        request: "Request",
-        blocker: "Blocker",
-        handoff: "Handoff",
-      },
-    }[legacyLocale(locale)],
-  );
+  const labels = UI_COPY.App_labels[locale];
+  const teamStatusLabels = UI_COPY.App_teamStatusLabels[locale];
+  const messageKindLabels = UI_COPY.App_messageKindLabels[locale];
   const teamRunning =
     team &&
     (team.status === "forming" ||
@@ -10117,52 +9422,7 @@ export function ChildAgentPanel({
   const CHILD_AGENT_SCROLL_THRESHOLD = 64;
   const childAgentScrollContainer = useRef<HTMLDivElement>(null);
   const childAgentFollowOutput = useRef(true);
-  const labels = localizedCopy(
-    locale,
-    "app",
-    {
-      "zh-CN": {
-        waiting: "等待子智能体输出…",
-        unavailable: "此子智能体的输出当前不可用。",
-        task: "任务",
-        activityLog: "活动记录",
-        result: "结果",
-        runtimeDetails: "运行详情",
-        elapsed: "运行时长",
-        lastActivity: "最后活动",
-        currentTool: "当前工具",
-        health: "运行状态",
-        longRunning: "长时间运行",
-        unresponsive: "疑似无响应",
-        nudge: "催办",
-        childStop: "停止此子代理",
-        retry: "重试",
-        justNow: "刚刚",
-        ago: "{{duration}}前",
-        subagent: "子智能体",
-      },
-      en: {
-        waiting: "Waiting for subagent output…",
-        unavailable: "This subagent output is currently unavailable.",
-        task: "Task",
-        activityLog: "Activity log",
-        result: "Result",
-        runtimeDetails: "Runtime details",
-        elapsed: "Runtime",
-        lastActivity: "Last activity",
-        currentTool: "Current tool",
-        health: "Runtime status",
-        longRunning: "Long-running",
-        unresponsive: "Possibly unresponsive",
-        nudge: "Nudge",
-        childStop: "Stop subagent",
-        retry: "Retry",
-        justNow: "just now",
-        ago: "{{duration}} ago",
-        subagent: "Subagent",
-      },
-    }[legacyLocale(locale)],
-  );
+  const labels = UI_COPY.App_labels_10125[locale];
   const content = child?.error ?? child?.output ?? child?.activity;
   const running = child?.status === "queued" || child?.status === "running";
   const lastActivityMs = child?.lastActivityAt
@@ -10698,7 +9958,10 @@ export function UserInputCard({
                   void resolve({ selectedOption: activeOptionIndex })
                 }
               >
-                {locale === "zh-CN" ? "提交选择" : "Submit selection"}
+                {uiText(
+                  locale,
+                  "MultiQuestionUserInputCard_multiQuestionCopy.submitSelection",
+                )}
               </button>
             </div>
           )}
@@ -10738,26 +10001,7 @@ export function ToolActivityGroupCard({
     tools.some((tool) =>
       ["read", "search"].includes(toolActivityKind(tool.name, tool.input)),
     );
-  const disclosureLabels = localizedCopy(
-    locale,
-    "app",
-    {
-      en: {
-        collapse: "Collapse",
-        expand: "Expand",
-        toolGroupCalls: "Tool calls",
-        toolGroupRead: "Read files",
-        toolGroupEdit: "Edit files",
-      },
-      "zh-CN": {
-        collapse: "收起",
-        expand: "展开",
-        toolGroupCalls: "工具调用",
-        toolGroupRead: "读取文件",
-        toolGroupEdit: "编辑文件",
-      },
-    }[legacyLocale(locale)],
-  );
+  const disclosureLabels = UI_COPY.App_disclosureLabels[locale];
   const summary = mixedActivity
     ? disclosureLabels.toolGroupCalls
     : tools.length > 1 && view.fileActivity
@@ -10830,7 +10074,7 @@ export function ToolActivityGroupCard({
                 {mixedActivity && (tool.input !== undefined || tool.output) ? (
                   <details className="tool-item-details">
                     <summary
-                      aria-label={`${locale.startsWith("zh") ? "详情" : "Details"}: ${detail}`}
+                      aria-label={`${uiText(locale, "EnvironmentPanel_labels.details")}: ${detail}`}
                     >
                       {row}
                       <ArtemisIcon name="chev-right" height={12} width={12} />
@@ -11126,44 +10370,8 @@ export function Timeline({
       }),
     [locale],
   );
-  const childStatusLabels = localizedCopy(
-    locale,
-    "app",
-    {
-      "zh-CN": {
-        queued: "等待开始",
-        running: "运行中",
-        blocked: "被阻塞",
-        cancelling: "正在停止",
-        completed: "已完成",
-        failed: "失败",
-        cancelled: "已停止",
-      },
-      en: {
-        queued: "Waiting to start",
-        running: "Running",
-        blocked: "Blocked",
-        cancelling: "Stopping",
-        completed: "Completed",
-        failed: "Failed",
-        cancelled: "Stopped",
-      },
-    }[legacyLocale(locale)],
-  );
-  const approvalDisclosureLabels = localizedCopy(
-    locale,
-    "app",
-    {
-      en: {
-        collapse: "Collapse",
-        expand: "Expand",
-      },
-      "zh-CN": {
-        collapse: "收起",
-        expand: "展开",
-      },
-    }[legacyLocale(locale)],
-  );
+  const childStatusLabels = UI_COPY.App_childStatusLabels[locale];
+  const approvalDisclosureLabels = UI_COPY.App_approvalDisclosureLabels[locale];
   const latestCompletedTurnId = state.turnOrder.findLast(
     (turnId) => state.turns[turnId]?.status === "completed",
   );
@@ -11217,7 +10425,7 @@ export function Timeline({
                   sourceId={source.sourceId}
                   name={source.name}
                   thumbnail={source.attachment?.thumbnail}
-                  zh={locale === "zh-CN"}
+                  locale={locale}
                 />
               ))}
             </div>
@@ -11293,7 +10501,7 @@ export function Timeline({
                     name={source.name}
                     id={source.attachment?.id}
                     threadId={state.threadId}
-                    zh={locale === "zh-CN"}
+                    locale={locale}
                     compact
                   />
                 ))}

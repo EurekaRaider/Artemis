@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import { useEffect, useRef } from "react";
 import { customAgentColorToken } from "./CustomAgentMention.js";
 import type { CustomAgentDraftTask } from "./composer-drafts.js";
@@ -5,13 +7,13 @@ import type { CustomAgentDraftTask } from "./composer-drafts.js";
 export function CustomAgentTaskBlocks({
   tasks,
   focusTaskId,
-  zh,
+  locale,
   onChange,
   onRemove,
 }: {
   tasks: readonly CustomAgentDraftTask[];
   focusTaskId: string | undefined;
-  zh: boolean;
+  locale: AppLocale;
   onChange(id: string, text: string): void;
   onRemove(id: string): void;
 }) {
@@ -43,20 +45,20 @@ export function CustomAgentTaskBlocks({
             <button
               className="composer-selected-skill-remove"
               type="button"
-              aria-label={`${zh ? "移除任务" : "Remove task"}: ${task.name}`}
-              title={zh ? "移除任务" : "Remove task"}
+              aria-label={uiText(locale, "CustomAgentTaskBlocks.removeNamed", {
+                name: task.name,
+              })}
+              title={uiText(locale, "CustomAgentTaskBlocks.inline1")}
               onClick={() => onRemove(task.id)}
             >
               ×
             </button>
           </div>
           <textarea
-            aria-label={`${zh ? "交给" : "Task for"} @${task.name}${zh ? "的任务" : ""}`}
-            placeholder={
-              zh
-                ? "填写交给这个子智能体的任务…"
-                : "Describe this sub-agent's task…"
-            }
+            aria-label={uiText(locale, "CustomAgentTaskBlocks.taskFor", {
+              name: task.name,
+            })}
+            placeholder={uiText(locale, "CustomAgentTaskBlocks.inline2")}
             value={task.text}
             onChange={(event) => onChange(task.id, event.target.value)}
           />

@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import {
   useEffect,
   useLayoutEffect,
@@ -104,10 +106,10 @@ export function useImMemberMentions({
 
 export function ImMemberMentionMenu({
   mentions,
-  zh,
+  locale,
 }: {
   mentions: ReturnType<typeof useImMemberMentions>;
-  zh: boolean;
+  locale: AppLocale;
 }) {
   if (!mentions.open) return null;
   return (
@@ -115,10 +117,10 @@ export function ImMemberMentionMenu({
       className="slash-command-menu im-member-mention-menu"
       id="im-member-mention-menu"
       role="listbox"
-      aria-label={zh ? "选择协作成员" : "Choose a collaboration member"}
+      aria-label={uiText(locale, "ImMemberMentions.inline1")}
     >
       <div className="slash-command-heading">
-        {zh ? "@ 成员 · 选择执行任务的电脑" : "@ Member · choose a computer"}
+        {uiText(locale, "CustomAgentMention.inline1")}
       </div>
       {mentions.candidates.map((member, index) => (
         <div

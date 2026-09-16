@@ -387,3 +387,117 @@ it("reuses the group's session across members and creates one only for explicit 
   await send("four", "peer-a", "Continue new session");
   expect(f.starts[3]).toBe(f.starts[2]);
 });
+it("continues a native bot assignment in its original session and treats slash text as task content", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const owner = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    f.service.status().remoteTasks![0]!.group!.spaceId,
+  );
+  const assignment = (taskId?: string) => {
+    const nativeTaskId = randomUUID();
+    return {
+      ...owner,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      ...(taskId ? { taskId } : {}),
+      text: taskId ? "/new is literal bot content" : "First bot assignment",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: owner.deviceId,
+        coordinatorThreadId: owner.id,
+        mission: "Do the work",
+      },
+    };
+  };
+  await f.service.accept(assignment());
+  const original = f.starts[0]!;
+  expect(original).toBeTruthy();
+  const followUp = assignment(original);
+  await f.service.accept(followUp);
+  await f.service.accept(followUp);
+  expect(f.starts).toEqual([original, original]);
+  expect(f.threads).toHaveLength(2); // Group entry and one worker session.
+  // A changed grant must reject continuation, never silently create a session.
+  const settings = f.service.status().settings;
+  await f.service.save({
+    ...settings,
+    grants: settings.grants.map((g) => ({
+      ...g,
+      expiresAt: g.expiresAt + 60000,
+    })),
+  });
+  await f.service.accept(assignment(original));
+  expect(f.starts).toEqual([original, original]);
+  expect(f.threads).toHaveLength(2);
+});
+it("allows remote operations after cumulative usage exceeds legacy token budgets", async () => {
+  const f = await fixture();
+  f.grant.tokenBudget = 1024; // Persisted grants from older versions remain loadable.
+  await mkdir(join(f.root, "project", "src"));
+  f.grant.security!.scopes[0]!.readPaths = ["src"];
+  await f.authorize();
+  const request = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    f.service.status().remoteTasks![0]!.group!.spaceId,
+  );
+  await f.service.accept({
+    ...request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    text: "Work",
+  });
+  const threadId = f.starts[0]!;
+  expect(threadId).toBeTruthy();
+  f.service.observe([
+    {
+      protocolVersion: 4,
+      eventId: randomUUID(),
+      threadId,
+      turnId: "turn",
+      timestamp: new Date().toISOString(),
+      seq: 1,
+      payload: {
+        type: "assistant.usage",
+        inputTokens: 200000,
+        outputTokens: 1000,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: 201000,
+      },
+    },
+  ]);
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  try {
+    const row = db
+      .prepare("SELECT value FROM im_state WHERE namespace='bindings' AND id=?")
+      .get(threadId)!;
+    const binding = JSON.parse(String(row.value));
+    db.prepare(
+      "INSERT OR REPLACE INTO im_state(namespace,id,value) VALUES('usage',?,?)",
+    ).run(binding.request.id, JSON.stringify(1000000));
+  } finally {
+    db.close();
+  }
+  expect(() => f.service.authorizeThread(threadId, "plan")).not.toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      threadId,
+      { action: "read", path: "src" },
+      "plan",
+    ),
+  ).not.toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      threadId,
+      {
+        action: "collaborate",
+        command: { action: "status", text: "" },
+      },
+      "plan",
+    ),
+  ).toThrow(/Plan and Review/);
+  await f.service.save({ ...f.service.status().settings, enabled: false });
+  expect(() => f.service.authorizeThread(threadId, "plan")).toThrow();
+});

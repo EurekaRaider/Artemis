@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 const PROFILE_AVATAR_SIZE = 256;
 const PROFILE_AVATAR_MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 const PROFILE_AVATAR_MAX_STORED_BYTES = 512 * 1024;
@@ -7,37 +9,39 @@ const PROFILE_AVATAR_MIME_TYPES = new Set([
   "image/webp",
 ]);
 
-function blobDataUrl(blob: Blob): Promise<string> {
+function blobDataUrl(blob: Blob, locale: AppLocale): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () =>
-      reject(new Error("The profile image could not be read."));
+    reader.onerror = () => reject(new Error(uiText(locale, "avatar.read")));
     reader.onload = () =>
       typeof reader.result === "string"
         ? resolve(reader.result)
-        : reject(new Error("The profile image could not be read."));
+        : reject(new Error(uiText(locale, "avatar.read")));
     reader.readAsDataURL(blob);
   });
 }
 
-export async function prepareProfileAvatar(file: File): Promise<string> {
+export async function prepareProfileAvatar(
+  file: File,
+  locale: AppLocale = "en",
+): Promise<string> {
   if (!PROFILE_AVATAR_MIME_TYPES.has(file.type)) {
-    throw new Error("Choose a PNG, JPEG, or WebP image.");
+    throw new Error(uiText(locale, "avatar.format"));
   }
   if (file.size <= 0 || file.size > PROFILE_AVATAR_MAX_SOURCE_BYTES) {
-    throw new Error("The source profile image must be 8 MiB or smaller.");
+    throw new Error(uiText(locale, "avatar.size"));
   }
 
   const bitmap = await createImageBitmap(file);
   try {
     if (bitmap.width <= 0 || bitmap.height <= 0) {
-      throw new Error("The profile image dimensions are invalid.");
+      throw new Error(uiText(locale, "avatar.dimensions"));
     }
     const canvas = document.createElement("canvas");
     canvas.width = PROFILE_AVATAR_SIZE;
     canvas.height = PROFILE_AVATAR_SIZE;
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("The profile image could not be processed.");
+    if (!context) throw new Error(uiText(locale, "avatar.process"));
 
     const sourceSize = Math.min(bitmap.width, bitmap.height);
     const sourceX = (bitmap.width - sourceSize) / 2;
@@ -58,9 +62,9 @@ export async function prepareProfileAvatar(file: File): Promise<string> {
       canvas.toBlob(resolve, "image/webp", 0.82),
     );
     if (!optimized || optimized.size > PROFILE_AVATAR_MAX_STORED_BYTES) {
-      throw new Error("The optimized profile image is too large.");
+      throw new Error(uiText(locale, "avatar.optimizedSize"));
     }
-    return blobDataUrl(optimized);
+    return blobDataUrl(optimized, locale);
   } finally {
     bitmap.close();
   }

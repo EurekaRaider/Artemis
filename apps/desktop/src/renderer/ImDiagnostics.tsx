@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { statusText } from "../shared/status-text.js";
 import { z } from "zod";
 import {
   imConversationSchema,
@@ -60,19 +62,21 @@ export function ImDiagnostics({
   value,
   editSpace,
   t,
+  locale,
 }: {
   value: unknown;
   editSpace(json: string): void;
   t: ImTranslate;
+  locale: AppLocale;
 }) {
   const parsed = diagnosticSchema.safeParse(value);
   return (
     <div className="im-diagnostics">
       {parsed.success ? (
         <>
-          <h4>{t("已配对成员", "Paired members")}</h4>
+          <h4>{t("ImDiagnostics.message2")}</h4>
           {!parsed.data.identities.length && (
-            <p>{t("尚无已配对成员", "No paired members")}</p>
+            <p>{t("ImDiagnostics.message3")}</p>
           )}
           {parsed.data.identities.map(({ identity, deviceId }) => (
             <p className="im-identifier" key={imIdentityKey(identity)}>
@@ -80,15 +84,8 @@ export function ImDiagnostics({
               {deviceId}
             </p>
           ))}
-          <h4>{t("已发现群聊", "Discovered groups")}</h4>
-          {!parsed.data.groups.length && (
-            <p>
-              {t(
-                "尚未发现群聊。请已配对管理员在目标群 @机器人发送 /help。",
-                "No groups discovered. A paired administrator should mention the bot with /help in the target group.",
-              )}
-            </p>
-          )}
+          <h4>{t("ImDiagnostics.message4")}</h4>
+          {!parsed.data.groups.length && <p>{t("ImDiagnostics.message5")}</p>}
           {parsed.data.groups.map(({ conversation }) => (
             <p
               className="im-identifier"
@@ -97,18 +94,19 @@ export function ImDiagnostics({
               {conversation.connectionId} · {conversation.id}
             </p>
           ))}
-          <h4>{t("投递状态", "Delivery status")}</h4>
+          <h4>{t("ImDiagnostics.message6")}</h4>
           {!parsed.data.deliveries.length && (
-            <p>{t("暂无投递记录", "No deliveries recorded")}</p>
+            <p>{t("ImDiagnostics.message7")}</p>
           )}
           {parsed.data.deliveries.map((delivery) => (
             <p key={delivery.state}>
-              {delivery.state} · {delivery.count}
+              {statusText(locale, delivery.state)} · {delivery.count}
             </p>
           ))}
           {parsed.data.ingress.map((queue) => (
             <p key={`${queue.bucket}:${queue.state}`}>
-              {queue.bucket} · {queue.state} · {queue.count}
+              {statusText(locale, queue.bucket)} ·{" "}
+              {statusText(locale, queue.state)} · {queue.count}
             </p>
           ))}
           {parsed.data.interactionErrors.map((issue, index) => (
@@ -124,23 +122,20 @@ export function ImDiagnostics({
               key={space.id}
               onClick={() => editSpace(JSON.stringify(space, null, 2))}
             >
-              {t("编辑空间：", "Edit space: ")}
+              {t("ImDiagnostics.message8")}
               {space.name}
             </Button>
           ))}
         </>
       ) : (
         <InlineNotice tone="warning">
-          {t(
-            "无法识别诊断格式，请核对 Gateway 版本。",
-            "Unrecognized diagnostics. Check the Gateway version.",
-          )}
+          {t("ImDiagnostics.message1")}
         </InlineNotice>
       )}
       <details>
-        <summary>{t("查看原始诊断 JSON", "View raw diagnostics JSON")}</summary>
+        <summary>{t("ImDiagnostics.message9")}</summary>
         <TextAreaField
-          label={t("管理状态", "Administration status")}
+          label={t("ImDiagnostics.message10")}
           value={JSON.stringify(value, null, 2)}
           onValueChange={() => {}}
           readOnly

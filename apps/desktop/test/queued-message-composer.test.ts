@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -94,25 +95,27 @@ describe("Codex-style queued message composer", () => {
   });
 
   it("localizes queued-message titles and aria labels in English and zh-CN", () => {
-    expect(appSource).toContain(
-      'queuedMessages: "{{count}} queued after the current task"',
+    expect(uiText("en", "App_copy.queuedMessages")).toBe(
+      "{{count}} queued after the current task",
     );
-    expect(appSource).toContain('queueSteer: "Steer"');
-    expect(appSource).toContain(
-      'queueSteerHint: "Steer this queued message into the active task"',
+    expect(uiText("en", "App_copy.queueSteer")).toBe("Steer");
+    expect(uiText("en", "App_copy.queueSteerHint")).toBe(
+      "Steer this queued message into the active task",
     );
-    expect(appSource).toContain('queueMoveToFront: "Move to front"');
-    expect(appSource).toContain('queueDelete: "Delete queued message"');
-    expect(appSource).toContain('queueEdit: "Edit queued message"');
-    expect(appSource).toContain('queueSave: "Save queued message"');
-    expect(appSource).toContain(
-      'queuedMessages: "当前任务后等待 {{count}} 条"',
+    expect(uiText("en", "App_copy.queueMoveToFront")).toBe("Move to front");
+    expect(uiText("en", "App_copy.queueDelete")).toBe("Delete queued message");
+    expect(uiText("en", "App_copy.queueEdit")).toBe("Edit queued message");
+    expect(uiText("en", "App_copy.queueSave")).toBe("Save queued message");
+    expect(uiText("zh-CN", "App_copy.queuedMessages")).toBe(
+      "当前任务后等待 {{count}} 条",
     );
-    expect(appSource).toContain('queueSteer: "引导"');
-    expect(appSource).toContain('queueSteerHint: "将此排队消息引导到当前任务"');
-    expect(appSource).toContain('queueMoveToFront: "移到队首"');
-    expect(appSource).toContain('queueDelete: "删除排队消息"');
-    expect(appSource).toContain('queueEdit: "编辑排队消息"');
+    expect(uiText("zh-CN", "App_copy.queueSteer")).toBe("引导");
+    expect(uiText("zh-CN", "App_copy.queueSteerHint")).toBe(
+      "将此排队消息引导到当前任务",
+    );
+    expect(uiText("zh-CN", "App_copy.queueMoveToFront")).toBe("移到队首");
+    expect(uiText("zh-CN", "App_copy.queueDelete")).toBe("删除排队消息");
+    expect(uiText("zh-CN", "App_copy.queueEdit")).toBe("编辑排队消息");
 
     const steerButton = sourceForQueuedButton("queued-message-steer");
     const prioritizeButton = sourceForQueuedButton("queued-message-prioritize");

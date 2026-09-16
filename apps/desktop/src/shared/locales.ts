@@ -131,7 +131,6 @@ export const LOCALE_METADATA: Readonly<Record<AppLocale, LocaleMetadata>> = {
 export const SUPPORTED_LOCALES: readonly AppLocale[] = APP_LOCALES.filter(
   (locale) => LOCALE_METADATA[locale].releaseStatus === "released",
 );
-export type LegacyLocale = "en" | "zh-CN";
 
 const LOCALE_IDS = new Set<string>(APP_LOCALES);
 const SYSTEM_ALIAS_LOCALES = new Map<string, AppLocale>(
@@ -204,8 +203,4 @@ export function resolveAppLocale(
 
 export function localeDirection(locale: AppLocale): "ltr" | "rtl" {
   return LOCALE_METADATA[locale].direction;
-}
-
-export function legacyLocale(locale: AppLocale): LegacyLocale {
-  return locale === "zh-CN" ? "zh-CN" : "en";
 }

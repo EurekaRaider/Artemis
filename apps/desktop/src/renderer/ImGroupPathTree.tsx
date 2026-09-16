@@ -147,7 +147,7 @@ export function ImGroupPathTree({
                     variant="quiet"
                     icon={<CaretRightIcon aria-hidden="true" />}
                     disabled={disabled || pending}
-                    label={`${expanded.includes(entry.path) ? t("收起", "Collapse") : t("展开", "Expand")} ${entry.path}`}
+                    label={`${expanded.includes(entry.path) ? t("App_disclosureLabels.collapse") : t("App_disclosureLabels.expand")} ${entry.path}`}
                     aria-expanded={expanded.includes(entry.path)}
                     onClick={() => void expand(entry.path)}
                   />
@@ -158,7 +158,7 @@ export function ImGroupPathTree({
               </div>
               {entry.protected ? (
                 <span className="im-scope-protected">
-                  {t("受保护", "Protected")}
+                  {t("ImDataPermissions.message6")}
                 </span>
               ) : (
                 (["readPaths", "writePaths"] as const).map((permission) => {
@@ -172,7 +172,7 @@ export function ImGroupPathTree({
                     <Checkbox
                       key={permission}
                       className="im-scope-check"
-                      label={`${permission === "readPaths" ? t("读取/分享", "Read/share") : t("修改", "Write")} ${entry.path}`}
+                      label={`${permission === "readPaths" ? t("ImGroupPathTree.message4") : t("ImGroupPathTree.message3")} ${entry.path}`}
                       labelVisibility="hidden"
                       checked={checked}
                       indeterminate={partial}
@@ -195,72 +195,63 @@ export function ImGroupPathTree({
   }
   return (
     <fieldset className="im-security-scope" disabled={disabled || pending}>
-      <legend>{t("群文件权限", "Group file permissions")}</legend>
-      <p>
-        {t(
-          "勾选文件可单独授权，勾选目录包含其全部内容及未来新增文件。修改会同时勾选读取/分享；受保护文件始终排除。",
-          "Select individual files or entire directories, including future contents. Write also selects read/share; protected files are always excluded.",
-        )}
-      </p>
+      <legend>{t("ImGroupPathTree.message6")}</legend>
+      <p>{t("ImGroupPathTree.message7")}</p>
       <div className="im-scope-actions">
         <Button
           size="compact"
           disabled={disabled || pending || !roots.length}
           onClick={() => change(roots, value.writePaths)}
         >
-          {t("全选读取/分享", "Select all read/share")}
+          {t("ImGroupPathTree.message8")}
         </Button>
         <Button
           size="compact"
           disabled={disabled || pending || !roots.length}
           onClick={() => change(roots, roots)}
         >
-          {t("全选修改", "Select all write")}
+          {t("ImGroupPathTree.message9")}
         </Button>
         <Button
           size="compact"
           disabled={disabled || pending}
           onClick={() => change(value.readPaths, [])}
         >
-          {t("清空修改", "Clear write")}
+          {t("ImGroupPathTree.message10")}
         </Button>
         <Button
           size="compact"
           disabled={disabled || pending}
           onClick={() => change([], [])}
         >
-          {t("清空全部", "Clear all")}
+          {t("ImGroupPathTree.message11")}
         </Button>
       </div>
-      {pending ? (
-        <p role="status">{t("正在加载目录…", "Loading files…")}</p>
-      ) : null}
+      {pending ? <p role="status">{t("ImGroupPathTree.message12")}</p> : null}
       {error ? (
         <InlineNotice tone="danger">
           {error}
           <Button size="compact" onClick={() => setReload((n) => n + 1)}>
-            {t("重试", "Retry")}
+            {t("App_copy.queueRetry")}
           </Button>
         </InlineNotice>
       ) : null}
       {entries[""] ? (
         <div className="im-scope-tree">
           <div className="im-scope-row im-scope-heading" aria-hidden="true">
-            <span>{t("目录或文件", "Directory or file")}</span>
-            <span>{t("读取/分享", "Read/share")}</span>
-            <span>{t("修改", "Write")}</span>
+            <span>{t("ImDataPermissions.message16")}</span>
+            <span>{t("ImGroupPathTree.message4")}</span>
+            <span>{t("ImGroupPathTree.message3")}</span>
           </div>
           {renderEntries("")}
-          {!roots.length ? (
-            <p>{t("没有可授权的文件。", "No files available to authorize.")}</p>
-          ) : null}
+          {!roots.length ? <p>{t("ImGroupPathTree.message17")}</p> : null}
         </div>
       ) : null}
       <p>
-        {t(
-          `已选 ${value.readPaths.length} 个读取/分享范围，${value.writePaths.length} 个修改范围。至少选择一个读取范围才能启用群聊；修改仍受项目操作权限限制。`,
-          `${value.readPaths.length} read/share scopes, ${value.writePaths.length} write scopes selected. Select a readable scope to enable the group; project policy still applies to writes.`,
-        )}
+        {t("ImGroupPathTree.message18", {
+          value1: value.readPaths.length,
+          value2: value.writePaths.length,
+        })}
       </p>
     </fieldset>
   );

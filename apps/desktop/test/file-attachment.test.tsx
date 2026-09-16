@@ -24,7 +24,14 @@ it("previews a task file, paginates both ways, and closes", async () => {
   window.artemis = {
     previewPromptFile: read,
   } as unknown as typeof window.artemis;
-  render(<FileAttachment name="config.yml" id="file" threadId="task" zh />);
+  render(
+    <FileAttachment
+      name="config.yml"
+      id="file"
+      threadId="task"
+      locale="zh-CN"
+    />,
+  );
   fireEvent.click(screen.getByRole("button", { name: "预览文件: config.yml" }));
   expect(await screen.findByText("first")).toBeInTheDocument();
   expect(read).toHaveBeenCalledWith("file", 0, "task");
@@ -37,7 +44,11 @@ it("previews a task file, paginates both ways, and closes", async () => {
 });
 it("renders HTML as inert source text and shows a file icon for missing historical files", async () => {
   const { unmount } = render(
-    <FileAttachment name="page.html" content="<script>alert(1)</script>" zh />,
+    <FileAttachment
+      name="page.html"
+      content="<script>alert(1)</script>"
+      locale="zh-CN"
+    />,
   );
   fireEvent.click(screen.getByRole("button"));
   expect(
@@ -45,7 +56,7 @@ it("renders HTML as inert source text and shows a file icon for missing historic
   ).toBeInTheDocument();
   expect(document.querySelector("dialog script")).toBeNull();
   unmount();
-  render(<FileAttachment name="old.txt" zh />);
+  render(<FileAttachment name="old.txt" locale="zh-CN" />);
   fireEvent.click(screen.getByRole("button"));
   expect(
     await screen.findByRole("img", { name: "文件预览: old.txt" }),

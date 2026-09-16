@@ -32,6 +32,7 @@
 | [readme-visuals.md](records/readme-visuals.md)                           | README 截图与视觉资产规范(capture 脚本配套) |
 
 - [test-ci-audit.md](records/test-ci-audit.md)：测试与 CI 精简依据、覆盖保留和验证边界。
+- [localization-audit.md](records/localization-audit.md)：多语言语义校对、翻译查找修复与覆盖边界。
 
 ## 自治区与资产
 

@@ -1,3 +1,6 @@
+import { statusText } from "../shared/status-text.js";
+import { makeUiCopy } from "../shared/ui-text.js";
+import { UI_COPY } from "../shared/ui-copy.js";
 import { Temporal } from "@js-temporal/polyfill";
 import {
   createAutomationViewState,
@@ -30,8 +33,6 @@ import {
 } from "@artemis/ui/feedback";
 import { Checkbox, Select, TextAreaField, TextField } from "@artemis/ui/forms";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
-import { legacyLocale } from "../shared/locales.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
 
 type Locale = AppLocale;
 type SchedulePreset =
@@ -62,115 +63,7 @@ interface AutomationDraft {
   enabled: boolean;
 }
 
-const text = {
-  en: {
-    title: "Automations",
-    subtitle:
-      "Runs locally while Artemis is open. On restart, only the latest missed occurrence runs.",
-    create: "New automation",
-    allProjects: "All projects",
-    empty: "No automations yet.",
-    enabled: "Enabled",
-    paused: "Paused",
-    pauseTask: "Pause task",
-    enableTask: "Enable task",
-    authorizationRequired: "Authorization required",
-    authorize: "Authorize",
-    runNow: "Run now",
-    edit: "Edit",
-    delete: "Delete",
-    history: "Recent runs",
-    noRuns: "No runs yet",
-    nextRun: "Next",
-    lastRun: "Last",
-    never: "Never",
-    save: "Save",
-    cancel: "Cancel",
-    name: "Name",
-    prompt: "Prompt",
-    project: "Project",
-    mode: "Mode",
-    target: "Workspace",
-    schedule: "Schedule",
-    date: "Date",
-    time: "Time",
-    chooseTime: "Choose time",
-    hour: "Hour",
-    minute: "Minute",
-    timeZone: "Time zone",
-    once: "Once",
-    daily: "Every day",
-    weekdays: "Weekdays",
-    weekly: "Weekly",
-    interval: "Every",
-    windowedInterval: "Within a time window",
-    windowStart: "Window starts",
-    windowEnd: "Window ends",
-    intervalUnit: "Unit",
-    minutes: "Minutes",
-    hours: "Hours",
-    days: "Days",
-    local: "Local project",
-    managed: "Managed worktree",
-    unavailableProject: "Unavailable project",
-    deleteConfirm: "Delete this automation? Run history and tasks remain.",
-    executeWarning:
-      "Execute requires explicit unattended authorization after saving.",
-  },
-  "zh-CN": {
-    title: "定时任务",
-    subtitle:
-      "仅在 Artemis 运行时本地执行；重新启动后只补跑最近一次错过的任务。",
-    create: "新建定时任务",
-    allProjects: "全部项目",
-    empty: "还没有定时任务。",
-    enabled: "已启用",
-    paused: "已暂停",
-    pauseTask: "暂停任务",
-    enableTask: "开启任务",
-    authorizationRequired: "需要授权",
-    authorize: "授权",
-    runNow: "立即运行",
-    edit: "编辑",
-    delete: "删除",
-    history: "最近运行",
-    noRuns: "尚未运行",
-    nextRun: "下次",
-    lastRun: "上次",
-    never: "从未",
-    save: "保存",
-    cancel: "取消",
-    name: "名称",
-    prompt: "任务内容",
-    project: "项目",
-    mode: "模式",
-    target: "工作区",
-    schedule: "执行时间",
-    date: "日期",
-    time: "时间",
-    chooseTime: "选择时间",
-    hour: "小时",
-    minute: "分钟",
-    timeZone: "时区",
-    once: "一次",
-    daily: "每天",
-    weekdays: "工作日",
-    weekly: "每周",
-    interval: "每隔",
-    windowedInterval: "指定时间段内按间隔",
-    windowStart: "开始时间",
-    windowEnd: "结束时间",
-    intervalUnit: "单位",
-    minutes: "分钟",
-    hours: "小时",
-    days: "天",
-    local: "本地项目",
-    managed: "托管 Worktree",
-    unavailableProject: "不可用项目",
-    deleteConfirm: "删除这个定时任务？已生成的任务和运行历史仍会保留。",
-    executeWarning: "Execute 保存后必须明确授权无人值守执行。",
-  },
-} as const;
+const text = UI_COPY.AutomationPage_text;
 
 function normalizedOptionLabel(label: string): string {
   return label
@@ -206,10 +99,14 @@ function projectSelectOptions(
   });
 }
 
-const weekLabels = {
-  en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-  "zh-CN": ["一", "二", "三", "四", "五", "六", "日"],
-} as const;
+const weekLabels = makeUiCopy((locale) =>
+  Array.from({ length: 7 }, (_, day) =>
+    new Intl.DateTimeFormat(locale, {
+      weekday: locale.startsWith("zh") ? "narrow" : "short",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(2024, 0, day + 1))),
+  ),
+);
 
 const timeHours = Array.from({ length: 24 }, (_, index) =>
   String(index).padStart(2, "0"),
@@ -585,7 +482,7 @@ function draftForAutomation(automation: Automation): AutomationDraft {
 }
 
 function formatDate(value: string | undefined, locale: Locale): string {
-  if (!value) return text[legacyLocale(locale)].never;
+  if (!value) return text[locale].never;
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -594,17 +491,13 @@ function formatDate(value: string | undefined, locale: Locale): string {
 
 function scheduleLabel(automation: Automation, locale: Locale): string {
   const schedule = automation.schedule;
-  const labels = localizedCopy(
-    locale,
-    "automations",
-    text[legacyLocale(locale)],
-  );
+  const labels = text[locale];
   if (schedule.kind === "interval") {
     return `${labels.interval} ${schedule.every} ${labels[schedule.unit]}`;
   }
   if (schedule.kind === "windowed-interval") {
     const days = schedule.daysOfWeek
-      .map((day) => weekLabels[legacyLocale(locale)][day - 1])
+      .map((day) => weekLabels[locale][day - 1])
       .join(" ");
     return `${days} · ${schedule.startTime}–${schedule.endTime} · ${labels.interval} ${schedule.every} ${labels[schedule.unit]} · ${schedule.timeZone}`;
   }
@@ -612,7 +505,7 @@ function scheduleLabel(automation: Automation, locale: Locale): string {
     return `${labels.once} · ${formatDate(schedule.at, locale)} · ${schedule.timeZone}`;
   }
   const days = schedule.daysOfWeek
-    .map((day) => weekLabels[legacyLocale(locale)][day - 1])
+    .map((day) => weekLabels[locale][day - 1])
     .join(" ");
   return `${days} · ${schedule.localTime} · ${schedule.timeZone}`;
 }
@@ -623,11 +516,7 @@ export function AutomationPage(props: {
   onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
   onOpenThread(threadId: string): void;
 }) {
-  const t = localizedCopy(
-    props.locale,
-    "automations",
-    text[legacyLocale(props.locale)],
-  );
+  const t = text[props.locale];
   const [state, setState] = useState<AutomationViewState>(
     createAutomationViewState,
   );
@@ -942,7 +831,7 @@ export function AutomationPage(props: {
                     >
                       <span className={`automation-run-dot ${run.state}`} />
                       <span>{formatDate(run.scheduledFor, props.locale)}</span>
-                      <span>{run.state}</span>
+                      <span>{statusText(props.locale, run.state)}</span>
                       {run.reason && <small>{run.reason}</small>}
                     </Button>
                   ))
@@ -1153,7 +1042,7 @@ export function AutomationPage(props: {
             {(draft.preset === "weekly" ||
               draft.preset === "windowed-interval") && (
               <div className="automation-weekdays">
-                {weekLabels[legacyLocale(props.locale)].map((label, index) => {
+                {weekLabels[props.locale].map((label, index) => {
                   const day = index + 1;
                   return (
                     <Checkbox

@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 /**
  * Instance-identity labels for custom sub-agent runs (D#152 PR4): every
  * surface that lists a child agent shows which definition/revision/model
@@ -5,28 +6,15 @@
  */
 import type { AppLocale, ChildAgentState } from "@artemis/protocol";
 
-import { legacyLocale } from "../shared/locales.js";
-
 type CustomAgentInstance = NonNullable<ChildAgentState["customAgent"]>;
 
-const sourceLabels = {
-  en: {
-    "user-explicit": "via @",
-    "model-explicit": "model-chosen",
-    "model-automatic": "automatic",
-  },
-  "zh-CN": {
-    "user-explicit": "@ 调用",
-    "model-explicit": "模型指定",
-    "model-automatic": "自动路由",
-  },
-} as const;
+const sourceLabels = UI_COPY.custom_agent_identity_sourceLabels;
 
 export function customAgentSourceLabel(
   source: CustomAgentInstance["invocationSource"],
   locale: AppLocale,
 ): string {
-  return sourceLabels[legacyLocale(locale)][source];
+  return sourceLabels[locale][source];
 }
 
 /** Compact one-line identity: @name · r3 · provider/model · via @ */

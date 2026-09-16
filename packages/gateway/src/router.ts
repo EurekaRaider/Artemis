@@ -617,9 +617,15 @@ export class GatewayRouter {
     if (
       delivery.native &&
       delivery.native.expiresAt <= this.now() &&
-      ["hello", "probe", "proof", "delegate", "cancel", "note"].includes(
-        delivery.native.action,
-      )
+      [
+        "hello",
+        "probe",
+        "proof",
+        "delegate",
+        "continue",
+        "cancel",
+        "note",
+      ].includes(delivery.native.action)
     )
       return false;
 

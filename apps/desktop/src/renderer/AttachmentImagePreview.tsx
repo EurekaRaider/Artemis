@@ -1,13 +1,15 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../shared/ui-text.js";
 import { createPortal } from "react-dom";
 import type { PromptImage } from "@artemis/protocol";
 
 export function AttachmentImagePreview({
   image,
-  zh,
+  locale,
   onClose,
 }: {
   image: PromptImage;
-  zh: boolean;
+  locale: AppLocale;
   onClose: () => void;
 }) {
   return createPortal(
@@ -26,7 +28,7 @@ export function AttachmentImagePreview({
         <strong>{image.name}</strong>
         <button
           type="button"
-          aria-label={zh ? "关闭预览" : "Close preview"}
+          aria-label={uiText(locale, "AttachmentImagePreview.inline1")}
           onClick={(event) => event.currentTarget.closest("dialog")?.close()}
         >
           ×

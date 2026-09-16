@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -75,15 +76,17 @@ describe("Codex-style child-agent workspace tabs", () => {
     expect(panelSource).toContain("clockMs");
     expect(panelSource).toContain("child.lastActivityAt");
     expect(panelSource).toContain("child.currentTool");
-    expect(panelSource).toContain('"长时间运行"');
-    expect(panelSource).toContain('"疑似无响应"');
-    expect(panelSource).toContain('"Long-running"');
-    expect(panelSource).toContain('"Possibly unresponsive"');
+    expect(uiText("zh-CN", "App_labels_10125.longRunning")).toBe("长时间运行");
+    expect(uiText("zh-CN", "App_labels_10125.unresponsive")).toBe("疑似无响应");
+    expect(uiText("en", "App_labels_10125.longRunning")).toBe("Long-running");
+    expect(uiText("en", "App_labels_10125.unresponsive")).toBe(
+      "Possibly unresponsive",
+    );
     expect(panelSource).toContain("CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS");
     expect(panelSource).toContain("!child?.currentTool");
-    expect(panelSource).toContain('"催办"');
-    expect(panelSource).toContain('"停止此子代理"');
-    expect(panelSource).toContain('"重试"');
+    expect(uiText("zh-CN", "App_labels_10125.nudge")).toBe("催办");
+    expect(uiText("zh-CN", "App_labels_10125.childStop")).toBe("停止此子代理");
+    expect(uiText("zh-CN", "App_copy.queueRetry")).toBe("重试");
     expect(panelSource).toContain('onControl(child, "steer")');
     expect(panelSource).toContain('onControl(child, "cancel")');
     expect(panelSource).toContain('onControl(child, "retry")');

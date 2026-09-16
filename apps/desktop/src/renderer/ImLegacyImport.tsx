@@ -36,15 +36,8 @@ export function ImLegacyImport({
   const [stopped, setStopped] = useState(false);
   return (
     <details className="im-legacy-import">
-      <summary>
-        {t("从旧版飞书直连迁移", "Migrate a legacy Feishu connection")}
-      </summary>
-      <p>
-        {t(
-          "选择原电脑上的旧版 settings.json 以预览机器人配置。原文件和旧任务会保留，旧绑定、配对码和待审批项不会导入。",
-          "Select the legacy settings.json on the original computer to preview bot configurations. Original files and tasks remain; bindings, pairing codes and pending approvals are excluded.",
-        )}
-      </p>
+      <summary>{t("ImLegacyImport.message1")}</summary>
+      <p>{t("ImLegacyImport.message2")}</p>
       <Button
         disabled={busy || !ready}
         onClick={() =>
@@ -58,20 +51,24 @@ export function ImLegacyImport({
           })
         }
       >
-        {t("选择旧版设置文件", "Choose legacy settings file")}
+        {t("ImLegacyImport.message3")}
       </Button>
       {preview && (
         <>
           <InlineNotice tone="info">
-            {t(
-              `检测到 ${preview.connections.length} 个机器人配置${preview.legacyBindings === undefined ? "" : `、${preview.legacyBindings} 个旧绑定`}。导入后需要重新配对并授权项目。`,
-              `Found ${preview.connections.length} bot configurations${preview.legacyBindings === undefined ? "" : ` and ${preview.legacyBindings} legacy bindings`}. Pair again and grant projects after importing.`,
-            )}
+            {preview.legacyBindings === undefined
+              ? t("ImLegacyImport.detected", {
+                  count: preview.connections.length,
+                })
+              : t("ImLegacyImport.detectedWithBindings", {
+                  count: preview.connections.length,
+                  bindings: preview.legacyBindings,
+                })}
           </InlineNotice>
           {!!preview.connections.length && (
             <>
               <Select
-                label={t("待导入机器人", "Bot to import")}
+                label={t("ImLegacyImport.message5")}
                 value={importId}
                 disabled={busy}
                 options={preview.connections.map((c) => ({
@@ -94,10 +91,7 @@ export function ImLegacyImport({
               />
               {!local && (
                 <TextField
-                  label={t(
-                    "导入目标 Gateway 管理凭据",
-                    "Destination Gateway administrator token",
-                  )}
+                  label={t("ImLegacyImport.message6")}
                   type="password"
                   autoComplete="off"
                   value={adminToken}
@@ -106,10 +100,7 @@ export function ImLegacyImport({
                 />
               )}
               <Checkbox
-                label={t(
-                  "旧版直连已停止；确认将此机器人连接到当前 Gateway",
-                  "The legacy connection is stopped; connect this bot to the current Gateway",
-                )}
+                label={t("ImLegacyImport.message7")}
                 checked={stopped}
                 onCheckedChange={setStopped}
                 disabled={busy}
@@ -140,7 +131,7 @@ export function ImLegacyImport({
                   })
                 }
               >
-                {t("确认导入并连接", "Import and connect")}
+                {t("ImLegacyImport.message8")}
               </Button>
             </>
           )}

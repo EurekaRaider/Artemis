@@ -1,3 +1,4 @@
+import { uiTranslator } from "../shared/ui-text.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog } from "@artemis/ui/feedback";
 import type { AppLocale } from "@artemis/protocol";
@@ -12,7 +13,7 @@ export function WorktreeManager({
   onClose: () => void;
   onChanged?: (() => Promise<void>) | undefined;
 }) {
-  const t = (cn: string, en: string) => (locale.startsWith("zh") ? cn : en);
+  const t = uiTranslator(locale);
   const [items, setItems] = useState<WorktreeCleanupCandidate[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(true);
@@ -86,7 +87,7 @@ export function WorktreeManager({
   return (
     <Dialog
       open
-      label={t("管理工作树", "Manage worktrees")}
+      label={t("EnvironmentWorkspaceMenu.message9")}
       className="worktree-manager"
       closeOnEscape={!busy}
       closeOnBackdrop={!busy}
@@ -95,21 +96,12 @@ export function WorktreeManager({
       }}
     >
       <h2>
-        {t("管理工作树", "Manage worktrees")} · {items.length}/10
+        {t("EnvironmentWorkspaceMenu.message9")} · {items.length}/10
       </h2>
-      <p>
-        {t(
-          "所有项目合计最多 10 个。默认选择 30 天未更新、已推送到 GitHub 且没有本地文件改动的闲置工作树。",
-          "Up to 10 across all projects. Defaults select idle worktrees unchanged for 30 days, pushed to GitHub, and without local file changes.",
-        )}
-      </p>
-      {busy && (
-        <p role="status">{t("正在处理，请稍候…", "Working, please wait…")}</p>
-      )}
+      <p>{t("WorktreeManager.message2")}</p>
+      {busy && <p role="status">{t("WorktreeManager.message3")}</p>}
       {error && <p role="alert">{error}</p>}
-      {!busy && items.length === 0 && (
-        <p>{t("没有需要管理的工作树", "No managed worktrees")}</p>
-      )}
+      {!busy && items.length === 0 && <p>{t("WorktreeManager.message4")}</p>}
       <div className="worktree-manager-list">
         {items.map((item) => (
           <label
@@ -148,26 +140,14 @@ export function WorktreeManager({
               <code>{item.worktree.path}</code>
               <small>
                 {item.busy
-                  ? t(
-                      "任务运行中，无法删除",
-                      "Task active; deletion unavailable",
-                    )
+                  ? t("WorktreeManager.message9")
                   : !item.clean
-                    ? t(
-                        "有本地文件或无法检查，请先处理",
-                        "Local files or inspection failed; resolve first",
-                      )
+                    ? t("WorktreeManager.message8")
                     : item.recommended
-                      ? t(
-                          "推荐清理 · 已推送 · 超过 30 天",
-                          "Recommended · pushed · over 30 days",
-                        )
+                      ? t("WorktreeManager.message7")
                       : item.pushedToGitHub
-                        ? t("已推送到 GitHub", "Pushed to GitHub")
-                        : t(
-                            "未确认已推送到 GitHub，删除可能丢失本地提交",
-                            "GitHub push not confirmed; deletion may lose local commits",
-                          )}
+                        ? t("WorktreeManager.message6")
+                        : t("WorktreeManager.message5")}
               </small>
               {item.error && <small>{item.error}</small>}
             </span>
@@ -176,15 +156,12 @@ export function WorktreeManager({
       </div>
       {confirming && (
         <p role="alert">
-          {t(
-            `确认删除选中的 ${selected.length} 个工作树目录？任务记录会保留并切换回本地；未推送的提交可能丢失。`,
-            `Delete ${selected.length} selected worktree directories? Tasks remain and return to Local; unpushed commits may be lost.`,
-          )}
+          {t("WorktreeManager.message10", { value1: selected.length })}
         </p>
       )}
       <div className="worktree-manager-actions">
         <button type="button" disabled={busy} onClick={onClose}>
-          {t("关闭", "Close")}
+          {t("App_copy.renameClose")}
         </button>
         <button
           type="button"
@@ -192,11 +169,8 @@ export function WorktreeManager({
           onClick={() => (confirming ? void remove() : setConfirming(true))}
         >
           {confirming
-            ? t("确认删除", "Confirm deletion")
-            : t(
-                `删除所选 (${selected.length})`,
-                `Delete selected (${selected.length})`,
-              )}
+            ? t("WorktreeManager.message13")
+            : t("WorktreeManager.message12", { value1: selected.length })}
         </button>
       </div>
     </Dialog>

@@ -1,38 +1,10 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import { useId, useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { Popover } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { localizedCopy } from "../shared/i18n-resources.js";
-import { legacyLocale } from "../shared/locales.js";
 
-const labels = {
-  en: {
-    title: "Unable to load PR status",
-    connection: "GitHub connection interrupted. Try again shortly.",
-    fallback: "Could not refresh GitHub status. Retry or view details.",
-    retry: "Retry",
-    retrying: "Retrying…",
-    details: "View details",
-    errorDetails: "Error details",
-    copy: "Copy details",
-    copied: "Copied",
-    copyFailed: "Could not copy. Select and copy the details below.",
-    close: "Close",
-  },
-  "zh-CN": {
-    title: "暂时无法获取 PR 状态",
-    connection: "GitHub 连接中断，请稍后重试。",
-    fallback: "未能刷新 GitHub 状态，可重试或查看详情。",
-    retry: "重试",
-    retrying: "正在重试…",
-    details: "查看详情",
-    errorDetails: "错误详情",
-    copy: "复制详情",
-    copied: "已复制",
-    copyFailed: "复制失败，请选择下方详情手动复制。",
-    close: "关闭",
-  },
-};
+const labels = UI_COPY.EnvironmentPullRequestError_labels;
 
 export function EnvironmentPullRequestError({
   error,
@@ -45,7 +17,7 @@ export function EnvironmentPullRequestError({
   locale: AppLocale;
   onRetry: () => void;
 }) {
-  const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
+  const t = labels[locale];
   const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);

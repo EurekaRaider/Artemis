@@ -1,3 +1,4 @@
+import { type UiTranslate } from "../shared/ui-text.js";
 import type { ReactNode } from "react";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
@@ -12,7 +13,7 @@ const stepIcons = {
   folder: FolderIcon,
 };
 
-export type ImFlowTranslate = (cn: string, en: string) => string;
+export type ImFlowTranslate = UiTranslate;
 
 /**
  * One step card of the guided 消息接入 flow. The head collapses completed
@@ -87,7 +88,7 @@ export function ImFlowProgress({
 }) {
   return (
     <span className="im-status-pill im-flow-progress" role="status">
-      {t("设置进度", "Setup progress")} {done}/{total}
+      {t("ImFlowCard.message1")} {done}/{total}
     </span>
   );
 }

@@ -1,3 +1,4 @@
+import { uiTranslator } from "../shared/ui-text.js";
 import { WorktreeManager } from "./WorktreeManager.js";
 import { useId, useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
@@ -30,15 +31,15 @@ export function EnvironmentWorkspaceMenu({
   onWorktreesChanged?: (() => Promise<void>) | undefined;
   onOpenUsage?: (() => void) | undefined;
 }) {
-  const t = (cn: string, en: string) => (locale.startsWith("zh") ? cn : en);
+  const t = uiTranslator(locale);
   const anchor = useRef<HTMLButtonElement>(null);
   const id = useId();
   const [managerOpen, setManagerOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const label = worktree
-    ? t("本地工作树", "Local worktree")
-    : t("本地", "Local");
+    ? t("EnvironmentWorkspaceMenu.message2")
+    : t("App_copy.local");
   const change = async (destination: "local" | "managed-worktree") => {
     if (!onHandoff || disabled || pending) return;
     setPending(true);
@@ -47,8 +48,8 @@ export function EnvironmentWorkspaceMenu({
       setOpen(false);
       onMessage(
         destination === "local"
-          ? t("已继续至本地工作区", "Continued in Local")
-          : t("已继续至新建本地工作树", "Continued in a new local worktree"),
+          ? t("EnvironmentWorkspaceMenu.message4")
+          : t("EnvironmentWorkspaceMenu.message3"),
       );
     } catch (error) {
       if (String(error).includes("WORKTREE_LIMIT")) {
@@ -80,14 +81,14 @@ export function EnvironmentWorkspaceMenu({
         anchorRef={anchor}
         open={open}
         onOpenChange={setOpen}
-        label={t("继续至", "Continue in")}
+        label={t("EnvironmentWorkspaceMenu.message5")}
         role="menu"
         placement="inline-start"
         className="environment-workspace-menu"
         id={id}
       >
         <div className="environment-branch-heading">
-          {t("继续至", "Continue in")}
+          {t("EnvironmentWorkspaceMenu.message5")}
         </div>
         <button
           type="button"
@@ -97,7 +98,7 @@ export function EnvironmentWorkspaceMenu({
           onClick={() => (worktree ? void change("local") : setOpen(false))}
         >
           <EnvironmentLocalIcon />
-          <span>{t("本地", "Local")}</span>
+          <span>{t("App_copy.local")}</span>
           {!worktree && <EnvironmentCheckIcon />}
         </button>
         {worktree && (
@@ -122,8 +123,8 @@ export function EnvironmentWorkspaceMenu({
             <EnvironmentWorktreeIcon />
             <span>
               {pending
-                ? t("正在交接…", "Handing off…")
-                : t("新建本地工作树", "New local worktree")}
+                ? t("EnvironmentWorkspaceMenu.message8")
+                : t("EnvironmentWorkspaceMenu.message7")}
             </span>
           </button>
         )}
@@ -136,7 +137,7 @@ export function EnvironmentWorkspaceMenu({
           }}
         >
           <EnvironmentWorktreeIcon />
-          <span>{t("管理工作树", "Manage worktrees")}</span>
+          <span>{t("EnvironmentWorkspaceMenu.message9")}</span>
         </button>
         {onOpenUsage && (
           <button
@@ -149,17 +150,14 @@ export function EnvironmentWorkspaceMenu({
             }}
           >
             <ArtemisIcon name="token-usage" data-environment-tone="purple" />
-            <span>{t("Token 用量", "Token usage")}</span>
+            <span>{t("App_copy.tokenUsage")}</span>
           </button>
         )}
         {(disabled || !onHandoff) && (
           <p className="environment-branch-hint">
             {!onHandoff
-              ? t(
-                  "创建任务后可切换工作区",
-                  "Create a task to switch workspaces",
-                )
-              : t("请先停止正在运行的任务", "Stop running tasks first")}
+              ? t("EnvironmentWorkspaceMenu.message12")
+              : t("EnvironmentWorkspaceMenu.message11")}
           </p>
         )}
       </Popover>

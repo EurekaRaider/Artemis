@@ -85,7 +85,7 @@ it("retains failed selections and shows deletion errors", async () => {
         .mockRejectedValue(new Error("Worktree became dirty")),
     },
   });
-  render(<WorktreeManager locale="en-US" onClose={vi.fn()} />);
+  render(<WorktreeManager locale="en" onClose={vi.fn()} />);
   const user = userEvent.setup();
   await waitFor(() =>
     expect(
@@ -108,7 +108,7 @@ it("refreshes on focus without reselecting worktrees and drops unsafe selections
     configurable: true,
     value: { listWorktreeCleanupCandidates: list },
   });
-  render(<WorktreeManager locale="en-US" onClose={vi.fn()} />);
+  render(<WorktreeManager locale="en" onClose={vi.fn()} />);
   const user = userEvent.setup();
   const boxes = await screen.findAllByRole("checkbox");
   await waitFor(() => expect(boxes[0]).toBeEnabled());

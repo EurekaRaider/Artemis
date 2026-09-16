@@ -479,17 +479,37 @@ export class ArtemisGateway {
           throw new Error(
             "机器人连接不存在。 / Bot connection does not exist.",
           );
-        if (
-          this.store
-            .list<CollaborationSpace>("native-groups")
-            .some((space) =>
-              space.endpoints.some((endpoint) => endpoint.connectionId === id),
-            )
-        )
-          throw new Error(
-            "请先从群协作空间中移除此连接，再移除机器人。 / Remove this connection from collaboration spaces first.",
-          );
         this.store.transaction(() => {
+          for (const namespace of ["native-groups", "spaces"]) {
+            for (const space of this.store.list<CollaborationSpace>(
+              namespace,
+            )) {
+              if (
+                !space.endpoints.some(
+                  (endpoint) => endpoint.connectionId === id,
+                )
+              )
+                continue;
+              this.store.delete(namespace, space.id);
+              this.store.delete("space-confirmations", space.id);
+              this.store.delete("native-group-info", space.id);
+              this.store.put("removed-spaces", space.id, { id: space.id });
+              this.store.db
+                .prepare(
+                  "UPDATE queue SET state='cancelled' WHERE state IN ('pending','processing','sending') AND json_extract(payload,'$.conversation.spaceId')=?",
+                )
+                .run(space.id);
+            }
+          }
+          for (const group of this.store.list<{ conversation: ImConversation }>(
+            "observed-groups",
+          )) {
+            if (group.conversation.connectionId === id)
+              this.store.delete(
+                "observed-groups",
+                imConversationKey(group.conversation),
+              );
+          }
           this.store.delete("connections", id);
           // Retain only the ID so queued/history routes can never target a replacement bot.
           this.store.put("removed-connections", id, { id });

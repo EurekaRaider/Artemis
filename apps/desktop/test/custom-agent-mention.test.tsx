@@ -101,7 +101,7 @@ function Harness({
         ref={input}
         value={text}
       />
-      <CustomAgentMentionMenu mention={mention} zh={false} />
+      <CustomAgentMentionMenu mention={mention} locale="en" />
     </>
   );
 }

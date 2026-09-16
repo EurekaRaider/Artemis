@@ -1,3 +1,4 @@
+import { uiTranslator } from "../src/shared/ui-text.js";
 // @vitest-environment jsdom
 import {
   act,
@@ -46,7 +47,7 @@ type Status = ImStatus & {
   connections: ImConnectionStatus[];
   spaces?: unknown[];
 };
-const t = (cn: string) => cn;
+const t = uiTranslator("zh-CN");
 function fixture(ready = true) {
   let current: Status = {
     settings: imSettingsSchema.parse(
@@ -94,6 +95,7 @@ function fixture(ready = true) {
   stubWindowArtemis({
     getImStatus: vi.fn(async () => structuredClone(current)),
     getSnapshot: vi.fn(async () => ({
+      userName: "test-user",
       projects: [
         {
           id: "test-project",
@@ -155,6 +157,48 @@ const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("production IM settings", () => {
+  it("shows and copies the pairing code after saving a Slack bot", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^接入渠道/);
+    await user.click(platformCard("slack"));
+    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    await user.type(screen.getByLabelText("Bot User OAuth Token"), "xoxb-test");
+    await user.type(screen.getByLabelText("App-Level Token"), "xapp-test");
+    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: t("ImAccountControls.message1"),
+    });
+    expect(within(dialog).getByText("0123456789abcdef")).toBeVisible();
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "pair",
+      requireConfirmation: true,
+    });
+    await user.click(within(dialog).getByRole("button", {
+      name: t("ImAccountControls.message6"),
+    }));
+    expect(writeText).toHaveBeenCalledWith("pair 0123456789abcdef");
+  });
+
+  it("copies a Slack manifest named after the current user", async () => {
+    fixture(false);
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openCard(user, /^接入渠道/);
+    await user.click(platformCard("slack"));
+    await user.click(screen.getByText(t("ImSettingsPanel.message59")));
+    await user.click(screen.getByRole("button", { name: "复制 Slack 应用配置" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const manifest = JSON.parse(writeText.mock.calls[0]![0]);
+    expect(manifest.display_information.name).toBe("test-user_bot");
+    expect(manifest.features.bot_user.display_name).toBe("test-user_bot");
+    expect(manifest.settings.socket_mode_enabled).toBe(true);
+  });
+
   it.each(["overview", "verify"])(
     "navigates from the completion action to %s",
     async (destination) => {
@@ -454,7 +498,9 @@ describe("production IM settings", () => {
       await user.click(screen.getByRole("button", { name: /^移除连接/ }));
       f.manage.mockRejectedValueOnce(new Error("Cannot remove"));
       await user.click(screen.getByRole("button", { name: "确认移除" }));
-      expect(await screen.findByText("Cannot remove")).toBeVisible();
+      expect(
+        await within(screen.getByRole("dialog")).findByRole("alert"),
+      ).toHaveTextContent("Cannot remove");
       expect(screen.getByRole("button", { name: "确认移除" })).toBeVisible();
       await user.click(screen.getByRole("button", { name: "确认移除" }));
       expect(f.manage).toHaveBeenCalledWith({
@@ -1385,6 +1431,7 @@ describe("pairing code lifecycle", () => {
     const user = userEvent.setup();
     render(
       <ImDiagnostics
+        locale="zh-CN"
         t={t}
         editSpace={editSpace}
         value={{
@@ -1401,7 +1448,7 @@ describe("pairing code lifecycle", () => {
       screen.getByText("test-user · 企业微信 · test-device"),
     ).toBeVisible();
     expect(screen.getByText("wecom-team · test-group")).toBeVisible();
-    expect(screen.getByText("pending · 2")).toBeVisible();
+    expect(screen.getByText("待处理 · 2")).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "编辑空间：Test space" }),
     );

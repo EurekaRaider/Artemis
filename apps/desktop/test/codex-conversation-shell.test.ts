@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { artemisDarkTokens } from "@artemis/theme-artemis";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
@@ -192,11 +193,11 @@ describe("Codex conversation shell contract", () => {
     expect(createThread).toContain("setActiveThreadId(thread.id)");
     expect(conversation).toContain("activeEvents.length === 0");
     expect(conversation).toContain("<ArtemisMark />");
-    expect(appSource).toContain(
-      'emptyConversationPrompt: "What should we build in {{workspace}}?"',
+    expect(uiText("en", "App_copy.emptyConversationPrompt")).toBe(
+      "What should we build in {{workspace}}?",
     );
-    expect(appSource).toContain(
-      'emptyConversationPrompt: "想在 {{workspace}} 中构建什么？"',
+    expect(uiText("zh-CN", "App_copy.emptyConversationPrompt")).toBe(
+      "想在 {{workspace}} 中构建什么？",
     );
     expect(conversation).toContain("emptyConversationLabel");
     expect(conversation).toContain("emptyConversationPrefix");
@@ -283,11 +284,11 @@ describe("Codex conversation shell contract", () => {
     expect(sendPrompt.indexOf("t.modeCommandWhileRunning")).toBeLessThan(
       sendPrompt.indexOf("window.artemis.followUpTurn({"),
     );
-    expect(appSource).toMatch(
-      /multipleModeCommands:\s*"Only one \/plan, \/execute, or \/review command is allowed per message\."/u,
+    expect(uiText("en", "App_copy.multipleModeCommands")).toBe(
+      "Only one /plan, /execute, or /review command is allowed per message.",
     );
-    expect(appSource).toMatch(
-      /multipleModeCommands:\s*"每条消息只能包含一个 \/plan、\/execute 或 \/review 指令。"/u,
+    expect(uiText("zh-CN", "App_copy.multipleModeCommands")).toBe(
+      "每条消息只能包含一个 /plan、/execute 或 /review 指令。",
     );
     expect(appSource).toContain("selectComposerCommand(`/${mode} `)");
     expect(appSource).toMatch(

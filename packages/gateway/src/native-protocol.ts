@@ -19,6 +19,7 @@ export const nativeEnvelopeSchema = z
       "probe",
       "proof",
       "delegate",
+      "continue",
       "accepted",
       "rejected",
       "progress",
@@ -28,12 +29,16 @@ export const nativeEnvelopeSchema = z
       "cancelled",
     ]),
     replyTo: z.string().uuid().optional(),
+    previousTask: z.string().uuid().optional(),
     issuedAt: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
     sequence: z.number().int().min(0),
     text: z.string().max(8000),
   })
-  .strict();
+  .strict()
+  .refine((frame) => (frame.action === "continue") === !!frame.previousTask, {
+    message: "Only continuation frames must identify a previous task.",
+  });
 export type NativeEnvelope = z.infer<typeof nativeEnvelopeSchema>;
 export function encodeNativeEnvelope(input: NativeEnvelope): string {
   const encoded =

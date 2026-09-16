@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -19,65 +20,12 @@ import {
 } from "@artemis/ui/workflow";
 
 import type { WorkspaceFileLink } from "../shared/api.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
-import { legacyLocale } from "../shared/locales.js";
 import { type McpGroup, groupMcpUsage } from "./EnvironmentPanel.js";
 
-const labels = {
-  en: {
-    title: "Sources",
-    attachments: "Attachments",
-    agents: "Agents",
-    task: "This task",
-    viewAgent: "View details",
-    viewFile: "Open file",
-    web: "Web",
-    empty: "No sources have been added to this task.",
-    draft: "Attached to the next message",
-    sent: "Added to the task",
-    parentAgent: "Parent agent",
-    usedBy: "Used by",
-    mcpSummary: (calls: number, tools: number) =>
-      `${calls} ${calls === 1 ? "call" : "calls"} · ${tools} ${tools === 1 ? "tool" : "tools"}`,
-    searchSummary: (searches: number, results: number) =>
-      `${searches} ${searches === 1 ? "search" : "searches"} · ${results} ${results === 1 ? "web result" : "web results"}`,
-    searchQuery: "Search query",
-    openSource: "Open source",
-    openImage: "Open image",
-    closeImage: "Close image preview",
-    previewUnavailable:
-      "This image is missing or cannot be read. Attach it again to preview it.",
-    imageUnavailable: "Image unavailable",
-    showDetails: "Show tool call details",
-    hideDetails: "Hide tool call details",
-  },
-  "zh-CN": {
-    title: "来源",
-    attachments: "附件",
-    agents: "Agent",
-    task: "本次任务",
-    viewAgent: "查看详情",
-    viewFile: "查看文件",
-    web: "网页",
-    empty: "当前任务尚未添加来源。",
-    draft: "已附加到下一条消息",
-    sent: "已添加到任务",
-    parentAgent: "父 Agent",
-    usedBy: "使用 Agent",
-    mcpSummary: (calls: number, tools: number) =>
-      `${calls} 次调用 · ${tools} 个工具`,
-    searchSummary: (searches: number, results: number) =>
-      `${searches} 次搜索 · ${results} 个网页结果`,
-    searchQuery: "搜索内容",
-    openSource: "打开来源",
-    openImage: "打开图片",
-    closeImage: "关闭图片预览",
-    previewUnavailable: "图片已丢失或无法读取，请重新附加图片后预览。",
-    imageUnavailable: "图片不可用",
-    showDetails: "显示工具调用详情",
-    hideDetails: "隐藏工具调用详情",
-  },
-} satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
+const labels = UI_COPY.SourcesPanel_labels satisfies Record<
+  AppLocale,
+  Record<string, unknown>
+>;
 
 interface WebSearchSource {
   engine: string;
@@ -313,7 +261,7 @@ export function SourcesPanel({
   sources: TaskSourceState[];
   threadId: string;
 }) {
-  const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
+  const t = labels[locale];
   const mcpGroups = useMemo(() => groupMcpUsage(mcpUsages), [mcpUsages]);
   const mcpToolStats = useMemo(() => {
     const stats = new Map<string, Map<string, number>>();

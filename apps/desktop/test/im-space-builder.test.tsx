@@ -1,3 +1,4 @@
+import { uiTranslator } from "../src/shared/ui-text.js";
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -27,7 +28,7 @@ it("distinguishes groups by real route identifiers and permits keyboard selectio
       }}
       projects={[]}
       busy={false}
-      t={(cn) => cn}
+      t={uiTranslator("zh-CN")}
       run={async (fn) => {
         await fn();
         return true;
@@ -70,7 +71,7 @@ it("keeps many groups compact and searches without expanding their settings", as
       }}
       projects={[]}
       busy={false}
-      t={(cn) => cn}
+      t={uiTranslator("zh-CN")}
       run={async (fn) => {
         await fn();
         return true;
@@ -136,7 +137,7 @@ it("hides discovered and saved WeCom groups while keeping Slack and Lark selecta
       }}
       projects={[]}
       busy={false}
-      t={(cn) => cn}
+      t={uiTranslator("zh-CN")}
       run={async () => true}
       refresh={async () => {}}
     />,

@@ -1,4 +1,4 @@
-import { imIdentityKey } from "@artemis/protocol";
+import { collaborationCommandSchema, imIdentityKey } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 import type {
   ChannelEvent,
@@ -404,7 +404,7 @@ export class NativeCooperation {
       } else {
         if (envelope.recipient !== address.sender) return false;
         if (
-          ["delegate", "note"].includes(envelope.action) &&
+          ["delegate", "continue", "note"].includes(envelope.action) &&
           !this.allowed(group, envelope.sender)
         )
           return false;
@@ -412,8 +412,21 @@ export class NativeCooperation {
           "native-tasks",
           envelope.task,
         );
-        if (envelope.action === "delegate") {
+        if (envelope.action === "delegate" || envelope.action === "continue") {
           if (existing || !envelope.text.trim()) return false;
+          const previous = envelope.previousTask
+            ? this.store.get<NativeTask>("native-tasks", envelope.previousTask)
+            : undefined;
+          if (
+            envelope.action === "continue" &&
+            (!previous ||
+              previous.direction !== "incoming" ||
+              previous.groupId !== group.id ||
+              previous.peer !== envelope.sender ||
+              !terminal(previous.state) ||
+              !previous.threadId)
+          )
+            return false;
           if (
             this.store.get(
               "group-denied-senders",
@@ -446,6 +459,7 @@ export class NativeCooperation {
             text: envelope.text,
             expiresAt: Math.min(envelope.expiresAt, this.now() + 30 * 60000),
             nativeTaskId: envelope.task,
+            ...(previous ? { taskId: previous.threadId } : {}),
             collaboration: {
               taskId: envelope.task,
               coordinatorDeviceId: owner.deviceId,
@@ -644,6 +658,7 @@ export class NativeCooperation {
     const group = this.group(request.conversation.spaceId!);
     if (!this.router.isInvocationAuthorized(request))
       throw new Error("Authorization revoked.");
+    command = collaborationCommandSchema.parse(command);
     if (command.action === "participants")
       return this.peers(group.id).filter((p) => this.allowed(group, p.id));
     if (command.action === "status")
@@ -727,10 +742,7 @@ export class NativeCooperation {
           throw new Error("At least one assignment is required.");
         const tasks: NativeTask[] = [];
         for (const assignment of assignments) {
-          if (
-            !this.allowed(group, assignment.participantId) ||
-            !assignment.text.trim()
-          )
+          if (!this.allowed(group, assignment.participantId))
             throw new Error("Bot is not authorized or verified.");
           const dependencies = assignment.dependsOn ?? [];
           if (
@@ -755,6 +767,40 @@ export class NativeCooperation {
             randomUUID(),
             workflow.id,
           );
+          // A new receipt tracks each turn; only the worker's session is reused.
+          const sessionKey = JSON.stringify([
+            group.id,
+            threadId,
+            assignment.participantId,
+          ]);
+          if (command.action === "delegate" && !command.newTask) {
+            const selected = this.store.get<string>(
+              "native-sessions",
+              sessionKey,
+            );
+            const previous =
+              (selected
+                ? this.store.get<NativeTask>("native-tasks", selected)
+                : undefined) ??
+              this.tasks(group.id)
+                .filter(
+                  (t) =>
+                    t.direction === "outgoing" &&
+                    t.threadId === threadId &&
+                    t.peer === assignment.participantId,
+                )
+                .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+            if (previous) {
+              if (!terminal(previous.state))
+                throw new Error(
+                  "Wait for the peer's result before continuing, or use newTask for independent work.",
+                );
+              if (previous.state !== "rejected") {
+                envelope.action = "continue";
+                envelope.previousTask = previous.id;
+              }
+            }
+          }
           const task: NativeTask = {
             version: 1,
             id: envelope.task,
@@ -772,6 +818,8 @@ export class NativeCooperation {
             updatedAt: this.now(),
           };
           this.store.put("native-tasks", task.id, task);
+          if (command.action === "delegate")
+            this.store.put("native-sessions", sessionKey, task.id);
           tasks.push(task);
           if (!dependencies.length) this.send(group, envelope, request.id);
         }

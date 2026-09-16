@@ -1,3 +1,6 @@
+import { statusText } from "../shared/status-text.js";
+import { uiText } from "../shared/ui-text.js";
+import { UI_COPY } from "../shared/ui-copy.js";
 import { ImSettingsPanel } from "./ImSettingsPanel.js";
 import { CustomAgentsSettingsSection } from "./CustomAgentsSettingsSection.js";
 import {
@@ -9,7 +12,6 @@ import {
   type RefObject,
   type ReactNode,
 } from "react";
-import { useTranslation } from "react-i18next";
 import type {
   AppLocale,
   AppLanguage,
@@ -51,12 +53,7 @@ import type {
   ConfigurationImportSource,
   SettingsSnapshot,
 } from "../shared/api.js";
-import {
-  LOCALE_METADATA,
-  SUPPORTED_LOCALES,
-  legacyLocale,
-} from "../shared/locales.js";
-import { I18N_RESOURCES } from "../shared/i18n-resources.js";
+import { LOCALE_METADATA, SUPPORTED_LOCALES } from "../shared/locales.js";
 import { prepareProfileAvatar } from "./profile-avatar.js";
 
 interface SettingsPanelProps {
@@ -75,389 +72,7 @@ interface SettingsPanelProps {
   ): void;
 }
 
-const labels = {
-  en: {
-    title: "Settings",
-    close: "Close",
-    tabGeneral: "General",
-    tabProviders: "Providers & models",
-    providerConfigBuiltin: "Built-in",
-    providerConfigCustom: "Custom",
-    tabAgents: "Agent configuration",
-    tabCapabilities: "Execution access",
-    tabMaintenance: "Updates & diagnostics",
-    model: "Model",
-    modelSearch: "Search by model, Provider, or ID",
-    modelSearchEmpty: "No matching models",
-    modelUnavailable:
-      "The model catalog is unavailable. Restart Artemis or check Updates & diagnostics.",
-    contextWindow: "Context length",
-    contextWindowHint:
-      "Automatically compacts after usage exceeds 90%. Current model limit: {limit} tokens.",
-    saveModel: "Add model",
-    modelSaved: "Model added",
-    modelSaveFailed: "Model could not be added",
-    modelSavedDetail:
-      "The model and any entered API key were saved. It is now available from the conversation model picker.",
-    addedModels: "Added models",
-    noAddedModels: "No models have been added",
-    removeModel: "Remove model",
-    removeModelConfirm: "Remove {model} from the conversation model picker?",
-    removeModelCredentialConfirm:
-      "This is the last added model for {provider}. Its saved API key will also be deleted.",
-    deleteProviderConfirm:
-      "Delete {provider}? Its models and saved API key will also be removed.",
-    confirm: "OK",
-    language: "Language",
-    languageSystem: "Use system language",
-    languageEnglish: "English",
-    languageChinese: "Simplified Chinese",
-    languageHint: "Language changes apply immediately.",
-    theme: "Theme",
-    themeSystem: "Use system theme",
-    themeLight: "Light",
-    themeDark: "Dark",
-    themeHint: "Theme changes apply immediately.",
-    profileAvatar: "Profile picture",
-    profileAvatarUpload: "Choose image",
-    profileAvatarChange: "Change image",
-    profileAvatarRemove: "Remove",
-    profileAvatarHint:
-      "PNG, JPEG, or WebP up to 8 MiB. Artemis crops and stores a 256 px local copy.",
-    customProviders: "Custom providers",
-    provider: "Provider ID",
-    providerName: "Provider display name",
-    baseUrl: "Base URL, e.g. http://127.0.0.1:11434/v1",
-    providerApi: "API protocol",
-    chatCompletionsApi: "Chat Completions (/chat/completions)",
-    responsesApi: "Responses (/responses)",
-    modelId: "Model ID, e.g. deepseek-r1:8b",
-    modelName: "Model display name",
-    maxTokens: "Max output tokens",
-    reasoningModel: "Supports reasoning",
-    highestReasoningLevel: "Highest supported reasoning level",
-    thinkingMinimal: "Minimal",
-    thinkingLow: "Low",
-    thinkingMedium: "Medium",
-    thinkingHigh: "High",
-    thinkingXHigh: "Extra high",
-    thinkingMax: "Max",
-    imageInput: "Supports image input",
-    saveProvider: "Save provider connection",
-    cancelEdit: "Cancel edit",
-    providerHint:
-      "Provider ID uses lowercase letters, numbers, dots, underscores, or hyphens. Use Responses for OpenCode @ai-sdk/openai, or Chat Completions for @ai-sdk/openai-compatible. API key is optional for local services.",
-    configuredProviders: "Configured provider connections",
-    noProviders: "No custom provider connections",
-    apiKey: "API key",
-    optionalApiKey: "API key (optional, encrypted)",
-    storedApiKey: "API key already stored — leave blank to keep it",
-    importPi: "Import Pi auth.json",
-    delete: "Delete",
-    encrypted: "Protected by OS encryption",
-    unavailable: "OS encryption unavailable — credentials are read-only",
-    imported: "credentials imported",
-    loading: "Loading settings…",
-    mcp: "MCP servers",
-    addServer: "Add server",
-    backToServers: "Back to MCP servers",
-    addMcp: "Add MCP server",
-    updateMcp: "Update {name} MCP",
-    newServerHint: "Enter the command Artemis should launch.",
-    transportChangeHint:
-      "To change the MCP server type, uninstall the current configuration first.",
-    serverId: "Server ID",
-    serverName: "Display name",
-    transport: "Transport",
-    endpoint: "HTTPS URL or executable",
-    launchCommand: "Launch command",
-    serverUrl: "Server URL",
-    arguments: "Arguments",
-    addArgument: "Add argument",
-    environmentVariables: "Environment variables",
-    environmentKey: "Key",
-    environmentValue: "Value",
-    addEnvironment: "Add environment variable",
-    environmentVariablePassthrough: "Environment variable passthrough",
-    environmentVariableName: "Variable name",
-    addEnvironmentVariable: "Add variable",
-    workspace: "Working directory",
-    bearer: "Bearer token (optional, encrypted)",
-    authentication: "Authentication",
-    authNone: "None",
-    authBearer: "Bearer token",
-    authOAuth: "OAuth 2.1",
-    authorize: "Authorize",
-    oauthHint:
-      "Authorization opens your browser and stores tokens with OS encryption.",
-    capabilityAccess: "Execution access",
-    shellRuntime: "Shell runtime",
-    shellRuntimeHint:
-      "Agent commands stay non-interactive. Environment-only imports PATH and other non-secret variables once per task; full compatibility loads the user profile for every command. Dedicated profiles: ~/.config/artemis/agent-profile.zsh or .bash, and %LOCALAPPDATA%\\Artemis\\agent-profile.ps1.",
-    windowsShell: "Windows shell",
-    windowsShellAuto: "Automatic: PowerShell 7, then 5.1",
-    windowsShellPowerShell7: "Require PowerShell 7",
-    windowsShellLegacy: "Windows PowerShell 5.1",
-    shellProfileMode: "Profile compatibility",
-    shellProfileEnvironment: "Environment only (recommended)",
-    shellProfileFull: "Full profile for every command",
-    shellProfileDisabled: "Disabled",
-    localFullAccess: "Full local access",
-    localFullAccessDetail:
-      "Allow executable extensions to run with your desktop permissions.",
-    mcpFullAccessHint:
-      "Local stdio MCP always has full local access and network access.",
-    saveServer: "Save and connect",
-    edit: "Edit",
-    uninstall: "Uninstall",
-    reconnect: "Reconnect",
-    tools: "tools",
-    noServers: "No MCP servers configured",
-    extensions: "Trusted Pi extensions",
-    trustExtension: "Select and trust extension",
-    noExtensions: "No trusted extensions",
-    enabled: "Enabled",
-    extensionNetwork: "Allow network while tools run",
-    retrust: "Trust current contents",
-    extensionWarning:
-      "Executable extensions are hash-pinned and run per tool call in the OS sandbox. Hooks, commands, flags, and shortcuts are not loaded.",
-    updates: "Updates",
-    checkUpdates: "Check for updates",
-    installUpdate: "Restart and install",
-    rollbackReady: "Previous healthy installer retained",
-    diagnostics: "Diagnostics",
-    diagnosticsHint:
-      "Export a local, redacted crash bundle. Nothing is uploaded automatically.",
-    exportDiagnostics: "Export diagnostic bundle",
-    diagnosticsExported: "Diagnostic bundle exported:",
-    globalAgents: "Global AGENTS.md",
-    globalAgentsHint:
-      "Loaded before each project's AGENTS.md for every new task and sub-agent.",
-    saveGlobalAgents: "Save global rules",
-    agentConcurrency: "Agent concurrency",
-    agentConcurrencyHint:
-      "Automatic mode sizes the global active-agent limit at startup and temporarily reduces it under system pressure. Running agents are never cancelled.",
-    concurrencyMode: "Capacity mode",
-    concurrencyAutomatic: "Automatic (recommended)",
-    concurrencyManual: "Manual ceiling",
-    concurrencyManualLimit: "Maximum active agents",
-    concurrencyApply: "Apply ceiling",
-    concurrencyLogical: "Logical members per task",
-    concurrencyConfigured: "Configured ceiling",
-    concurrencyAutomaticSafe: "Automatic safe ceiling",
-    concurrencyEffective: "Effective now",
-    concurrencyActive: "Active",
-    concurrencyQueued: "Queued",
-    concurrencyWaiting: "Collaboration waiting",
-    concurrencyHighWarning:
-      "High concurrency consumes quota faster and may trigger Provider rate limits. Artemis will still reduce admissions under system pressure.",
-    concurrencyHardware: "Detected hardware",
-    concurrencyHardwareValue: "{cores} parallel cores · {memory} GiB memory",
-    concurrencyThrottled:
-      "Temporarily reduced due to system pressure: {reasons}.",
-    concurrencyCpu: "CPU",
-    concurrencyEventLoop: "app responsiveness",
-    concurrencyMemory: "memory",
-    configurationImport: "Import existing agent configuration",
-    configurationImportHint:
-      "Preview and selectively import global rules, Skills, and MCP servers. Existing named resources are kept.",
-    scanImports: "Scan configuration",
-    applyImports: "Import selected",
-    importInstructions: "Global rules",
-    importSkills: "Skills",
-    importMcp: "MCP",
-    detected: "detected",
-    notDetected: "not detected",
-    importCompleted: "Import completed",
-  },
-  "zh-CN": {
-    title: "设置",
-    close: "关闭",
-    tabGeneral: "通用",
-    tabProviders: "供应商及模型配置",
-    providerConfigBuiltin: "内置",
-    providerConfigCustom: "自定义",
-    tabAgents: "智能体配置",
-    tabCapabilities: "执行权限",
-    tabMaintenance: "更新与诊断",
-    model: "模型",
-    modelSearch: "搜索模型、Provider 或模型 ID",
-    modelSearchEmpty: "没有匹配的模型",
-    modelUnavailable: "模型目录暂不可用，请重启 Artemis 或查看“更新与诊断”。",
-    contextWindow: "上下文长度",
-    contextWindowHint:
-      "使用量超过 90% 后自动压缩。当前模型上限：{limit} token。",
-    saveModel: "添加模型",
-    modelSaved: "模型已添加",
-    modelSaveFailed: "模型添加失败",
-    modelSavedDetail:
-      "模型及本次填写的 API Key 已保存，现在可以从对话框的模型菜单中切换。",
-    addedModels: "已添加模型",
-    noAddedModels: "尚未添加模型",
-    removeModel: "删除模型",
-    removeModelConfirm: "从对话模型菜单中删除 {model}？",
-    removeModelCredentialConfirm:
-      "这是 {provider} 最后一个已添加模型，删除时也会清理已保存的 API Key。",
-    deleteProviderConfirm:
-      "删除 {provider}？其模型和已保存的 API Key 也会一并删除。",
-    confirm: "确定",
-    language: "语言",
-    languageSystem: "跟随系统",
-    languageEnglish: "English",
-    languageChinese: "简体中文",
-    languageHint: "语言修改后立即生效。",
-    theme: "界面主题",
-    themeSystem: "跟随系统",
-    themeLight: "浅色",
-    themeDark: "深色",
-    themeHint: "主题修改后立即生效。",
-    profileAvatar: "头像",
-    profileAvatarUpload: "选择图片",
-    profileAvatarChange: "更换图片",
-    profileAvatarRemove: "移除",
-    profileAvatarHint:
-      "支持不超过 8 MiB 的 PNG、JPEG 或 WebP；Artemis 会裁剪并在本地保存 256 px 副本。",
-    customProviders: "自定义 Provider",
-    provider: "Provider ID",
-    providerName: "Provider 显示名称",
-    baseUrl: "Base URL，例如 http://127.0.0.1:11434/v1",
-    providerApi: "API 协议",
-    chatCompletionsApi: "Chat Completions (/chat/completions)",
-    responsesApi: "Responses (/responses)",
-    modelId: "模型 ID，例如 deepseek-r1:8b",
-    modelName: "模型显示名称",
-    maxTokens: "最大输出 Token",
-    reasoningModel: "支持推理",
-    highestReasoningLevel: "支持的最高推理档位",
-    thinkingMinimal: "最低",
-    thinkingLow: "低",
-    thinkingMedium: "中",
-    thinkingHigh: "高",
-    thinkingXHigh: "极高",
-    thinkingMax: "最高",
-    imageInput: "支持图片输入",
-    saveProvider: "保存 Provider 连接",
-    cancelEdit: "取消编辑",
-    providerHint:
-      "Provider ID 仅支持小写字母、数字、点、下划线或连字符。OpenCode @ai-sdk/openai 请选择 Responses；@ai-sdk/openai-compatible 请选择 Chat Completions。本地服务可以不填写 API Key。",
-    configuredProviders: "已配置的 Provider 连接",
-    noProviders: "尚未配置自定义 Provider",
-    apiKey: "API Key",
-    optionalApiKey: "API Key（可选，加密保存）",
-    storedApiKey: "已保存 API Key，留空则保持不变",
-    importPi: "导入 Pi auth.json",
-    delete: "删除",
-    encrypted: "由操作系统加密保护",
-    unavailable: "操作系统加密不可用——凭据只读",
-    imported: "项凭据已导入",
-    loading: "正在加载设置…",
-    mcp: "MCP 服务器",
-    addServer: "添加服务器",
-    backToServers: "返回 MCP 服务器",
-    addMcp: "添加 MCP 服务器",
-    updateMcp: "更新 {name} MCP",
-    newServerHint: "填写 Artemis 要启动的命令。",
-    transportChangeHint: "如需切换 MCP 服务器类型，请先卸载当前配置。",
-    serverId: "服务器 ID",
-    serverName: "显示名称",
-    transport: "传输",
-    endpoint: "HTTPS URL 或可执行文件",
-    launchCommand: "启动命令",
-    serverUrl: "服务器 URL",
-    arguments: "参数",
-    addArgument: "添加参数",
-    environmentVariables: "环境变量",
-    environmentKey: "键",
-    environmentValue: "值",
-    addEnvironment: "添加环境变量",
-    environmentVariablePassthrough: "环境变量传递",
-    environmentVariableName: "变量名",
-    addEnvironmentVariable: "添加变量",
-    workspace: "工作目录",
-    bearer: "Bearer Token（可选，加密保存）",
-    authentication: "身份验证",
-    authNone: "无",
-    authBearer: "Bearer Token",
-    authOAuth: "OAuth 2.1",
-    authorize: "授权",
-    oauthHint: "授权将在浏览器中完成，Token 由操作系统加密保存。",
-    capabilityAccess: "执行权限",
-    shellRuntime: "Shell 运行环境",
-    shellRuntimeHint:
-      "Agent 命令保持非交互。仅导入环境会在每个任务中捕获一次 PATH 等非敏感变量；完整兼容会在每条命令前加载用户 profile。专用配置文件：~/.config/artemis/agent-profile.zsh 或 .bash，以及 %LOCALAPPDATA%\\Artemis\\agent-profile.ps1。",
-    windowsShell: "Windows Shell",
-    windowsShellAuto: "自动：PowerShell 7，回退 5.1",
-    windowsShellPowerShell7: "强制 PowerShell 7",
-    windowsShellLegacy: "Windows PowerShell 5.1",
-    shellProfileMode: "Profile 兼容模式",
-    shellProfileEnvironment: "仅导入环境（推荐）",
-    shellProfileFull: "每条命令加载完整 Profile",
-    shellProfileDisabled: "关闭",
-    localFullAccess: "完整本机访问",
-    localFullAccessDetail: "允许可执行扩展使用当前桌面用户权限运行。",
-    mcpFullAccessHint: "本地 stdio MCP 始终拥有完整本机访问权限并可联网。",
-    saveServer: "保存并连接",
-    edit: "编辑",
-    uninstall: "卸载",
-    reconnect: "重新连接",
-    tools: "个工具",
-    noServers: "尚未配置 MCP 服务器",
-    extensions: "可信 Pi 扩展",
-    trustExtension: "选择并信任扩展",
-    noExtensions: "尚未信任扩展",
-    enabled: "启用",
-    extensionNetwork: "扩展工具运行时允许联网",
-    retrust: "信任当前文件内容",
-    extensionWarning:
-      "可执行扩展按内容哈希锁定，并在每次工具调用时进入操作系统沙箱。事件 Hook、命令、Flag 和快捷键不会加载。",
-    updates: "更新",
-    checkUpdates: "检查更新",
-    installUpdate: "重启并安装",
-    rollbackReady: "已保留上一健康版本安装包",
-    diagnostics: "诊断",
-    diagnosticsHint: "导出本地脱敏崩溃诊断包，不会自动上传任何内容。",
-    exportDiagnostics: "导出诊断包",
-    diagnosticsExported: "诊断包已导出：",
-    globalAgents: "全局 AGENTS.md",
-    globalAgentsHint:
-      "每个新任务和子代理都会先加载这里的约束，再加载项目内的 AGENTS.md。",
-    saveGlobalAgents: "保存全局约束",
-    agentConcurrency: "Agent 并发容量",
-    agentConcurrencyHint:
-      "自动模式会在启动时计算全局活动 Agent 上限，并在系统压力升高时临时收紧；已经运行的 Agent 不会被取消。",
-    concurrencyMode: "容量模式",
-    concurrencyAutomatic: "自动（推荐）",
-    concurrencyManual: "手动上限",
-    concurrencyManualLimit: "最大活动 Agent 数",
-    concurrencyApply: "应用上限",
-    concurrencyLogical: "每任务逻辑成员上限",
-    concurrencyConfigured: "配置并发",
-    concurrencyAutomaticSafe: "自动安全上限",
-    concurrencyEffective: "当前有效",
-    concurrencyActive: "运行中",
-    concurrencyQueued: "排队中",
-    concurrencyWaiting: "协作等待",
-    concurrencyHighWarning:
-      "高并发会更快消耗额度并可能触发 Provider 限流；系统压力下 Artemis 仍会自动降载。",
-    concurrencyHardware: "检测到的硬件",
-    concurrencyHardwareValue: "{cores} 个并行核心 · {memory} GiB 内存",
-    concurrencyThrottled: "当前因系统压力临时收紧：{reasons}。",
-    concurrencyCpu: "CPU",
-    concurrencyEventLoop: "应用响应",
-    concurrencyMemory: "内存",
-    configurationImport: "导入现有 Agent 配置",
-    configurationImportHint:
-      "先预览，再选择性导入全局约束、Skills 与 MCP；同名现有资源不会被覆盖。",
-    scanImports: "扫描配置",
-    applyImports: "导入所选内容",
-    importInstructions: "全局约束",
-    importSkills: "Skills",
-    importMcp: "MCP",
-    detected: "已检测到",
-    notDetected: "未检测到",
-    importCompleted: "导入完成",
-  },
-} as const;
+const labels = UI_COPY.SettingsPanel_labels;
 
 const DEFAULT_PROVIDER_CONTEXT_WINDOW = 1_000_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 128_000;
@@ -551,17 +166,7 @@ export function SettingsPanel({
   onSettingsChange,
   returnFocusRef,
 }: SettingsPanelProps) {
-  const { i18n } = useTranslation("settings");
-  const translate = i18n.getFixedT(locale, "settings");
-  const t = {
-    ...labels[legacyLocale(locale)],
-    ...Object.fromEntries(
-      Object.keys(I18N_RESOURCES.en.settings).map((key) => [
-        key,
-        translate(key),
-      ]),
-    ),
-  } as (typeof labels)["en"];
+  const t = labels[locale];
   const [narrowNavigation, setNarrowNavigation] = useState(
     () => window.matchMedia?.("(max-width: 980px)").matches ?? false,
   );
@@ -875,7 +480,9 @@ export function SettingsPanel({
 
   async function setProfileAvatar(file: File | undefined) {
     await run(async () => {
-      const avatar = file ? await prepareProfileAvatar(file) : undefined;
+      const avatar = file
+        ? await prepareProfileAvatar(file, locale)
+        : undefined;
       const updated = await window.artemis.setProfileAvatar(avatar);
       setSettings(updated);
       onSettingsChange(updated);
@@ -1130,7 +737,7 @@ export function SettingsPanel({
     agents: t.tabAgents,
     capabilities: t.tabCapabilities,
     maintenance: t.tabMaintenance,
-    im: locale.startsWith("zh") ? "消息接入" : "Messaging",
+    im: uiText(locale, "SettingsPanel.inline1"),
   };
 
   return (
@@ -1310,11 +917,7 @@ export function SettingsPanel({
                     >
                       <SettingsRow
                         label={t.model}
-                        description={
-                          locale.startsWith("zh")
-                            ? "从内置供应商目录中选择。"
-                            : "Choose from the built-in provider catalog."
-                        }
+                        description={uiText(locale, "SettingsPanel.inline2")}
                       >
                         <Select
                           size="compact"
@@ -1939,7 +1542,7 @@ export function SettingsPanel({
                     title={t.globalAgents}
                   >
                     <p className="settings-hint">
-                      {locale.startsWith("zh") ? "路径" : "Path"}{" "}
+                      {uiText(locale, "SettingsPanel.inline3")}{" "}
                       <code>{settings.globalAgents.path}</code>
                     </p>
                     <TextAreaField
@@ -2191,7 +1794,7 @@ export function SettingsPanel({
                       description={
                         <>
                           {settings.update.currentVersion} ·{" "}
-                          {settings.update.state}
+                          {statusText(locale, settings.update.state)}
                           {settings.update.availableVersion
                             ? ` → ${settings.update.availableVersion}`
                             : ""}

@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 import {
   useCallback,
   useEffect,
@@ -12,8 +13,6 @@ import type { AppLocale, Project, RunMode } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 
 import type { ProjectGitInfo } from "../shared/api.js";
-import { legacyLocale } from "../shared/locales.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
 import { CodexSelect } from "./CodexSelect.js";
 
 type Locale = AppLocale;
@@ -33,68 +32,10 @@ interface ComposerContextBarProps {
   projects: Project[];
 }
 
-const labels = {
-  en: {
-    projectMenu: "Project menu",
-    searchProjects: "Search projects",
-    addProject: "Add project",
-    clearProject: "Work without a project",
-    temporaryConversation: "Temporary chat",
-    noProjects: "No matching projects",
-    branchMenu: "Branch menu",
-    searchBranches: "Search branches",
-    branches: "Branches",
-    noBranches: "No matching local branches",
-    createBranch: "Create and checkout new branch…",
-    branchName: "Branch name",
-    branchNamePlaceholder: "feature/my-branch",
-    branchNameHelp: "The new branch starts at the current HEAD.",
-    cancel: "Cancel",
-    create: "Create branch",
-    retry: "Retry",
-    loadingGit: "Loading Git status",
-    changingBranch: "Changing branch…",
-    taskMode: "Task mode",
-    plan: "Plan",
-    execute: "Execute",
-    review: "Review",
-    detached: "Detached HEAD",
-    stopTasks: "Stop the active task to change branches.",
-    uncommitted(count: number) {
-      return `${count} uncommitted ${count === 1 ? "file" : "files"}`;
-    },
-  },
-  "zh-CN": {
-    projectMenu: "项目菜单",
-    searchProjects: "搜索项目",
-    addProject: "新建项目",
-    clearProject: "不在项目中工作",
-    temporaryConversation: "临时会话",
-    noProjects: "没有匹配的项目",
-    branchMenu: "分支菜单",
-    searchBranches: "搜索分支",
-    branches: "分支",
-    noBranches: "没有匹配的本地分支",
-    createBranch: "创建并检出新分支…",
-    branchName: "分支名称",
-    branchNamePlaceholder: "feature/my-branch",
-    branchNameHelp: "新分支将从当前 HEAD 创建。",
-    cancel: "取消",
-    create: "创建分支",
-    retry: "重试",
-    loadingGit: "正在读取 Git 状态",
-    changingBranch: "正在切换分支…",
-    taskMode: "任务模式",
-    plan: "规划",
-    execute: "执行",
-    review: "审查",
-    detached: "游离 HEAD",
-    stopTasks: "请先停止正在执行的任务，再更改分支。",
-    uncommitted(count: number) {
-      return `未提交：${count} 个文件`;
-    },
-  },
-} satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
+const labels = UI_COPY.ComposerContextBar_labels satisfies Record<
+  AppLocale,
+  Record<string, unknown>
+>;
 
 function FolderIcon() {
   return <ArtemisIcon className="icon" height={18} name="folder" width={18} />;
@@ -163,7 +104,7 @@ export function ComposerContextBar({
   onSelectProject,
   projects,
 }: ComposerContextBarProps) {
-  const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
+  const t = labels[locale];
   const rootRef = useRef<HTMLDivElement>(null);
   const projectControlRef = useRef<HTMLDivElement>(null);
   const branchControlRef = useRef<HTMLDivElement>(null);

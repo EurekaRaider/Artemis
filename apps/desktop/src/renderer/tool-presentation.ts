@@ -1,7 +1,6 @@
 import type { AppLocale } from "@artemis/protocol";
 
-import { localizedCopy } from "../shared/i18n-resources.js";
-import { legacyLocale } from "../shared/locales.js";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 
 function stripTerminalSequences(value: string): string {
   let output = "";
@@ -187,7 +186,11 @@ function readablePattern(value: string): string {
   );
 }
 
-function bashSummary(command: string, locale: ToolPresentationLocale): string {
+function bashSummary(
+  command: string,
+  locale: ToolPresentationLocale,
+  completed: boolean,
+): string {
   const t = toolCopy(locale);
   const normalized = command.replace(/\s+/gu, " ").trim();
   const search = searchCommandDetails(normalized);
@@ -197,20 +200,20 @@ function bashSummary(command: string, locale: ToolPresentationLocale): string {
       normalized,
     );
     if (searchesStyles) {
-      return fillToolText(t.stylesFor, {
+      return fillToolText(completed ? t.stylesForCompleted : t.stylesFor, {
         target: isolateDynamicText(locale, target),
       });
     }
     if (search.scope) {
-      return fillToolText(t.searchingIn, {
+      return fillToolText(completed ? t.searchedIn : t.searchingIn, {
         target: isolateDynamicText(locale, target),
         scope: isolateDynamicText(locale, compactLabel(search.scope, 42)),
       });
     }
-    return `${t.searchingFor} “${isolateDynamicText(locale, target)}”`;
+    return `${completed ? t.searchedFor : t.searchingFor} “${isolateDynamicText(locale, target)}”`;
   }
   if (/(?:^|[;&|]\s*|\s)git(?:\.exe)?\s+status\b/iu.test(normalized)) {
-    return t.workspaceChanges;
+    return completed ? t.workspaceChangesCompleted : t.workspaceChanges;
   }
   if (
     /(?:^|[;&|]\s*|\s)(?:npm|pnpm|yarn|bun|npx)\s+(?:run\s+)?(?:test|vitest)\b/iu.test(
@@ -218,23 +221,23 @@ function bashSummary(command: string, locale: ToolPresentationLocale): string {
     ) ||
     /(?:^|[;&|]\s*|\s)vitest\b/iu.test(normalized)
   ) {
-    return t.tests;
+    return completed ? t.testsCompleted : t.tests;
   }
   if (/\b(?:typecheck|tsc|tsgo)\b/iu.test(normalized)) {
-    return t.types;
+    return completed ? t.typesCompleted : t.types;
   }
   if (
     /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?build\b/iu.test(normalized) ||
     /(?:^|[;&|]\s*|\s)(?:ninja|cmake)\b/iu.test(normalized)
   ) {
-    return t.project;
+    return completed ? t.projectCompleted : t.project;
   }
 
   const executable = shellWords(normalized)
     .map(executableName)
     .find((word) => word && !word.startsWith("$") && word !== "=");
   const label = compactLabel(executable || "command", 32);
-  return `${t.running} ${isolateDynamicText(locale, label)}`;
+  return `${completed ? t.ran : t.running} ${isolateDynamicText(locale, label)}`;
 }
 
 function normalizedToolName(toolName: string): string {
@@ -295,19 +298,6 @@ export function toolActivityGroupKey(
   return `tool:${normalizedToolName(toolName)}`;
 }
 
-function completedSummary(
-  summary: string,
-  locale: ToolPresentationLocale,
-): string {
-  const t = toolCopy(locale);
-  return summary
-    .replace(new RegExp(`^${t.searching}`, "u"), t.searched)
-    .replace(new RegExp(`^${t.checking}`, "u"), t.checked)
-    .replace(new RegExp(`^${t.running}`, "u"), t.ran)
-    .replace(new RegExp(`^${t.building}`, "u"), t.built)
-    .replace(new RegExp(`^${t.using}`, "u"), t.used);
-}
-
 export function summarizeToolGroup(
   tools: readonly ToolPresentationState[],
   locale: ToolPresentationLocale,
@@ -337,12 +327,12 @@ export function summarizeToolGroup(
     return running ? t.runningBash : t.ranBash;
   }
 
-  const summary = summarizeToolActivity(
+  return summarizeToolActivity(
     representative.name,
     representative.input,
     locale,
+    !running,
   );
-  return running ? summary : completedSummary(summary, locale);
 }
 
 export function toolActivityPath(input: unknown): string | undefined {
@@ -389,18 +379,18 @@ export function summarizeToolDetail(
     }
     return `${active ? t.searchingFor : t.searchedFor} ${isolateDynamicText(locale, label)}`;
   }
-  const summary = summarizeToolActivity(tool.name, tool.input, locale);
-  return active ? summary : completedSummary(summary, locale);
+  return summarizeToolActivity(tool.name, tool.input, locale, !active);
 }
 
 export function summarizeToolActivity(
   toolName: string,
   input: unknown,
   locale: ToolPresentationLocale,
+  completed = false,
 ): string {
   const t = toolCopy(locale);
   if (isShellExecuteTool(toolName)) {
-    return bashSummary(inputText(input, "command") ?? "", locale);
+    return bashSummary(inputText(input, "command") ?? "", locale, completed);
   }
 
   const path =
@@ -411,14 +401,22 @@ export function summarizeToolActivity(
   const label = compactLabel(path ?? pattern ?? toolName.replaceAll("_", " "));
   const action =
     toolName === "read" || toolName === "local_file_read"
-      ? t.reading
+      ? completed
+        ? t.read
+        : t.reading
       : toolName === "write" ||
           toolName === "local_file_write" ||
           toolName === "edit"
-        ? t.updating
+        ? completed
+          ? t.updated
+          : t.updating
         : toolName === "grep" || toolName === "find"
-          ? t.searching
-          : t.using;
+          ? completed
+            ? t.searched
+            : t.searching
+          : completed
+            ? t.used
+            : t.using;
   return `${action} ${isolateDynamicText(locale, label)}`;
 }
 
@@ -499,87 +497,8 @@ export function formatBashTranscript(
   }
   return chunks.length > 0 ? chunks.join("\n") : undefined;
 }
-const TOOL_COPY = {
-  en: {
-    searching: "Searching",
-    searched: "Searched",
-    checking: "Checking",
-    checked: "Checked",
-    running: "Running",
-    ran: "Ran",
-    building: "Building",
-    built: "Built",
-    using: "Using",
-    used: "Used",
-    stylesFor: "Searching styles for {{target}}",
-    filesFor: "Searching files for {{target}}",
-    workspaceChanges: "Checking workspace changes",
-    tests: "Running tests",
-    types: "Checking types",
-    project: "Building the project",
-    tool: "Using a tool",
-    readingFiles: "Reading files",
-    readFiles: "Read files",
-    editingFiles: "Editing files",
-    editedFiles: "Edited files",
-    runningBash: "Running Shell",
-    ranBash: "Ran Shell",
-    reading: "Reading",
-    read: "Read",
-    editing: "Editing",
-    edited: "Edited",
-    searchingFor: "Searching for",
-    searchedFor: "Searched for",
-    searchingIn: "Searching for “{{target}}” in {{scope}}",
-    searchedIn: "Searched for “{{target}}” in {{scope}}",
-    updating: "Updating",
-  },
-  "zh-CN": {
-    searching: "正在搜索",
-    searched: "已搜索",
-    checking: "正在检查",
-    checked: "已检查",
-    running: "正在运行",
-    ran: "已运行",
-    building: "正在构建",
-    built: "已构建",
-    using: "正在使用",
-    used: "已使用",
-    stylesFor: "正在搜索 {{target}} 相关样式",
-    filesFor: "正在搜索 {{target}} 文件夹中的文件",
-    workspaceChanges: "正在检查工作区更改",
-    tests: "正在运行测试",
-    types: "正在检查类型",
-    project: "正在构建项目",
-    tool: "正在使用工具",
-    readingFiles: "正在读取文件",
-    readFiles: "已读取文件",
-    editingFiles: "正在编辑文件",
-    editedFiles: "编辑了文件",
-    runningBash: "正在执行 Shell",
-    ranBash: "执行了 Shell",
-    reading: "正在读取",
-    read: "已读取",
-    editing: "正在编辑",
-    edited: "已编辑",
-    searchingFor: "正在搜索",
-    searchedFor: "已搜索",
-    searchingIn: "正在 {{scope}} 中搜索“{{target}}”",
-    searchedIn: "已在 {{scope}} 中搜索“{{target}}”",
-    updating: "正在更新",
-  },
-} as const;
-
-type ToolCopy = {
-  [Key in keyof (typeof TOOL_COPY)["en"]]: string;
-};
-
-function toolCopy(locale: AppLocale): ToolCopy {
-  return localizedCopy(
-    locale,
-    "common",
-    TOOL_COPY[legacyLocale(locale)],
-  ) as ToolCopy;
+function toolCopy(locale: AppLocale) {
+  return I18N_RESOURCES[locale].toolActivity;
 }
 
 function isolateDynamicText(locale: AppLocale, value: string): string {

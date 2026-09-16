@@ -1,3 +1,4 @@
+import { UI_COPY } from "../shared/ui-copy.js";
 /**
  * Custom sub-agent management section for Settings → Agent configuration
  * (D#152 PR4). The list stays mounted in the tab; creating or editing opens
@@ -32,7 +33,6 @@ import type {
   SaveCustomAgentInput,
   SettingsSnapshot,
 } from "../shared/api.js";
-import { legacyLocale } from "../shared/locales.js";
 import { customAgentColorToken } from "./CustomAgentMention.js";
 
 const BUILTIN_TOOL_CHOICES = [
@@ -69,160 +69,7 @@ const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
 const utf8Bytes = (text: string) => new TextEncoder().encode(text).length;
 const formatKb = (bytes: number) => `${(bytes / 1024).toFixed(1)}`;
 
-const labels = {
-  en: {
-    title: "Custom sub-agents",
-    hint: "Reusable specialist roles you can invoke with @ in the composer. Definitions are stored locally and can be scoped to selected projects.",
-    count: "{count} item(s)",
-    add: "New sub-agent",
-    edit: "Edit",
-    delete: "Delete",
-    confirmDelete: "Delete?",
-    cancelDelete: "Cancel",
-    empty: "No custom sub-agents yet",
-    emptyHint:
-      "Create a specialist role once, then invoke it with @ in the composer.",
-    closeDialog: "Close",
-    editorEditTitle: "Edit: {name}",
-    editorHint:
-      "Fill in the name, tools, and dedicated prompt; saving returns to the list.",
-    name: "Name",
-    nameRequired: "Name is required",
-    description: "Description",
-    color: "Color",
-    instructions: "Dedicated prompt",
-    instructionsRequired: "The dedicated prompt is required",
-    instructionsUsage: "{used} KiB stored · approximately {tokens} tokens",
-    instructionsLong:
-      "The complete input is checked against the actual child model at invocation. Load long reference files or skills when needed.",
-    instructionsInheritedWindow:
-      "Inherited model: the calling session's effective context window is used at invocation.",
-    instructionsFixedWindow:
-      "Model window: {tokens} tokens, shared with system instructions, tools, task input and output.",
-    instructionsHint:
-      "Appended to the child agent's system prompt; never overrides Artemis identity, mode, or team rules.",
-    scope: "Project scope",
-    scopeAll: "All projects",
-    scopeSelected: "Selected projects",
-    scopeHint:
-      "Selected scope with no projects applies nowhere — pick at least one project.",
-    projects: "Projects",
-    modelPolicy: "Model",
-    modelInherit: "Inherit from parent session",
-    modelFixed: "Fixed model",
-    modelChoose: "Choose a configured model",
-    modelEmpty: "Configure a model in Settings → Models first.",
-    modelUnavailable:
-      "This model is no longer configured. Choose another model or inherit from the parent session.",
-    modelSearch: "Search configured models",
-    modelNoResults: "No matching configured models",
-    thinkingPolicy: "Reasoning effort",
-    thinkingInherit: "Inherit from parent session",
-    thinkingFixed: "Fixed level",
-    toolPolicy: "Tools",
-    toolInherit: "Inherit all tools by default",
-    toolAllowlist: "Choose available tools",
-    builtinTools: "Built-in tools",
-    mcpTools: "MCP servers",
-    mcpToolsCount: "{count} tools",
-    mcpToolsSelected: "{selected} of {count} tools selected",
-    enabledLabel: "Enabled",
-    allowAutomatic: "Allow automatic invocation",
-    allowAutomaticHint:
-      "When off, this sub-agent only runs on explicit @ invocation.",
-    triggers: "Trigger phrases",
-    triggersHint:
-      "Comma-separated. When a conversation mentions one of these phrases, this sub-agent becomes an automatic-invocation candidate; with automatic invocation off, only explicit @ uses it.",
-    save: "Save sub-agent",
-    cancelEdit: "Cancel",
-    revisionConflict:
-      "This definition was edited elsewhere. The latest version is loaded — review and save again.",
-    capabilityPreview: "Effective tools ({mode} mode)",
-    scopeBadgeAll: "All projects",
-    scopeBadgeSelected: "{count} project(s)",
-    disabledBadge: "Disabled",
-    automaticBadge: "Auto",
-    manualBadge: "Manual only",
-    modelBadgeInherit: "Inherit",
-    toolBadgeInherit: "Baseline",
-    toolBadgeCount: "{count} tools",
-    automaticBudgetExceeded:
-      "Automatic routing is paused for over-budget turns: {count} sub-agents allow automatic invocation, exceeding the per-turn catalog budget ({max} definitions / {chars} characters). Turn off automatic invocation on some definitions to re-enable routing.",
-  },
-  "zh-CN": {
-    title: "自定义子智能体",
-    hint: "可在输入框用 @ 调用的专业角色，定义保存在本地，可限定到指定项目。",
-    count: "{count} 项",
-    add: "新建子智能体",
-    edit: "编辑",
-    delete: "删除",
-    confirmDelete: "确认删除？",
-    cancelDelete: "取消",
-    empty: "还没有自定义子智能体",
-    emptyHint: "创建一次专业角色，之后在输入框用 @ 调用。",
-    closeDialog: "关闭",
-    editorEditTitle: "编辑：{name}",
-    editorHint: "填写名称、工具与专用提示词，保存后返回列表。",
-    name: "名称",
-    nameRequired: "请填写名称",
-    description: "描述",
-    color: "颜色",
-    instructions: "专用提示词",
-    instructionsRequired: "请填写专用提示词",
-    instructionsUsage: "存储 {used} KiB · 估算 {tokens} token",
-    instructionsLong:
-      "调用时按实际子智能体模型检查完整输入预算。较长的参考资料建议放入文件或技能，使用时再读取。",
-    instructionsInheritedWindow: "继承模型：调用时使用父会话的有效上下文窗口。",
-    instructionsFixedWindow:
-      "模型窗口 {tokens} token，由系统指令、工具、任务输入和输出共同使用。",
-    instructionsHint:
-      "追加到子智能体系统提示的受控位置，不会覆盖 Artemis 身份、模式约束与团队协议。",
-    scope: "项目范围",
-    scopeAll: "全部项目",
-    scopeSelected: "指定项目",
-    scopeHint: "指定项目但不选择任何项目时，该定义对任何项目都不生效。",
-    projects: "项目",
-    modelPolicy: "模型",
-    modelInherit: "继承父会话",
-    modelFixed: "固定模型",
-    modelChoose: "选择已配置的模型",
-    modelEmpty: "请先在设置的模型页面配置模型。",
-    modelUnavailable: "此模型已不再配置，请重新选择或继承父会话。",
-    modelSearch: "搜索已配置的模型",
-    modelNoResults: "没有匹配的已配置模型",
-    thinkingPolicy: "推理强度",
-    thinkingInherit: "继承父会话",
-    thinkingFixed: "固定档位",
-    toolPolicy: "工具",
-    toolInherit: "默认继承所有工具",
-    toolAllowlist: "指定可用工具",
-    builtinTools: "内置工具",
-    mcpTools: "MCP 服务器",
-    mcpToolsCount: "{count} 个工具",
-    mcpToolsSelected: "已选择 {selected}/{count} 个工具",
-    enabledLabel: "启用",
-    allowAutomatic: "允许自动调用",
-    allowAutomaticHint: "关闭后，该子智能体只能通过 @ 显式调用。",
-    triggers: "触发词",
-    triggersHint:
-      "逗号分隔。对话中出现这些词语时，该子智能体会进入自动调用候选；关闭自动调用后，只有 @ 显式调用会使用它。",
-    save: "保存子智能体",
-    cancelEdit: "取消",
-    revisionConflict:
-      "该定义已在其他地方被修改，已载入最新版本，请确认后重新保存。",
-    capabilityPreview: "实际可用工具（{mode} 模式）",
-    scopeBadgeAll: "全部项目",
-    scopeBadgeSelected: "{count} 个项目",
-    disabledBadge: "已停用",
-    automaticBadge: "自动",
-    manualBadge: "仅手动",
-    modelBadgeInherit: "继承",
-    toolBadgeInherit: "基线",
-    toolBadgeCount: "{count} 个工具",
-    automaticBudgetExceeded:
-      "已启用自动调用的子智能体达 {count} 个，超出单轮目录预算（{max} 个定义 / {chars} 字符文本），超预算的轮次将停用自动路由。请关闭部分定义的自动调用以恢复路由。",
-  },
-} as const;
+const labels = UI_COPY.CustomAgentsSettingsSection_labels;
 
 interface CustomAgentFormState {
   name: string;
@@ -327,7 +174,7 @@ export function CustomAgentsSettingsSection({
   setBusy(busy: boolean): void;
   applySettings(snapshot: SettingsSnapshot): void;
 }) {
-  const t = labels[legacyLocale(locale)];
+  const t = labels[locale];
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");

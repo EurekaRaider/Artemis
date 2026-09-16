@@ -1,3 +1,4 @@
+import { uiTranslator } from "../shared/ui-text.js";
 import { useEffect, useRef, useState } from "react";
 import { ImMemberRemoval } from "./ImMemberRemoval";
 import {
@@ -25,7 +26,7 @@ export function ImGroupMembers({
   onRemove?: ((deviceId: string) => Promise<boolean>) | undefined;
   removalDisabled?: boolean | undefined;
 }) {
-  const t = (cn: string, en: string) => (locale.startsWith("zh") ? cn : en);
+  const t = uiTranslator(locale);
   type Person = NonNullable<ImGroupContext["roster"]>["members"][number];
   const currentSpace = useRef(group.spaceId);
   currentSpace.current = group.spaceId;
@@ -170,7 +171,7 @@ export function ImGroupMembers({
     const targets = imGroupMentionTargets(group);
     return (
       <EnvironmentSection
-        title={`${t("群协作成员", "Group members")}${roster?.complete ? ` · ${roster.members.length}` : ""}`}
+        title={`${t("ImGroupMembers.message28")}${roster?.complete ? ` · ${roster.members.length}` : ""}`}
       >
         <div className="environment-setting-copy im-group-members im-native-members">
           {error && <small role="alert">{error}</small>}
@@ -178,34 +179,19 @@ export function ImGroupMembers({
             <small role="status">
               {roster?.error === "missing-scope"
                 ? channel === "feishu"
-                  ? t(
-                      "群成员信息未完整同步。请开启飞书/Lark 的 im:chat.members:read 权限，发布应用后刷新。",
-                      "Member information is incomplete. Enable Feishu/Lark im:chat.members:read, publish the app and refresh.",
-                    )
-                  : t(
-                      "群成员信息未完整同步。请检查 Slack 的 channels:read、groups:read 和 users:read 权限，重新授权后刷新。",
-                      "Member information is incomplete. Check Slack channels:read, groups:read and users:read scopes, reauthorize and refresh.",
-                    )
+                  ? t("ImGroupMembers.message5")
+                  : t("ImGroupMembers.message4")
                 : channel === "wecom"
-                  ? t(
-                      "企业微信当前仅显示已向机器人发消息的群成员，无法获取完整群目录或在线状态。",
-                      "WeCom shows members observed messaging this bot; a full directory and presence are unavailable.",
-                    )
+                  ? t("ImGroupMembers.message3")
                   : channel === "feishu" && roster?.error === "partial"
-                    ? t(
-                        "飞书/Lark 成员接口不包含机器人；当前目录可能不完整，在线状态未知。",
-                        "Feishu/Lark member listings exclude bots; this directory may be incomplete and presence is unknown.",
-                      )
-                    : t(
-                        "群成员信息尚未完整同步，当前列表可能不完整。",
-                        "Group members have not fully synced; this list may be incomplete.",
-                      )}
+                    ? t("ImGroupMembers.message2")
+                    : t("ImGroupMembers.message1")}
             </small>
           )}
           <div
             className="environment-activity-list"
             role="list"
-            aria-label={t("协作成员列表", "Collaboration members")}
+            aria-label={t("ImGroupMembers.message27")}
           >
             {(roster?.members ?? []).map((member) => {
               const target = member.self
@@ -224,22 +210,22 @@ export function ImGroupMembers({
                     "unknown");
               const status =
                 state === "active"
-                  ? t("活跃", "Active")
+                  ? t("EnvironmentPanel_labels.active")
                   : state === "away"
-                    ? t("离开", "Away")
+                    ? t("ImGroupMembers.message10")
                     : state === "online"
-                      ? t("在线", "Online")
+                      ? t("ImGroupMembers.message9")
                       : state === "offline"
-                        ? t("离线", "Offline")
+                        ? t("ImGroupMembers.message8")
                         : state === "unavailable"
-                          ? t("不可用", "Unavailable")
-                          : t("状态未知", "Status unknown");
+                          ? t("ImGroupMembers.message7")
+                          : t("ImGroupMembers.message6");
               const kind =
                 member.kind === "bot"
-                  ? t("机器人", "Bot")
+                  ? t("ImGroupMembers.message14")
                   : member.kind === "human"
-                    ? t("成员", "Member")
-                    : t("类型未知", "Unknown type");
+                    ? t("ImGroupMembers.message13")
+                    : t("ImGroupMembers.message12");
               const editable =
                 !member.owner && !member.self && member.kind !== "unknown";
               return (
@@ -272,16 +258,16 @@ export function ImGroupMembers({
                       {member.kind === "bot" && !member.self && (
                         <span className="im-member-device" aria-live="polite">
                           {verificationState(member) === "verified"
-                            ? t("已验证", "Verified")
+                            ? t("ImGroupMembers.message17")
                             : verificationState(member) === "verifying"
-                              ? t("验证中", "Verifying")
-                              : t("未完成验证", "Not verified")}
+                              ? t("ImGroupMembers.message16")
+                              : t("ImGroupMembers.message15")}
                         </span>
                       )}
 
                       {member.self && (
                         <span className="im-member-executor">
-                          {t("本任务执行者", "Executes this task")}
+                          {t("ImGroupMembers.message18")}
                         </span>
                       )}
                     </strong>
@@ -292,8 +278,8 @@ export function ImGroupMembers({
                       <Tooltip
                         label={
                           verificationState(member) === "verifying"
-                            ? t("验证中，请稍候", "Verifying, please wait")
-                            : t("重新验证", "Verify again")
+                            ? t("ImGroupMembers.message22")
+                            : t("ImGroupMembers.message19")
                         }
                         align="end"
                       >
@@ -302,8 +288,8 @@ export function ImGroupMembers({
                           className="im-member-permission-toggle"
                           aria-label={
                             verificationState(member) === "verifying"
-                              ? t("验证中", "Verifying")
-                              : t("重新验证", "Verify again")
+                              ? t("ImGroupMembers.message16")
+                              : t("ImGroupMembers.message19")
                           }
                           disabled={
                             saving ||
@@ -321,14 +307,8 @@ export function ImGroupMembers({
                     <Tooltip
                       label={
                         canAssign(member)
-                          ? t(
-                              "允许派工，点击禁止",
-                              "Assignments allowed; click to block",
-                            )
-                          : t(
-                              "已禁止派工，点击允许",
-                              "Assignments blocked; click to allow",
-                            )
+                          ? t("ImGroupMembers.message26")
+                          : t("ImGroupMembers.message25")
                       }
                     >
                       <button
@@ -337,14 +317,12 @@ export function ImGroupMembers({
                         data-allowed={canAssign(member)}
                         aria-label={
                           canAssign(member)
-                            ? t(
-                                `禁止 ${member.name} 派工`,
-                                `Block assignments from ${member.name}`,
-                              )
-                            : t(
-                                `允许 ${member.name} 派工`,
-                                `Allow assignments from ${member.name}`,
-                              )
+                            ? t("ImGroupMembers.message24", {
+                                value1: member.name,
+                              })
+                            : t("ImGroupMembers.message23", {
+                                value1: member.name,
+                              })
                         }
                         aria-pressed={!canAssign(member)}
                         disabled={saving || group.stale || !group.confirmed}
@@ -381,48 +359,31 @@ export function ImGroupMembers({
   }
 
   return (
-    <EnvironmentSection title={t("群协作成员", "Group collaboration members")}>
+    <EnvironmentSection title={t("ImGroupMembers.message39")}>
       <div className="environment-setting-copy im-group-members">
         {group.stale && (
-          <small role="status">
-            {t(
-              "连接状态暂不可用，成员信息为上次同步结果。",
-              "Connection status is unavailable; showing the last synced members.",
-            )}
-          </small>
+          <small role="status">{t("ImGroupMembers.message29")}</small>
         )}
-        {!group.confirmed && (
-          <small>
-            {t(
-              "空间待确认或已不可访问",
-              "Space awaiting confirmation or no longer accessible",
-            )}
-          </small>
-        )}
+        {!group.confirmed && <small>{t("ImGroupMembers.message30")}</small>}
         {!imGroupMentionTargets(group).length && (
-          <small>
-            {t(
-              "暂无目标成员，请在设置中选择成员并打开协作对话。",
-              "No target members. Select members and open a conversation in Settings.",
-            )}
-          </small>
+          <small>{t("ImGroupMembers.message31")}</small>
         )}
         <div
           className="environment-activity-list"
           role="list"
-          aria-label={t("协作成员列表", "Collaboration members")}
+          aria-label={t("ImGroupMembers.message27")}
         >
           {imGroupMentionTargets(group).map((member) => {
             const state =
               group.stale || !group.confirmed ? "unknown" : member.state;
             const status =
               state === "unknown"
-                ? t("状态未知", "Status unknown")
+                ? t("ImGroupMembers.message6")
                 : state === "unavailable"
-                  ? t("账号或电脑已不可用", "Account or computer unavailable")
+                  ? t("ImGroupMembers.message34")
                   : state === "online"
-                    ? t("电脑在线", "Computer online")
-                    : t("电脑离线或暂停", "Computer offline or paused");
+                    ? t("ImGroupMembers.message33")
+                    : t("ImGroupMembers.message32");
             return (
               <div
                 key={imIdentityKey(member.identity)}
@@ -451,7 +412,7 @@ export function ImGroupMembers({
                     </span>
                     {member.deviceId === group.executingDeviceId && (
                       <span className="im-member-executor">
-                        {t("本任务执行者", "Executes this task")}
+                        {t("ImGroupMembers.message18")}
                       </span>
                     )}
                   </strong>
@@ -468,7 +429,9 @@ export function ImGroupMembers({
                 )}
                 {onMention && (
                   <Tooltip
-                    label={t(`提及 ${member.name}`, `Mention ${member.name}`)}
+                    label={t("ImGroupMembers.message37", {
+                      value1: member.name,
+                    })}
                     align="end"
                   >
                     <IconButton

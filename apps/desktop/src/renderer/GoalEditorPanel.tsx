@@ -1,3 +1,4 @@
+import { GOAL_RESOURCES } from "../shared/goal-resources.js";
 import type { AppLocale, Thread, ThreadGoal } from "@artemis/protocol";
 import {
   GoalEditorFooter,
@@ -13,45 +14,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-const COPY = {
-  en: {
-    goal: "Goal",
-    loading: "Loading Goal…",
-    updatedNow: "Updated just now",
-    updatedMinutes: "Updated {{count}} min ago",
-    revert: "Revert",
-    save: "Save",
-    saving: "Saving…",
-    saved: "Saved",
-    stale: "This Goal changed elsewhere. Reload to load the latest version.",
-    staleDirty: "You have unsaved changes; reloading will discard them.",
-    loadFailed: "Failed to load goal objective.",
-    saveFailed: "Failed to save goal objective.",
-    retryLoad: "Retry loading",
-    retrySave: "Retry saving",
-    reload: "Reload",
-    reloadConfirm: "Discard changes and reload",
-  },
-  "zh-CN": {
-    goal: "目标",
-    loading: "正在载入目标…",
-    updatedNow: "刚刚更新",
-    updatedMinutes: "{{count}} 分钟前更新",
-    revert: "还原",
-    save: "保存",
-    saving: "正在保存…",
-    saved: "已保存",
-    stale: "此目标已在其他位置发生变化。重新加载以获取最新版本。",
-    staleDirty: "你有未保存的修改，重新加载将丢弃它们。",
-    loadFailed: "载入目标内容失败。",
-    saveFailed: "保存目标内容失败。",
-    retryLoad: "重试加载",
-    retrySave: "重试保存",
-    reload: "重新加载",
-    reloadConfirm: "放弃修改并重新加载",
-  },
-} as const;
 
 type GoalEditorStatus =
   | { kind: "loading" }
@@ -80,7 +42,7 @@ export function GoalEditorPanel({
   onSaved(thread: Thread): void;
 }) {
   const inputId = useId();
-  const copy = locale.startsWith("zh") ? COPY["zh-CN"] : COPY.en;
+  const copy = GOAL_RESOURCES[locale];
   const [status, setStatus] = useState<GoalEditorStatus>({ kind: "loading" });
   const [revision, setRevision] = useState(goal.revision);
   const [persistedObjective, setPersistedObjective] = useState(goal.objective);
@@ -290,20 +252,16 @@ export function GoalEditorPanel({
   return (
     <GoalEditorSurface busy={busy} label={copy.goal} state={visualState}>
       <header className="workspace-panel-toolbar">
-        <strong>{locale.startsWith("zh") ? "任务目标" : "Task goal"}</strong>
+        <strong>{copy.taskGoal}</strong>
         <span className="workspace-panel-status">
           {
             {
-              active: locale.startsWith("zh") ? "进行中" : "Active",
-              paused: locale.startsWith("zh") ? "已暂停" : "Paused",
-              blocked: locale.startsWith("zh") ? "已阻塞" : "Blocked",
-              usageLimited: locale.startsWith("zh")
-                ? "用量受限"
-                : "Usage limited",
-              budgetLimited: locale.startsWith("zh")
-                ? "预算已用完"
-                : "Budget reached",
-              complete: locale.startsWith("zh") ? "已完成" : "Complete",
+              active: copy.statusActive,
+              paused: copy.statusPaused,
+              blocked: copy.statusBlocked,
+              usageLimited: copy.statusUsageLimited,
+              budgetLimited: copy.statusBudgetLimited,
+              complete: copy.statusComplete,
             }[goal.status]
           }
         </span>
@@ -375,15 +333,12 @@ export function GoalEditorPanel({
         )}
         <div className="goal-editor-meta">
           <span>
-            {locale.startsWith("zh") ? "已用时" : "Elapsed"}{" "}
-            {Math.floor(goal.timeUsedSeconds / 60)}:
+            {copy.elapsed} {Math.floor(goal.timeUsedSeconds / 60)}:
             {String(Math.floor(goal.timeUsedSeconds % 60)).padStart(2, "0")}
           </span>
           <span>
             {goal.tokenBudget === undefined
-              ? locale.startsWith("zh")
-                ? "预算未设置"
-                : "No budget set"
+              ? copy.noBudget
               : `${new Intl.NumberFormat(locale).format(goal.tokensUsed)} / ${new Intl.NumberFormat(locale).format(goal.tokenBudget)} Tokens`}
           </span>
         </div>

@@ -1,3 +1,4 @@
+import { uiTranslator } from "../shared/ui-text.js";
 import { ImNativeGroups } from "./ImNativeGroups";
 import { useEffect, useRef, useState } from "react";
 import { ImDataPermissions } from "./ImDataPermissions";
@@ -28,7 +29,7 @@ import { ManagementSection } from "@artemis/ui/management";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
 
-import { ImSlackSetup, SLACK_APP_MANIFEST } from "./ImSlackSetup";
+import { ImSlackSetup, slackAppManifest } from "./ImSlackSetup";
 import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
 import { ImFlowCard, ImFlowProgress } from "./ImFlowCard";
 import {
@@ -82,8 +83,7 @@ export function ImSettingsPanel({
   locale: AppLocale;
   onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
 }) {
-  const zh = locale.startsWith("zh"),
-    t = (cn: string, en: string) => (zh ? cn : en);
+  const t = uiTranslator(locale);
   const [status, setStatus] = useState<Status>();
   const [settings, setSettings] = useState<ImSettings>();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -383,7 +383,7 @@ export function ImSettingsPanel({
     const current = await window.artemis.saveImSettings(next);
     setStatus((previous) => ({ ...previous, ...current }));
     setSettings(current.settings);
-    setMessage(t("IM 设置已保存。", "IM settings saved."));
+    setMessage(t("ImSettingsPanel.message1"));
   }
   const renderBotField = (field: string) => (
     <TextField
@@ -392,28 +392,22 @@ export function ImSettingsPanel({
         {
           id:
             channel === "slack"
-              ? t("连接 ID（可留空）", "Connection ID (optional)")
-              : t("连接 ID", "Connection ID"),
+              ? t("ImSettingsPanel.message3")
+              : t("ImSettingsPanel.message2"),
           name:
             channel === "slack"
-              ? t("连接名称（可留空）", "Connection name (optional)")
-              : t("连接名称", "Connection name"),
+              ? t("ImSettingsPanel.message5")
+              : t("ImSettingsPanel.message4"),
           tenantId:
             channel === "wecom"
-              ? t("企业 ID（Corp ID）", "Enterprise ID (Corp ID)")
-              : t(
-                  "Tenant Key（可留空，自动获取）",
-                  "Tenant Key (auto-detected if empty)",
-                ),
+              ? t("ImSettingsPanel.message7")
+              : t("ImSettingsPanel.message6"),
           botToken: "Bot User OAuth Token",
           appToken: "App-Level Token",
           botId: "Bot ID",
           secret: "Bot Secret",
           appId: "App ID",
-          botOpenId: t(
-            "Bot Open ID（可留空，自动获取）",
-            "Bot Open ID (auto-detected if empty)",
-          ),
+          botOpenId: t("ImSettingsPanel.message8"),
           appSecret: "App Secret",
           verificationToken: "Verification Token",
           encryptKey: "Encrypt Key",
@@ -423,56 +417,20 @@ export function ImSettingsPanel({
         {
           id:
             channel === "slack"
-              ? t(
-                  "留空自动使用 slack；需要连接另一个工作区时填写不同名称，例如 slack-team2。",
-                  "Defaults to slack. Use a different ID, such as slack-team2, for another workspace.",
-                )
-              : t(
-                  "留空自动生成。连接多个机器人时才需要自定义，只能使用英文、数字、短横线或下划线。",
-                  "Generated when empty. Customize only for multiple bots; use letters, numbers, hyphens or underscores.",
-                ),
-          name: t(
-            "可留空；自动使用平台名称。也可改成你熟悉的名字，例如“我的机器人”。",
-            "Optional; defaults to the platform name. You can use a recognizable name such as My bot.",
-          ),
+              ? t("ImSettingsPanel.message10")
+              : t("ImSettingsPanel.message9"),
+          name: t("ImSettingsPanel.message11"),
           tenantId:
             channel === "wecom"
-              ? t(
-                  "管理后台 → 我的企业 → 企业信息 → 页面底部「企业 ID」，通常以 ww 开头。个人开发者请展开上方“没有企业怎么办”。",
-                  "Admin console → My enterprise → Enterprise information → Enterprise ID at the bottom, usually starting with ww. See the personal-developer guide above if you have no organization.",
-                )
-              : t(
-                  "通常无需填写。手动获取：飞书 API 调试台 → 获取企业信息 → data.tenant.tenant_key；不是页面展示的企业编号。",
-                  "Usually unnecessary. In Feishu API Explorer, run Get tenant information and copy data.tenant.tenant_key, not the displayed enterprise number.",
-                ),
-          botToken: t(
-            "粘贴 xoxb- 开头的机器人令牌，保存时自动识别工作区和机器人。",
-            "Paste the xoxb- bot token. Workspace and bot IDs are detected on save.",
-          ),
-          appToken: t(
-            "粘贴同一应用中带 connections:write 权限的 xapp- 令牌。",
-            "Paste the xapp- token from the same app with connections:write permission.",
-          ),
-          botId: t(
-            "智能机器人长连接配置中的 Bot ID。",
-            "Bot ID from the intelligent bot's long-connection configuration.",
-          ),
-          secret: t(
-            "与这个 Bot ID 对应的 Secret，不是群 Webhook。",
-            "The Secret for this Bot ID, not a group webhook.",
-          ),
-          botOpenId: t(
-            "保存时自动查询，用于识别群里的 @。手动填写时，使用「获取机器人信息」接口中的 bot.open_id。",
-            "Retrieved on save to recognize group mentions. For manual setup, use bot.open_id from Get bot information.",
-          ),
-          verificationToken: t(
-            "复制飞书事件与回调配置中的 Verification Token。",
-            "Copy Verification Token from Feishu's event/callback settings.",
-          ),
-          encryptKey: t(
-            "复制同一配置中的 Encrypt Key，必须与飞书保存的值一致。",
-            "Copy Encrypt Key from the same settings. It must match the value saved in Feishu.",
-          ),
+              ? t("ImSettingsPanel.message13")
+              : t("ImSettingsPanel.message12"),
+          botToken: t("ImSettingsPanel.message14"),
+          appToken: t("ImSettingsPanel.message15"),
+          botId: t("ImSettingsPanel.message16"),
+          secret: t("ImSettingsPanel.message17"),
+          botOpenId: t("ImSettingsPanel.message18"),
+          verificationToken: t("ImSettingsPanel.message19"),
+          encryptKey: t("ImSettingsPanel.message20"),
         }[field]
       }
       type={
@@ -543,9 +501,9 @@ export function ImSettingsPanel({
   const activePairingPlatform =
     channel === "feishu" && savedFeishuDomain === "lark" ? "lark" : channel;
   const pairingOptions = [
-    { value: "wecom", label: t("企业微信", "WeCom") },
-    { value: "feishu", label: t("飞书国内版", "Feishu") },
-    { value: "lark", label: t("Lark 国际版", "Lark") },
+    { value: "wecom", label: t("ImNavigation.message2") },
+    { value: "feishu", label: t("ImSettingsPanel.message22") },
+    { value: "lark", label: t("ImSettingsPanel.message23") },
     { value: "slack", label: "Slack" },
   ] as const;
   const pairingPlatformLabel = pairingOptions.find(
@@ -577,8 +535,8 @@ export function ImSettingsPanel({
       await refresh();
       setMessage(
         approve
-          ? t("配对已批准。", "Pairing approved.")
-          : t("配对请求已拒绝。", "Pairing request rejected."),
+          ? t("ImSettingsPanel.message25")
+          : t("ImSettingsPanel.message24"),
       );
       if (approve) {
         flowAdvanceFrom();
@@ -593,7 +551,7 @@ export function ImSettingsPanel({
     run(async () => {
       await window.artemis.manageIm({ action: "unpair", identity });
       await refresh();
-      setMessage(t("账号已解除绑定。", "Account unpaired."));
+      setMessage(t("ImSettingsPanel.message26"));
     });
   /* 机器人行下的从属账号：按连接过滤，无账号时 ImAccounts 渲染为空。 */
   const connectionAccounts = (connectionId: string) => (
@@ -681,16 +639,12 @@ export function ImSettingsPanel({
       : imChannelLabel(verify.channel as ImChannel, t)
     : "";
   const verifyLabel = verify.confirmed
-    ? t(
-        `顺手验证：已验证${verifiedChannelLabel ? ` · ${verifiedChannelLabel}` : ""}`,
-        `Verify: confirmed${verifiedChannelLabel ? ` · ${verifiedChannelLabel}` : ""}`,
-      )
+    ? t("ImSettingsPanel.message29", {
+        value1: verifiedChannelLabel ? ` · ${verifiedChannelLabel}` : "",
+      })
     : taskDetected
-      ? t("顺手验证：验证进行中", "Verify: in progress")
-      : t(
-          "顺手验证（可选）：发一条真实消息走通全链路",
-          "Optional verify: send one real message end to end",
-        );
+      ? t("ImSettingsPanel.message28")
+      : t("ImSettingsPanel.message27");
   /* 完成即概览：三步全部完成时粘性落在概览（群协作屏除外）；回退时停留概览并提示。 */
   useEffect(() => {
     if (allDone && screen !== "group")
@@ -744,47 +698,36 @@ export function ImSettingsPanel({
         (flag, index) => flag === "1" && flowDoneKey[index] === "0",
       )
     )
-      setMessage(
-        t(
-          "有已完成步骤被重置（例如连接被删除），请从对应步骤继续。",
-          "A completed step was reset (for example a connection was removed). Resume from that step.",
-        ),
-      );
+      setMessage(t("ImSettingsPanel.message30"));
   }, [flowDoneKey, activeScreen]);
 
   if (!settings)
     return message ? (
       <InlineNotice tone="danger">{message}</InlineNotice>
     ) : (
-      <LoadingState
-        label={t("正在加载 IM 设置", "Loading IM settings")}
-        lines={3}
-      />
+      <LoadingState label={t("ImSettingsPanel.message31")} lines={3} />
     );
   const stateLabels: Record<NonNullable<ImStatus["state"]>, string> = {
-    disabled: t("已暂停", "Paused"),
-    connecting: t("连接中", "Connecting"),
-    connected: t("已连接", "Connected"),
-    error: t("连接错误", "Connection error"),
+    disabled: t("AutomationPage_text.paused"),
+    connecting: t("ImNavigation.message11"),
+    connected: t("ImNavigation.message12"),
+    error: t("ImNavigation.message8"),
   };
   const enableReason = !settings.deviceId
-    ? t("请先注册当前设备。", "Register this device first.")
+    ? t("ImSettingsPanel.message37")
     : !hasBot
-      ? t(
-          "请先连接至少一个机器人渠道。",
-          "Connect at least one bot channel first.",
-        )
+      ? t("ImSettingsPanel.message36")
       : "";
   const summary = refreshError
-    ? t("状态更新失败", "Status unavailable")
+    ? t("ImSettingsPanel.message41")
     : !status?.settings.deviceId
-      ? t("未配置", "Not configured")
+      ? t("ImNavigation.message6")
       : !status.settings.enabled
-        ? t("已暂停", "Paused")
+        ? t("AutomationPage_text.paused")
         : status?.state === "error"
           ? stateLabels.error
           : !hasBot
-            ? t("等待机器人连接", "Waiting for a bot")
+            ? t("ImSettingsPanel.message38")
             : stateLabels[status?.state ?? "connecting"];
   const health = imConnectionHealth(connections);
   const activeSettings = settings;
@@ -808,12 +751,7 @@ export function ImSettingsPanel({
                 setName(current.settings.deviceName);
                 setShowRemote(false);
                 setAdminToken("");
-                setMessage(
-                  t(
-                    "Gateway 已启动，设备已自动注册。继续选择机器人平台即可。",
-                    "Gateway is running and this device is registered. Choose a bot platform next.",
-                  ),
-                );
+                setMessage(t("ImSettingsPanel.message42"));
                 selectView(channel);
                 setFocusTarget("im-bot");
               })
@@ -835,10 +773,7 @@ export function ImSettingsPanel({
                 });
                 if (path)
                   setMessage(
-                    t(
-                      `独立运行包已导出到 ${path}，解压后按包内说明启动。`,
-                      `Standalone package exported to ${path}. Extract it and follow the included instructions.`,
-                    ),
+                    t("ImSettingsPanel.message43", { value1: String(path) }),
                   );
               })
             }
@@ -847,41 +782,27 @@ export function ImSettingsPanel({
         <section id="im-device" tabIndex={-1}>
           {settings.deviceId && (
             <p className="im-identifier">
-              {t("设备编号：", "Device ID: ")}
+              {t("ImSettingsPanel.message44")}
               {settings.deviceId}
             </p>
           )}
           {local && (
             <InlineNotice tone="info">
-              {t(
-                "2 · 当前设备已自动注册，无需填写地址或管理凭据。",
-                "2 · This device was registered automatically. No URL or administrator token to enter.",
-              )}
+              {t("ImSettingsPanel.message45")}
             </InlineNotice>
           )}
           <details
             open={showRemote}
             onToggle={(event) => setShowRemote(event.currentTarget.open)}
           >
-            <summary>
-              {t(
-                "使用团队 Gateway（手动注册）",
-                "Use a team Gateway (manual registration)",
-              )}
-            </summary>
+            <summary>{t("ImSettingsPanel.message46")}</summary>
             <ManagementSection
-              title={t("2 · 注册当前设备", "2 · Register this device")}
-              description={t(
-                "Artemis 运行时接收远程任务。模型凭据和项目工具保留在当前电脑。",
-                "Receive remote work while Artemis is running. Model credentials and project tools stay on this computer.",
-              )}
+              title={t("ImSettingsPanel.message57")}
+              description={t("ImSettingsPanel.message58")}
             >
               <TextField
-                label={t("Gateway 地址", "Gateway URL")}
-                description={t(
-                  "填写第 1 步拿到的服务地址，只填到域名和端口，不要加 /health 或其他路径。",
-                  "Use the URL from step 1: the domain and port only, without /health or another path.",
-                )}
+                label={t("ImSettingsPanel.message47")}
+                description={t("ImSettingsPanel.message48")}
                 type="url"
                 value={url}
                 onValueChange={setUrl}
@@ -889,26 +810,20 @@ export function ImSettingsPanel({
                 disabled={busy || settings.enabled}
               />
               <TextField
-                label={t("设备名称", "Device name")}
-                description={t(
-                  "起一个你能认出的名字，例如“小王的 Mac”。任务会交给这台电脑执行。",
-                  "Use a recognizable name, such as Alice's Mac. Tasks will run on this computer.",
-                )}
+                label={t("ImSettingsPanel.message49")}
+                description={t("ImSettingsPanel.message50")}
                 value={name}
                 onValueChange={setName}
                 disabled={busy}
               />
               <TextField
-                label={t("Gateway 管理凭据", "Gateway administrator token")}
+                label={t("ImSettingsPanel.message51")}
                 type="password"
                 value={adminToken}
                 onValueChange={setAdminToken}
                 autoComplete="off"
                 disabled={busy}
-                description={t(
-                  "由 Gateway 管理员输入；自己部署时填写 .env.gateway 中的 ARTEMIS_GATEWAY_ADMIN_TOKEN。注册后自动清空，不会保存到本地。",
-                  "Ask your Gateway administrator to enter this. For your own deployment, use ARTEMIS_GATEWAY_ADMIN_TOKEN from .env.gateway. Cleared after registration and never saved locally.",
-                )}
+                description={t("ImSettingsPanel.message52")}
               />
               <div className="im-actions">
                 <Button
@@ -927,27 +842,17 @@ export function ImSettingsPanel({
                       const current = await window.artemis.getImStatus();
                       setStatus(current);
                       setSettings(current.settings);
-                      setMessage(
-                        t(
-                          "设备注册成功。继续第 3 步连接机器人；如果团队已配置，刷新状态后可直接配对。",
-                          "Device registered. Continue to step 3, or refresh and pair if your team already configured a bot.",
-                        ),
-                      );
+                      setMessage(t("ImSettingsPanel.message54"));
                     })
                   }
                 >
-                  {t("注册当前设备", "Register device")}
+                  {t("ImSettingsPanel.message53")}
                 </Button>
                 <Button disabled={busy} onClick={() => void run(refresh)}>
-                  {t("刷新状态", "Refresh status")}
+                  {t("ImSettingsPanel.message55")}
                 </Button>
               </div>
-              <p>
-                {t(
-                  "成功标志：上方出现设备编号。无需重复注册；注册新设备前请先暂停连接。",
-                  "Success check: a device ID appears above. Registration is one-time; pause the connection before registering a different device.",
-                )}
-              </p>
+              <p>{t("ImSettingsPanel.message56")}</p>
             </ManagementSection>
           </details>
         </section>
@@ -962,7 +867,7 @@ export function ImSettingsPanel({
             进入操作内容，不再重复标题/约束/状态行。 */}
         {/* 平台接入指引统一收进顶部折叠块：slack 恒显示，飞书/企微一致。 */}
         <details className="im-setup-guide-top">
-          <summary>{t("接入指引", "Setup guide")}</summary>
+          <summary>{t("ImSettingsPanel.message59")}</summary>
           <div className="im-setup-guide-body">
             {channel === "slack" ? (
               <ImSlackSetup
@@ -970,13 +875,11 @@ export function ImSettingsPanel({
                 busy={busy}
                 copy={() =>
                   void run(async () => {
-                    await navigator.clipboard.writeText(SLACK_APP_MANIFEST);
-                    setMessage(
-                      t(
-                        "Slack 应用配置已复制。在 Slack 创建应用时选择 From a manifest 并粘贴。",
-                        "Manifest copied. Choose From a manifest when creating your Slack app and paste it.",
-                      ),
+                    const { userName } = await window.artemis.getSnapshot();
+                    await navigator.clipboard.writeText(
+                      slackAppManifest(userName),
                     );
+                    setMessage(t("ImSettingsPanel.message60"));
                   })
                 }
               />
@@ -992,14 +895,9 @@ export function ImSettingsPanel({
         </details>
         {!settings.deviceId && (
           <InlineNotice tone="info">
-            <p>
-              {t(
-                "先为这台电脑启动消息服务，再保存机器人凭据。个人使用只需点一次启动并注册。",
-                "Start the message service on this computer before saving credentials. Personal setup takes one start-and-register action.",
-              )}
-            </p>
+            <p>{t("ImSettingsPanel.message61")}</p>
             <Button onClick={() => navigateStep("im-prepare")}>
-              {t("去启动本机消息服务", "Set up the local message service")}
+              {t("ImSettingsPanel.message62")}
             </Button>
           </InlineNotice>
         )}
@@ -1013,29 +911,21 @@ export function ImSettingsPanel({
             t={t}
             imported={async () => {
               await refresh();
-              setMessage(
-                t(
-                  "旧机器人配置已导入，请重新配对并授权项目。",
-                  "Legacy bot imported. Pair again and grant project access.",
-                ),
-              );
+              setMessage(t("ImSettingsPanel.message63"));
             }}
           />
         )}
         <div className="im-block im-bots">
           <div className="im-block-header">
-            <h4>{t("机器人列表", "Bot list")}</h4>
+            <h4>{t("ImSettingsPanel.message64")}</h4>
             {/* 标题行尾的「机器人+加号」新建入口（ui Button 契约要求
                   可见文字，纯图标动作用原生按钮 + aria-label）。 */}
-            <Tooltip
-              label={t("新建 BOT 连接", "New bot connection")}
-              align="end"
-            >
+            <Tooltip label={t("ImSettingsPanel.message65")} align="end">
               <button
                 type="button"
                 className="im-icon-action"
                 disabled={busy}
-                aria-label={t("新建 BOT 连接", "New bot connection")}
+                aria-label={t("ImSettingsPanel.message65")}
                 onClick={(event) => {
                   botDialogTrigger.current = event.currentTarget;
                   setFields({});
@@ -1050,11 +940,8 @@ export function ImSettingsPanel({
           {!channelConnections.length && (
             <p>
               {savedPending[channel]
-                ? t(
-                    "凭据已保存，请刷新确认连接状态。",
-                    "Credentials saved. Refresh to confirm the connection.",
-                  )
-                : t("尚未保存机器人连接", "No saved bot connection")}
+                ? t("ImSettingsPanel.message68")
+                : t("ImSettingsPanel.message67")}
             </p>
           )}
           {channelConnections.map((connection) => (
@@ -1068,127 +955,121 @@ export function ImSettingsPanel({
               />
               <code>{connection.name}</code>
               <ImBotIdTag id={connection.id} t={t} />
-              {connection.error && (
-                <InlineNotice tone="danger">{connection.error}</InlineNotice>
-              )}
-              <Tooltip label={t("更换凭据", "Replace credentials")} align="end">
-                <button
-                  type="button"
-                  className="im-icon-action"
-                  disabled={busy}
-                  aria-label={t(
-                    `更换凭据 ${connection.name}`,
-                    `Replace credentials ${connection.name}`,
-                  )}
-                  onClick={(event) => {
-                    botDialogTrigger.current = event.currentTarget;
-                    setFields(
-                      Object.fromEntries(
-                        PUBLIC_BOT_FIELDS.flatMap((key) =>
-                          typeof connection.configuration?.[key] === "string"
-                            ? [[key, connection.configuration[key]!]]
-                            : [],
+              <div className="im-connection-actions">
+                <Tooltip label={t("ImSettingsPanel.message70")} align="end">
+                  <button
+                    type="button"
+                    className="im-icon-action"
+                    disabled={busy}
+                    aria-label={t("ImSettingsPanel.message69", {
+                      value1: connection.name,
+                    })}
+                    onClick={(event) => {
+                      botDialogTrigger.current = event.currentTarget;
+                      setFields(
+                        Object.fromEntries(
+                          PUBLIC_BOT_FIELDS.flatMap((key) =>
+                            typeof connection.configuration?.[key] === "string"
+                              ? [[key, connection.configuration[key]!]]
+                              : [],
+                          ),
                         ),
-                      ),
-                    );
-                    setBotDialog({ connectionId: connection.id });
-                  }}
-                >
-                  <ArtemisIcon height={13} name="edit" width={13} />
-                </button>
-              </Tooltip>
-              <Tooltip
-                label={t("刷新机器人连接状态", "Refresh bot connection status")}
-                align="end"
-              >
-                <button
-                  type="button"
-                  className="im-icon-action"
-                  disabled={busy || !settings.deviceId}
-                  aria-label={t(
-                    `刷新 ${connection.name} 连接状态`,
-                    `Refresh ${connection.name} connection status`,
-                  )}
-                  onClick={() => void run(refresh)}
-                >
-                  <ArtemisIcon height={13} name="refresh" width={13} />
-                </button>
-              </Tooltip>
-              <Tooltip
-                label={t("生成配对码", "Generate pairing code")}
-                align="end"
-              >
-                <button
-                  type="button"
-                  className="im-icon-action"
-                  disabled={busy || !settings.deviceId}
-                  aria-label={t(
-                    `生成配对码 ${connection.name}`,
-                    `Generate pairing code ${connection.name}`,
-                  )}
-                  onClick={(event) => {
-                    pairDialogTrigger.current = event.currentTarget;
-                    setPairDialogId(connection.id);
-                    if (!pairCode || pairCode.expiresAt <= Date.now()) {
-                      void run(generatePairCode);
-                    }
-                  }}
-                >
-                  <ArtemisIcon height={13} name="send" width={13} />
-                </button>
-              </Tooltip>
-              <ImConnectionRemoval
-                key={`${settings.deviceId}:${connection.id}`}
-                name={connection.name}
-                local={local}
-                busy={busy}
-                t={t}
-                remove={(token) =>
-                  run(async () => {
-                    const id = connection.id;
-                    await window.artemis.manageIm({
-                      action: "admin",
-                      operation: "remove-connection",
-                      ...(local ? {} : { adminToken: token }),
-                      configuration: { id },
-                    });
-                    setStatus((previous) =>
-                      previous
-                        ? {
-                            ...previous,
-                            connections: (
-                              previous.connections as ImConnectionStatus[]
-                            ).filter((c) => c.id !== id),
-                            identities: previous.identities.filter(
-                              (i) => i.connectionId !== id,
-                            ),
-                            pairingRequests: (
-                              previous.pairingRequests ?? []
-                            ).filter((r) => r.identity.connectionId !== id),
-                          }
-                        : previous,
-                    );
-                    setSavedMetadata((previous) => ({
-                      ...previous,
-                      [channel]: undefined,
-                    }));
-                    setConnectionId("");
-                    setFields({});
-                    setAdminToken("");
-                    setBotDialog(null);
-                    setPairCode(undefined);
-                    setFocusTarget("im-bot");
-                    setMessage(
-                      t("机器人连接已移除。", "Bot connection removed."),
-                    );
-                    try {
-                      await refresh();
-                    } catch (error) {
-                      setRefreshError(String(error));
-                    }
-                  })
-                }
-              />
+                      );
+                      setBotDialog({ connectionId: connection.id });
+                    }}
+                  >
+                    <ArtemisIcon height={13} name="edit" width={13} />
+                  </button>
+                </Tooltip>
+                <Tooltip label={t("ImSettingsPanel.message72")} align="end">
+                  <button
+                    type="button"
+                    className="im-icon-action"
+                    disabled={busy || !settings.deviceId}
+                    aria-label={t("ImSettingsPanel.message71", {
+                      value1: connection.name,
+                    })}
+                    onClick={() => void run(refresh)}
+                  >
+                    <ArtemisIcon height={13} name="refresh" width={13} />
+                  </button>
+                </Tooltip>
+                <Tooltip label={t("ImSettingsPanel.message74")} align="end">
+                  <button
+                    type="button"
+                    className="im-icon-action"
+                    disabled={busy || !settings.deviceId}
+                    aria-label={t("ImSettingsPanel.message73", {
+                      value1: connection.name,
+                    })}
+                    onClick={(event) => {
+                      pairDialogTrigger.current = event.currentTarget;
+                      setPairDialogId(connection.id);
+                      if (!pairCode || pairCode.expiresAt <= Date.now()) {
+                        void run(generatePairCode);
+                      }
+                    }}
+                  >
+                    <ArtemisIcon height={13} name="send" width={13} />
+                  </button>
+                </Tooltip>
+                <ImConnectionRemoval
+                  key={`${settings.deviceId}:${connection.id}`}
+                  name={connection.name}
+                  local={local}
+                  busy={busy}
+                  error={messageError ? message : undefined}
+                  t={t}
+                  remove={(token) =>
+                    run(async () => {
+                      const id = connection.id;
+                      await window.artemis.manageIm({
+                        action: "admin",
+                        operation: "remove-connection",
+                        ...(local ? {} : { adminToken: token }),
+                        configuration: { id },
+                      });
+                      setStatus((previous) =>
+                        previous
+                          ? {
+                              ...previous,
+                              connections: (
+                                previous.connections as ImConnectionStatus[]
+                              ).filter((c) => c.id !== id),
+                              identities: previous.identities.filter(
+                                (i) => i.connectionId !== id,
+                              ),
+                              pairingRequests: (
+                                previous.pairingRequests ?? []
+                              ).filter((r) => r.identity.connectionId !== id),
+                            }
+                          : previous,
+                      );
+                      setSavedMetadata((previous) => ({
+                        ...previous,
+                        [channel]: undefined,
+                      }));
+                      setConnectionId("");
+                      setFields({});
+                      setAdminToken("");
+                      setBotDialog(null);
+                      setPairCode(undefined);
+                      setFocusTarget("im-bot");
+                      setMessage(t("ImSettingsPanel.message75"));
+                      try {
+                        await refresh();
+                      } catch (error) {
+                        setRefreshError(String(error));
+                      }
+                    })
+                  }
+                />
+              </div>
+              {connection.error && (
+                <InlineNotice className="im-connection-error" tone="danger">
+                  {connection.error}
+                </InlineNotice>
+              )}
               {/* 从属账号：属于这条连接的已绑定账号，缩进挂在行下。 */}
               {connectionAccounts(connection.id)}
             </div>
@@ -1199,11 +1080,10 @@ export function ImSettingsPanel({
             className="im-bot-dialog"
             label={
               dialogConnection
-                ? t(
-                    `更换凭据 · ${dialogConnection.name}`,
-                    `Replace credentials · ${dialogConnection.name}`,
-                  )
-                : t("新建机器人连接", "New bot connection")
+                ? t("ImSettingsPanel.message97", {
+                    value1: dialogConnection.name,
+                  })
+                : t("ImSettingsPanel.message76")
             }
             returnFocusRef={botDialogTrigger}
             onOpenChange={(open) => {
@@ -1218,37 +1098,27 @@ export function ImSettingsPanel({
             <header>
               <h2>
                 {dialogConnection
-                  ? t(
-                      `更换“${dialogConnection.name}”的凭据`,
-                      `Replace credentials for “${dialogConnection.name}”`,
-                    )
-                  : t("新建机器人连接", "New bot connection")}
+                  ? t("ImSettingsPanel.message77", {
+                      value1: dialogConnection.name,
+                    })
+                  : t("ImSettingsPanel.message76")}
               </h2>
             </header>
             <div className="im-bot-dialog-body">
               {channel === "feishu" && (
                 <Select
                   labelVisibility="visible"
-                  label={t("应用区域", "App region")}
-                  description={t(
-                    "选择创建应用的开放平台。Lark 国际版与飞书国内版的应用凭据不能混用。",
-                    "Choose the console where you created the app. Lark and Feishu app credentials are not interchangeable.",
-                  )}
+                  label={t("ImSettingsPanel.message78")}
+                  description={t("ImSettingsPanel.message79")}
                   value={feishuDomain}
                   options={[
                     {
                       value: "feishu",
-                      label: t(
-                        "飞书国内版（open.feishu.cn）",
-                        "Feishu (open.feishu.cn)",
-                      ),
+                      label: t("ImSettingsPanel.message80"),
                     },
                     {
                       value: "lark",
-                      label: t(
-                        "Lark 国际版（open.larksuite.com）",
-                        "Lark (open.larksuite.com)",
-                      ),
+                      label: t("ImSettingsPanel.message81"),
                     },
                   ]}
                   disabled={busy}
@@ -1259,29 +1129,21 @@ export function ImSettingsPanel({
               )}
               {requiredFields.map(renderBotField)}
               <details className="im-advanced-fields">
-                <summary>
-                  {t(
-                    "高级设置（通常无需修改）",
-                    "Advanced settings (usually unnecessary)",
-                  )}
-                </summary>
+                <summary>{t("ImSettingsPanel.message82")}</summary>
                 <div className="im-field-stack">
                   {channel === "feishu" && (
                     <Select
                       labelVisibility="visible"
-                      label={t("接入方式", "Transport")}
+                      label={t("ImSettingsPanel.message83")}
                       value={feishuTransport}
                       options={[
                         {
                           value: "websocket",
-                          label: t(
-                            "长连接（无需公网地址）",
-                            "Long connection (no public URL)",
-                          ),
+                          label: t("ImSettingsPanel.message84"),
                         },
                         {
                           value: "webhook",
-                          label: t("HTTPS 回调", "HTTPS callback"),
+                          label: t("ImSettingsPanel.message85"),
                         },
                       ]}
                       disabled={busy}
@@ -1298,29 +1160,20 @@ export function ImSettingsPanel({
               </details>
               {!local && (
                 <TextField
-                  label={t(
-                    "机器人配置的管理凭据",
-                    "Administrator token for this bot configuration",
-                  )}
+                  label={t("ImSettingsPanel.message86")}
                   type="password"
                   value={adminToken}
                   onValueChange={setAdminToken}
                   autoComplete="off"
                   disabled={busy}
-                  description={t(
-                    "请管理员再次输入 Gateway 管理凭据；保存后会自动清空。",
-                    "Ask the administrator to enter the Gateway token again; it is cleared after saving.",
-                  )}
+                  description={t("ImSettingsPanel.message87")}
                 />
               )}
               {channel === "feishu" &&
                 feishuTransport === "webhook" &&
                 local && (
                   <InlineNotice tone="info">
-                    {t(
-                      "飞书需要公网 HTTPS 回调；请在第 1 步导出并部署独立 Gateway，或连接团队服务后再配置。",
-                      "Feishu needs a public HTTPS callback. Export and deploy a standalone Gateway in step 1, or connect to your team service first.",
-                    )}
+                    {t("ImSettingsPanel.message88")}
                   </InlineNotice>
                 )}
               <div className="im-actions">
@@ -1349,7 +1202,7 @@ export function ImSettingsPanel({
                         (channel === "feishu"
                           ? feishuDomain === "lark"
                             ? "Lark"
-                            : t("飞书", "Feishu")
+                            : t("ImSettingsPanel.message90")
                           : imChannelLabel(channel, t));
                       await window.artemis.manageIm({
                         action: "admin",
@@ -1402,40 +1255,33 @@ export function ImSettingsPanel({
                         ...previous,
                         [channel]: true,
                       }));
-                      setMessage(
-                        t("机器人凭据已保存。", "Bot credentials saved."),
-                      );
+                      setMessage(t("ImSettingsPanel.message91"));
                       try {
                         await refresh();
                       } catch (error) {
                         setMessage(
-                          t(
-                            `凭据已保存，但连接状态刷新失败：${String(error)}`,
-                            `Credentials saved, but connection refresh failed: ${String(error)}`,
-                          ),
+                          t("ImSettingsPanel.message92", {
+                            value1: String(error),
+                          }),
                         );
                         return;
                       }
                       try {
                         await generatePairCode();
-                        setMessage(
-                          t(
-                            "凭据已保存，配对码已生成。连接成功后进入“配对与账号”。",
-                            "Credentials saved and pairing code generated. Open Pairing & accounts once connected.",
-                          ),
-                        );
+                        pairDialogTrigger.current = botDialogTrigger.current;
+                        setPairDialogId(savedId);
+                        setMessage(t("ImSettingsPanel.message93"));
                       } catch (error) {
                         setMessage(
-                          t(
-                            `凭据已保存，但配对码生成失败：${String(error)}`,
-                            `Credentials saved, but pairing code generation failed: ${String(error)}`,
-                          ),
+                          t("ImSettingsPanel.message94", {
+                            value1: String(error),
+                          }),
                         );
                       }
                     }).finally(() => setSavingChannel(null));
                   }}
                 >
-                  {t("保存并连接机器人", "Save and connect bot")}
+                  {t("ImSettingsPanel.message89")}
                 </Button>
                 <Button
                   disabled={busy}
@@ -1445,7 +1291,7 @@ export function ImSettingsPanel({
                     setAdminToken("");
                   }}
                 >
-                  {t("取消", "Cancel")}
+                  {t("App_copy.renameCancel")}
                 </Button>
               </div>
             </div>
@@ -1457,7 +1303,7 @@ export function ImSettingsPanel({
             connection.callbackUrl ? (
               <div className="im-actions" key={`${connection.id}:callback`}>
                 <p className="im-identifier">
-                  {t("事件回调地址：", "Event callback URL: ")}
+                  {t("ImSettingsPanel.message98")}
                   {connection.callbackUrl}
                 </p>
                 <Button
@@ -1469,13 +1315,11 @@ export function ImSettingsPanel({
                       await navigator.clipboard.writeText(
                         connection.callbackUrl!,
                       );
-                      setMessage(
-                        t("事件回调地址已复制。", "Callback URL copied."),
-                      );
+                      setMessage(t("ImSettingsPanel.message100"));
                     })
                   }
                 >
-                  {t("复制回调地址", "Copy callback URL")}
+                  {t("ImSettingsPanel.message99")}
                 </Button>
               </div>
             ) : null,
@@ -1494,57 +1338,35 @@ export function ImSettingsPanel({
             guide={
               <div className="im-pair-guide">
                 <p>
-                  {t(
-                    `在 ${pairingPlatformLabel} 中找到刚配置的机器人，打开本人单聊。不要把配对码发到群里。`,
-                    `Find the configured bot in ${pairingPlatformLabel} and open a private chat. Do not send pairing codes to a group.`,
-                  )}
+                  {t("ImSettingsPanel.message101", {
+                    value1: pairingPlatformLabel,
+                  })}
                 </p>
                 <ol>
                   <li>
                     {activePairingPlatform === "slack"
-                      ? t(
-                          "复制下方的 pair 配对码指令，在 Slack 中作为普通消息发送，不加开头的 /。",
-                          "Copy pair CODE below and send it as a regular Slack message without a leading /.",
-                        )
-                      : t(
-                          `复制下方的 /pair 配对码指令；${pairingPlatformLabel} 使用带 / 的配对指令。`,
-                          `Copy /pair CODE below; ${pairingPlatformLabel} uses the leading / in its pairing command.`,
-                        )}
+                      ? t("ImSettingsPanel.message103")
+                      : t("ImSettingsPanel.message102", {
+                          value1: pairingPlatformLabel,
+                        })}
                   </li>
                   <li>
                     {activePairingPlatform === "wecom"
-                      ? t(
-                          "打开企业微信中刚配置的智能机器人单聊，粘贴完整指令，在 5 分钟内发送。",
-                          "Open a private chat with your configured WeCom intelligent bot, paste the complete command and send within 5 minutes.",
-                        )
+                      ? t("ImSettingsPanel.message106")
                       : activePairingPlatform === "slack"
-                        ? t(
-                            "在安装应用的 Slack 工作区中打开该应用的私信，粘贴完整指令，在 5 分钟内发送。",
-                            "Open a direct message with the app in the Slack workspace where it is installed, paste the complete command and send within 5 minutes.",
-                          )
-                        : t(
-                            `在 ${pairingPlatformLabel} 中搜索应用名称并打开机器人单聊，粘贴完整指令，在 5 分钟内发送。`,
-                            `Search for the app name in ${pairingPlatformLabel}, open the bot's private chat, paste the complete command and send within 5 minutes.`,
-                          )}
+                        ? t("ImSettingsPanel.message105")
+                        : t("ImSettingsPanel.message104", {
+                            value1: pairingPlatformLabel,
+                          })}
                   </li>
-                  <li>
-                    {t(
-                      "发送后在下方核对该连接的账号并批准请求；机器人回复“配对成功”、账号出现在机器人行下即完成。",
-                      "After sending, verify the account under this connection and approve the request. The bot confirms pairing and the account appears under the bot row.",
-                    )}
-                  </li>
+                  <li>{t("ImSettingsPanel.message107")}</li>
                 </ol>
               </div>
             }
             copy={(text) =>
               void run(async () => {
                 await navigator.clipboard.writeText(text);
-                setMessage(
-                  t(
-                    "配对指令已复制，请在本人机器人单聊中发送。",
-                    "Pairing command copied. Send it in your private bot chat.",
-                  ),
-                );
+                setMessage(t("ImSettingsPanel.message108"));
               })
             }
           />
@@ -1572,12 +1394,16 @@ export function ImSettingsPanel({
           ?.writePaths ?? [];
       const scope =
         grant.mode === "execute" && write.length
-          ? t(`可写 ${write.join("、")}`, `Writes ${write.join(", ")}`)
-          : t("整个项目可读", "Whole project readable");
+          ? t("ImSettingsPanel.writePaths", {
+              paths: locale.startsWith("zh")
+                ? write.join("、")
+                : new Intl.ListFormat(locale, { type: "unit" }).format(write),
+            })
+          : t("ImSettingsPanel.message109");
       const state = !grant.security?.confirmedAt
-        ? t("待确认范围", "Confirm scope")
+        ? t("ImSettingsPanel.message112")
         : grant.expiresAt <= Date.now()
-          ? t("已过期", "Expired")
+          ? t("ImSettingsPanel.message111")
           : "";
       return state ? `${scope} · ${state}` : scope;
     };
@@ -1607,12 +1433,7 @@ export function ImSettingsPanel({
         setFlowCard("projects");
         return true;
       }
-      setMessage(
-        t(
-          "项目授权已保存，连接已启用。",
-          "Project permissions saved and connection enabled.",
-        ),
-      );
+      setMessage(t("ImSettingsPanel.message113"));
       if (advance) flowAdvanceFrom();
       return true;
     };
@@ -1647,53 +1468,28 @@ export function ImSettingsPanel({
         {/* 说明与提示统一子区：边框包裹、可展开收起（默认收起）——
             正文区只留操作对象（内置临时会话行 + 项目列表）。 */}
         <details className="im-perm-guide">
-          <summary>{t("说明与提示", "Notes & tips")}</summary>
+          <summary>{t("ImSettingsPanel.message114")}</summary>
           <div className="im-perm-guide-body">
-            <p>
-              {t(
-                "仅开放选中的项目，勾选即生效。先选 Plan（只读分析），需要修改文件时再改为 Execute；撤销授权会停止对应远程任务。",
-                "Only selected projects are accessible, and checking applies immediately. Start with Plan (read-only analysis), switch to Execute for file changes. Revocation cancels the affected remote work.",
-              )}
-            </p>
-            <p>
-              {t(
-                "首个勾选的项目自动设为默认；未设默认或默认为临时会话时，手机上的普通消息直接发起临时任务（不绑定项目的会话：可对话获得指引，仅咨询分析，不访问任何项目文件）。",
-                "Your first checked project becomes the default; with the ad-hoc chat as default, plain messages start temporary advisory tasks that touch no project files.",
-              )}
-            </p>
-            <p>
-              {t(
-                "之后随时改：手机上发 /projects 就能查看和调整授权的项目；单聊发 /help 查看全部指令。IM 任务使用独立工具权限，MCP 与扩展暂不开放到远程入口。",
-                "Change anytime: send /projects from your phone to review and adjust authorized projects, or /help for all commands. Remote tasks have separate tool permissions; MCP and extensions are currently excluded.",
-              )}
-            </p>
-            {!projects.length && (
-              <p>
-                {t(
-                  "还没有可选项目：先在 Artemis 打开一个项目，再回来勾选。",
-                  "No projects yet — open one in Artemis first, then come back to check it.",
-                )}
-              </p>
-            )}
+            <p>{t("ImSettingsPanel.message115")}</p>
+            <p>{t("ImSettingsPanel.message116")}</p>
+            <p>{t("ImSettingsPanel.message117")}</p>
+            {!projects.length && <p>{t("ImSettingsPanel.message118")}</p>}
           </div>
         </details>
         {/* W4：临时会话是内置授权目标——已配对即可收发消息并获得指引，也可发起
             plan 档临时任务（无项目工作区，不碰项目文件）；不占项目授权，不可取消。 */}
         <div className="im-project im-project-builtin">
           <Checkbox
-            label={t(
-              "临时会话（内置，始终可用）",
-              "Ad-hoc chats (built in, always available)",
-            )}
+            label={t("ImSettingsPanel.message119")}
             defaultChecked
             disabled
           />
           {adhocDefault && (
             <span
               className="im-default-badge"
-              aria-label={t("默认项目", "Default project")}
+              aria-label={t("ImSettingsPanel.message121")}
             >
-              {t("默认", "Default")}
+              {t("ImSettingsPanel.message120")}
             </span>
           )}
           {!adhocDefault && (
@@ -1701,18 +1497,17 @@ export function ImSettingsPanel({
               className="im-set-default"
               size="compact"
               variant="quiet"
-              title={t(
-                "把默认项目切回临时会话",
-                "Make ad-hoc chats the default",
-              )}
+              title={t("ImSettingsPanel.message123")}
               disabled={busy}
               onClick={() => applyNow({ ...settings, defaultProjectId: "" })}
             >
-              {t("设为默认", "Set default")}
+              {t("ImSettingsPanel.message122")}
             </Button>
           )}
         </div>
-        <h4 className="im-project-list-title">{t("项目列表", "Projects")}</h4>
+        <h4 className="im-project-list-title">
+          {t("ImSettingsPanel.message124")}
+        </h4>
         {projects.map((project) => {
           const grant = settings.grants.find((g) => g.projectId === project.id);
           return (
@@ -1770,9 +1565,9 @@ export function ImSettingsPanel({
               {settings.defaultProjectId === project.id && (
                 <span
                   className="im-default-badge"
-                  aria-label={t("默认项目", "Default project")}
+                  aria-label={t("ImSettingsPanel.message121")}
                 >
-                  {t("默认", "Default")}
+                  {t("ImSettingsPanel.message120")}
                 </span>
               )}
               {grant && settings.defaultProjectId !== project.id && (
@@ -1780,7 +1575,7 @@ export function ImSettingsPanel({
                   className="im-set-default"
                   size="compact"
                   variant="quiet"
-                  title={t("设为默认项目", "Make the default project")}
+                  title={t("ImSettingsPanel.message128")}
                   disabled={busy}
                   onClick={() =>
                     applyNow({
@@ -1789,7 +1584,7 @@ export function ImSettingsPanel({
                     })
                   }
                 >
-                  {t("设为默认", "Set default")}
+                  {t("ImSettingsPanel.message122")}
                 </Button>
               )}
               {grant && (
@@ -1797,23 +1592,22 @@ export function ImSettingsPanel({
                   className="im-grant-open"
                   size="compact"
                   variant="quiet"
-                  title={t("打开授权设置", "Open permission settings")}
+                  title={t("ImSettingsPanel.message130")}
                   disabled={busy}
                   onClick={(event) => {
                     grantDialogAnchor.current = event.currentTarget;
                     setGrantDialog(project.id);
                   }}
                 >
-                  {t("授权配置", "Permissions")}
+                  {t("ImSettingsPanel.message129")}
                 </Button>
               )}
               {grant && grantDialog === project.id && (
                 <Dialog
                   className="im-grant-dialog"
-                  label={t(
-                    `${project.name} · 授权设置`,
-                    `${project.name} · Permissions`,
-                  )}
+                  label={t("ImSettingsPanel.message131", {
+                    value1: project.name,
+                  })}
                   returnFocusRef={grantDialogAnchor}
                   onOpenChange={(open) => {
                     if (!open) closeGrantDialog(project.id);
@@ -1822,10 +1616,9 @@ export function ImSettingsPanel({
                 >
                   <header>
                     <h2>
-                      {t(
-                        `${project.name} · 授权设置`,
-                        `${project.name} · Permissions`,
-                      )}
+                      {t("ImSettingsPanel.message131", {
+                        value1: project.name,
+                      })}
                     </h2>
                   </header>
                   <div className="im-grant-dialog-body">
@@ -1833,30 +1626,24 @@ export function ImSettingsPanel({
                     <div
                       className="im-mode-tiers"
                       role="radiogroup"
-                      aria-label={t("任务模式", "Task mode")}
+                      aria-label={t("App_copy.taskMode")}
                     >
                       {(
                         [
                           [
                             "plan",
-                            t("Plan · 只读分析", "Plan · Read-only"),
-                            t(
-                              "可读整个项目，不修改文件",
-                              "Reads the whole project, changes nothing",
-                            ),
+                            t("ImSettingsPanel.message132"),
+                            t("ImSettingsPanel.message133"),
                           ],
                           [
                             "review",
-                            t("Review · 只读审查", "Review · Read-only"),
-                            t(
-                              "同 Plan，用于复核结果",
-                              "Same reads, for reviewing results",
-                            ),
+                            t("ImSettingsPanel.message134"),
+                            t("ImSettingsPanel.message135"),
                           ],
                           [
                             "execute",
-                            t("Execute · 允许修改", "Execute · May change"),
-                            t("需要选择可写范围", "Requires a writable scope"),
+                            t("ImSettingsPanel.message136"),
+                            t("ImSettingsPanel.message137"),
                           ],
                         ] as const
                       ).map(([mode, label, desc]) => (
@@ -1891,14 +1678,8 @@ export function ImSettingsPanel({
                     </div>
                     <p className="im-fine">
                       {grant.mode === "execute"
-                        ? t(
-                            "Execute 需要选择可写范围；可读默认为整个项目。",
-                            "Execute needs a writable scope; reads default to the whole project.",
-                          )
-                        : t(
-                            "默认范围：可读整个项目，不可写任何文件。",
-                            "Default scope: the whole project is readable; no file is writable.",
-                          )}
+                        ? t("ImSettingsPanel.message140")
+                        : t("ImSettingsPanel.message139")}
                     </p>
                     {grant.mode !== "execute" && (
                       <Button
@@ -1912,8 +1693,8 @@ export function ImSettingsPanel({
                         }
                       >
                         {customScopeOpen[project.id]
-                          ? t("收起自定义范围", "Collapse custom scope")
-                          : t("自定义范围 ▸", "Custom scope")}
+                          ? t("ImSettingsPanel.message142")
+                          : t("ImSettingsPanel.message141")}
                       </Button>
                     )}
                     {(grant.mode === "execute" ||
@@ -1945,7 +1726,7 @@ export function ImSettingsPanel({
                     <div className="im-grant-fields">
                       <Select
                         labelVisibility="visible"
-                        label={t("执行审批", "Execution approval")}
+                        label={t("ImSettingsPanel.message143")}
                         value={grant.approval}
                         onValueChange={(approval) =>
                           updateGrant(project.id, { approval })
@@ -1954,14 +1735,11 @@ export function ImSettingsPanel({
                         options={[
                           {
                             value: "ask",
-                            label: t("每次确认", "Ask each time"),
+                            label: t("ImSettingsPanel.message144"),
                           },
                           {
                             value: "automatic",
-                            label: t(
-                              "授权范围内自动执行",
-                              "Automatic within this grant",
-                            ),
+                            label: t("ImSettingsPanel.message145"),
                           },
                         ]}
                       />
@@ -1969,17 +1747,11 @@ export function ImSettingsPanel({
                         <>
                           {status?.scopedShellSupported === false ? (
                             <InlineNotice tone="warning">
-                              {t(
-                                "当前平台缺少受限文件与命令组件，请更新 Artemis 后使用目录枚举、新建文件和命令执行。",
-                                "Scoped file and command components are unavailable. Update Artemis to use directory listing, file creation and commands.",
-                              )}
+                              {t("ImSettingsPanel.message146")}
                             </InlineNotice>
                           ) : null}
                           <Checkbox
-                            label={t(
-                              "允许沙箱命令",
-                              "Allow sandboxed commands",
-                            )}
+                            label={t("ImSettingsPanel.message147")}
                             checked={grant.shell}
                             disabled={
                               busy || status?.scopedShellSupported === false
@@ -1989,14 +1761,8 @@ export function ImSettingsPanel({
                             }
                           />
                           <Checkbox
-                            label={t(
-                              "允许命令访问网络",
-                              "Allow command network access",
-                            )}
-                            description={t(
-                              "开启通用网络访问；首版不按域名或数据内容限制网络外发。",
-                              "Enables general network access; this version does not filter network destinations or payloads.",
-                            )}
+                            label={t("ImSettingsPanel.message148")}
+                            description={t("ImSettingsPanel.message149")}
                             checked={grant.network}
                             disabled={busy || !grant.shell}
                             onCheckedChange={(network) =>
@@ -2006,19 +1772,9 @@ export function ImSettingsPanel({
                         </>
                       )}
                       <div className="im-field-stack">
-                        <h4>
-                          {t(
-                            "允许哪些群使用这个项目",
-                            "Which groups may use this project",
-                          )}
-                        </h4>
+                        <h4>{t("ImSettingsPanel.message150")}</h4>
                         {!availableSpaces.length && (
-                          <p>
-                            {t(
-                              "还没有可选的群空间。先到“群聊”保存配置，再回来选择。",
-                              "No group spaces yet. Save a space in Group spaces, then return here.",
-                            )}
-                          </p>
+                          <p>{t("ImSettingsPanel.message151")}</p>
                         )}
                         {availableSpaces.map((space) => (
                           <Checkbox
@@ -2039,17 +1795,9 @@ export function ImSettingsPanel({
                         ))}
                       </div>
                       <details>
-                        <summary>
-                          {t(
-                            "高级：手动填写空间编号",
-                            "Advanced: enter space IDs manually",
-                          )}
-                        </summary>
+                        <summary>{t("ImSettingsPanel.message152")}</summary>
                         <TextField
-                          label={t(
-                            "允许的协作空间 ID（逗号分隔）",
-                            "Allowed space IDs (comma separated)",
-                          )}
+                          label={t("ImSettingsPanel.message153")}
                           value={grant.groups
                             .filter((g) => g.startsWith("space:"))
                             .map((g) => g.slice(6))
@@ -2067,7 +1815,7 @@ export function ImSettingsPanel({
                         />
                       </details>
                       <p>
-                        {t("授权到期：", "Grant expires: ")}
+                        {t("ImSettingsPanel.message154")}
                         {new Date(grant.expiresAt).toLocaleString(locale)}{" "}
                         <Button
                           disabled={busy}
@@ -2077,25 +1825,20 @@ export function ImSettingsPanel({
                             })
                           }
                         >
-                          {t("续期 30 天", "Renew for 30 days")}
+                          {t("ImSettingsPanel.message155")}
                         </Button>
                       </p>
                     </div>
                   </div>
                   <footer>
-                    <span>
-                      {t(
-                        "确认后立即保存并启用，无需再到下方操作。",
-                        "Confirming saves and enables immediately—nothing else to press below.",
-                      )}
-                    </span>
+                    <span>{t("ImSettingsPanel.message156")}</span>
                     <div className="im-grant-dialog-actions">
                       <Button
                         variant="quiet"
                         disabled={busy}
                         onClick={() => closeGrantDialog(project.id)}
                       >
-                        {t("关闭", "Close")}
+                        {t("App_copy.renameClose")}
                       </Button>
                       <Button
                         disabled={
@@ -2110,7 +1853,7 @@ export function ImSettingsPanel({
                           })();
                         }}
                       >
-                        {t("确认设置", "Confirm settings")}
+                        {t("ImSettingsPanel.message158")}
                       </Button>
                     </div>
                   </footer>
@@ -2122,11 +1865,7 @@ export function ImSettingsPanel({
         {/* 按项目的范围/状态摘要在各项目行内呈现（.im-row-summary）。 */}
         {enableFailedError && (
           <InlineNotice tone="warning">
-            {t(
-              "授权已保存，连接未启用。",
-              "Authorizations saved; connection not enabled.",
-            )}{" "}
-            {enableFailedError}{" "}
+            {t("ImSettingsPanel.message160")} {enableFailedError}{" "}
             <Button
               size="compact"
               disabled={busy}
@@ -2142,11 +1881,11 @@ export function ImSettingsPanel({
                   }));
                   setSettings(next.settings);
                   setEnableFailedError("");
-                  setMessage(t("连接已启用。", "Connection enabled."));
+                  setMessage(t("ImSettingsPanel.message162"));
                 })
               }
             >
-              {t("重试启用", "Retry enable")}
+              {t("ImSettingsPanel.message161")}
             </Button>
           </InlineNotice>
         )}
@@ -2175,23 +1914,17 @@ export function ImSettingsPanel({
       <section id="im-spaces" tabIndex={-1}>
         <ManagementSection
           className="im-space-setup"
-          title={t("IM 群聊", "IM groups")}
-          description={t(
-            "一个原生群对应一个本地群对话。",
-            "One native group, one local conversation.",
-          )}
+          title={t("ImSettingsPanel.message165")}
+          description={t("ImSettingsPanel.message166")}
         >
           {!local ? (
             <InlineNotice tone="warning">
-              {t(
-                "请先启用本机内置服务。原生群不使用共享网关。",
-                "Enable the built-in local service. Native groups do not use a shared gateway.",
-              )}
+              {t("ImSettingsPanel.message164")}
             </InlineNotice>
           ) : (
             <>
               <Button disabled={busy} onClick={() => void run(reload)}>
-                {t("刷新群列表", "Refresh groups")}
+                {t("ImSettingsPanel.message163")}
               </Button>
               <ImNativeGroups
                 diagnostics={diagnostics}
@@ -2250,35 +1983,27 @@ export function ImSettingsPanel({
             {/* D4 诚实版轨道：仅「桌面出现任务」由系统检测，完成与回复以用户确认为准。 */}
             <ol
               className="im-test-track"
-              aria-label={t("测试任务进度", "Test task progress")}
+              aria-label={t("ImSettingsPanel.message174")}
             >
-              <li data-state="guide">
-                {t("你从手机发送任务指令", "You send the task command")}
-              </li>
+              <li data-state="guide">{t("ImSettingsPanel.message167")}</li>
               <li data-state={taskDetected ? "done" : "pending"}>
                 {taskDetected
-                  ? t("桌面已出现任务", "A task appeared on the desktop")
-                  : t("等待桌面出现任务", "Waiting for a task on the desktop")}
+                  ? t("ImSettingsPanel.message169")
+                  : t("ImSettingsPanel.message168")}
               </li>
               <li data-state={verify.confirmed ? "done" : "pending"}>
                 {verify.confirmed
-                  ? t("你已确认任务完成", "You confirmed the task finished")
-                  : t("等待任务完成", "Waiting for the task to finish")}
+                  ? t("ImSettingsPanel.message171")
+                  : t("ImSettingsPanel.message170")}
               </li>
               <li data-state={verify.confirmed ? "done" : "pending"}>
                 {verify.confirmed
-                  ? t("你已确认收到回复", "You confirmed the reply arrived")
-                  : t(
-                      "等待回复送达手机",
-                      "Waiting for the reply on your phone",
-                    )}
+                  ? t("ImSettingsPanel.message173")
+                  : t("ImSettingsPanel.message172")}
               </li>
             </ol>
             <Checkbox
-              label={t(
-                "我已在手机上收到 Artemis 的回复（可撤销）",
-                "I received Artemis's reply on my phone (undo anytime)",
-              )}
+              label={t("ImSettingsPanel.message175")}
               checked={verify.confirmed}
               disabled={busy || !deviceId}
               onCheckedChange={(checked) => {
@@ -2292,10 +2017,7 @@ export function ImSettingsPanel({
             />
             {channel !== "wecom" && (
               <Button variant="quiet" onClick={() => selectView("spaces")}>
-                {t(
-                  "设置群协作（可选）",
-                  "Set up group collaboration (optional)",
-                )}
+                {t("ImSettingsPanel.message176")}
               </Button>
             )}
           </div>
@@ -2318,24 +2040,25 @@ export function ImSettingsPanel({
         (status?.identities ?? []).some((i) => i.channel === platform),
     ).map((platform) => imChannelLabel(platform, t));
     const channelSummary = pairedNames.length
-      ? t(
-          `已连接 · ${pairedNames.join("、")}`,
-          `Connected · ${pairedNames.join(", ")}`,
-        )
+      ? t("ImSettingsPanel.connectedMembers", {
+          names: locale.startsWith("zh")
+            ? pairedNames.join("、")
+            : new Intl.ListFormat(locale, { type: "unit" }).format(pairedNames),
+        })
       : health.failed > 0
         ? imConnectionSummary(connections, t)
         : hasBot
-          ? t("已连接 · 待绑定账号", "Connected · account pending")
+          ? t("ImSettingsPanel.message178")
           : connections.length
             ? imConnectionSummary(connections, t)
-            : t("还没有机器人，先添加一个", "No bot yet — add one first");
+            : t("ImSettingsPanel.message177");
     return (
       <>
         <ImFlowCard
           icon="connector"
-          title={t("连接服务", "Connect the service")}
+          title={t("ImSettingsPanel.message180")}
           done={flowSteps[0]!.done}
-          summary={settings.deviceId || t("未注册", "Not registered")}
+          summary={settings.deviceId || t("ImSettingsPanel.message181")}
           open={openStep("service")}
           onToggle={() => setFlowCard(openStep("service") ? null : "service")}
           t={t}
@@ -2346,7 +2069,7 @@ export function ImSettingsPanel({
             尾部「顺手验证」为可选段，不计入完成链。 */}
         <ImFlowCard
           icon="message"
-          title={t("接入渠道", "Onboard a channel")}
+          title={t("ImSettingsPanel.message183")}
           done={flowSteps[1]!.done}
           summary={channelSummary}
           open={openStep("channel")}
@@ -2356,7 +2079,7 @@ export function ImSettingsPanel({
           <div
             className="im-channel-tabs"
             role="tablist"
-            aria-label={t("选择渠道", "Choose a channel")}
+            aria-label={t("ImSettingsPanel.message182")}
           >
             {IM_CHANNELS.map((platform) => {
               /* tab 仅保留渠道名：连接状态由名称前的信号灯表达（正常亮绿、
@@ -2402,12 +2125,11 @@ export function ImSettingsPanel({
         {/* 临时会话是内置授权目标，③摘要计作 1 个项目。 */}
         <ImFlowCard
           icon="folder"
-          title={t("授权项目", "Authorize projects")}
+          title={t("ImSettingsPanel.message189")}
           done={flowSteps[2]!.done}
-          summary={t(
-            `${settings.grants.length + 1} 个项目`,
-            `${settings.grants.length + 1} projects`,
-          )}
+          summary={t("ImSettingsPanel.message190", {
+            value1: settings.grants.length + 1,
+          })}
           open={openStep("projects")}
           onToggle={() => setFlowCard(openStep("projects") ? null : "projects")}
           t={t}
@@ -2416,36 +2138,22 @@ export function ImSettingsPanel({
           {allDone && (
             <div className="im-ceremony">
               <p className="im-ceremony-title">
-                {t(
-                  "三步配置完成，手机现在可以派活了",
-                  "Three steps done — your phone can dispatch work now",
-                )}
+                {t("ImSettingsPanel.message184")}
               </p>
               <div className="im-ceremony-actions">
                 <Button onClick={() => selectView("overview")}>
-                  {t("查看连接概览", "Review connections")}
+                  {t("ImSettingsPanel.message185")}
                 </Button>
                 <Button variant="quiet" onClick={() => selectView("test")}>
-                  {t(
-                    "发测试消息验证（可选）",
-                    "Send a test message (optional)",
-                  )}
+                  {t("ImSettingsPanel.message186")}
                 </Button>
                 {channel !== "wecom" && (
                   <Button variant="quiet" onClick={() => selectView("spaces")}>
-                    {t(
-                      "设置群协作（可选）",
-                      "Set up group collaboration (optional)",
-                    )}
+                    {t("ImSettingsPanel.message176")}
                   </Button>
                 )}
               </div>
-              <p className="im-fine">
-                {t(
-                  "没验证也能用：第 ② 步底部的「顺手验证」随时可以补做。",
-                  "Verification is optional — the verify tail of step ② can be done anytime.",
-                )}
-              </p>
+              <p className="im-fine">{t("ImSettingsPanel.message188")}</p>
             </div>
           )}
         </ImFlowCard>
@@ -2462,20 +2170,12 @@ export function ImSettingsPanel({
     >
       <header className="im-header">
         <div className="im-header-copy">
-          <h2>{t("消息接入", "Message integrations")}</h2>{" "}
-          <p>
-            {t(
-              "通过 IM 单聊或群协作，把任务交给这台电脑执行。",
-              "Send tasks to this computer through private bot chats or group collaboration.",
-            )}
-          </p>
+          <h2>{t("ImSettingsPanel.message191")}</h2>{" "}
+          <p>{t("ImSettingsPanel.message192")}</p>
         </div>
         <div
           className="im-header-state"
-          title={t(
-            "机器人接入状态；不代表手机或电脑上的 IM 客户端在线状态。",
-            "Bot connection status; separate from IM client presence on phones and computers.",
-          )}
+          title={t("ImSettingsPanel.message196")}
         >
           {activeScreen === "flow" && (
             <ImFlowProgress done={flowDone} total={flowSteps.length} t={t} />
@@ -2503,15 +2203,12 @@ export function ImSettingsPanel({
                 </span>
               )}
               <span className="im-master-label" aria-hidden="true">
-                {t("启用", "Enable")}
+                {t("ImSettingsPanel.message193")}
               </span>
               <Switch
                 labelVisibility="hidden"
-                label={t("启用 IM 连接", "Enable IM connection")}
-                title={t(
-                  "暂停会保留已有配置与授权。",
-                  "Pausing keeps configuration and grants.",
-                )}
+                label={t("ImSettingsPanel.message194")}
+                title={t("ImSettingsPanel.message195")}
                 checked={status?.settings.enabled ?? settings.enabled}
                 disabled={busy || (!settings.enabled && !!enableReason)}
                 description={!settings.enabled ? enableReason : undefined}
@@ -2545,7 +2242,7 @@ export function ImSettingsPanel({
       )}
       {refreshError && (
         <InlineNotice tone="warning">
-          {t("无法刷新状态：", "Unable to refresh status: ")}
+          {t("ImSettingsPanel.message197")}
           {refreshError}
         </InlineNotice>
       )}
@@ -2557,7 +2254,7 @@ export function ImSettingsPanel({
           {renderStepCards()}
           {allDone && (
             <Button onClick={() => selectView("overview")}>
-              {t("返回概览", "Back to overview")}
+              {t("ImSettingsPanel.message201")}
             </Button>
           )}
         </div>
@@ -2570,7 +2267,7 @@ export function ImSettingsPanel({
             disabled={busy}
             onClick={() => setScreen(groupFrom)}
           >
-            {t("← 返回单聊设置", "← Back to direct-chat settings")}
+            {t("ImSettingsPanel.message200")}
           </Button>
           {renderSpacesBody()}
         </div>
@@ -2585,12 +2282,12 @@ export function ImSettingsPanel({
                   setFlowCard(imFirstPendingStep(flowSteps) ?? null);
                 }}
               >
-                {t("继续设置", "Continue setup")}
+                {t("ImSettingsPanel.message198")}
               </Button>
             )}
             {channel !== "wecom" && (
               <Button disabled={busy} onClick={() => selectView("spaces")}>
-                {t("设置群协作", "Set up group collaboration")}
+                {t("ImSettingsPanel.message199")}
               </Button>
             )}
           </div>
@@ -2622,12 +2319,12 @@ function ImBotIdTag({ id, t }: { id: string; t: ImTranslate }) {
   }, [open]);
   return (
     <span className="im-bot-id" ref={root}>
-      <Tooltip label={t("查看连接 ID", "View connection ID")} align="end">
+      <Tooltip label={t("ImSettingsPanel.message202")} align="end">
         <button
           type="button"
           className="im-icon-action im-bot-id-btn"
           aria-expanded={open}
-          aria-label={t("查看连接 ID", "View connection ID")}
+          aria-label={t("ImSettingsPanel.message202")}
           onClick={() => setOpen((value) => !value)}
         >
           <ArtemisIcon height={12} name="info" width={12} />
@@ -2636,11 +2333,11 @@ function ImBotIdTag({ id, t }: { id: string; t: ImTranslate }) {
       {open && (
         <span className="im-bot-id-pop">
           <code>{id}</code>
-          <Tooltip label={t("复制连接 ID", "Copy connection ID")} align="end">
+          <Tooltip label={t("ImSettingsPanel.message204")} align="end">
             <button
               type="button"
               className="im-icon-action im-bot-id-btn"
-              aria-label={t("复制连接 ID", "Copy connection ID")}
+              aria-label={t("ImSettingsPanel.message204")}
               onClick={() => void navigator.clipboard.writeText(id)}
             >
               <ArtemisIcon height={12} name="copy" width={12} />

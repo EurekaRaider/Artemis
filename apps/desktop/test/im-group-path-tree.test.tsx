@@ -1,3 +1,4 @@
+import { uiTranslator } from "../src/shared/ui-text.js";
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
@@ -28,7 +29,7 @@ function Harness({ projectId = "p" }: { projectId?: string }) {
         value={value}
         onChange={setValue}
         disabled={false}
-        t={(cn) => cn}
+        t={uiTranslator("zh-CN")}
       />
       <output>{JSON.stringify(value)}</output>
     </>

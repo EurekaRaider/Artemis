@@ -1,3 +1,4 @@
+import { uiTranslator } from "../src/shared/ui-text.js";
 // @vitest-environment jsdom
 import { useState } from "react";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -12,7 +13,7 @@ import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { ImDataPermissions } from "../src/renderer/ImDataPermissions.js";
 import { ImOutboundReview } from "../src/renderer/ImOutboundReview.js";
 import { ImHandoff } from "../src/renderer/ImHandoff.js";
-const t = (cn: string) => cn;
+const t = uiTranslator("zh-CN");
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -249,7 +250,7 @@ it("shows sensitive previews as inert text and sends only the reviewed content h
 
 it("requires an explicit handoff target and selected text", () => {
   stubWindowArtemis({ manageIm: vi.fn() });
-  render(<ImHandoff tasks={[]} t={t} />);
+  render(<ImHandoff locale="zh-CN" tasks={[]} t={t} />);
   expect(
     (
       screen.getByRole("button", {

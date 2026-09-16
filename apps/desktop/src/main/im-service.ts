@@ -1758,10 +1758,6 @@ export class ImService {
           binding.projectId,
         )
       : this.adhocGrant(binding.request);
-    if (
-      (this.get<number>("usage", binding.request.id) ?? 0) >= grant.tokenBudget
-    )
-      throw new Error("远程任务已达到主人设置的令牌预算。");
     return grant;
   }
   /**
@@ -1771,7 +1767,6 @@ export class ImService {
   private adhocGrant(request: RemoteInvocationContext): ExecutionGrant {
     return {
       projectId: "",
-      tokenBudget: 100000,
       approval: "ask",
       mode: "plan",
       network: false,
@@ -2548,6 +2543,7 @@ export class ImService {
           key,
         ) ?? {};
     const match =
+      request.nativeTaskId ||
       (request.collaboration && !request.taskId) ||
       (request.originator && !/^\/new(?:\s|$)/u.test(request.text.trim())) ||
       request.sourceKind === "tool-result"
@@ -2873,7 +2869,8 @@ export class ImService {
       try {
         if (!previous) throw new Error();
         this.checkContext(previous);
-      } catch {
+      } catch (error) {
+        if (request.nativeTaskId && request.taskId) throw error;
         existing = undefined;
         threadId = undefined;
       }
@@ -3170,15 +3167,6 @@ export class ImService {
       return;
     }
     const payload = event.payload;
-    if (payload.type === "assistant.usage") {
-      this.put(
-        "usage",
-        binding.request.id,
-        (this.get<number>("usage", binding.request.id) ?? 0) +
-          payload.totalTokens,
-      );
-      return;
-    }
     if (
       payload.type === "approval.requested" ||
       payload.type === "user-input.requested"

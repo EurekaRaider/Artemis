@@ -79,13 +79,13 @@ describe("token usage activity", () => {
     expect(cell).toBeDefined();
 
     expect(formatTokenUsageTooltip(cell!, "daily", "en")).toBe(
-      "July 26, 2026 used 300 Tokens",
+      "300 tokens used on July 26, 2026",
     );
     expect(formatTokenUsageTooltip(cell!, "weekly", "en")).toBe(
-      "Week containing July 26, 2026 used 500 Tokens",
+      "500 tokens used in the week containing July 26, 2026",
     );
     expect(formatTokenUsageTooltip(cell!, "cumulative", "en")).toBe(
-      "Through July 26, 2026, 500 Tokens used",
+      "500 tokens used in total through July 26, 2026",
     );
     expect(formatTokenUsageTooltip(cell!, "daily", "zh-CN")).toBe(
       "2026年7月26日使用了 300 个 Token",
@@ -109,7 +109,7 @@ describe("token usage activity", () => {
       tokenComposition: "Token composition",
       cacheHitRate: "Cache hit rate",
       cacheHitRateDescription:
-        "Cache read Tokens divided by cache-reported input Tokens (input + cache read + cache write).",
+        "Cache read tokens divided by cache-reported input tokens (input + cache read + cache write).",
       cacheDataCoverage: "Cache data coverage",
       automaticPolicyDistribution: "Automatic cache policies",
     });

@@ -1,3 +1,4 @@
+import { uiText } from "../src/shared/ui-text.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -152,8 +153,8 @@ describe("token usage navigation", () => {
   });
 
   it("localizes the usage navigation label and accessible name", () => {
-    expect(appSource).toContain('tokenUsage: "Token usage"');
-    expect(appSource).toContain('"用量统计" : t.tokenUsage');
+    expect(uiText("en", "App_copy.tokenUsage")).toBe("Token usage");
+    expect(uiText("zh-CN", "App.inline6")).toBe("用量统计");
     expect(appSource).toContain("aria-label={label}");
     expect(appSource).toContain("title={label}");
   });

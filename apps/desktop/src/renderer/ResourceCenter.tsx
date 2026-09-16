@@ -1,3 +1,7 @@
+import { bundledPluginDescription } from "../shared/bundled-plugin-copy.js";
+import { statusText } from "../shared/status-text.js";
+import { uiText } from "../shared/ui-text.js";
+import { UI_COPY } from "../shared/ui-copy.js";
 import {
   useEffect,
   useRef,
@@ -43,8 +47,6 @@ import type {
   SettingsSnapshot,
   SkillCatalogItem,
 } from "../shared/api.js";
-import { legacyLocale } from "../shared/locales.js";
-import { localizedCopy } from "../shared/i18n-resources.js";
 import { McpServerEditor } from "./McpServerEditor.js";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
@@ -93,9 +95,7 @@ function googleAuthorizationErrorText(
   if (
     message.includes("Google did not grant all scopes required by this plugin.")
   ) {
-    return locale.startsWith("zh")
-      ? "Google 未授予此插件所需的全部权限。请在授权页面允许所有请求的权限后重试。"
-      : "Google did not grant all permissions required by this plugin. Allow every requested permission and try again.";
+    return uiText(locale, "ResourceCenter.inline1");
   }
   return message;
 }
@@ -114,282 +114,7 @@ async function loadInstalledPlugins(): Promise<InstalledCodexPlugin[]> {
   return installedPluginsCache;
 }
 
-const labels = {
-  en: {
-    title: "MCP & Skills",
-    marketDescription: "Manage plugins, Connectors, MCP servers and Skills.",
-    manageDescription: "Manage plugins, Connectors, MCP servers and Skills.",
-    plugins: "Plugins",
-    connectors: "Connectors",
-    mcp: "MCP",
-    skills: "Skills",
-    public: "Public",
-    local: "Local",
-    marketplaces: "Marketplaces",
-    manageMarketplaces: "Manage GitHub marketplaces",
-    marketplaceSource: "Marketplace",
-    marketplaceRemoved: "Marketplace removed",
-    marketplaceStale: "Stale",
-    removeMarketplace: "Remove marketplace",
-    confirmRemoveMarketplace:
-      "Remove this marketplace? Installed plugins will remain available.",
-    moveMarketplaceUp: "Move marketplace up",
-    moveMarketplaceDown: "Move marketplace down",
-    skillConflict: "Skill conflict",
-    featured: "Featured",
-    installed: "Installed",
-    manage: "Manage installed capabilities",
-    backToMarketplace: "Back to marketplace",
-    refresh: "Refresh selected plugin marketplace",
-    add: "Add",
-    addPlugin: "Add plugin",
-    addPluginDescription:
-      "Install a Git or offline marketplace, a local plugin bundle, or a trusted executable extension.",
-    backToPlugins: "Back to plugins",
-    localPlugin: "Local plugin bundle",
-    executableExtension: "Executable extension",
-    executableExtensionHint:
-      "Executable extensions are hash-pinned and remain subject to Artemis's extension trust policy.",
-    trustExtension: "Select and trust extension",
-    extensionNetwork: "Network access",
-    retrust: "Trust current contents",
-    extensionChanged: "Contents changed",
-    addConnector: "Add Connector",
-    addMcp: "Add server",
-    addSkill: "Add Skill",
-    browseOfficialMcp: "Browse official MCP Registry",
-    browseSkills: "Find Agent Skills",
-    searchPlugins: "Search plugins",
-    searchInstalled: "Search installed resources",
-    searchMcp: "Search the official MCP Registry",
-    searchSkills: "Search Agent Skills",
-    searchingMcp: "Searching the official MCP Registry…",
-    searchingSkills: "Searching Agent Skills…",
-    gitMarketplace: "Git marketplace",
-    gitMarketplaceHint: "Public GitHub owner/repository or HTTPS URL",
-    offlineMarketplace: "Offline marketplace package",
-    offlineMarketplaceHint:
-      "Import a signed .tar.gz/.tgz package downloaded from GitHub, or its extracted directory. Artemis copies it into its cache and does not access the network.",
-    importOfflineMarketplace: "Import offline marketplace",
-    offline: "Offline",
-    loadMarketplace: "Load marketplace",
-    openOfficialMarketplace: "Public marketplace",
-    publicMarketplace: "Public plugin marketplace",
-    bundledPlugins: "Bundled plugins",
-    inspectLocalPlugin: "Install local plugin",
-    installLocalSkill: "Install local Skill",
-    installRequiredDocuments: "Install required document plugins",
-    requiredDocumentsDescription:
-      "Install Documents, PDF, Spreadsheets and Presentations from the bundled artifact runtime.",
-    confirmRequiredDocuments:
-      "Install the four required document plugins and activate their bundled artifact runtime? Complete Skills and resources are copied into Artemis; credentials are not imported.",
-    install: "Install",
-    configureInstall: "Configure and install",
-    installMcpTitle: "Install {name}",
-    installMcpMethod: "Installation method",
-    installMcpCredentialHint:
-      "Sensitive values are encrypted by the operating system and are not saved in the MCP configuration.",
-    installMcpLocalWarning:
-      "This local stdio MCP runs with your desktop user’s full filesystem and network access.",
-    optional: "optional",
-    cancel: "Cancel",
-    installedLabel: "Installed",
-    installing: "Installing",
-    update: "Update",
-    remove: "Uninstall",
-    enabled: "Enabled",
-    disabled: "Disabled",
-    connected: "connected",
-    tools: "tools",
-    source: "Source",
-    noMarketplaceResults: "No matching plugins.",
-    noPlugins: "No compatible plugins installed.",
-    noConnectors: "No Connectors installed.",
-    noMcp: "No MCP servers installed.",
-    noSkills: "No global Pi Skills installed.",
-    noCatalogResults: "Search to see installable capabilities.",
-    noMcpCatalogResults: "No matching MCP servers found.",
-    noSkillCatalogResults: "No matching Agent Skills found.",
-    needsSetup: "Unavailable",
-    thirdParty:
-      "Third-party capabilities can influence Agent behavior or access external services. Review the source before installing.",
-    confirmMcp: "Install and connect this MCP server?",
-    confirmSkill:
-      "Install this third-party Skill into Pi's global Skill folder?",
-    confirmPlugin:
-      "Install this plugin? Skills will be enabled; MCP servers and Connectors will be installed disabled.",
-    confirmUpdatePlugin:
-      "Update this plugin from its original source? Modified managed resources will be protected.",
-    confirmRemovePlugin:
-      "Uninstall this plugin and its managed Skills, Connectors and MCP configurations?",
-    confirmRemoveMcp: "Remove this MCP server?",
-    confirmRemoveConnector: "Remove this Connector?",
-    confirmRemoveSkill: "Uninstall this Skill?",
-    confirmRemoveExtension: "Uninstall this executable extension?",
-    installedNow: "Installed. New turns will load this capability.",
-    removedNow: "Plugin removed.",
-    pluginWarnings:
-      "Completed with {count} warning(s). Review the source before enabling.",
-    mcpSaved: "MCP server saved and connected.",
-    mcpRemoved: "MCP server removed.",
-    pluginEnabled: "Plugin capabilities enabled.",
-    pluginDisabled: "Plugin capabilities disabled.",
-    supported: "Supported",
-    unsupported: "Unsupported",
-    skillsCount: "Skills",
-    mcpCount: "MCP",
-    appsCount: "Connectors",
-    mcpDisabled: "MCP installs disabled",
-    managedByPlugin: "Managed by a plugin; uninstall the plugin instead.",
-    connectorName: "Connector name",
-    connectorUrl: "HTTPS or loopback MCP endpoint",
-    connectorAuth: "Authentication",
-    connectorBearer: "Bearer token",
-    connectorHelp:
-      "Connectors use the standard MCP transport. OAuth and bearer credentials are encrypted by the operating system.",
-    configure: "Configure",
-    authorize: "Authorize",
-    saveConnector: "Save Connector",
-    standalone: "Servers",
-    fromPlugins: "From plugins",
-    allResults: "Results",
-  },
-  "zh-CN": {
-    title: "MCP 与 Skills",
-    marketDescription: "为 Artemis 安装插件、Connector、Skill 与 MCP 服务器",
-    manageDescription: "管理插件、Connector、MCP 和 Skill",
-    plugins: "插件",
-    connectors: "Connector",
-    mcp: "MCP",
-    skills: "Skill",
-    public: "公开",
-    local: "本地",
-    marketplaces: "插件市场",
-    manageMarketplaces: "管理 GitHub 插件市场",
-    marketplaceSource: "来源市场",
-    marketplaceRemoved: "来源市场已移除",
-    marketplaceStale: "缓存过期",
-    removeMarketplace: "移除插件市场",
-    confirmRemoveMarketplace: "移除这个插件市场？已安装插件会继续保留。",
-    moveMarketplaceUp: "上移插件市场",
-    moveMarketplaceDown: "下移插件市场",
-    skillConflict: "Skill 名称冲突",
-    featured: "精选",
-    installed: "已安装",
-    manage: "管理已安装能力",
-    backToMarketplace: "返回插件市场",
-    refresh: "刷新当前插件市场",
-    add: "添加",
-    addPlugin: "添加插件",
-    addPluginDescription:
-      "安装 Git 或脱机插件市场、本地插件包，或受信任的可执行扩展。",
-    backToPlugins: "返回插件",
-    localPlugin: "本地插件包",
-    executableExtension: "可执行扩展",
-    executableExtensionHint:
-      "可执行扩展按内容哈希锁定，并继续遵守 Artemis 的扩展信任策略。",
-    trustExtension: "选择并信任扩展",
-    extensionNetwork: "网络访问",
-    retrust: "信任当前文件内容",
-    extensionChanged: "内容已变化",
-    addConnector: "添加 Connector",
-    addMcp: "添加服务器",
-    addSkill: "添加 Skill",
-    browseOfficialMcp: "浏览官方 MCP Registry",
-    browseSkills: "查找 Agent Skills",
-    searchPlugins: "搜索插件",
-    searchInstalled: "搜索已安装资源",
-    searchMcp: "搜索官方 MCP Registry",
-    searchSkills: "搜索 Agent Skills",
-    searchingMcp: "正在搜索官方 MCP Registry…",
-    searchingSkills: "正在搜索 Agent Skills…",
-    gitMarketplace: "Git marketplace",
-    gitMarketplaceHint: "公开 GitHub owner/repository 或 HTTPS 地址",
-    offlineMarketplace: "脱机插件商店包",
-    offlineMarketplaceHint:
-      "导入从 GitHub 下载的签名 .tar.gz/.tgz 离线包或已解压目录。Artemis 会复制到自身缓存，全程不访问网络。",
-    importOfflineMarketplace: "导入脱机商店",
-    offline: "脱机",
-    loadMarketplace: "载入市场",
-    openOfficialMarketplace: "公开插件市场",
-    publicMarketplace: "公开插件市场",
-    bundledPlugins: "随应用提供的插件",
-    inspectLocalPlugin: "安装本地插件",
-    installLocalSkill: "安装本地 Skill",
-    installRequiredDocuments: "安装必备文档插件",
-    requiredDocumentsDescription:
-      "从应用内置的文档运行时安装 Documents、PDF、Spreadsheets 和 Presentations。",
-    confirmRequiredDocuments:
-      "安装四个必备文档插件并启用应用内置运行时？完整 Skill 与资源会复制到 Artemis，但不会导入任何凭据。",
-    install: "安装",
-    configureInstall: "配置并安装",
-    installMcpTitle: "安装 {name}",
-    installMcpMethod: "安装方式",
-    installMcpCredentialHint:
-      "敏感值由操作系统加密保存，不会写入 MCP 普通配置。",
-    installMcpLocalWarning:
-      "这个本地 stdio MCP 将以当前桌面用户权限运行，可访问完整文件系统与网络。",
-    optional: "可选",
-    cancel: "取消",
-    installedLabel: "已安装",
-    installing: "正在安装",
-    update: "更新",
-    remove: "卸载",
-    enabled: "已启用",
-    disabled: "已停用",
-    connected: "已连接",
-    tools: "个工具",
-    source: "来源",
-    noMarketplaceResults: "没有匹配的插件。",
-    noPlugins: "尚未安装兼容插件。",
-    noConnectors: "尚未安装 Connector。",
-    noMcp: "尚未安装 MCP 服务器。",
-    noSkills: "尚未安装全局 Pi Skill。",
-    noCatalogResults: "搜索后将在这里显示可安装能力。",
-    noMcpCatalogResults: "没有找到匹配的 MCP 服务器。",
-    noSkillCatalogResults: "没有找到匹配的 Agent Skill。",
-    needsSetup: "暂不可用",
-    thirdParty:
-      "第三方能力可能影响 Agent 行为或访问外部服务。安装前请先审查来源。",
-    confirmMcp: "安装并连接这个 MCP 服务器？",
-    confirmSkill: "将这个第三方 Skill 安装到 Pi 的全局 Skill 目录？",
-    confirmPlugin:
-      "安装这个插件？Skill 会启用，MCP 与 Connector 安装后默认停用。",
-    confirmUpdatePlugin: "从原始来源更新这个插件？已修改的托管资源会受到保护。",
-    confirmRemovePlugin:
-      "卸载这个插件及其托管的 Skill、Connector 和 MCP 配置？",
-    confirmRemoveMcp: "移除这个 MCP 服务器？",
-    confirmRemoveConnector: "移除这个 Connector？",
-    confirmRemoveSkill: "卸载这个 Skill？",
-    confirmRemoveExtension: "卸载这个可执行扩展？",
-    installedNow: "安装完成；新一轮任务将加载此能力。",
-    removedNow: "插件已卸载。",
-    pluginWarnings: "操作完成，但有 {count} 条警告；启用前请检查来源。",
-    mcpSaved: "MCP 服务器已保存并连接。",
-    mcpRemoved: "MCP 服务器已移除。",
-    pluginEnabled: "插件能力已启用。",
-    pluginDisabled: "插件能力已停用。",
-    supported: "支持",
-    unsupported: "不支持",
-    skillsCount: "Skills",
-    mcpCount: "MCP",
-    appsCount: "Connector",
-    mcpDisabled: "MCP 安装后默认停用",
-    managedByPlugin: "由插件托管；请改为卸载对应插件。",
-    connectorName: "Connector 名称",
-    connectorUrl: "HTTPS 或本机回环 MCP 地址",
-    connectorAuth: "认证方式",
-    connectorBearer: "Bearer Token",
-    connectorHelp:
-      "Connector 使用标准 MCP 传输；OAuth 与 Bearer 凭据由操作系统加密保存。",
-    configure: "配置",
-    authorize: "授权",
-    saveConnector: "保存 Connector",
-    standalone: "服务器",
-    fromPlugins: "来自插件",
-    allResults: "搜索结果",
-  },
-} as const;
+const labels = UI_COPY.ResourceCenter_labels;
 
 function CatalogIcon({ kind }: { kind: ResourceKind }) {
   return <SemanticResourceIcon icon={resourceIconName("", kind)} />;
@@ -553,7 +278,7 @@ export function ResourceCenter({
   const [googleAccount, setGoogleAccount] = useState<GoogleAccountStatus>();
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const operationPendingRef = useRef(false);
-  const t = localizedCopy(locale, "resources", labels[legacyLocale(locale)]);
+  const t = labels[locale];
 
   useEffect(() => {
     let mounted = true;
@@ -786,14 +511,14 @@ export function ResourceCenter({
       const trust = await window.artemis.inspectCodexPluginMarketplaceTrust(
         sourceInput.trim(),
       );
-      const chinese = locale.startsWith("zh");
       const trustMessage = trust.signed
-        ? chinese
-          ? `确认添加外部商店 ${trust.repository}\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n后续刷新将固定使用此密钥。`
-          : `Add external marketplace ${trust.repository}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nFuture refreshes will require this same key.`
-        : chinese
-          ? `确认添加未签名商店 ${trust.repository}？未签名插件不能使用 Artemis 宿主凭据。`
-          : `Add unsigned marketplace ${trust.repository}? Unsigned plugins cannot use Artemis host credentials.`;
+        ? uiText(locale, "ResourceCenter.inline3", {
+            value1: trust.repository,
+            value2: String(trust.signingKeyFingerprint),
+          })
+        : uiText(locale, "ResourceCenter.inline2", {
+            value1: trust.repository,
+          });
       if (!(await onConfirm(trustMessage))) return;
       applyMarketplaceState(
         await window.artemis.addCodexPluginMarketplace(
@@ -821,10 +546,10 @@ export function ResourceCenter({
         await window.artemis.inspectOfflineCodexPluginMarketplace();
       if (!inspected) return;
       const { trust } = inspected;
-      const chinese = locale.startsWith("zh");
-      const trustMessage = chinese
-        ? `确认导入脱机商店 ${trust.repository}？\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n商店将复制到 Artemis 缓存；浏览和安装不会访问网络。再次导入同一商店会原子替换其缓存。`
-        : `Import offline marketplace ${trust.repository}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nThe marketplace will be copied into the Artemis cache. Browsing and installation will not access the network. Re-importing the same marketplace atomically replaces its cache.`;
+      const trustMessage = uiText(locale, "ResourceCenter.inline4", {
+        value1: trust.repository,
+        value2: String(trust.signingKeyFingerprint),
+      });
       if (!(await onConfirm(trustMessage))) return;
       const operationId = beginInstallation("plugin", trust.displayName);
       applyMarketplaceState(
@@ -856,11 +581,7 @@ export function ResourceCenter({
 
   async function authorizeGoogleGrant(grant: GoogleGrantId): Promise<void> {
     if (googleAccount?.clientConfigured === false) {
-      setMessage(
-        locale.startsWith("zh")
-          ? "此版本的 Artemis 未包含应用级 Google OAuth 客户端，请联系 Artemis 发布者。"
-          : "This Artemis build does not include its application-level Google OAuth client. Contact the Artemis publisher.",
-      );
+      setMessage(uiText(locale, "ResourceCenter.inline5"));
       return;
     }
     setBusyId(`google:${grant}`);
@@ -1588,6 +1309,7 @@ export function ResourceCenter({
   function marketplaceSourceLabel(
     source: CodexPluginMarketplaceSource,
   ): string {
+    if (source.id === "bundled") return t.bundledPlugins;
     const normalizedDisplayName = source.displayName.toLocaleLowerCase();
     const duplicate = (marketplaceState?.sources ?? []).filter(
       (candidate) =>
@@ -1716,6 +1438,7 @@ export function ResourceCenter({
         plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
         plugin.name.toLowerCase().includes(marketplaceFilter) ||
         plugin.description.toLowerCase().includes(marketplaceFilter) ||
+        pluginDescription(plugin).toLowerCase().includes(marketplaceFilter) ||
         plugin.category?.toLowerCase().includes(marketplaceFilter)
       );
     });
@@ -1908,8 +1631,8 @@ export function ResourceCenter({
               : ("mcp" as const),
           description:
             server.config.transport === "stdio"
-              ? `${t.mcp} · ${server.config.fullAccess ? (locale.startsWith("zh") ? "完整本地访问" : "Full local access") : locale.startsWith("zh") ? "沙盒运行" : "Sandboxed"}`
-              : `${t.mcp} · ${locale.startsWith("zh") ? "远程连接" : "Remote connection"}`,
+              ? `${t.mcp} · ${server.config.fullAccess ? uiText(locale, "ResourceCenter.inline8") : uiText(locale, "ResourceCenter.inline7")}`
+              : `${t.mcp} · ${uiText(locale, "ResourceCenter.inline6")}`,
           enabled: server.config.enabled,
           status:
             server.state === "connected"
@@ -1936,17 +1659,13 @@ export function ResourceCenter({
       enabled: extension.config.enabled,
       status:
         extension.state === "changed"
-          ? locale.startsWith("zh")
-            ? "需信任"
-            : "Needs trust"
+          ? uiText(locale, "ResourceCenter.inline9")
           : extension.state === "failed"
             ? t.needsSetup
             : undefined,
       actionLabel:
         extension.state === "changed"
-          ? locale.startsWith("zh")
-            ? "信任"
-            : "Trust"
+          ? uiText(locale, "ResourceCenter.inline10")
           : t.configure,
       needsAttention:
         extension.state === "changed" || extension.state === "failed",
@@ -2016,6 +1735,19 @@ export function ResourceCenter({
     return undefined;
   }
 
+  function pluginDescription(plugin: CodexPluginPreview): string {
+    if (plugin.source.kind === "bundled" || plugin.source.kind === "runtime") {
+      const translated = bundledPluginDescription(
+        locale,
+        plugin.source.pluginName,
+      );
+      if (translated) return translated;
+    }
+    return pluginPageText(
+      plugin.shortDescription || plugin.description || plugin.name,
+    );
+  }
+
   function renderPluginCard(plugin: CodexPluginPreview, sourceId?: string) {
     const installed = installedPluginIds.has(plugin.id);
     const installedPlugin = installedPlugins.find(
@@ -2023,9 +1755,7 @@ export function ResourceCenter({
     );
     const conflict = installed ? undefined : pluginSkillConflict(plugin);
     const displayName = pluginPageText(plugin.displayName);
-    const description = pluginPageText(
-      plugin.shortDescription || plugin.description || plugin.name,
-    );
+    const description = pluginDescription(plugin);
     const source =
       plugin.source.kind === "bundled" || plugin.source.kind === "runtime"
         ? undefined
@@ -2312,20 +2042,15 @@ export function ResourceCenter({
   }
 
   if (mode === "google-account") {
-    const chinese = locale.startsWith("zh");
     return (
       <ResourceSurface
         busy={operationPending || Boolean(busyId)}
         className="resource-page resource-standalone-page"
-        label={chinese ? "Google 账号连接" : "Google account"}
+        label={uiText(locale, "ResourceCenter.inline12")}
       >
         <ManagementHeader
           className="resource-page-header resource-management-header"
-          description={
-            chinese
-              ? "由 Artemis 保管 OAuth 凭据；插件只在单次调用中收到短期 access token。"
-              : "Artemis holds OAuth credentials; plugins receive only a short-lived access token for one call."
-          }
+          description={uiText(locale, "ResourceCenter.inline11")}
           leading={
             <IconButton
               className="resource-back-button"
@@ -2335,7 +2060,7 @@ export function ResourceCenter({
               onClick={() => setMode("marketplace")}
             />
           }
-          title={chinese ? "Google 账号连接" : "Google account"}
+          title={uiText(locale, "ResourceCenter.inline12")}
         />
 
         {renderProgressAndMessage()}
@@ -2348,16 +2073,10 @@ export function ResourceCenter({
                 </strong>
                 <small>
                   {googleAccount?.encryptionAvailable === false
-                    ? chinese
-                      ? "当前系统无法使用安全凭据加密，Google 插件保持禁用。"
-                      : "Secure credential encryption is unavailable; Google plugins remain disabled."
+                    ? uiText(locale, "ResourceCenter.inline15")
                     : googleAccount?.grants[grant].authorized
-                      ? chinese
-                        ? "已授权"
-                        : "Authorized"
-                      : chinese
-                        ? "未授权；安装的插件会保持禁用。"
-                        : "Not authorized; the installed plugin remains disabled."}
+                      ? uiText(locale, "ResourceCenter.inline14")
+                      : uiText(locale, "ResourceCenter.inline13")}
                 </small>
               </div>
               {googleAccount?.grants[grant].authorized ? (
@@ -2368,7 +2087,7 @@ export function ResourceCenter({
                   }
                   variant="danger"
                 >
-                  {chinese ? "断开" : "Disconnect"}
+                  {uiText(locale, "ResourceCenter.inline17")}
                 </Button>
               ) : (
                 <Button
@@ -2382,7 +2101,7 @@ export function ResourceCenter({
                     runResourceOperation(() => authorizeGoogleGrant(grant))
                   }
                 >
-                  {chinese ? "浏览器授权" : "Authorize in browser"}
+                  {uiText(locale, "ResourceCenter.inline16")}
                 </Button>
               )}
             </ManagementCard>
@@ -2394,9 +2113,7 @@ export function ResourceCenter({
               onClick={() => runResourceOperation(disconnectGoogleAccount)}
               variant="danger"
             >
-              {chinese
-                ? "断开 Google 账号并撤销全部授权"
-                : "Disconnect Google account and revoke all grants"}
+              {uiText(locale, "ResourceCenter.inline18")}
             </Button>
           )}
         </section>
@@ -2531,22 +2248,14 @@ export function ResourceCenter({
           {isArtemisPluginShop && !marketplaceFilter && (
             <ManagementCard className="resource-runtime-banner resource-marketplace-account-banner">
               <div>
-                <strong>
-                  {locale.startsWith("zh")
-                    ? "Artemis Plugin Shop 专用 Google 鉴权"
-                    : "Google authentication for Artemis Plugin Shop"}
-                </strong>
-                <small>
-                  {locale.startsWith("zh")
-                    ? "仅用于此商店提供的 Gmail 与 Google Workspace 插件。"
-                    : "Used only by the Gmail and Google Workspace plugins from this marketplace."}
-                </small>
+                <strong>{uiText(locale, "ResourceCenter.inline19")}</strong>
+                <small>{uiText(locale, "ResourceCenter.inline20")}</small>
               </div>
               <Button
                 disabled={operationPending}
                 onClick={() => runResourceOperation(openGoogleAccount)}
               >
-                {locale.startsWith("zh") ? "Google 账号" : "Google account"}
+                {uiText(locale, "ResourceCenter.inline21")}
               </Button>
             </ManagementCard>
           )}
@@ -2846,11 +2555,7 @@ export function ResourceCenter({
                     <>
                       <span>
                         {plugin.installable
-                          ? pluginPageText(
-                              plugin.shortDescription ||
-                                plugin.description ||
-                                `${plugin.skillNames.length} ${t.skillsCount} · ${plugin.mcpServerIds.length} ${t.mcpCount}`,
-                            )
+                          ? pluginDescription(plugin)
                           : t.needsSetup}
                       </span>
                       <span className="plugin-market-source">
@@ -2948,7 +2653,7 @@ export function ResourceCenter({
                 description={
                   extension.state === "changed"
                     ? t.extensionChanged
-                    : `${extension.state} · ${extension.tools.length} ${t.tools}`
+                    : `${statusText(locale, extension.state)} · ${extension.tools.length} ${t.tools}`
                 }
                 key={extension.config.id}
                 leading={
@@ -3015,7 +2720,10 @@ export function ResourceCenter({
                   options={[
                     { label: "OAuth", value: "oauth" },
                     { label: "Bearer", value: "bearer" },
-                    { label: "None", value: "none" },
+                    {
+                      label: uiText(locale, "McpServerEditor_labels.authNone"),
+                      value: "none",
+                    },
                   ]}
                   value={connectorAuth}
                 />
@@ -3128,7 +2836,7 @@ export function ResourceCenter({
                     </div>
                   }
                   className="resource-management-row"
-                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : server.state} · ${server.tools.length} ${t.tools}`}
+                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}`}
                   key={server.config.id}
                   leading={
                     <ResourceAvatar
@@ -3318,7 +3026,7 @@ export function ResourceCenter({
                     </div>
                   }
                   className="resource-management-row"
-                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : server.state} · ${server.tools.length} ${t.tools}`}
+                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}`}
                   key={server.config.id}
                   leading={
                     <ResourceAvatar
