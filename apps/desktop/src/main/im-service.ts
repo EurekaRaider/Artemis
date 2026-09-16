@@ -649,7 +649,12 @@ export class ImService {
         "id" in value &&
         value.id === spaceId,
     ) as
-      | { name?: unknown; confirmed?: unknown; participants?: unknown; roster?: unknown }
+      | {
+          name?: unknown;
+          confirmed?: unknown;
+          participants?: unknown;
+          roster?: unknown;
+        }
       | undefined;
     const native = (space as CollaborationSpace | undefined)?.nativeGroup;
     const parsed = imGroupContextSchema.safeParse({
@@ -1285,20 +1290,46 @@ export class ImService {
       return this.status();
     }
     if (action.action === "refresh-group-members") {
-      const group = this.spaces.find(s => (s as CollaborationSpace).id === action.spaceId) as CollaborationSpace | undefined;
-      if (!this.usesLocalGateway() || group?.nativeGroup?.ownerDeviceId !== this.config.deviceId) return;
+      const group = this.spaces.find(
+        (s) => (s as CollaborationSpace).id === action.spaceId,
+      ) as CollaborationSpace | undefined;
+      if (
+        !this.usesLocalGateway() ||
+        group?.nativeGroup?.ownerDeviceId !== this.config.deviceId
+      )
+        return;
       const credential = await this.ensureLocalGateway();
-      await this.http("/v1/admin/refresh-group-members", "PUT", { spaceId: action.spaceId }, credential);
+      await this.http(
+        "/v1/admin/refresh-group-members",
+        "PUT",
+        { spaceId: action.spaceId },
+        credential,
+      );
       await this.refreshConnection();
       return;
     }
     if (action.action === "set-group-member-assignment") {
-      const group=this.spaces.find(s=>(s as CollaborationSpace).id===action.spaceId) as CollaborationSpace | undefined;
-      if (!this.usesLocalGateway() || group?.nativeGroup?.ownerDeviceId !== this.config.deviceId) throw new Error("只能修改本机机器人所接入群的成员权限。");
-      const credential=await this.ensureLocalGateway();
-      await this.http("/v1/admin/native-group-member","PUT",{spaceId:action.spaceId,identity:action.identity,allowed:action.allowed},credential);
+      const group = this.spaces.find(
+        (s) => (s as CollaborationSpace).id === action.spaceId,
+      ) as CollaborationSpace | undefined;
+      if (
+        !this.usesLocalGateway() ||
+        group?.nativeGroup?.ownerDeviceId !== this.config.deviceId
+      )
+        throw new Error("只能修改本机机器人所接入群的成员权限。");
+      const credential = await this.ensureLocalGateway();
+      await this.http(
+        "/v1/admin/native-group-member",
+        "PUT",
+        {
+          spaceId: action.spaceId,
+          identity: action.identity,
+          allowed: action.allowed,
+        },
+        credential,
+      );
       await this.refreshConnection();
-      return {allowed:action.allowed};
+      return { allowed: action.allowed };
     }
     if (action.action === "authorize-native-group") {
       if (!this.usesLocalGateway())
@@ -2457,7 +2488,11 @@ export class ImService {
   }
   private async dispatch(receipt: Receipt): Promise<void> {
     const request = receipt.request;
-    if (request.originator && request.text.trimStart().startsWith("/") && !/^\/new(?:\s|$)/u.test(request.text.trim()))
+    if (
+      request.originator &&
+      request.text.trimStart().startsWith("/") &&
+      !/^\/new(?:\s|$)/u.test(request.text.trim())
+    )
       throw new Error(
         "Other participants cannot submit owner control commands.",
       );
@@ -2726,10 +2761,23 @@ export class ImService {
       (!request.collaboration ? selection.threadId : undefined) ??
       (request.conversation.kind === "group" && !request.collaboration
         ? this.list<Binding>("bindings")
-            .filter(b => b.parentThreadId && !b.privateLocal && !b.request.collaboration &&
-              b.request.conversation.spaceId === request.conversation.spaceId &&
-              this.ops.thread(b.threadId) && !this.ops.thread(b.threadId)!.archived)
-            .sort((a,b) => this.ops.thread(b.threadId)!.updatedAt.localeCompare(this.ops.thread(a.threadId)!.updatedAt))[0]?.threadId
+            .filter(
+              (b) =>
+                b.parentThreadId &&
+                !b.privateLocal &&
+                !b.request.collaboration &&
+                b.request.conversation.spaceId ===
+                  request.conversation.spaceId &&
+                this.ops.thread(b.threadId) &&
+                !this.ops.thread(b.threadId)!.archived,
+            )
+            .sort((a, b) =>
+              this.ops
+                .thread(b.threadId)!
+                .updatedAt.localeCompare(
+                  this.ops.thread(a.threadId)!.updatedAt,
+                ),
+            )[0]?.threadId
         : undefined) ??
       undefined;
     if (
