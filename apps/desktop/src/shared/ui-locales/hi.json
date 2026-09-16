@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "डिफ़ॉल्ट दायरा बहाल करें",
   "ImDataPermissions.message16": "फ़ोल्डर या फ़ाइल",
   "ImDataPermissions.message19": "दूरस्थ कार्य शुरू होने से पहले डेटा और प्राप्तकर्ताओं के दायरे की पुष्टि करें।",
+  "ImDataPermissions.unavailableAudiences": "ये साझाकरण प्राप्तकर्ता उपलब्ध नहीं हैं या अभी सिंक नहीं हुए हैं। पुष्टि से पहले समूह सूची रीफ़्रेश करें या उनके दायरे हटाएँ:",
+  "ImDataPermissions.removeUnavailableScopes": "अनुपलब्ध साझाकरण दायरे हटाएँ",
   "ImDataPermissions.message20": "मैं फ़ाइल दायरों और सभी प्राप्तकर्ताओं की पुष्टि करता हूँ; सहेजने पर लागू करें",
   "ImDiagnostics.message1": "अज्ञात निदान प्रारूप। Gateway संस्करण जाँचें।",
   "ImDiagnostics.message2": "जुड़े हुए सदस्य",

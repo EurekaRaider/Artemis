@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "기본 범위로 복원",
   "ImDataPermissions.message16": "디렉터리 또는 파일",
   "ImDataPermissions.message19": "데이터 및 공유 범위를 확인해야 합니다. 확인 내용을 저장하기 전에는 원격 작업을 시작하지 않습니다.",
+  "ImDataPermissions.unavailableAudiences": "공유 대상이 없거나 아직 동기화되지 않았습니다. 그룹 목록을 새로 고치거나 해당 공유 범위를 제거한 후 확인하세요:",
+  "ImDataPermissions.removeUnavailableScopes": "사용할 수 없는 공유 범위 제거",
   "ImDataPermissions.message20": "위 파일 범위와 모든 공유 대상을 확인했으며 저장 후 적용합니다",
   "ImDiagnostics.message1": "진단 형식을 인식할 수 없습니다. Gateway 버전을 확인하세요.",
   "ImDiagnostics.message2": "페어링된 구성원",

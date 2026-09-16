@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Восстановить область по умолчанию",
   "ImDataPermissions.message16": "Каталог или файл",
   "ImDataPermissions.message19": "Подтвердите область данных и получателей перед началом удалённой работы.",
+  "ImDataPermissions.unavailableAudiences": "Эти получатели недоступны или ещё не синхронизированы. Обновите список групп или удалите их области доступа перед подтверждением:",
+  "ImDataPermissions.removeUnavailableScopes": "Удалить недоступные области доступа",
   "ImDataPermissions.message20": "Подтверждаю области файлов и всех получателей; применить при сохранении",
   "ImDiagnostics.message1": "Неизвестный формат диагностики. Проверьте версию Gateway.",
   "ImDiagnostics.message2": "Связанные участники",

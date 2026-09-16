@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Reset to default scope",
   "ImDataPermissions.message16": "Directory or file",
   "ImDataPermissions.message19": "Confirm the data and audience scopes before remote work can start.",
+  "ImDataPermissions.unavailableAudiences": "These sharing recipients are unavailable or not yet synced. Refresh the group list, or remove their scopes before confirming:",
+  "ImDataPermissions.removeUnavailableScopes": "Remove unavailable sharing scopes",
   "ImDataPermissions.message20": "I confirm the file scopes and all recipients; apply when saved",
   "ImDiagnostics.message1": "Unrecognized diagnostics. Check the Gateway version.",
   "ImDiagnostics.message2": "Paired members",

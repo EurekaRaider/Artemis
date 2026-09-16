@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Ripristina ambito predefinito",
   "ImDataPermissions.message16": "Cartella o file",
   "ImDataPermissions.message19": "Conferma l’ambito dei dati e dei destinatari; il lavoro remoto inizierà solo dopo aver salvato la conferma.",
+  "ImDataPermissions.unavailableAudiences": "Questi destinatari non sono disponibili o non sono ancora sincronizzati. Aggiorna i gruppi o rimuovi i loro ambiti prima di confermare:",
+  "ImDataPermissions.removeUnavailableScopes": "Rimuovi ambiti non disponibili",
   "ImDataPermissions.message20": "Confermo l’ambito dei file e tutti i destinatari; applica al salvataggio",
   "ImDiagnostics.message1": "Formato diagnostico non riconosciuto. Verifica la versione di Gateway.",
   "ImDiagnostics.message2": "Membri associati",

@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Standardbereich wiederherstellen",
   "ImDataPermissions.message16": "Verzeichnis oder Datei",
   "ImDataPermissions.message19": "Bestätige Daten- und Empfängerbereiche; Remote-Aufgaben beginnen erst nach dem Speichern der Bestätigung.",
+  "ImDataPermissions.unavailableAudiences": "Diese Freigabeempfänger sind nicht verfügbar oder noch nicht synchronisiert. Aktualisieren Sie die Gruppenliste oder entfernen Sie ihre Freigaben vor der Bestätigung:",
+  "ImDataPermissions.removeUnavailableScopes": "Nicht verfügbare Freigaben entfernen",
   "ImDataPermissions.message20": "Ich bestätige Dateibereiche und alle Empfänger; beim Speichern anwenden",
   "ImDiagnostics.message1": "Unbekanntes Diagnoseformat. Prüfe die Gateway-Version.",
   "ImDiagnostics.message2": "Gekoppelte Mitglieder",

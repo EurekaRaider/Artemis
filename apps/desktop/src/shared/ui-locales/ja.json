@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "既定の範囲に戻す",
   "ImDataPermissions.message16": "ディレクトリまたはファイル",
   "ImDataPermissions.message19": "データと共有の範囲を確認する必要があります。確認内容を保存するまでリモートタスクは開始されません。",
+  "ImDataPermissions.unavailableAudiences": "共有先が利用できないか、未同期です。グループ一覧を更新するか、対象の共有範囲を削除してから確認してください：",
+  "ImDataPermissions.removeUnavailableScopes": "利用できない共有範囲を削除",
   "ImDataPermissions.message20": "上記のファイル範囲とすべての共有相手を確認しました。保存後に適用します",
   "ImDiagnostics.message1": "診断形式を認識できません。Gateway のバージョンを確認してください。",
   "ImDiagnostics.message2": "ペアリング済みのメンバー",

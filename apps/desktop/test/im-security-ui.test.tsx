@@ -260,3 +260,76 @@ it("requires an explicit handoff target and selected text", () => {
     ).disabled,
   ).toBe(true);
 });
+
+it("requires explicit removal of unavailable audiences before confirmation", async () => {
+  const user = userEvent.setup();
+  stubWindowArtemis({
+    manageIm: vi.fn(async () => [
+      { path: "src", directory: true, protected: false },
+    ]),
+  });
+  let value: ExecutionGrant;
+  function Editor() {
+    const [grant, setGrant] = useState(
+      executionGrantSchema.parse({
+        projectId: "p",
+        expiresAt: Date.now() + 60000,
+        security: {
+          version: 2,
+          revision: "draft",
+          confirmedAt: 0,
+          scopes: [
+            { audience: "owner", readPaths: ["src"], writePaths: [] },
+            {
+              audience: "space:old",
+              spaceRevision: "old",
+              readPaths: ["src"],
+              writePaths: [],
+            },
+            {
+              audience: "space:team",
+              spaceRevision: "v0",
+              readPaths: ["src"],
+              writePaths: [],
+            },
+          ],
+        },
+      }),
+    );
+    value = grant;
+    return (
+      <ImDataPermissions
+        grant={grant}
+        onChange={(security) => setGrant({ ...grant, security })}
+        t={t}
+        audiences={[
+          { value: "space:old", label: "Old group" },
+          { value: "space:team", label: "Team", revision: "v1" },
+        ]}
+        disabled={false}
+      />
+    );
+  }
+  render(<Editor />);
+  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  const confirmation = screen.getByRole("checkbox", { name: /我确认以上/ });
+  expect(confirmation).toBeDisabled();
+  expect(screen.getByText(/Old group/)).toBeVisible();
+  expect(value!.security!.scopes).toHaveLength(3);
+  await user.click(screen.getByRole("button", { name: "移除失效的分享范围" }));
+  expect(value!.security!.confirmedAt).toBe(0);
+  expect(value!.security!.scopes.map((s) => s.audience).sort()).toEqual([
+    "owner",
+    "space:team",
+  ]);
+  expect(confirmation).toBeEnabled();
+  await user.click(confirmation);
+  expect(confirmation).toBeChecked();
+  expect(
+    value!.security!.scopes.find((s) => s.audience === "space:team"),
+  ).toMatchObject({
+    spaceRevision: "v1",
+    readPaths: ["src"],
+    writePaths: [],
+  });
+});

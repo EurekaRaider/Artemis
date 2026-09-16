@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "استعادة النطاق الافتراضي",
   "ImDataPermissions.message16": "مجلد أو ملف",
   "ImDataPermissions.message19": "أكّد نطاق البيانات والمستلمين قبل بدء العمل عن بُعد.",
+  "ImDataPermissions.unavailableAudiences": "جهات المشاركة هذه غير متاحة أو لم تتم مزامنتها بعد. حدّث قائمة المجموعات أو أزل نطاقاتها قبل التأكيد:",
+  "ImDataPermissions.removeUnavailableScopes": "إزالة نطاقات المشاركة غير المتاحة",
   "ImDataPermissions.message20": "أؤكد نطاقات الملفات وجميع المستلمين؛ تُطبق عند الحفظ",
   "ImDiagnostics.message1": "تنسيق تشخيص غير معروف. تحقق من إصدار Gateway.",
   "ImDiagnostics.message2": "الأعضاء المقترنون",

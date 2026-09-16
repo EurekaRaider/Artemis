@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Restaurar escopo padrão",
   "ImDataPermissions.message16": "Diretório ou arquivo",
   "ImDataPermissions.message19": "Confirme os escopos de dados e destinatários antes de iniciar o trabalho remoto.",
+  "ImDataPermissions.unavailableAudiences": "Estes destinatários estão indisponíveis ou ainda não foram sincronizados. Atualize os grupos ou remova seus escopos antes de confirmar:",
+  "ImDataPermissions.removeUnavailableScopes": "Remover escopos indisponíveis",
   "ImDataPermissions.message20": "Confirmo os escopos de arquivos e todos os destinatários; aplicar ao salvar",
   "ImDiagnostics.message1": "Formato de diagnóstico desconhecido. Verifique a versão do Gateway.",
   "ImDiagnostics.message2": "Membros pareados",

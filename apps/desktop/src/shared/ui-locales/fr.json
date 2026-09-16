@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Rétablir le périmètre par défaut",
   "ImDataPermissions.message16": "Dossier ou fichier",
   "ImDataPermissions.message19": "Confirmez les données et les destinataires ; le travail à distance ne démarrera qu’après l’enregistrement de la confirmation.",
+  "ImDataPermissions.unavailableAudiences": "Ces destinataires sont indisponibles ou pas encore synchronisés. Actualisez les groupes ou retirez leurs périmètres avant de confirmer :",
+  "ImDataPermissions.removeUnavailableScopes": "Retirer les périmètres indisponibles",
   "ImDataPermissions.message20": "Je confirme le périmètre des fichiers et tous les destinataires ; appliquer à l’enregistrement",
   "ImDiagnostics.message1": "Format de diagnostic non reconnu. Vérifiez la version de Gateway.",
   "ImDiagnostics.message2": "Membres associés",

@@ -47,6 +47,11 @@ export function ImDataPermissions({
         s.spaceRevision ===
           audiences.find((a) => a.value === s.audience)?.revision,
     );
+  const unavailableScopes = (grant.security?.scopes ?? []).filter(
+    (s) =>
+      s.audience !== "owner" &&
+      !audiences.find((a) => a.value === s.audience)?.revision,
+  );
   function change(
     next: ImDataScope,
     knownEntries = Object.values(entries).flat(),
@@ -318,6 +323,34 @@ export function ImDataPermissions({
         </div>
       ) : null}
       {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
+      {unavailableScopes.length > 0 ? (
+        <InlineNotice tone="warning">
+          {t("ImDataPermissions.unavailableAudiences")}{" "}
+          {unavailableScopes
+            .map(
+              (s) =>
+                audiences.find((a) => a.value === s.audience)?.label ??
+                s.audience,
+            )
+            .join("、")}
+          <Button
+            size="compact"
+            disabled={disabled || pending}
+            onClick={() => {
+              if (grant.security)
+                onChange({
+                  ...grant.security,
+                  confirmedAt: 0,
+                  scopes: grant.security.scopes.filter(
+                    (s) => !unavailableScopes.includes(s),
+                  ),
+                });
+            }}
+          >
+            {t("ImDataPermissions.removeUnavailableScopes")}
+          </Button>
+        </InlineNotice>
+      ) : null}
       {!confirmed ? (
         <InlineNotice tone="warning">
           {t("ImDataPermissions.message19")}
@@ -326,7 +359,11 @@ export function ImDataPermissions({
       <Checkbox
         label={t("ImDataPermissions.message20")}
         checked={confirmed}
-        disabled={disabled || !grant.security?.scopes.length}
+        disabled={
+          disabled ||
+          !grant.security?.scopes.length ||
+          unavailableScopes.length > 0
+        }
         onCheckedChange={(checked) => {
           if (grant.security)
             onChange({

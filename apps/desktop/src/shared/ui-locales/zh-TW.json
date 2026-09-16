@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "恢復預設範圍",
   "ImDataPermissions.message16": "目錄或檔案",
   "ImDataPermissions.message19": "需要確認資料與分享範圍；儲存確認前不會啓動遠端任務。",
+  "ImDataPermissions.unavailableAudiences": "以下分享對象已失效或尚未同步，無法確認。請重新整理群組清單，或移除這些分享範圍後重新確認：",
+  "ImDataPermissions.removeUnavailableScopes": "移除失效的分享範圍",
   "ImDataPermissions.message20": "我確認以上檔案範圍與全部分享對象，儲存後生效",
   "ImDiagnostics.message1": "無法識別診斷格式，請核對 Gateway 版本。",
   "ImDiagnostics.message2": "已配對成員",

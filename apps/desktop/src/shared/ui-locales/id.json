@@ -607,6 +607,8 @@
   "ImDataPermissions.message15": "Pulihkan cakupan bawaan",
   "ImDataPermissions.message16": "Direktori atau file",
   "ImDataPermissions.message19": "Konfirmasikan cakupan data dan penerima; tugas jarak jauh tidak dimulai sebelum konfirmasi disimpan.",
+  "ImDataPermissions.unavailableAudiences": "Penerima ini tidak tersedia atau belum disinkronkan. Segarkan daftar grup atau hapus cakupan mereka sebelum mengonfirmasi:",
+  "ImDataPermissions.removeUnavailableScopes": "Hapus cakupan yang tidak tersedia",
   "ImDataPermissions.message20": "Saya mengonfirmasi cakupan file dan semua penerima; berlaku setelah disimpan",
   "ImDiagnostics.message1": "Format diagnostik tidak dikenali. Periksa versi Gateway.",
   "ImDiagnostics.message2": "Anggota yang dipasangkan",
