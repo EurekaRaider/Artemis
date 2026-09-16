@@ -501,3 +501,73 @@ it("allows remote operations after cumulative usage exceeds legacy token budgets
   await f.service.save({ ...f.service.status().settings, enabled: false });
   expect(() => f.service.authorizeThread(threadId, "plan")).toThrow();
 });
+
+it("queries Slack bots in Plan and Review without dispatching or requiring bot authorization", async () => {
+  const f = await fixture("slack");
+  await f.authorize();
+  const task = f.service.status().remoteTasks![0]!;
+  const spaceId = task.group!.spaceId;
+  f.gateway.store.put("native-group-info", spaceId, {
+    roster: {
+      complete: false,
+      error: "partial",
+      members: [
+        {
+          identity: { ...f.event.identity, userId: "U_JUPITER" },
+          name: "Jupiter",
+          kind: "bot",
+        },
+      ],
+    },
+  });
+  await f.service.manage({ action: "refresh" });
+  const outgoing = f.gateway.store.pending("outgoing");
+  for (const mode of ["plan", "review"] as const) {
+    const result = await f.service.operate(
+      task.threadId,
+      { action: "participants" },
+      mode,
+      randomUUID(),
+    );
+    expect(result).toMatchObject({
+      spaceId,
+      complete: false,
+      error: "partial",
+      capability: "manual",
+      members: [
+        {
+          participantId: "U_JUPITER",
+          name: "Jupiter",
+          kind: "bot",
+          canAssign: false,
+        },
+      ],
+    });
+    await expect(
+      f.service.operate(
+        task.threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "delegate",
+            participantId: "U_JUPITER",
+            text: "Memory?",
+          },
+        },
+        mode,
+        randomUUID(),
+      ),
+    ).rejects.toThrow();
+  }
+  expect(f.gateway.store.pending("outgoing")).toEqual(outgoing);
+  expect(f.starts).toEqual([]);
+  await f.service.save({ ...f.service.status().settings, grants: [] });
+  await expect(
+    f.service.operate(
+      task.threadId,
+      { action: "participants" },
+      "plan",
+      randomUUID(),
+    ),
+  ).rejects.toThrow();
+});

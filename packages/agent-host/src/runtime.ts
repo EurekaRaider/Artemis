@@ -31,7 +31,7 @@ import {
 } from "./turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { createWorkspaceReadTool } from "./workspace-read-tool.js";
 import { join, relative, resolve, sep, isAbsolute } from "node:path";
 
 import {
@@ -3442,7 +3442,8 @@ export class ArtemisAgentHost {
       ? createRemoteTools(invokeRemoteOperation)
       : request.groupCollaboration
         ? createRemoteTools(invokeRemoteOperation).filter(
-            (tool) => tool.name === "collaborate",
+            (tool) =>
+              tool.name === "collaborate" || tool.name === "im_participants",
           )
         : [];
     const invokeAttachmentOperation = async (
@@ -3495,25 +3496,7 @@ export class ArtemisAgentHost {
       return result.data;
     };
     const attachmentTools = createAttachmentTools(invokeAttachmentOperation);
-    const readTool = defineTool({
-      name: "read",
-      label: "Read file",
-      description:
-        "Read a UTF-8 text file inside the active Artemis workspace.",
-      parameters: Type.Object({
-        path: Type.String({
-          description: "Path relative to the active workspace.",
-        }),
-      }),
-      execute: async (_toolCallId, params) => {
-        const path = resolveWorkspacePath(request.workspacePath, params.path);
-        const text = await readFile(path, "utf8");
-        return {
-          content: [{ type: "text", text }],
-          details: { path: params.path },
-        };
-      },
-    });
+    const readTool = createWorkspaceReadTool(request.workspacePath);
 
     const webSearchTool = defineTool({
       name: "web_search",

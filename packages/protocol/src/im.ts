@@ -543,6 +543,7 @@ export function requireImGrant(
 }
 
 export const remoteOperationSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("participants") }).strict(),
   z
     .object({ action: z.literal("read"), path: z.string().min(1).max(4096) })
     .strict(),

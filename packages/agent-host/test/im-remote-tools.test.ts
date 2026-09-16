@@ -7,9 +7,24 @@ import type { BrokerExecutionRequest } from "@artemis/protocol";
 import {
   createRemoteChildTools,
   createRemoteTools,
+  isRemoteToolAllowed,
 } from "../src/remote-tools.js";
 
 describe("remote Pi tool boundary", () => {
+  it("exposes only read-only IM discovery in Plan and Review", async () => {
+    const calls: unknown[] = [];
+    const tool = createRemoteTools(async (operation) => {
+      calls.push(operation);
+      return { complete: false, members: [] };
+    }).find((t) => t.name === "im_participants");
+    expect(tool).toBeDefined();
+    for (const mode of ["plan", "review", "execute"] as const)
+      expect(isRemoteToolAllowed("im_participants", mode, false)).toBe(true);
+    for (const mode of ["plan", "review"] as const)
+      expect(isRemoteToolAllowed("collaborate", mode, false)).toBe(false);
+    await tool!.execute("discover", {} as never);
+    expect(calls).toEqual([{ action: "participants" }]);
+  });
   it("rejects the screenshot's malformed calls before dispatch and accepts a corrected delegate", async () => {
     const calls: unknown[] = [];
     const tool = createRemoteTools(async (operation) => {
@@ -101,6 +116,9 @@ describe("remote Pi tool boundary", () => {
       ).threads;
       const group = threads.get("local-group")!;
       expect(group.executeTools.map((t) => t.name)).toContain("collaborate");
+      expect(group.delegatedTools.map((t) => t.name)).toContain(
+        "im_participants",
+      );
       expect(group.executeTools.map((t) => t.name)).toContain("remote_write");
       expect(group.delegatedTools.map((t) => t.name)).not.toContain(
         "collaborate",

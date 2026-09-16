@@ -4111,7 +4111,11 @@ async function handleBrokerRequest(
           request.mode,
           request.turnId,
         );
-        if (request.operation.action !== "read" && grant.approval === "ask") {
+        if (
+          request.operation.action !== "read" &&
+          request.operation.action !== "participants" &&
+          grant.approval === "ask"
+        ) {
           const nonce = randomUUID();
           pendingApprovals.register({
             approvalId: request.approvalId,
