@@ -13057,19 +13057,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   padding: 12px 0 0;
 }
 
-.im-native-conversation {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 840px;
-  margin-inline: auto;
-  padding: 24px clamp(16px, 4vw, 40px);
-}
-
-.im-native-conversation p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .file-link-context-menu.im-member-permission-menu {
   min-width: 112px;
   max-width: 168px;
