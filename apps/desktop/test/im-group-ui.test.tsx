@@ -382,7 +382,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   expect(await screen.findByRole("tooltip")).toHaveTextContent("状态未知");
   await userEvent.unhover(bots[1]!);
   expect(screen.queryByText("Bob")).not.toBeInTheDocument();
-  expect(screen.getAllByRole("button")).toHaveLength(4);
+  expect(screen.getAllByRole("button")).toHaveLength(5);
   expect(screen.getByRole("button", { name: "@ Artemis" })).toBeVisible();
   expect(
     imGroupMentionTargets({ ...group, native: true, roster })[1]?.name,
@@ -403,9 +403,7 @@ it("shows all four native members with robot icons only for bots", async () => {
       .querySelector("svg"),
   ).toHaveAttribute("data-artemis-icon", "send");
   fireEvent.contextMenu(screen.getByText("Alex"));
-  await userEvent.click(
-    screen.getByRole("menuitemcheckbox", { name: "禁止 Alex 派工" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "禁止 Alex 派工" }));
   expect(manage).toHaveBeenCalledWith({
     action: "set-group-member-assignment",
     spaceId: group.spaceId,
@@ -436,16 +434,13 @@ it("shows all four native members with robot icons only for bots", async () => {
     screen.getByRole("button", { name: "允许 Solar 派工" }),
   );
   fireEvent.contextMenu(screen.getByText("Solar"));
-  expect(
-    screen.getByRole("menuitemcheckbox", { name: "允许 Solar 派工" }),
-  ).toHaveTextContent("允许派工");
-  await userEvent.keyboard("{Escape}");
-  fireEvent.contextMenu(screen.getByText("Alex"));
-  expect(
-    screen.getByRole("menuitemcheckbox", { name: "允许 Alex 派工" }),
-  ).toHaveAttribute("aria-checked", "false");
-  await userEvent.keyboard("{Escape}");
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  const verifyButton = screen.getByRole("button", { name: "重新验证" });
+  await userEvent.hover(verifyButton);
+  expect(
+    (await screen.findByText("重新验证")).closest('[role="tooltip"]'),
+  ).toBeVisible();
+  await userEvent.unhover(verifyButton);
 
   rerender(
     <ImGroupMembers
@@ -570,4 +565,89 @@ it("shows Slack active and away presence, and makes stale presence unknown", () 
       .getAllByRole("img", { name: "成员" })
       .every((icon) => icon.getAttribute("data-state") === "unknown"),
   ).toBe(true);
+});
+
+it("retries bot verification from its icon and releases the wait after timeout", async () => {
+  vi.useFakeTimers();
+  const manage = vi.fn(async () => ({ peers: [] }));
+  stubWindowArtemis({ manageIm: manage });
+  render(
+    <ImGroupMembers
+      locale="zh-CN"
+      group={{
+        ...group,
+        native: true,
+        roster: {
+          complete: true,
+          members: [
+            {
+              identity: identity("solar", "slack"),
+              name: "Solar",
+              kind: "bot",
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(screen.getByText("未完成验证")).toBeInTheDocument();
+  fireEvent.contextMenu(screen.getByText("Solar"));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "重新验证" }));
+  });
+  expect(manage).toHaveBeenCalledWith({
+    action: "native-cooperation",
+    groupId: group.spaceId,
+    operation: "probe",
+    peer: "solar",
+  });
+  fireEvent.contextMenu(screen.getByText("Solar"));
+  expect(screen.getByRole("button", { name: "验证中" })).toBeDisabled();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(32000);
+  });
+  expect(screen.getByRole("button", { name: "重新验证" })).toBeEnabled();
+  expect(screen.getByText("未完成验证")).toBeInTheDocument();
+  manage.mockRejectedValueOnce(new Error("Gateway unavailable"));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "重新验证" }));
+  });
+  expect(screen.getByRole("alert")).toHaveTextContent("Gateway unavailable");
+});
+
+it("shows successful verification and removes the retry action", async () => {
+  vi.useFakeTimers();
+  const manage = vi.fn(async () => ({
+    peers: [{ id: "solar", verifiedAt: Date.now() }],
+  }));
+  stubWindowArtemis({ manageIm: manage });
+  render(
+    <ImGroupMembers
+      locale="zh-CN"
+      group={{
+        ...group,
+        native: true,
+        roster: {
+          complete: true,
+          members: [
+            {
+              identity: identity("solar", "slack"),
+              name: "Solar",
+              kind: "bot",
+              verificationPendingUntil: Date.now() + 30000,
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(screen.getByText("验证中")).toBeInTheDocument();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000);
+  });
+  expect(screen.getByText("已验证")).toBeInTheDocument();
+  fireEvent.contextMenu(screen.getByText("Solar"));
+  expect(
+    screen.queryByRole("button", { name: "重新验证" }),
+  ).not.toBeInTheDocument();
 });

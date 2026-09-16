@@ -873,6 +873,19 @@ export class ArtemisGateway {
                   ...roster,
                   members: roster.members.map((m) => ({
                     ...m,
+                    ...(m.kind === "bot" && !m.self
+                      ? {
+                          verifiedAt: this.router.native
+                            .peers(s.id)
+                            .find((peer) => peer.id === m.identity.userId)
+                            ?.verifiedAt,
+                          verificationPendingUntil:
+                            this.router.native.pendingProbeUntil(
+                              s.id,
+                              m.identity.userId,
+                            ),
+                        }
+                      : {}),
                     owner:
                       imIdentityKey(m.identity) ===
                       imIdentityKey(s.participants[0]!.identity),

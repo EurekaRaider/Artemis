@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import { ImMemberRemoval } from "./ImMemberRemoval";
 import {
   imIdentityKey,
@@ -28,18 +27,63 @@ export function ImGroupMembers({
 }) {
   const t = (cn: string, en: string) => (locale.startsWith("zh") ? cn : en);
   type Person = NonNullable<ImGroupContext["roster"]>["members"][number];
-  const [menu, setMenu] = useState<{
-    member: Person;
-    x: number;
-    y: number;
-  } | null>(null);
+  const currentSpace = useRef(group.spaceId);
+  currentSpace.current = group.spaceId;
+  const [verification, setVerification] = useState<
+    Record<string, { until?: number; verifiedAt?: number }>
+  >({});
+  const [now, setNow] = useState(Date.now);
+  const verificationState = (member: Person) => {
+    const local = verification[member.identity.userId];
+    if (local?.verifiedAt || member.verifiedAt) return "verified";
+    return (local?.until ?? member.verificationPendingUntil ?? 0) > now
+      ? "verifying"
+      : "unverified";
+  };
+  const verifying = !!group.roster?.members.some(
+    (member) => verificationState(member) === "verifying",
+  );
+  useEffect(() => {
+    if (!verifying || group.stale || !group.confirmed) return;
+    let cancelled = false;
+    let fetching = false;
+    const timer = window.setInterval(async () => {
+      setNow(Date.now());
+      if (fetching) return;
+      fetching = true;
+      try {
+        const result = (await window.artemis.manageIm({
+          action: "native-cooperation",
+          groupId: group.spaceId,
+          operation: "state",
+        })) as { peers?: { id: string; verifiedAt?: number }[] };
+        if (!cancelled)
+          setVerification((previous) => {
+            const next = { ...previous };
+            for (const peer of result.peers ?? []) {
+              if (peer.verifiedAt)
+                next[peer.id] = { verifiedAt: peer.verifiedAt };
+            }
+            return next;
+          });
+      } catch {
+        // The bounded wait still expires if the gateway becomes unavailable.
+      } finally {
+        fetching = false;
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [verifying, group.spaceId, group.stale, group.confirmed]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   useEffect(() => {
-    setMenu(null);
     setError("");
     setPermissions({});
+    setVerification({});
   }, [group.spaceId]);
   useEffect(() => setPermissions({}), [group.roster]);
 
@@ -83,12 +127,40 @@ export function ImGroupMembers({
         allowed,
       });
       setPermissions((previous) => ({ ...previous, [key]: allowed }));
-      setMenu(null);
     } catch (cause) {
       setError(String(cause));
-      setMenu(null);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const retryVerification = async (member: Person) => {
+    if (
+      saving ||
+      group.stale ||
+      !group.confirmed ||
+      verificationState(member) === "verifying"
+    )
+      return;
+    const spaceId = group.spaceId;
+    const peer = member.identity.userId;
+    setError("");
+    setNow(Date.now());
+    setVerification((previous) => ({
+      ...previous,
+      [peer]: { until: Date.now() + 30000 },
+    }));
+    try {
+      await window.artemis.manageIm({
+        action: "native-cooperation",
+        groupId: spaceId,
+        operation: "probe",
+        peer,
+      });
+    } catch (cause) {
+      if (currentSpace.current !== spaceId) return;
+      setVerification((previous) => ({ ...previous, [peer]: { until: 0 } }));
+      setError(String(cause));
     }
   };
 
@@ -102,70 +174,6 @@ export function ImGroupMembers({
       >
         <div className="environment-setting-copy im-group-members im-native-members">
           {error && <small role="alert">{error}</small>}
-          {menu &&
-            createPortal(
-              <div
-                className="file-link-context-backdrop"
-                onMouseDown={() => setMenu(null)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  setMenu(null);
-                }}
-              >
-                <div
-                  className="file-link-context-menu im-member-permission-menu"
-                  role="menu"
-                  aria-label={t("成员派工权限", "Member assignment permission")}
-                  style={{ left: menu.x, top: menu.y }}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      event.stopPropagation();
-                      setMenu(null);
-                    }
-                  }}
-                >
-                  <button
-                    autoFocus
-                    aria-label={
-                      (permissions[imIdentityKey(menu.member.identity)] ??
-                      menu.member.canAssign ??
-                      true)
-                        ? t(
-                            `禁止 ${menu.member.name} 派工`,
-                            `Block assignments from ${menu.member.name}`,
-                          )
-                        : t(
-                            `允许 ${menu.member.name} 派工`,
-                            `Allow assignments from ${menu.member.name}`,
-                          )
-                    }
-                    role="menuitemcheckbox"
-                    aria-checked={
-                      permissions[imIdentityKey(menu.member.identity)] ??
-                      menu.member.canAssign ??
-                      true
-                    }
-                    disabled={
-                      saving ||
-                      group.stale ||
-                      !group.confirmed ||
-                      menu.member.owner ||
-                      menu.member.self
-                    }
-                    onClick={() => toggleAssignment(menu.member)}
-                  >
-                    {(permissions[imIdentityKey(menu.member.identity)] ??
-                    menu.member.canAssign ??
-                    true)
-                      ? t("禁止派工", "Block assignments")
-                      : t("允许派工", "Allow assignments")}
-                  </button>
-                </div>
-              </div>,
-              document.body,
-            )}
-
           {(!roster?.complete || group.stale) && (
             <small role="status">
               {roster?.error === "missing-scope"
@@ -239,44 +247,6 @@ export function ImGroupMembers({
                   className="environment-setting-row"
                   role="listitem"
                   key={imIdentityKey(member.identity)}
-                  tabIndex={editable ? 0 : undefined}
-                  onContextMenu={(event) => {
-                    if (!editable) return;
-                    event.preventDefault();
-                    setMenu({
-                      member,
-                      x: Math.max(
-                        8,
-                        Math.min(event.clientX, window.innerWidth - 176),
-                      ),
-                      y: Math.max(
-                        8,
-                        Math.min(event.clientY, window.innerHeight - 60),
-                      ),
-                    });
-                  }}
-                  onKeyDown={(event) => {
-                    if (
-                      editable &&
-                      (event.key === "ContextMenu" ||
-                        (event.shiftKey && event.key === "F10"))
-                    ) {
-                      event.preventDefault();
-                      const bounds =
-                        event.currentTarget.getBoundingClientRect();
-                      setMenu({
-                        member,
-                        x: Math.max(
-                          8,
-                          Math.min(bounds.left, window.innerWidth - 176),
-                        ),
-                        y: Math.max(
-                          8,
-                          Math.min(bounds.bottom, window.innerHeight - 60),
-                        ),
-                      });
-                    }
-                  }}
                 >
                   <span className="environment-setting-copy">
                     <strong
@@ -299,6 +269,15 @@ export function ImGroupMembers({
                         </span>
                       </Tooltip>
                       <span>{member.name}</span>
+                      {member.kind === "bot" && !member.self && (
+                        <span className="im-member-device" aria-live="polite">
+                          {verificationState(member) === "verified"
+                            ? t("已验证", "Verified")
+                            : verificationState(member) === "verifying"
+                              ? t("验证中", "Verifying")
+                              : t("未完成验证", "Not verified")}
+                        </span>
+                      )}
 
                       {member.self && (
                         <span className="im-member-executor">
@@ -307,6 +286,37 @@ export function ImGroupMembers({
                       )}
                     </strong>
                   </span>
+                  {editable &&
+                    member.kind === "bot" &&
+                    verificationState(member) !== "verified" && (
+                      <Tooltip
+                        label={
+                          verificationState(member) === "verifying"
+                            ? t("验证中，请稍候", "Verifying, please wait")
+                            : t("重新验证", "Verify again")
+                        }
+                        align="end"
+                      >
+                        <button
+                          type="button"
+                          className="im-member-permission-toggle"
+                          aria-label={
+                            verificationState(member) === "verifying"
+                              ? t("验证中", "Verifying")
+                              : t("重新验证", "Verify again")
+                          }
+                          disabled={
+                            saving ||
+                            group.stale ||
+                            !group.confirmed ||
+                            verificationState(member) === "verifying"
+                          }
+                          onClick={() => retryVerification(member)}
+                        >
+                          <ArtemisIcon name="refresh" width={12} height={12} />
+                        </button>
+                      </Tooltip>
+                    )}
                   {editable && (
                     <Tooltip
                       label={

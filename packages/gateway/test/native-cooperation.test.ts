@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { ChannelEvent, RemoteInvocationContext } from "@artemis/protocol";
 import { GatewayStore } from "../src/store.js";
 import { GatewayRouter, type Delivery } from "../src/router.js";
@@ -14,6 +14,7 @@ import {
 const stores: GatewayStore[] = [];
 const directories: string[] = [];
 afterEach(() => {
+  vi.useRealTimers();
   stores.splice(0).forEach((s) => s.close());
   directories
     .splice(0)
@@ -600,3 +601,45 @@ it.each(["feishu", "lark"] as const)(
     expect(a.router.native.tasks(a.group.id)[0]?.state).toBe("accepted");
   },
 );
+
+it("probes once across cooldowns and restarts, but allows a bounded manual retry", () => {
+  vi.useFakeTimers();
+  const a = instance("A");
+  a.store.put("native-group-info", a.group.id, {
+    roster: {
+      complete: true,
+      members: [
+        {
+          identity: { ...a.event.identity, userId: "B" },
+          name: "Solar",
+          kind: "bot",
+        },
+      ],
+    },
+  });
+  a.router.native.setMemberAssignment(a.group.id, "B", true);
+  a.router.native.syncRoster(a.group.id);
+  expect(a.store.pending("outgoing")).toHaveLength(1);
+  vi.advanceTimersByTime(360000);
+  const restarted = new GatewayRouter(a.store);
+  restarted.native.syncRoster(a.group.id);
+  expect(a.store.pending("outgoing")).toHaveLength(1);
+  // Legacy cooldown timestamps also mean an attempt was already made.
+  a.store.put(
+    "native-auto-probe",
+    JSON.stringify([a.group.id, "B"]),
+    Date.now() - 1,
+  );
+  restarted.native.syncRoster(a.group.id);
+  expect(a.store.pending("outgoing")).toHaveLength(1);
+  restarted.native.probe(a.group.id, "B");
+  restarted.native.probe(a.group.id, "B");
+  expect(a.store.pending("outgoing")).toHaveLength(2);
+  expect(restarted.native.pendingProbeUntil(a.group.id, "B")).toBe(
+    Date.now() + 30000,
+  );
+  vi.advanceTimersByTime(31000);
+  restarted.native.probe(a.group.id, "B");
+  expect(a.store.pending("outgoing")).toHaveLength(3);
+  expect(() => restarted.native.authorize(a.group.id, ["B"])).toThrow();
+});

@@ -170,7 +170,15 @@ export class NativeCooperation {
     const envelope = this.frame(group, peer ?? "*", peer ? "probe" : "hello");
     if (peer && !this.peers(groupId).some((p) => p.id === peer))
       throw new Error("Select an observed bot identity.");
+    if (peer && this.pendingProbeUntil(groupId, peer) > this.now()) return;
+    if (peer) envelope.expiresAt = this.now() + 30000;
     this.store.transaction(() => {
+      if (peer)
+        this.store.put(
+          "native-auto-probe",
+          JSON.stringify([groupId, peer]),
+          this.now(),
+        );
       this.store.put("native-probes", envelope.id, {
         groupId,
         peer,
@@ -178,6 +186,17 @@ export class NativeCooperation {
       });
       this.send(group, envelope);
     });
+  }
+  pendingProbeUntil(groupId: string, peer: string): number {
+    return Math.max(
+      0,
+      ...this.store
+        .list<{ groupId: string; peer?: string; expiresAt: number }>(
+          "native-probes",
+        )
+        .filter((probe) => probe.groupId === groupId && probe.peer === peer)
+        .map((probe) => probe.expiresAt),
+    );
   }
   authorize(groupId: string, peers: string[]): void {
     const group = this.group(groupId);
@@ -304,9 +323,9 @@ export class NativeCooperation {
       if (!group.nativeGroup?.allowedBots?.includes(peer.id) || peer.verifiedAt)
         continue;
       const key = JSON.stringify([groupId, peer.id]);
-      const next = this.store.get<number>("native-auto-probe", key) ?? 0;
-      if (next > this.now()) continue;
-      this.store.put("native-auto-probe", key, this.now() + 300000);
+      // Presence of the persisted marker means discovery was already attempted.
+      // This also stops retries from legacy five-minute cooldown records.
+      if (this.store.get("native-auto-probe", key) !== undefined) continue;
       this.probe(groupId, peer.id);
     }
   }

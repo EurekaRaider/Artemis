@@ -13057,19 +13057,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   padding: 12px 0 0;
 }
 
-.file-link-context-menu.im-member-permission-menu {
-  min-width: 112px;
-  max-width: 168px;
-  padding: 3px;
-  border-radius: 6px;
-}
-.im-member-permission-menu button {
-  min-height: 26px;
-  padding: 3px 8px;
-  font-size: 12px;
-  line-height: 18px;
-  border-radius: 4px;
-}
 .im-native-members .im-member-permission-toggle {
   display: inline-flex;
   align-items: center;

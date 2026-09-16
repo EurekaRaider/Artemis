@@ -183,6 +183,8 @@ export const imGroupRosterSchema = z.object({
         presence: z.enum(["active", "away", "unknown"]).optional(),
         presenceCheckedAt: z.number().nonnegative().optional(),
         canAssign: z.boolean().optional(),
+        verifiedAt: z.number().nonnegative().optional(),
+        verificationPendingUntil: z.number().nonnegative().optional(),
         owner: z.boolean().optional(),
       }),
     )
