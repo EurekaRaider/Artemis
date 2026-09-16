@@ -7,6 +7,7 @@ import {
   type ChannelEvent,
   type ImConversation,
   type ImReply,
+  type ImGroupRoster,
 } from "@artemis/protocol";
 import { sameSecret } from "./store.js";
 
@@ -86,6 +87,24 @@ export interface ChannelAdapter {
     text: string,
     idempotencyKey: string,
   ): Promise<string | undefined>;
+  sendNative?(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    recipient: string,
+  ): Promise<string | undefined>;
+  publish?(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    key: string,
+    authorize: () => void,
+  ): Promise<string | undefined>;
+  groupMembers?(conversation: ImConversation): Promise<ImGroupRoster>;
+  groupInfo?(conversation: ImConversation): Promise<{
+    name?: string;
+    nameError?: "missing-scope";
+    unavailable?: "archived" | "removed" | "dissolved" | "access-denied";
+  }>;
   /** Optional capability: replace a shared task-status card without generating another notification. */
   statusCard?(
     conversation: ImConversation,
@@ -237,7 +256,10 @@ export function normalizeWecom(
       kind: body.chattype === "group" ? "group" : "direct",
     },
     text: text.replace(/^@\S+\s*/u, "").trim(),
-    timestamp: Date.now(),
+    timestamp:
+      Number(body.create_time) > 0
+        ? Number(body.create_time) * 1000
+        : Date.now(),
     mentioned: true,
     bot: false,
     attachments,
@@ -397,7 +419,7 @@ export function normalizeFeishu(
     text: text.trim(),
     timestamp: Number(message.create_time) || Date.now(),
     mentioned,
-    bot: sender.sender_type === "bot",
+    bot: sender.sender_type === "bot" || sender.sender_type === "app",
     ...(string(message.parent_id) ? { replyTo: message.parent_id } : {}),
     attachments,
   });
@@ -508,6 +530,161 @@ export class FeishuAdapter implements ChannelAdapter {
     this.tokenExpires =
       Date.now() + Math.max(0, (Number(body.expire) - 60) * 1000);
     return this.token;
+  }
+  async sendNative(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    recipient: string,
+  ) {
+    if (!/^[a-zA-Z0-9_-]+$/u.test(recipient) && recipient !== "*")
+      throw new Error("Invalid native bot identity.");
+    return this.message(
+      conversation,
+      {
+        text: `${recipient === "*" ? "" : `<at user_id="${recipient}"></at> `}${text}`,
+      },
+      "text",
+      key,
+    );
+  }
+  async publish(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    key: string,
+    authorize: () => void,
+  ) {
+    authorize();
+    const form = new FormData();
+    form.set("file_type", "stream");
+    form.set("file_name", file.name);
+    form.set("file", new Blob([new Uint8Array(file.data)]), file.name);
+    const token = await this.accessToken();
+    authorize();
+    const response = await fetch(`${this.apiOrigin}/open-apis/im/v1/files`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+    }).catch(() => {
+      throw new ChannelUnavailable("File upload is unavailable.");
+    });
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 60,
+      );
+    const body = record(await response.json());
+    const fileKey = string(record(body.data).file_key);
+    if (!response.ok || body.code !== 0 || !fileKey)
+      throw new Error("Feishu file upload was rejected.");
+    authorize();
+    return this.message(
+      conversation,
+      { file_key: fileKey },
+      "file",
+      key,
+      undefined,
+      authorize,
+    );
+  }
+  async groupMembers(conversation: ImConversation): Promise<ImGroupRoster> {
+    const members = new Map<string, ImGroupRoster["members"][number]>();
+    const cursors = new Set<string>();
+    let cursor = "";
+    // The official endpoint excludes bots. Never claim a complete directory or
+    // use absence from this list to revoke a verified bot's identity.
+    let error: ImGroupRoster["error"] = "partial";
+    const signal = AbortSignal.timeout(10000);
+    try {
+      const token = await this.accessToken();
+      for (let page = 0; page < 100; page++) {
+        const query = new URLSearchParams({
+          member_id_type: "open_id",
+          page_size: "100",
+        });
+        if (cursor) query.set("page_token", cursor);
+        const response = await fetch(
+          `${this.apiOrigin}/open-apis/im/v1/chats/${encodeURIComponent(conversation.id)}/members?${query}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            redirect: "error",
+            signal,
+          },
+        );
+        if (response.status === 429) {
+          error = "rate-limited";
+          break;
+        }
+        const body = record(await response.json());
+        if (
+          body.code === 99991672 ||
+          body.code === 99991679 ||
+          response.status === 403
+        ) {
+          error = "missing-scope";
+          break;
+        }
+        const data = record(body.data);
+        if (!response.ok || body.code !== 0 || !Array.isArray(data.items))
+          throw new ChannelUnavailable("Group members are unavailable.");
+        for (const value of data.items) {
+          const item = record(value),
+            userId = string(item.member_id);
+          if (!userId || item.member_id_type !== "open_id")
+            throw new ChannelUnavailable("Invalid group member identity.");
+          if (members.size >= 10000) break;
+          members.set(userId, {
+            identity: {
+              channel: "feishu",
+              connectionId: this.config.id,
+              tenantId: this.config.tenantId,
+              appId: this.config.appId,
+              userId,
+            },
+            name: (string(item.name) || userId).slice(0, 200),
+            kind: "human",
+          });
+        }
+        if (
+          !data.has_more ||
+          data.trigger_security_conf_limit ||
+          members.size >= 10000
+        )
+          break;
+        cursor = string(data.page_token);
+        if (!cursor || cursors.has(cursor)) break;
+        cursors.add(cursor);
+      }
+    } catch {
+      error = "unavailable";
+    }
+    return { members: [...members.values()], complete: false, error };
+  }
+  async groupInfo(conversation: ImConversation) {
+    const response = await fetch(
+      `${this.apiOrigin}/open-apis/im/v1/chats/${encodeURIComponent(conversation.id)}`,
+      {
+        headers: { Authorization: `Bearer ${await this.accessToken()}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 60,
+      );
+    const body = record(await response.json());
+    if (!response.ok || body.code !== 0)
+      throw new ChannelUnavailable("Group information is unavailable.");
+    const data = record(body.data);
+    return {
+      ...(string(data.name) ? { name: string(data.name).slice(0, 100) } : {}),
+      ...(data.chat_status === "dissolved" ||
+      data.chat_status === "dissolved_save"
+        ? { unavailable: "dissolved" as const }
+        : {}),
+    };
   }
   async send(
     conversation: ImConversation,
@@ -639,11 +816,13 @@ export class FeishuAdapter implements ChannelAdapter {
   private async message(
     conversation: ImConversation,
     content: unknown,
-    type: "text" | "interactive",
+    type: "text" | "interactive" | "file",
     key: string,
     messageId?: string,
+    authorize?: () => void,
   ): Promise<string> {
     const token = await this.accessToken();
+    authorize?.();
     let response: Response;
     try {
       response = await fetch(
@@ -729,7 +908,7 @@ export class WecomAdapter implements ChannelAdapter {
   private pending = new Map<
     string,
     {
-      resolve(): void;
+      resolve(body: Record<string, any>): void;
       reject(error: Error): void;
       timer: ReturnType<typeof setTimeout>;
     }
@@ -804,7 +983,7 @@ export class WecomAdapter implements ChannelAdapter {
         if (waiter && raw.errcode !== undefined) {
           clearTimeout(waiter.timer);
           this.pending.delete(requestId);
-          if (raw.errcode === 0) waiter.resolve();
+          if (raw.errcode === 0) waiter.resolve(record(raw.body));
           else
             waiter.reject(
               raw.errcode === 45009
@@ -845,7 +1024,7 @@ export class WecomAdapter implements ChannelAdapter {
     cmd: string,
     body: unknown,
     id: string = randomUUID(),
-  ): Promise<void> {
+  ): Promise<Record<string, any>> {
     if (this.socket?.readyState !== WebSocket.OPEN)
       return Promise.reject(new ChannelUnavailable("WeCom is offline."));
     return new Promise((resolve, reject) => {
@@ -856,6 +1035,47 @@ export class WecomAdapter implements ChannelAdapter {
       this.pending.set(id, { resolve, reject, timer });
       this.socket!.send(JSON.stringify({ cmd, headers: { req_id: id }, body }));
     });
+  }
+  async publish(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    key: string,
+    authorize: () => void,
+  ): Promise<undefined> {
+    const chunkSize = 512 * 1024;
+    authorize();
+    const initial = await this.command("aibot_upload_media_init", {
+      type: "file",
+      filename: file.name,
+      total_size: file.data.length,
+      total_chunks: Math.ceil(file.data.length / chunkSize),
+      md5: createHash("md5").update(file.data).digest("hex"),
+    });
+    const uploadId = string(initial.upload_id);
+    if (!uploadId) throw new Error("WeCom did not return an upload ID.");
+    for (let offset = 0; offset < file.data.length; offset += chunkSize) {
+      authorize();
+      await this.command("aibot_upload_media_chunk", {
+        upload_id: uploadId,
+        chunk_index: offset / chunkSize,
+        base64_data: file.data
+          .subarray(offset, offset + chunkSize)
+          .toString("base64"),
+      });
+    }
+    authorize();
+    const result = await this.command("aibot_upload_media_finish", {
+      upload_id: uploadId,
+    });
+    const mediaId = string(result.media_id);
+    if (!mediaId) throw new Error("WeCom did not return a file ID.");
+    authorize();
+    await this.command(
+      "aibot_send_msg",
+      { chatid: conversation.id, msgtype: "file", file: { media_id: mediaId } },
+      key,
+    );
+    return undefined;
   }
   async send(
     conversation: ImConversation,

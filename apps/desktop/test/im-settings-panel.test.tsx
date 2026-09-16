@@ -149,6 +149,7 @@ const platformState = (channel: keyof typeof platformLabels) =>
 /* 三步版：群协作入口在②尾「顺手验证」段（或③尾仪式/概览）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
   await openCard(user, /^接入渠道/);
+  await user.click(screen.getByRole("tab", { name: "Slack" }));
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   await user.click(screen.getByRole("button", { name: "设置群协作（可选）" }));
 };
@@ -183,7 +184,9 @@ describe("production IM settings", () => {
       });
       const user = userEvent.setup();
       render(<ImSettingsPanel locale="zh-CN" />);
-      await screen.findByRole("button", { name: "设置群协作" });
+      await waitFor(() =>
+        expect(document.querySelector(".im-overview")).toBeInTheDocument(),
+      );
       await openCard(user, /^授权项目/);
       await user.click(
         screen.getByRole("button", {
@@ -264,17 +267,24 @@ describe("production IM settings", () => {
     await act(() => vi.advanceTimersByTimeAsync(2000));
     expect(screen.getByLabelText("Bot Secret")).toHaveValue("unsaved-secret");
   });
-  it("loads local groups automatically on entry and restores a saved space after reopening settings", async () => {
+  it("loads native groups on entry and preserves their entry across settings reopen", async () => {
     const f = fixture();
+    const identity = { ...f.get().identities[0]!, channel: "slack" as const };
     const space = {
       id: "saved",
       name: "Saved team",
       confirmed: true,
-      endpoints: [
-        { connectionId: connection.id, id: "existing-group", kind: "group" },
-      ],
+      endpoints: [{ connectionId: connection.id, id: "room", kind: "group" }],
       participants: [{ deviceId: "test-device", identity, name: "Alice" }],
       administrators: [identity],
+      nativeGroup: {
+        version: 1,
+        projectId: "test-project",
+        enabled: true,
+        capability: "manual",
+        enabledAt: 1,
+        ownerDeviceId: "test-device",
+      },
     };
     f.set({ localGateway: { state: "running" }, spaces: [space] });
     const original = f.manage.getMockImplementation()!;
@@ -283,22 +293,27 @@ describe("production IM settings", () => {
         ? {
             identities: [{ identity, deviceId: "test-device" }],
             groups: [
-              { conversation: space.endpoints[0], lastSeenAt: Date.now() },
+              {
+                conversation: space.endpoints[0],
+                identities: [identity],
+                lastSeenAt: Date.now(),
+              },
             ],
             spaces: [space],
             deliveries: [],
           }
-        : original(input),
+        : input.action === "scope-entries"
+          ? []
+          : original(input),
     );
     const user = userEvent.setup();
     const first = render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
     await openGroupSetup(user);
-    expect(
-      await screen.findByRole("checkbox", {
-        name: "Test bot · existing-group",
-      }),
-    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /已发现的群/ }));
+    await user.click(screen.getByRole("option", { name: /Saved team/ }));
+    expect(await screen.findByText("Saved team")).toBeVisible();
+    expect(screen.getByRole("button", { name: "打开群对话" })).toBeVisible();
     expect(f.manage).toHaveBeenCalledWith({
       action: "admin",
       operation: "status",
@@ -307,14 +322,10 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
     await openGroupSetup(user);
-    await user.click(
-      await screen.findByRole("button", { name: "打开已保存配置：Saved team" }),
-    );
-    expect(screen.getByLabelText("给这组群起个名字")).toHaveValue("Saved team");
-    expect(
-      screen.getByRole("button", { name: "复制群确认指令" }),
-    ).toBeVisible();
-    expect(screen.queryByText(/还没有已配对账号/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /已发现的群/ }));
+    await user.click(screen.getByRole("option", { name: /Saved team/ }));
+    expect(await screen.findByText("Saved team")).toBeVisible();
+    expect(screen.queryByLabelText("空间配置（JSON）")).not.toBeInTheDocument();
   });
   it("derives the pairing platform from the active channel tab and offers no selector", async () => {
     const f = fixture();
@@ -599,8 +610,56 @@ describe("production IM settings", () => {
       );
     });
   });
-  it("builds a group configuration from discovered groups and paired members without editing JSON", async () => {
+  it("updates discovered names after background lookup without resetting the selected group", async () => {
     const f = fixture();
+    const identity = { ...f.get().identities[0]!, channel: "slack" as const };
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    let name: string | undefined;
+    f.manage.mockImplementation(async (input) =>
+      input.action === "admin" && input.operation === "status"
+        ? {
+            identities: [{ identity, deviceId: "test-device" }],
+            groups: [
+              {
+                conversation: {
+                  connectionId: connection.id,
+                  id: "room",
+                  kind: "group",
+                },
+                platform: "slack",
+                identities: [identity],
+                lastSeenAt: Date.now(),
+                ...(name ? { name } : {}),
+              },
+            ],
+            spaces: [],
+            deliveries: [],
+          }
+        : original(input),
+    );
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("button", { name: /^连接服务/ });
+    await openGroupSetup(user);
+    await user.click(screen.getByRole("button", { name: /已发现的群/ }));
+    await user.click(screen.getByRole("option", { name: "Slack · room" }));
+    name = "后台取得的群名";
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /已发现的群/ }),
+      ).toHaveTextContent("后台取得的群名 · Slack"),
+    );
+    expect(
+      screen.getByRole("button", { name: "确认并启用群聊" }),
+    ).toBeDisabled();
+  });
+  it("requires observed identity, project and explicit consent for native group authorization", async () => {
+    const f = fixture();
+    const identity = { ...f.get().identities[0]!, channel: "slack" as const };
     f.set({ localGateway: { state: "running" } });
     const original = f.manage.getMockImplementation()!;
     const conversation = {
@@ -608,70 +667,83 @@ describe("production IM settings", () => {
       id: "group-123",
       kind: "group",
     };
-    f.manage.mockImplementation(async (input) => {
-      if (input.action === "admin" && input.operation === "status")
-        return {
-          identities: [{ identity, deviceId: "test-device" }],
-          groups: [{ conversation, lastSeenAt: Date.now() }],
-          spaces: [],
-          deliveries: [],
-        };
-      return original(input);
-    });
+    f.manage.mockImplementation(async (input) =>
+      input.action === "admin" && input.operation === "status"
+        ? {
+            identities: [{ identity, deviceId: "test-device" }],
+            groups: [
+              {
+                conversation,
+                name: "研发群",
+                identities: [identity],
+                lastSeenAt: Date.now(),
+              },
+            ],
+            spaces: [],
+            deliveries: [],
+          }
+        : input.action === "scope-entries"
+          ? [{ path: "README.md", directory: false, protected: false }]
+          : original(input),
+    );
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
     await openGroupSetup(user);
-    const save = screen.getByRole("button", { name: "保存空间并等待各群确认" });
+    expect(
+      screen.queryByRole("button", { name: "确认并启用群聊" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /已发现的群/ }));
+    await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
+    const save = screen.getByRole("button", { name: "确认并启用群聊" });
     expect(save).toBeDisabled();
-    expect(screen.getByLabelText("空间配置（JSON）")).not.toBeVisible();
-    await user.click(screen.getByRole("button", { name: "刷新群和成员" }));
-    await user.type(screen.getByLabelText("给这组群起个名字"), "我的讨论群");
-    await user.click(
-      screen.getByRole("checkbox", { name: "Test bot · group-123" }),
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /本地项目/ })).toBeEnabled(),
     );
+    await user.click(screen.getByRole("button", { name: /本地项目/ }));
+    await user.click(screen.getByRole("option", { name: "Test project" }));
+    expect(save).toBeDisabled();
     await user.click(
-      screen.getByRole("checkbox", {
-        name: "test-user · 企业微信 · test-device",
-      }),
+      screen.getByRole("checkbox", { name: /我确认上述项目范围/ }),
     );
     expect(save).toBeDisabled();
     await user.click(
-      screen.getByRole("button", { name: /^谁来确认群接入 · Test bot/ }),
+      await screen.findByRole("checkbox", { name: "读取/分享 README.md" }),
     );
+    expect(
+      screen.getByRole("checkbox", { name: /我确认上述项目范围/ }),
+    ).not.toBeChecked();
     await user.click(
-      screen.getByRole("option", { name: "test-user · 1", exact: true }),
+      screen.getByRole("checkbox", { name: /我确认上述项目范围/ }),
     );
     expect(save).toBeEnabled();
     await user.click(save);
-    const input = f.manage.mock.calls
-      .map(([input]) => input)
-      .find(
-        (input) => input.action === "admin" && input.operation === "spaces",
-      );
-    expect(input).toMatchObject({
-      action: "admin",
-      operation: "spaces",
-      configuration: {
-        id: expect.stringMatching(/^space-/),
-        name: "我的讨论群",
-        endpoints: [conversation],
-        participants: [
-          { identity, deviceId: "test-device", name: "test-user" },
-        ],
-        administrators: [identity],
-      },
-    });
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "authorize-native-group",
+        conversation,
+        owner: identity,
+        allowedSenders: [],
+        confirmed: true,
+        name: "研发群",
+        grant: expect.objectContaining({
+          security: expect.objectContaining({
+            scopes: [
+              expect.objectContaining({
+                readPaths: ["README.md"],
+                writePaths: [],
+                filePaths: ["README.md"],
+              }),
+            ],
+          }),
+        }),
+      }),
+    );
     expect(
-      await screen.findByRole("button", { name: "复制群确认指令" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "去选择项目并授权" }),
-    ).toBeVisible();
-    await user.type(screen.getByLabelText("给这组群起个名字"), "2");
-    expect(
-      screen.queryByRole("button", { name: "复制群确认指令" }),
-    ).not.toBeInTheDocument();
+      f.manage.mock.calls.some(
+        ([a]) => a.action === "admin" && a.operation === "spaces",
+      ),
+    ).toBe(false);
   });
   it("keeps the compact header, step summaries and the credential action in flow order", async () => {
     fixture();
@@ -1278,32 +1350,20 @@ describe("production IM settings", () => {
       ).not.toBeInTheDocument(),
     );
   });
-  it("shows guided groups with advanced JSON collapsed, clears diagnostic credentials and rejects invalid JSON locally", async () => {
+  it("removes advanced space editing and requires a local gateway for group setup", async () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
     await openGroupSetup(user);
-    const summary = screen.getByText("高级：查看诊断或手动编辑配置");
-    expect(summary.closest("details")).not.toHaveAttribute("open");
-    await user.click(summary);
-    await user.type(screen.getByLabelText("协作空间管理凭据"), "a".repeat(32));
-    await user.click(screen.getByRole("button", { name: "刷新群和成员" }));
-    await waitFor(() =>
-      expect(screen.getByLabelText("协作空间管理凭据")).toHaveValue(""),
-    );
-    await user.type(screen.getByLabelText("协作空间管理凭据"), "a".repeat(32));
-    fireEvent.change(screen.getByLabelText("空间配置（JSON）"), {
-      target: { value: "invalid json" },
-    });
-    await user.click(
-      screen.getByRole("button", { name: "保存空间并等待各群确认" }),
-    );
+    expect(screen.queryByLabelText("空间配置（JSON）")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("协作空间管理凭据")).not.toBeInTheDocument();
     expect(
-      f.manage.mock.calls
-        .filter(([input]) => input.action === "admin")
-        .map(([input]) => input),
-    ).toHaveLength(1);
+      screen.queryByRole("button", { name: "确认并启用群聊" }),
+    ).not.toBeInTheDocument();
+    expect(
+      f.manage.mock.calls.some(([a]) => a.action === "authorize-native-group"),
+    ).toBe(false);
   });
 });
 
@@ -1393,7 +1453,11 @@ describe("pairing code lifecycle", () => {
   });
   it("opens group setup from the overview of a completed flow", async () => {
     const f = fixture();
-    imWriteVerify("test-device", { confirmed: true, channel: "wecom" });
+    f.set({
+      identities: [{ ...identity, channel: "slack" }],
+      connections: [{ ...connection, channel: "slack" }],
+    });
+    imWriteVerify("test-device", { confirmed: true, channel: "slack" });
     f.set({
       settings: {
         ...f.get().settings,
@@ -1425,7 +1489,7 @@ describe("pairing code lifecycle", () => {
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "设置群协作" }));
     expect(screen.getByRole("button", { name: /返回单聊设置/ })).toBeVisible();
-    expect(screen.getByText("创建与连接 IM 群协作空间")).toBeVisible();
+    expect(screen.getByText("IM 群聊")).toBeVisible();
   });
   it("advances the honest test track from real task signals only", async () => {
     const f = fixture();
@@ -1456,9 +1520,12 @@ describe("pairing code lifecycle", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     // 三步全✓直达概览；②尾「顺手验证」段按需展开（可选，不入完成链）。
+    await waitFor(() =>
+      expect(document.querySelector(".im-overview")).toBeInTheDocument(),
+    );
     expect(
-      await screen.findByRole("button", { name: "设置群协作" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "设置群协作" }),
+    ).not.toBeInTheDocument();
     await openCard(user, /^接入渠道/);
     await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     const track = screen.getByRole("list", { name: "测试任务进度" });
@@ -1503,9 +1570,12 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
+    await waitFor(() =>
+      expect(document.querySelector(".im-overview")).toBeInTheDocument(),
+    );
     expect(
-      await screen.findByRole("button", { name: "设置群协作" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "设置群协作" }),
+    ).not.toBeInTheDocument();
     // 删除连接后②③完成态回退：卡片摘要回退、给出一次性提示并出现「继续设置」。
     f.set({ connections: [], identities: [] });
     await act(async () => {
@@ -1515,4 +1585,22 @@ describe("pairing code lifecycle", () => {
     expect(screen.getByText("还没有机器人，先添加一个")).toBeVisible();
     expect(screen.getByRole("button", { name: "继续设置" })).toBeVisible();
   });
+});
+
+it("hides WeCom group setup while retaining direct-chat setup and other platform entries", async () => {
+  fixture();
+  const user = userEvent.setup();
+  render(<ImSettingsPanel locale="zh-CN" />);
+  await openCard(user, /^接入渠道/);
+  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
+  expect(
+    screen.queryByRole("button", { name: /设置群协作/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "生成配对码 Test bot" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "Slack" }));
+  expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: /飞书/ }));
+  expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
 });

@@ -1,23 +1,30 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   imConversationKey,
   imIdentityKey,
   type ChannelEvent,
+  type ImGroupRoster,
   type RemoteInvocationContext,
 } from "@artemis/protocol";
+import { saveNativeGroup } from "../src/native-groups.js";
 import { ArtemisGateway } from "../src/server.js";
 
 const gateways: ArtemisGateway[] = [];
 afterEach(async () => {
   for (const gateway of gateways.splice(0)) await gateway.close();
 });
-async function fixture(withCards = false) {
+async function fixture(
+  withCards = false,
+  groupInfo?: () => Promise<{ name?: string; unavailable?: "removed" }>,
+  groupMembers?: () => Promise<ImGroupRoster>,
+) {
   const sent: string[] = [];
   const cards: Array<{ text: string; messageId: string | undefined }> = [];
   let receive: ((event: ChannelEvent) => void) | undefined;
   let downloads = 0;
   const stop = vi.fn();
+  const published: string[] = [];
   const gateway = new ArtemisGateway({
     databasePath: ":memory:",
     encryptionKey: "e".repeat(32),
@@ -27,12 +34,19 @@ async function fixture(withCards = false) {
       return {
         start() {},
         stop,
+        ...(groupInfo ? { groupInfo } : {}),
+        ...(groupMembers ? { groupMembers } : {}),
         status: () => ({
           id: config.id,
           channel: config.channel,
           name: config.name,
           state: "connected" as const,
         }),
+        publish: async (_conversation, file, _key, authorize) => {
+          authorize();
+          published.push(file.data.toString());
+          return "file-message";
+        },
         send: async (_conversation, text) => {
           sent.push(text);
           return randomUUID();
@@ -108,6 +122,7 @@ async function fixture(withCards = false) {
     headers,
     input,
     sent,
+    published,
     cards,
     stop,
     receive: (event: ChannelEvent) => receive!(event),
@@ -163,118 +178,20 @@ describe("Gateway lifecycle and delivery authorization", () => {
     expect(f.sent.join("\n")).not.toContain("PRIVATE_QUEUED_SENTINEL");
     expect((await send("revision", "replay")).ok).toBe(false);
   });
-  it("opens idle group contexts only for confirmed paired members and lets only administrators remove a space", async () => {
+  it("returns a retirement error for the legacy space API and still requires admin authentication", async () => {
     const f = await fixture();
-    const endpoint = {
-      ...f.input.conversation,
-      id: "group",
-      kind: "group" as const,
-    };
-    const space = {
-      id: "team",
-      revision: "v1",
-      name: "Team",
-      endpoints: [endpoint],
-      participants: [
-        { deviceId: f.device.id, identity: f.input.identity, name: "Alice" },
-      ],
-      administrators: [f.input.identity],
-    };
-    f.gateway.store.put("spaces", space.id, space);
-    const open = (headers = f.headers) =>
-      fetch(`${f.url}/v1/device/group-context`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ spaceId: space.id }),
-      });
-    expect((await open()).status).toBe(400);
-    f.gateway.store.put("space-confirmations", space.id, [
-      imConversationKey(endpoint),
-    ]);
-    const request = await (await open()).json();
-    expect(request).toMatchObject({
-      deviceId: f.device.id,
-      conversation: { spaceId: space.id },
-      text: "",
-    });
-    expect(f.gateway.store.pending("device")).toHaveLength(0);
-    expect(f.sent).toHaveLength(0);
-    const other = f.gateway.store.register("Other");
-    expect(
-      (
-        await open({
-          ...f.headers,
-          authorization: `Bearer ${other.token}`,
-          "x-artemis-device": other.id,
-        })
-      ).status,
-    ).toBe(400);
-    const otherIdentity = { ...f.input.identity, userId: "Other" };
-    f.gateway.store.pair(f.gateway.store.pairCode(other.id), otherIdentity);
-    f.gateway.store.put("spaces", space.id, {
-      ...space,
-      participants: [
-        ...space.participants,
-        { deviceId: other.id, identity: otherIdentity, name: "Other" },
-      ],
-    });
-    const removeMember = (headers: Record<string, string>, deviceId: string) =>
-      fetch(`${f.url}/v1/admin/remove-space-member`, {
+    const request = (token: string) =>
+      fetch(f.url + "/v1/admin/spaces", {
         method: "PUT",
-        headers,
-        body: JSON.stringify({ spaceId: space.id, deviceId }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({}),
       });
-    expect((await removeMember(f.headers, f.device.id)).status).toBe(401);
-    expect(f.gateway.router.isInvocationAuthorized(request)).toBe(true);
-    expect(
-      (
-        await removeMember(
-          { authorization: `Bearer ${"a".repeat(32)}` },
-          f.device.id,
-        )
-      ).status,
-    ).toBe(200);
-    expect(f.gateway.router.isInvocationAuthorized(request)).toBe(false);
-    expect(
-      f.gateway.router.findSpace(endpoint)?.participants.map((p) => p.deviceId),
-    ).toEqual([other.id]);
-    expect(
-      (
-        await removeMember(
-          { authorization: `Bearer ${"a".repeat(32)}` },
-          other.id,
-        )
-      ).status,
-    ).toBe(400);
-    const remove = (headers: Record<string, string>) =>
-      fetch(`${f.url}/v1/admin/remove-space`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ id: space.id }),
-      });
-    expect((await remove(f.headers)).status).toBe(401);
-    expect(
-      (await remove({ authorization: `Bearer ${"a".repeat(32)}` })).status,
-    ).toBe(200);
-    expect(f.gateway.router.isInvocationAuthorized(request)).toBe(false);
-    expect((await open()).status).toBe(400);
-    expect(
-      f.gateway.store.get("space-confirmations", space.id),
-    ).toBeUndefined();
-    expect(f.gateway.store.get("connections", "wecom")).toBeDefined();
-    const resave = await fetch(`${f.url}/v1/admin/spaces`, {
-      method: "PUT",
-      headers: { authorization: `Bearer ${"a".repeat(32)}` },
-      body: JSON.stringify({
-        id: space.id,
-        name: space.name,
-        endpoints: space.endpoints,
-        participants: space.participants,
-        administrators: space.administrators,
-      }),
-    });
-    expect(resave.status).toBe(400);
-    expect((await resave.json()).error).toContain("空间 ID 已删除");
+    expect((await request("invalid")).status).toBe(401);
+    expect((await request("a".repeat(32))).status).toBe(410);
+    expect(f.gateway.store.list("spaces")).toEqual([]);
   });
   it("removes a connection only for administrators, revokes pairing, and never reuses its routing ID", async () => {
     const f = await fixture();
@@ -585,46 +502,15 @@ describe("Gateway lifecycle and delivery authorization", () => {
     await f.gateway.tick();
     expect(f.sent).not.toContain("private answer");
   });
-  it("invalidates queued group requests and shares when the approved space changes", async () => {
+  it("rejects legacy group contexts without opening or dispatching a task", async () => {
     const f = await fixture();
-    const group = {
-      connectionId: "wecom",
-      kind: "group" as const,
-      id: "group",
-    };
-    const space = {
-      id: "space",
-      revision: "old",
-      name: "Team",
-      endpoints: [group],
-      participants: [
-        { deviceId: f.device.id, identity: f.input.identity, name: "Alice" },
-      ],
-    };
-    f.gateway.store.put("spaces", space.id, space);
-    f.gateway.store.put("space-confirmations", space.id, [
-      imConversationKey(group),
-    ]);
-    f.gateway.router.ingest({ ...f.input, conversation: group });
-    f.gateway.router.processIncoming();
-    const request =
-      f.gateway.store.list<RemoteInvocationContext>("invocations")[0]!;
-    f.gateway.router.receiveReply(f.device.id, {
-      version: 1,
-      id: "final",
-      invocationId: request.id,
-      text: "old scope answer",
-      final: true,
+    const response = await fetch(f.url + "/v1/device/group-context", {
+      method: "POST",
+      headers: f.headers,
+      body: JSON.stringify({ spaceId: "old-space" }),
     });
-    f.gateway.store.put("spaces", space.id, { ...space, revision: "new" });
-    const inbox = await (
-      await fetch(`${f.url}/v1/device/inbox`, { headers: f.headers })
-    ).json();
-    expect(inbox.requests).toEqual([]);
-    await f.gateway.tick();
-    expect(f.sent.some((text) => text.includes("old scope answer"))).toBe(
-      false,
-    );
+    expect(response.ok).toBe(false);
+    expect(f.gateway.store.pending("device")).toEqual([]);
   });
   it("preserves short-lived platform attachments while the desktop is offline", async () => {
     const f = await fixture();
@@ -644,4 +530,562 @@ describe("Gateway lifecycle and delivery authorization", () => {
     expect(await resource.text()).toBe("preserved file");
     expect(f.downloads()).toBe(1);
   });
+});
+
+it("reports native platform receipts by owner, retaining uncertain and partial sends", async () => {
+  const f = await fixture();
+  f.gateway.store.put("native-groups", "native", {
+    id: "native",
+    nativeGroup: { ownerDeviceId: f.device.id },
+  });
+  const request = { ...f.input, id: "invocation", deviceId: f.device.id };
+  f.gateway.store.put("invocations", request.id, request);
+  const read = async () =>
+    fetch(`${f.url}/v1/device/native-deliveries`, {
+      method: "POST",
+      headers: f.headers,
+      body: JSON.stringify({ groupId: "native" }),
+    });
+  for (const [id, state] of [
+    ["one", "done"],
+    ["two", "pending"],
+  ]) {
+    f.gateway.store.enqueue("outgoing", id!, "offline", {
+      conversation: {
+        connectionId: "offline",
+        kind: "group",
+        id: "room",
+        spaceId: "native",
+      },
+      invocationId: request.id,
+      replyId: "logical",
+      text: id,
+    });
+    f.gateway.store.mark("outgoing", id!, state!);
+  }
+  expect(await (await read()).json()).toEqual({
+    version: 1,
+    messages: [{ id: "logical", state: "submitted" }],
+  });
+  f.gateway.store.mark("outgoing", "two", "done");
+  expect(await (await read()).json()).toMatchObject({
+    messages: [{ state: "platform-accepted" }],
+  });
+  f.gateway.store.mark("outgoing", "two", "uncertain");
+  expect(await (await read()).json()).toMatchObject({
+    messages: [{ state: "uncertain" }],
+  });
+  f.gateway.store.put("native-groups", "native", {
+    id: "native",
+    nativeGroup: { ownerDeviceId: "another-device" },
+  });
+  expect((await read()).ok).toBe(false);
+});
+
+it("refreshes native names without changing authorization and disables only on platform evidence", async () => {
+  const info = vi.fn(
+    async (): Promise<{ name?: string; unavailable?: "removed" }> => ({
+      name: "Renamed",
+    }),
+  );
+  const f = await fixture(false, info);
+  const group = {
+    id: "native",
+    name: "Old",
+    revision: "grant",
+    endpoints: [{ connectionId: "wecom", id: "group", kind: "group" }],
+    participants: [],
+    nativeGroup: { version: 1, enabled: true, ownerDeviceId: f.device.id },
+  };
+  f.gateway.store.put("native-groups", group.id, group);
+  await f.gateway.tick();
+  expect(f.gateway.store.get("native-groups", group.id)).toMatchObject({
+    name: "Renamed",
+    revision: "grant",
+    nativeGroup: { enabled: true },
+  });
+  await f.gateway.tick();
+  expect(info).toHaveBeenCalledTimes(1);
+  info.mockRejectedValueOnce(new Error("offline"));
+  f.gateway.store.delete("native-group-info", group.id);
+  await f.gateway.tick();
+  expect(f.gateway.store.get("native-groups", group.id)).toMatchObject({
+    nativeGroup: { enabled: true },
+  });
+  info.mockResolvedValueOnce({ unavailable: "removed" });
+  f.gateway.store.delete("native-group-info", group.id);
+  await f.gateway.tick();
+  expect(f.gateway.store.get("native-groups", group.id)).toMatchObject({
+    nativeGroup: { enabled: false },
+  });
+  expect(
+    f.gateway.store.get<{ revision: string }>("native-groups", group.id)
+      ?.revision,
+  ).not.toBe("grant");
+});
+
+it("publishes native files through IM with encrypted queue bytes, idempotence and revocation", async () => {
+  const f = await fixture();
+  const conversation = {
+    ...f.input.conversation,
+    kind: "group" as const,
+    id: "group",
+  };
+  f.gateway.router.ingest({ ...f.input, conversation });
+  f.gateway.router.processIncoming();
+  const group = saveNativeGroup(f.gateway.store, {
+    conversation,
+    owner: f.input.identity,
+    deviceId: f.device.id,
+    name: "Group",
+    projectId: "p",
+    enabled: true,
+  });
+  const security = {
+    version: 2,
+    projectId: "p",
+    revision: "grant",
+    audience: `space:${group.id}`,
+  };
+  const policy = async (grants: unknown[]) =>
+    fetch(`${f.url}/v1/device/security`, {
+      method: "POST",
+      headers: f.headers,
+      body: JSON.stringify({ version: 2, grants }),
+    });
+  await policy([
+    { ...security, version: undefined, expiresAt: Date.now() + 60000 },
+  ]);
+  f.gateway.router.ingest({
+    ...f.input,
+    messageId: "publish",
+    conversation,
+    text: "/publish task result.txt",
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  const invocation = f.gateway.store
+    .list<RemoteInvocationContext>("invocations")
+    .find((i) => i.messageId === "publish")!;
+  const body = {
+    invocationId: invocation.id,
+    security,
+    name: "result.txt",
+    data: Buffer.from("FILE_SENTINEL").toString("base64"),
+  };
+  const publish = (payload = body) =>
+    fetch(`${f.url}/v1/device/artifacts`, {
+      method: "POST",
+      headers: f.headers,
+      body: JSON.stringify(payload),
+    });
+  expect(await (await publish()).json()).toMatchObject({
+    native: true,
+    state: "queued",
+  });
+  expect((await publish()).ok).toBe(true);
+  expect((await publish({ ...body, name: "other.txt" })).ok).toBe(false);
+  const stored = JSON.stringify(f.gateway.store.list("native-files"));
+  expect(stored).not.toContain(body.data);
+  expect(stored).not.toContain("FILE_SENTINEL");
+  expect(f.gateway.store.list("artifacts")).toEqual([]);
+  await policy([]);
+  await f.gateway.tick();
+  expect(f.published).toEqual([]);
+});
+
+it("restricts native cooperation state to its owner and rejects obsolete continuation commands", async () => {
+  const f = await fixture();
+  f.gateway.store.put("native-groups", "group", {
+    id: "group",
+    nativeGroup: { ownerDeviceId: f.device.id },
+  });
+  const request = (body: unknown) =>
+    fetch(`${f.url}/v1/device/native-cooperation`, {
+      method: "POST",
+      headers: f.headers,
+      body: JSON.stringify(body),
+    });
+  expect((await request({ groupId: "group", operation: "state" })).ok).toBe(
+    true,
+  );
+  expect((await request({ groupId: "other", operation: "state" })).ok).toBe(
+    false,
+  );
+  expect((await request({ groupId: "group", operation: "continue" })).ok).toBe(
+    false,
+  );
+});
+
+it("resolves discovered group names before authorization and preserves cached names on lookup failure", async () => {
+  const info = vi.fn(async () => ({ name: "Design team" }));
+  const f = await fixture(false, info);
+  const conversation = {
+    connectionId: "wecom",
+    id: "observed",
+    kind: "group" as const,
+  };
+  const key = imConversationKey(conversation);
+  f.gateway.store.put("observed-groups", key, {
+    conversation,
+    identities: [],
+    lastSeenAt: Date.now(),
+  });
+  await f.gateway.tick();
+  expect(f.gateway.store.get("observed-groups", key)).toMatchObject({
+    name: "Design team",
+  });
+  expect(f.gateway.store.list("native-groups")).toEqual([]);
+  const status = await fetch(`${f.url}/v1/admin/status`, {
+    headers: { Authorization: `Bearer ${"a".repeat(32)}` },
+  }).then((r) => r.json());
+  expect(status.groups).toEqual([
+    expect.objectContaining({
+      platform: "wecom",
+      name: "Design team",
+      identities: [],
+    }),
+  ]);
+
+  await f.gateway.tick();
+  expect(info).toHaveBeenCalledTimes(1);
+  const current = f.gateway.store.get<Record<string, unknown>>(
+    "observed-groups",
+    key,
+  )!;
+  f.gateway.store.put("observed-groups", key, { ...current, nameNextCheck: 0 });
+  info.mockRejectedValueOnce(new Error("offline"));
+  await f.gateway.tick();
+  expect(f.gateway.store.get("observed-groups", key)).toMatchObject({
+    name: "Design team",
+  });
+});
+
+it("refreshes group names on demand without waiting for the normal cache and debounces repeated clicks", async () => {
+  const info = vi.fn(async () => ({ name: "Current name" }));
+  const f = await fixture(false, info);
+  for (const id of ["one", "two", "limited"]) {
+    const conversation = { connectionId: "wecom", id, kind: "group" as const };
+    f.gateway.store.put("observed-groups", imConversationKey(conversation), {
+      conversation,
+      identities: [],
+      lastSeenAt: Date.now(),
+      nameNextCheck: Date.now() + 60000,
+      ...(id === "limited" ? { nameError: "rate-limited" } : {}),
+    });
+  }
+  const refresh = () =>
+    fetch(`${f.url}/v1/admin/refresh-groups`, {
+      method: "PUT",
+      body: "{}",
+      headers: { Authorization: `Bearer ${"a".repeat(32)}` },
+    });
+  expect((await refresh()).ok).toBe(true);
+  expect(info).toHaveBeenCalledTimes(2);
+  expect(
+    f.gateway.store
+      .list<{ name?: string }>("observed-groups")
+      .filter((g) => g.name === "Current name"),
+  ).toHaveLength(2);
+  expect((await refresh()).ok).toBe(true);
+  expect(info).toHaveBeenCalledTimes(2);
+});
+
+it("publishes native roster metadata without granting directory members execution access", async () => {
+  const roster: ImGroupRoster = { complete: true, members: [] };
+  const members = vi.fn(async () => roster);
+  const f = await fixture(false, async () => ({ name: "Team" }), members);
+  roster.members = ["Alex", "Morgan", "Artemis", "Solar"].map(
+    (name, index) => ({
+      identity: { ...f.input.identity, userId: name },
+      name,
+      kind: index < 2 ? "human" : "bot",
+    }),
+  );
+  const group = {
+    id: "native",
+    name: "Old",
+    revision: "grant",
+    endpoints: [{ connectionId: "wecom", id: "group", kind: "group" }],
+    participants: [{ deviceId: f.device.id, identity: f.input.identity }],
+    nativeGroup: { version: 1, enabled: true, ownerDeviceId: f.device.id },
+  };
+  f.gateway.store.put("native-groups", group.id, group);
+  await f.gateway.tick();
+  const status = await fetch(`${f.url}/v1/device/status`, {
+    headers: f.headers,
+  }).then((r) => r.json());
+  expect(status.spaces[0].roster).toMatchObject(roster);
+  expect(status.spaces[0].participants).toHaveLength(1);
+  expect(f.gateway.store.get("native-groups", group.id)).toEqual({
+    ...group,
+    name: "Team",
+  });
+  await f.gateway.tick();
+  expect(members).toHaveBeenCalledTimes(1);
+});
+
+it("persists per-group assignment denial without pairing or changing project grants", async () => {
+  const f = await fixture();
+  const member = { ...f.input.identity, userId: "teammate" };
+  const conversation = {
+    ...f.input.conversation,
+    kind: "group" as const,
+    id: "room",
+  };
+  const group = {
+    id: "native",
+    name: "Team",
+    revision: "grant",
+    endpoints: [conversation],
+    participants: [
+      { deviceId: f.device.id, identity: f.input.identity, name: "Owner" },
+    ],
+    nativeGroup: {
+      version: 1,
+      enabled: true,
+      enabledAt: 1,
+      projectId: "p",
+      ownerDeviceId: f.device.id,
+    },
+  };
+  f.gateway.store.put("native-groups", group.id, group);
+  f.gateway.store.put("space-confirmations", group.id, [
+    imConversationKey(conversation),
+  ]);
+  f.gateway.store.put("native-group-info", group.id, {
+    roster: {
+      complete: true,
+      members: [
+        { identity: member, name: "Teammate", kind: "human" },
+        {
+          identity: { ...member, userId: "other-bot" },
+          name: "Solar",
+          kind: "bot",
+        },
+        { identity: f.input.identity, name: "Owner", kind: "human" },
+      ],
+    },
+  });
+  const permission = (identity = member, allowed = false) =>
+    fetch(`${f.url}/v1/admin/native-group-member`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      body: JSON.stringify({ spaceId: group.id, identity, allowed }),
+    });
+  const bot = { ...member, userId: "other-bot" };
+  expect((await permission(bot, true)).ok).toBe(true);
+  expect(
+    f.gateway.store.get<{ nativeGroup: { allowedBots: string[] } }>(
+      "native-groups",
+      group.id,
+    )?.nativeGroup.allowedBots,
+  ).toEqual(["other-bot"]);
+  expect((await permission(bot, false)).ok).toBe(true);
+  expect((await permission()).ok).toBe(true);
+  const send = (messageId: string) => {
+    f.gateway.router.ingest({
+      ...f.input,
+      conversation,
+      identity: member,
+      messageId,
+      timestamp: Date.now(),
+    });
+    f.gateway.router.processIncoming();
+  };
+  send("denied");
+  expect(f.gateway.store.pending("device")).toHaveLength(0);
+  const status = await fetch(`${f.url}/v1/device/status`, {
+    headers: f.headers,
+  }).then((r) => r.json());
+  expect(status.spaces[0].roster.members[0].canAssign).toBe(false);
+  expect((await permission(f.input.identity)).ok).toBe(false);
+  expect((await permission(member, true)).ok).toBe(true);
+  send("allowed");
+  expect(f.gateway.store.pending("device")).toHaveLength(1);
+  expect(f.gateway.store.get("native-groups", group.id)).toMatchObject(group);
+});
+
+it("refreshes the open group's roster and coalesces repeated panel requests", async () => {
+  const members = vi.fn(async () => ({ complete: true, members: [] }));
+  const f = await fixture(false, async () => ({ name: "Team" }), members);
+  f.gateway.store.put("native-groups", "native", {
+    id: "native",
+    name: "Team",
+    revision: "r",
+    endpoints: [{ connectionId: "wecom", id: "group", kind: "group" }],
+    participants: [{ deviceId: f.device.id, identity: f.input.identity }],
+    nativeGroup: { version: 1, enabled: true, ownerDeviceId: f.device.id },
+  });
+  await f.gateway.tick();
+  expect(members).toHaveBeenCalledTimes(1);
+  const refresh = () =>
+    fetch(`${f.url}/v1/admin/refresh-group-members`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      body: JSON.stringify({ spaceId: "native" }),
+    });
+  expect((await refresh()).ok).toBe(true);
+  expect(members).toHaveBeenCalledTimes(1);
+  const prior = f.gateway.store.get<Record<string, unknown>>(
+    "native-group-info",
+    "native",
+  );
+  f.gateway.store.put("native-group-info", "native", {
+    ...prior,
+    checkedAt: Date.now() - 11000,
+  });
+  expect((await refresh()).ok).toBe(true);
+  expect(members).toHaveBeenCalledTimes(2);
+});
+
+it("persists observed WeCom members and rejects old or cross-tenant observations", async () => {
+  const f = await fixture();
+  const conversation = {
+    ...f.input.conversation,
+    kind: "group" as const,
+    id: "room",
+  };
+  const group = {
+    id: "native-observed",
+    name: "Team",
+    revision: "grant",
+    endpoints: [conversation],
+    participants: [
+      { deviceId: f.device.id, identity: f.input.identity, name: "Owner" },
+    ],
+    nativeGroup: {
+      version: 1,
+      enabled: true,
+      enabledAt: Date.now() - 1000,
+      projectId: "p",
+      ownerDeviceId: f.device.id,
+    },
+  };
+  f.gateway.store.put("native-groups", group.id, group);
+  f.gateway.store.put("space-confirmations", group.id, [
+    imConversationKey(conversation),
+  ]);
+  const event = {
+    ...f.input,
+    conversation,
+    identity: { ...f.input.identity, userId: "teammate" },
+  };
+  f.receive(event);
+  f.receive(event);
+  f.receive({
+    ...event,
+    messageId: "old",
+    timestamp: 1,
+    identity: { ...event.identity, userId: "old" },
+  });
+  f.receive({
+    ...event,
+    messageId: "foreign",
+    identity: { ...event.identity, tenantId: "other", userId: "foreign" },
+  });
+  expect(f.gateway.store.get("native-group-info", group.id)).toMatchObject({
+    roster: {
+      complete: false,
+      error: "partial",
+      members: [{ identity: event.identity, kind: "human" }],
+    },
+  });
+  const response = await fetch(`${f.url}/v1/admin/native-group-member`, {
+    method: "PUT",
+    headers: { authorization: `Bearer ${"a".repeat(32)}` },
+    body: JSON.stringify({
+      spaceId: group.id,
+      identity: event.identity,
+      allowed: false,
+    }),
+  });
+  expect(response.status).toBe(200);
+  expect(
+    f.gateway.store.get(
+      "group-denied-senders",
+      JSON.stringify([group.id, imIdentityKey(event.identity)]),
+    ),
+  ).toBe(true);
+});
+
+it("disables a Feishu group only after a signed current removal event", async () => {
+  const f = await fixture();
+  const config = {
+    id: "feishu",
+    name: "Feishu",
+    channel: "feishu",
+    tenantId: "tenant",
+    appId: "app",
+    botOpenId: "bot",
+    appSecret: "secret",
+    verificationToken: "verify",
+    encryptKey: "encrypt",
+    enabled: true,
+  };
+  const saved = await fetch(`${f.url}/v1/admin/connections`, {
+    method: "PUT",
+    headers: { authorization: `Bearer ${"a".repeat(32)}` },
+    body: JSON.stringify(config),
+  });
+  expect(saved.status).toBe(200);
+  const conversation = { connectionId: "feishu", id: "room", kind: "group" };
+  const enabledAt = Date.now() - 500;
+  const group = {
+    id: "feishu-room",
+    name: "Team",
+    revision: "original",
+    endpoints: [conversation],
+    participants: [],
+    nativeGroup: {
+      version: 1,
+      enabled: true,
+      enabledAt,
+      projectId: "p",
+      ownerDeviceId: f.device.id,
+    },
+  };
+  f.gateway.store.put("native-groups", group.id, group);
+  f.gateway.store.put("space-confirmations", group.id, [
+    imConversationKey(conversation as typeof f.input.conversation),
+  ]);
+  const send = async (created: number, tenant = "tenant", valid = true) => {
+    const body = JSON.stringify({
+      header: {
+        token: "verify",
+        app_id: "app",
+        tenant_key: tenant,
+        event_type: "im.chat.member.bot.deleted_v1",
+        create_time: String(created),
+      },
+      event: { chat_id: "room" },
+    });
+    const time = String(Math.floor(Date.now() / 1000));
+    return fetch(`${f.url}/channels/feishu/feishu`, {
+      method: "POST",
+      headers: {
+        "x-lark-request-timestamp": time,
+        "x-lark-request-nonce": "nonce",
+        "x-lark-signature": valid
+          ? createHash("sha256")
+              .update(time + "nonce" + "encrypt" + body)
+              .digest("hex")
+          : "invalid",
+      },
+      body,
+    });
+  };
+  await send(Date.now(), "tenant", false);
+  await send(Date.now(), "foreign");
+  await send(enabledAt - 1);
+  expect(f.gateway.store.get("native-groups", group.id)).toEqual(group);
+  expect((await send(Date.now())).status).toBe(200);
+  const disabled = f.gateway.store.get<{ revision: string }>(
+    "native-groups",
+    group.id,
+  );
+  expect(disabled).toMatchObject({ nativeGroup: { enabled: false } });
+  expect(f.gateway.store.get("space-confirmations", group.id)).toBeUndefined();
+  await send(Date.now());
+  expect(f.gateway.store.get("native-groups", group.id)).toEqual(disabled);
 });

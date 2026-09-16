@@ -99,6 +99,18 @@ export function ImPlatformSetup({
                 </li>
                 <li>
                   {t(
+                    "群协作还需开启 im:chat:readonly 和 im:chat.members:read。订阅群成员加入、移除、主动退群，机器人进群、被移出群，以及群解散事件，然后发布应用；飞书与 Lark 使用相同配置。",
+                    "For group collaboration, enable im:chat:readonly and im:chat.members:read. Subscribe to user joined, removed and withdrawn, bot added and removed, and chat disbanded events, then publish. These settings apply to both Feishu and Lark.",
+                  )}
+                </li>
+                <li>
+                  {t(
+                    "机器人互相 @ 协作时，接收方还需开启包含其他机器人消息的群 @ 接收权限并发布应用。收到对方机器人的消息后，在群成员菜单允许其派工；只有身份往返验证成功后才会自动执行。普通用户 @ 消息权限不代表已支持机器人互通。",
+                    "For bot-to-bot mentions, the receiver must enable group mention reception including other bots and publish the app. After receiving a peer bot message, allow assignment in the group member menu. Automatic work requires a successful identity round-trip. User mention permissions alone do not establish bot interoperability.",
+                  )}
+                </li>
+                <li>
+                  {t(
                     "在飞书搜索应用名称并打开机器人单聊。点机器人行的「生成配对码」完成账号绑定，再到「授权项目」勾选项目，即可发送任务。需要审批卡片时，在回调配置中再订阅 card.action.trigger。",
                     "Search the app name in Feishu and open its private chat. Use Generate pairing code on the bot row to pair your account, tick projects under Authorize projects, then send tasks. Subscribe to card.action.trigger in callback settings for approval cards.",
                   )}

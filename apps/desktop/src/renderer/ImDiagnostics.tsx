@@ -15,7 +15,14 @@ export const diagnosticSchema = z.object({
     z.object({ deviceId: z.string(), identity: imIdentitySchema }),
   ),
   groups: z.array(
-    z.object({ conversation: imConversationSchema, lastSeenAt: z.number() }),
+    z.object({
+      conversation: imConversationSchema,
+      name: z.string().optional(),
+      platform: z.enum(["slack", "feishu", "lark", "wecom"]).optional(),
+      nameError: z.string().optional(),
+      lastSeenAt: z.number(),
+      identities: z.array(imIdentitySchema).default([]),
+    }),
   ),
   deliveries: z.array(z.object({ state: z.string(), count: z.number() })),
   ingress: z

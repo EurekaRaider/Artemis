@@ -8,6 +8,7 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 import { imGroupMentionTargets } from "@artemis/protocol";
 
 type ThreadConnection = {
+  parentThreadId?: string;
   channel?: string;
   connectionState: ImConnectionStatus["state"] | "unknown";
   group?: ImGroupContext;
@@ -32,6 +33,9 @@ export function useImThreadStatus() {
               task.threadId,
               {
                 channel: task.channel,
+                ...(task.parentThreadId
+                  ? { parentThreadId: task.parentThreadId }
+                  : {}),
                 connectionState: task.connectionState ?? "unknown",
                 ...(task.kind === "group" && task.group
                   ? { group: task.group }
@@ -43,6 +47,7 @@ export function useImThreadStatus() {
             Object.keys(current).length === Object.keys(next).length &&
             Object.entries(next).every(
               ([id, value]) =>
+                current[id]?.parentThreadId === value.parentThreadId &&
                 current[id]?.channel === value.channel &&
                 current[id]?.connectionState === value.connectionState &&
                 JSON.stringify(current[id]?.group) ===
@@ -115,7 +120,10 @@ export function ImThreadConnection({
             ? "企业微信"
             : "WeCom"
           : "IM";
-  const state = status.connectionState;
+  const state =
+    status.group?.native && !status.group.confirmed
+      ? "disabled"
+      : status.connectionState;
   const label = {
     connected: zh ? "已连接" : "Connected",
     connecting: zh ? "连接中" : "Connecting",
@@ -186,7 +194,7 @@ export function ImThreadConnection({
           height={14}
         />
       </span>
-      {group && (
+      {group && !group.native && (
         <span
           className="im-thread-computers"
           data-state={computerState}

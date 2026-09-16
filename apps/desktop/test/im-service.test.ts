@@ -64,6 +64,7 @@ function security(...audiences: string[]) {
     confirmedAt: Date.now(),
     scopes: audiences.map((audience) => ({
       audience,
+      ...(audience.startsWith("space:") ? { spaceRevision: "revision" } : {}),
       filePaths: ["README.md", "result.txt", "report.txt", "artifact.txt"],
       readPaths: [
         "src",
@@ -386,327 +387,74 @@ describe("IM desktop and Gateway loop", () => {
       expect(f.service.status().settings.grants).toEqual(settings.grants);
     },
   );
-  it("creates one idle conversation per confirmed space without an IM task, survives refresh and restart, and preserves explicit deletion", async () => {
+  it("does not recreate legacy group entries after refresh or restart", async () => {
     const f = await groupFixture();
-    expect(f.threads).toHaveLength(1);
-    const thread = f.threads[0]!;
-    expect(thread).toMatchObject({
-      title: "群协作 · Cross IM team",
-      status: "idle",
-      projectId: "project",
-    });
-    expect(f.starts).toHaveLength(0);
-    expect(f.service.hasGroupCollaboration(thread.id)).toBe(true);
-    expect(f.service.profile(thread.id)).toMatchObject({
-      security: { version: 2, audience: "space:shared" },
-    });
-    expect(f.gateway.store.pending("device")).toHaveLength(0);
-    expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
-    await Promise.all([
-      f.service.manage({ action: "refresh" }),
-      f.service.manage({ action: "refresh" }),
-    ]);
-    expect(f.threads).toHaveLength(1);
+    await f.service.manage({ action: "refresh" });
     await f.service.close();
     const restarted = new ImService(f.root, f.secure, f.ops);
     cleanups.push(() => restarted.close());
     await restarted.poll();
-    expect(f.threads.map((t) => t.id)).toEqual([thread.id]);
-    f.threads.splice(0, 1);
-    restarted.deleteThread(thread.id);
-    await restarted.poll();
     expect(f.threads).toHaveLength(0);
-  });
-  it("opens idle conversations for exact target sets, persists member names across restart and rejects other targets", async () => {
-    mockSandboxPreflight();
-    const f = await groupFixture("execute");
-    const bob = f.members[0]!,
-      carol = f.members[1]!;
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: f.service
-        .status()
-        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
-    });
-    await f.service.manage({
-      action: "rename-group-member",
-      deviceId: bob.deviceId,
-      name: "小博",
-      deviceName: "后端开发机",
-    });
-    const action = {
-      action: "open-group-conversation" as const,
-      spaceId: f.space.id,
-      participantIds: [bob.deviceId],
-      projectId: "project",
-    };
-    const opened = (await Promise.all([
-      f.service.manage(action),
-      f.service.manage(action),
-    ])) as { threadId: string }[];
-    const id = opened[0]!.threadId;
-    expect(opened[1]!.threadId).toBe(id);
-    expect(f.threads).toHaveLength(2);
-    expect(f.threads.find((t) => t.id === id)).toMatchObject({
-      title: "群协作 · 小博",
-      status: "idle",
-    });
     expect(f.starts).toHaveLength(0);
-    expect(f.gateway.store.pending("device")).toHaveLength(0);
-    expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
-    await f.send(`/task ${id}`);
-    await f.send("Continue the selected conversation from IM");
-    expect(
-      f.service.status().remoteTasks.find((t) => t.threadId === id)!.group!
-        .targetDeviceIds,
-    ).toEqual([bob.deviceId]);
-    expect(() =>
-      f.service.authorizeOperation(
-        id,
-        {
-          action: "collaborate",
-          command: {
-            action: "delegate",
-            participantId: carol.deviceId,
-            text: "Do not misroute",
-          },
-        },
-        "execute",
-      ),
-    ).toThrow("本对话中选择的成员");
-    f.threads.find((t) => t.id === id)!.status = "idle";
-    await f.service.close();
-    const service = new ImService(f.root, f.secure, f.ops);
-    cleanups.push(() => service.close());
-    await service.poll();
-    const group = service
-      .status()
-      .remoteTasks.find((t) => t.threadId === id)!.group!;
-    expect(group.targetDeviceIds).toEqual([bob.deviceId]);
-    expect(
-      group.members.find((m) => m.deviceId === bob.deviceId),
-    ).toMatchObject({ name: "小博", deviceName: "后端开发机" });
-    expect(await service.manage(action)).toEqual({ threadId: id });
-    await service.prepareLocalTurn(id, "target-turn");
-    const context = service.desktopGroupContext(
-      id,
-      "@小博 检查接口",
-      "execute",
-    )!;
-    expect(context).toContain(bob.deviceId);
-    expect(context).toContain("后端开发机");
-    expect(context).not.toContain(carol.deviceId);
-    expect(() =>
-      service.desktopGroupContext(id, "@小博 检查接口", "plan"),
-    ).toThrow("Execute");
-    expect(() =>
-      service.desktopGroupContext(id, "@Carol 检查接口", "execute"),
-    ).toThrow("@成员");
-    const delegate = (participantId: string) => ({
-      action: "collaborate" as const,
-      command: {
-        action: "delegate-many" as const,
-        text: "",
-        assignments: [{ participantId, text: "检查接口" }],
-      },
-    });
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
+  });
+  it("rejects the retired group-opening API even for confirmed members", async () => {
+    const f = await groupFixture();
     await expect(
-      service.operate(
-        id,
-        delegate(carol.deviceId),
-        "execute",
-        "wrong-target",
-        "target-turn",
-      ),
-    ).rejects.toThrow("本对话中选择的成员");
-    await service.operate(
-      id,
-      delegate(bob.deviceId),
-      "execute",
-      "right-target",
-      "target-turn",
-    );
-    await Promise.all(f.members.map((m) => m.service.poll()));
-    expect(bob.starts).toHaveLength(1);
-    expect(carol.starts).toHaveLength(0);
-    await expect(
-      service.manage({ ...action, participantIds: ["missing-device"] }),
-    ).rejects.toThrow();
-    await expect(
-      service.manage({
-        action: "rename-group-member",
-        deviceId: "missing-device",
-        name: "Forged",
-        deviceName: "Other",
+      f.service.manage({
+        action: "open-group-conversation",
+        spaceId: f.space.id,
+        participantIds: [f.members[0]!.deviceId],
       }),
-    ).rejects.toThrow();
-    await service.manage({
+    ).rejects.toThrow(/退役/);
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
+  });
+  it("removing a legacy space cannot revive its tasks or conversations", async () => {
+    const f = await groupFixture();
+    await f.service.manage({
       action: "admin",
       operation: "remove-space",
       adminToken: "a".repeat(32),
       configuration: { id: f.space.id },
     });
-    await expect(
-      service.prepareLocalTurn(id, "deleted-space-turn"),
-    ).rejects.toThrow();
+    await f.send("Inspect");
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
   });
-  it("persists conversation-only removal and revokes removed space members without disrupting remaining confirmations", async () => {
-    const f = await groupFixture(),
-      bob = f.members[0]!,
-      carol = f.members[1]!;
-    const { threadId } = (await f.service.manage({
-      action: "open-group-conversation",
-      spaceId: f.space.id,
-      participantIds: [bob.deviceId, carol.deviceId],
-    })) as { threadId: string };
-    const thread = f.threads.find((t) => t.id === threadId)!;
-    thread.status = "running";
-    await expect(
-      f.service.manage({
-        action: "remove-conversation-member",
-        threadId,
-        deviceId: bob.deviceId,
-      }),
-    ).rejects.toThrow("停止当前任务");
-    thread.status = "idle";
-    await f.service.manage({
-      action: "remove-conversation-member",
-      threadId,
-      deviceId: bob.deviceId,
-    });
-    expect(
-      f.service.status().remoteTasks.find((t) => t.threadId === threadId)!
-        .group!.targetDeviceIds,
-    ).toEqual([carol.deviceId]);
-    expect(
-      f.gateway.store.get<{ participants: unknown[] }>("spaces", f.space.id)!
-        .participants,
-    ).toHaveLength(3);
-    await f.service.prepareLocalTurn(threadId, "restricted-grant-turn");
-    expect(() =>
-      f.service.desktopGroupContext(threadId, "@Carol 检查接口", "execute"),
-    ).toThrow("项目授权");
-    const bobRequest = f.gateway.router.groupConversationContext(
-      bob.deviceId,
-      f.space.id,
-    );
-    const carolRequest = f.gateway.router.groupConversationContext(
-      carol.deviceId,
-      f.space.id,
-    );
-    await f.send(`/ask ${bob.deviceId} queued task`);
-    await f.service.manage({
-      action: "admin",
-      operation: "remove-space-member",
-      adminToken: "a".repeat(32),
-      configuration: { spaceId: f.space.id, deviceId: bob.deviceId },
-    });
-    expect(f.gateway.router.isInvocationAuthorized(bobRequest)).toBe(false);
-    expect(f.gateway.router.isInvocationAuthorized(carolRequest)).toBe(true);
-    expect(f.gateway.store.get("space-confirmations", f.space.id)).toEqual(
-      f.space.endpoints.map(imConversationKey),
-    );
-    await bob.service.poll();
-    expect(bob.starts).toHaveLength(0);
-    await f.service.close();
-    const restarted = new ImService(f.root, f.secure, f.ops);
-    cleanups.push(() => restarted.close());
-    await restarted.poll();
-    expect(
-      restarted.status().remoteTasks.find((t) => t.threadId === threadId)!
-        .group!.targetDeviceIds,
-    ).toEqual([carol.deviceId]);
-    await restarted.manage({
-      action: "remove-conversation-member",
-      threadId,
-      deviceId: carol.deviceId,
-    });
-    await restarted.poll();
-    expect(
-      restarted.status().remoteTasks.find((t) => t.threadId === threadId)!
-        .group!.targetDeviceIds,
-    ).toEqual([]);
-    expect(f.threads.find((t) => t.id === threadId)).toBeDefined();
-  });
-  it("scopes collaboration retries to the conversation and turn when model tool call IDs repeat", async () => {
-    mockSandboxPreflight();
-    const f = await groupFixture("execute"),
-      bob = f.members[0]!;
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: f.service
-        .status()
-        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
-    });
-    const first = f.threads[0]!.id;
-    const second = (
-      (await f.service.manage({
-        action: "open-group-conversation",
-        spaceId: f.space.id,
-        participantIds: [bob.deviceId],
-      })) as { threadId: string }
-    ).threadId;
-    const operation = {
-      action: "collaborate" as const,
-      command: {
-        action: "delegate" as const,
-        participantId: bob.deviceId,
-        text: "Inspect the project",
-      },
-    };
-    await f.service.prepareLocalTurn(first, "first-turn");
-    await f.service.operate(
-      first,
-      operation,
-      "execute",
-      "same-model-call",
-      "first-turn",
-    );
-    await f.service.prepareLocalTurn(second, "second-turn");
-    const result = await f.service.operate(
-      second,
-      operation,
-      "execute",
-      "same-model-call",
-      "second-turn",
-    );
-    expect(
-      f.gateway.store
-        .list<CollaborationTask>("collaboration-tasks")
-        .map((t) => t.coordinatorThreadId)
-        .sort(),
-    ).toEqual([first, second].sort());
-    expect(
-      await f.service.operate(
-        second,
-        operation,
-        "execute",
-        "same-model-call",
-        "second-turn",
-      ),
-    ).toEqual(result);
-    expect(f.gateway.store.list("collaboration-tasks")).toHaveLength(2);
-    await expect(
-      f.service.operate(
-        second,
-        {
-          ...operation,
-          command: { ...operation.command, text: "Different task" },
-        },
-        "execute",
-        "same-model-call",
-        "second-turn",
-      ),
-    ).rejects.toThrow("different command");
-    await f.service.prepareLocalTurn(second, "third-turn");
-    await f.service.operate(
-      second,
-      operation,
-      "execute",
-      "same-model-call",
-      "third-turn",
-    );
-    expect(f.gateway.store.list("collaboration-tasks")).toHaveLength(3);
+  it("repeated legacy delegation IDs never enqueue work", async () => {
+    const f = await groupFixture();
+    for (let i = 0; i < 2; i++)
+      expect(() =>
+        f.gateway.router.collaborate(
+          f.service.status().settings.deviceId,
+          "same",
+          "thread",
+          { action: "delegate", text: "Inspect" },
+        ),
+      ).toThrow(/退役/);
+    expect(f.gateway.store.pending("device")).toHaveLength(0);
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
   });
   it("waits for every group confirmation and a local project grant before creating a group conversation", async () => {
     const f = await fixture("feishu");
@@ -741,414 +489,114 @@ describe("IM desktop and Gateway loop", () => {
       })),
     });
     await f.service.poll();
-    expect(f.threads).toHaveLength(1);
+    expect(f.threads).toHaveLength(0);
     expect(f.starts).toHaveLength(0);
     await f.send("Private task remains separate");
-    expect(f.threads).toHaveLength(2);
+    expect(f.threads).toHaveLength(1);
   });
-  it("reuses the automatic conversation for an IM prompt and retains history while deletion revokes remote work", async () => {
+  it("a message in a confirmed legacy group does not create an execution", async () => {
     const f = await groupFixture();
-    const id = f.threads[0]!.id;
     await f.send("Inspect this project");
-    expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]!.id).toBe(id);
-    expect(f.starts).toHaveLength(1);
-    await f.service.manage({
-      action: "admin",
-      operation: "remove-space",
-      adminToken: "a".repeat(32),
-      configuration: { id: f.space.id },
-    });
-    await f.service.poll();
-    expect(f.gateway.store.get("spaces", f.space.id)).toBeUndefined();
-    expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]!.status).toBe("idle");
-    expect(() => f.service.authorizeThread(id, "plan")).toThrow();
-    expect(f.service.status().remoteTasks[0]!.group?.confirmed).toBe(false);
-    await f.send("Do not execute after deletion");
-    expect(f.starts).toHaveLength(1);
-    expect(f.threads).toHaveLength(1);
-  });
-  it("reports a failed automatic conversation separately and continues delivering other IM tasks", async () => {
-    const f = await fixture("feishu");
-    const endpoint = { connectionId: "w", id: "group", kind: "group" as const };
-    f.gateway.store.put("spaces", "sync-failure", {
-      id: "sync-failure",
-      revision: "v1",
-      name: "Group",
-      endpoints: [endpoint],
-      participants: [
-        {
-          deviceId: f.service.status().settings.deviceId,
-          identity: f.identity,
-          name: "Alice",
-        },
-      ],
-    });
-    f.gateway.store.put("space-confirmations", "sync-failure", [
-      imConversationKey(endpoint),
-    ]);
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: f.service.status().settings.grants.map((g) => ({
-        ...g,
-        groups: ["space:sync-failure"],
-        security: security("owner", "space:sync-failure"),
-      })),
-    });
-    const create = f.ops.create;
-    f.ops.create = async (...args) => {
-      if (args[3].startsWith("群协作"))
-        throw new Error("Group creation failed");
-      return create(...args);
-    };
-    await f.send("Continue private task");
-    expect(f.starts).toHaveLength(1);
-    expect(f.service.status().groupConversationError).toBe(
-      "Group creation failed",
-    );
-    f.ops.create = create;
-    await f.service.poll();
-    expect(
-      f.threads.filter((thread) => thread.title.startsWith("群协作")),
-    ).toHaveLength(1);
-    expect(f.service.status().groupConversationError).toBeUndefined();
-  });
-  it("lets an active desktop group turn delegate without reopening IM access to its local tools", async () => {
-    mockSandboxPreflight();
-    const f = await groupFixture("execute");
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: f.service
-        .status()
-        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
-    });
-    const thread = f.threads[0]!;
-    thread.status = "idle";
-    await f.service.prepareLocalTurn(thread.id, "desktop-turn");
-    expect(f.service.profile(thread.id)).toMatchObject({
-      security: { version: 2, audience: "space:shared" },
-    });
-    const operation = {
-      action: "collaborate" as const,
-      command: {
-        action: "delegate-many" as const,
-        text: "",
-        assignments: f.members.map((m) => ({
-          participantId: m.deviceId,
-          text: `Inspect ${m.name}'s part`,
-        })),
-      },
-    };
-    await expect(
-      f.service.operate(thread.id, operation, "execute", "bad", "other-turn"),
-    ).rejects.toThrow();
-    await expect(
-      f.service.operate(
-        thread.id,
-        operation,
-        "plan",
-        "bad-plan",
-        "desktop-turn",
-      ),
-    ).rejects.toThrow();
-    await f.service.operate(
-      thread.id,
-      operation,
-      "execute",
-      "desktop-batch",
-      "desktop-turn",
-    );
-    await Promise.all(f.members.map((m) => m.service.poll()));
-    expect(f.members.map((m) => m.starts.length)).toEqual([1, 1]);
-    for (const task of f.gateway.store.list<CollaborationTask>(
-      "collaboration-tasks",
-    )) {
-      const member = f.members.find(
-        (m) => m.deviceId === task.participantDeviceId,
-      )!;
-      f.gateway.router.receiveReply(member.deviceId, {
-        version: 1,
-        id: `final:${task.id}`,
-        invocationId: task.invocationId,
-        taskId: member.threads.find((t) => t.status === "running")!.id,
-        text: `${member.name} findings`,
-        final: true,
-        visibility: "conversation",
-      });
-    }
-    const completed = (await f.service.operate(
-      thread.id,
-      { action: "collaborate", command: { action: "status", text: "" } },
-      "execute",
-      "desktop-results",
-      "desktop-turn",
-    )) as CollaborationTask[];
-    expect(completed.map((t) => t.state)).toEqual(["completed", "completed"]);
-    expect(completed.map((t) => t.result).sort()).toEqual([
-      "Bob findings",
-      "Carol findings",
-    ]);
-    expect(
-      f.gateway.store
-        .pending<RemoteInvocationContext>("device")
-        .filter((r) => r.recipient === f.service.status().settings.deviceId),
-    ).toHaveLength(0);
-    await f.service.operate(
-      thread.id,
-      {
-        action: "collaborate",
-        command: { action: "finish", text: "Combined findings" },
-      },
-      "execute",
-      "desktop-summary",
-      "desktop-turn",
-    );
-    expect(
-      f.gateway.store
-        .pending<{ text: string }>("outgoing")
-        .filter((r) => r.payload.text.includes("Combined findings")),
-    ).toHaveLength(3);
-    expect(f.service.profile(thread.id)).toMatchObject({
-      security: { version: 2, audience: "space:shared" },
-    });
-    await expect(
-      f.service.operate(
-        thread.id,
-        { action: "read", path: "README.md" },
-        "execute",
-        "read",
-        "desktop-turn",
-      ),
-    ).rejects.toThrow(/ENOENT/u);
-  });
-  it("runs a same-device assignment in a separate authorized task and returns its result", async () => {
-    mockSandboxPreflight();
-    const f = await groupFixture("execute");
-    const deviceId = f.service.status().settings.deviceId;
-    const alias = {
-      ...f.identity,
-      channel: "slack" as const,
-      connectionId: "same-device-slack",
-      userId: "slack-owner",
-    };
-    f.gateway.store.pair(f.gateway.store.pairCode(deviceId), alias);
-    const space = {
-      ...f.space,
-      endpoints: [
-        ...f.space.endpoints,
-        {
-          connectionId: alias.connectionId,
-          id: "slack-group",
-          kind: "group" as const,
-        },
-      ],
-      participants: [
-        ...f.space.participants,
-        { deviceId, identity: alias, name: "Slack" },
-      ],
-    };
-    f.gateway.store.put("spaces", space.id, space);
-    f.gateway.store.put(
-      "space-confirmations",
-      space.id,
-      space.endpoints.map(imConversationKey),
-    );
-    await f.service.poll();
-    const thread = f.threads[0]!;
-    await f.service.prepareLocalTurn(thread.id, "same-device-turn");
-    const operation = {
-      action: "collaborate" as const,
-      command: {
-        action: "delegate" as const,
-        participantId: deviceId,
-        text: "Inspect the shared project",
-      },
-    };
-    await expect(
-      f.service.operate(
-        thread.id,
-        operation,
-        "plan",
-        "denied",
-        "same-device-turn",
-      ),
-    ).rejects.toThrow("Plan and Review");
-    const task = (await f.service.operate(
-      thread.id,
-      operation,
-      "execute",
-      "same-device",
-      "same-device-turn",
-    )) as CollaborationTask;
-    await f.service.poll();
-    const child = f.threads.find((t) => t.status === "running")!;
-    expect(child.id).not.toBe(thread.id);
-    expect(f.starts).toEqual([
-      expect.stringContaining("Inspect the shared project"),
-    ]);
-    expect(f.service.profile(child.id)).toMatchObject({
-      security: { audience: "space:shared", projectId: "project" },
-    });
-    await expect(
-      f.service.operate(child.id, operation, "execute", "recurse"),
-    ).rejects.toThrow("Only the initiating coordinator");
-    f.gateway.router.receiveReply(deviceId, {
-      version: 1,
-      id: "same-device-result",
-      invocationId: task.invocationId,
-      taskId: child.id,
-      text: "Checked the shared project",
-      final: true,
-      visibility: "conversation",
-      security: {
-        version: 2,
-        projectId: "project",
-        audience: "space:shared",
-        revision: f.service.profile(child.id)!.security!.revision,
-      },
-    });
-    const results = (await f.service.operate(
-      thread.id,
-      { action: "collaborate", command: { action: "status", text: "" } },
-      "execute",
-      "same-device-status",
-      "same-device-turn",
-    )) as CollaborationTask[];
-    expect(results).toMatchObject([
-      { state: "completed", result: "Checked the shared project" },
-    ]);
-    await f.service.save({
-      ...f.service.status().settings,
-      defaultProjectId: undefined,
-      grants: [],
-    });
-    await expect(
-      f.service.operate(
-        thread.id,
-        operation,
-        "execute",
-        "revoked",
-        "same-device-turn",
-      ),
-    ).rejects.toThrow();
-  });
-  it("queues different members through the real collaboration operation in one idempotent batch", async () => {
-    mockSandboxPreflight();
-    const f = await groupFixture("execute");
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: f.service
-        .status()
-        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
-    });
-    await f.send("让 Bob 检查接口，同时让 Carol 检查前端，完成后汇总。");
-    const threadId = f.threads[0]!.id;
-    const command = {
-      action: "delegate-many" as const,
-      text: "",
-      assignments: f.members.map((m) => ({
-        participantId: m.deviceId,
-        text: m.name === "Bob" ? "检查接口" : "检查前端",
-      })),
-    };
-    await expect(
-      f.service.operate(
-        threadId,
-        { action: "collaborate", command },
-        "plan",
-        "denied-batch",
-      ),
-    ).rejects.toThrow("Plan");
-    const first = await f.service.operate(
-      threadId,
-      { action: "collaborate", command },
-      "execute",
-      "batch",
-    );
-    expect(
-      await f.service.operate(
-        threadId,
-        { action: "collaborate", command },
-        "execute",
-        "batch",
-      ),
-    ).toEqual(first);
-    await Promise.all(f.members.map((m) => m.service.poll()));
-    expect(f.members[0]!.starts).toHaveLength(1);
-    expect(f.members[0]!.starts[0]).toContain("检查接口");
-    expect(f.members[1]!.starts).toHaveLength(1);
-    expect(f.members[1]!.starts[0]).toContain("检查前端");
-  });
-  it("starts two explicitly targeted member sessions without starting the sender, and exposes their current group roster", async () => {
-    const f = await groupFixture();
-    await f.send(
-      `/ask ${f.members.map((m) => m.deviceId).join(",")} Inspect your project`,
-    );
+    expect(f.threads).toHaveLength(0);
     expect(f.starts).toHaveLength(0);
-    await Promise.all(f.members.map((m) => m.service.poll()));
     for (const member of f.members) {
-      expect(member.starts).toHaveLength(1);
-      expect(member.starts[0]).toContain("Inspect your project");
-      expect(member.starts[0]).toContain("协作成员 feishu:alice");
-      const group = member.service.status().remoteTasks[0]!.group!;
-      expect(group).toMatchObject({
-        name: "Cross IM team",
-        executingDeviceId: member.deviceId,
-        confirmed: true,
-        stale: false,
-      });
-      expect(group.members.map((m) => m.name)).toEqual([
-        "Alice",
-        "Bob",
-        "Carol",
-      ]);
-      expect(
-        group.members.find((m) => m.deviceId === member.deviceId),
-      ).toMatchObject({ deviceName: member.name, state: "online" });
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
     }
-    const bob = f.members[0]!;
-    const threadId = bob.threads.find((t) => t.status === "running")!.id;
-    const envelope = (payload: AgentEvent["payload"]): AgentEvent => ({
-      protocolVersion: 4,
-      eventId: randomUUID(),
-      threadId,
-      turnId: "turn",
-      seq: 1,
-      timestamp: new Date().toISOString(),
-      payload,
+  });
+  it("legacy group rejection does not prevent paired direct messages", async () => {
+    const f = await groupFixture();
+    await f.send("Group work");
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
+    await f.send("/new Private task", {
+      conversation: {
+        connectionId: "w",
+        id: f.identity.userId,
+        kind: "direct",
+      },
     });
-    bob.events.push(
-      envelope({
-        type: "message.part.delta",
-        partType: "text",
-        partId: "answer",
-        delta: "BOB_RESULT",
-      }),
-    );
-    bob.service.observe([
-      envelope({
-        type: "turn.completed",
-        reason: "completed",
-        finalPartId: "answer",
-      }),
-    ]);
-    await bob.service.poll();
-    const outputs = f.gateway.store.pending<{
-      text: string;
-      conversation: { id: string };
-    }>("outgoing");
-    expect(
-      outputs
-        .filter((o) => o.payload.text.includes("BOB_RESULT"))
-        .map((o) => o.payload.conversation.id)
-        .sort(),
-    ).toEqual(f.space.endpoints.map((e) => e.id).sort());
-    await bob.service.save({
-      ...bob.service.status().settings,
-      enabled: false,
-    });
-    expect(bob.service.status().remoteTasks[0]!.group!.stale).toBe(true);
+    expect(f.starts).toHaveLength(1);
+  });
+  it("legacy collaboration cannot acquire execution through a desktop turn", async () => {
+    const f = await groupFixture();
+    await expect(
+      f.service.operate(
+        "legacy-thread",
+        { action: "read", path: "README.md" },
+        "plan",
+        "call",
+      ),
+    ).rejects.toThrow(/unavailable/);
+    expect(() =>
+      f.gateway.router.collaborate(
+        f.service.status().settings.deviceId,
+        "invocation",
+        "legacy-thread",
+        { action: "delegate", text: "Inspect" },
+      ),
+    ).toThrow(/退役/);
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
+  });
+  it("legacy same-device assignments require the native IM path", async () => {
+    const f = await groupFixture();
+    await f.send("/ask " + f.service.status().settings.deviceId + " Inspect");
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
+  });
+  it("legacy batch delegation never queues recipient tasks", async () => {
+    const f = await groupFixture();
+    expect(() =>
+      f.gateway.router.collaborate(
+        f.service.status().settings.deviceId,
+        "invocation",
+        "thread",
+        {
+          action: "delegate-many",
+          assignments: f.members.map((m) => ({
+            target: m.deviceId,
+            text: "Inspect",
+          })),
+        },
+      ),
+    ).toThrow(/退役/);
+    expect(f.gateway.store.pending("device")).toHaveLength(0);
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
+  });
+  it("legacy explicit targets cannot start sessions on other devices", async () => {
+    const f = await groupFixture();
+    for (const member of f.members)
+      await f.send("/ask " + member.deviceId + " Inspect");
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
   });
   it.each(["project", "space"])(
     "denies a targeted task before creating a thread when the target has no %s grant",
@@ -1170,13 +618,13 @@ describe("IM desktop and Gateway loop", () => {
       });
       await f.send(`/ask ${bob.deviceId} Inspect`);
       await bob.service.poll();
-      expect(bob.threads).toHaveLength(1); // The pre-existing idle group conversation remains.
+      expect(bob.threads).toHaveLength(0); // Retired groups cannot create conversations.
       expect(bob.starts).toHaveLength(0);
       expect(f.starts).toHaveLength(0);
       expect(
         f.gateway.store
           .pending<{ text: string }>("outgoing")
-          .some((o) => /authorized|授权/u.test(o.payload.text)),
+          .some((o) => /退役|已发现/u.test(o.payload.text)),
       ).toBe(true);
     },
   );
@@ -1508,7 +956,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(1);
     const deliveries = () =>
       f.gateway.store.pending<{ text: string }>("outgoing");
-    expect(deliveries().at(-1)!.payload.text).toContain("群协作空间尚未配置");
+    expect(deliveries().at(-1)!.payload.text).toContain("已发现这个群");
   });
   it("keeps an explicit ad-hoc default and a real project default distinct", async () => {
     const f = await fixture();
@@ -1843,19 +1291,12 @@ describe("IM desktop and Gateway loop", () => {
     ).toHaveLength(1);
     expect(f.starts).toHaveLength(1);
   });
-  it("requires reconfirmation when a space recipient roster changes", async () => {
+  it("renewed legacy roster consent cannot restore retired routing", async () => {
     const f = await groupFixture();
-    const prior = f.threads[0]!.id;
     f.gateway.store.put("spaces", f.space.id, {
       ...f.space,
-      revision: "new-roster",
+      revision: "changed",
     });
-    await f.service.poll();
-    await f.send("Work with changed recipients");
-    expect(f.starts).toHaveLength(0);
-    await expect(
-      f.service.prepareLocalTurn(prior, "new-turn"),
-    ).rejects.toThrow();
     await f.service.save({
       ...f.service.status().settings,
       grants: f.service.status().settings.grants.map((g) => ({
@@ -1863,17 +1304,21 @@ describe("IM desktop and Gateway loop", () => {
         security: {
           ...g.security!,
           confirmedAt: Date.now(),
-          scopes: g.security!.scopes.map((scope) =>
-            scope.audience === "space:shared"
-              ? { ...scope, spaceRevision: "new-roster" }
-              : scope,
-          ),
+          scopes: g.security!.scopes.map((s) => ({
+            ...s,
+            spaceRevision: "changed",
+          })),
         },
       })),
     });
-    await f.send("Fresh confirmed task");
-    expect(f.starts).toHaveLength(1);
-    expect(f.threads.at(-1)!.id).not.toBe(prior);
+    await f.send("Inspect");
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
   });
   it("invalidates pending deliveries when a scope changes and starts a fresh context", async () => {
     const f = await pendingReply();
@@ -2102,271 +1547,28 @@ describe("IM desktop and Gateway loop", () => {
     await f.send(`/answer ${token} b duplicate`);
     expect(f.answers).toHaveLength(1);
   });
-  it("separates two device sessions across WeCom and Feishu and delivers a delegated result to its coordinator", async () => {
-    const f = await fixture();
-    const secondDir = join(f.root, "second");
-    await mkdir(secondDir);
-    const bobProject = {
-      ...f.ops.projects()[0]!,
-      path: join(secondDir, "project"),
-    };
-    await mkdir(bobProject.path);
-    const bobIdentity = {
-      channel: "feishu" as const,
-      connectionId: "f",
-      tenantId: "ft",
-      appId: "fb",
-      userId: "bob",
-    };
-    const bobThreads: Thread[] = [],
-      bobStarts: string[] = [];
-    const bobOps: ImTaskOperations = {
-      ...f.ops,
-      projects: () => [bobProject],
-      threads: () => bobThreads,
-      thread: (id) => bobThreads.find((t) => t.id === id),
-      create: async (id, projectId, mode, title) => {
-        const thread: Thread = {
-          id,
-          projectId,
-          mode,
-          title,
-          target: "local",
-          status: "idle",
-          pinned: false,
-          archived: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        bobThreads.push(thread);
-        return thread;
-      },
-      start: async (id, text) => {
-        bobStarts.push(text);
-        bobThreads.find((t) => t.id === id)!.status = "running";
-      },
-      cancel: async (id) => {
-        bobThreads.find((t) => t.id === id)!.status = "idle";
-      },
-    };
-    const bob = new ImService(secondDir, f.secure, bobOps);
-    cleanups.push(() => bob.close());
-    await bob.manage({
-      action: "register",
-      gatewayUrl: `http://127.0.0.1:${f.port}`,
-      name: "Bob device",
-      adminToken: "a".repeat(32),
-    });
-    const code = (await bob.manage({ action: "pair" })) as { code: string };
-    f.gateway.store.pair(code.code, bobIdentity);
-    const aliceEndpoint = {
-        connectionId: "w",
-        id: "wg",
-        kind: "group" as const,
-      },
-      bobEndpoint = { connectionId: "f", id: "fg", kind: "group" as const };
-    const space = {
-      id: "space",
-      revision: "revision",
-      name: "Team",
-      endpoints: [aliceEndpoint, bobEndpoint],
-      participants: [
-        {
-          deviceId: f.service.status().settings.deviceId,
-          identity: f.identity,
-          name: "Alice",
-        },
-        {
-          deviceId: bob.status().settings.deviceId,
-          identity: bobIdentity,
-          name: "Bob",
-        },
-      ],
-    };
-    f.gateway.store.put("spaces", "space", space);
-    f.gateway.store.put("space-confirmations", "space", [
-      JSON.stringify(["w", "group", "wg"]),
-      JSON.stringify(["f", "group", "fg"]),
-    ]);
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: [
-        executionGrantSchema.parse({
-          projectId: "project",
-          groups: ["space:space"],
-          security: security("owner", "space:space"),
-          expiresAt: Date.now() + 600000,
-        }),
-      ],
-    });
-    await bob.save({
-      ...bob.status().settings,
-      enabled: true,
-      defaultProjectId: "project",
-      grants: [
-        executionGrantSchema.parse({
-          projectId: "project",
-          groups: ["space:space"],
-          security: security("owner", "space:space"),
-          expiresAt: Date.now() + 600000,
-        }),
-      ],
-    });
-    f.gateway.router.ingest({
-      version: 1,
-      messageId: "group-request",
-      identity: f.identity,
-      conversation: aliceEndpoint,
-      text: "Compare two independent findings",
-      timestamp: Date.now(),
-      mentioned: true,
-      bot: false,
-      attachments: [],
-    });
-    await f.service.poll();
-    expect(f.starts).toHaveLength(1);
-    const rootRequest = f.gateway.store
-      .list<{ id: string; deviceId: string; conversation: { kind: string } }>(
-        "invocations",
-      )
-      .find((r) => r.conversation.kind === "group")!;
-    const assignment = f.gateway.router.collaborate(
-      rootRequest.deviceId,
-      rootRequest.id,
-      f.threads[0]!.id,
-      {
-        action: "delegate",
-        participantId: bob.status().settings.deviceId,
-        text: "Inspect the second dataset and return evidence",
-      },
-    ) as { id: string; invocationId: string };
-    await bob.poll();
-    expect(bobStarts).toHaveLength(1);
-    const delegatedThread = bobThreads.find((t) => t.status === "running")!;
-    expect(delegatedThread.id).not.toBe(f.threads[0]?.id);
-    expect(bobProject.path).not.toBe(f.ops.projects()[0]?.path);
+  it("independent IM devices cannot delegate through a shared gateway", async () => {
+    const f = await groupFixture();
     expect(
-      f.gateway.store.get<{ state: string }>(
-        "collaboration-tasks",
-        assignment.id,
-      )?.state,
-    ).toBe("working");
-    const originalRoute = f.gateway.store.get(
-      "thread-links",
-      `${rootRequest.deviceId}:${f.threads[0]!.id}`,
-    );
-    await f.send("/status");
-    expect(
-      f.gateway.store.get(
-        "thread-links",
-        `${rootRequest.deviceId}:${f.threads[0]!.id}`,
-      ),
-    ).toEqual(originalRoute);
-    f.gateway.router.collaborate(
-      rootRequest.deviceId,
-      rootRequest.id,
-      f.threads[0]!.id,
-      {
-        action: "message",
-        participantId: bob.status().settings.deviceId,
-        taskId: assignment.id,
-        text: "Check the edge cases too",
-      },
-    );
-    await bob.poll();
-    const peerMessage = f.gateway.store
-      .list<{ id: string; collaboration?: { taskId: string } }>("invocations")
-      .find((r) => r.id.startsWith("message:"))!;
-    expect(peerMessage.collaboration?.taskId).toBe(assignment.id);
-    expect(() =>
-      f.gateway.router.collaborate(
-        bob.status().settings.deviceId,
-        peerMessage.id,
-        delegatedThread.id,
-        {
-          action: "delegate",
-          participantId: rootRequest.deviceId,
-          text: "Nested delegation",
-        },
-      ),
-    ).toThrow("initiating coordinator");
-    f.gateway.router.receiveReply(bob.status().settings.deviceId, {
-      version: 1,
-      id: "bob-final",
-      invocationId: assignment.invocationId,
-      text: "Second dataset checked: 3 cases passed.",
-      taskId: delegatedThread.id,
-      final: true,
-    });
-    await f.service.poll();
-    expect(f.queued.join("\n")).toContain("3 cases passed");
-    expect(
-      f.gateway.store.get<{ state: string }>(
-        "collaboration-tasks",
-        assignment.id,
-      )?.state,
-    ).toBe("completed");
-    expect(() =>
-      f.gateway.router.collaborate(
-        bob.status().settings.deviceId,
-        assignment.invocationId,
-        delegatedThread.id,
-        {
-          action: "delegate",
-          participantId: rootRequest.deviceId,
-          text: "Expand permissions",
-        },
-      ),
-    ).toThrow("initiating coordinator");
-    delegatedThread.mode = "execute";
-    const queuedAssignment = f.gateway.router.collaborate(
-      rootRequest.deviceId,
-      rootRequest.id,
-      f.threads[0]!.id,
-      {
-        action: "delegate",
-        participantId: bob.status().settings.deviceId,
-        text: "Do not start this cancelled assignment",
-      },
-    ) as { id: string };
-    await bob.poll();
-    expect(bobStarts).toHaveLength(1);
-    const cancelling = f.gateway.router.collaborate(
-      rootRequest.deviceId,
-      rootRequest.id,
-      f.threads[0]!.id,
-      { action: "cancel", taskId: queuedAssignment.id, text: "" },
-    ) as { state: string };
-    expect(cancelling.state).toBe("cancelling");
-    await bob.poll();
-    delegatedThread.status = "idle";
-    await bob.poll();
-    expect(bobStarts).toHaveLength(1);
-    expect(
-      f.gateway.store.get<{ state: string }>(
-        "collaboration-tasks",
-        queuedAssignment.id,
-      )?.state,
-    ).toBe("cancelled");
-    const deletedId = delegatedThread.id;
-    bobThreads.splice(
-      bobThreads.findIndex((t) => t.id === deletedId),
-      1,
-    );
-    bob.deleteThread(deletedId);
-    const originalAssignment = f.gateway.store.get<RemoteInvocationContext>(
-      "invocations",
-      assignment.invocationId,
-    )!;
-    await bob.accept({
-      ...originalAssignment,
-      id: randomUUID(),
-      text: "A late message must not recreate the deleted assignment",
-    });
-    expect(
-      bobThreads.every((t) => t.id !== deletedId && t.status === "idle"),
-    ).toBe(true);
-    expect(bobStarts).toHaveLength(1);
+      new Set([f.identity.channel, ...f.members.map((m) => m.identity.channel)])
+        .size,
+    ).toBeGreaterThan(1);
+    for (const member of f.members)
+      expect(() =>
+        f.gateway.router.collaborate(
+          f.service.status().settings.deviceId,
+          "invocation",
+          "thread",
+          { action: "delegate", target: member.deviceId, text: "Inspect" },
+        ),
+      ).toThrow(/退役/);
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    for (const member of f.members) {
+      await member.service.poll();
+      expect(member.starts).toHaveLength(0);
+      expect(member.threads).toHaveLength(0);
+    }
   });
   it.runIf(process.platform === "darwin")(
     "publishes only an explicitly selected file using an expiring download capability",

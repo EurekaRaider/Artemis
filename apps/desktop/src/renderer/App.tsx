@@ -3706,7 +3706,9 @@ export function App() {
               threads: current.threads.some(
                 (candidate) => candidate.id === thread.id,
               )
-                ? current.threads
+                ? current.threads.map((candidate) =>
+                    candidate.id === thread.id ? thread : candidate,
+                  )
                 : [thread, ...current.threads],
             }
           : current,
@@ -3830,7 +3832,12 @@ export function App() {
   const temporaryThreads = sortProjectThreads(
     (snapshot?.threads ?? [])
       .filter((thread) => !thread.projectId && !thread.archived)
-      .filter((thread) => !isWorkspaceDraftThread(thread))
+      .filter(
+        (thread) =>
+          !isWorkspaceDraftThread(thread) &&
+          (!imThreadStatus[thread.id]?.group?.native ||
+            !!imThreadStatus[thread.id]?.parentThreadId),
+      )
       .filter(
         (thread) =>
           !query.trim() ||
@@ -3839,13 +3846,32 @@ export function App() {
     snapshot?.events ?? {},
     promptSubmittedAtByThread,
   );
-  const activeProject = projects.find(
-    (project) => project.id === activeProjectId,
-  );
   const activeThread = (snapshot?.threads ?? []).find(
     (thread) => thread.id === activeThreadId,
   );
+  const activeProject = projects.find(
+    (project) => project.id === (activeThread?.projectId ?? activeProjectId),
+  );
   const activeWorkspaceLabel = activeProject?.name ?? t.temporaryConversation;
+  useEffect(() => {
+    if (!activeThreadId) return;
+    const connection = imThreadStatus[activeThreadId];
+    if (!connection?.group?.native || connection.parentThreadId) return;
+    // Restore old group-page links to a normal task after the overview is removed.
+    const task = snapshot?.threads
+      .filter(
+        (thread) =>
+          imThreadStatus[thread.id]?.parentThreadId === activeThreadId &&
+          !thread.archived,
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    setActiveThreadId(task?.id);
+    if (task) {
+      setActiveProjectId(task.projectId);
+      setMode(task.mode);
+    }
+  }, [activeThreadId, imThreadStatus, snapshot?.threads]);
+
   const [emptyConversationPrefix, emptyConversationSuffix = ""] =
     t.emptyConversationPrompt.split("{{workspace}}");
   const emptyConversationLabel = activeProject
@@ -4939,6 +4965,83 @@ export function App() {
       t.taskError,
     ],
   );
+
+  const projectBulkBusy = useRef(false);
+  const updateProjectThreads = async (
+    project: Project,
+    operation: "archive" | "delete",
+  ) => {
+    if (projectBulkBusy.current) return;
+    const threads = (snapshot?.threads ?? []).filter(
+      (thread) =>
+        thread.projectId === project.id &&
+        (operation === "delete" || !thread.archived),
+    );
+    if (!threads.length) return;
+    const deleting = operation === "delete";
+    const message =
+      locale === "zh-CN"
+        ? deleting
+          ? `删除“${project.name}”下全部 ${threads.length} 个会话（包括已归档）？此操作不可撤销，不会删除项目文件。`
+          : `归档“${project.name}”下全部 ${threads.length} 个未归档会话？可以从归档中恢复。`
+        : deleting
+          ? `Delete all ${threads.length} conversations in "${project.name}", including archived ones? This cannot be undone. Project files are kept.`
+          : `Archive all ${threads.length} unarchived conversations in "${project.name}"? They can be restored from the archive.`;
+    projectBulkBusy.current = true;
+    try {
+      if (
+        !(await requestConfirmation(message, deleting ? "danger" : undefined))
+      )
+        return;
+      setProjectMenuId(undefined);
+      const failed: string[] = [];
+      const completed = new Set<string>();
+      for (const thread of threads) {
+        try {
+          if (deleting) await window.artemis.deleteThread(thread.id);
+          else await window.artemis.archiveThread(thread.id, true);
+          completed.add(thread.id);
+          if (deleting) {
+            loadedEventThreads.current.delete(thread.id);
+            loadingEventThreads.current.delete(thread.id);
+            threadStateCache.current.delete(thread.id);
+            setComposerDrafts((current) =>
+              clearComposerDraft(
+                current,
+                conversationDraftKey(thread.projectId, thread.id),
+              ),
+            );
+          }
+        } catch (error) {
+          failed.push(
+            `${thread.title}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      const refreshed = await window.artemis.getSnapshot();
+      setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+      if (activeThreadId && completed.has(activeThreadId)) {
+        const next = refreshed.threads.find(
+          (thread) => thread.projectId === project.id && !thread.archived,
+        );
+        setActiveThreadId(next?.id);
+        setMode(next?.mode ?? "execute");
+        setWorkspaceDockOpen(false);
+      }
+      setToast(
+        failed.length
+          ? {
+              error: true,
+              message: `${completed.size}/${threads.length} · ${failed.join("\n")}`,
+            }
+          : undefined,
+      );
+    } catch (error) {
+      setToast({ error: true, message: String(error) });
+    } finally {
+      projectBulkBusy.current = false;
+    }
+  };
 
   const setThreadArchived = useCallback(
     async (thread: Thread, archived: boolean) => {
@@ -6204,7 +6307,12 @@ export function App() {
                         (thread) =>
                           thread.projectId === project.id && !thread.archived,
                       )
-                      .filter((thread) => !isWorkspaceDraftThread(thread))
+                      .filter(
+                        (thread) =>
+                          !isWorkspaceDraftThread(thread) &&
+                          (!imThreadStatus[thread.id]?.group?.native ||
+                            !!imThreadStatus[thread.id]?.parentThreadId),
+                      )
                       .filter(
                         (thread) =>
                           matchesProject ||
@@ -6347,6 +6455,45 @@ export function App() {
                       </button>
                       {projectMenuId === project.id && (
                         <div className="project-menu">
+                          <button
+                            disabled={
+                              hasActiveTask ||
+                              !snapshot.threads.some(
+                                (thread) =>
+                                  thread.projectId === project.id &&
+                                  !thread.archived,
+                              )
+                            }
+                            onClick={() =>
+                              void updateProjectThreads(project, "archive")
+                            }
+                          >
+                            <ArtemisIcon
+                              name="archive"
+                              width={16}
+                              height={16}
+                            />
+                            <span>
+                              {locale === "zh-CN" ? "归档全部" : "Archive all"}
+                            </span>
+                          </button>
+                          <button
+                            className="danger"
+                            disabled={
+                              hasActiveTask ||
+                              !snapshot.threads.some(
+                                (thread) => thread.projectId === project.id,
+                              )
+                            }
+                            onClick={() =>
+                              void updateProjectThreads(project, "delete")
+                            }
+                          >
+                            <ArtemisIcon name="trash" width={16} height={16} />
+                            <span>
+                              {locale === "zh-CN" ? "删除全部" : "Delete all"}
+                            </span>
+                          </button>
                           <button
                             className="danger"
                             disabled={hasActiveTask}

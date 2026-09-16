@@ -12282,9 +12282,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   justify-self: start;
   align-self: start;
 }
-.im-space-builder.im-field-stack {
-  margin-block: 0;
-}
 .im-platform-setup p,
 .im-space-setup p {
   margin: 0;
@@ -12294,13 +12291,11 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 .im-space-setup h4 {
   font-size: 13px;
 }
-.im-platform-steps,
-.im-space-steps {
+.im-platform-steps {
   padding-inline-start: 22px;
   margin-block: 10px 0;
 }
-.im-platform-steps li,
-.im-space-steps li {
+.im-platform-steps li {
   margin-block: 8px;
 }
 .im-setup-links {
@@ -12494,21 +12489,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   }
 }
 
-.im-target-member {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-.im-target-member > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-.im-member-name-editor {
-  flex-basis: 100%;
-}
 .im-member-mention-menu strong,
 .im-member-mention-menu small {
   white-space: nowrap;
@@ -12767,6 +12747,29 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.im-member-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 14px;
+  height: 14px;
+  line-height: 1;
+}
+.im-member-kind > svg {
+  display: block;
+}
+.im-member-kind[data-state="active"],
+.im-member-kind[data-state="online"] {
+  color: var(--success);
+}
+.im-member-kind[data-state="offline"],
+.im-member-kind[data-state="unavailable"],
+.im-member-kind[data-state="unknown"] {
+  color: var(--muted-2);
+}
+.im-member-kind[data-state="away"] {
+  color: var(--custom-agent-yellow);
+}
 .im-member-device,
 .im-member-executor {
   color: var(--artemis-color-text-tertiary);
@@ -13001,6 +13004,17 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 .im-group-members .environment-setting-row {
   gap: 4px;
 }
+.im-native-members .environment-activity-list {
+  gap: 0;
+}
+.im-native-members .environment-setting-row {
+  min-height: 26px;
+  padding-block: 1px;
+  flex-wrap: nowrap;
+}
+.im-native-members .im-member-heading {
+  line-height: 20px;
+}
 .im-member-action[data-artemis-component="icon-button"] {
   flex: none;
   width: 24px;
@@ -13041,4 +13055,61 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 
 .user-input-options-scroll > .user-input-actions {
   padding: 12px 0 0;
+}
+
+.im-native-conversation {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 840px;
+  margin-inline: auto;
+  padding: 24px clamp(16px, 4vw, 40px);
+}
+
+.im-native-conversation p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-link-context-menu.im-member-permission-menu {
+  min-width: 112px;
+  max-width: 168px;
+  padding: 3px;
+  border-radius: 6px;
+}
+.im-member-permission-menu button {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 4px;
+}
+.im-native-members .im-member-permission-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  flex: none;
+  cursor: pointer;
+}
+.im-native-members .im-member-permission-toggle[data-allowed="false"] {
+  color: var(--danger);
+}
+.im-native-members .im-member-permission-toggle:hover {
+  background: var(--hover);
+}
+.im-native-members .im-member-permission-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.im-group-back {
+  align-self: start;
+  width: fit-content;
 }

@@ -38,6 +38,18 @@ export class TaskNotificationStore {
         PRIMARY KEY(thread_id, notice_key)
       );
     `);
+    // IM group summaries no longer have a visible conversation. Retire only
+    // their aggregate notices; actual task notices keep their unread state.
+    database.exec(`
+      SAVEPOINT retire_group_notices;
+      INSERT INTO task_notification_revisions(thread_id, revision)
+        SELECT DISTINCT thread_id, 1 FROM task_notifications
+        WHERE notice_key LIKE 'group:%' AND (active = 1 OR unread = 1)
+        ON CONFLICT(thread_id) DO UPDATE SET revision = revision + 1;
+      UPDATE task_notifications SET active = 0, unread = 0
+        WHERE notice_key LIKE 'group:%' AND (active = 1 OR unread = 1);
+      RELEASE retire_group_notices;
+    `);
   }
 
   state(threadId: string): TaskNotificationState | undefined {

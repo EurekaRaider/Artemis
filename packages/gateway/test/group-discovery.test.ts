@@ -60,7 +60,7 @@ describe("group setup feedback", () => {
         const replies = f.send(text);
         expect(replies).toHaveLength(1);
         expect(replies[0]?.text).toContain("已发现这个群");
-        expect(replies[0]?.text).toContain("刷新群和成员");
+        expect(replies[0]?.text).toContain("刷新群列表");
         expect(
           store.get("observed-groups", imConversationKey(f.event.conversation)),
         ).toMatchObject({ conversation: f.event.conversation });
@@ -70,48 +70,28 @@ describe("group setup feedback", () => {
       },
     );
 
-    it(`${channel} distinguishes pending group confirmations and uses the platform's command syntax`, () => {
+    it(`${channel} does not revive legacy routes even when every endpoint is confirmed`, () => {
       const f = fixture(channel);
       store.put("spaces", f.space.id, f.space);
-      store.put("space-confirmations", f.space.id, [
-        imConversationKey(f.event.conversation),
-      ]);
-      const reply = f.send()[0]!.text;
-      expect(reply).toContain("本群已确认");
-      expect(reply).toContain("还有 1 个群待确认");
-      expect(reply).toContain(
-        `${channel === "slack" ? "" : "/"}space-confirm team`,
+      store.put(
+        "space-confirmations",
+        f.space.id,
+        f.space.endpoints.map(imConversationKey),
       );
-      if (channel === "slack") expect(reply).not.toContain("/space-confirm");
+      expect(f.send()[0]?.text).toContain("已发现这个群");
       expect(store.pending("device")).toHaveLength(0);
       expect(f.router.findSpace(f.event.conversation)).toBeUndefined();
     });
   }
 
-  it("explains that a paired account must be added to a confirmed space without granting membership", () => {
-    const f = fixture("feishu");
-    store.put("spaces", f.space.id, { ...f.space, participants: [] });
-    store.put(
-      "space-confirmations",
-      f.space.id,
-      f.space.endpoints.map(imConversationKey),
-    );
-    expect(f.send()[0]?.text).toContain("你的已配对账号尚未加入这个空间");
-    expect(store.pending("device")).toHaveLength(0);
-    expect(
-      store.list<{ participants: unknown[] }>("spaces")[0]?.participants,
-    ).toHaveLength(0);
-  });
-
-  it("continues normal help routing after every group is confirmed and the account is a participant", () => {
+  it("does not discover or authorize a group for an unpaired account", () => {
     const f = fixture("slack");
-    store.put("spaces", f.space.id, f.space);
-    store.put(
-      "space-confirmations",
-      f.space.id,
-      f.space.endpoints.map(imConversationKey),
-    );
-    f.send();
-    expect(store.pending("device")).toHaveLength(1);
+    f.router.ingest({
+      ...f.event,
+      identity: { ...f.event.identity, userId: "unpaired" },
+    });
+    f.router.processIncoming();
+    expect(store.list("observed-groups")).toHaveLength(0);
+    expect(store.pending("device")).toHaveLength(0);
   });
 });

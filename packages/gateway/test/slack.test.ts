@@ -158,6 +158,41 @@ describe("Slack Socket Mode", () => {
       resolveSlackConnection({ ...config, tenantId: "T2" }),
     ).rejects.toThrow("identity");
   });
+  it("invalidates roster only for authenticated membership events", async () => {
+    api();
+    const changed = vi.fn(),
+      receive = vi.fn();
+    const adapter = new SlackAdapter(config, receive, changed);
+    adapters.push(adapter);
+    adapter.start();
+    await vi.waitFor(() => expect(sockets.length).toBe(1));
+    const socket = sockets[0];
+    socket.emit(
+      "message",
+      Buffer.from(
+        JSON.stringify({ type: "hello", connection_info: { app_id: "A1" } }),
+      ),
+    );
+    for (const team of [config.tenantId, "wrong-team"]) {
+      socket.emit(
+        "message",
+        Buffer.from(
+          JSON.stringify({
+            type: "events_api",
+            envelope_id: team,
+            payload: {
+              type: "event_callback",
+              team_id: team,
+              api_app_id: config.appId,
+              event: { type: "member_left_channel", channel: "C1" },
+            },
+          }),
+        ),
+      );
+    }
+    expect(changed).toHaveBeenCalledExactlyOnceWith("C1");
+    expect(receive).not.toHaveBeenCalled();
+  });
   it("acknowledges an event only after handing it to the durable receiver and reconnects safely", async () => {
     api();
     const receive = vi.fn();
@@ -269,7 +304,7 @@ describe("Slack Socket Mode", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(sockets).toHaveLength(0);
   });
-  it("sends plain text without broadcast mentions and updates the same status message", async () => {
+  it("sends formatted text without broadcast mentions and updates the same status message", async () => {
     const fetch = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async () => Response.json({ ok: true, ts: "123.4" }));
@@ -284,7 +319,7 @@ describe("Slack Socket Mode", () => {
       await adapter.send(conversation, "<!channel> /approve code yes", "key"),
     ).toBe("123.4");
     expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({
-      mrkdwn: false,
+      mrkdwn: true,
       parse: "none",
       link_names: false,
       text: "&lt;!channel&gt; approve code yes",
@@ -356,3 +391,180 @@ describe("Slack Socket Mode", () => {
     expect(fetch.mock.calls.at(-1)?.[1]?.redirect).toBe("error");
   });
 });
+
+it("reports missing channel-name scopes without treating the bot as removed", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    Response.json({ ok: false, error: "missing_scope" }),
+  );
+  const adapter = new SlackAdapter(config, () => {});
+  expect(
+    await adapter.groupInfo({
+      connectionId: "slack",
+      id: "Cprivate",
+      kind: "group",
+    }),
+  ).toEqual({ nameError: "missing-scope" });
+});
+
+it("paginates the complete native roster and distinguishes humans and bots", async () => {
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("conversations.members"))
+        return Response.json({
+          ok: true,
+          members: url.searchParams.get("cursor")
+            ? ["Ubot", "Usolar"]
+            : ["U1", "U2"],
+          response_metadata: {
+            next_cursor: url.searchParams.get("cursor") ? "" : "page2",
+          },
+        });
+      const id = url.searchParams.get("user");
+      if (url.pathname.endsWith("users.getPresence"))
+        return Response.json({
+          ok: true,
+          presence: id === "U1" ? "active" : "away",
+        });
+      return Response.json({
+        ok: true,
+        user: {
+          id,
+          is_bot: id === "Ubot" || id === "Usolar",
+          profile: {
+            display_name: {
+              U1: "Alex",
+              U2: "Morgan",
+              Ubot: "Artemis",
+              Usolar: "Solar",
+            }[id!],
+          },
+        },
+      });
+    });
+  const adapter = new SlackAdapter(config, () => {});
+  const roster = await adapter.groupMembers({
+    connectionId: "slack",
+    channel: "slack",
+    tenantId: "T1",
+    appId: "A1",
+    id: "C1",
+    kind: "group",
+  });
+  expect(roster.complete).toBe(true);
+  expect(roster.members.map((m) => [m.name, m.kind])).toEqual([
+    ["Alex", "human"],
+    ["Morgan", "human"],
+    ["Artemis", "bot"],
+    ["Solar", "bot"],
+  ]);
+  expect(roster.members.filter((m) => m.self).map((m) => m.name)).toEqual([
+    "Artemis",
+  ]);
+  expect(roster.members.map((m) => m.presence)).toEqual([
+    "active",
+    "away",
+    "away",
+    "away",
+  ]);
+  expect(fetch).toHaveBeenCalledTimes(10);
+  const cached = await adapter.groupMembers({
+    connectionId: "slack",
+    kind: "group",
+    id: "C1",
+  });
+  expect(cached.members.map((m) => m.presence)).toEqual(
+    roster.members.map((m) => m.presence),
+  );
+  expect(fetch).toHaveBeenCalledTimes(12);
+});
+it("reports missing roster permissions without pretending the group is empty", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    Response.json({ ok: false, error: "missing_scope" }),
+  );
+  const roster = await new SlackAdapter(config, () => {}).groupMembers({
+    connectionId: "slack",
+    channel: "slack",
+    tenantId: "T1",
+    appId: "A1",
+    id: "C1",
+    kind: "group",
+  });
+  expect(roster).toEqual({
+    members: [],
+    complete: false,
+    error: "missing-scope",
+  });
+});
+
+it("sends agent Markdown as Slack headings and labelled table rows", async () => {
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(Response.json({ ok: true, ts: "123.4" }));
+  await new SlackAdapter(config, () => {}).send(
+    { connectionId: "slack", kind: "group", id: "C1" },
+    "## 结论\n\n**21 个**\n\n| 条件 | 结果 |\n|---|---|\n| k ≤ 8 | 失败 |",
+    "formatted",
+  );
+  const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+  expect(body.mrkdwn).toBe(true);
+  expect(body.text).toContain("*结论*");
+  expect(body.text).toContain("*21 个*");
+  expect(body.text).toContain("• *条件*: k ≤ 8");
+  expect(body.text).not.toContain("|---");
+});
+
+it("caches presence and respects rate limits without losing the roster", async () => {
+  let presenceCalls = 0;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("conversations.members"))
+      return Response.json({ ok: true, members: ["U1"] });
+    if (url.pathname.endsWith("users.info"))
+      return Response.json({ ok: true, user: { id: "U1", is_bot: false } });
+    presenceCalls++;
+    return new Response("", { status: 429, headers: { "retry-after": "180" } });
+  });
+  const adapter = new SlackAdapter(config, () => {});
+  const conversation = {
+    connectionId: "slack",
+    kind: "group" as const,
+    id: "C1",
+  };
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now);
+  const first = await adapter.groupMembers(conversation);
+  expect(first.complete).toBe(true);
+  expect(first.members[0]?.presence).toBe("unknown");
+  await adapter.groupMembers(conversation);
+  vi.mocked(Date.now).mockReturnValue(now + 61000);
+  expect((await adapter.groupMembers(conversation)).members[0]?.presence).toBe(
+    "unknown",
+  );
+  expect(presenceCalls).toBe(1);
+  vi.mocked(Date.now).mockReturnValue(now + 181000);
+  await adapter.groupMembers(conversation);
+  expect(presenceCalls).toBe(2);
+});
+
+it.each(["missing_scope", "invalid_auth"])(
+  "keeps members when presence fails with %s",
+  async (error) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("conversations.members"))
+        return Response.json({ ok: true, members: ["U1"] });
+      if (url.pathname.endsWith("users.info"))
+        return Response.json({ ok: true, user: { id: "U1", is_bot: false } });
+      return Response.json({ ok: false, error });
+    });
+    const roster = await new SlackAdapter(config, () => {}).groupMembers({
+      connectionId: "slack",
+      kind: "group",
+      id: "C1",
+    });
+    expect(roster.complete).toBe(true);
+    expect(roster.members[0]?.presence).toBe("unknown");
+  },
+);

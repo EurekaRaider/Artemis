@@ -24,6 +24,20 @@ node gateway.mjs
 
 一个数据库只允许一个 Gateway 实例。SQLite 使用 WAL 和独占连接，第二个进程不能同时接管数据库。部署使用持久卷；备份时先停止 Gateway，再备份数据库及加密密钥。不要在多个副本之间共享此 SQLite 文件。机器人连接凭据在数据库中使用 AES-256-GCM 加密；设备凭据只存摘要。
 
+## 原生群协作的平台边界
+
+企业微信的群协作设置入口和群选择项暂时隐藏，单聊接入保留。已有数据不删除；隐藏入口不会自动撤销已有群授权。
+
+飞书与 Lark 共用群协作实现，并分别使用对应区域 API：分页读取人类成员，接收成员加入、移除、主动退出、机器人进群、机器人被移出及群解散事件。机器人被移出或群解散后，当前群授权停用；旧于授权的事件不能停用新的授权。长连接与签名 HTTPS 回调均处理这些事件。
+
+启用 `im:chat:readonly`、`im:chat.members:read`，并订阅 `im.chat.member.user.added_v1`、`im.chat.member.user.deleted_v1`、`im.chat.member.user.withdrawn_v1`、`im.chat.member.bot.added_v1`、`im.chat.member.bot.deleted_v1`、`im.chat.disbanded_v1`，发布应用后生效。
+
+官方成员接口不返回机器人，目录显示为不完整。其他机器人通过已认证的群消息发现；观察到身份不等于获得派工权限。主人允许派工后，系统发起指定机器人的 IM 往返验证，验证成功才允许自动委派。接收方还需配置包含机器人消息的群 @ 接收权限；具体应用及区域是否可用，以开发者后台和双机器人实测为准。人类复制协议文本不能派工，普通机器人文本不会直接启动任务。
+
+本地测试覆盖飞书/Lark 两个独立实例之间的模拟身份验证、委派与接收回执，以及成员分页、身份隔离、异常响应和长连接事件。模拟测试不代表真实平台双机器人投递已经验收。
+
+参考：[成员列表及机器人排除限制](https://open.feishu.cn/document/server-docs/group/chat-member/get)、[消息接收事件](https://open.feishu.cn/document/server-docs/im-v1/message/events/receive)、[机器人被移出群](https://open.feishu.cn/document/server-docs/group/chat-member/event/deleted)。
+
 ## 配置桌面与平台
 
 桌面“消息接入”设置内置五步引导（连接服务 → 添加机器人 → 绑定我的账号 → 允许手机操作的项目 → 发一条测试任务）、平台字段说明、成功标志、可复制的配对与测试指令，以及常见问题排查；五步完成后进入连接概览。团队成员请让服务管理员协助输入管理凭据，不要在群里传递管理员密钥。

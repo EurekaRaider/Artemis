@@ -1281,8 +1281,8 @@ describe("renderer layout contract", () => {
     expect(modelPickerSource).toContain('className="model-picker-menu"');
     expect(modelPickerSource).toContain('modelPickerSection === "model"');
     expect(modelPickerSource).toContain('modelPickerSection === "thinking"');
-    expect(modelPickerSource).toContain(
-      "!activeSelection ||\n                                        !activeModelSupportsReasoning",
+    expect(modelPickerSource).toMatch(
+      /!activeSelection \|\|\s*!activeModelSupportsReasoning/u,
     );
     expect(modelPickerSource).not.toContain("!runtimeSettings?.selection ||");
     expect(modelPickerSource).toMatch(/switchComposerModel\(\s*model,?\s*\)/u);
@@ -1924,8 +1924,8 @@ describe("renderer layout contract", () => {
     expect(openWorkspaceTabSource).toContain("ensureWorkspaceThread()");
     expect(openWorkspaceTabSource).not.toContain("if (!activeThreadId) return");
     expect(appSource).toContain("moveComposerDraft(");
-    expect(appSource).toContain(
-      ".filter((thread) => !isWorkspaceDraftThread(thread))",
+    expect(appSource).toMatch(
+      /\.filter\(\s*\(thread\) =>\s*!isWorkspaceDraftThread\(thread\) &&\s*\(!imThreadStatus\[thread.id\]\?\.group\?\.native\s*\|\|\s*!!imThreadStatus\[thread.id\]\?\.parentThreadId\)/u,
     );
   });
 

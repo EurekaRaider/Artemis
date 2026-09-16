@@ -1,3 +1,6 @@
+import { splitSlackMarkdown } from "./slack-format.js";
+import { NativeCooperation } from "./native-cooperation.js";
+import { NATIVE_PREFIX, type NativeEnvelope } from "./native-protocol.js";
 import { randomUUID } from "node:crypto";
 import {
   channelEventSchema,
@@ -32,6 +35,9 @@ export interface Delivery {
   invocationId?: string;
   taskId?: string;
   cardKey?: string;
+  replyId?: string;
+  fileId?: string;
+  native?: NativeEnvelope;
   approval?: ImReply["approval"];
 }
 interface IdentityBinding {
@@ -40,16 +46,22 @@ interface IdentityBinding {
 }
 
 export class GatewayRouter {
+  readonly native: NativeCooperation;
   constructor(
     readonly store: GatewayStore,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    this.native = new NativeCooperation(store, this, now);
+  }
   ingest(input: unknown): boolean {
     const event = channelEventSchema.parse(input);
-    if (event.bot || (event.conversation.kind === "group" && !event.mentioned))
-      return false;
     if (event.conversation.connectionId !== event.identity.connectionId)
       throw new Error("Channel identity does not match the conversation.");
+    if (event.text.trim().startsWith(NATIVE_PREFIX))
+      return this.native.receive(event);
+    if (event.bot || (event.conversation.kind === "group" && !event.mentioned))
+      return false;
+
     return this.store.enqueue(
       "incoming",
       this.eventKey(event),
@@ -68,7 +80,17 @@ export class GatewayRouter {
       );
       if (security) delivery = { ...delivery, security };
     }
-    const chunks = splitImText(delivery.text);
+    const entry = this.store.get<{ sealed: string }>(
+      "connections",
+      delivery.conversation.connectionId,
+    );
+    const connection = entry
+      ? this.store.unseal<{ channel: string }>(entry.sealed)
+      : undefined;
+    const chunks =
+      connection?.channel === "slack"
+        ? splitSlackMarkdown(delivery.text)
+        : splitImText(delivery.text);
     chunks.forEach((text, index) =>
       this.store.enqueue(
         "outgoing",
@@ -79,7 +101,6 @@ export class GatewayRouter {
     );
   }
   processIncoming(): void {
-    this.expireAssignments();
     for (const row of this.store.db
       .prepare(
         "SELECT id,payload FROM queue WHERE bucket='device' AND state='pending' AND json_extract(payload,'$.expiresAt')<=? LIMIT 100",
@@ -151,9 +172,43 @@ export class GatewayRouter {
           continue;
         }
         this.store.transaction(() => {
+          const nativeSpace =
+            event.conversation.kind === "group"
+              ? this.findSpace(event.conversation)
+              : undefined;
+          const owner = nativeSpace?.nativeGroup
+            ? nativeSpace.participants[0]
+            : undefined;
+          if (
+            owner &&
+            (event.identity.channel !== owner.identity.channel ||
+              event.identity.connectionId !== owner.identity.connectionId ||
+              event.identity.tenantId !== owner.identity.tenantId ||
+              event.identity.appId !== owner.identity.appId)
+          ) {
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
+          if (
+            nativeSpace &&
+            this.store.get(
+              "group-denied-senders",
+              JSON.stringify([nativeSpace.id, imIdentityKey(event.identity)]),
+            )
+          ) {
+            this.queueDelivery(`${item.id}:assignment-denied`, {
+              conversation: event.conversation,
+              text: "机器人主人已禁止你的账号在本群派工，请联系主人调整成员权限。",
+            });
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
+          const groupSender =
+            owner &&
+            imIdentityKey(owner.identity) !== imIdentityKey(event.identity);
           const binding = this.store.get<IdentityBinding>(
             "identities",
-            imIdentityKey(event.identity),
+            imIdentityKey(owner?.identity ?? event.identity),
           );
           if (!binding) {
             if (event.conversation.kind === "direct")
@@ -181,78 +236,46 @@ export class GatewayRouter {
               imIdentityKey(event.identity),
               event.conversation,
             );
-          else
-            this.store.put(
+          else {
+            const key = imConversationKey(event.conversation);
+            const previous = this.store.get<{ identities?: ImIdentity[] }>(
               "observed-groups",
-              imConversationKey(event.conversation),
-              { conversation: event.conversation, lastSeenAt: this.now() },
+              key,
             );
-          if (
-            event.conversation.kind === "group" &&
-            event.text.startsWith("/space-confirm ")
-          ) {
-            const candidate = this.store.get<
-              CollaborationSpace & { administrators: ImIdentity[] }
-            >("spaces", event.text.slice(15).trim());
-            if (
-              !candidate?.endpoints.some(
-                (e) =>
-                  imConversationKey(e) ===
-                  imConversationKey(event.conversation),
-              ) ||
-              !candidate.administrators.some(
-                (a) => imIdentityKey(a) === imIdentityKey(event.identity),
-              )
-            )
-              throw new Error(
-                "Only the designated administrator can confirm this group and sharing scope.",
-              );
-            const confirmations =
-              this.store.get<string[]>("space-confirmations", candidate.id) ??
-              [];
-            this.store.put("space-confirmations", candidate.id, [
-              ...new Set([
-                ...confirmations,
-                imConversationKey(event.conversation),
-              ]),
-            ]);
-            this.queueDelivery(`${item.id}:confirmed`, {
+            const identities = [
+              ...(previous?.identities ?? []).filter(
+                (i) => imIdentityKey(i) !== imIdentityKey(event.identity),
+              ),
+              event.identity,
+            ].slice(-100);
+            this.store.put("observed-groups", key, {
+              ...previous,
               conversation: event.conversation,
-              text: `已确认协作空间 ${candidate.name}。此空间中的公开任务、状态和成果将对 ${candidate.endpoints.length} 个群可见。`,
+              identities,
+              lastSeenAt: this.now(),
             });
+          }
+          const paused = this.store
+            .list<CollaborationSpace>("native-groups")
+            .some(
+              (group) =>
+                group.nativeGroup?.version === 1 &&
+                !group.nativeGroup.enabled &&
+                group.endpoints.some(
+                  (endpoint) =>
+                    imConversationKey(endpoint) ===
+                    imConversationKey(event.conversation),
+                ),
+            );
+          if (paused) {
             this.store.mark("incoming", item.id, "done");
             return;
           }
           const space = this.findSpace(event.conversation);
           if (event.conversation.kind === "group" && !space) {
-            const configured = this.store
-              .list<CollaborationSpace>("spaces")
-              .find((candidate) =>
-                candidate.endpoints.some(
-                  (endpoint) =>
-                    imConversationKey(endpoint) ===
-                    imConversationKey(event.conversation),
-                ),
-              );
-            const confirmations = configured
-              ? (this.store.get<string[]>(
-                  "space-confirmations",
-                  configured.id,
-                ) ?? [])
-              : [];
-            const pending = configured?.endpoints.filter(
-              (endpoint) =>
-                !confirmations.includes(imConversationKey(endpoint)),
-            );
-            const confirmedHere = confirmations.includes(
-              imConversationKey(event.conversation),
-            );
-            const prefix = event.identity.channel === "slack" ? "" : "/";
             this.queueDelivery(`${item.id}:group-setup`, {
               conversation: event.conversation,
-              text: configured
-                ? `此群已加入协作空间“${configured.name}”。${confirmedHere ? "本群已确认" : "本群待确认"}，空间还有 ${pending!.length} 个群待确认。请让设置中选定的确认人在待确认群里 @机器人发送 ${prefix}space-confirm ${configured.id}。所有群确认后，每位成员再到 Artemis 的“项目授权”允许该空间使用自己的项目。当前不会启动任务。`
-                : "已发现这个群，机器人连接正常，群协作空间尚未配置。\n请回到 Artemis → 设置 → 消息接入 → 群协作空间：\n1. 点击“刷新群和成员”，勾选此群、参与账号与电脑，并选择群确认人。\n2. 点击“保存空间并等待各群确认”，按页面给出的指令在各群确认。\n3. 每位成员到“项目授权”允许该空间使用自己的项目。\n发现群不会自动授权或启动任务；完成后再 @机器人发送任务。",
+              text: "已发现这个群。请回到 Artemis → 消息接入 → 群聊，刷新群列表并确认项目与分享范围。启用后请重新发送任务；当前消息不会执行。",
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -260,6 +283,7 @@ export class GatewayRouter {
           if (
             event.conversation.kind === "group" &&
             space &&
+            !space.nativeGroup &&
             !space.participants.some(
               (p) =>
                 p.deviceId === binding.deviceId &&
@@ -268,7 +292,26 @@ export class GatewayRouter {
           ) {
             this.queueDelivery(`${item.id}:group-denied`, {
               conversation: event.conversation,
-              text: "群协作空间已确认，但你的已配对账号尚未加入这个空间。请让空间管理员在 Artemis 的“群协作空间”中勾选你的账号与电脑，保存后重新完成各群确认；再在自己的“项目授权”中允许该空间使用项目。当前不会启动任务。",
+              text: "你尚未获准向此机器人派工。请让机器人主人在 Artemis 的群聊设置中授权你的账号。当前不会启动任务。",
+            });
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
+          if (
+            space?.nativeGroup &&
+            event.timestamp < space.nativeGroup.enabledAt
+          ) {
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
+          if (
+            groupSender &&
+            event.text.trimStart().startsWith("/") &&
+            !/^\/new(?:\s|$)/u.test(event.text.trim())
+          ) {
+            this.queueDelivery(`${item.id}:owner-command`, {
+              conversation: event.conversation,
+              text: "群成员可以直接 @ 机器人提交任务；切换项目、审批和停止等控制指令仅供机器人主人使用。",
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -313,8 +356,10 @@ export class GatewayRouter {
             version: 1,
             id: item.id,
             deviceId: peerReply ? parent.deviceId : binding.deviceId,
-            identity: peerReply ? parent.identity : event.identity,
-            ...(peerReply ? { originator: event.identity } : {}),
+            identity: peerReply
+              ? parent.identity
+              : (owner?.identity ?? event.identity),
+            ...(peerReply || groupSender ? { originator: event.identity } : {}),
             conversation: peerReply ? parent.conversation : conversation,
             messageId: event.messageId,
             text: event.text,
@@ -367,124 +412,25 @@ export class GatewayRouter {
   }
   private routeTargetedCommand(
     event: ChannelEvent,
-    space: CollaborationSpace | undefined,
-    id: string,
+    _space: CollaborationSpace | undefined,
+    eventId: string,
   ): boolean {
-    const input = event.text.trim();
-    const command = /^\/(agents|ask)(?=\s|$)/u.exec(input)?.[1];
-    if (!command) return false;
-    if (event.conversation.kind !== "group" || !space)
-      throw new Error(
-        "请在已确认的协作空间群内 @机器人，发送 /agents 或 /ask 成员编号 任务内容。",
-      );
-    const participants = [
-      ...new Map(
-        space.participants
-          .filter(
-            (p) =>
-              this.store.get<IdentityBinding>(
-                "identities",
-                imIdentityKey(p.identity),
-              )?.deviceId === p.deviceId &&
-              this.store.get<{ revoked: boolean }>("devices", p.deviceId)
-                ?.revoked === false &&
-              space.endpoints.some(
-                (e) => e.connectionId === p.identity.connectionId,
-              ),
-          )
-          .map((p) => [p.deviceId, p]),
-      ).values(),
-    ];
-    if (command === "agents") {
-      if (input !== "/agents")
-        throw new Error("查看可选 Agent 请只发送 /agents。");
-      this.queueDelivery(`${id}:agents`, {
-        conversation: {
-          ...event.conversation,
-          spaceId: space.id,
-          spaceRevision: space.revision,
-        },
-        text: `协作空间 ${space.name} 的 Agent：\n${participants.map((p) => `${p.name} · ${{ wecom: "企业微信", feishu: "飞书 / Lark", slack: "Slack" }[p.identity.channel]}\n/ask ${p.deviceId} 任务内容`).join("\n\n")}\n\n复制目标成员的指令并替换任务内容。同名成员用编号区分；任务在目标电脑执行，仍需本人授权项目与空间。Slack 指令不加开头的 /。`,
-      });
-      return true;
-    }
-    const match = /^\/ask\s+(\S+)\s+([\s\S]+)$/u.exec(input);
-    if (!match?.[2]?.trim())
-      throw new Error(
-        "用法：/ask 成员编号 任务内容。先发送 /agents 获取准确编号。",
-      );
-    const targetIds = match[1]!.split(",");
-    if (targetIds.length > 16 || new Set(targetIds).size !== targetIds.length)
-      throw new Error("一次可选择 1–16 位不同成员，多个编号用英文逗号分隔。");
-    const targets = targetIds.map((targetId) => {
-      const target = participants.find((p) => p.deviceId === targetId);
-      if (!target)
-        throw new Error(
-          "目标 Agent 不可用或不在此空间，请发送 /agents 重新选择成员编号。不会转交给其他 Agent。",
-        );
-      return target;
+    if (!/^\/(?:agents|ask|space-confirm)(?:\s|$)/u.test(event.text))
+      return false;
+    this.queueDelivery(`${eventId}:manual`, {
+      conversation: event.conversation,
+      text: "此群仅支持人工派工。请在同一 IM 群里 @ 目标机器人；跨群空间与共享网关派工已退役。",
     });
-    if (event.attachments.length)
-      throw new Error(
-        "定向派发暂只支持文字任务，请移除附件后重发。文件需由主人显式发布后共享。",
-      );
-    const text = match[2].trim();
-    if (text.startsWith("/"))
-      throw new Error(
-        "请填写任务内容，不能代替目标主人发送审批、停止或其他控制指令。",
-      );
-    for (const target of targets) {
-      const requestId = targets.length === 1 ? id : `${id}:${target.deviceId}`;
-      const endpoint = space.endpoints.find(
-        (e) => e.connectionId === target.identity.connectionId,
-      )!;
-      const request = remoteInvocationSchema.parse({
-        version: 1,
-        id: requestId,
-        deviceId: target.deviceId,
-        identity: target.identity,
-        originator: event.identity,
-        conversation: {
-          ...endpoint,
-          spaceId: space.id,
-          spaceRevision: space.revision,
-        },
-        messageId: event.messageId,
-        text,
-        attachments: [],
-        expiresAt: this.now() + 30 * 60_000,
-      });
-      if (!this.isInvocationAuthorized(request))
-        throw new Error("空间或成员授权已失效，请刷新后重试。");
-      this.store.put("invocations", requestId, request);
-      this.store.enqueue("device", requestId, target.deviceId, request);
-      const online =
-        (this.store.get<{ expiresAt: number }>("device-leases", target.deviceId)
-          ?.expiresAt ?? 0) > this.now();
-      this.queueDelivery(`${requestId}:targeted`, {
-        conversation: {
-          ...event.conversation,
-          spaceId: space.id,
-          spaceRevision: space.revision,
-        },
-        invocationId: requestId,
-        text: `已定向提交给 ${target.name} 的 Agent（${target.deviceId}）。${online ? "等待目标电脑检查项目与空间授权。" : "目标电脑离线或已暂停，请在 30 分钟内恢复 Artemis 和 IM 连接；恢复后会检查授权，超时不执行。"}公开进度和结果会回到此空间的所有群。`,
-      });
-      this.broadcast(
-        space,
-        `${requestId}:targeted-task`,
-        `[${space.participants.find((p) => imIdentityKey(p.identity) === imIdentityKey(event.identity))!.name} → ${target.name} 的 Agent]\n${text}`,
-        event.conversation,
-        requestId,
-      );
-    }
     return true;
   }
   findSpace(conversation: ImConversation): CollaborationSpace | undefined {
     return this.store
-      .list<CollaborationSpace>("spaces")
+      .list<CollaborationSpace>("native-groups")
       .find(
         (space) =>
+          space.nativeGroup?.version === 1 &&
+          space.nativeGroup.enabled &&
+          space.endpoints.length === 1 &&
           space.endpoints.some(
             (endpoint) =>
               imConversationKey(endpoint) === imConversationKey(conversation),
@@ -546,6 +492,42 @@ export class GatewayRouter {
       )
     )
       return false;
+    if (
+      this.store.get(
+        "group-denied-senders",
+        JSON.stringify([
+          space.id,
+          imIdentityKey(request.originator ?? request.identity),
+        ]),
+      )
+    )
+      return false;
+    if (request.originator && space.nativeGroup) {
+      const row = this.store.db
+        .prepare("SELECT payload FROM queue WHERE bucket='incoming' AND id=?")
+        .get(request.id);
+      const source = row
+        ? channelEventSchema.safeParse(JSON.parse(String(row.payload)))
+        : undefined;
+      return (
+        !!source?.success &&
+        !source.data.bot &&
+        source.data.mentioned &&
+        source.data.timestamp >= space.nativeGroup.enabledAt &&
+        source.data.messageId === request.messageId &&
+        source.data.text === request.text &&
+        (!request.text.trimStart().startsWith("/") ||
+          /^\/new(?:\s|$)/u.test(request.text.trim())) &&
+        imIdentityKey(source.data.identity) ===
+          imIdentityKey(request.originator) &&
+        imConversationKey(source.data.conversation) ===
+          imConversationKey(request.conversation) &&
+        request.originator.channel === request.identity.channel &&
+        request.originator.connectionId === request.identity.connectionId &&
+        request.originator.tenantId === request.identity.tenantId &&
+        request.originator.appId === request.identity.appId
+      );
+    }
     if (request.originator) {
       const originator = this.store.get<IdentityBinding>(
         "identities",
@@ -632,6 +614,42 @@ export class GatewayRouter {
     });
   }
   canDeliver(delivery: Delivery): boolean {
+    if (
+      delivery.native &&
+      delivery.native.expiresAt <= this.now() &&
+      ["hello", "probe", "proof", "delegate", "cancel", "note"].includes(
+        delivery.native.action,
+      )
+    )
+      return false;
+
+    if (delivery.native?.action === "cancel") {
+      const grant = this.store.get<{
+        groupId: string;
+        peer: string;
+        expiresAt: number;
+      }>("native-revocation-cancels", delivery.native.id);
+      if (grant)
+        return (
+          grant.groupId === delivery.conversation.spaceId &&
+          grant.peer === delivery.native.recipient &&
+          grant.expiresAt > this.now() &&
+          delivery.native.text === "" &&
+          !this.store.get<{ unavailable?: string }>(
+            "native-group-info",
+            grant.groupId,
+          )?.unavailable
+        );
+    }
+
+    if (
+      delivery.native &&
+      !["hello", "probe", "proof"].includes(delivery.native.action)
+    ) {
+      const group = this.findSpace(delivery.conversation);
+      if (!group?.nativeGroup?.allowedBots?.includes(delivery.native.recipient))
+        return false;
+    }
     if (delivery.security && !this.securityAllowed(delivery.security))
       return false;
     if (delivery.invocationId) {
@@ -677,6 +695,7 @@ export class GatewayRouter {
     invocationId?: string,
     taskId?: string,
     cardKey?: string,
+    replyId?: string,
   ): void {
     for (const endpoint of space.endpoints) {
       if (except && imConversationKey(except) === imConversationKey(endpoint))
@@ -688,6 +707,7 @@ export class GatewayRouter {
           ...(space.revision ? { spaceRevision: space.revision } : {}),
         },
         text,
+        ...(replyId ? { replyId } : {}),
         ...(invocationId ? { invocationId } : {}),
         ...(taskId ? { taskId } : {}),
         ...(cardKey ? { cardKey } : {}),
@@ -713,6 +733,10 @@ export class GatewayRouter {
     this.store.transaction(() => {
       if (this.store.get("replies", replyKey)) return;
       this.store.put("replies", replyKey, reply);
+      if (request.nativeTaskId) {
+        this.native.reply(request, parsedReply);
+        return;
+      }
       if (reply.approval?.resolved) {
         const key = `${request.identity.connectionId}:${reply.approval.token}`;
         const card = this.store.get<FeishuApprovalCard>("approval-cards", key);
@@ -763,7 +787,7 @@ export class GatewayRouter {
       }
       const space = request.conversation.spaceId
         ? this.store.get<CollaborationSpace>(
-            "spaces",
+            "native-groups",
             request.conversation.spaceId,
           )
         : undefined;
@@ -827,6 +851,7 @@ export class GatewayRouter {
           request.id,
           reply.taskId,
           reply.final ? undefined : cardKey,
+          parsedReply.id,
         );
       } else
         this.queueDelivery(reply.id, {
@@ -917,7 +942,7 @@ export class GatewayRouter {
     deviceId: string,
     spaceId: string,
   ): RemoteInvocationContext {
-    const space = this.store.get<CollaborationSpace>("spaces", spaceId);
+    const space = this.store.get<CollaborationSpace>("native-groups", spaceId);
     const participant = space?.participants.find(
       (p) =>
         p.deviceId === deviceId &&
@@ -1006,290 +1031,14 @@ export class GatewayRouter {
     return id;
   }
   collaborate(
-    deviceId: string,
-    invocationId: string,
-    threadId: string,
-    command: CollaborationCommand,
+    _deviceId: string,
+    _invocationId: string,
+    _threadId: string,
+    _command: CollaborationCommand,
   ): unknown {
-    const request = this.store.get<RemoteInvocationContext>(
-      "invocations",
-      invocationId,
+    throw new Error(
+      "自动协作尚未通过平台验证。请在同一 IM 群中人工 @ 目标机器人，并附上任务摘要。共享网关派工已退役。",
     );
-    if (
-      !request ||
-      request.deviceId !== deviceId ||
-      !this.isInvocationAuthorized(request) ||
-      !request.conversation.spaceId ||
-      request.expiresAt <= this.now()
-    )
-      throw new Error("An active authorized collaboration task is required.");
-    const space = this.store.get<CollaborationSpace>(
-      "spaces",
-      request.conversation.spaceId,
-    );
-    if (!space || !space.participants.some((p) => p.deviceId === deviceId))
-      throw new Error("Participant is no longer in this space.");
-    const assignment =
-      this.assignmentForThread(deviceId, threadId) ??
-      (request.collaboration
-        ? this.store.get<CollaborationTask>(
-            "collaboration-tasks",
-            request.collaboration.taskId,
-          )
-        : undefined);
-    // Persist the execution route before tools can return results; private control receipts never replace it.
-    const threadKey = `${deviceId}:${threadId}`;
-    if (!this.store.get("thread-links", threadKey))
-      this.store.put("thread-links", threadKey, {
-        version: 1,
-        id: threadKey,
-        invocationId,
-        taskId: threadId,
-        text: "",
-        final: false,
-        visibility: "conversation",
-      } satisfies ImReply);
-    if (assignment)
-      this.store.put("assignment-threads", assignment.id, threadId);
-    if (
-      this.store.get("finished-collaborations", `${deviceId}:${threadId}`) &&
-      command.action !== "status"
-    )
-      throw new Error("This collaboration has ended.");
-    // Match the desktop mention picker: multiple IM accounts share one executor.
-    const participants = [
-      ...new Map(space.participants.map((p) => [p.deviceId, p])).values(),
-    ];
-    if (command.action === "participants")
-      return participants.map(({ deviceId: id, name }) => ({ id, name }));
-    const tasks = this.store
-      .list<CollaborationTask>("collaboration-tasks")
-      .filter(
-        (task) =>
-          task.spaceId === space.id &&
-          task.coordinatorDeviceId === deviceId &&
-          task.coordinatorThreadId === threadId,
-      );
-    if (command.action === "status") return tasks;
-    if (command.action === "delegate-many") {
-      const assignments = command.assignments;
-      if (
-        !assignments?.length ||
-        assignments.length > 16 ||
-        new Set(assignments.map((a) => a.participantId)).size !==
-          assignments.length
-      )
-        throw new Error("Choose 1–16 distinct participants for a batch.");
-      // Either every assignment is queued or none are; execution happens on each device independently.
-      return this.store.transaction(() =>
-        assignments.map((a) =>
-          this.collaborate(deviceId, invocationId, threadId, {
-            action: "delegate",
-            participantId: a.participantId,
-            text: a.text,
-          }),
-        ),
-      );
-    }
-    if (command.action === "delegate") {
-      if (assignment)
-        throw new Error(
-          "Only the initiating coordinator can delegate across devices.",
-        );
-      if (tasks.length >= 16)
-        throw new Error("Collaboration task budget reached (16 assignments).");
-      if (!command.text.trim())
-        throw new Error("A bounded task with a deliverable is required.");
-      const participant = participants.find(
-        (p) => p.deviceId === command.participantId,
-      );
-      if (!participant)
-        throw new Error("Participant is not available in this space.");
-      const binding = this.store.get<IdentityBinding>(
-        "identities",
-        imIdentityKey(participant.identity),
-      );
-      if (binding?.deviceId !== participant.deviceId)
-        throw new Error("Participant has been unpaired.");
-      const endpoint = space.endpoints.find(
-        (e) => e.connectionId === participant.identity.connectionId,
-      );
-      if (!endpoint)
-        throw new Error("Participant's IM is not connected to this space.");
-      const task: CollaborationTask = {
-        id: randomUUID(),
-        spaceId: space.id,
-        coordinatorDeviceId: deviceId,
-        coordinatorThreadId: threadId,
-        participantDeviceId: participant.deviceId,
-        invocationId: randomUUID(),
-        state: "queued",
-        mission: command.text,
-        result: "",
-        expiresAt: request.expiresAt,
-      };
-      // Even on this device, the assignment gets a fresh invocation and task.
-      const invocation = remoteInvocationSchema.parse({
-        version: 1,
-        id: task.invocationId,
-        deviceId: participant.deviceId,
-        identity: participant.identity,
-        conversation: {
-          ...endpoint,
-          spaceId: space.id,
-          spaceRevision: space.revision,
-        },
-        messageId: task.id,
-        text: command.text,
-        attachments: [],
-        expiresAt: task.expiresAt,
-        collaboration: {
-          taskId: task.id,
-          coordinatorDeviceId: deviceId,
-          coordinatorThreadId: threadId,
-          mission: command.text,
-        },
-      });
-      this.store.transaction(() => {
-        this.store.put("collaboration-tasks", task.id, task);
-        this.inheritSecurity(request.id, invocation.id);
-        this.store.put("invocations", invocation.id, invocation);
-        this.store.enqueue(
-          "device",
-          invocation.id,
-          participant.deviceId,
-          invocation,
-        );
-      });
-      return task;
-    }
-    if (command.action === "message") {
-      if (!command.text.trim()) throw new Error("Message cannot be empty.");
-      const rootKey = `${assignment?.coordinatorDeviceId ?? deviceId}:${assignment?.coordinatorThreadId ?? threadId}`;
-      const count =
-        this.store.get<number>("collaboration-messages", rootKey) ?? 0;
-      if (count >= 64)
-        throw new Error("Collaboration message budget reached (64 messages).");
-      this.store.put("collaboration-messages", rootKey, count + 1);
-      const messageId = randomUUID();
-      if (command.participantId) {
-        const target = participants.find(
-          (p) => p.deviceId === command.participantId,
-        );
-        if (!target)
-          throw new Error("Target is not a participant in this space.");
-        const candidates = this.store
-          .list<CollaborationTask>("collaboration-tasks")
-          .filter(
-            (t) =>
-              t.spaceId === space.id &&
-              `${t.coordinatorDeviceId}:${t.coordinatorThreadId}` === rootKey,
-          );
-        const targetAssignment = candidates.find(
-          (t) =>
-            t.participantDeviceId === target.deviceId &&
-            (command.taskId
-              ? t.id === command.taskId
-              : t.id !== assignment?.id),
-        );
-        const targetThreadId = targetAssignment
-          ? this.store.get<string>("assignment-threads", targetAssignment.id)
-          : rootKey.startsWith(`${target.deviceId}:`)
-            ? rootKey.slice(target.deviceId.length + 1)
-            : undefined;
-        const parentReply = targetThreadId
-          ? this.store.get<ImReply>(
-              "thread-links",
-              `${target.deviceId}:${targetThreadId}`,
-            )
-          : undefined;
-        const original = parentReply
-          ? this.store.get<RemoteInvocationContext>(
-              "invocations",
-              parentReply.invocationId,
-            )
-          : undefined;
-        if (!original || !targetThreadId)
-          throw new Error(
-            "Target has not started its collaboration session yet. Check status before messaging.",
-          );
-        if (original.desktopTurnId)
-          throw new Error(
-            "The desktop coordinator reads results through status. Publish group updates without participantId and return your final result.",
-          );
-        const followUp = {
-          ...original,
-          id: `message:${messageId}`,
-          taskId: targetThreadId,
-          text: `[${this.participantName(space, deviceId)} 的 Agent]\n${command.text}`,
-          attachments: [],
-          originator: request.identity,
-        };
-        this.inheritSecurity(request.id, followUp.id);
-        this.store.put("invocations", followUp.id, followUp);
-        this.store.enqueue("device", followUp.id, target.deviceId, followUp);
-      }
-      this.broadcast(
-        space,
-        messageId,
-        `[${this.participantName(space, deviceId)} 的 Agent]\n${command.text}`,
-        undefined,
-        request.id,
-        threadId,
-      );
-      return { published: true };
-    }
-    if (command.action === "finish") {
-      if (
-        assignment ||
-        tasks.some((task) =>
-          ["working", "queued", "cancelling"].includes(task.state),
-        )
-      )
-        throw new Error(
-          "Wait for required participants before finishing collaboration.",
-        );
-      this.store.put(
-        "finished-collaborations",
-        `${deviceId}:${threadId}`,
-        true,
-      );
-      this.broadcast(
-        space,
-        randomUUID(),
-        `[协作完成]\n${command.text}`,
-        undefined,
-        request.id,
-        threadId,
-      );
-      return { completed: true };
-    }
-    const task = tasks.find((item) => item.id === command.taskId);
-    if (!task)
-      throw new Error("Only the task coordinator can cancel this assignment.");
-    if (["completed", "failed", "cancelled"].includes(task.state)) return task;
-    task.state = "cancelling";
-    this.store.put("collaboration-tasks", task.id, task);
-    this.queueAssignmentCancellation(task, `cancel:${task.id}`);
-    return task;
-  }
-  private expireAssignments(): void {
-    for (const task of this.store.list<CollaborationTask>(
-      "collaboration-tasks",
-    )) {
-      if (
-        !["queued", "working", "cancelling"].includes(task.state) ||
-        task.expiresAt > this.now()
-      )
-        continue;
-      this.store.transaction(() => {
-        task.state = "failed";
-        task.result =
-          "协作任务已到截止时间，已请求目标设备停止；以设备回报的实际操作结果为准。";
-        this.store.put("collaboration-tasks", task.id, task);
-        this.queueAssignmentCancellation(task, `deadline:${task.id}`);
-      });
-    }
   }
   private queueAssignmentCancellation(
     task: CollaborationTask,

@@ -1,3 +1,4 @@
+import { ImNativeGroups } from "./ImNativeGroups";
 import { useEffect, useRef, useState } from "react";
 import { ImDataPermissions } from "./ImDataPermissions";
 import { ImHandoff } from "./ImHandoff";
@@ -22,13 +23,7 @@ import {
   LoadingState,
   Tooltip,
 } from "@artemis/ui/feedback";
-import {
-  Checkbox,
-  Select,
-  Switch,
-  TextAreaField,
-  TextField,
-} from "@artemis/ui/forms";
+import { Checkbox, Select, Switch, TextField } from "@artemis/ui/forms";
 import { ManagementSection } from "@artemis/ui/management";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
@@ -63,11 +58,6 @@ import {
   type ImPairCode,
 } from "./ImAccountControls";
 
-import { ImDiagnostics, diagnosticSchema } from "./ImDiagnostics";
-import { ImSpaceBuilder } from "./ImSpaceBuilder";
-import { ImGatewayDeployment } from "./ImGatewayDeployment";
-import { ImGroupTaskComposer } from "./ImGroupTaskComposer";
-import { ImSavedSpaces } from "./ImSavedSpaces";
 import { ImPlatformSetup } from "./ImPlatformSetup";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
@@ -129,10 +119,7 @@ export function ImSettingsPanel({
   const [channel, setChannel] = useState<ImChannel>("wecom");
   const [showRemote, setShowRemote] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
-  const [spaceJson, setSpaceJson] = useState("");
-  const [spaceFormRevision, setSpaceFormRevision] = useState(0);
   const [diagnostics, setDiagnostics] = useState<unknown>();
-  const [spaceConfirmation, setSpaceConfirmation] = useState("");
   const [savedMetadata, setSavedMetadata] = useState<
     Partial<Record<ImChannel, BotMetadata>>
   >({});
@@ -158,8 +145,6 @@ export function ImSettingsPanel({
     setSavedPending({});
     setSavingChannel(null);
     setDiagnostics(undefined);
-    setSpaceJson("");
-    setSpaceConfirmation("");
     setPairCode(undefined);
     setFields({});
     setAdminToken("");
@@ -214,8 +199,18 @@ export function ImSettingsPanel({
           current = (await window.artemis.manageIm({
             action: "refresh",
           })) as Status;
+        const groupDiagnostics =
+          screen === "group" &&
+          current.localGateway &&
+          current.settings.deviceId
+            ? await window.artemis.manageIm({
+                action: "admin",
+                operation: "status",
+              })
+            : undefined;
         if (active && !running.current && epoch === refreshEpoch.current) {
           setStatus(current);
+          if (groupDiagnostics !== undefined) setDiagnostics(groupDiagnostics);
           setRefreshError("");
           // The store is authoritative again; drop save-gap transients.
           setSavedPending({});
@@ -236,7 +231,7 @@ export function ImSettingsPanel({
       window.removeEventListener("focus", refreshStatus);
       document.removeEventListener("visibilitychange", refreshStatus);
     };
-  }, []);
+  }, [screen]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -279,6 +274,7 @@ export function ImSettingsPanel({
     setAdminToken("");
     setBotDialog(null);
     if (next === "group" || next === "spaces") {
+      if (channel === "wecom") return;
       setGroupFrom(activeScreen === "group" ? groupFrom : activeScreen);
       setScreen("group");
       setFocusTarget("im-spaces");
@@ -665,37 +661,6 @@ export function ImSettingsPanel({
       return [];
     return [{ id: value.id, name: value.name }];
   });
-  const adminSpaces =
-    diagnostics &&
-    typeof diagnostics === "object" &&
-    "spaces" in diagnostics &&
-    Array.isArray(diagnostics.spaces)
-      ? diagnostics.spaces
-      : [];
-  let spaceReady = false;
-  try {
-    const parsed = diagnosticSchema.shape.spaces.element.safeParse(
-      JSON.parse(spaceJson),
-    );
-    if (parsed.success) {
-      const draft = parsed.data;
-      spaceReady =
-        !!draft.name.trim() &&
-        /^[\w-]{1,100}$/u.test(draft.id) &&
-        draft.endpoints.length > 0 &&
-        draft.endpoints.length <= 8 &&
-        draft.participants.length > 0 &&
-        draft.participants.every((p) => !!p.name.trim()) &&
-        draft.participants.length <= 50 &&
-        draft.endpoints.every(
-          (e) =>
-            e.kind === "group" &&
-            draft.administrators.some((a) => a.connectionId === e.connectionId),
-        );
-    }
-  } catch {
-    /* The advanced editor may contain incomplete JSON. */
-  }
   /** 显式完成动作（批准配对、保存启用成功）后解除钉住，交回自动跟随显示最早缺步卡。 */
   function flowAdvanceFrom() {
     setFlowCard(null);
@@ -2050,7 +2015,7 @@ export function ImSettingsPanel({
                         {!availableSpaces.length && (
                           <p>
                             {t(
-                              "还没有可选的群空间。先到“群协作空间”保存配置，再回来选择。",
+                              "还没有可选的群空间。先到“群聊”保存配置，再回来选择。",
                               "No group spaces yet. Save a space in Group spaces, then return here.",
                             )}
                           </p>
@@ -2190,366 +2155,62 @@ export function ImSettingsPanel({
   }
 
   function renderSpacesBody() {
-    const settings = activeSettings;
+    const reload = async () => {
+      await window.artemis.manageIm({
+        action: "admin",
+        operation: "refresh-groups",
+      });
+      const next = await window.artemis.manageIm({
+        action: "admin",
+        operation: "status",
+      });
+      setDiagnostics(next);
+      const status = (await window.artemis.manageIm({
+        action: "refresh",
+      })) as Status;
+      setStatus(status);
+      setSettings(status.settings);
+    };
     return (
       <section id="im-spaces" tabIndex={-1}>
         <ManagementSection
           className="im-space-setup"
-          title={t(
-            "创建与连接 IM 群协作空间",
-            "Create and connect an IM collaboration space",
-          )}
+          title={t("IM 群聊", "IM groups")}
           description={t(
-            "协作空间在 Artemis 中创建，把一个或多个 IM 群或频道连接起来。可以连接同一平台的多个群，也可以组合任意已接入且支持群会话的平台；目前支持企业微信、飞书、Lark 和 Slack。",
-            "Create a collaboration space in Artemis to connect one or more IM groups or channels. Combine groups from the same platform or any connected platforms that support group conversations. Currently supported: WeCom, Feishu, Lark and Slack.",
+            "一个原生群对应一个本地群对话。",
+            "One native group, one local conversation.",
           )}
         >
-          <p>
-            {t(
-              "群建在哪里：各群或频道仍建在各自的 IM 平台，Artemis 负责把它们关联到同一个空间，不会自动在外部平台建群。成员留在自己使用的 IM 中，无需注册其他平台的账号。尚未接入 Artemis 的 IM 需先获得对应平台适配支持。",
-              "Where groups live: create each group or channel in its own IM platform. Artemis links them into one space; it does not create external groups automatically. Members stay in their own IM without accounts on other platforms. An unsupported IM needs a platform adapter first.",
-            )}
-          </p>
-          <p>
-            {t(
-              "空间由同一个 Gateway 保存和转发。使用内置服务时保存在运行它的电脑上；团队服务则保存在团队服务器。跨电脑协作需连接同一个可访问的团队 Gateway，各自启动独立内置服务不会自动合群。",
-              "One Gateway stores the space and routes its messages. A built-in service stores it on its host computer; a team service stores it on the team's server. Computers must connect to the same reachable team Gateway. Separate built-in services do not merge automatically.",
-            )}
-          </p>
-          <ImGatewayDeployment
-            t={t}
-            busy={busy}
-            exportPackage={() =>
-              void run(async () => {
-                const path = await window.artemis.manageIm({
-                  action: "export-gateway",
-                });
-                if (path)
-                  setMessage(
-                    t(
-                      `独立运行包已导出到 ${path}，解压后按下方说明启动。`,
-                      `Standalone package exported to ${path}. Extract it and follow the instructions below.`,
-                    ),
-                  );
-              })
-            }
-            connect={() => {
-              setShowRemote(true);
-              selectView("gateway");
-              setFocusTarget("im-device");
-            }}
-          />
-          <p>
-            {t(
-              "共享范围：只有发给机器人的任务消息、公开进度和成果会在这些群之间共享，普通聊天不会自动互通。加入空间不等于开放整台电脑，每位成员自行授权项目和操作权限。",
-              "Sharing scope: bot-directed task messages, public progress and results are shared across these groups. Ordinary chatter is not relayed. Joining a space does not open the whole computer; each member grants project and operation access.",
-            )}
-          </p>
-          <h4>
-            {t("1 · 让 Artemis 发现你的群", "1 · Let Artemis find your group")}
-          </h4>
-          {status?.groupConversationError && (
+          {!local ? (
             <InlineNotice tone="warning">
-              {t("群协作对话同步失败：", "Group conversation sync failed: ")}
+              {t(
+                "请先启用本机内置服务。原生群不使用共享网关。",
+                "Enable the built-in local service. Native groups do not use a shared gateway.",
+              )}
+            </InlineNotice>
+          ) : (
+            <>
+              <Button disabled={busy} onClick={() => void run(reload)}>
+                {t("刷新群列表", "Refresh groups")}
+              </Button>
+              <ImNativeGroups
+                diagnostics={diagnostics}
+                settings={activeSettings}
+                spaces={status?.spaces ?? []}
+                projects={projects}
+                busy={busy}
+                t={t}
+                run={run}
+                refresh={reload}
+                open={onOpenThread}
+              />
+            </>
+          )}
+          {status?.groupConversationError ? (
+            <InlineNotice tone="warning">
               {status.groupConversationError}
             </InlineNotice>
-          )}
-          <ImSavedSpaces
-            spaces={[...adminSpaces, ...(status?.spaces ?? [])]}
-            settings={status?.settings ?? settings}
-            tasks={status?.remoteTasks}
-            busy={busy}
-            canRemove={local || !!adminToken}
-            t={t}
-            edit={(json, confirmation) => {
-              setSpaceJson(json);
-              setSpaceConfirmation(confirmation);
-            }}
-            remove={async (id) => {
-              return run(async () => {
-                const token = adminToken;
-                setAdminToken("");
-                await window.artemis.manageIm({
-                  action: "admin",
-                  operation: "remove-space",
-                  ...(local ? {} : { adminToken: token }),
-                  configuration: { id },
-                });
-                setSpaceJson("");
-                setSpaceConfirmation("");
-                setSpaceFormRevision((value) => value + 1);
-                await refresh();
-                const result = await window.artemis.manageIm({
-                  action: "admin",
-                  operation: "status",
-                  ...(local ? {} : { adminToken: token }),
-                });
-                setDiagnostics(result);
-                setMessage(
-                  t(
-                    "协作空间已删除，原生 IM 群和对话历史已保留。",
-                    "Collaboration space deleted. Native IM groups and conversation history remain.",
-                  ),
-                );
-              });
-            }}
-          />
-          <ol className="im-space-steps">
-            <li>
-              {t(
-                "先把各平台的机器人连接到同一个 Gateway。在“配对与账号”绑定你自己；其他要参与的成员也连接这个 Gateway，分别绑定自己的账号和电脑。",
-                "Connect each platform's bot to the same Gateway. Pair your account in Pairing & accounts; other participants connect to this Gateway and pair their own accounts and computers too.",
-              )}
-            </li>
-            <li>
-              {t(
-                "在各 IM 平台创建或选择已有的群／频道，把该平台的机器人加入。在每个群里由已配对成员选中 @机器人，然后发送 /help（Slack 发 help）。普通群消息不会触发接入。",
-                "Create or choose a group/channel in each IM and add that platform's bot. In every group, a paired member mentions the bot and sends /help (help in Slack). Ordinary group messages do not trigger discovery.",
-              )}
-            </li>
-            <li>
-              {t(
-                "机器人回复“已发现这个群”表示发现成功，此时空间还没有配置。点击下面的“刷新群和成员”，第 2 步会列出刚发现的群和已配对成员；继续选择并保存，再按第 3 步确认和授权。",
-                "The bot's ‘group discovered’ reply confirms discovery; the space is not configured yet. Select Refresh groups and members below, choose the groups and paired members in step 2 and save, then complete confirmation and permissions in step 3.",
-              )}
-            </li>
-          </ol>
-          <Button variant="quiet" onClick={() => selectView("pairing")}>
-            {t("先去绑定账号", "Pair an account first")}
-          </Button>
-          {!local && (
-            <TextField
-              label={t("协作空间管理凭据", "Collaboration administrator token")}
-              type="password"
-              value={adminToken}
-              onValueChange={setAdminToken}
-              autoComplete="off"
-              disabled={busy}
-            />
-          )}
-          <Button
-            disabled={busy || (!local && !adminToken)}
-            onClick={() =>
-              void run(async () => {
-                const token = adminToken;
-                setAdminToken("");
-                const result = await window.artemis.manageIm({
-                  action: "admin",
-                  operation: "status",
-                  ...(local ? {} : { adminToken: token }),
-                });
-                setDiagnostics(result);
-              })
-            }
-          >
-            {t("刷新群和成员", "Refresh groups and members")}
-          </Button>
-          <h4>
-            {t("2 · 选择群和参与成员", "2 · Choose groups and participants")}
-          </h4>
-          <ImSpaceBuilder
-            key={spaceFormRevision}
-            diagnostics={diagnostics}
-            value={spaceJson}
-            connections={connections}
-            busy={busy}
-            t={t}
-            onChange={(value) => {
-              setSpaceJson(value);
-              setSpaceConfirmation("");
-            }}
-          />
-          <details>
-            <summary>
-              {t(
-                "高级：查看诊断或手动编辑配置",
-                "Advanced: diagnostics and manual configuration",
-              )}
-            </summary>
-            {diagnostics !== undefined && (
-              <ImDiagnostics
-                value={diagnostics}
-                t={t}
-                editSpace={(json) => {
-                  setSpaceJson(json);
-                  setSpaceConfirmation("");
-                }}
-              />
-            )}
-            <TextAreaField
-              label={t("空间配置（JSON）", "Space configuration (JSON)")}
-              description={t(
-                "字段：id、name、endpoints（connectionId / id / kind: group）、participants（deviceId / identity / name）、administrators（稳定 IM identity）。从上方状态复制成员身份。",
-                "Fields: id, name, endpoints (connectionId / id / kind: group), participants (deviceId / identity / name), administrators (stable IM identities). Copy member identities from the status above.",
-              )}
-              value={spaceJson}
-              onValueChange={(value) => {
-                setSpaceJson(value);
-                setSpaceConfirmation("");
-              }}
-              rows={8}
-              disabled={busy}
-              spellCheck={false}
-            />
-          </details>
-          <Button
-            disabled={busy || (!local && !adminToken) || !spaceReady}
-            onClick={() =>
-              void run(async () => {
-                const configuration: unknown = JSON.parse(spaceJson);
-                const token = adminToken;
-                setAdminToken("");
-                await window.artemis.manageIm({
-                  action: "admin",
-                  operation: "spaces",
-                  ...(local ? {} : { adminToken: token }),
-                  configuration,
-                });
-                setAdminToken("");
-                if (
-                  configuration &&
-                  typeof configuration === "object" &&
-                  "id" in configuration &&
-                  typeof configuration.id === "string"
-                )
-                  setSpaceConfirmation(`/space-confirm ${configuration.id}`);
-                setMessage(
-                  t(
-                    "空间配置已保存，请按上方步骤完成各群确认和个人项目授权。",
-                    "Space saved. Complete group confirmations and each member's project permissions using the steps above.",
-                  ),
-                );
-                try {
-                  await refresh();
-                } catch {
-                  setRefreshError(
-                    t(
-                      "群配置已保存，请刷新后到项目授权中选择这个空间。",
-                      "Space saved. Refresh before selecting it in Project permissions.",
-                    ),
-                  );
-                }
-              })
-            }
-          >
-            {t(
-              "保存空间并等待各群确认",
-              "Save space and await group confirmations",
-            )}
-          </Button>
-          {spaceConfirmation && (
-            <InlineNotice tone="info">
-              <h4>
-                {t(
-                  "3 · 在群里确认，再选择允许使用的项目",
-                  "3 · Confirm in the group, then allow a project",
-                )}
-              </h4>
-              <p>
-                {t(
-                  "让刚才选的确认人在每个已选群里 @机器人，发送下面的指令。收到“已确认协作空间”后，每位成员还要到“项目授权”允许该空间使用自己的项目。",
-                  "Have the selected confirmer mention the bot with this command in each group. After the bot confirms the space, each participant allows the space in their own Project permissions.",
-                )}
-              </p>
-              <p>
-                {t(
-                  "Slack 请删除指令开头的 /。修改群或成员后，需要重新确认。",
-                  "Remove the leading / in Slack. Changing groups or members requires confirmation again.",
-                )}
-              </p>
-              <code className="im-identifier">{spaceConfirmation}</code>
-              <Button
-                onClick={() =>
-                  void run(async () => {
-                    await navigator.clipboard.writeText(spaceConfirmation);
-                    setMessage(
-                      t(
-                        "群确认指令已复制。",
-                        "Group confirmation command copied.",
-                      ),
-                    );
-                  })
-                }
-              >
-                {t("复制群确认指令", "Copy group confirmation command")}
-              </Button>
-              <Button onClick={() => selectView("permissions")}>
-                {t("去选择项目并授权", "Choose a project and grant access")}
-              </Button>
-              <p>
-                {t(
-                  "各群确认并保存项目授权后，保持 IM 连接启用，对话列表会自动出现“群协作 · 空间名称”，打开即可输入任务，无需先从 IM 发消息。多个项目都授权给该空间时，请选择默认项目。也可在群里 @机器人直接描述任务，进入同一个群协作对话；/new 会另建任务（Slack 使用 new）。",
-                  "After group confirmation and saved project permissions, keep IM enabled. A Group collaboration conversation appears automatically; open it to enter a task without first sending an IM message. Choose a default project if several projects allow this space. Mention the bot with a task to use the same conversation, or use /new for a separate task (new in Slack).",
-                )}
-              </p>
-            </InlineNotice>
-          )}
-          <ImGroupTaskComposer
-            spaces={status?.spaces ?? []}
-            settings={settings}
-            projects={projects}
-            canRemove={local || !!adminToken}
-            remove={(spaceId, deviceId) =>
-              run(async () => {
-                const token = adminToken;
-                setAdminToken("");
-                await window.artemis.manageIm({
-                  action: "admin",
-                  operation: "remove-space-member",
-                  ...(token ? { adminToken: token } : {}),
-                  configuration: { spaceId, deviceId },
-                });
-                const current = (await window.artemis.manageIm({
-                  action: "refresh",
-                })) as Status;
-                setStatus(current);
-                setDiagnostics(
-                  await window.artemis.manageIm({
-                    action: "admin",
-                    operation: "status",
-                    ...(token ? { adminToken: token } : {}),
-                  }),
-                );
-                setMessage(
-                  t(
-                    "成员已从整个协作空间移除。",
-                    "Member removed from the entire collaboration space.",
-                  ),
-                );
-              })
-            }
-            busy={busy}
-            t={t}
-            open={(spaceId, participantIds, projectId) =>
-              void run(async () => {
-                const result = (await window.artemis.manageIm({
-                  action: "open-group-conversation",
-                  spaceId,
-                  participantIds,
-                  projectId,
-                })) as { threadId: string };
-                setStatus(await window.artemis.getImStatus());
-                await onOpenThread?.(result.threadId);
-              })
-            }
-            rename={(deviceId, name, deviceName) =>
-              run(async () => {
-                await window.artemis.manageIm({
-                  action: "rename-group-member",
-                  deviceId,
-                  name,
-                  deviceName,
-                });
-                setStatus(await window.artemis.getImStatus());
-                setMessage(
-                  t(
-                    "名称已保存，重启 Artemis 后仍会保留。",
-                    "Names saved. They will remain after restarting Artemis.",
-                  ),
-                );
-              })
-            }
-          />
+          ) : null}
         </ManagementSection>
       </section>
     );
@@ -2629,9 +2290,14 @@ export function ImSettingsPanel({
                 setVerify(next);
               }}
             />
-            <Button variant="quiet" onClick={() => selectView("spaces")}>
-              {t("设置群协作（可选）", "Set up group collaboration (optional)")}
-            </Button>
+            {channel !== "wecom" && (
+              <Button variant="quiet" onClick={() => selectView("spaces")}>
+                {t(
+                  "设置群协作（可选）",
+                  "Set up group collaboration (optional)",
+                )}
+              </Button>
+            )}
           </div>
         )}
       </section>
@@ -2765,12 +2431,14 @@ export function ImSettingsPanel({
                     "Send a test message (optional)",
                   )}
                 </Button>
-                <Button variant="quiet" onClick={() => selectView("spaces")}>
-                  {t(
-                    "设置群协作（可选）",
-                    "Set up group collaboration (optional)",
-                  )}
-                </Button>
+                {channel !== "wecom" && (
+                  <Button variant="quiet" onClick={() => selectView("spaces")}>
+                    {t(
+                      "设置群协作（可选）",
+                      "Set up group collaboration (optional)",
+                    )}
+                  </Button>
+                )}
               </div>
               <p className="im-fine">
                 {t(
@@ -2896,7 +2564,9 @@ export function ImSettingsPanel({
       ) : activeScreen === "group" ? (
         <div className="im-flow im-group-flow">
           <Button
-            variant="quiet"
+            variant="secondary"
+            size="compact"
+            className="im-group-back"
             disabled={busy}
             onClick={() => setScreen(groupFrom)}
           >
@@ -2918,9 +2588,11 @@ export function ImSettingsPanel({
                 {t("继续设置", "Continue setup")}
               </Button>
             )}
-            <Button disabled={busy} onClick={() => selectView("spaces")}>
-              {t("设置群协作", "Set up group collaboration")}
-            </Button>
+            {channel !== "wecom" && (
+              <Button disabled={busy} onClick={() => selectView("spaces")}>
+                {t("设置群协作", "Set up group collaboration")}
+              </Button>
+            )}
           </div>
           {renderStepCards()}
         </div>

@@ -172,7 +172,31 @@ export interface ImDevicePresence {
   mobile: boolean;
   desktop: boolean;
 }
+export const imGroupRosterSchema = z.object({
+  members: z
+    .array(
+      z.object({
+        identity: imIdentitySchema,
+        name: z.string().max(200),
+        kind: z.enum(["human", "bot", "unknown"]),
+        self: z.boolean().optional(),
+        presence: z.enum(["active", "away", "unknown"]).optional(),
+        presenceCheckedAt: z.number().nonnegative().optional(),
+        canAssign: z.boolean().optional(),
+        owner: z.boolean().optional(),
+      }),
+    )
+    .max(10000),
+  complete: z.boolean(),
+  error: z
+    .enum(["missing-scope", "rate-limited", "unavailable", "partial"])
+    .optional(),
+});
+export type ImGroupRoster = z.infer<typeof imGroupRosterSchema>;
 export const imGroupContextSchema = z.object({
+  roster: imGroupRosterSchema.optional(),
+  native: z.boolean().optional(),
+  capability: z.enum(["manual", "events"]).optional(),
   spaceId: id,
   name: z.string(),
   confirmed: z.boolean(),
@@ -196,7 +220,21 @@ export type ImGroupContext = z.infer<typeof imGroupContextSchema>;
 // The picker and host resolve the same visible tokens against the current roster.
 export function imGroupMentionTargets(group: ImGroupContext) {
   const members = [
-    ...new Map(group.members.map((m) => [m.deviceId, m])).values(),
+    ...new Map(
+      group.members.map((m) => {
+        const display = group.native
+          ? group.roster?.members.find((person) =>
+              m.deviceId === group.executingDeviceId
+                ? person.self
+                : imIdentityKey(person.identity) === imIdentityKey(m.identity),
+            )
+          : undefined;
+        return [
+          m.deviceId,
+          display ? { ...m, name: display.name } : m,
+        ] as const;
+      }),
+    ).values(),
   ];
   const label = (value: string) => value.replace(/\s+/gu, " ").trim();
   return members
@@ -254,6 +292,7 @@ export interface ImStatus {
   pairingRequests?: ImPairingRequest[];
   remoteTasks?: Array<{
     threadId: string;
+    parentThreadId?: string;
     channel: string;
     kind: string;
     /** Effective Artemis-to-IM connection, not the user's client presence. */
@@ -265,6 +304,7 @@ export interface ImStatus {
 }
 export const remoteInvocationSchema = z
   .object({
+    nativeTaskId: id.optional(),
     sourceKind: z.enum(["direct", "tool-result", "member"]).optional(),
     version: z.literal(IM_PROTOCOL_VERSION),
     id,
@@ -344,7 +384,15 @@ export const collaborationCommandSchema = z
     ]),
     participantId: id.optional(),
     assignments: z
-      .array(z.object({ participantId: id, text: text.min(1) }).strict())
+      .array(
+        z
+          .object({
+            participantId: id,
+            text: text.min(1),
+            dependsOn: z.array(id).max(16).optional(),
+          })
+          .strict(),
+      )
       .min(1)
       .max(16)
       .optional(),
@@ -354,6 +402,16 @@ export const collaborationCommandSchema = z
   .strict();
 export type CollaborationCommand = z.infer<typeof collaborationCommandSchema>;
 export interface CollaborationSpace {
+  /** Internal compatibility projection: exactly one native group, never a bridge. */
+  nativeGroup?: {
+    version: 1;
+    projectId: string;
+    enabled: boolean;
+    capability: "manual" | "events";
+    allowedBots?: string[];
+    enabledAt: number;
+    ownerDeviceId: string;
+  };
   id: string;
   revision?: string;
   name: string;
@@ -465,6 +523,56 @@ export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
   z
     .object({
+      action: z.literal("native-cancel"),
+      groupId: id,
+      taskId: id,
+      messageId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("native-cooperation"),
+      groupId: id,
+      operation: z.enum(["state", "announce", "probe", "authorize"]),
+      peer: id.optional(),
+      peers: z.array(id).max(50).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("authorize-native-group"),
+      conversation: imConversationSchema,
+      owner: imIdentitySchema,
+      allowedSenders: z.array(imIdentitySchema).max(50).default([]),
+      name: z.string().trim().min(1).max(100),
+      grant: executionGrantSchema,
+      confirmed: z.literal(true),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("set-group-member-assignment"),
+      spaceId: id,
+      identity: imIdentitySchema,
+      allowed: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({ action: z.literal("refresh-group-members"), spaceId: id })
+    .strict(),
+  z.object({ action: z.literal("native-group-state"), threadId: id }).strict(),
+  z
+    .object({
+      action: z.literal("native-group-input"),
+      threadId: id,
+      messageId: z.string().uuid(),
+      destination: z.enum(["local", "group"]),
+      text: text.min(1),
+    })
+    .strict(),
+
+  z
+    .object({
       action: z.literal("scope-entries"),
       projectId: id,
       path: z.string().max(4096).default(""),
@@ -499,6 +607,7 @@ export const imManagementSchema = z.discriminatedUnion("action", [
     .object({
       action: z.literal("rename-group-member"),
       deviceId: id,
+      identity: imIdentitySchema.optional(),
       name: z.string().trim().min(1).max(100),
       deviceName: z.string().trim().min(1).max(100),
     })
@@ -554,6 +663,8 @@ export const imManagementSchema = z.discriminatedUnion("action", [
       action: z.literal("admin"),
       operation: z.enum([
         "connections",
+        "native-group",
+        "refresh-groups",
         "remove-connection",
         "remove-space",
         "remove-space-member",

@@ -1,3 +1,4 @@
+import { feishuGroupEvents } from "./feishu-group-events.js";
 import { Domain, EventDispatcher, WSClient } from "@larksuiteoapi/node-sdk";
 import type { ChannelEvent } from "@artemis/protocol";
 import {
@@ -33,6 +34,7 @@ export class FeishuSocketAdapter extends FeishuAdapter {
     private readonly createSocket: SocketFactory = (options) =>
       new WSClient(options),
     private readonly receiveCard?: (value: unknown) => boolean,
+    private readonly receiveGroup?: (value: unknown) => void,
   ) {
     super(config);
   }
@@ -52,6 +54,32 @@ export class FeishuSocketAdapter extends FeishuAdapter {
     });
     this.socket = socket;
     const dispatcher = new EventDispatcher({ logger: silentLogger }).register({
+      ...Object.fromEntries(
+        feishuGroupEvents.map((eventType) => [
+          eventType,
+          async (data: unknown) => {
+            if (this.socket !== socket) return;
+            const input = data as Record<string, unknown>;
+            if (
+              input.app_id !== this.config.appId ||
+              input.tenant_key !== this.config.tenantId
+            )
+              return;
+            try {
+              this.receiveGroup?.({
+                header: { ...input, event_type: eventType },
+                event: input,
+              });
+              this.ingestionError = false;
+            } catch {
+              this.ingestionError = true;
+              throw new Error(
+                "Feishu event could not be saved. Check Gateway storage.",
+              );
+            }
+          },
+        ]),
+      ),
       "card.action.trigger": async (data: unknown) => {
         if (this.socket !== socket) return;
         const input = data as {

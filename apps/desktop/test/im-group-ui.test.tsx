@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   act,
+  fireEvent,
   render,
   renderHook,
   screen,
@@ -15,15 +16,12 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   imSettingsSchema,
-  executionGrantSchema,
   resolveImGroupMentions,
   imGroupMentionTargets,
   type ImGroupContext,
-  type Project,
 } from "@artemis/protocol";
-import { ImGroupTaskComposer } from "../src/renderer/ImGroupTaskComposer.js";
+import { ImNativeGroups } from "../src/renderer/ImNativeGroups.js";
 import { ImGroupMembers } from "../src/renderer/ImGroupMembers.js";
-import { ImSavedSpaces } from "../src/renderer/ImSavedSpaces.js";
 import { useImThreadStatus } from "../src/renderer/ImThreadConnection.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
@@ -73,111 +71,84 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("group collaboration UI", () => {
-  it("restores saved space configuration and requires a separate delete confirmation while retaining failed attempts", async () => {
-    const user = userEvent.setup(),
-      edit = vi.fn(),
-      remove = vi.fn(async () => false);
+  it("keeps legacy spaces out of native group actions", () => {
     render(
-      <ImSavedSpaces
+      <ImNativeGroups
         spaces={[space]}
         settings={imSettingsSchema.parse({})}
-        tasks={[]}
-        edit={edit}
-        remove={remove}
-        canRemove
+        diagnostics={{
+          identities: [],
+          groups: [],
+          spaces: [space],
+          deliveries: [],
+        }}
+        projects={[]}
         busy={false}
         t={(cn) => cn}
+        run={async (fn) => {
+          await fn();
+          return true;
+        }}
+        refresh={async () => {}}
       />,
     );
-    await user.click(
-      screen.getByRole("button", { name: `打开已保存配置：${space.name}` }),
-    );
-    expect(JSON.parse(edit.mock.calls[0]![0])).toMatchObject({
-      id: space.id,
-      endpoints: space.endpoints,
-    });
-    expect(edit.mock.calls[0]![1]).toBe("/space-confirm team");
-    await user.click(
-      screen.getByRole("button", { name: `删除空间：${space.name}` }),
-    );
-    expect(remove).not.toHaveBeenCalled();
-    expect(screen.getByText(/原生 IM 群与已有对话历史保留/)).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "取消" }));
-    expect(remove).not.toHaveBeenCalled();
-    await user.click(
-      screen.getByRole("button", { name: `删除空间：${space.name}` }),
-    );
-    await user.click(screen.getByRole("button", { name: "确认删除空间" }));
-    expect(remove).toHaveBeenCalledWith(space.id);
-    expect(screen.getByRole("button", { name: "确认删除空间" })).toBeVisible();
-  });
-  it("opens a conversation with selected identities and saves editable member and computer names", async () => {
-    const user = userEvent.setup(),
-      open = vi.fn(),
-      rename = vi.fn(async () => true);
-    const settings = imSettingsSchema.parse({
-      enabled: true,
-      grants: [
-        executionGrantSchema.parse({
-          projectId: "project",
-          groups: ["space:team"],
-          expiresAt: Date.now() + 600000,
-        }),
-      ],
-    });
-    const props = {
-      settings,
-      projects: [{ id: "project", name: "Local project" } as Project],
-      busy: false,
-      open,
-      rename,
-      canRemove: true,
-      remove: vi.fn(async () => true),
-      t: (cn: string) => cn,
-    };
-    const { rerender } = render(
-      <ImGroupTaskComposer {...props} spaces={[space]} />,
-    );
-    const button = screen.getByRole("button", { name: "创建并打开协作对话" });
-    expect(button).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: /^协作空间/ }));
-    await user.click(screen.getByRole("option", { name: group.name }));
-    await user.click(screen.getByRole("checkbox", { name: /^Bob/ }));
-    expect(open).not.toHaveBeenCalled();
-    await user.click(button);
-    expect(open).toHaveBeenCalledWith("team", ["bob-device"], "project");
-    await user.click(screen.getByRole("button", { name: "重命名：Bob" }));
-    await user.clear(screen.getByLabelText("成员姓名"));
-    await user.type(screen.getByLabelText("成员姓名"), "小博");
-    await user.clear(screen.getByLabelText("电脑名称"));
-    await user.type(screen.getByLabelText("电脑名称"), "开发机");
-    await user.click(screen.getByRole("button", { name: "保存名称" }));
-    expect(rename).toHaveBeenCalledWith("bob-device", "小博", "开发机");
-    expect(screen.queryByLabelText("成员姓名")).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "从整个空间移除：Bob · Bob desktop" }),
-    );
-    expect(props.remove).not.toHaveBeenCalled();
     expect(
-      screen.getByText(/所有连接的群与协作对话都不能再向其派发任务/),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "取消" }));
-    expect(props.remove).not.toHaveBeenCalled();
-
-    rerender(
-      <ImGroupTaskComposer
-        {...props}
-        spaces={[{ ...space, confirmed: false }]}
+      screen.queryByRole("button", { name: "打开群对话" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("/space-confirm team")).not.toBeInTheDocument();
+  });
+  it("pauses a native group through its single IM binding without deleting its history", async () => {
+    const manage = vi.fn(async (input: { action: string }) =>
+      input.action === "scope-entries" ? [] : {},
+    );
+    stubWindowArtemis({ manageIm: manage });
+    const user = userEvent.setup();
+    const native = {
+      ...space,
+      endpoints: [space.endpoints[0]],
+      participants: [space.participants[0]],
+      nativeGroup: {
+        version: 1,
+        projectId: "project",
+        enabled: true,
+        capability: "manual",
+        enabledAt: 1,
+        ownerDeviceId: "alice-device",
+      },
+    };
+    render(
+      <ImNativeGroups
+        spaces={[native]}
+        settings={imSettingsSchema.parse({})}
+        diagnostics={{ identities: [], groups: [], spaces: [], deliveries: [] }}
+        projects={[]}
+        busy={false}
+        t={(cn) => cn}
+        run={async (fn) => {
+          await fn();
+          return true;
+        }}
+        refresh={async () => {}}
       />,
     );
-    expect(button).toBeDisabled();
-    rerender(
-      <ImGroupTaskComposer
-        {...props}
-        spaces={[{ ...space, participants: space.participants.slice(0, 1) }]}
-      />,
+    await user.click(screen.getByRole("button", { name: /已发现的群/ }));
+    await user.click(screen.getByRole("option", { name: /Design team/ }));
+    await user.click(
+      screen.getByRole("button", { name: "暂停接入，保留历史" }),
     );
-    expect(button).toBeDisabled();
+    expect(manage).toHaveBeenCalledWith({
+      action: "admin",
+      operation: "native-group",
+      configuration: {
+        conversation: space.endpoints[0],
+        owner: space.participants[0]!.identity,
+        allowedSenders: [],
+        deviceId: "alice-device",
+        name: space.name,
+        projectId: "project",
+        enabled: false,
+      },
+    });
   });
   it("selects @ members by keyboard without submitting, and resolves equal names to different computers", async () => {
     const frames: FrameRequestCallback[] = [];
@@ -362,4 +333,241 @@ describe("group collaboration UI", () => {
     await act(() => vi.advanceTimersByTimeAsync(2000));
     expect(result.current.group?.group?.stale).toBe(true);
   });
+});
+
+it("shows all four native members with robot icons only for bots", async () => {
+  const manage = vi.fn(async () => ({ allowed: false }));
+  stubWindowArtemis({ manageIm: manage });
+  const roster: NonNullable<ImGroupContext["roster"]> = {
+    complete: true,
+    members: [
+      { identity: identity("u1", "slack"), name: "Alex", kind: "human" },
+      { identity: identity("u2", "slack"), name: "Morgan", kind: "human" },
+      {
+        identity: identity("b1", "slack"),
+        name: "Artemis",
+        kind: "bot",
+        self: true,
+      },
+      { identity: identity("b2", "slack"), name: "Solar", kind: "bot" },
+    ],
+  };
+  const { rerender } = render(
+    <ImGroupMembers
+      group={{ ...group, native: true, roster }}
+      locale="zh-CN"
+      onMention={vi.fn()}
+      onRemove={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByRole("listitem")).toHaveLength(4);
+  expect(screen.getAllByRole("img", { name: "机器人" })).toHaveLength(2);
+  for (const icon of screen.getAllByRole("img", { name: "机器人" })) {
+    expect(icon.querySelector("svg")).toHaveAttribute(
+      "data-artemis-icon",
+      "bot",
+    );
+    expect(icon.closest("strong")?.textContent).toMatch(/Artemis|Solar/);
+  }
+  expect(screen.getAllByRole("img", { name: "成员" })).toHaveLength(2);
+  expect(screen.getByText("群协作成员 · 4")).toBeVisible();
+  const bots = screen.getAllByRole("img", { name: "机器人" });
+  expect(bots[0]).toHaveAttribute("data-state", "online");
+  expect(bots[1]).toHaveAttribute("data-state", "unknown");
+  expect(screen.queryByText("在线")).not.toBeInTheDocument();
+  await userEvent.hover(bots[0]!);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("在线");
+  await userEvent.unhover(bots[0]!);
+  await userEvent.hover(bots[1]!);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("状态未知");
+  await userEvent.unhover(bots[1]!);
+  expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button")).toHaveLength(4);
+  expect(screen.getByRole("button", { name: "@ Artemis" })).toBeVisible();
+  expect(
+    imGroupMentionTargets({ ...group, native: true, roster })[1]?.name,
+  ).toBe("Artemis");
+  expect(
+    imGroupMentionTargets({ ...group, native: true, roster })[1]?.token,
+  ).toBe("@Artemis");
+  fireEvent.contextMenu(screen.getByText("Artemis"));
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  fireEvent.keyDown(screen.getByText("Artemis").closest("[role=listitem]")!, {
+    key: "F10",
+    shiftKey: true,
+  });
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(
+    screen
+      .getByRole("button", { name: "禁止 Solar 派工" })
+      .querySelector("svg"),
+  ).toHaveAttribute("data-artemis-icon", "send");
+  fireEvent.contextMenu(screen.getByText("Alex"));
+  await userEvent.click(
+    screen.getByRole("menuitemcheckbox", { name: "禁止 Alex 派工" }),
+  );
+  expect(manage).toHaveBeenCalledWith({
+    action: "set-group-member-assignment",
+    spaceId: group.spaceId,
+    identity: roster.members[0]!.identity,
+    allowed: false,
+  });
+  expect(
+    screen.getByRole("button", { name: "允许 Alex 派工" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("button", { name: "允许 Alex 派工" }));
+  expect(
+    screen.getByRole("button", { name: "禁止 Alex 派工" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await userEvent.click(screen.getByRole("button", { name: "禁止 Alex 派工" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "禁止 Solar 派工" }),
+  );
+  expect(manage).toHaveBeenLastCalledWith({
+    action: "set-group-member-assignment",
+    spaceId: group.spaceId,
+    identity: roster.members[3]!.identity,
+    allowed: false,
+  });
+  expect(
+    screen.getByRole("button", { name: "允许 Solar 派工" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await userEvent.unhover(
+    screen.getByRole("button", { name: "允许 Solar 派工" }),
+  );
+  fireEvent.contextMenu(screen.getByText("Solar"));
+  expect(
+    screen.getByRole("menuitemcheckbox", { name: "允许 Solar 派工" }),
+  ).toHaveTextContent("允许派工");
+  await userEvent.keyboard("{Escape}");
+  fireEvent.contextMenu(screen.getByText("Alex"));
+  expect(
+    screen.getByRole("menuitemcheckbox", { name: "允许 Alex 派工" }),
+  ).toHaveAttribute("aria-checked", "false");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+  rerender(
+    <ImGroupMembers
+      group={{
+        ...group,
+        native: true,
+        roster: {
+          ...roster,
+          members: roster.members.map((m, i) => ({ ...m, owner: i === 0 })),
+        },
+      }}
+      locale="zh-CN"
+    />,
+  );
+  fireEvent.contextMenu(screen.getByText("Alex"));
+  fireEvent.keyDown(screen.getByText("Alex").closest("[role=listitem]")!, {
+    key: "ContextMenu",
+  });
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /Alex.*派工/ }),
+  ).not.toBeInTheDocument();
+  rerender(
+    <ImGroupMembers
+      group={{
+        ...group,
+        native: true,
+        roster: { ...roster, complete: false, error: "missing-scope" },
+      }}
+      locale="zh-CN"
+    />,
+  );
+  rerender(
+    <ImGroupMembers
+      group={{
+        ...group,
+        native: true,
+        roster,
+        members: group.members.map((m) => ({ ...m, state: "offline" })),
+      }}
+      locale="zh-CN"
+    />,
+  );
+  expect(screen.getAllByRole("img", { name: "机器人" })[0]).toHaveAttribute(
+    "data-state",
+    "offline",
+  );
+  rerender(
+    <ImGroupMembers
+      group={{ ...group, native: true, roster, stale: true }}
+      locale="zh-CN"
+    />,
+  );
+  expect(screen.queryByText("在线")).not.toBeInTheDocument();
+  expect(
+    screen
+      .getAllByRole("img")
+      .every((icon) => icon.dataset.state === "unknown"),
+  ).toBe(true);
+  rerender(
+    <ImGroupMembers
+      group={{
+        ...group,
+        native: true,
+        roster: { ...roster, complete: false, error: "missing-scope" },
+      }}
+      locale="zh-CN"
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("im:chat.members:read");
+  expect(screen.queryByText("群协作成员 · 4")).not.toBeInTheDocument();
+});
+
+it("shows Slack active and away presence, and makes stale presence unknown", () => {
+  stubWindowArtemis({ manageIm: vi.fn(async () => ({})) });
+  const roster: NonNullable<ImGroupContext["roster"]> = {
+    complete: true,
+    members: [
+      {
+        identity: identity("u1", "slack"),
+        name: "Alex",
+        kind: "human",
+        presence: "active",
+        presenceCheckedAt: Date.now(),
+      },
+      {
+        identity: identity("u2", "slack"),
+        name: "Morgan",
+        kind: "human",
+        presence: "away",
+        presenceCheckedAt: Date.now(),
+      },
+      {
+        identity: identity("u3", "slack"),
+        name: "Expired",
+        kind: "human",
+        presence: "active",
+        presenceCheckedAt: Date.now() - 120001,
+      },
+      { identity: identity("u4", "slack"), name: "Unknown", kind: "human" },
+    ],
+  };
+  const { rerender } = render(
+    <ImGroupMembers
+      group={{ ...group, native: true, roster }}
+      locale="zh-CN"
+    />,
+  );
+  expect(
+    screen
+      .getAllByRole("img", { name: "成员" })
+      .map((icon) => icon.getAttribute("data-state")),
+  ).toEqual(["active", "away", "unknown", "unknown"]);
+  rerender(
+    <ImGroupMembers
+      group={{ ...group, native: true, roster, stale: true }}
+      locale="zh-CN"
+    />,
+  );
+  expect(
+    screen
+      .getAllByRole("img", { name: "成员" })
+      .every((icon) => icon.getAttribute("data-state") === "unknown"),
+  ).toBe(true);
 });

@@ -44,7 +44,11 @@ function envelope(overrides: Record<string, unknown> = {}) {
     },
   };
 }
-function fixture(receive = vi.fn(), receiveCard = vi.fn()) {
+function fixture(
+  receive = vi.fn(),
+  receiveCard = vi.fn(),
+  receiveGroup = vi.fn(),
+) {
   let dispatcher: EventDispatcher;
   let state = "connecting";
   const close = vi.fn();
@@ -63,12 +67,14 @@ function fixture(receive = vi.fn(), receiveCard = vi.fn()) {
     receive,
     factory,
     receiveCard,
+    receiveGroup,
   );
   adapter.start();
   return {
     adapter,
     receive,
     receiveCard,
+    receiveGroup,
     close,
     factory,
     setState: (next: string) => {
@@ -232,4 +238,30 @@ describe("Feishu Gateway long connection", () => {
     expect(f.receive).not.toHaveBeenCalled();
     f.adapter.stop();
   });
+});
+
+it("delivers authenticated group events with retryable persistence and stops late callbacks", async () => {
+  const receiveGroup = vi.fn().mockImplementationOnce(() => {
+    throw new Error("disk");
+  });
+  const f = fixture(vi.fn(), vi.fn(), receiveGroup);
+  const event = {
+    ...envelope({
+      event_type: "im.chat.member.bot.deleted_v1",
+      create_time: String(Date.now()),
+    }),
+    event: { chat_id: "chat" },
+  };
+  await expect(f.push(event)).rejects.toThrow("could not be saved");
+  await f.push(event);
+  expect(receiveGroup).toHaveBeenCalledTimes(2);
+  expect(receiveGroup).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      event: expect.objectContaining({ chat_id: "chat" }),
+    }),
+  );
+  await f.push({ ...event, header: { ...event.header, tenant_key: "wrong" } });
+  f.adapter.stop();
+  await f.push(event);
+  expect(receiveGroup).toHaveBeenCalledTimes(2);
 });

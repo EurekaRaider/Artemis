@@ -67,9 +67,9 @@ export function createRemoteTools(
     }),
     defineTool({
       name: "collaborate",
-      label: "Collaborate across IM",
+      label: "Collaborate through IM",
       description:
-        "Within the explicitly shared collaboration space, list participants, delegate a bounded task, or use delegate-many with assignments [{participantId,text}] to start different members in parallel from one prompt. Resolve member names with participants first; never guess IDs or choose between duplicate names. Submit the batch once, then inspect status and wait for every result before summarizing. Delegation never expands another owner's permissions. Include deliverables and verification evidence. The initiator coordinates; participants cannot delegate across devices. Use message for findings/questions, cancel for an assignment, and finish with the combined summary after reviewing results. Desktop group turns use the same shared data and delivery policy as IM turns.",
+        "Delegate through the current native IM group only. Query participants for verified platform bot IDs; never guess an identity. Use delegate or delegate-many with assignments [{participantId,text,dependsOn?}], where dependsOn contains existing task IDs from this workflow. Dependencies advance only after successful, nonempty results. Use status for receipts/results, cancel to request remote cancellation, and finish for the combined summary. A sent request is not acceptance; cancel-sent is not cancellation confirmation. The initiating bot coordinates the workflow. Receiving bots return results and do not delegate further. Results must be IM message text or IM attachments; local paths are not shared artifacts. Plan and Review cannot dispatch.",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -87,7 +87,10 @@ export function createRemoteTools(
           Type.Array(
             Type.Object({
               participantId: Type.String(),
-              text: Type.String({ minLength: 1, maxLength: 64000 }),
+              text: Type.String({ minLength: 1, maxLength: 8000 }),
+              dependsOn: Type.Optional(
+                Type.Array(Type.String(), { maxItems: 16 }),
+              ),
             }),
             { minItems: 1, maxItems: 16 },
           ),

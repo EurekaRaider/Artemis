@@ -1013,12 +1013,31 @@ export const taskNotificationStateSchema = z.object({
   seq: z.number().int().min(-1),
   unread: z.boolean(),
   kind: z
-    .enum(["completed", "failed", "input-required", "approval-required"])
+    .enum([
+      "assigned",
+      "completed",
+      "failed",
+      "input-required",
+      "approval-required",
+    ])
     .optional(),
 });
 export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
 
 export const agentPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("im.group.activity"),
+      taskId: z.string().min(1),
+      phase: z.enum([
+        "assigned",
+        "completed",
+        "failed",
+        "input-required",
+        "approval-required",
+      ]),
+    })
+    .strict(),
   z.object({
     type: z.literal("thread.notification.updated"),
     state: taskNotificationStateSchema,

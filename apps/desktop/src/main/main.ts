@@ -5608,6 +5608,7 @@ async function startTaskTurnUnchecked(
   input: StartTurnInput,
   options: {
     origin?: "desktop" | "im";
+    displayText?: string;
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
     afterCompaction?: boolean;
@@ -5955,7 +5956,7 @@ async function startTaskTurnUnchecked(
     await emitInitialTurn(
       thread.id,
       turnId,
-      requestText,
+      options.displayText ?? requestText,
       input.mode,
       attachments,
       source === "user",
@@ -21095,6 +21096,26 @@ app
       app.getPath("userData"),
       safeStorage,
       {
+        groupActivity: (id, taskId, phase) => {
+          const thread = store!.getThread(id);
+          if (!thread) return;
+          if (phase === "assigned" && thread.archived) {
+            const restored = store!.updateThread(id, { archived: false });
+            mainWindow?.webContents.send(IPC.imTaskCreated, restored);
+          }
+          emitPayload(id, undefined, {
+            type: "im.group.activity",
+            taskId,
+            phase,
+          });
+        },
+        updateGroup: (id, title) => {
+          const thread = store!.getThread(id);
+          if (thread && thread.title !== title) {
+            const updated = store!.updateThread(id, { title });
+            mainWindow?.webContents.send(IPC.imTaskCreated, updated);
+          }
+        },
         importAttachments: (paths) =>
           Promise.all(paths.map((path) => attachmentStore().importPath(path))),
         projects: () =>
@@ -21131,10 +21152,10 @@ app
             openedThreads.delete(id);
           }
         },
-        start: async (id, text, mode, attachments) => {
+        start: async (id, text, mode, attachments, displayText) => {
           await startTaskTurn(
             { threadId: id, text, mode, attachments },
-            { origin: "im" },
+            { origin: "im", displayText: displayText ?? text },
           );
         },
         queue: async (id, text, attachments) => {

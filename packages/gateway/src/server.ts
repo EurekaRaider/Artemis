@@ -1,3 +1,5 @@
+import { normalizeFeishuGroupEvent } from "./feishu-group-events.js";
+import { saveNativeGroup, retireLegacySpaces } from "./native-groups.js";
 import {
   IM_SECURITY_VERSION,
   imDeliverySecuritySchema,
@@ -13,12 +15,13 @@ import { z } from "zod";
 import {
   collaborationCommandSchema,
   imConversationKey,
-  imConversationSchema,
   imIdentityKey,
   imIdentitySchema,
   type ChannelEvent,
   type CollaborationSpace,
   type ImIdentity,
+  type ImConversation,
+  type ImGroupRoster,
   type RemoteInvocationContext,
 } from "@artemis/protocol";
 import { GatewayStore, sameSecret, digest } from "./store.js";
@@ -44,26 +47,6 @@ import {
   type ChannelConnection,
 } from "./channels.js";
 
-const spaceSchema = z
-  .object({
-    id: z.string().regex(/^[\w-]{1,100}$/u),
-    name: z.string().min(1).max(100),
-    endpoints: z.array(imConversationSchema).min(1).max(8),
-    participants: z
-      .array(
-        z
-          .object({
-            deviceId: z.string().min(1),
-            identity: imIdentitySchema,
-            name: z.string().min(1).max(100),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(50),
-    administrators: z.array(imIdentitySchema).min(1).max(50),
-  })
-  .strict();
 export interface GatewayOptions {
   databasePath: string;
   encryptionKey: string;
@@ -116,6 +99,12 @@ export class ArtemisGateway {
         "Gateway admin token must contain at least 32 characters.",
       );
     this.store = new GatewayStore(options.databasePath, options.encryptionKey);
+    retireLegacySpaces(
+      this.store,
+      options.databasePath === ":memory:"
+        ? undefined
+        : `${options.databasePath}.pre-native-groups.sqlite`,
+    );
     this.router = new GatewayRouter(this.store);
     this.server.requestTimeout = 35000;
     this.server.headersTimeout = 10000;
@@ -127,7 +116,45 @@ export class ArtemisGateway {
   private receiveChannelEvent(event: ChannelEvent): void {
     if (this.store.get("removed-connections", event.identity.connectionId))
       return;
+    this.router.native.observeBot(event);
     if (!this.router.ingest(event)) return;
+    if (
+      event.identity.channel === "wecom" &&
+      event.conversation.kind === "group" &&
+      !event.bot
+    ) {
+      const group = this.router.findSpace(event.conversation);
+      const owner = group?.participants[0]?.identity;
+      if (
+        group &&
+        owner?.channel === event.identity.channel &&
+        owner.tenantId === event.identity.tenantId &&
+        owner.appId === event.identity.appId &&
+        event.timestamp >= group.nativeGroup!.enabledAt
+      ) {
+        const prior = this.store.get<{ roster?: ImGroupRoster }>(
+          "native-group-info",
+          group.id,
+        );
+        const members = (prior?.roster?.members ?? []).filter(
+          (m) => imIdentityKey(m.identity) !== imIdentityKey(event.identity),
+        );
+        members.push({
+          identity: event.identity,
+          name: event.identity.userId,
+          kind: "human",
+        });
+        this.store.put("native-group-info", group.id, {
+          ...prior,
+          roster: {
+            members: members.slice(-10000),
+            complete: false,
+            error: "partial",
+          },
+          checkedAt: Date.now(),
+        });
+      }
+    }
     if (
       event.attachments.length &&
       this.store.get("identities", imIdentityKey(event.identity))
@@ -140,6 +167,41 @@ export class ArtemisGateway {
       );
       this.startMediaJobs();
     }
+  }
+  private receiveFeishuGroup(
+    config: Extract<ChannelConnection, { channel: "feishu" }>,
+    value: unknown,
+  ): void {
+    if (this.store.get("removed-connections", config.id)) return;
+    const event = normalizeFeishuGroupEvent(config, value);
+    if (!event) return;
+    this.store.transaction(() => {
+      this.invalidateGroupRoster(config.id, event.chatId);
+      if (!event.unavailable) return;
+      for (const group of this.store.list<CollaborationSpace>(
+        "native-groups",
+      )) {
+        if (
+          !group.nativeGroup?.enabled ||
+          event.timestamp < group.nativeGroup.enabledAt ||
+          !group.endpoints.some(
+            (e) => e.connectionId === config.id && e.id === event.chatId,
+          )
+        )
+          continue;
+        this.store.put("native-groups", group.id, {
+          ...group,
+          revision: randomUUID(),
+          nativeGroup: { ...group.nativeGroup, enabled: false },
+        });
+        this.store.put("native-group-info", group.id, {
+          unavailable: event.unavailable,
+          checkedAt: Date.now(),
+          next: Date.now() + 60000,
+        });
+        this.store.delete("space-confirmations", group.id);
+      }
+    });
   }
   private receiveFeishuCard(connectionId: string, value: unknown): boolean {
     const raw = value as {
@@ -225,11 +287,19 @@ export class ArtemisGateway {
       (config.channel === "wecom"
         ? new WecomAdapter(config, receive)
         : config.channel === "slack"
-          ? new SlackAdapter(config, receive)
+          ? new SlackAdapter(config, receive, (channel) =>
+              this.invalidateGroupRoster(config.id, channel),
+            )
           : config.transport === "websocket"
-            ? new FeishuSocketAdapter(config, receive, undefined, (value) => {
-                return this.receiveFeishuCard(config.id, value);
-              })
+            ? new FeishuSocketAdapter(
+                config,
+                receive,
+                undefined,
+                (value) => {
+                  return this.receiveFeishuCard(config.id, value);
+                },
+                (value) => this.receiveFeishuGroup(config, value),
+              )
             : new FeishuAdapter(config));
     this.adapters.set(config.id, adapter);
     adapter.start();
@@ -358,6 +428,7 @@ export class ArtemisGateway {
         });
         return;
       }
+      this.receiveFeishuGroup(config, event);
       const normalized = normalizeFeishu(config, event);
       if (normalized) this.receiveChannelEvent(normalized);
       // ingest commits before acknowledging the platform.
@@ -397,33 +468,6 @@ export class ArtemisGateway {
         return;
       }
       if (
-        url.pathname === "/v1/admin/remove-space-member" &&
-        request.method === "PUT"
-      ) {
-        const { spaceId, deviceId } = z
-          .object({
-            spaceId: z.string().min(1).max(256),
-            deviceId: z.string().min(1).max(256),
-          })
-          .strict()
-          .parse(body);
-        const space = this.store.get<CollaborationSpace>("spaces", spaceId);
-        if (!space) throw new Error("协作空间不存在。");
-        const participants = space.participants.filter(
-          (p) => p.deviceId !== deviceId,
-        );
-        if (!participants.length)
-          throw new Error(
-            "不能移除空间的最后一名成员；不再需要时请删除整个空间。",
-          );
-        // Removing participants only narrows access. Keep the confirmed endpoints and
-        // revision so remaining members' tasks continue; authorization checks use the
-        // current participant list for both queued work and active operations.
-        this.store.put("spaces", spaceId, { ...space, participants });
-        respond(response, 200, { removed: true });
-        return;
-      }
-      if (
         url.pathname === "/v1/admin/remove-connection" &&
         request.method === "PUT"
       ) {
@@ -437,7 +481,7 @@ export class ArtemisGateway {
           );
         if (
           this.store
-            .list<CollaborationSpace>("spaces")
+            .list<CollaborationSpace>("native-groups")
             .some((space) =>
               space.endpoints.some((endpoint) => endpoint.connectionId === id),
             )
@@ -531,83 +575,131 @@ export class ArtemisGateway {
         respond(response, 200, { saved: true });
         return;
       }
-      if (url.pathname === "/v1/admin/spaces" && request.method === "PUT") {
-        const config = spaceSchema.parse(body);
-        if (this.store.get("removed-spaces", config.id))
-          throw new Error(
-            "此空间 ID 已删除，请使用新的空间 ID。 / Use a new ID for a deleted space.",
-          );
+      if (
+        url.pathname === "/v1/admin/spaces" ||
+        url.pathname === "/v1/admin/remove-space-member"
+      ) {
+        respond(response, 410, {
+          error: "跨 IM 协作空间已退役。请在本机启用原生 IM 群。",
+        });
+        return;
+      }
+      if (
+        url.pathname === "/v1/admin/refresh-group-members" &&
+        request.method === "PUT"
+      ) {
+        const { spaceId } = z
+          .object({ spaceId: z.string() })
+          .strict()
+          .parse(body);
+        const group = this.store.get<CollaborationSpace>(
+          "native-groups",
+          spaceId,
+        );
+        if (!group?.nativeGroup?.enabled) throw new Error("Group unavailable.");
+        this.invalidateGroupRoster(
+          group.endpoints[0]!.connectionId,
+          group.endpoints[0]!.id,
+        );
+        await this.tick();
+        respond(response, 200, { refreshed: true });
+        return;
+      }
+      if (
+        url.pathname === "/v1/admin/native-group-member" &&
+        request.method === "PUT"
+      ) {
+        const input = z
+          .object({
+            spaceId: z.string(),
+            identity: imIdentitySchema,
+            allowed: z.boolean(),
+          })
+          .strict()
+          .parse(body);
+        const group = this.store.get<CollaborationSpace>(
+          "native-groups",
+          input.spaceId,
+        );
+        const roster = this.store.get<{ roster?: ImGroupRoster }>(
+          "native-group-info",
+          input.spaceId,
+        )?.roster;
+        const member = roster?.members.find(
+          (m) => imIdentityKey(m.identity) === imIdentityKey(input.identity),
+        );
         if (
-          new Set(config.endpoints.map(imConversationKey)).size !==
-            config.endpoints.length ||
-          config.endpoints.some(
-            (e) => e.kind !== "group" || !this.adapters.has(e.connectionId),
-          )
+          !group ||
+          !member ||
+          member.kind === "unknown" ||
+          member.self ||
+          imIdentityKey(group.participants[0]!.identity) ===
+            imIdentityKey(input.identity)
         )
           throw new Error(
-            "Space endpoints must be unique configured group channels.",
+            "Only other identified group members can be changed.",
           );
-        if (
-          this.store
-            .list<CollaborationSpace>("spaces")
-            .some(
-              (s) =>
-                s.id !== config.id &&
-                s.endpoints.some((e) =>
-                  config.endpoints.some(
-                    (c) => imConversationKey(c) === imConversationKey(e),
-                  ),
-                ),
-            )
-        )
-          throw new Error("A group can belong to only one space.");
-        if (
-          config.endpoints.some(
-            (e) =>
-              !config.administrators.some(
-                (a) => a.connectionId === e.connectionId,
-              ),
-          )
-        )
-          throw new Error(
-            "Each endpoint needs an explicitly designated group administrator.",
+        const key = JSON.stringify([group.id, imIdentityKey(input.identity)]);
+        if (input.allowed) this.store.delete("group-denied-senders", key);
+        else this.store.put("group-denied-senders", key, true);
+        if (member.kind === "bot") {
+          this.router.native.setMemberAssignment(
+            group.id,
+            member.identity.userId,
+            input.allowed,
           );
-        for (const participant of config.participants) {
-          if (
-            this.store.get<{ deviceId: string }>(
-              "identities",
-              imIdentityKey(participant.identity),
-            )?.deviceId !== participant.deviceId
-          )
-            throw new Error(
-              "Pair every participant before configuring a space.",
-            );
+          this.router.native.syncRoster(group.id);
         }
-        this.store.transaction(() => {
-          this.store.put("spaces", config.id, {
-            ...config,
-            revision: randomUUID(),
-          });
-          this.store.put("space-confirmations", config.id, []);
-        });
-        respond(response, 200, {
-          saved: true,
-          instruction: `Each designated administrator must @ the bot in their group and send /space-confirm ${config.id}. Changes invalidate all prior confirmations.`,
-        });
+        respond(response, 200, { allowed: input.allowed });
+        return;
+      }
+      if (
+        url.pathname === "/v1/admin/native-group" &&
+        request.method === "PUT"
+      ) {
+        const group = saveNativeGroup(this.store, body);
+        respond(response, 200, group);
+        return;
+      }
+      if (
+        url.pathname === "/v1/admin/refresh-groups" &&
+        request.method === "PUT"
+      ) {
+        await this.refreshDiscoveredGroupNames(true);
+        respond(response, 200, { refreshed: true });
         return;
       }
       if (url.pathname === "/v1/admin/status" && request.method === "GET") {
         respond(response, 200, {
           connections: [...this.adapters.values()].map((a) => a.status()),
           spaces: this.store
-            .list<CollaborationSpace>("spaces")
+            .list<CollaborationSpace>("native-groups")
             .map((space) => ({
               ...space,
               confirmed: !!this.router.findSpace(space.endpoints[0]!),
             })),
           securityVersion: IM_SECURITY_VERSION,
           identities: this.store.list("identities"),
-          groups: this.store.list("observed-groups"),
+          groups: this.store
+            .list<{ conversation: ImConversation }>("observed-groups")
+            .map((group) => {
+              const stored = this.store.get<{ sealed: string }>(
+                "connections",
+                group.conversation.connectionId,
+              );
+              const config = stored
+                ? this.store.unseal<ChannelConnection>(stored.sealed)
+                : undefined;
+              return {
+                ...group,
+                platform:
+                  config?.channel === "feishu"
+                    ? config.domain === "lark"
+                      ? "lark"
+                      : "feishu"
+                    : config?.channel,
+              };
+            }),
           devices: this.store
             .list<{ id: string; name: string; revoked: boolean }>("devices")
             .map(({ id, name, revoked }) => ({ id, name, revoked })),
@@ -711,6 +803,9 @@ export class ArtemisGateway {
         "/v1/device/poll",
         "/v1/device/collaborate",
         "/v1/device/reply",
+        "/v1/device/native-deliveries",
+        "/v1/device/native-command",
+        "/v1/device/native-cooperation",
         "/v1/device/artifacts",
         "/v1/device/group-context",
       ].includes(url.pathname) &&
@@ -763,11 +858,37 @@ export class ArtemisGateway {
           };
         }),
         spaces: this.store
-          .list<CollaborationSpace>("spaces")
+          .list<CollaborationSpace>("native-groups")
           .filter((s) => s.participants.some((p) => p.deviceId === deviceId))
           .map((s) => ({
             ...s,
             confirmed: !!this.router.findSpace(s.endpoints[0]!),
+            roster: (() => {
+              const roster = this.store.get<{ roster?: ImGroupRoster }>(
+                "native-group-info",
+                s.id,
+              )?.roster;
+              return (
+                roster && {
+                  ...roster,
+                  members: roster.members.map((m) => ({
+                    ...m,
+                    owner:
+                      imIdentityKey(m.identity) ===
+                      imIdentityKey(s.participants[0]!.identity),
+                    canAssign:
+                      (m.kind !== "bot" ||
+                        !!s.nativeGroup?.allowedBots?.includes(
+                          m.identity.userId,
+                        )) &&
+                      !this.store.get(
+                        "group-denied-senders",
+                        JSON.stringify([s.id, imIdentityKey(m.identity)]),
+                      ),
+                  })),
+                }
+              );
+            })(),
             participants: s.participants.map((p) => {
               const device = this.store.get<{ name: string; revoked: boolean }>(
                 "devices",
@@ -954,6 +1075,49 @@ export class ArtemisGateway {
         throw new Error(
           "Only an explicit owner publish command can upload an artifact.",
         );
+      if (invocation.conversation.kind === "group") {
+        const group = this.router.findSpace(invocation.conversation);
+        if (
+          !group?.nativeGroup ||
+          group.nativeGroup.ownerDeviceId !== deviceId ||
+          !this.adapters.get(invocation.conversation.connectionId)?.publish
+        )
+          throw new Error("Native file publication is unavailable.");
+        const bytes = Buffer.from(input.data, "base64");
+        if (!bytes.length || bytes.length > 10 * 1024 * 1024)
+          throw new Error("File must be between 1 byte and 10 MiB.");
+        const id = `${deviceId}:${input.invocationId}`;
+        const hash = createHash("sha256").update(bytes).digest("hex");
+        const old = this.store.get<{ hash: string; name: string }>(
+          "native-files",
+          id,
+        );
+        if (old && (old.hash !== hash || old.name !== input.name))
+          throw new Error("Publication ID already used for a different file.");
+        this.store.transaction(() => {
+          if (!old)
+            this.store.put("native-files", id, {
+              id,
+              hash,
+              name: input.name,
+              sealed: this.store.seal({ name: input.name, data: input.data }),
+            });
+          this.router.queueDelivery(`file:${id}`, {
+            conversation: invocation.conversation,
+            invocationId: invocation.id,
+            text: input.name,
+            fileId: id,
+            replyId: `artifact:${invocation.id}`,
+          });
+        });
+        respond(response, 200, {
+          native: true,
+          id,
+          state: "queued",
+          sha256: hash,
+        });
+        return;
+      }
       const old = this.store.get<{
         id: string;
         token: string;
@@ -1047,6 +1211,124 @@ export class ArtemisGateway {
       respond(response, 200, { accepted: true });
       return;
     }
+    if (url.pathname === "/v1/device/native-cooperation") {
+      const input = z
+        .object({
+          groupId: z.string(),
+          operation: z.enum(["state", "announce", "probe", "authorize"]),
+          peer: z.string().optional(),
+          peers: z.array(z.string()).max(50).optional(),
+        })
+        .strict()
+        .parse(body);
+      const group = this.store.get<CollaborationSpace>(
+        "native-groups",
+        input.groupId,
+      );
+      if (group?.nativeGroup?.ownerDeviceId !== deviceId)
+        throw new Error("Group does not belong to this device.");
+      if (input.operation === "announce" || input.operation === "probe")
+        this.router.native.probe(
+          group.id,
+          input.operation === "probe" ? input.peer : undefined,
+        );
+      if (input.operation === "authorize")
+        this.router.native.authorize(group.id, input.peers ?? []);
+      respond(response, 200, {
+        version: 1,
+        peers: this.router.native.peers(group.id),
+        tasks: this.router.native.tasks(group.id),
+        history: this.store
+          .list<{ groupId: string }>("native-history")
+          .filter((e) => e.groupId === group.id),
+      });
+      return;
+    }
+    if (url.pathname === "/v1/device/native-command") {
+      const input = z
+        .object({
+          id: z.string(),
+          invocationId: z.string(),
+          threadId: z.string(),
+          command: collaborationCommandSchema,
+          security: imDeliverySecuritySchema,
+        })
+        .strict()
+        .parse(body);
+      this.router.acceptSecurity(deviceId, input.invocationId, input.security);
+      const request = this.store.get<RemoteInvocationContext>(
+        "invocations",
+        input.invocationId,
+      );
+      if (!request || request.deviceId !== deviceId)
+        throw new Error("Invocation owner mismatch.");
+      respond(
+        response,
+        200,
+        this.router.native.command(
+          request,
+          input.threadId,
+          input.id,
+          input.command,
+        ),
+      );
+      return;
+    }
+    if (url.pathname === "/v1/device/native-deliveries") {
+      const { groupId } = z
+        .object({ groupId: z.string().min(1) })
+        .strict()
+        .parse(body);
+      const group = this.store.get<CollaborationSpace>(
+        "native-groups",
+        groupId,
+      );
+      if (!group?.nativeGroup || group.nativeGroup.ownerDeviceId !== deviceId)
+        throw new Error("Group does not belong to this device.");
+      // Read-only history remains available after pause/revocation. Never use
+      // client-supplied queue IDs or local connection IDs as ownership proof.
+      const rows = this.store.db
+        .prepare(
+          "SELECT json_extract(payload,'$.invocationId') AS invocationId,json_extract(payload,'$.replyId') AS replyId,group_concat(state) AS states FROM queue WHERE bucket='outgoing' AND json_extract(payload,'$.conversation.spaceId')=? AND json_extract(payload,'$.replyId') IS NOT NULL GROUP BY invocationId,replyId ORDER BY min(rowid) DESC LIMIT 100",
+        )
+        .all(groupId);
+      const messages = new Map<string, { id: string; states: string[] }>();
+      for (const row of rows) {
+        const delivery = {
+          invocationId: String(row.invocationId),
+          replyId: String(row.replyId),
+        };
+        const request = delivery.invocationId
+          ? this.store.get<RemoteInvocationContext>(
+              "invocations",
+              delivery.invocationId,
+            )
+          : undefined;
+        if (request?.deviceId !== deviceId || !delivery.replyId) continue;
+        const message = messages.get(delivery.replyId) ?? {
+          id: delivery.replyId,
+          states: [],
+        };
+        message.states.push(...String(row.states).split(","));
+        messages.set(message.id, message);
+      }
+      respond(response, 200, {
+        version: 1,
+        messages: [...messages.values()].map(({ id, states }) => ({
+          id,
+          state: states.includes("uncertain")
+            ? "uncertain"
+            : states.includes("revoked") || states.includes("cancelled")
+              ? "revoked"
+              : states.includes("failed")
+                ? "failed"
+                : states.every((state) => state === "done")
+                  ? "platform-accepted"
+                  : "submitted",
+        })),
+      });
+      return;
+    }
     if (url.pathname === "/v1/device/reply") {
       const reply = imReplySchema.parse(body);
       if (reply.taskId)
@@ -1133,7 +1415,26 @@ export class ArtemisGateway {
     if (this.delivering) return;
     this.delivering = true;
     try {
+      this.router.native.tick();
+      await this.refreshNativeGroupInfo();
+      await this.refreshDiscoveredGroupNames();
       this.router.processIncoming();
+      // Keep publication receipts, but discard encrypted upload bodies once
+      // there is no permitted automatic send left (including restart uncertainty).
+      for (const file of this.store.list<{ id: string; sealed?: string }>(
+        "native-files",
+      )) {
+        if (!file.sealed) continue;
+        const pending = this.store.db
+          .prepare(
+            "SELECT 1 FROM queue WHERE bucket='outgoing' AND json_extract(payload,'$.fileId')=? AND state IN ('pending','sending') LIMIT 1",
+          )
+          .get(file.id);
+        if (!pending) {
+          const { sealed: _sealed, ...receipt } = file;
+          this.store.put("native-files", file.id, receipt);
+        }
+      }
       this.startMediaJobs();
       await this.updateTyping();
       await this.closeApprovalCards();
@@ -1177,7 +1478,43 @@ export class ArtemisGateway {
             : undefined;
           let messageId: string | undefined;
           const approval = item.payload.approval;
-          if (approval && adapter.approvalCard && item.payload.invocationId) {
+          if (item.payload.native) {
+            if (!adapter.sendNative)
+              throw new Error(
+                "Native bot messaging is unavailable on this connection.",
+              );
+            messageId = await adapter.sendNative(
+              item.payload.conversation,
+              item.payload.text,
+              item.id,
+              item.payload.native.recipient,
+            );
+          } else if (item.payload.fileId) {
+            const file = this.store.get<{ sealed?: string }>(
+              "native-files",
+              item.payload.fileId,
+            );
+            if (!file?.sealed || !adapter.publish)
+              throw new Error("Native file is unavailable.");
+            const content = this.store.unseal<{ name: string; data: string }>(
+              file.sealed,
+            );
+            messageId = await adapter.publish(
+              item.payload.conversation,
+              { name: content.name, data: Buffer.from(content.data, "base64") },
+              item.id,
+              () => {
+                if (!this.router.canDeliver(item.payload))
+                  throw new Error(
+                    "File publication authorization was revoked.",
+                  );
+              },
+            );
+          } else if (
+            approval &&
+            adapter.approvalCard &&
+            item.payload.invocationId
+          ) {
             const request = this.store.get<RemoteInvocationContext>(
               "invocations",
               item.payload.invocationId,
@@ -1306,11 +1643,13 @@ export class ArtemisGateway {
           this.store.mark(
             "outgoing",
             item.id,
-            retry && item.attempts < 100
-              ? "pending"
-              : error instanceof DeliveryUncertain
-                ? "uncertain"
-                : "failed",
+            !this.router.canDeliver(item.payload)
+              ? "revoked"
+              : retry && item.attempts < 100
+                ? "pending"
+                : error instanceof DeliveryUncertain
+                  ? "uncertain"
+                  : "failed",
             Date.now() +
               (error instanceof ChannelRateLimit
                 ? Math.max(1, error.seconds) * 1000
@@ -1320,6 +1659,205 @@ export class ArtemisGateway {
       }
     } finally {
       this.delivering = false;
+    }
+  }
+  private groupNameRefresh: Promise<void> | undefined;
+  private refreshDiscoveredGroupNames(force = false): Promise<void> {
+    if (this.groupNameRefresh)
+      return force
+        ? this.groupNameRefresh.then(() =>
+            this.refreshDiscoveredGroupNames(true),
+          )
+        : this.groupNameRefresh;
+    const pending = this.queryDiscoveredGroupNames(force).finally(() => {
+      this.groupNameRefresh = undefined;
+    });
+    this.groupNameRefresh = pending;
+    return pending;
+  }
+  private async queryDiscoveredGroupNames(force: boolean): Promise<void> {
+    type Observed = {
+      conversation: ImConversation;
+      identities: ImIdentity[];
+      lastSeenAt: number;
+      name?: string;
+      nameNextCheck?: number;
+      nameError?: string;
+      nameCheckedAt?: number;
+    };
+    const candidates = this.store
+      .list<Observed>("observed-groups")
+      .filter((group) => {
+        const adapter = this.adapters.get(group.conversation.connectionId);
+        const due =
+          force && group.nameError !== "rate-limited"
+            ? (group.nameCheckedAt ?? 0) + 5000 <= Date.now()
+            : (group.nameNextCheck ?? 0) <= Date.now();
+        return (
+          !!adapter?.groupInfo && adapter.status().state === "connected" && due
+        );
+      })
+      .slice(0, force ? 3 : 1);
+    await Promise.all(
+      candidates.map(async (group) => {
+        const adapter = this.adapters.get(group.conversation.connectionId)!;
+        const key = imConversationKey(group.conversation);
+        this.store.put("observed-groups", key, {
+          ...group,
+          nameNextCheck: Date.now() + 60000,
+          nameCheckedAt: Date.now(),
+        });
+        try {
+          const info = await adapter.groupInfo!(group.conversation);
+          const current = this.store.get<Observed>("observed-groups", key);
+          if (
+            current &&
+            this.adapters.get(group.conversation.connectionId) === adapter
+          ) {
+            this.store.put("observed-groups", key, {
+              ...current,
+              ...(info.name?.trim() ? { name: info.name.trim() } : {}),
+              nameError: info.name
+                ? undefined
+                : (info.nameError ?? info.unavailable ?? "lookup-failed"),
+              nameNextCheck: Date.now() + 60000,
+            });
+          }
+        } catch (error) {
+          const current = this.store.get<Observed>("observed-groups", key);
+          if (current)
+            this.store.put("observed-groups", key, {
+              ...current,
+              nameError:
+                error instanceof ChannelRateLimit
+                  ? "rate-limited"
+                  : "lookup-failed",
+              nameNextCheck:
+                Date.now() +
+                (error instanceof ChannelRateLimit
+                  ? Math.max(60, error.seconds) * 1000
+                  : 60000),
+            });
+        }
+      }),
+    );
+  }
+  private invalidateGroupRoster(connectionId: string, channel: string): void {
+    for (const group of this.store.list<CollaborationSpace>("native-groups")) {
+      if (
+        !group.nativeGroup?.enabled ||
+        !group.endpoints.some(
+          (e) => e.connectionId === connectionId && e.id === channel,
+        )
+      )
+        continue;
+      const prior = this.store.get<{ next: number; checkedAt?: number }>(
+        "native-group-info",
+        group.id,
+      );
+      // Coalesce event bursts and panel opens without bypassing provider backoff.
+      if (prior && prior.next > Date.now() + 60000) continue;
+      this.store.put("native-group-info", group.id, {
+        ...prior,
+        next: Math.max(Date.now(), (prior?.checkedAt ?? 0) + 10000),
+      });
+    }
+  }
+  private async refreshNativeGroupInfo(): Promise<void> {
+    for (const group of this.store.list<CollaborationSpace>("native-groups")) {
+      const endpoint = group.endpoints[0];
+      const adapter = endpoint && this.adapters.get(endpoint.connectionId);
+      if (
+        !group.nativeGroup?.enabled ||
+        !adapter?.groupInfo ||
+        adapter.status().state !== "connected"
+      )
+        continue;
+      const prior = this.store.get<{ next: number; roster?: ImGroupRoster }>(
+        "native-group-info",
+        group.id,
+      );
+      if (prior && prior.next > Date.now()) continue;
+      this.store.put("native-group-info", group.id, {
+        ...prior,
+        next: Date.now() + 60000,
+      });
+      try {
+        const [info, roster] = await Promise.all([
+          adapter.groupInfo(endpoint!),
+          adapter.groupMembers?.(endpoint!),
+        ]);
+        // Feishu's member endpoint excludes bots. Keep only bot identities
+        // learned from authenticated events; they remain untrusted for dispatch.
+        if (roster && endpoint && adapter instanceof FeishuAdapter) {
+          const observed = this.store.get<{ roster?: ImGroupRoster }>(
+            "native-group-info",
+            group.id,
+          )?.roster;
+          const ids = new Set(roster.members.map((m) => m.identity.userId));
+          for (const member of observed?.members ?? []) {
+            if (
+              member.kind === "bot" &&
+              !ids.has(member.identity.userId) &&
+              roster.members.length < 10000
+            ) {
+              roster.members.push(member);
+              ids.add(member.identity.userId);
+            }
+          }
+        }
+        // Do not commit a late lookup over an authorization edit or a removed adapter.
+        const current = this.store.get<CollaborationSpace>(
+          "native-groups",
+          group.id,
+        );
+        if (
+          !current ||
+          current.revision !== group.revision ||
+          this.adapters.get(endpoint!.connectionId) !== adapter
+        )
+          return;
+        this.store.transaction(() => {
+          this.store.put("native-group-info", group.id, {
+            ...info,
+            ...(roster ? { roster } : {}),
+            checkedAt: Date.now(),
+            next: Date.now() + 60000,
+          });
+          this.store.put("native-groups", group.id, {
+            ...current,
+            ...(info.name ? { name: info.name } : {}),
+            ...(info.unavailable
+              ? {
+                  revision: randomUUID(),
+                  nativeGroup: { ...current.nativeGroup, enabled: false },
+                }
+              : {}),
+          });
+          if (info.unavailable)
+            this.store.delete("space-confirmations", group.id);
+        });
+        if (!info.unavailable) this.router.native.syncRoster(group.id);
+      } catch (error) {
+        this.store.put("native-group-info", group.id, {
+          ...(prior?.roster
+            ? {
+                roster: {
+                  ...prior.roster,
+                  complete: false,
+                  error: "unavailable",
+                },
+              }
+            : {}),
+          next:
+            Date.now() +
+            (error instanceof ChannelRateLimit
+              ? Math.max(60, error.seconds) * 1000
+              : 60000),
+        });
+      }
+      // Bounded work per tick; no full-list burst against a platform API.
+      return;
     }
   }
   private async closeApprovalCards(): Promise<void> {

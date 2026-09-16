@@ -1269,6 +1269,7 @@ export function Select<Value extends string>({
 }
 
 interface CommonCheckControlProps {
+  readonly indeterminate?: boolean | undefined;
   readonly className?: string | undefined;
   readonly description?: string | undefined;
   readonly disabled?: boolean | undefined;
@@ -1298,6 +1299,7 @@ export type CheckControlProps = CommonCheckControlProps &
 
 function CheckControl({
   checked,
+  indeterminate = false,
   className,
   component,
   defaultChecked,
@@ -1349,6 +1351,10 @@ function CheckControl({
     >
       <label htmlFor={controlId}>
         <input
+          ref={(input) => {
+            if (input)
+              input.indeterminate = component === "checkbox" && indeterminate;
+          }}
           aria-describedby={describedBy || undefined}
           aria-invalid={error === undefined ? undefined : true}
           checked={checked}
@@ -1372,7 +1378,7 @@ function CheckControl({
           </span>
         ) : (
           <span aria-hidden="true" data-part="indicator">
-            {resolvedChecked ? "✓" : ""}
+            {indeterminate ? "−" : resolvedChecked ? "✓" : ""}
           </span>
         )}
         <span data-part="label">{label}</span>

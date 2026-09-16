@@ -4,12 +4,14 @@ export function taskNotificationCopy(locale: AppLocale) {
   const zh = locale.startsWith("zh");
   return {
     titles: {
+      assigned: zh ? "群内有新任务" : "New group task",
       completed: zh ? "任务已完成" : "Task completed",
       failed: zh ? "任务执行失败" : "Task failed",
       "input-required": zh ? "任务等待你的输入" : "Task needs your input",
       "approval-required": zh ? "任务需要你的审批" : "Task needs your approval",
     } satisfies Record<NonNullable<TaskNotificationState["kind"]>, string>,
     actions: {
+      assigned: zh ? "点击查看任务" : "Click to view task",
       completed: zh ? "点击查看结果" : "Click to view results",
       failed: zh ? "点击查看原因" : "Click to view details",
       "input-required": zh ? "点击回答" : "Click to answer",

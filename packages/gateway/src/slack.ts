@@ -1,9 +1,11 @@
+import { formatSlackMarkdown } from "./slack-format.js";
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import {
   channelEventSchema,
   type ChannelEvent,
   type ImConversation,
+  type ImGroupRoster,
 } from "@artemis/protocol";
 import {
   boundedResponse,
@@ -35,6 +37,11 @@ const commandOutput = new RegExp(
   "gu",
 );
 
+class SlackApiError extends Error {
+  constructor(readonly code: string) {
+    super(`Slack: ${code}. Check the app permissions and tokens.`);
+  }
+}
 async function slackApi(
   method: string,
   token: string,
@@ -49,7 +56,13 @@ async function slackApi(
       : new ChannelUnavailable("Slack is temporarily unavailable.");
   let response: Response;
   try {
-    const readOnly = method === "bots.info" || method === "files.info";
+    const readOnly =
+      method === "bots.info" ||
+      method === "files.info" ||
+      method === "conversations.info" ||
+      method === "conversations.members" ||
+      method === "users.info" ||
+      method === "users.getPresence";
     const query = readOnly
       ? `?${new URLSearchParams(Object.entries(body).map(([key, value]) => [key, String(value)]))}`
       : "";
@@ -93,7 +106,7 @@ async function slackApi(
     const code = /^[a-z_]{1,80}$/u.test(string(result.error))
       ? result.error
       : "invalid_response";
-    throw new Error(`Slack: ${code}. Check the app permissions and tokens.`);
+    throw new SlackApiError(code);
   }
   return result;
 }
@@ -145,17 +158,22 @@ export function normalizeSlack(
     return undefined;
   if (
     !string(event.user) ||
-    event.bot_id ||
-    event.bot_profile ||
+    ((event.bot_id || event.bot_profile) &&
+      !string(event.text).includes("ARTEMIS-IM/1:")) ||
     event.user === config.botUserId ||
-    (event.subtype && event.subtype !== "file_share")
+    (event.subtype && !["file_share", "bot_message"].includes(event.subtype))
   )
     return undefined;
   const direct = event.type === "message" && event.channel_type === "im";
   const mention = `<@${config.botUserId}>`;
   if (
     !direct &&
-    !(event.type === "app_mention" && string(event.text).includes(mention))
+    !(event.type === "app_mention" && string(event.text).includes(mention)) &&
+    !(
+      event.type === "message" &&
+      event.bot_id &&
+      string(event.text).includes("ARTEMIS-IM/1:")
+    )
   )
     return undefined;
   let text = string(event.text)
@@ -195,7 +213,7 @@ export function normalizeSlack(
     text,
     timestamp: Math.floor(Number(event.ts) * 1000),
     mentioned: true,
-    bot: false,
+    bot: !!event.bot_id,
     ...(string(event.thread_ts) ? { replyTo: event.thread_ts } : {}),
     attachments,
   });
@@ -211,9 +229,53 @@ export class SlackAdapter implements ChannelAdapter {
   private state: ChannelStatus["state"] = "disabled";
   private error: string | undefined;
   private retrySeconds = 5;
+  private readonly memberProfiles = new Map<
+    string,
+    {
+      name: string;
+      kind: "human" | "bot" | "unknown";
+      expiresAt: number;
+    }
+  >();
+  private readonly memberPresence = new Map<
+    string,
+    { presence: "active" | "away" | "unknown"; presenceCheckedAt: number }
+  >();
+  private presenceRetryAt = 0;
+  private async getMemberPresence(user: string, signal: AbortSignal) {
+    const cached = this.memberPresence.get(user);
+    if (cached && Date.now() - cached.presenceCheckedAt < 60000) return cached;
+    const result: {
+      presence: "active" | "away" | "unknown";
+      presenceCheckedAt: number;
+    } = { presence: "unknown", presenceCheckedAt: Date.now() };
+    if (Date.now() < this.presenceRetryAt || signal.aborted) return result;
+    try {
+      const response = await slackApi(
+        "users.getPresence",
+        this.config.botToken,
+        { user },
+        false,
+        signal,
+      );
+      if (response.presence === "active" || response.presence === "away")
+        result.presence = response.presence;
+    } catch (cause) {
+      // Presence failure must not discard the roster or imply an offline user.
+      this.presenceRetryAt =
+        Date.now() +
+        (cause instanceof ChannelRateLimit ? Math.max(60, cause.seconds) : 60) *
+          1000;
+    }
+    if (this.memberPresence.size >= 10000)
+      this.memberPresence.delete(this.memberPresence.keys().next().value!);
+    this.memberPresence.set(user, result);
+    return result;
+  }
   constructor(
     readonly config: SlackConnection,
     private readonly receive: (event: ChannelEvent) => void,
+    private readonly rosterChanged?: (channel: string) => void,
   ) {}
   status(): ChannelStatus {
     return {
@@ -317,6 +379,19 @@ export class SlackAdapter implements ChannelAdapter {
             message.type === "events_api"
               ? normalizeSlack(this.config, message.payload)
               : undefined;
+          const payload = record(message.payload);
+          const membership = record(payload.event);
+          if (
+            message.type === "events_api" &&
+            payload.type === "event_callback" &&
+            payload.team_id === this.config.tenantId &&
+            payload.api_app_id === this.config.appId &&
+            ["member_joined_channel", "member_left_channel"].includes(
+              string(membership.type),
+            ) &&
+            string(membership.channel)
+          )
+            this.rosterChanged?.(string(membership.channel));
           if (event) this.receive(event);
           // The receiver persists first; a storage failure leaves the envelope unacknowledged for Slack's retry.
           socket.send(JSON.stringify({ envelope_id: message.envelope_id }));
@@ -357,6 +432,234 @@ export class SlackAdapter implements ChannelAdapter {
       );
     }
   }
+  async sendNative(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    recipient: string,
+  ) {
+    if (!/^[a-zA-Z0-9_-]+$/u.test(recipient) && recipient !== "*")
+      throw new Error("Invalid native bot identity.");
+    const result = await slackApi(
+      "chat.postMessage",
+      this.config.botToken,
+      {
+        channel: conversation.id,
+        text: `${recipient === "*" ? "" : `<@${recipient}> `}${text}`,
+        mrkdwn: true,
+        parse: "none",
+        unfurl_links: false,
+        unfurl_media: false,
+        client_msg_id: createHash("sha256")
+          .update(key)
+          .digest("hex")
+          .slice(0, 32)
+          .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/u, "$1-$2-$3-$4-$5"),
+      },
+      true,
+    );
+    if (!string(result.ts))
+      throw new DeliveryUncertain("Slack did not return a message ID.");
+    return string(result.ts);
+  }
+  async publish(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    _key: string,
+    authorize: () => void,
+  ): Promise<undefined> {
+    authorize();
+    const ticket = await slackApi(
+      "files.getUploadURLExternal",
+      this.config.botToken,
+      { filename: file.name, length: file.data.length },
+    );
+    const url = new URL(string(ticket.upload_url));
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "files.slack.com" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      !string(ticket.file_id)
+    )
+      throw new Error("Slack returned an invalid upload destination.");
+    authorize();
+    const response = await fetch(url, {
+      method: "POST",
+      body: new Uint8Array(file.data),
+      headers: { "Content-Type": "application/octet-stream" },
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+    }).catch(() => {
+      throw new ChannelUnavailable("Slack file upload is unavailable.");
+    });
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 60,
+      );
+    if (!response.ok) throw new Error("Slack file upload was rejected.");
+    authorize();
+    await slackApi(
+      "files.completeUploadExternal",
+      this.config.botToken,
+      {
+        files: [{ id: ticket.file_id, title: file.name }],
+        channel_id: conversation.id,
+      },
+      true,
+    );
+    // The file ID is not a message timestamp and must not enter message-map.
+    return undefined;
+  }
+  async groupMembers(conversation: ImConversation): Promise<ImGroupRoster> {
+    const ids = new Set<string>();
+    let error: ImGroupRoster["error"];
+    let cursor = "";
+    const signal = AbortSignal.timeout(10000);
+    const classify = (cause: unknown): NonNullable<ImGroupRoster["error"]> =>
+      cause instanceof SlackApiError && cause.code === "missing_scope"
+        ? "missing-scope"
+        : cause instanceof ChannelRateLimit
+          ? "rate-limited"
+          : "unavailable";
+    try {
+      for (let page = 0; page < 50; page++) {
+        const result = await slackApi(
+          "conversations.members",
+          this.config.botToken,
+          {
+            channel: conversation.id,
+            limit: 200,
+            ...(cursor ? { cursor } : {}),
+          },
+          false,
+          signal,
+        );
+        if (
+          !Array.isArray(result.members) ||
+          result.members.some((id: unknown) => typeof id !== "string" || !id)
+        )
+          throw new ChannelUnavailable("Invalid group membership response.");
+        for (const id of result.members) {
+          if (ids.size < 10000) ids.add(id);
+        }
+        const next = string(
+          record(result.response_metadata).next_cursor,
+        ).trim();
+        if (!next) {
+          cursor = "";
+          break;
+        }
+        if (next === cursor) {
+          error = "partial";
+          break;
+        }
+        cursor = next;
+      }
+      if (cursor) error = "partial";
+    } catch (cause) {
+      error = classify(cause);
+    }
+    const members: ImGroupRoster["members"] = [];
+    const userIds = [...ids];
+    for (let offset = 0; offset < userIds.length; offset += 8) {
+      const batch = await Promise.all(
+        userIds.slice(offset, offset + 8).map(async (userId) => {
+          let profile = this.memberProfiles.get(userId);
+          if ((!profile || profile.expiresAt <= Date.now()) && !error) {
+            try {
+              const result = await slackApi(
+                "users.info",
+                this.config.botToken,
+                { user: userId },
+                false,
+                signal,
+              );
+              const user = record(result.user),
+                details = record(user.profile);
+              if (user.id !== userId)
+                throw new ChannelUnavailable("Member identity mismatch.");
+              profile = {
+                name: (
+                  string(details.display_name).trim() ||
+                  string(details.real_name).trim() ||
+                  string(user.real_name).trim() ||
+                  string(user.name).trim() ||
+                  userId
+                ).slice(0, 200),
+                kind:
+                  user.is_bot === true || user.is_app_user === true
+                    ? "bot"
+                    : user.is_bot === false
+                      ? "human"
+                      : "unknown",
+                expiresAt: Date.now() + 3600000,
+              };
+              if (this.memberProfiles.size >= 10000)
+                this.memberProfiles.delete(
+                  this.memberProfiles.keys().next().value!,
+                );
+              this.memberProfiles.set(userId, profile);
+            } catch (cause) {
+              error = classify(cause);
+            }
+          }
+          return {
+            identity: {
+              channel: "slack" as const,
+              connectionId: this.config.id,
+              tenantId: this.config.tenantId,
+              appId: this.config.appId,
+              userId,
+            },
+            ...(await this.getMemberPresence(userId, signal)),
+            name: profile?.name ?? userId,
+            kind:
+              userId === this.config.botUserId
+                ? ("bot" as const)
+                : (profile?.kind ?? ("unknown" as const)),
+            ...(userId === this.config.botUserId ? { self: true } : {}),
+          };
+        }),
+      );
+      members.push(...batch);
+    }
+    return { members, complete: !error, ...(error ? { error } : {}) };
+  }
+  async groupInfo(conversation: ImConversation) {
+    try {
+      const result = await slackApi(
+        "conversations.info",
+        this.config.botToken,
+        { channel: conversation.id },
+      );
+      const channel = record(result.channel);
+      if (channel.id !== conversation.id)
+        throw new ChannelUnavailable("Group identity was not returned.");
+      return {
+        ...(string(channel.name)
+          ? { name: string(channel.name).slice(0, 100) }
+          : {}),
+        ...(channel.is_archived === true
+          ? { unavailable: "archived" as const }
+          : channel.is_member === false
+            ? { unavailable: "removed" as const }
+            : {}),
+      };
+    } catch (error) {
+      if (error instanceof SlackApiError && error.code === "missing_scope")
+        return { nameError: "missing-scope" as const };
+      if (
+        error instanceof SlackApiError &&
+        ["channel_not_found", "access_denied", "not_in_channel"].includes(
+          error.code,
+        )
+      )
+        return { unavailable: "access-denied" as const };
+      throw error;
+    }
+  }
   async send(
     conversation: ImConversation,
     text: string,
@@ -388,12 +691,10 @@ export class SlackAdapter implements ChannelAdapter {
       this.config.botToken,
       {
         channel: conversation.id,
-        text: text
-          .replace(commandOutput, (value) => value.replace("/", ""))
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;"),
-        mrkdwn: false,
+        text: formatSlackMarkdown(text, (value) =>
+          value.replace(commandOutput, (match) => match.replace("/", "")),
+        ),
+        mrkdwn: true,
         parse: "none",
         link_names: false,
         unfurl_links: false,
