@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "Ожидание подтверждения на телефоне…",
   "ImFeishuScan.message5": "Приложение «{{name}}» создано и подключено.",
   "ImFeishuScan.message6": "Сканирование не завершено или истекло. Повторите попытку.",
-  "ImFeishuScan.message9": "Отмена"
+  "ImFeishuScan.message9": "Отмена",
+  "ImSettingsPanel.imChannelsTitle": "Каналы IM",
+  "ImSettingsPanel.channelBack": "Назад",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} ботов",
+  "ImSettingsPanel.projectsSummary": "{{value1}} проектов · общие для всех каналов"
 }

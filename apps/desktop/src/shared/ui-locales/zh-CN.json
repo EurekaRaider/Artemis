@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "等待手机确认…",
   "ImFeishuScan.message5": "已创建并连接「{{name}}」。",
   "ImFeishuScan.message6": "扫码未完成或已过期，请重试。",
-  "ImFeishuScan.message9": "取消"
+  "ImFeishuScan.message9": "取消",
+  "ImSettingsPanel.imChannelsTitle": "IM 渠道",
+  "ImSettingsPanel.channelBack": "返回",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} 个机器人",
+  "ImSettingsPanel.projectsSummary": "{{value1}} 个项目 · 所有渠道通用"
 }

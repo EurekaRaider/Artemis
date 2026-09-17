@@ -10311,64 +10311,106 @@ kbd {
   font-style: normal;
   opacity: 0.85;
 }
-/* ===== 三步版（2026-09 原型迁移）：② 渠道 tab 条 / ②尾验证段 / ③尾完成仪式 ===== */
-/* 渠道 tab 吸顶：停靠线必须与滚动容器的 overflow 裁剪线重合。Chromium 的 sticky
-   参照滚动容器 content box 顶（= 裁剪线 + padding-top）；设置面板滚动容器是
-   [data-part="content"]（packages/ui，padding 18px 22px）——top: -18px 抵消这段
-   padding，否则停靠线上方留出穿透带，滚过的内容从 tab 条上方露出（原型已踩）。
-   背景必须不透明（surface-base 与面板同底），否则内容从条后透出。 */
-.im-channel-tabs {
-  position: sticky;
-  top: -18px;
-  z-index: 6;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  /* 下 margin 负值抵消 .im-flow-body 的 12px gap：条底 padding 直接贴住
-     渠道主体，避免 margin+gap+padding 三层间距叠加把内容推远 */
-  margin: 0 -14px -12px;
-  padding: 4px 14px 8px;
-  background: var(--artemis-color-surface-base);
+/* ===== 两栏布局（2026-09 定稿规划）：左=连接服务+授权项目，右=渠道列表/详情 ===== */
+/* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 状态摘要；点击下钻单渠道详情。
+   授权是设备级全局共用，行上不重复计数。 */
+.im-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  gap: 14px;
+  align-items: start;
 }
-.im-channel-tab {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+.im-col-left,
+.im-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 680px) {
+  .im-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+.im-channel-list {
   border: 1px solid var(--border-soft);
   border-radius: var(--artemis-radius-control, 8px);
-  background: var(--artemis-color-surface-base);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.im-channel-list-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.im-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--artemis-radius-control, 8px);
+  background: none;
   cursor: pointer;
   text-align: start;
+  color: inherit;
 }
-.im-channel-tab[aria-selected="true"] {
-  border-color: var(--artemis-color-border-strong, var(--border));
-  background: var(--selected);
+.im-channel-row:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
 }
-/* tab 仅渠道名 + 信号灯：未配置渠道名降为次要色，已配置（有连接/已存
-   凭据）提亮区分；连接状态由名称前信号灯表达（绿=正常/红=异常/黄=连接中）。 */
-.im-channel-tab strong {
-  font-size: 12.5px;
+.im-channel-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.im-channel-row > .im-channel-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.im-channel-row strong {
+  font-size: 13px;
   font-weight: 590;
   color: var(--muted);
 }
-.im-channel-tab[data-configured] strong {
+.im-channel-row[data-configured] strong {
   color: var(--text);
 }
-.im-channel-tab .im-dot {
+.im-channel-row-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-channel-row-summary .im-dot {
   flex: none;
 }
-.im-channel-tab[data-connection-state="error"] {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-soft));
+.im-channel-row-caret {
+  color: var(--muted);
 }
-/* 吸顶停靠态投影（scroll 监听加 .stuck）：与卡内滚过内容区分。 */
-.im-channel-tabs.stuck {
-  box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.28);
+/* 渠道详情（右栏下钻）：返回行 + 原渠道主体。 */
+.im-channel-detail {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  padding: 10px;
 }
-html[data-theme="dark"] .im-channel-tabs.stuck,
-:root[data-theme="dark"] .im-channel-tabs.stuck {
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.7);
+.im-channel-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.im-channel-detail-head strong {
+  font-size: 13px;
+  font-weight: 650;
 }
 /* ②尾「顺手验证」折叠段：与卡内容同层级，仅细分隔。 */
 .im-verify {

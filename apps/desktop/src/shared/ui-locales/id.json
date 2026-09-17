@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "Menunggu konfirmasi di ponsel…",
   "ImFeishuScan.message5": "\"{{name}}\" dibuat dan tersambung.",
   "ImFeishuScan.message6": "Pemindaian tidak selesai atau kedaluwarsa. Coba lagi.",
-  "ImFeishuScan.message9": "Batal"
+  "ImFeishuScan.message9": "Batal",
+  "ImSettingsPanel.imChannelsTitle": "Saluran IM",
+  "ImSettingsPanel.channelBack": "Kembali",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
+  "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran"
 }

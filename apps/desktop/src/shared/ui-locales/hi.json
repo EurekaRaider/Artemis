@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "फ़ोन पर पुष्टि की प्रतीक्षा…",
   "ImFeishuScan.message5": "\"{{name}}\" बनाया और कनेक्ट किया गया।",
   "ImFeishuScan.message6": "स्कैन पूरा नहीं हुआ या समाप्त हो गया। फिर से प्रयास करें।",
-  "ImFeishuScan.message9": "रद्द करें"
+  "ImFeishuScan.message9": "रद्द करें",
+  "ImSettingsPanel.imChannelsTitle": "IM चैनल",
+  "ImSettingsPanel.channelBack": "वापस",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} बॉट",
+  "ImSettingsPanel.projectsSummary": "{{value1}} प्रोजेक्ट · सभी चैनलों के लिए साझ़ा"
 }

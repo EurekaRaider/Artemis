@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "في انتظار التأكيد على الهاتف…",
   "ImFeishuScan.message5": "تم إنشاء \"{{name}}\" وربطه.",
   "ImFeishuScan.message6": "لم يكتمل المسح أو انتهت صلاحيته. حاول مرة أخرى.",
-  "ImFeishuScan.message9": "إلغاء"
+  "ImFeishuScan.message9": "إلغاء",
+  "ImSettingsPanel.imChannelsTitle": "قنوات المراسلة",
+  "ImSettingsPanel.channelBack": "رجوع",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} روبوت",
+  "ImSettingsPanel.projectsSummary": "{{value1}} مشاريع · مشتركة بين كل القنوات"
 }

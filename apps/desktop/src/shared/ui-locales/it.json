@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "In attesa di conferma sul telefono…",
   "ImFeishuScan.message5": "\"{{name}}\" creato e connesso.",
   "ImFeishuScan.message6": "La scansione non è stata completata o è scaduta. Riprova.",
-  "ImFeishuScan.message9": "Annulla"
+  "ImFeishuScan.message9": "Annulla",
+  "ImSettingsPanel.imChannelsTitle": "Canali IM",
+  "ImSettingsPanel.channelBack": "Indietro",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
+  "ImSettingsPanel.projectsSummary": "{{value1}} progetti · condivisi da tutti i canali"
 }

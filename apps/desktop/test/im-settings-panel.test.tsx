@@ -142,16 +142,23 @@ const openCard = async (
   if (head.getAttribute("aria-expanded") !== "true") await user.click(head);
 };
 const platformCard = (channel: keyof typeof platformLabels) =>
-  within(document.querySelector(".im-channel-tabs") as HTMLElement).getByRole(
-    "tab",
+  within(document.querySelector(".im-channel-list") as HTMLElement).getByRole(
+    "button",
     { name: new RegExp(platformLabels[channel]) },
   );
+/* 渠道行下钻：先等面板加载完（原 openCard 的 findByRole 等待语义）。 */
+const openChannel = async (
+  user: ReturnType<typeof userEvent.setup>,
+  channel: keyof typeof platformLabels,
+) => {
+  await screen.findByRole("button", { name: /^连接服务/ });
+  await user.click(platformCard(channel));
+};
 const platformState = (channel: keyof typeof platformLabels) =>
   platformCard(channel).closest("[data-connection-state]") as HTMLElement;
 /* 三步版：群协作入口在②尾「顺手验证」段（或③尾仪式/概览）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
-  await openCard(user, /^接入渠道/);
-  await user.click(screen.getByRole("tab", { name: "Slack" }));
+  await openChannel(user, "slack");
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   await user.click(screen.getByRole("button", { name: "设置群协作（可选）" }));
 };
@@ -163,8 +170,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
-    await user.click(platformCard("slack"));
+    await openChannel(user, "slack");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     await user.type(screen.getByLabelText("Bot User OAuth Token"), "xoxb-test");
     await user.type(screen.getByLabelText("App-Level Token"), "xapp-test");
@@ -190,8 +196,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
-    await user.click(platformCard("slack"));
+    await openChannel(user, "slack");
     await user.click(screen.getByText(t("ImSettingsPanel.message59")));
     await user.click(
       screen.getByRole("button", { name: "复制 Slack 应用配置" }),
@@ -247,9 +252,8 @@ describe("production IM settings", () => {
       expect(cardHead(/^授权项目/)).toHaveAttribute("aria-expanded", "false");
       if (destination === "overview") {
         expect(document.querySelector(".im-overview")).toHaveFocus();
-        expect(cardHead(/^接入渠道/)).toHaveAttribute("aria-expanded", "false");
       } else {
-        expect(cardHead(/^接入渠道/)).toHaveAttribute("aria-expanded", "true");
+        expect(document.querySelector(".im-channel-detail")).toBeVisible();
         expect(
           screen.getByRole("button", { name: /^顺手验证/ }),
         ).toHaveAttribute("aria-expanded", "true");
@@ -273,8 +277,6 @@ describe("production IM settings", () => {
       });
       render(<ImSettingsPanel locale="zh-CN" />);
       await act(async () => {});
-      fireEvent.click(screen.getByRole("button", { name: /^接入渠道/ }));
-      const signal = () => platformCard(channel);
       expect(platformState(channel)).toHaveAttribute(
         "data-connection-state",
         "connected",
@@ -304,7 +306,7 @@ describe("production IM settings", () => {
     const f = fixture();
     render(<ImSettingsPanel locale="zh-CN" />);
     await act(async () => {});
-    fireEvent.click(screen.getByRole("button", { name: /^接入渠道/ }));
+    fireEvent.click(platformCard("wecom"));
     fireEvent.click(screen.getByRole("button", { name: /^更换凭据/ }));
     fireEvent.change(screen.getByLabelText("Bot Secret"), {
       target: { value: "unsaved-secret" },
@@ -391,10 +393,11 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    /* 挂载即选中已连接渠道；平台选择器已移除，配对说明随配对码框（生成后）展示。 */
+    /* 平台选择器已移除，配对平台随渠道行派生；配对说明随配对码框（生成后）展示。 */
     expect(
       screen.queryByRole("button", { name: /^配对平台/ }),
     ).not.toBeInTheDocument();
+    await openChannel(user, "feishu");
     await user.click(
       await screen.findByRole("button", { name: "生成配对码 Lark bot" }),
     );
@@ -404,8 +407,9 @@ describe("production IM settings", () => {
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     expect(document.querySelector("#im-test")).toHaveTextContent("/projects");
-    /* 切到 Slack tab：配对与验证指令整体切到 Slack 形态（无斜杠）。 */
-    await user.click(screen.getByRole("tab", { name: "Slack" }));
+    /* 返回列表切到 Slack：配对与验证指令整体切到 Slack 形态（无斜杠）。 */
+    await user.click(screen.getByRole("button", { name: "返回" }));
+    await openChannel(user, "slack");
     expect(
       screen.getByText(/在安装应用的 Slack 工作区中打开该应用的私信/),
     ).toBeVisible();
@@ -423,8 +427,7 @@ describe("production IM settings", () => {
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
-    await user.click(platformCard("feishu"));
+    await openChannel(user, "feishu");
     /* 凭据表单在弹窗内：新建入口 → 应用区域选 Lark。 */
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     const region = screen.getByRole("button", { name: /^应用区域/ });
@@ -449,19 +452,9 @@ describe("production IM settings", () => {
       }),
     );
   });
-  it.each([
-    {
-      channel: "wecom",
-      label: /^企业微信/,
-    },
-    { channel: "feishu", label: /^飞书 \/ Lark/ },
-    {
-      channel: "slack",
-      label: /^Slack/,
-    },
-  ] as const)(
+  it.each(["wecom", "feishu", "slack"] as const)(
     "removes a $channel bot without paired accounts, supports cancellation, and clears saved credentials",
-    async ({ channel, label }) => {
+    async (channel) => {
       const f = fixture();
       const selected = {
         ...connection,
@@ -487,12 +480,10 @@ describe("production IM settings", () => {
       });
       const user = userEvent.setup();
       render(<ImSettingsPanel locale="zh-CN" />);
-      /* 渠道切换走②卡 tab 条（role=tab，可访问名=渠道名）。移除走行尾
-         图标按钮 + 弹窗确认；取消路径用弹窗内「取消」按钮（jsdom 不派发
-         原生 dialog 的 Esc cancel 事件）。 */
-      if (channel !== "wecom")
-        await user.click(await screen.findByRole("tab", { name: label }));
-      else await screen.findByRole("button", { name: /^移除连接/ });
+      /* 渠道详情从列表行下钻。移除走行尾图标按钮 + 弹窗确认；取消路径
+         用弹窗内「取消」按钮（jsdom 不派发原生 dialog 的 Esc cancel 事件）。 */
+      await openChannel(user, channel);
+      await screen.findByRole("button", { name: /^移除连接/ });
       await user.click(screen.getByRole("button", { name: /^移除连接/ }));
       await user.click(screen.getByRole("button", { name: "取消" }));
       expect(
@@ -537,7 +528,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
+    await openChannel(user, "wecom");
     /* 机器人列表：每行自带移除图标（可访问名含连接名），直接定位 Second bot 行。 */
     await user.click(
       await screen.findByRole("button", { name: "移除连接 Second bot" }),
@@ -567,8 +558,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
-    await openCard(user, /^接入渠道/);
-    await user.click(platformCard("feishu"));
+    await openChannel(user, "feishu");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(
       screen.getByText("高级设置（通常无需修改）").closest("details"),
@@ -614,14 +604,12 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
-    await openCard(user, /^接入渠道/);
-    await user.click(platformCard("feishu"));
-    /* 三步版：渠道状态行已并入 tab（信号灯 + data-connection-state；
-        已存凭据以 data-configured 提亮表达）。 */
+    /* 两栏：初始态在列表行断言（未配置不亮灯）；操作进详情。 */
     expect(platformState("feishu")).toHaveAttribute(
       "data-connection-state",
       "unconfigured",
     );
+    await openChannel(user, "feishu");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     await user.type(screen.getByLabelText("App ID"), "cli_example");
     await user.type(
@@ -629,7 +617,8 @@ describe("production IM settings", () => {
       "synthetic-app-secret",
     );
     await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
-    // 保存成功但连接尚未建立：tab 提亮（已配置），状态仍为未配置。
+    // 保存成功但连接尚未建立：返回列表，行提亮（已配置），状态仍为未配置。
+    await user.click(screen.getByRole("button", { name: "返回" }));
     await waitFor(() =>
       expect(platformCard("feishu")).toHaveAttribute("data-configured"),
     );
@@ -805,9 +794,9 @@ describe("production IM settings", () => {
     expect(
       document.querySelector('.im-header [data-artemis-component="switch"]'),
     ).toHaveAttribute("data-label-visibility", "hidden");
-    /* 三步版②摘要：配对谓词优先（已连接+已绑定 → 已连接 · 渠道名）。 */
-    expect(cardHead(/^接入渠道/)).toHaveTextContent("已连接 · 企业微信");
-    await openCard(user, /^接入渠道/);
+    /* 两栏：wecom 存量连接在渠道列表可见（未配置渠道不出现）。 */
+    expect(platformCard("wecom")).toBeVisible();
+    await openChannel(user, "wecom");
     const change = screen.getByRole("button", { name: /^更换凭据/ });
     const bot = document.getElementById("im-bot")!;
     expect(
@@ -835,13 +824,11 @@ describe("production IM settings", () => {
       failed: 1,
       state: "partial_error",
     });
-    /* 三步版：②摘要按配对谓词（该渠道已连接+已绑定）优先；部分失败明细
-       留给渠道 tab 的连接状态（partial_error），不再挤进步骤摘要。 */
-    expect(cardHead(/^接入渠道/)).toHaveTextContent("已连接 · 企业微信");
-    await openCard(user, /^接入渠道/);
-    expect(
-      screen.queryByRole("tab", { name: "企业微信" }),
-    ).not.toBeInTheDocument();
+    /* 两栏：部分失败明细由渠道行信号灯表达（partial_error）。 */
+    expect(platformState("wecom")).toHaveAttribute(
+      "data-connection-state",
+      "partial_error",
+    );
     expect(f.get().identities).toEqual([identity]);
   });
   it("defaults a new Feishu bot to a long connection without callback secrets", async () => {
@@ -849,8 +836,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("button", { name: /^连接服务/ });
-    await openCard(user, /^接入渠道/);
-    await user.click(platformCard("feishu"));
+    await openChannel(user, "feishu");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(screen.getByLabelText("接入方式")).toHaveTextContent("长连接");
     expect(
@@ -871,9 +857,9 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 引导流②卡自动展开（无连接）：新建入口打开凭据弹窗。
+    // 引导流：无连接时渠道步自动下钻（原②卡自动展开），新建入口直达。
     await screen.findByRole("button", { name: "新建 BOT 连接" });
-    expect(platformCard("slack")).toHaveAttribute("aria-selected", "true");
+    expect(document.querySelector(".im-channel-detail")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     await screen.findByLabelText("Bot User OAuth Token");
     for (const [label, value] of [
@@ -900,6 +886,7 @@ describe("production IM settings", () => {
       render(<ImSettingsPanel locale="zh-CN" />);
     });
     expect(screen.getByRole("button", { name: /^连接服务/ })).toBeVisible();
+    fireEvent.click(platformCard("wecom"));
     const old = structuredClone(f.get());
     let finishRefresh!: (value: Status) => void;
     f.manage.mockImplementationOnce(
@@ -930,16 +917,15 @@ describe("production IM settings", () => {
     const f = fixture(false);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    expect(await screen.findByText("设置进度 0/3")).toBeVisible();
-    for (const title of ["连接服务", "接入渠道", "授权项目"])
+    expect(await screen.findByText("IM 渠道")).toBeVisible();
+    for (const title of ["连接服务", "授权项目"])
       expect(
         screen.getByRole("button", { name: new RegExp(`^${title}`) }),
       ).toBeInTheDocument();
     // D1：未注册设备的首次流程不出现总开关。
     expect(screen.queryByRole("switch", { name: "启用 IM 连接" })).toBeNull();
-    // ②卡展开可见渠道 tab（仅渠道名+信号灯）；回到①卡一键启动后进入②的渠道编辑。
-    await user.click(screen.getByRole("button", { name: /^接入渠道/ }));
-    expect(screen.getByRole("tab", { name: /飞书 \/ Lark/ })).toBeVisible();
+    // 渠道列表常显（品牌图标+名称+信号灯）；①卡一键启动后进入渠道编辑。
+    expect(platformCard("feishu")).toBeVisible();
     expect(screen.queryByText("长连接或 HTTPS 回调")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^连接服务/ }));
     await user.click(screen.getByRole("button", { name: "一键启动并注册" }));
@@ -984,14 +970,11 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 完成态直接进入概览：三卡全绿可见、总开关新家（D1）、不重跑流程。
+    // 完成态直接进入概览：左栏两卡全绿、总开关新家（D1）、不重跑流程。
     expect(
-      await screen.findByText("已连接 · 企业微信", {
-        selector: ".im-flow-summary",
-      }),
+      await screen.findByText(/2 个项目 · 所有渠道通用/),
     ).toBeVisible();
     expect(screen.getAllByRole("switch")).toHaveLength(1);
-    expect(screen.queryByText("设置进度 3/3")).toBeNull();
     // 概览分区可展开编辑，配置不被清除；授权设置在行右侧按钮的聚焦弹窗里。
     await openCard(user, /^授权项目/);
     await user.click(screen.getByRole("button", { name: "授权配置" }));
@@ -999,7 +982,7 @@ describe("production IM settings", () => {
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
     // 临时会话计入④摘要；默认项目以临时会话行的徽章呈现（无下拉）。
-    expect(screen.getAllByText("2 个项目").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/2 个项目/).length).toBeGreaterThan(0);
     expect(
       document.querySelector(".im-project-builtin .im-default-badge"),
     ).toBeVisible();
@@ -1032,7 +1015,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
+    await openChannel(user, "wecom");
     await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
     expect(screen.getByLabelText("连接 ID")).toHaveValue("wecom-team");
     expect(screen.getByLabelText("Bot ID")).toHaveValue("test-bot");
@@ -1047,7 +1030,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
+    await openChannel(user, "wecom");
     await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
     await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
     await user.type(
@@ -1066,7 +1049,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
+    await openChannel(user, "wecom");
     await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
     await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
     await user.type(
@@ -1329,7 +1312,8 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 配对请求卡片已内聚进配对码弹窗：从机器人行打开弹窗后再审批。
+    // 配对请求卡片已内聚进配对码弹窗：下钻机器人所在渠道后从行内打开弹窗审批。
+    await openChannel(user, "wecom");
     await user.click(
       await screen.findByRole("button", { name: "生成配对码 Test bot" }),
     );
@@ -1380,7 +1364,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openCard(user, /^接入渠道/);
+    await openChannel(user, "wecom");
     const trigger = await screen.findByRole("button", { name: "解除绑定" });
     await user.click(trigger);
     expect(screen.getByRole("button", { name: "确认解除" })).toHaveFocus();
@@ -1578,7 +1562,7 @@ describe("pairing code lifecycle", () => {
     expect(
       screen.queryByRole("button", { name: "设置群协作" }),
     ).not.toBeInTheDocument();
-    await openCard(user, /^接入渠道/);
+    await openChannel(user, "wecom");
     await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     const track = screen.getByRole("list", { name: "测试任务进度" });
     /* 真实信号推进：仅「桌面出现任务」由系统检测置 done；后续两段等用户确认。 */
@@ -1634,8 +1618,17 @@ describe("pairing code lifecycle", () => {
       window.dispatchEvent(new Event("focus"));
     });
     expect(await screen.findByText(/有已完成步骤被重置/)).toBeVisible();
-    expect(screen.getByText("还没有机器人，先添加一个")).toBeVisible();
     expect(screen.getByRole("button", { name: "继续设置" })).toBeVisible();
+    // 继续设置回到引导流：无已配置渠道自动下钻，空态文案在渠道详情内。
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "继续设置" }),
+      ).toBeEnabled(),
+    );
+    await user.click(screen.getByRole("button", { name: "继续设置" }));
+    expect(
+      await screen.findByText("尚未保存机器人连接"),
+    ).toBeVisible();
   });
 });
 
@@ -1643,7 +1636,7 @@ it("hides WeCom group setup while retaining direct-chat setup and other platform
   fixture();
   const user = userEvent.setup();
   render(<ImSettingsPanel locale="zh-CN" />);
-  await openCard(user, /^接入渠道/);
+  await openChannel(user, "wecom");
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(
     screen.queryByRole("button", { name: /设置群协作/ }),
@@ -1651,8 +1644,10 @@ it("hides WeCom group setup while retaining direct-chat setup and other platform
   expect(
     screen.getByRole("button", { name: "生成配对码 Test bot" }),
   ).toBeVisible();
-  await user.click(screen.getByRole("tab", { name: "Slack" }));
+  await user.click(screen.getByRole("button", { name: "返回" }));
+  await openChannel(user, "slack");
   expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
-  await user.click(screen.getByRole("tab", { name: /飞书/ }));
+  await user.click(screen.getByRole("button", { name: "返回" }));
+  await openChannel(user, "feishu");
   expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
 });

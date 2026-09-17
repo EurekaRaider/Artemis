@@ -420,8 +420,10 @@ describe("screenshot visual contracts", () => {
     });
   });
   it("keeps the IM platform chooser bordered and its secondary actions compact", () => {
-    expect(declarations(desktop, ".im-channel-tab")).toMatchObject({
+    expect(declarations(desktop, ".im-channel-list")).toMatchObject({
       border: "1px solid var(--border-soft)",
+    });
+    expect(declarations(desktop, ".im-channel-row")).toMatchObject({
       "text-align": "start",
     });
     expect(declarations(desktop, ".im-icon-action")).toMatchObject({

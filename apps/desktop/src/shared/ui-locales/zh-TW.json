@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "等待手機確認…",
   "ImFeishuScan.message5": "已建立並連線「{{name}}」。",
   "ImFeishuScan.message6": "掃碼未完成或已過期，請重試。",
-  "ImFeishuScan.message9": "取消"
+  "ImFeishuScan.message9": "取消",
+  "ImSettingsPanel.imChannelsTitle": "IM 頻道",
+  "ImSettingsPanel.channelBack": "返回",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} 個機器人",
+  "ImSettingsPanel.projectsSummary": "{{value1}} 個專案 · 所有頻道通用"
 }

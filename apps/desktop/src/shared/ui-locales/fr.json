@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "En attente de confirmation sur le téléphone…",
   "ImFeishuScan.message5": "« {{name}} » a été créé et connecté.",
   "ImFeishuScan.message6": "Le scan n'a pas abouti ou a expiré. Réessayez.",
-  "ImFeishuScan.message9": "Annuler"
+  "ImFeishuScan.message9": "Annuler",
+  "ImSettingsPanel.imChannelsTitle": "Canaux IM",
+  "ImSettingsPanel.channelBack": "Retour",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} robots",
+  "ImSettingsPanel.projectsSummary": "{{value1}} projets · partagés par tous les canaux"
 }

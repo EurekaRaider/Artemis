@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "Aguardando confirmação no celular…",
   "ImFeishuScan.message5": "\"{{name}}\" criado e conectado.",
   "ImFeishuScan.message6": "A digitalização não foi concluída ou expirou. Tente novamente.",
-  "ImFeishuScan.message9": "Cancelar"
+  "ImFeishuScan.message9": "Cancelar",
+  "ImSettingsPanel.imChannelsTitle": "Canais de IM",
+  "ImSettingsPanel.channelBack": "Voltar",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
+  "ImSettingsPanel.projectsSummary": "{{value1}} projetos · compartilhados por todos os canais"
 }

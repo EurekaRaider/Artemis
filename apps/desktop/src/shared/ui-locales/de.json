@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "Warte auf Bestätigung auf dem Telefon…",
   "ImFeishuScan.message5": "„{{name}}“ wurde erstellt und verbunden.",
   "ImFeishuScan.message6": "Der Scan wurde nicht abgeschlossen oder ist abgelaufen. Bitte erneut versuchen.",
-  "ImFeishuScan.message9": "Abbrechen"
+  "ImFeishuScan.message9": "Abbrechen",
+  "ImSettingsPanel.imChannelsTitle": "IM-Kanäle",
+  "ImSettingsPanel.channelBack": "Zurück",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} Bots",
+  "ImSettingsPanel.projectsSummary": "{{value1}} Projekte · für alle Kanäle freigegeben"
 }

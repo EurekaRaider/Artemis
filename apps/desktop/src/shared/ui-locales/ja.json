@@ -1470,5 +1470,9 @@
   "ImFeishuScan.message4": "スマホでの確認を待っています…",
   "ImFeishuScan.message5": "「{{name}}」を作成して接続しました。",
   "ImFeishuScan.message6": "スキャンが完了しないか、有効期限が切れました。もう一度お試しください。",
-  "ImFeishuScan.message9": "キャンセル"
+  "ImFeishuScan.message9": "キャンセル",
+  "ImSettingsPanel.imChannelsTitle": "IM チャネル",
+  "ImSettingsPanel.channelBack": "戻る",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} 個のボット",
+  "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通"
 }
