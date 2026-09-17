@@ -39,7 +39,7 @@
   cursor: pointer;
 }
 .brand-button strong {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
 }
 .sidebar-collapse {
@@ -81,12 +81,12 @@
   align-items: center;
   gap: 9px;
   inline-size: 100%;
-  block-size: 32px;
+  block-size: 34px;
   padding: 0 10px;
   border-radius: 8px;
   color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 510;
+  font-size: 13.5px;
+  font-weight: 530;
   cursor: pointer;
   text-align: start;
 }
@@ -181,25 +181,25 @@
   opacity: 0;
 }
 .sidebar .sidebar-footer {
-  gap: 7px;
-  padding: 6px 10px 8px 14px;
-  block-size: 44px;
-  min-block-size: 44px;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  block-size: 56px;
+  min-block-size: 56px;
 }
 .sidebar .local-indicator {
   flex: 1;
   min-inline-size: 0;
 }
 .sidebar .sidebar-profile-avatar {
-  inline-size: 22px;
-  block-size: 22px;
+  inline-size: 40px;
+  block-size: 40px;
   flex: none;
 }
 .sidebar .app-version {
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted-2);
   white-space: nowrap;
 }
@@ -242,11 +242,11 @@
 .rail-avatar {
   display: grid;
   place-items: center;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: 32px;
+  block-size: 32px;
   border-radius: 50%;
   background: var(--selected);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .workspace-header {
