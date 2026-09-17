@@ -14,6 +14,7 @@ import {
   validateCustomAgentToolPolicy,
 } from "./custom-agent-validation.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
+import { SleepPrevention } from "./sleep-prevention.js";
 import { ImService } from "./im-service.js";
 import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
@@ -56,6 +57,7 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  powerSaveBlocker,
   net,
   Notification,
   safeStorage,
@@ -724,6 +726,7 @@ const activeTurns = new Map<string, string>();
 const cleaningWorktreeThreads = new Set<string>();
 const cancellingTurns = new Set<string>();
 const compactingThreads = new Set<string>();
+const sleepPrevention = new SleepPrevention(powerSaveBlocker);
 const compactionFollowUps = new RecoverableTurnQueues();
 const pendingApprovals = new PendingApprovalRegistry<PendingApproval>();
 const pendingUserInputs = new PendingUserInputRegistry<PendingUserInput>();
@@ -1907,6 +1910,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     encryptionAvailable: settingsStore.encryptionAvailable,
     language,
     theme,
+    preventSleep: await settingsStore.preventSleepPreference(),
     resolvedLocale: currentLocale(),
     approvalPolicy,
     localFullAccess,
@@ -7025,6 +7029,15 @@ function registerIpc(): void {
         languagePreference,
         app.getPreferredSystemLanguages(),
       );
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsPreventSleepSet,
+    async (_event, enabled: boolean): Promise<SettingsSnapshot> => {
+      if (!settingsStore) throw new Error("Agent settings are not ready.");
+      await settingsStore.setPreventSleepPreference(enabled);
+      sleepPrevention.setEnabled(enabled);
       return getSettingsSnapshot();
     },
   );
@@ -21306,6 +21319,7 @@ app
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
     );
     imService.start();
+    sleepPrevention.setEnabled(await settingsStore.preventSleepPreference());
     const systemMemory = process.getSystemMemoryInfo();
     agentCapacityController = new AgentCapacityController(
       await settingsStore.agentConcurrencyPreference(),
@@ -21600,6 +21614,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   shuttingDown = true;
+  sleepPrevention.dispose();
   imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     if (pending.value.timeout !== undefined) {

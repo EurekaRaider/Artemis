@@ -258,6 +258,8 @@ const api: ArtemisApi = {
   setLanguage: (language) =>
     ipcRenderer.invoke(IPC.settingsLanguageSet, language),
   setTheme: (theme) => ipcRenderer.invoke(IPC.settingsThemeSet, theme),
+  setPreventSleep: (enabled) =>
+    ipcRenderer.invoke(IPC.settingsPreventSleepSet, enabled),
   setApprovalPolicy: (policy) =>
     ipcRenderer.invoke(IPC.settingsApprovalPolicySet, policy),
   setLocalFullAccess: (enabled) =>

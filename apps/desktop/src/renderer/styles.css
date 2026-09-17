@@ -10771,22 +10771,10 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   color: var(--artemis-color-text-tertiary);
   max-width: 52ch;
 }
-.settings-preference-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border-soft);
-}
 .settings-row-label {
   font-size: 13px;
   font-weight: 510;
   flex: 1;
-  min-width: 0;
-}
-.settings-preference-row > [data-artemis-component="select"] {
-  flex: 0 1 auto;
-  max-width: 65%;
   min-width: 0;
 }
 .settings-preference-row [data-part="trigger"] {

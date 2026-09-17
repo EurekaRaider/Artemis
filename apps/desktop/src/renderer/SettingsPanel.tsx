@@ -1141,53 +1141,69 @@ export function SettingsPanel({
                     </div>
                   </ManagementSection>
 
-                  <ManagementSection
-                    className="settings-section"
-                    title={t.language}
+                  <SettingsRow
+                    className="settings-preference-row"
+                    label={t.language}
+                    description={t.languageHint}
                   >
-                    <div className="settings-preference-row">
-                      <span className="settings-row-label">{t.language}</span>
-                      <Select<AppLanguage>
-                        size="compact"
-                        labelVisibility="hidden"
-                        label={t.language}
-                        disabled={busy}
-                        onValueChange={(language) => void setLanguage(language)}
-                        options={[
-                          { value: "system", label: t.languageSystem },
-                          ...SUPPORTED_LOCALES.map((language) => ({
-                            value: language,
-                            label: LOCALE_METADATA[language].nativeName,
-                          })),
-                        ]}
-                        value={settings.language}
-                      />
-                    </div>
-                    <p className="settings-hint">{t.languageHint}</p>
-                  </ManagementSection>
+                    <Select<AppLanguage>
+                      size="compact"
+                      labelVisibility="hidden"
+                      label={t.language}
+                      disabled={busy}
+                      onValueChange={(language) => void setLanguage(language)}
+                      options={[
+                        { value: "system", label: t.languageSystem },
+                        ...SUPPORTED_LOCALES.map((language) => ({
+                          value: language,
+                          label: LOCALE_METADATA[language].nativeName,
+                        })),
+                      ]}
+                      value={settings.language}
+                    />
+                  </SettingsRow>
 
-                  <ManagementSection
-                    className="settings-section"
-                    title={t.theme}
+                  <SettingsRow
+                    className="settings-preference-row"
+                    label={t.theme}
+                    description={t.themeHint}
                   >
-                    <div className="settings-preference-row">
-                      <span className="settings-row-label">{t.theme}</span>
-                      <Select<AppTheme>
-                        size="compact"
-                        labelVisibility="hidden"
-                        label={t.theme}
-                        disabled={busy}
-                        onValueChange={(theme) => void setTheme(theme)}
-                        options={[
-                          { value: "system", label: t.themeSystem },
-                          { value: "light", label: t.themeLight },
-                          { value: "dark", label: t.themeDark },
-                        ]}
-                        value={settings.theme}
-                      />
-                    </div>
-                    <p className="settings-hint">{t.themeHint}</p>
-                  </ManagementSection>
+                    <Select<AppTheme>
+                      size="compact"
+                      labelVisibility="hidden"
+                      label={t.theme}
+                      disabled={busy}
+                      onValueChange={(theme) => void setTheme(theme)}
+                      options={[
+                        { value: "system", label: t.themeSystem },
+                        { value: "light", label: t.themeLight },
+                        { value: "dark", label: t.themeDark },
+                      ]}
+                      value={settings.theme}
+                    />
+                  </SettingsRow>
+                  <SettingsRow
+                    label={uiText(locale, "SettingsPanel.preventSleep")}
+                    description={uiText(
+                      locale,
+                      "SettingsPanel.preventSleepHint",
+                    )}
+                  >
+                    <Switch
+                      checked={settings.preventSleep ?? true}
+                      disabled={busy}
+                      label={uiText(locale, "SettingsPanel.preventSleep")}
+                      labelVisibility="hidden"
+                      onCheckedChange={(checked) =>
+                        void run(async () => {
+                          const updated =
+                            await window.artemis.setPreventSleep(checked);
+                          setSettings(updated);
+                          onSettingsChange(updated);
+                        })
+                      }
+                    />
+                  </SettingsRow>
                 </>
               )}
 

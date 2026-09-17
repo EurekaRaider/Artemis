@@ -49,6 +49,7 @@ interface PersistedSettings {
   addedModels?: AddedModelConfiguration[];
   language?: AppLanguage;
   theme?: AppTheme;
+  preventSleep?: boolean;
   approvalPolicy?: ApprovalPolicy;
   localFullAccess?: boolean;
   shell?: ShellRuntimeConfiguration;
@@ -315,6 +316,18 @@ export class EncryptedSettingsStore {
   async setLanguagePreference(language: AppLanguage): Promise<void> {
     const settings = await this.load();
     settings.language = appLanguageSchema.parse(language);
+    await this.save(settings);
+  }
+
+  async preventSleepPreference(): Promise<boolean> {
+    return (await this.load()).preventSleep ?? true;
+  }
+
+  async setPreventSleepPreference(enabled: boolean): Promise<void> {
+    if (typeof enabled !== "boolean")
+      throw new Error("Invalid sleep preference.");
+    const settings = await this.load();
+    settings.preventSleep = enabled;
     await this.save(settings);
   }
 
@@ -784,6 +797,8 @@ export class EncryptedSettingsStore {
         typeof parsed.credentials !== "object" ||
         (parsed.language !== undefined &&
           !appLanguageSchema.safeParse(parsed.language).success) ||
+        (parsed.preventSleep !== undefined &&
+          typeof parsed.preventSleep !== "boolean") ||
         (parsed.theme !== undefined &&
           !appThemeSchema.safeParse(parsed.theme).success) ||
         (parsed.approvalPolicy !== undefined &&

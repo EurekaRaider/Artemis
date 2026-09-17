@@ -41,6 +41,28 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("defaults sleep prevention on and persists an explicit opt-out", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.preventSleepPreference()).resolves.toBe(true);
+    await store.setPreventSleepPreference(false);
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.preventSleepPreference()).resolves.toBe(false);
+    await expect(
+      reopened.setPreventSleepPreference("false" as unknown as boolean),
+    ).rejects.toThrow();
+    await expect(reopened.preventSleepPreference()).resolves.toBe(false);
+    await reopened.setPreventSleepPreference(true);
+    await expect(
+      new EncryptedSettingsStore(
+        filePath,
+        new FakeSafeStorage(),
+      ).preventSleepPreference(),
+    ).resolves.toBe(true);
+  });
+
   it("persists validated project ordering", async () => {
     const { filePath, store } = await createStore();
     await expect(store.projectOrder()).resolves.toEqual([]);

@@ -1460,5 +1460,7 @@
   "ImDelegation.interrupted": "Waiting ended",
   "ImDelegation.retry": "Retry",
   "ImDelegation.retryHint": "No automatic retry. Choose Retry only when you want to delegate again. A timed-out peer may still be running.",
-  "ImDelegation.continueWaiting": "Keep waiting"
+  "ImDelegation.continueWaiting": "Keep waiting",
+  "SettingsPanel.preventSleep": "Ruhezustand verhindern, solange Artemis geöffnet ist",
+  "SettingsPanel.preventSleepHint": "Hält diesen Computer wach, solange Artemis läuft, auch im Hintergrund. Der Bildschirm darf sich ausschalten. Beim Beenden oder Deaktivieren gelten wieder die normalen Energieeinstellungen."
 }

@@ -1460,5 +1460,7 @@
   "ImDelegation.interrupted": "等待已結束",
   "ImDelegation.retry": "重新委派",
   "ImDelegation.retryHint": "不會自動重派。請確認是否重新委派；逾時的隊友任務可能仍在執行。",
-  "ImDelegation.continueWaiting": "繼續等待"
+  "ImDelegation.continueWaiting": "繼續等待",
+  "SettingsPanel.preventSleep": "執行時防止系統休眠",
+  "SettingsPanel.preventSleepHint": "只要 Artemis 仍在執行（包括背景），就讓本機保持喚醒，螢幕仍可關閉。結束 Artemis 或關閉此開關後恢復正常休眠。"
 }
