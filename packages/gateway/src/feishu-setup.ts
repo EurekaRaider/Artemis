@@ -49,17 +49,23 @@ export async function resolveFeishuConnection(
     "无法自动获取飞书企业标识。请在权限管理中开启「获取企业信息」并发布应用后重试；也可在高级设置填写真实 Tenant Key。 / Enable Get tenant information and publish, or enter the real Tenant Key in Advanced settings.";
   const botHint =
     "无法自动获取机器人编号。请在应用能力中添加「机器人」并发布后重试。 / Add the Bot capability and publish the app, then retry.";
+  /* Scan-minted apps (PersonalAgent) cannot call the tenant query; their
+     websocket subscription adopts the tenant key from its first event. */
+  const websocket = setup.transport === "websocket";
   const [tenant, bot] = await Promise.all([
     setup.tenantId ??
-      request("tenant/v2/tenant/query", tenantHint, { headers }).then(
-        (result) => result.data?.tenant?.tenant_key,
-      ),
+      (websocket
+        ? ""
+        : request("tenant/v2/tenant/query", tenantHint, { headers }).then(
+            (result) => result.data?.tenant?.tenant_key,
+          )),
     setup.botOpenId ??
       request("bot/v3/info", botHint, { headers }).then(
         (result) => result.bot?.open_id,
       ),
   ]);
-  if (!z.string().min(1).safeParse(tenant).success) throw new Error(tenantHint);
+  if (!websocket && !z.string().min(1).safeParse(tenant).success)
+    throw new Error(tenantHint);
   if (!z.string().min(1).safeParse(bot).success) throw new Error(botHint);
   return channelConnectionSchema.options[1].parse({
     ...setup,

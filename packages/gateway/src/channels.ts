@@ -35,6 +35,10 @@ export const channelConnectionSchema = z
       .object({
         ...base,
         channel: z.literal("feishu"),
+        /* Scan-minted apps cannot query their tenant; a websocket subscription
+           is authenticated by the app credentials and adopts the tenant key
+           from its first event, so only that transport may start empty. */
+        tenantId: z.string().max(256),
         appId: z.string().min(1),
         botOpenId: z.string().min(1),
         appSecret: z.string().min(1),
@@ -68,6 +72,16 @@ export const channelConnectionSchema = z
             message: "Required for Feishu HTTPS callbacks.",
           });
       }
+    }
+    if (!connection.tenantId) {
+      const websocket =
+        connection.channel === "feishu" && connection.transport === "websocket";
+      if (!websocket)
+        context.addIssue({
+          code: "custom",
+          path: ["tenantId"],
+          message: "Required unless the Feishu websocket transport adopts it.",
+        });
     }
   });
 export type ChannelConnection = z.infer<typeof channelConnectionSchema>;

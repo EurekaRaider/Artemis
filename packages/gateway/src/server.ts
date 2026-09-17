@@ -299,10 +299,22 @@ export class ArtemisGateway {
                   return this.receiveFeishuCard(config.id, value);
                 },
                 (value) => this.receiveFeishuGroup(config, value),
+                (tenantId) => this.persistTenantId(config.id, tenantId),
               )
             : new FeishuAdapter(config));
     this.adapters.set(config.id, adapter);
     adapter.start();
+  }
+  /** Pin a websocket-adopted tenant key into the sealed connection config. */
+  private persistTenantId(id: string, tenantId: string): void {
+    const entry = this.store.get<{ sealed: string }>("connections", id);
+    if (!entry) return;
+    const current = this.store.unseal<ChannelConnection>(entry.sealed);
+    if (current.tenantId === tenantId) return;
+    this.store.put("connections", id, {
+      id,
+      sealed: this.store.seal({ ...current, tenantId }),
+    });
   }
   async listen(port = 8787, host = "127.0.0.1"): Promise<number> {
     await new Promise<void>((resolve, reject) => {

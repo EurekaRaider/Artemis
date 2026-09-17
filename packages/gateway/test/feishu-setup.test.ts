@@ -11,6 +11,14 @@ const setup = {
   appId: "cli_test",
   appSecret: "synthetic-secret",
 };
+/* The tenant query now serves callback transports only: websocket
+   connections adopt their tenant from the first event instead. */
+const callbackSetup = {
+  ...setup,
+  transport: "webhook",
+  verificationToken: "verify",
+  encryptKey: "encrypt",
+};
 let gateway: ArtemisGateway | undefined;
 afterEach(async () => {
   await gateway?.close();
@@ -45,7 +53,7 @@ function platform(tenant = "real-tenant") {
 it("resolves real Feishu identities from two credentials and restricts requests to the selected platform", async () => {
   const fetch = platform();
   expect(
-    await resolveFeishuConnection({ ...setup, domain: "lark" }),
+    await resolveFeishuConnection({ ...callbackSetup, domain: "lark" }),
   ).toMatchObject({
     tenantId: "real-tenant",
     botOpenId: "ou_bot",
@@ -79,7 +87,7 @@ it("fails with a useful hint and no leaked platform response when lookup is deni
   fetch.mockResolvedValueOnce(
     Response.json({ code: 999, msg: "echo synthetic-secret" }),
   );
-  const error = await resolveFeishuConnection(setup).catch(
+  const error = await resolveFeishuConnection(callbackSetup).catch(
     (error: Error) => error,
   );
   expect(error).toBeInstanceOf(Error);
@@ -94,7 +102,7 @@ it("does not save an empty identity or mistake the enterprise display number for
   fetch.mockResolvedValueOnce(
     Response.json({ code: 0, data: { tenant: { display_id: "F123" } } }),
   );
-  await expect(resolveFeishuConnection(setup)).rejects.toThrow("获取企业信息");
+  await expect(resolveFeishuConnection(callbackSetup)).rejects.toThrow("获取企业信息");
 });
 it("authenticates setup, encrypts the resolved connection and rejects changing its tenant", async () => {
   const fetchSpy = platform();
@@ -122,7 +130,7 @@ it("authenticates setup, encrypts the resolved connection and rejects changing i
     fetch(`${url}/v1/admin/connections`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify(setup),
+      body: JSON.stringify(callbackSetup),
     });
   expect((await save("wrong")).status).toBe(401);
   expect(
