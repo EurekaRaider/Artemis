@@ -3802,7 +3802,9 @@
     inline-size: 100%;
     block-size: 100%;
     overflow: hidden;
-    background: var(--artemis-color-surface-base);
+    /* 整块背板：surface-raised（深色 #2b2b2b，用户拍板），导航列与内容区
+       同色成一体；浅色下 raised 与 base 同为白色，视觉不变。 */
+    background: var(--artemis-color-surface-raised);
   }
 
   [data-artemis-component="settings-surface"] > [data-part="header"] {
@@ -3826,7 +3828,8 @@
     min-block-size: 0;
     padding: var(--artemis-space-3) var(--artemis-space-2);
     overflow: auto;
-    background: var(--artemis-color-surface-sunken);
+    /* 与面板背板同色（surface-raised），导航列不再凹陷；分隔线保留。 */
+    background: var(--artemis-color-surface-raised);
     border-inline-end: var(--artemis-border-width-default) solid
       var(--artemis-color-border-subtle);
   }
