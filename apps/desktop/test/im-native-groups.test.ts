@@ -1554,3 +1554,59 @@ it("lets a receiving worker wait for a prerequisite and resume its own assignmen
   await f.service.poll();
   expect(resume).toHaveBeenCalledTimes(1);
 });
+
+it.each([false, true])(
+  "reconciles deleted native workers from receipts (binding cleaned: %s) even after sharing changed",
+  async (cleanBinding) => {
+    const f = await delegatedFixture();
+    f.thread.status = "idle";
+    const nativeTaskId = randomUUID();
+    const request = {
+      ...f.request,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      text: "Query local RAM",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: f.request.deviceId,
+        coordinatorThreadId: f.request.id,
+        mission: "Query local RAM",
+      },
+    };
+    await f.service.accept(request);
+    const workerId = f.starts.at(-1)!;
+    f.gateway.store.put("invocations", request.id, {
+      ...request,
+      conversation: {
+        ...request.conversation,
+        spaceRevision: "previous-sharing",
+      },
+    });
+    f.gateway.store.put("native-tasks", nativeTaskId, {
+      ...f.task,
+      id: nativeTaskId,
+      invocationId: request.id,
+      threadId: workerId,
+      direction: "incoming",
+      state: "running",
+    });
+    f.threads.splice(
+      f.threads.findIndex((t) => t.id === workerId),
+      1,
+    );
+    if (cleanBinding) f.service.deleteThread(workerId);
+    await f.service.poll();
+    expect(
+      f.gateway.store.get<{ state: string }>("native-tasks", nativeTaskId)
+        ?.state,
+    ).toBe("cancelled");
+    await f.service.poll();
+    expect(f.starts.filter((id) => id === workerId)).toHaveLength(1);
+    expect(
+      f.gateway.store
+        .pending<{ native?: { task: string } }>("outgoing")
+        .filter((i) => i.payload.native?.task === nativeTaskId),
+    ).toHaveLength(0);
+  },
+);

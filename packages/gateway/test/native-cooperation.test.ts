@@ -1098,26 +1098,29 @@ it("carries a sequenced task heartbeat without overwriting the peer progress res
   });
 });
 
-it("rejects unqualified reverse dispatch even from a separate owner invocation", () => {
+it("allows new owner work despite an unrelated incoming task still running", () => {
   const f = pair();
-  delegate(f, "请告诉我你当前所在的项目名称是什么");
+  delegate(f, "Query your RAM");
   exchange(f.a, f.b);
   const owner = f.b.router.groupConversationContext(
     f.b.device.id,
     f.b.group.id,
   );
-  expect(() =>
-    f.b.router.native.command(owner, "other-thread", randomUUID(), {
+  const result = f.b.router.native.command(
+    owner,
+    "other-thread",
+    randomUUID(),
+    {
       action: "delegate",
       participantId: "A",
-      text: "William 让你告诉他：你现在项目的名称叫什么？",
-    }),
-  ).toThrow(/dependency/i);
+      text: "List your project's root folders",
+    },
+  ) as Array<{ id: string }>;
+  exchange(f.b, f.a);
   expect(
-    f.b.router.native
-      .tasks(f.b.group.id)
-      .filter((t) => t.direction === "outgoing"),
-  ).toHaveLength(0);
+    f.a.router.native.tasks(f.a.group.id).find((t) => t.id === result[0]!.id)
+      ?.direction,
+  ).toBe("incoming");
 });
 
 it("allows a distinct upstream dependency and returns its result to the worker", () => {
@@ -1204,7 +1207,7 @@ it("rejects unlinked reverse frames from older peers without creating a local ta
     ...task.envelope,
     id: randomUUID(),
     task: randomUUID(),
-    workflow: randomUUID(),
+    workflow: task.workflow,
     sender: "B",
     recipient: "A",
     action: "delegate",
@@ -1282,4 +1285,62 @@ it("rejects ancestor replay and duplicate pending dependencies without blocking 
       text: "Provide the required deployment region",
     }),
   ).not.toThrow();
+});
+
+it("closes a deleted local worker without changing completed work or another device's tasks", () => {
+  const f = pair();
+  delegate(f);
+  exchange(f.a, f.b);
+  const task = f.b.router.native.tasks(f.b.group.id)[0]!;
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: task.invocationId,
+    taskId: "worker",
+    text: "Working",
+    started: true,
+    final: false,
+  });
+  expect(() =>
+    f.b.router.native.localTaskDeleted(
+      f.a.device.id,
+      task.invocationId,
+      "worker",
+    ),
+  ).toThrow();
+  expect(() =>
+    f.b.router.native.localTaskDeleted(
+      f.b.device.id,
+      task.invocationId,
+      "wrong-thread",
+    ),
+  ).toThrow();
+  f.b.router.native.localTaskDeleted(
+    f.b.device.id,
+    task.invocationId,
+    "worker",
+  );
+  f.b.router.native.localTaskDeleted(
+    f.b.device.id,
+    task.invocationId,
+    "worker",
+  );
+  expect(f.b.router.native.tasks(f.b.group.id)[0]!.state).toBe("cancelled");
+  exchange(f.b, f.a);
+  expect(f.a.router.native.tasks(f.a.group.id)[0]!.state).toBe("cancelled");
+  f.b.store.put("native-tasks", task.id, {
+    ...task,
+    state: "completed",
+    result: "Done",
+    threadId: "worker",
+  });
+  f.b.router.native.localTaskDeleted(
+    f.b.device.id,
+    task.invocationId,
+    "worker",
+  );
+  expect(f.b.router.native.tasks(f.b.group.id)[0]).toMatchObject({
+    state: "completed",
+    result: "Done",
+  });
 });

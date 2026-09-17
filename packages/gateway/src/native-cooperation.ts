@@ -458,6 +458,7 @@ export class NativeCooperation {
             (t) =>
               t.direction === "outgoing" &&
               t.peer === envelope.sender &&
+              t.workflow === envelope.workflow &&
               !terminal(t.state),
           );
           const invalidReturn =
@@ -720,6 +721,49 @@ export class NativeCooperation {
     });
     this.send(group, envelope, task.invocationId);
   }
+  localTaskDeleted(
+    deviceId: string,
+    invocationId: string,
+    threadId: string,
+  ): void {
+    const request = this.store.get<RemoteInvocationContext>(
+      "invocations",
+      invocationId,
+    );
+    if (!request) return; // The gateway may have already pruned this invocation.
+    if (request.deviceId !== deviceId || !request.nativeTaskId)
+      throw new Error("Deleted task does not belong to this device.");
+    const task = this.store.get<NativeTask>(
+      "native-tasks",
+      request.nativeTaskId,
+    );
+    if (!task) return;
+    if (
+      task.direction !== "incoming" ||
+      task.invocationId !== invocationId ||
+      (task.threadId && task.threadId !== threadId)
+    )
+      throw new Error("Deleted task does not match the received assignment.");
+    if (terminal(task.state)) return;
+    this.store.transaction(() => {
+      const updated: NativeTask = {
+        ...task,
+        state: "cancelled",
+        result: "Local task was deleted; execution has stopped.",
+        updatedAt: this.now(),
+      };
+      this.store.put("native-tasks", task.id, updated);
+      // Local cleanup survives revoked/changed sharing. Never replay old task
+      // content to a changed audience just to repair a lifecycle record.
+      if (this.router.isInvocationAuthorized(request))
+        this.respond(
+          this.group(task.groupId),
+          updated,
+          "cancelled",
+          updated.result!,
+        );
+    });
+  }
   reply(request: RemoteInvocationContext, reply: ImReply): void {
     if (!request.nativeTaskId || reply.visibility === "owner") return;
     const task = this.store.get<NativeTask>(
@@ -873,18 +917,6 @@ export class NativeCooperation {
         for (const assignment of assignments) {
           if (!this.allowed(group, assignment.participantId))
             throw new Error("Bot is not authorized or verified.");
-          // An owner message can race the inbound assignment in another local
-          // thread. It must not turn that same peer's work into an unlinked return.
-          const upstream = this.tasks(group.id).filter(
-            (t) =>
-              t.direction === "incoming" &&
-              t.peer === assignment.participantId &&
-              !terminal(t.state),
-          );
-          if (!parent && upstream.length)
-            throw new Error(
-              "Use the received assignment to request a dependency; do not redispatch its work from a separate conversation.",
-            );
           if (parent && !assignment.dependency)
             throw new Error(
               "A dependency must explain why this peer is needed and what work you retain. Complete the original assignment yourself; do not return it unchanged.",

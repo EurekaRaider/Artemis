@@ -826,6 +826,7 @@ export class ArtemisGateway {
         "/v1/device/native-deliveries",
         "/v1/device/native-command",
         "/v1/device/native-cooperation",
+        "/v1/device/native-task-deleted",
         "/v1/device/artifacts",
         "/v1/device/group-context",
       ].includes(url.pathname) &&
@@ -1242,6 +1243,22 @@ export class ArtemisGateway {
         .parse(body);
       this.router.acknowledge(deviceId, id);
       respond(response, 200, { accepted: true });
+      return;
+    }
+    if (url.pathname === "/v1/device/native-task-deleted") {
+      const input = z
+        .object({
+          invocationId: z.string().min(1),
+          threadId: z.string().min(1),
+        })
+        .strict()
+        .parse(body);
+      this.router.native.localTaskDeleted(
+        deviceId,
+        input.invocationId,
+        input.threadId,
+      );
+      respond(response, 200, { ok: true });
       return;
     }
     if (url.pathname === "/v1/device/native-cooperation") {

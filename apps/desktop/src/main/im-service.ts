@@ -4086,6 +4086,25 @@ export class ImService {
         await this.http("/v1/device/ack", "POST", { id: input.id });
       }
       if (this.closed) return;
+      if (this.ops.ready() && this.usesLocalGateway()) {
+        // Receipts deliberately survive deletion to prevent redelivery from
+        // recreating a task. They also repair orphaned native state after restart.
+        for (const receipt of this.list<Receipt>("receipts")) {
+          if (
+            receipt.state !== "done" ||
+            !receipt.request.nativeTaskId ||
+            !receipt.threadId ||
+            this.ops.thread(receipt.threadId) ||
+            this.get("deleted-native-tasks", receipt.request.id)
+          )
+            continue;
+          await this.http("/v1/device/native-task-deleted", "POST", {
+            invocationId: receipt.request.id,
+            threadId: receipt.threadId,
+          });
+          this.put("deleted-native-tasks", receipt.request.id, true);
+        }
+      }
       if (!this.reconciled && this.ops.ready()) {
         for (const binding of this.list<Binding>("bindings"))
           this.observe(this.ops.events(binding.threadId));
