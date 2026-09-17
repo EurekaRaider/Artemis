@@ -143,6 +143,13 @@ export interface TurnRecovery {
 
 export type AgentHostCommand =
   | {
+      type: "im.classify-control-intent";
+      requestId: string;
+      taskTitle: string;
+      message: string;
+      selection?: ModelSelection;
+    }
+  | {
       type: "task.generate-summary";
       requestId: string;
       title: string;

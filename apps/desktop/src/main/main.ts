@@ -21356,6 +21356,33 @@ app
             attachments,
           });
         },
+        classifyControlIntent: async (id, text) => {
+          const thread = store?.getThread(id);
+          const process = agentProcess;
+          if (!thread || thread.archived || !process) return false;
+          const turnId = activeTurns.get(id);
+          const selection = thread.modelSelection ?? activeRuntimeSelection;
+          const cancel = await process.request<boolean>(
+            {
+              type: "im.classify-control-intent",
+              requestId: randomUUID(),
+              taskTitle: thread.title,
+              message: text,
+              ...(selection ? { selection } : {}),
+            },
+            10_000,
+          );
+          const latest = store?.getThread(id);
+          // A slow classification must not stop a replacement turn or session.
+          return (
+            cancel === true &&
+            agentProcess === process &&
+            !!latest &&
+            !latest.archived &&
+            activeTurns.get(id) === turnId &&
+            (turnId !== undefined || latest.updatedAt === thread.updatedAt)
+          );
+        },
         cancel: async (id) => {
           await cancelLocalTaskTurn(id);
         },

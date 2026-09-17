@@ -81,6 +81,7 @@ import {
 } from "./im-sandbox.js";
 
 export interface ImTaskOperations {
+  classifyControlIntent?(id: string, text: string): Promise<boolean>;
   resumeDelegation?(
     id: string,
     text: string,
@@ -3329,26 +3330,15 @@ export class ImService {
           "selections",
           key,
         ) ?? {};
-    // Only a standalone owner instruction is a control command. Assignments,
-    // other participants and tool output must remain literal task content.
-    const commandText =
-      !request.nativeTaskId &&
-      !request.collaboration &&
-      !request.originator &&
-      request.sourceKind !== "tool-result" &&
-      request.attachments.length === 0 &&
-      /^(?:取消|停止)任务[。！!]?$/u.test(request.text.trim())
-        ? "/stop"
-        : request.text.trim();
     const match =
       request.nativeTaskId ||
       (request.collaboration && !request.taskId) ||
       (request.originator && !/^\/new(?:\s|$)/u.test(request.text.trim())) ||
       request.sourceKind === "tool-result"
         ? null
-        : /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(commandText);
-    const command = match?.[1]?.toLowerCase(),
-      argument = match?.[2]?.trim() ?? "";
+        : /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(request.text.trim());
+    let command = match?.[1]?.toLowerCase();
+    const argument = match?.[2]?.trim() ?? "";
     const complete = (text: string, id?: string, started = false) => {
       receipt.state = "done";
       this.put("receipts", request.id, receipt);
@@ -3608,6 +3598,42 @@ export class ImService {
       threadId = undefined;
     if (["status", "stop", "continue"].includes(command ?? "") && argument)
       threadId = argument;
+    if (
+      !command &&
+      threadId &&
+      this.ops.classifyControlIntent &&
+      !request.text.trimStart().startsWith("/") &&
+      !request.nativeTaskId &&
+      !request.collaboration &&
+      !request.originator &&
+      request.sourceKind !== "tool-result" &&
+      request.attachments.length === 0
+    ) {
+      // Resolve identity, scope and target before consulting a model. Only the
+      // owner's message can become a control action; attachments never authorize it.
+      let target: Thread | undefined;
+      try {
+        target = this.accessibleThread(request, threadId);
+      } catch {
+        // A stale implicit selection must follow normal message routing instead.
+      }
+      if (
+        target &&
+        (busy(target) ||
+          this.hasDelegationWait(threadId) ||
+          this.hasPermissionBlock(threadId))
+      ) {
+        receipt.state = "dispatching";
+        this.put("receipts", request.id, receipt);
+        try {
+          if (await this.ops.classifyControlIntent(threadId, request.text))
+            command = "stop";
+        } catch {
+          // Offline, timeout or invalid model output preserves ordinary delivery.
+          // Explicit /stop remains available without a model.
+        }
+      }
+    }
     if (command === "status" || command === "stop") {
       if (!threadId) throw new Error("请指定任务编号。");
       const thread = this.accessibleThread(request, threadId);

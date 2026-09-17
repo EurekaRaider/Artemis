@@ -101,6 +101,13 @@ async function handle(command: AgentHostCommand): Promise<void> {
   try {
     let data: unknown;
     switch (command.type) {
+      case "im.classify-control-intent":
+        data = await host.classifyImControlIntent(
+          command.taskTitle,
+          command.message,
+          command.selection,
+        );
+        break;
       case "task.generate-summary":
         data = await host.generateTaskSummary(
           command.title,

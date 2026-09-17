@@ -865,17 +865,62 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/stop");
     expect(f.threads[0]?.status).toBe("idle");
   });
-  it.each(["取消任务", "停止任务", "取消任务！"])(
-    "handles the owner's %s without queueing another prompt",
+  it.each([
+    "这件事不用继续做了，停下来吧",
+    "Never mind, you can drop what you are doing",
+    "這件事不用再做了",
+    "今やっている作業はもうやめてください",
+    "지금 하던 작업은 그만해 주세요",
+    "Ya no hace falta seguir con lo que estás haciendo",
+    "Laisse tomber ce que tu fais",
+    "Du brauchst an der aktuellen Aufgabe nicht weiterzuarbeiten",
+    "Pode deixar de fazer essa tarefa",
+    "Lascia perdere quello che stai facendo",
+    "Больше не нужно продолжать эту работу",
+    "لا داعي لمواصلة العمل الحالي",
+    "अब इस काम को आगे करने की ज़रूरत नहीं है",
+    "Tidak perlu melanjutkan pekerjaan ini",
+  ])(
+    "routes a model-confirmed cancellation before queueing: %s",
     async (text) => {
       const f = await fixture();
+      const classify = vi.fn(async () => true);
+      f.ops.classifyControlIntent = classify;
       await f.send("/new analyze");
+      expect(classify).not.toHaveBeenCalled();
       await f.send(text);
+      expect(classify).toHaveBeenCalledWith(f.threads[0]!.id, text);
       expect(f.threads[0]?.status).toBe("idle");
       expect(f.starts).toHaveLength(1);
       expect(f.queued).toHaveLength(0);
     },
   );
+  it.each([false, "error"] as const)(
+    "preserves messages when classification returns %s",
+    async (result) => {
+      const f = await fixture();
+      f.ops.classifyControlIntent = vi.fn(async () => {
+        if (result === "error") throw new Error("Model unavailable");
+        return result;
+      });
+      await f.send("/new analyze");
+      await f.send("cancel task");
+      expect(f.threads[0]?.status).toBe("running");
+      expect(f.queued).toHaveLength(1);
+    },
+  );
+  it("keeps explicit stop independent of the model and denies unpaired control", async () => {
+    const f = await fixture();
+    const classify = vi.fn(async () => true);
+    f.ops.classifyControlIntent = classify;
+    await f.send("/new analyze");
+    await f.send("stop what you are doing", undefined, "bob");
+    expect(classify).not.toHaveBeenCalled();
+    expect(f.threads[0]?.status).toBe("running");
+    await f.send("/stop");
+    expect(classify).not.toHaveBeenCalled();
+    expect(f.threads[0]?.status).toBe("idle");
+  });
   it("keeps cancellation mentioned within a task as ordinary content", async () => {
     const f = await fixture();
     await f.send("/new analyze");
