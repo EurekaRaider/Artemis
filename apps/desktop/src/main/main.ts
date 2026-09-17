@@ -271,6 +271,8 @@ import {
 } from "./node-pty-runtime.js";
 import {
   AutomaticTaskTitles,
+  formatImTaskTitle,
+  type ImTaskTitleContext,
   deriveTaskTitle,
   isAutomaticTaskTitle,
   shouldGenerateTaskTitle,
@@ -5621,6 +5623,7 @@ async function startTaskTurnUnchecked(
   options: {
     origin?: "desktop" | "im";
     displayText?: string;
+    titleContext?: ImTaskTitleContext;
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
     delegationContinuationId?: string;
@@ -5703,16 +5706,24 @@ async function startTaskTurnUnchecked(
       thread.title,
       source,
       store.getThreadEvents(thread.id),
+      options.titleContext?.initialTitle,
     )
   ) {
+    const titleRequest = options.displayText ?? requestText;
+    const formatTitle = (title: string) =>
+      options.titleContext
+        ? formatImTaskTitle(options.titleContext.channel, title)
+        : title;
     thread = store.updateThread(thread.id, {
-      title: deriveTaskTitle(text, currentLocale()),
+      title: formatTitle(
+        deriveTaskTitle(options.displayText ?? text, currentLocale()),
+      ),
     });
     const titledThread = thread;
     const process = agentProcess;
     const locale = currentLocale();
     const selection = thread.modelSelection ?? activeRuntimeSelection;
-    if (requestText.trim() && !/^\s*\/init\s*$/iu.test(requestText)) {
+    if (titleRequest.trim() && !/^\s*\/init\s*$/iu.test(titleRequest)) {
       void automaticTaskTitles.generate(
         titledThread,
         async () => {
@@ -5721,7 +5732,7 @@ async function startTaskTurnUnchecked(
             {
               type: "task.generate-summary",
               requestId: randomUUID(),
-              title: requestText.slice(0, 2_000),
+              title: titleRequest.slice(0, 2_000),
               locale,
               ...(selection ? { selection } : {}),
             },
@@ -5732,7 +5743,8 @@ async function startTaskTurnUnchecked(
           agentProcess === process
             ? store?.getThread(titledThread.id)
             : undefined,
-        (title) => {
+        (summary) => {
+          const title = formatTitle(summary);
           store!.updateThread(titledThread.id, { title });
           mainWindow?.webContents.send(IPC.threadTitleUpdated, {
             id: titledThread.id,
@@ -21282,10 +21294,21 @@ app
             openedThreads.delete(id);
           }
         },
-        start: async (id, text, mode, attachments, displayText) => {
+        start: async (
+          id,
+          text,
+          mode,
+          attachments,
+          displayText,
+          titleContext,
+        ) => {
           await startTaskTurn(
             { threadId: id, text, mode, attachments },
-            { origin: "im", displayText: displayText ?? text },
+            {
+              origin: "im",
+              displayText: displayText ?? text,
+              ...(titleContext ? { titleContext } : {}),
+            },
           );
         },
         queue: async (id, text, attachments) => {

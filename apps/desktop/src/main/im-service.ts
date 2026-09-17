@@ -1,3 +1,4 @@
+import { formatImTaskTitle, type ImTaskTitleContext } from "./task-title.js";
 import {
   ImDelegationWaits,
   type DelegationWait,
@@ -114,6 +115,7 @@ export interface ImTaskOperations {
     mode: RunMode,
     attachments: PromptAttachment[],
     displayText?: string,
+    titleContext?: ImTaskTitleContext,
   ): Promise<void>;
   queue(
     id: string,
@@ -2027,13 +2029,27 @@ export class ImService {
       };
       this.put("native-inputs", key, result);
       this.put("bindings", id, child);
+      const initialTitle = formatImTaskTitle(
+        request.identity.channel,
+        action.text.slice(0, 60),
+      );
       await this.ops.create(
         id,
         binding.projectId,
         this.grant(child).mode,
-        action.text.slice(0, 60),
+        initialTitle,
       );
-      await this.ops.start(id, action.text, this.grant(child).mode, []);
+      await this.ops.start(
+        id,
+        action.text,
+        this.grant(child).mode,
+        [],
+        action.text,
+        {
+          channel: request.identity.channel,
+          initialTitle,
+        },
+      );
       this.put("bindings", id, { ...child, executionStarted: true });
       this.put("native-inputs", key, { ...result, state: "started" });
       return { ...result, state: "started" };
@@ -3641,13 +3657,22 @@ export class ImService {
     this.grant(binding);
     this.put("bindings", receipt.threadId, binding);
     let thread = existing ?? this.ops.thread(receipt.threadId);
-    if (!thread)
+    let titleContext: ImTaskTitleContext | undefined;
+    if (!thread) {
       thread = await this.ops.create(
         receipt.threadId,
         projectId,
         grant.mode,
-        `${projectId ? "" : "临时 · "}${{ wecom: "企业微信", feishu: "飞书", slack: "Slack" }[request.identity.channel]} · ${displayText.slice(0, 60) || "IM 附件任务"}`,
+        formatImTaskTitle(
+          request.identity.channel,
+          displayText.slice(0, 60) || "IM 附件任务",
+        ),
       );
+      titleContext = {
+        channel: request.identity.channel,
+        initialTitle: thread.title,
+      };
+    }
     if (!this.ops.thread(thread.id))
       throw new Error("任务已删除，请重新发送消息新建任务。");
     this.put("subscriptions", thread.id, true);
@@ -3672,6 +3697,7 @@ export class ImService {
         grant.mode,
         attachments,
         displayText,
+        titleContext,
       );
       if (binding.parentThreadId)
         this.put("bindings", binding.threadId, {

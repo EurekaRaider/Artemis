@@ -27,6 +27,21 @@ const AUTOMATIC_TITLES = new Set([
 
 const TITLE_LIMIT = 64;
 
+export interface ImTaskTitleContext {
+  channel: "slack" | "feishu" | "wecom";
+  initialTitle: string;
+}
+
+export function formatImTaskTitle(
+  channel: ImTaskTitleContext["channel"],
+  summary: string,
+): string {
+  const platform = { slack: "Slack", feishu: "飞书", wecom: "企业微信" }[
+    channel
+  ];
+  return trimToCodePoints(`${platform} · ${summary}`, TITLE_LIMIT);
+}
+
 /** A late model response must never undo a manual rename or resurrect a task. */
 export class AutomaticTaskTitles {
   private readonly pending = new Map<string, symbol>();
@@ -83,10 +98,11 @@ export function shouldGenerateTaskTitle(
   title: string,
   source: "user" | "goal-continuation",
   events: readonly AgentEvent[],
+  initialImTitle?: string,
 ): boolean {
   return (
     source === "user" &&
-    isAutomaticTaskTitle(title) &&
+    (isAutomaticTaskTitle(title) || title === initialImTitle) &&
     !events.some((event) => event.payload.type === "user.message")
   );
 }

@@ -3,6 +3,7 @@ import type { AgentEvent, Thread } from "@artemis/protocol";
 import {
   AutomaticTaskTitles,
   shouldGenerateTaskTitle,
+  formatImTaskTitle,
 } from "../src/main/task-title.js";
 
 function fixture() {
@@ -112,5 +113,39 @@ describe("first-message title eligibility", () => {
     ] as AgentEvent[];
     expect(shouldGenerateTaskTitle("New task", "user", events)).toBe(false);
     expect(shouldGenerateTaskTitle("已生成标题", "user", events)).toBe(false);
+  });
+});
+
+describe("IM task titles", () => {
+  it.each([
+    ["slack", "Slack"],
+    ["feishu", "飞书"],
+    ["wecom", "企业微信"],
+  ] as const)("keeps the %s platform before the summary", (channel, label) => {
+    expect(formatImTaskTitle(channel, "修复登录白屏")).toBe(
+      `${label} · 修复登录白屏`,
+    );
+    expect(
+      Array.from(formatImTaskTitle(channel, "a".repeat(64))).length,
+    ).toBeLessThanOrEqual(64);
+  });
+  it("allows only the explicitly supplied initial IM title on the first turn", () => {
+    const initial = "Slack · Jupiter 你好";
+    expect(shouldGenerateTaskTitle(initial, "user", [], initial)).toBe(true);
+    expect(shouldGenerateTaskTitle(initial, "user", [])).toBe(false);
+    expect(shouldGenerateTaskTitle("手动命名", "user", [], initial)).toBe(
+      false,
+    );
+    expect(
+      shouldGenerateTaskTitle(initial, "goal-continuation", [], initial),
+    ).toBe(false);
+    expect(
+      shouldGenerateTaskTitle(
+        initial,
+        "user",
+        [{ payload: { type: "user.message", text: "你好" } }] as AgentEvent[],
+        initial,
+      ),
+    ).toBe(false);
   });
 });

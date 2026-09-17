@@ -814,6 +814,33 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/new queued while paused");
     expect(f.starts).toEqual([]);
   });
+  it.each([
+    ["slack", "Slack"],
+    ["feishu", "飞书"],
+    ["wecom", "企业微信"],
+  ] as const)(
+    "passes first-message title context and clean text for %s only once",
+    async (channel, platform) => {
+      const f = await fixture(channel);
+      const start = vi.spyOn(f.ops, "start");
+      await f.send("/new analyze", "first");
+      expect(start).toHaveBeenCalledTimes(1);
+      expect(start.mock.calls[0]?.[4]).toBe("analyze");
+      expect(start.mock.calls[0]?.[5]).toEqual({
+        channel,
+        initialTitle: `${platform} · analyze`,
+      });
+      expect(start.mock.calls[0]?.[1]).toContain("IM provenance");
+      await f.send("/new analyze", "first");
+      expect(start).toHaveBeenCalledTimes(1);
+      f.threads[0]!.status = "idle";
+      f.threads[0]!.title = "手动命名";
+      await f.send("more details");
+      expect(start).toHaveBeenCalledTimes(2);
+      expect(start.mock.calls[1]?.[5]).toBeUndefined();
+      expect(f.threads[0]!.title).toBe("手动命名");
+    },
+  );
   it("starts one real task entry for a duplicate push, queues follow-ups, and stops the selected task", async () => {
     const f = await fixture();
     const create = f.ops.create;
@@ -889,7 +916,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads[0]).toMatchObject({
       projectId: null,
       mode: "plan",
-      title: "临时 · 企业微信 · quick advice",
+      title: "企业微信 · quick advice",
     });
     const deliveries = () =>
       f.gateway.store.pending<{ text: string }>("outgoing");
@@ -911,7 +938,9 @@ describe("IM desktop and Gateway loop", () => {
     });
     // /tasks lists the ad-hoc task for its owner chat.
     await f.send("/tasks");
-    expect(deliveries().at(-1)!.payload.text).toContain("临时 · 企业微信");
+    expect(deliveries().at(-1)!.payload.text).toContain(
+      "企业微信 · quick advice",
+    );
     // /projects explains the ad-hoc path instead of dead-ending.
     await f.send("/projects");
     expect(deliveries().at(-1)!.payload.text).toContain("临时任务");

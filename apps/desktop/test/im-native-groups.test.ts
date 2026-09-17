@@ -260,6 +260,7 @@ it("commits terminal replies before emitting reentrant group activity", async ()
     "plan",
     [],
     "finish work",
+    { channel: "slack", initialTitle: "Slack · finish work" },
   );
   const completed: AgentEvent = {
     protocolVersion: 4,
