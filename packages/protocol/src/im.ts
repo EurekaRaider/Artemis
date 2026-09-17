@@ -741,7 +741,8 @@ export const imManagementSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("feishu-scan-poll"),
-      deviceCode: z.string().min(1).max(512),
+      // Feishu mints long opaque device codes (observed >512 chars).
+      deviceCode: z.string().min(1).max(2048),
       domain: z.enum(["feishu", "lark"]).default("feishu"),
     })
     .strict(),
