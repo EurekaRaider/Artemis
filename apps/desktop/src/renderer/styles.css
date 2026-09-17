@@ -7740,7 +7740,9 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .settings-panel {
-  background: var(--artemis-color-surface-base);
+  /* 整块背板：用户拍板的 #2b2b2b（深色即体系令牌 surface-raised，
+     比面板原先的 surface-base 亮一档；浅色主题下两者同为白色不受影响）。 */
+  background: var(--artemis-color-surface-raised);
   max-block-size: calc(100dvh - 52px);
   height: min(560px, 84dvh);
   max-width: calc(100vw - 32px);
