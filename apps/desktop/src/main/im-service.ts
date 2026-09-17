@@ -725,11 +725,12 @@ export class ImService {
         (s) =>
           (s as { id?: string }).id === binding.request.conversation.spaceId,
       ) as { revision?: string; confirmed?: boolean } | undefined;
-      if (
-        !space?.confirmed ||
-        space.revision !== binding.security?.spaceRevision
-      )
-        throw new Error("群组或成员已变化，请重新确认分享对象。");
+      if (!space?.confirmed)
+        throw new Error("当前群组分享范围尚未确认，请在桌面检查授权。");
+      if (space.revision !== binding.security?.spaceRevision)
+        throw new Error(
+          "旧任务保存的分享范围版本已失效，不能直接继续或发送旧结果。请使用当前授权发起新请求。",
+        );
     }
     const current = this.secureContext(binding);
     if (
@@ -3697,6 +3698,30 @@ export class ImService {
       this.deleteThread(threadId);
       threadId = undefined;
     }
+    // An ordinary new group message must not inherit an obsolete audience
+    // snapshot just because the last selected task belongs to that snapshot.
+    // Keep explicit task continuations strict; never import old task history.
+    let staleGroupSelection = false;
+    if (
+      threadId &&
+      !command &&
+      !request.taskId &&
+      !request.collaboration &&
+      !request.nativeTaskId &&
+      request.conversation.kind === "group" &&
+      request.conversation.spaceId
+    ) {
+      const prior = this.get<Binding>("bindings", threadId);
+      if (
+        prior?.security &&
+        prior.request.conversation.spaceId === request.conversation.spaceId &&
+        prior.security.spaceRevision !== request.conversation.spaceRevision
+      ) {
+        this.accessibleThread(request, threadId);
+        staleGroupSelection = true;
+        threadId = undefined;
+      }
+    }
     const existing = threadId
       ? this.accessibleThread(request, threadId)
       : undefined;
@@ -3719,7 +3744,7 @@ export class ImService {
       !defaultProjectId || defaultProjectId === IM_ADHOC_PROJECT_ID;
     const projectId =
       existing?.projectId ??
-      selection.projectId ??
+      (staleGroupSelection ? undefined : selection.projectId) ??
       (adhocDefault
         ? undefined
         : projects.some((p) => p.id === defaultProjectId)

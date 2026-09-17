@@ -1755,3 +1755,54 @@ it("parks preflight denials idempotently and permits a new turn after a system p
   await expect(f.service.operate(f.threadId, {action: "read", path: "."}, "execute", randomUUID(), "old-turn")).resolves.toEqual(blocked);
   expect(() => f.service.authorizeOperation(f.threadId, {action: "read", path: "."}, "execute", "new-turn")).not.toThrow();
 });
+
+it("starts current-authorized group input independently of a stale implicit selection", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const send = async (text: string) => {
+    f.gateway.router.ingest({
+      ...f.event,
+      messageId: randomUUID(),
+      text,
+      timestamp: Date.now(),
+    });
+    f.gateway.router.processIncoming();
+    await f.service.poll();
+  };
+  await send("Old task");
+  const old = f.starts[0]!;
+  const groupId = f.service
+    .status()
+    .remoteTasks!.find((t) => t.threadId === old)!.group!.spaceId;
+  const group = f.gateway.store.get<
+    import("@artemis/protocol").CollaborationSpace
+  >("native-groups", groupId)!;
+  f.gateway.store.put("native-groups", groupId, {
+    ...group,
+    revision: randomUUID(),
+  });
+  await f.service.manage({ action: "refresh" });
+  await send("Not yet authorized");
+  expect(f.starts).toEqual([old]);
+  await f.authorize();
+  const targeted = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    groupId,
+  );
+  await f.service.accept({
+    ...targeted,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: old,
+    text: "Continue the old task explicitly",
+  });
+  expect(f.starts).toEqual([old]);
+  await send("Current authorized request");
+  expect(f.starts).toHaveLength(2);
+  expect(f.starts[1]).not.toBe(old);
+  await send("Follow up");
+  expect(f.starts[2]).toBe(f.starts[1]);
+  expect(() =>
+    f.service.authorizeOperation(old, { action: "read", path: "." }, "plan"),
+  ).toThrow();
+});
