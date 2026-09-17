@@ -11,12 +11,14 @@
   --migration-sky-deep: var(--artemis-color-context-1);
 }
 .app-shell {
+  /* 背板透明给 macOS vibrancy 让路；主区由 .workspace 实色兜底。 */
+  background: transparent;
   --sidebar-expanded-width: 280px;
-  --sidebar-native-tint: 84%;
+  --sidebar-native-tint: 80%;
   --sidebar-native-color: var(--artemis-color-surface-raised);
 }
 [data-theme="dark"] .app-shell {
-  --sidebar-native-tint: 12%;
+  --sidebar-native-tint: 25%;
   --sidebar-native-color: var(--artemis-color-background-sidebar);
 }
 .sidebar-top {
@@ -51,8 +53,8 @@
 .rail-anchor {
   display: grid;
   place-items: center;
-  inline-size: 30px;
-  block-size: 30px;
+  inline-size: 32px;
+  block-size: 32px;
   border-radius: 8px;
   cursor: pointer;
   color: var(--muted);

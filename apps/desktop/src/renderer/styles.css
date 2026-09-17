@@ -102,7 +102,9 @@ body,
 }
 
 body {
-  background: var(--bg);
+  /* macOS 窗口 vibrancy 需要背景链路留透明：body 不画底，
+     主区由 .workspace 的实色兜底（非 macOS 窗口本身是不透明底色）。 */
+  background: transparent;
   color: var(--text);
   font-size: var(--artemis-typography-body-size);
   font-family: var(--ui-font);
