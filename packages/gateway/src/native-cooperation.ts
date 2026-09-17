@@ -19,6 +19,16 @@ import {
 
 type Peer = { id: string; name: string; verifiedAt?: number };
 export type NativeTask = {
+  // Local persisted metadata; v1 wire compatibility uses continue/previousTask.
+  sessionId?: string;
+  sessionKey?: string;
+  sessionReason?:
+    | "continued"
+    | "first-assignment"
+    | "explicit-new"
+    | "independent-batch"
+    | "previous-rejected"
+    | "sender-created";
   heartbeatAt?: number;
   version: 1;
   id: string;
@@ -102,6 +112,26 @@ export class NativeCooperation {
             .get(`native:${t.cancelId ?? t.envelope.id}`)?.state ?? "pending",
         ),
       }));
+  }
+  private sessionKey(
+    request: RemoteInvocationContext,
+    group: CollaborationSpace,
+    peer: string,
+  ): string {
+    const security = this.store.get<NonNullable<Delivery["security"]>>(
+      "invocation-security",
+      request.id,
+    );
+    return JSON.stringify([
+      request.deviceId,
+      group.id,
+      group.revision,
+      imIdentityKey(request.originator ?? request.identity),
+      peer,
+      security?.projectId ?? group.nativeGroup?.projectId,
+      security?.audience ?? `space:${group.id}`,
+      security?.revision ?? null,
+    ]);
   }
   private allowed(group: CollaborationSpace, peer: string): boolean {
     return (
@@ -418,6 +448,21 @@ export class NativeCooperation {
           const previous = envelope.previousTask
             ? this.store.get<NativeTask>("native-tasks", envelope.previousTask)
             : undefined;
+          if (envelope.action === "continue" && !previous) {
+            const rejected = this.frame(
+              group,
+              envelope.sender,
+              "rejected",
+              "The saved peer session is missing. Ask the user before starting a fresh conversation with newTask:true.",
+              envelope.task,
+              envelope.workflow,
+            );
+            rejected.replyTo = envelope.id;
+            rejected.sequence = 1;
+            this.send(group, rejected);
+            this.store.put("native-inbox", key, envelope);
+            return true;
+          }
           if (
             envelope.action === "continue" &&
             (!previous ||
@@ -471,6 +516,8 @@ export class NativeCooperation {
           const task: NativeTask = {
             version: 1,
             heartbeatAt: this.now(),
+            sessionId: previous?.sessionId ?? previous?.id ?? envelope.task,
+            sessionReason: previous ? "continued" : "sender-created",
             id: envelope.task,
             groupId: group.id,
             workflow: envelope.workflow,
@@ -777,29 +824,57 @@ export class NativeCooperation {
             randomUUID(),
             workflow.id,
           );
-          // A new receipt tracks each turn; only the worker's session is reused.
-          const sessionKey = JSON.stringify([
-            group.id,
-            threadId,
+          // A receipt identifies one assignment; the session spans local tasks
+          // but never crosses the initiating identity, peer, project or grant.
+          const sessionKey = this.sessionKey(
+            request,
+            group,
             assignment.participantId,
-          ]);
-          if (command.action === "delegate" && !command.newTask) {
+          );
+          const independent =
+            dependencies.length > 0 ||
+            assignments.filter(
+              (a) => a.participantId === assignment.participantId,
+            ).length > 1;
+          let sessionId = envelope.task;
+          let sessionReason: NativeTask["sessionReason"] = command.newTask
+            ? "explicit-new"
+            : independent
+              ? "independent-batch"
+              : "first-assignment";
+          if (!command.newTask && !independent) {
             const selected = this.store.get<string>(
-              "native-sessions",
+              "native-sessions-v2",
               sessionKey,
             );
-            const previous =
-              (selected
-                ? this.store.get<NativeTask>("native-tasks", selected)
-                : undefined) ??
-              this.tasks(group.id)
-                .filter(
-                  (t) =>
-                    t.direction === "outgoing" &&
-                    t.threadId === threadId &&
-                    t.peer === assignment.participantId,
-                )
-                .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+            const previous = selected
+              ? this.store.get<NativeTask>("native-tasks", selected)
+              : this.tasks(group.id)
+                  .filter((t) => {
+                    if (
+                      t.direction !== "outgoing" ||
+                      t.peer !== assignment.participantId
+                    )
+                      return false;
+                    if (t.sessionReason === "independent-batch") return false;
+                    if (t.sessionKey) return t.sessionKey === sessionKey;
+                    // Only migrate legacy entries from this coordinator; old
+                    // records did not explicitly identify a shared session.
+                    const prior = this.store.get<RemoteInvocationContext>(
+                      "invocations",
+                      t.invocationId,
+                    );
+                    return (
+                      t.threadId === threadId &&
+                      prior &&
+                      this.sessionKey(prior, group, t.peer) === sessionKey
+                    );
+                  })
+                  .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+            if (selected && !previous)
+              throw new Error(
+                "The saved peer session is missing. Use newTask:true to explicitly start a new conversation.",
+              );
             if (previous) {
               if (!terminal(previous.state))
                 throw new Error(
@@ -808,12 +883,23 @@ export class NativeCooperation {
               if (previous.state !== "rejected") {
                 envelope.action = "continue";
                 envelope.previousTask = previous.id;
+                sessionId = previous.sessionId ?? previous.id;
+                sessionReason = "continued";
+              } else {
+                if (previous.envelope.action === "continue")
+                  throw new Error(
+                    "The peer could not resume the saved conversation. Use newTask:true only after confirming a fresh conversation.",
+                  );
+                sessionReason = "previous-rejected";
               }
             }
           }
           const task: NativeTask = {
             version: 1,
             id: envelope.task,
+            sessionId,
+            sessionKey,
+            sessionReason,
             groupId: group.id,
             workflow: workflow.id,
             peer: assignment.participantId,
@@ -828,8 +914,8 @@ export class NativeCooperation {
             updatedAt: this.now(),
           };
           this.store.put("native-tasks", task.id, task);
-          if (command.action === "delegate")
-            this.store.put("native-sessions", sessionKey, task.id);
+          if (!independent)
+            this.store.put("native-sessions-v2", sessionKey, task.id);
           tasks.push(task);
           if (!dependencies.length) this.send(group, envelope, request.id);
         }

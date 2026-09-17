@@ -378,6 +378,7 @@ export const imReplySchema = z
   .strict();
 export type ImReply = z.infer<typeof imReplySchema>;
 export interface RemoteExecutionProfile {
+  collaborationRole?: "coordinator" | "worker";
   dataScope?: ImDataScope;
   network: boolean;
   shell: boolean;
@@ -438,8 +439,14 @@ export const collaborationCommandSchema = z
         ["taskIds"],
         "taskIds, waitSeconds and timeoutSeconds are only supported for wait.",
       );
-    if (command.newTask !== undefined && command.action !== "delegate")
-      issue(["newTask"], "newTask is only supported for delegate.");
+    if (
+      command.newTask !== undefined &&
+      !["delegate", "delegate-many"].includes(command.action)
+    )
+      issue(
+        ["newTask"],
+        "newTask is only supported for delegate or delegate-many.",
+      );
     if (command.action === "delegate") {
       if (command.assignments !== undefined)
         issue(

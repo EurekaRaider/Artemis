@@ -3466,7 +3466,11 @@ export class ArtemisAgentHost {
       return result.data;
     };
     const remoteTools = request.remoteExecution
-      ? createRemoteTools(invokeRemoteOperation)
+      ? createRemoteTools(invokeRemoteOperation).filter(
+          (tool) =>
+            request.remoteExecution?.collaborationRole !== "worker" ||
+            tool.name !== "collaborate",
+        )
       : request.groupCollaboration
         ? createRemoteTools(invokeRemoteOperation).filter(
             (tool) =>
@@ -5620,6 +5624,7 @@ export class ArtemisAgentHost {
                           name,
                           input.mode,
                           request.remoteExecution!.shell,
+                          request.remoteExecution!.collaborationRole,
                         ),
                       ),
                   );
@@ -6210,6 +6215,7 @@ export class ArtemisAgentHost {
           tool.name,
           "execute",
           request.remoteExecution!.shell,
+          request.remoteExecution!.collaborationRole,
         ),
       );
       hosted.delegatedTools = [

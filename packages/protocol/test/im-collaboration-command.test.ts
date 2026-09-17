@@ -38,6 +38,11 @@ it.each([
     action: "delegate-many",
     assignments: [{ participantId: "solar", text: "Memory?" }],
   },
+  {
+    action: "delegate-many",
+    newTask: true,
+    assignments: [{ participantId: "solar", text: "Independent work" }],
+  },
   { action: "message", taskId: "task", text: "More details?" },
   { action: "cancel", taskId: "task" },
   { action: "finish", text: "Done" },

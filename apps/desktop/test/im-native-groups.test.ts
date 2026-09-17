@@ -389,6 +389,7 @@ it("reuses the group's session across members and creates one only for explicit 
 });
 it("continues a native bot assignment in its original session and treats slash text as task content", async () => {
   const f = await fixture();
+  f.grant.mode = "execute";
   await f.authorize();
   const owner = f.gateway.router.groupConversationContext(
     f.service.status().settings.deviceId,
@@ -414,6 +415,22 @@ it("continues a native bot assignment in its original session and treats slash t
   await f.service.accept(assignment());
   const original = f.starts[0]!;
   expect(original).toBeTruthy();
+  expect(f.service.profile(original)?.collaborationRole).toBe("worker");
+  await expect(
+    f.service.operate(
+      original,
+      {
+        action: "collaborate",
+        command: {
+          action: "delegate",
+          participantId: "sender",
+          text: "Send it back",
+        },
+      },
+      "execute",
+      "reverse-delegation",
+    ),
+  ).rejects.toThrow(/received assignment/);
   const followUp = assignment(original);
   await f.service.accept(followUp);
   await f.service.accept(followUp);

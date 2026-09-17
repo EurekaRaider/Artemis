@@ -6,6 +6,7 @@ import type { RunMode } from "@artemis/protocol";
 import {
   normalizeImPath,
   isImProtectedPath,
+  imPathWithinScope,
   type ImDataScope,
 } from "@artemis/protocol";
 import {
@@ -108,17 +109,31 @@ export function buildRemoteShellLaunch(
   );
 }
 
-/** Strict IM policies never inherit the legacy workspace-wide sandbox grant. */
+export interface ImShellLinkPolicy {
+  denyRead: string[];
+  denyWrite: string[];
+}
+
+/** Resolve inode aliases without making unrelated commands depend on their accessibility. */
 export async function validateImShellScope(
   workspace: string,
   scope: ImDataScope,
-): Promise<void> {
+): Promise<ImShellLinkPolicy> {
+  const root = await realpath(workspace);
+  const policy: ImShellLinkPolicy = { denyRead: [], denyWrite: [] };
+  const visited = new Set<string>();
+  const inodes = new Map<string, { count: number; paths: string[] }>();
   let remaining = 50000;
   const visit = async (path: string): Promise<void> => {
     if (--remaining < 0)
       throw new Error("命令范围过大，无法验证文件链接；请缩小范围。");
     if (isImProtectedPath(path)) return;
-    const full = await checkedRemotePath(workspace, path);
+    const full = resolve(root, path);
+    const part = relative(root, full);
+    if (part === ".." || part.startsWith(`..${sep}`) || isAbsolute(part))
+      throw new Error("Shell scope must stay inside the authorized project.");
+    if (visited.has(full)) return;
+    visited.add(full);
     let info;
     try {
       info = await lstat(full);
@@ -126,13 +141,46 @@ export async function validateImShellScope(
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
       throw error;
     }
+    // Seatbelt checks symlink targets at access time. Do not follow them in
+    // preflight; a dangling or escaping link must not disable unrelated commands.
+    if (info.isSymbolicLink()) return;
+    // Explicit grant entries can themselves pass through an intermediate
+    // symlink. Count each physical directory entry only, never an alias twice.
+    if ((await realpath(full)) !== full) return;
+    if (info.isFile() && info.nlink > 1) {
+      const key = `${info.dev}:${info.ino}`;
+      const inode = inodes.get(key) ?? { count: info.nlink, paths: [] };
+      inode.count = Math.max(inode.count, info.nlink);
+      inode.paths.push(full);
+      inodes.set(key, inode);
+    }
     if (info.isDirectory() && scope.filePaths?.includes(path))
       throw new Error("授权文件已被替换为目录。");
     if (info.isDirectory())
-      for (const name of await readdir(full)) await visit(`${path}/${name}`);
+      for (const name of await readdir(full))
+        await visit(path ? `${path}/${name}` : name);
   };
-  for (const path of new Set(scope.readPaths))
+  for (const path of new Set([...scope.readPaths, ...scope.writePaths]))
     await visit(normalizeImPath(path));
+  if (!scope.readPaths.length) await visit("");
+  for (const inode of inodes.values()) {
+    // nlink counts all directory entries, including hidden/out-of-scope names
+    // we intentionally did not enumerate. Only a complete authorized set is safe.
+    const complete = inode.paths.length === inode.count;
+    if (!complete) policy.denyRead.push(...inode.paths);
+    if (
+      !complete ||
+      inode.paths.some(
+        (path) =>
+          !imPathWithinScope(
+            relative(root, path).split(sep).join("/"),
+            scope.writePaths,
+          ),
+      )
+    )
+      policy.denyWrite.push(...inode.paths);
+  }
+  return policy;
 }
 
 export function buildScopedImShellLaunch(
@@ -141,6 +189,7 @@ export function buildScopedImShellLaunch(
   network: boolean,
   scope: ImDataScope,
   platform: NodeJS.Platform = process.platform,
+  links: ImShellLinkPolicy = { denyRead: [], denyWrite: [] },
 ): SandboxLaunch {
   // Windows' current SandboxSpec only has allow trees; classic AppContainer also
   // inherits directory ACLs. Neither can enforce protection of future credential
@@ -152,10 +201,11 @@ export function buildScopedImShellLaunch(
   const quote = (s: string) =>
     `"${s.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
   const roots = (paths: string[]) =>
-    paths.map((p) => {
+    paths.flatMap((p) => {
       normalizeImPath(p);
-      if (isImProtectedPath(p)) throw new Error("Protected shell scope.");
-      return resolve(workspace, p);
+      // Bulk grants may include hidden/control entries. The deny rules still
+      // protect them; they must not prevent commands using the other entries.
+      return isImProtectedPath(p) ? [] : [resolve(workspace, p)];
     });
   // Empty readPaths means the whole project root; the dotfile and key denies
   // below still apply to it.
@@ -204,6 +254,15 @@ export function buildScopedImShellLaunch(
     '(allow file-read* file-write* (literal "/dev/null") (subpath "/dev/fd"))',
     ...rules("file-read*", read),
     ...rules("file-write*", write),
+    // An inode shared with unreadable/read-only names cannot acquire broader
+    // access through a writable alias. Fully authorized hard links stay usable.
+    ...links.denyRead.map(
+      (path) => `(deny file-read-data (literal ${quote(path)}))`,
+    ),
+    ...links.denyWrite.map(
+      (path) => `(deny file-write* (literal ${quote(path)}))`,
+    ),
+    "(deny file-link)",
     `(deny file-read-data file-write* (regex #"/([.][^/]+|${control})(/|$)"))`,
     `(deny file-read-data file-write* (regex #"/[^/]*[.](${["pem", "key", "p12", "pfx", "keystore"].map(folded).join("|")})$"))`,
     "(deny mach-lookup)",

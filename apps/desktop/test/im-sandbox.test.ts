@@ -98,7 +98,10 @@ it.runIf(process.platform === "darwin")(
           readPaths: ["src"],
           writePaths: ["src"],
         }),
-      ).rejects.toThrow(/links/);
+      ).resolves.toMatchObject({
+        denyRead: [join(root, "src", "preexisting-link.txt")],
+        denyWrite: [join(root, "src", "preexisting-link.txt")],
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -222,6 +225,93 @@ it.runIf(process.platform === "darwin")(
       expect(requests).toBe(1);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "runs unrelated commands with links present but denies escaping and hard-linked files",
+  async () => {
+    const { link, readFile } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-links-")),
+    );
+    try {
+      await mkdir(join(root, "src"));
+      await writeFile(join(root, "secret.txt"), "LINK_SECRET_SENTINEL");
+      await writeFile(join(root, "src", "ok.txt"), "LINK_ALLOWED_SENTINEL");
+      await symlink("ok.txt", join(root, "src", "safe"));
+      await symlink("../secret.txt", join(root, "src", "escape"));
+      await link(join(root, "secret.txt"), join(root, "src", "hard"));
+      const scope = {
+        audience: "owner",
+        readPaths: ["src", ".codegraph", "AGENTS.md"],
+        writePaths: ["src", ".codegraph"],
+      };
+      const blocked = await validateImShellScope(root, scope);
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "echo SHELL_STARTED; /usr/sbin/sysctl -n hw.memsize; cat src/safe; cat src/escape; cat src/hard; echo changed > src/hard; mv src/hard src/moved; cat src/moved; ln src/hard src/alias; cat src/alias; echo done",
+          false,
+          scope,
+          "darwin",
+          blocked,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output).toContain("SHELL_STARTED");
+      expect(result.output).toMatch(/\n[0-9]+\n/);
+      expect(result.output).toContain("LINK_ALLOWED_SENTINEL");
+      expect(result.output).not.toContain("LINK_SECRET_SENTINEL");
+      expect(await readFile(join(root, "secret.txt"), "utf8")).toBe(
+        "LINK_SECRET_SENTINEL",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "allows authorized hard links but cannot write a read-only alias",
+  async () => {
+    const { link, readFile } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-inodes-")),
+    );
+    try {
+      await mkdir(join(root, "src"));
+      await mkdir(join(root, "docs"));
+      await writeFile(join(root, "src", "one"), "INITIAL");
+      await link(join(root, "src", "one"), join(root, "src", "two"));
+      await writeFile(join(root, "docs", "guide"), "READ_ONLY_SENTINEL");
+      await link(join(root, "docs", "guide"), join(root, "src", "guide"));
+      const scope = { audience: "owner", readPaths: [], writePaths: ["src"] };
+      const policy = await validateImShellScope(root, scope);
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "cat src/two; echo ALLOWED > src/two; cat src/guide; echo forbidden > src/guide; echo done",
+          false,
+          scope,
+          "darwin",
+          policy,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output).toContain("INITIAL");
+      expect(result.output).toContain("READ_ONLY_SENTINEL");
+      expect(await readFile(join(root, "src", "one"), "utf8")).toBe(
+        "ALLOWED\n",
+      );
+      expect(await readFile(join(root, "docs", "guide"), "utf8")).toBe(
+        "READ_ONLY_SENTINEL",
+      );
+    } finally {
       await rm(root, { recursive: true, force: true });
     }
   },

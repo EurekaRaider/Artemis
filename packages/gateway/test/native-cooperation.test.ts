@@ -250,6 +250,7 @@ it("continues the same peer session across coordinator turns, with an explicit f
       action: "delegate",
       participantId: "B",
       text: "A different coordinator session",
+      newTask: true,
     },
   ) as Array<{ id: string }>;
   expect(
@@ -257,6 +258,139 @@ it("continues the same peer session across coordinator turns, with an explicit f
       ?.envelope.action,
   ).toBe("delegate");
 });
+it("continues across local tasks and single-recipient batches after a gateway restart", () => {
+  const f = pair();
+  const [first] = delegate(f);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native.tasks(f.b.group.id)[0]!;
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "worker-session",
+    text: "Done",
+    final: true,
+    outcome: "completed",
+  });
+  exchange(f.b, f.a);
+  const restarted = new GatewayRouter(f.a.store);
+  const [next] = restarted.native.command(
+    f.request,
+    "another-local-task",
+    randomUUID(),
+    {
+      action: "delegate-many",
+      text: "",
+      assignments: [{ participantId: "B", text: "Follow-up" }],
+    },
+  ) as Array<{ id: string }>;
+  const task = restarted.native
+    .tasks(f.a.group.id)
+    .find((t) => t.id === next!.id)!;
+  expect(task.envelope).toMatchObject({
+    action: "continue",
+    previousTask: first!.id,
+  });
+  expect(task.sessionId).toBe(first!.id);
+  expect(task.sessionReason).toBe("continued");
+  exchange(f.a, f.b);
+  const received = f.b.router.native
+    .tasks(f.b.group.id)
+    .find((t) => t.id === next!.id)!;
+  expect(
+    f.b.store.get<RemoteInvocationContext>("invocations", received.invocationId)
+      ?.taskId,
+  ).toBe("worker-session");
+  expect(received.sessionId).toBe(first!.id);
+});
+
+it("isolates peer sessions by grant and initiating identity, and reports lost associations", () => {
+  const f = pair();
+  const [first] = delegate(f);
+  // Same peer and grant while busy must not silently start a fresh session.
+  expect(() => delegate(f, "Follow up")).toThrow(/Wait/);
+  const scoped = { ...f.request, id: randomUUID() };
+  f.a.store.put("invocations", scoped.id, scoped);
+  f.a.store.put("invocation-security", scoped.id, {
+    deviceId: f.a.device.id,
+    projectId: "other-project",
+    audience: `space:${f.a.group.id}`,
+    revision: "other-grant",
+  });
+  const [separate] = f.a.router.native.command(
+    scoped,
+    "coordinator",
+    randomUUID(),
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "Different grant",
+    },
+  ) as Array<{ id: string }>;
+  expect(
+    f.a.router.native.tasks(f.a.group.id).find((t) => t.id === separate!.id)
+      ?.envelope.action,
+  ).toBe("delegate");
+  // A real group-member event must not reuse the owner's peer session.
+  f.a.router.ingest({
+    ...f.a.event,
+    messageId: randomUUID(),
+    identity: { ...f.a.event.identity, userId: "member" },
+    text: "Member assignment",
+    timestamp: Date.now(),
+  });
+  f.a.router.processIncoming();
+  const member = f.a.store
+    .list<RemoteInvocationContext>("invocations")
+    .find((r) => r.originator?.userId === "member")!;
+  expect(member).toBeDefined();
+  const [memberTask] = f.a.router.native.command(
+    member,
+    "coordinator",
+    randomUUID(),
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "Member work",
+    },
+  ) as Array<{ id: string }>;
+  expect(
+    f.a.router.native.tasks(f.a.group.id).find((t) => t.id === memberTask!.id)
+      ?.envelope.action,
+  ).toBe("delegate");
+  f.a.store.delete("native-tasks", first!.id);
+  expect(() => delegate(f, "Follow up")).toThrow(
+    /saved peer session is missing/,
+  );
+});
+
+it("rejects an unavailable continuation instead of silently dropping it or creating a new task", () => {
+  const f = pair();
+  const [first] = delegate(f);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native.tasks(f.b.group.id)[0]!;
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "worker",
+    text: "Done",
+    final: true,
+    outcome: "completed",
+  });
+  exchange(f.b, f.a);
+  f.b.store.delete("native-tasks", first!.id);
+  const [next] = delegate(f, "Follow up");
+  exchange(f.a, f.b);
+  exchange(f.b, f.a);
+  const rejected = f.a.router.native
+    .tasks(f.a.group.id)
+    .find((t) => t.id === next!.id)!;
+  expect(rejected.state).toBe("rejected");
+  expect(rejected.result).toContain("saved peer session is missing");
+  expect(f.b.router.native.tasks(f.b.group.id)).toHaveLength(0);
+});
+
 it("reports malformed delegation separately from authorization without dispatching", () => {
   const f = pair();
   expect(
