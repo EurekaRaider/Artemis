@@ -419,7 +419,7 @@ it("continues a native bot assignment in its original session and treats slash t
   await f.service.accept(followUp);
   expect(f.starts).toEqual([original, original]);
   expect(f.threads).toHaveLength(2); // Group entry and one worker session.
-  // A changed grant must reject continuation, never silently create a session.
+  // Renewing permission must continue the original session.
   const settings = f.service.status().settings;
   await f.service.save({
     ...settings,
@@ -429,7 +429,16 @@ it("continues a native bot assignment in its original session and treats slash t
     })),
   });
   await f.service.accept(assignment(original));
-  expect(f.starts).toEqual([original, original]);
+  expect(f.starts).toEqual([original, original, original]);
+  expect(f.threads).toHaveLength(2);
+  // Revocation still blocks execution without creating a replacement session.
+  await f.service.save({
+    ...f.service.status().settings,
+    defaultProjectId: "",
+    grants: [],
+  });
+  await f.service.accept(assignment(original));
+  expect(f.starts).toEqual([original, original, original]);
   expect(f.threads).toHaveLength(2);
 });
 it("allows remote operations after cumulative usage exceeds legacy token budgets", async () => {

@@ -116,7 +116,7 @@ export function ImSettingsPanel({
   const [focusTarget, setFocusTarget] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
-  const [channel, setChannel] = useState<ImChannel>("wecom");
+  const [channel, setChannel] = useState<ImChannel>("slack");
   const [showRemote, setShowRemote] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
@@ -2082,6 +2082,7 @@ export function ImSettingsPanel({
             aria-label={t("ImSettingsPanel.message182")}
           >
             {IM_CHANNELS.map((platform) => {
+              if (platform === "wecom") return null;
               /* tab 仅保留渠道名：连接状态由名称前的信号灯表达（正常亮绿、
                  异常亮红、连接中黄灯），已配置（有连接或已存凭据）渠道名
                  提亮区分；约束文案不再挤进 tab。 */

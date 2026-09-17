@@ -177,9 +177,11 @@ describe("production IM settings", () => {
       action: "pair",
       requireConfirmation: true,
     });
-    await user.click(within(dialog).getByRole("button", {
-      name: t("ImAccountControls.message6"),
-    }));
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: t("ImAccountControls.message6"),
+      }),
+    );
     expect(writeText).toHaveBeenCalledWith("pair 0123456789abcdef");
   });
 
@@ -191,7 +193,9 @@ describe("production IM settings", () => {
     await openCard(user, /^接入渠道/);
     await user.click(platformCard("slack"));
     await user.click(screen.getByText(t("ImSettingsPanel.message59")));
-    await user.click(screen.getByRole("button", { name: "复制 Slack 应用配置" }));
+    await user.click(
+      screen.getByRole("button", { name: "复制 Slack 应用配置" }),
+    );
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const manifest = JSON.parse(writeText.mock.calls[0]![0]);
     expect(manifest.display_information.name).toBe("test-user_bot");
@@ -256,7 +260,7 @@ describe("production IM settings", () => {
       }
     },
   );
-  it.each(["slack", "feishu", "wecom"] as const)(
+  it.each(["slack", "feishu"] as const)(
     "refreshes %s connection signals after disconnect, failure, and recovery",
     async (channel) => {
       vi.useFakeTimers();
@@ -486,7 +490,9 @@ describe("production IM settings", () => {
       /* 渠道切换走②卡 tab 条（role=tab，可访问名=渠道名）。移除走行尾
          图标按钮 + 弹窗确认；取消路径用弹窗内「取消」按钮（jsdom 不派发
          原生 dialog 的 Esc cancel 事件）。 */
-      await user.click(await screen.findByRole("tab", { name: label }));
+      if (channel !== "wecom")
+        await user.click(await screen.findByRole("tab", { name: label }));
+      else await screen.findByRole("button", { name: /^移除连接/ });
       await user.click(screen.getByRole("button", { name: /^移除连接/ }));
       await user.click(screen.getByRole("button", { name: "取消" }));
       expect(
@@ -833,10 +839,9 @@ describe("production IM settings", () => {
        留给渠道 tab 的连接状态（partial_error），不再挤进步骤摘要。 */
     expect(cardHead(/^接入渠道/)).toHaveTextContent("已连接 · 企业微信");
     await openCard(user, /^接入渠道/);
-    expect(platformState("wecom")).toHaveAttribute(
-      "data-connection-state",
-      "partial_error",
-    );
+    expect(
+      screen.queryByRole("tab", { name: "企业微信" }),
+    ).not.toBeInTheDocument();
     expect(f.get().identities).toEqual([identity]);
   });
   it("defaults a new Feishu bot to a long connection without callback secrets", async () => {
@@ -868,14 +873,12 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     // 引导流②卡自动展开（无连接）：新建入口打开凭据弹窗。
     await screen.findByRole("button", { name: "新建 BOT 连接" });
+    expect(platformCard("slack")).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
-    await screen.findByLabelText("Bot Secret");
+    await screen.findByLabelText("Bot User OAuth Token");
     for (const [label, value] of [
-      ["连接 ID", "wecom-team"],
-      ["连接名称", "Test bot"],
-      ["企业 ID（Corp ID）", "test-corp"],
-      ["Bot ID", "test-bot"],
-      ["Bot Secret", "synthetic-secret"],
+      ["Bot User OAuth Token", "xoxb-synthetic-token"],
+      ["App-Level Token", "xapp-synthetic-token"],
       ["机器人配置的管理凭据", "a".repeat(32)],
     ])
       await user.type(screen.getByLabelText(label!), value!);
@@ -885,7 +888,9 @@ describe("production IM settings", () => {
     ).toBeVisible();
     expect(screen.getByText("凭据已保存，请刷新确认连接状态。")).toBeVisible();
     expect(screen.getByRole("switch", { name: "启用 IM 连接" })).toBeDisabled();
-    expect(screen.queryByLabelText("Bot Secret")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Bot User OAuth Token"),
+    ).not.toBeInTheDocument();
   });
   it("does not overwrite a completed action with an older in-flight refresh", async () => {
     const f = fixture();

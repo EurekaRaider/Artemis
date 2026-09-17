@@ -1320,7 +1320,7 @@ describe("IM desktop and Gateway loop", () => {
       expect(member.threads).toHaveLength(0);
     }
   });
-  it("invalidates pending deliveries when a scope changes and starts a fresh context", async () => {
+  it("invalidates pending deliveries when a scope changes but keeps the conversation", async () => {
     const f = await pendingReply();
     const oldId = f.threads[0]!.id;
     await f.service.save({
@@ -1343,11 +1343,80 @@ describe("IM desktop and Gateway loop", () => {
         approve: true,
       }),
     ).rejects.toThrow();
-    await f.send("Fresh task after scope change");
-    expect(f.threads.at(-1)!.id).not.toBe(oldId);
+    expect(() =>
+      f.service.authorizeOperation(
+        oldId,
+        { action: "read", path: "README.md" },
+        "plan",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      f.service.authorizeOperation(
+        oldId,
+        { action: "read", path: "private.txt" },
+        "plan",
+      ),
+    ).toThrow();
+    await f.send("Continue after scope change");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]!.id).toBe(oldId);
+    expect(f.starts.at(-1)).toContain("Continue after scope change");
     expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
       f.secret,
     );
+  });
+  it("reuses a conversation after renewal and applies expanded permissions", async () => {
+    const f = await fixture("slack");
+    await f.send("Initial task");
+    const id = f.threads[0]!.id;
+    const read = { action: "read" as const, path: "new.txt" };
+    expect(() => f.service.authorizeOperation(id, read, "plan")).toThrow();
+    const previousRevision =
+      f.service.status().settings.grants[0]!.security!.revision;
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service.status().settings.grants.map((g) => ({
+        ...g,
+        expiresAt: g.expiresAt + 86400000,
+        security: {
+          ...g.security!,
+          scopes: g.security!.scopes.map((s) => ({
+            ...s,
+            readPaths: [...s.readPaths, "new.txt"],
+            filePaths: [...s.filePaths!, "new.txt"],
+          })),
+        },
+      })),
+    });
+    expect(f.service.status().settings.grants[0]!.security!.revision).not.toBe(
+      previousRevision,
+    );
+    expect(() => f.service.authorizeOperation(id, read, "plan")).not.toThrow();
+    await f.send(`/continue ${id}`);
+    await f.send("Continue with current permissions");
+    expect(f.threads.map((t) => t.id)).toEqual([id]);
+    expect(f.starts.at(-1)).toContain("Continue with current permissions");
+    await f.send("/new Explicit new task");
+    expect(f.threads).toHaveLength(2);
+  });
+  it("reuses a conversation when only the previous message has expired", async () => {
+    const f = await fixture("slack");
+    await f.send("Initial task");
+    const id = f.threads[0]!.id;
+    f.threads[0]!.status = "idle";
+    const database = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      database
+        .prepare(
+          "UPDATE im_state SET value=json_set(value,'$.request.expiresAt',1) WHERE namespace='bindings' AND id=?",
+        )
+        .run(id);
+    } finally {
+      database.close();
+    }
+    await f.send("Next message after expiry");
+    expect(f.threads.map((t) => t.id)).toEqual([id]);
+    expect(f.starts.at(-1)).toContain("Next message after expiry");
   });
   it("preserves v2 grants while leaving a paused configuration for rollback", async () => {
     const f = await fixture();

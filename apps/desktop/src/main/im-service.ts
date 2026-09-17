@@ -392,14 +392,17 @@ export class ImService {
     const current = this.secureContext(binding);
     if (
       !binding.security ||
-      binding.security.revision !== current.revision ||
       binding.security.audience !== current.audience ||
       binding.security.identityKey !== current.identityKey ||
       binding.security.spaceRevision !== current.spaceRevision
     )
-      throw new Error(
-        "数据或分享范围已改变，请新建受限任务；旧历史不会自动共享。",
-      );
+      throw new Error("分享对象已改变，旧会话已暂停；请检查当前分享范围。");
+    // Permission changes affect operations, not conversation identity. Keep
+    // delivery/approval snapshots versioned so stale work cannot be replayed.
+    if (binding.security.revision !== current.revision) {
+      binding.security = current;
+      this.put("bindings", binding.threadId, binding);
+    }
     return requireImGrant(
       this.config,
       this.executionRequest(binding),
@@ -984,9 +987,12 @@ export class ImService {
     this.put("settings", "current", settings);
     // Invalidate every local operation before waiting on cancellations or the network.
     const invalid = this.list<Binding>("bindings").filter((binding) => {
+      const revision = binding.security?.revision;
       try {
         this.grant(binding);
-        return false;
+        // Stop in-flight work and retire pending output under the old grant,
+        // while retaining the conversation for its next turn.
+        return revision !== binding.security?.revision;
       } catch {
         return true;
       }
@@ -2851,9 +2857,9 @@ export class ImService {
       const security = this.secureContext(preview);
       if (
         !prior?.security ||
-        prior.security.revision !== security.revision ||
         prior.security.audience !== security.audience ||
-        prior.security.identityKey !== security.identityKey
+        prior.security.identityKey !== security.identityKey ||
+        prior.security.spaceRevision !== security.spaceRevision
       ) {
         const id = randomUUID();
         this.put("bindings", id, { ...preview, threadId: id, security });
@@ -2864,7 +2870,7 @@ export class ImService {
           `IM 交接 · ${thread.id.slice(0, 8)}`,
         );
         this.put("handoff-source", id, thread.id);
-      } else this.put("bindings", next.id, { ...prior, request });
+      } else this.put("bindings", next.id, { ...prior, request, security });
       this.put("subscriptions", next.id, true);
       this.put("selections", key, {
         projectId: next.projectId,
@@ -2891,19 +2897,16 @@ export class ImService {
       this.deleteThread(threadId);
       threadId = undefined;
     }
-    let existing = threadId
+    const existing = threadId
       ? this.accessibleThread(request, threadId)
       : undefined;
     if (existing) {
       const previous = this.get<Binding>("bindings", existing.id);
-      try {
-        if (!previous) throw new Error();
-        this.checkContext(previous);
-      } catch (error) {
-        if (request.nativeTaskId && request.taskId) throw error;
-        existing = undefined;
-        threadId = undefined;
-      }
+      if (!previous)
+        throw new Error("会话关联不可用，请明确选择要继续的任务。");
+      // Validate this new message against current permissions. An expired
+      // previous message must not expire the conversation itself.
+      this.checkContext({ ...previous, request });
     }
     // 临时会话 participates in default resolution: an unset or sentinel
     // default means plain owner messages start a project-less ad-hoc task.
