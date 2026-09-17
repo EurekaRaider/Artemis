@@ -137,7 +137,7 @@
       "sources": [
         {
           "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "className={`turn-status ${runPresentation.status}`}"
+          "contains": "className={`turn-status ${delegationWaiting ? \"waiting-approval\" : runPresentation.status}`}"
         }
       ]
     },

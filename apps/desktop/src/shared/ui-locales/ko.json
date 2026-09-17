@@ -1451,5 +1451,14 @@
   "avatar.process": "프로필 이미지를 처리하지 못했습니다.",
   "avatar.optimizedSize": "최적화한 프로필 이미지가 너무 큽니다.",
   "browser.address": "웹 주소를 입력하세요.",
-  "browser.protocol": "HTTP와 HTTPS 주소만 지원합니다."
+  "browser.protocol": "HTTP와 HTTPS 주소만 지원합니다.",
+  "ImDelegation.waiting": "Waiting for delegated work · You can keep chatting",
+  "ImDelegation.ready": "Delegated results received · Waiting to continue",
+  "ImDelegation.cancel": "Cancel delegation",
+  "ImDelegation.cancelSent": "Automatic continuation cancelled; check the remote cancellation receipt.",
+  "ImDelegation.waitingShort": "Waiting for delegated work",
+  "ImDelegation.interrupted": "Waiting ended",
+  "ImDelegation.retry": "Retry",
+  "ImDelegation.retryHint": "No automatic retry. Choose Retry only when you want to delegate again. A timed-out peer may still be running.",
+  "ImDelegation.continueWaiting": "Keep waiting"
 }

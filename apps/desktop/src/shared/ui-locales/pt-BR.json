@@ -1451,5 +1451,14 @@
   "avatar.process": "Não foi possível processar a foto de perfil.",
   "avatar.optimizedSize": "A foto de perfil otimizada ainda é grande demais.",
   "browser.address": "Digite um endereço web.",
-  "browser.protocol": "Somente endereços HTTP e HTTPS são aceitos."
+  "browser.protocol": "Somente endereços HTTP e HTTPS são aceitos.",
+  "ImDelegation.waiting": "Waiting for delegated work · You can keep chatting",
+  "ImDelegation.ready": "Delegated results received · Waiting to continue",
+  "ImDelegation.cancel": "Cancel delegation",
+  "ImDelegation.cancelSent": "Automatic continuation cancelled; check the remote cancellation receipt.",
+  "ImDelegation.waitingShort": "Waiting for delegated work",
+  "ImDelegation.interrupted": "Waiting ended",
+  "ImDelegation.retry": "Retry",
+  "ImDelegation.retryHint": "No automatic retry. Choose Retry only when you want to delegate again. A timed-out peer may still be running.",
+  "ImDelegation.continueWaiting": "Keep waiting"
 }

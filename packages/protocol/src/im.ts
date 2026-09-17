@@ -296,6 +296,14 @@ export interface ImStatus {
   remoteTasks?: Array<{
     threadId: string;
     parentThreadId?: string;
+    delegationWaits?: Array<{
+      id: string;
+      state: "waiting" | "ready" | "interrupted";
+      reason?: string;
+      canContinue?: boolean;
+      taskIds: string[];
+      continuation: string;
+    }>;
     channel: string;
     kind: string;
     /** Effective Artemis-to-IM connection, not the user's client presence. */
@@ -354,6 +362,7 @@ export const imReplySchema = z
     visibility: z.enum(["conversation", "owner"]).default("conversation"),
     final: z.boolean().default(false),
     started: z.boolean().optional(),
+    heartbeat: z.boolean().optional(),
     outcome: z.enum(["completed", "failed", "cancelled"]).optional(),
     status: z
       .enum([
@@ -384,6 +393,7 @@ export const collaborationCommandSchema = z
       "status",
       "cancel",
       "finish",
+      "wait",
     ]),
     participantId: id.optional(),
     newTask: z.boolean().optional(),
@@ -401,12 +411,33 @@ export const collaborationCommandSchema = z
       .max(16)
       .optional(),
     taskId: id.optional(),
+    taskIds: z.array(id).min(1).max(16).optional(),
+    waitSeconds: z.number().int().min(0).max(60).optional(),
+    timeoutSeconds: z.number().int().min(1).max(604800).optional(),
     text: text.default(""),
   })
   .strict()
   .superRefine((command, ctx) => {
     const issue = (path: (string | number)[], message: string) =>
       ctx.addIssue({ code: "custom", path, message });
+    if (
+      command.action === "wait" &&
+      (!command.taskIds?.length || !command.text.trim())
+    )
+      issue(
+        ["taskIds"],
+        "wait requires taskIds and nonempty continuation text.",
+      );
+    if (
+      command.action !== "wait" &&
+      (command.taskIds !== undefined ||
+        command.waitSeconds !== undefined ||
+        command.timeoutSeconds !== undefined)
+    )
+      issue(
+        ["taskIds"],
+        "taskIds, waitSeconds and timeoutSeconds are only supported for wait.",
+      );
     if (command.newTask !== undefined && command.action !== "delegate")
       issue(["newTask"], "newTask is only supported for delegate.");
     if (command.action === "delegate") {
@@ -570,6 +601,9 @@ export const remoteOperationSchema = z.discriminatedUnion("action", [
 ]);
 export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("delegation-cancel"), waitId: id }).strict(),
+  z.object({ action: z.literal("delegation-retry"), waitId: id }).strict(),
+  z.object({ action: z.literal("delegation-continue-wait"), waitId: id }).strict(),
   z
     .object({
       action: z.literal("native-cancel"),

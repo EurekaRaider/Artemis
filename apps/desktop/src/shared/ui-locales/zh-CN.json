@@ -1451,5 +1451,14 @@
   "avatar.process": "无法处理头像图片。",
   "avatar.optimizedSize": "优化后的头像图片仍然过大。",
   "browser.address": "请输入网址。",
-  "browser.protocol": "仅支持 HTTP 和 HTTPS 网址。"
+  "browser.protocol": "仅支持 HTTP 和 HTTPS 网址。",
+  "ImDelegation.waiting": "等待委派结果 · 你可以继续发送消息",
+  "ImDelegation.ready": "委派结果已返回 · 等待继续处理",
+  "ImDelegation.cancel": "取消委派",
+  "ImDelegation.cancelSent": "已取消自动继续，远端取消状态以回执为准。",
+  "ImDelegation.waitingShort": "等待委派结果",
+  "ImDelegation.interrupted": "等待已结束",
+  "ImDelegation.retry": "重新委派",
+  "ImDelegation.retryHint": "不会自动重派。请确认是否重新委派；超时的队友任务可能仍在执行。",
+  "ImDelegation.continueWaiting": "继续等待"
 }

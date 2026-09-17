@@ -77,7 +77,7 @@ export function createRemoteTools(
       name: "collaborate",
       label: "Collaborate through IM",
       description:
-        'Delegate through the current native IM group only. Use im_participants to discover group bots and diagnose permission or verification; the participants action here lists only eligible peers. Never guess an identity. For one bot use {action:"delegate",participantId,text} with top-level fields. Later delegate calls to the same bot from this coordinator session continue its existing session after the previous result. Use newTask:true only for an independent new session. For batch assignments use {action:"delegate-many",assignments:[{participantId,text,dependsOn?}]}; assignments is only for delegate-many and creates independent sessions. dependsOn contains existing task IDs from this workflow. Dependencies advance only after successful, nonempty results. Use {action:"message",taskId,text} to append a note to an existing task, never to message a participantId directly. Use status for task IDs and receipts/results, {action:"cancel",taskId} to request remote cancellation, and {action:"finish",text} for the combined summary. A sent request is not acceptance; cancel-sent is not cancellation confirmation. The initiating bot coordinates the workflow. Receiving bots return results and do not delegate further. Results must be IM message text or IM attachments; local paths are not shared artifacts. Plan and Review cannot dispatch.',
+        'Delegate through the current native IM group only. Use im_participants to discover group bots and diagnose permission or verification; the participants action here lists only eligible peers. Never guess an identity. For one bot use {action:"delegate",participantId,text} with top-level fields. Later delegate calls to the same bot from this coordinator session continue its existing session after the previous result. Use newTask:true only for an independent new session. For batch assignments use {action:"delegate-many",assignments:[{participantId,text,dependsOn?}]}; assignments is only for delegate-many and creates independent sessions. dependsOn contains existing task IDs from this workflow. Dependencies advance only after successful, nonempty results. Use {action:"message",taskId,text} to append a note to an existing task, never to message a participantId directly. Use status for task IDs and receipts/results. Successful delegation automatically persists a wait and displays its task summary. You may end the turn without polling; unread results will resume this conversation. Results read through status are handled by the current turn and will not trigger a duplicate continuation. Use {action:"wait",taskIds:[...],text:"what to do after results",waitSeconds:30} to update the saved continuation and briefly await results; use 0 for known long tasks. timeoutSeconds sets the overall waiting deadline (default 86400, maximum 604800); expiry resumes you with unknown remote completion, not a cancellation confirmation. If it returns waiting, end this turn with a brief waiting message; do not poll, sleep, call finish or mark the overall goal complete. Artemis persists the wait and resumes this same conversation when results arrive. Unrelated user messages do not cancel the wait. Apply newer user instructions on resumption; use message for amendments and cancel for explicit cancellation. When multiple tasks exist and the cancellation target is unclear, ask which task before cancelling. Cancel only the requested tasks; cancel also disables their saved automatic continuation. Then use {action:"cancel",taskId} to request remote cancellation, and {action:"finish",text} for the combined summary. A sent request is not acceptance; cancel-sent is not cancellation confirmation. The initiating bot coordinates the workflow. Receiving bots return results and do not delegate further. Results must be IM message text or IM attachments; local paths are not shared artifacts. Plan and Review cannot dispatch.',
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -88,6 +88,7 @@ export function createRemoteTools(
             "status",
             "cancel",
             "finish",
+            "wait",
           ].map((x) => Type.Literal(x)),
         ),
         participantId: Type.Optional(Type.String()),
@@ -105,6 +106,13 @@ export function createRemoteTools(
           ),
         ),
         taskId: Type.Optional(Type.String()),
+        taskIds: Type.Optional(
+          Type.Array(Type.String(), { minItems: 1, maxItems: 16 }),
+        ),
+        waitSeconds: Type.Optional(Type.Integer({ minimum: 0, maximum: 60 })),
+        timeoutSeconds: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 604800 }),
+        ),
         text: Type.Optional(Type.String({ maxLength: 64000 })),
       }),
       execute: (id, p) =>

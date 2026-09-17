@@ -154,6 +154,7 @@ import { MarkdownContent } from "./MarkdownContent.js";
 import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
+import { ImDelegationWaitStatus } from "./ImDelegationWaitStatus.js";
 import { ImThreadConnection, useImThreadStatus } from "./ImThreadConnection.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
@@ -3785,9 +3786,18 @@ export function App() {
     () => deriveRunPresentation(activeEvents, clockMs, threadState?.status),
     [activeEvents, clockMs, threadState?.status],
   );
-  const statusDotStatus =
-    threadState?.status === "running" &&
-    threadState.activity?.phase === "queued"
+  const delegationWaiting =
+    !turnActive &&
+    !!(
+      activeThreadId &&
+      imThreadStatus[activeThreadId]?.delegationWaits?.some(
+        (wait) => wait.state !== "interrupted",
+      )
+    );
+  const statusDotStatus = delegationWaiting
+    ? "waiting-approval"
+    : threadState?.status === "running" &&
+        threadState.activity?.phase === "queued"
       ? "queued"
       : runPresentation.status === "completed"
         ? "idle"
@@ -6507,17 +6517,20 @@ export function App() {
                   >
                     <span className={`status-dot ${statusDotStatus}`} />
                     <span className="status-pill-label">
-                      {runPresentation.status === "completed"
-                        ? t.completed
-                        : statusLabel(threadState, locale, clockMs)}
+                      {delegationWaiting
+                        ? uiText(locale, "ImDelegation.waitingShort")
+                        : runPresentation.status === "completed"
+                          ? t.completed
+                          : statusLabel(threadState, locale, clockMs)}
                     </span>
-                    {runPresentation.status !== "idle" && (
-                      <time
-                        dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                      >
-                        {formatRunDuration(runPresentation.elapsedMs)}
-                      </time>
-                    )}
+                    {!delegationWaiting &&
+                      runPresentation.status !== "idle" && (
+                        <time
+                          dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                        >
+                          {formatRunDuration(runPresentation.elapsedMs)}
+                        </time>
+                      )}
                   </span>
                   {activeProject && (
                     <EnvironmentPanel
@@ -6770,33 +6783,39 @@ export function App() {
                     runPresentation.status !== "idle" &&
                     !latestTimelineEntryIsCompaction && (
                       <TurnStatus
-                        className={`turn-status ${runPresentation.status}`}
+                        className={`turn-status ${delegationWaiting ? "waiting-approval" : runPresentation.status}`}
                         onAnimationStart={synchronizeTurnIndicator}
                         durationLabel={
-                          <time
-                            dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                            title={t.elapsed}
-                          >
-                            {formatRunDuration(runPresentation.elapsedMs)}
-                          </time>
+                          delegationWaiting ? undefined : (
+                            <time
+                              dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                              title={t.elapsed}
+                            >
+                              {formatRunDuration(runPresentation.elapsedMs)}
+                            </time>
+                          )
                         }
                         label={t.elapsed}
                         state={
+                          delegationWaiting ||
                           runPresentation.status === "waiting-approval" ||
                           runPresentation.status === "waiting-user-input"
                             ? "waiting"
                             : runPresentation.status
                         }
                         statusLabel={
-                          runPresentation.status === "running"
-                            ? statusLabel(threadState, locale, clockMs)
-                            : runPresentation.status === "waiting-approval"
-                              ? t.waiting
-                              : runPresentation.status === "waiting-user-input"
-                                ? t.waitingInput
-                                : runPresentation.status === "failed"
-                                  ? t.failed
-                                  : t.completed
+                          delegationWaiting
+                            ? uiText(locale, "ImDelegation.waitingShort")
+                            : runPresentation.status === "running"
+                              ? statusLabel(threadState, locale, clockMs)
+                              : runPresentation.status === "waiting-approval"
+                                ? t.waiting
+                                : runPresentation.status ===
+                                    "waiting-user-input"
+                                  ? t.waitingInput
+                                  : runPresentation.status === "failed"
+                                    ? t.failed
+                                    : t.completed
                         }
                       />
                     )}
@@ -6824,6 +6843,15 @@ export function App() {
                 {!activeThread?.archived && (
                   <div className="composer-wrap">
                     {turnFailureBanner}
+                    {activeThread && (
+                      <ImDelegationWaitStatus
+                        key={activeThread.id}
+                        waits={
+                          imThreadStatus[activeThread.id]?.delegationWaits ?? []
+                        }
+                        locale={locale}
+                      />
+                    )}
                     {taskPlan && (
                       <TaskPlanProgress locale={locale} plan={taskPlan} />
                     )}

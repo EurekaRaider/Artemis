@@ -580,3 +580,898 @@ it("queries Slack bots in Plan and Review without dispatching or requiring bot a
     ),
   ).rejects.toThrow();
 });
+
+async function delegatedFixture() {
+  const f = await fixture();
+  f.grant.mode = "execute";
+  await f.authorize();
+  const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+  const group = f.gateway.store.get<
+    import("@artemis/protocol").CollaborationSpace
+  >("native-groups", groupId)!;
+  f.gateway.store.put("native-groups", groupId, {
+    ...group,
+    nativeGroup: { ...group.nativeGroup, capability: "events" },
+  });
+  await f.service.manage({ action: "refresh" });
+  const request = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    groupId,
+  );
+  await f.service.accept({
+    ...request,
+    text: "Ask Solar to analyze the project",
+  });
+  const threadId = f.starts.at(-1)!;
+  const thread = f.threads.find((t) => t.id === threadId)!;
+  thread.status = "running";
+  const task = {
+    version: 1,
+    id: "delegate-a",
+    groupId,
+    workflow: "workflow",
+    direction: "outgoing",
+    threadId,
+    invocationId: request.id,
+    peer: "solar",
+    state: "running",
+    text: "Analyze",
+    dependencies: [],
+    sequence: 1,
+    updatedAt: Date.now(),
+    envelope: { id: "attempt-a" },
+  };
+  f.gateway.store.put("native-tasks", task.id, task);
+  return { ...f, groupId, request, threadId, thread, task };
+}
+
+it("parks delegated work, preserves intervening conversation, and resumes once after the turn is idle", async () => {
+  const f = await delegatedFixture();
+  const { threadId, thread, task } = f;
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  const result = await f.service.operate(
+    threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [task.id],
+        waitSeconds: 0,
+        text: "Review results",
+      },
+    },
+    "execute",
+    randomUUID(),
+  );
+  expect(result).toMatchObject({ state: "waiting" });
+  expect(f.service.hasDelegationWait(threadId)).toBe(true);
+  // A real intervening message updates the invocation while this turn is busy.
+  await f.service.accept({
+    ...f.request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: threadId,
+    text: "What is two plus two?",
+  });
+  f.gateway.store.put("native-tasks", task.id, {
+    ...task,
+    state: "completed",
+    result: "Solar result",
+  });
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+  expect(
+    f.service.status().remoteTasks!.find((t) => t.threadId === threadId)
+      ?.delegationWaits?.[0]?.state,
+  ).toBe("ready");
+  thread.status = "idle";
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(resume.mock.calls[0]?.[1]).toContain("newer user messages");
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it.each(["archived", "deleted", "revoked", "review", "busy", "queued"])(
+  "does not auto-resume when %s",
+  async (condition) => {
+    const f = await delegatedFixture();
+    const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+      async () => condition !== "queued",
+    );
+    f.ops.resumeDelegation = resume;
+    await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [f.task.id],
+          waitSeconds: 0,
+          text: "Review results",
+        },
+      },
+      "execute",
+      randomUUID(),
+    );
+    f.gateway.store.put("native-tasks", f.task.id, {
+      ...f.task,
+      state: "completed",
+      result: "Done",
+    });
+    f.thread.status = "idle";
+    if (condition === "archived") f.thread.archived = true;
+    if (condition === "deleted")
+      f.threads.splice(f.threads.indexOf(f.thread), 1);
+    if (condition === "revoked")
+      await f.service.save({ ...f.service.status().settings, grants: [] });
+    if (condition === "review") f.thread.mode = "review";
+    if (condition === "busy") f.thread.status = "waiting-approval";
+    await f.service.poll();
+    if (condition === "queued") {
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(f.service.hasDelegationWait(f.threadId)).toBe(true);
+      resume.mockResolvedValue(true);
+      await f.service.poll();
+      expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    } else expect(resume).not.toHaveBeenCalled();
+  },
+);
+
+it("cancels local continuation even if the remote cancellation cannot be delivered", async () => {
+  const f = await delegatedFixture();
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  const wait = (await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Review",
+      },
+    },
+    "execute",
+    randomUUID(),
+  )) as { waitId: string };
+  await f.service
+    .manage({ action: "delegation-cancel", waitId: wait.waitId })
+    .catch(() => {});
+  f.gateway.store.put("native-tasks", f.task.id, {
+    ...f.task,
+    state: "completed",
+    result: "Late result",
+  });
+  f.thread.status = "idle";
+  await f.service.poll();
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  expect(resume).not.toHaveBeenCalled();
+});
+
+it("returns already available results synchronously without scheduling a second turn", async () => {
+  const f = await delegatedFixture();
+  f.gateway.store.put("native-tasks", f.task.id, {
+    ...f.task,
+    state: "completed",
+    result: "Fast result",
+  });
+  const result = await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 30,
+        text: "Review",
+      },
+    },
+    "execute",
+    randomUUID(),
+  );
+  expect(result).toMatchObject({
+    state: "results",
+    tasks: [{ result: "Fast result" }],
+  });
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+});
+
+it("recovers a persisted wait and result after the IM service restarts", async () => {
+  const f = await delegatedFixture();
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Review after restart",
+      },
+    },
+    "execute",
+    randomUUID(),
+  );
+  f.gateway.store.put("native-tasks", f.task.id, {
+    ...f.task,
+    state: "completed",
+    result: "Persisted result",
+  });
+  await f.service.close();
+  f.thread.status = "idle";
+  const restored = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restored.close());
+  await restored.manage({ action: "setup-local" });
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(resume.mock.calls[0]?.[1]).toContain("Persisted result");
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it("returns a result during the bounded short wait and replays the same tool receipt", async () => {
+  const f = await delegatedFixture();
+  const command = {
+    action: "wait" as const,
+    taskIds: [f.task.id],
+    waitSeconds: 1,
+    text: "Review",
+  };
+  const callId = randomUUID();
+  const timer = setTimeout(
+    () =>
+      f.gateway.store.put("native-tasks", f.task.id, {
+        ...f.task,
+        state: "completed",
+        result: "Quick result",
+      }),
+    20,
+  );
+  try {
+    const result = await f.service.operate(
+      f.threadId,
+      { action: "collaborate", command },
+      "execute",
+      callId,
+    );
+    expect(result).toMatchObject({
+      state: "results",
+      tasks: [{ result: "Quick result" }],
+    });
+    expect(
+      await f.service.operate(
+        f.threadId,
+        { action: "collaborate", command },
+        "execute",
+        callId,
+      ),
+    ).toEqual(result);
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+it("keeps task ownership checks after an intervening message changes the invocation", async () => {
+  const f = await delegatedFixture();
+  await f.service.accept({
+    ...f.request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: f.threadId,
+    text: "Only inspect login now",
+  });
+  const status = await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: { action: "status", text: "" } },
+    "execute",
+    randomUUID(),
+  );
+  expect(status).toMatchObject([{ id: f.task.id, invocationId: f.request.id }]);
+  f.gateway.store.put("native-tasks", "foreign", {
+    ...f.task,
+    id: "foreign",
+    threadId: "another-thread",
+  });
+  await expect(
+    f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: { action: "cancel", taskId: "foreign", text: "" },
+      },
+      "execute",
+      randomUUID(),
+    ),
+  ).rejects.toThrow(/owned/);
+  // A completed task can be locally cancelled without sending another IM frame.
+  f.gateway.store.put("native-tasks", f.task.id, {
+    ...f.task,
+    state: "completed",
+    result: "Done",
+  });
+  await expect(
+    f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: { action: "cancel", taskId: f.task.id, text: "" },
+      },
+      "execute",
+      randomUUID(),
+    ),
+  ).resolves.toMatchObject({ id: f.task.id, state: "completed" });
+});
+
+it.each(["desktop", "chat", "tool"] as const)(
+  "%s cancellation persists before delivery and prevents late continuation after restart",
+  async (entry) => {
+    const f = await delegatedFixture();
+    const resume = vi.fn(async () => true);
+    f.ops.resumeDelegation = resume;
+    const cancelContinuation = vi.fn(async () => {});
+    f.ops.cancelDelegationContinuation = cancelContinuation;
+    const wait = (await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [f.task.id],
+          waitSeconds: 0,
+          text: "Review",
+        },
+      },
+      "execute",
+      randomUUID(),
+    )) as { waitId: string };
+    f.thread.status = "idle";
+    if (entry === "chat") {
+      await f.service.accept({
+        ...f.request,
+        id: randomUUID(),
+        messageId: randomUUID(),
+        text: `/stop ${f.threadId}`,
+      });
+    } else if (entry === "desktop") {
+      await f.service
+        .manage({ action: "delegation-cancel", waitId: wait.waitId })
+        .catch(() => {});
+    } else {
+      await f.service
+        .operate(
+          f.threadId,
+          {
+            action: "collaborate",
+            command: { action: "cancel", taskId: f.task.id, text: "" },
+          },
+          "execute",
+          randomUUID(),
+        )
+        .catch(() => {});
+    }
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(cancelContinuation).toHaveBeenCalledWith(
+      f.threadId,
+      expect.arrayContaining([wait.waitId]),
+    );
+    f.gateway.store.put("native-tasks", f.task.id, {
+      ...f.task,
+      state: "completed",
+      result: "Late",
+    });
+    await f.service.poll();
+    expect(resume).not.toHaveBeenCalled();
+    await f.service.close();
+    const restored = new ImService(
+      f.root,
+      {
+        isEncryptionAvailable: () => true,
+        encryptString: (s) => Buffer.from(s),
+        decryptString: (b) => b.toString(),
+      },
+      f.ops,
+    );
+    cleanup.push(() => restored.close());
+    await restored.manage({ action: "setup-local" });
+    await restored.poll();
+    expect(restored.hasDelegationWait(f.threadId)).toBe(false);
+    expect(resume).not.toHaveBeenCalled();
+  },
+);
+
+it("preserves cancellation when a continuation dispatch completes concurrently", async () => {
+  const f = await delegatedFixture();
+  const wait = (await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Review",
+      },
+    },
+    "execute",
+    randomUUID(),
+  )) as { waitId: string };
+  const stopped = vi.fn(async () => {});
+  f.ops.cancelDelegationContinuation = stopped;
+  f.ops.resumeDelegation = async () => {
+    await f.service
+      .manage({ action: "delegation-cancel", waitId: wait.waitId })
+      .catch(() => {});
+    return true;
+  };
+  f.gateway.store.put("native-tasks", f.task.id, {
+    ...f.task,
+    state: "completed",
+    result: "Ready",
+  });
+  f.thread.status = "idle";
+  await f.service.poll();
+  expect(stopped).toHaveBeenCalledWith(
+    f.threadId,
+    expect.arrayContaining([wait.waitId]),
+  );
+  expect(f.service.canResumeDelegation(wait.waitId)).toBe(false);
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  try {
+    const row = db
+      .prepare(
+        "SELECT value FROM im_state WHERE namespace='delegation-waits' AND id=?",
+      )
+      .get(wait.waitId) as { value: string };
+    expect(JSON.parse(row.value).state).toBe("cancelled");
+  } finally {
+    db.close();
+  }
+});
+
+async function automaticallyDelegatedFixture(
+  batch = false,
+  originTurnId?: string,
+) {
+  const f = await delegatedFixture();
+  const group = f.gateway.store.get<
+    import("@artemis/protocol").CollaborationSpace
+  >("native-groups", f.groupId)!;
+  f.gateway.store.put("native-groups", f.groupId, {
+    ...group,
+    nativeGroup: { ...group.nativeGroup, allowedBots: ["solar"] },
+  });
+  f.gateway.store.put("native-peers", f.groupId, [
+    { id: "solar", name: "Solar", verifiedAt: Date.now() },
+  ]);
+  f.gateway.store.put("connections", "bot", {
+    sealed: f.gateway.store.seal({
+      id: "bot",
+      channel: "slack",
+      tenantId: "tenant",
+      appId: "app",
+      botUserId: "jupiter",
+      enabled: true,
+    }),
+  });
+  const command = batch
+    ? {
+        action: "delegate-many" as const,
+        text: "",
+        assignments: [
+          { participantId: "solar", text: "Check disk" },
+          { participantId: "solar", text: "Check RAM" },
+        ],
+      }
+    : {
+        action: "delegate" as const,
+        newTask: true,
+        participantId: "solar",
+        text: "Check disk",
+      };
+  const callId = randomUUID();
+  const result = (await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command },
+    "execute",
+    callId,
+    originTurnId,
+  )) as Array<typeof f.task>;
+  const waits = () =>
+    f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)!
+      .delegationWaits!;
+  return { ...f, command, callId, result, waits };
+}
+
+it("registers waiting immediately on successful dispatch without a wait tool and reuses it for explicit wait", async () => {
+  const f = await automaticallyDelegatedFixture();
+  expect(f.waits()).toHaveLength(1);
+  const id = f.waits()[0]!.id;
+  expect(f.waits()[0]).toMatchObject({
+    continuation: "Check disk",
+    state: "waiting",
+    taskIds: [f.result[0]!.id],
+  });
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "execute",
+    f.callId,
+  );
+  expect(f.waits()).toHaveLength(1);
+  const waited = await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.result[0]!.id],
+        text: "Summarize latest requirements",
+        waitSeconds: 0,
+      },
+    },
+    "execute",
+    randomUUID(),
+  );
+  expect(waited).toMatchObject({ waitId: id });
+  expect(f.waits()[0]!.continuation).toBe("Summarize latest requirements");
+});
+
+it("consumes only results actually returned by status and preserves the remaining batch wait", async () => {
+  const f = await automaticallyDelegatedFixture(true);
+  const resume = vi.fn(async () => true);
+  f.ops.resumeDelegation = resume;
+  expect(f.waits()).toHaveLength(2);
+  f.gateway.store.put("native-tasks", f.result[0]!.id, {
+    ...f.result[0],
+    state: "completed",
+    result: "Disk result from old protocol",
+  });
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: { action: "status", text: "" } },
+    "execute",
+    randomUUID(),
+  );
+  expect(f.waits()).toHaveLength(1);
+  expect(f.waits()[0]!.taskIds).toEqual([f.result[1]!.id]);
+  f.thread.status = "idle";
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+  f.gateway.store.put("native-tasks", f.result[1]!.id, {
+    ...f.result[1],
+    state: "completed",
+    result: "RAM result",
+  });
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it("does not resurrect automatic waits on dispatch replay after cancellation", async () => {
+  const f = await automaticallyDelegatedFixture();
+  await f.service
+    .manage({ action: "delegation-cancel", waitId: f.waits()[0]!.id })
+    .catch(() => {});
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "execute",
+    f.callId,
+  );
+  expect(f.waits()).toHaveLength(0);
+});
+
+it("restores an automatically registered wait and resumes unread results once after restart", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const resume = vi.fn(async () => true);
+  f.ops.resumeDelegation = resume;
+  f.gateway.store.put("native-tasks", f.result[0]!.id, {
+    ...f.result[0],
+    state: "completed",
+    result: "Old-format peer result",
+  });
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+  await f.service.close();
+  f.thread.status = "idle";
+  const restored = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restored.close());
+  await restored.manage({ action: "setup-local" });
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(resume.mock.calls[0])).toContain(
+    "Old-format peer result",
+  );
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it("merges explicit batch waiting without retaining duplicate automatic continuations", async () => {
+  const f = await automaticallyDelegatedFixture(true);
+  await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: f.result.map((t) => t.id),
+        text: "Combine both results",
+        waitSeconds: 0,
+      },
+    },
+    "execute",
+    randomUUID(),
+  );
+  expect(f.waits()).toHaveLength(1);
+  expect(f.waits()[0]!.taskIds).toHaveLength(2);
+});
+
+it("does not show a wait when dispatch is rejected", async () => {
+  const f = await delegatedFixture();
+  await expect(
+    f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "delegate",
+          participantId: "unknown",
+          text: "Analyze",
+        },
+      },
+      "execute",
+      randomUUID(),
+    ),
+  ).rejects.toThrow();
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+});
+
+it("parks pending polling and cancels its original turn, blocking new dispatch from that turn", async () => {
+  const origin = randomUUID();
+  const f = await automaticallyDelegatedFixture(false, origin);
+  const cancelled = vi.fn(async () => {});
+  f.ops.cancelDelegationContinuation = cancelled;
+  const status = await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: { action: "status", text: "" } },
+    "execute",
+    randomUUID(),
+    origin,
+  );
+  expect(status).toMatchObject({ parkDelegation: true, state: "waiting" });
+  await f.service.manage({
+    action: "delegation-cancel",
+    waitId: f.waits()[0]!.id,
+  });
+  expect(cancelled).toHaveBeenCalledWith(
+    f.threadId,
+    expect.arrayContaining([origin]),
+  );
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: f.command },
+      "execute",
+      randomUUID(),
+      origin,
+    ),
+  ).rejects.toThrow("cancelled");
+  expect(f.waits()).toHaveLength(0);
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "execute",
+    randomUUID(),
+    randomUUID(),
+  );
+  expect(f.waits()).toHaveLength(1);
+});
+
+it("cancels an in-flight dispatch that returns after its originating turn was cancelled", async () => {
+  const origin = randomUUID();
+  const f = await automaticallyDelegatedFixture(false, origin);
+  const service = f.service as unknown as {
+    http(path: string, method: string, body: unknown): Promise<Response>;
+  };
+  const original = service.http.bind(service);
+  let release!: () => void;
+  let accepted!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    accepted = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.spyOn(service, "http").mockImplementation(async (path, method, body) => {
+    const response = await original(path, method, body);
+    if (
+      path === "/v1/device/native-command" &&
+      (body as { command?: { action: string } }).command?.action === "delegate"
+    ) {
+      accepted();
+      await gate;
+    }
+    return response;
+  });
+  const pending = f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "execute",
+    randomUUID(),
+    origin,
+  );
+  await ready;
+  await f.service.manage({
+    action: "delegation-cancel",
+    waitId: f.waits()[0]!.id,
+  });
+  release();
+  const tasks = (await pending) as Array<{ id: string }>;
+  expect(f.waits()).toHaveLength(0);
+  expect(
+    f.gateway.store.get<{ state: string }>("native-tasks", tasks[0]!.id)?.state,
+  ).toBe("cancel-sent");
+});
+
+it("recovers the origin of an older wait from a real tool receipt when cancelling", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const origin = randomUUID();
+  f.ops.events = () =>
+    [
+      {
+        turnId: origin,
+        payload: {
+          type: "tool.completed",
+          toolCallId: f.callId,
+          output: JSON.stringify(f.result),
+          isError: false,
+        },
+      },
+    ] as AgentEvent[];
+  const stop = vi.fn(async () => {});
+  f.ops.cancelDelegationContinuation = stop;
+  await f.service.manage({
+    action: "delegation-cancel",
+    waitId: f.waits()[0]!.id,
+  });
+  expect(stop).toHaveBeenCalledWith(
+    f.threadId,
+    expect.arrayContaining([origin]),
+  );
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: f.command },
+      "execute",
+      randomUUID(),
+      origin,
+    ),
+  ).rejects.toThrow("cancelled");
+});
+
+it.each(["cancelled", "failed", "rejected"] as const)(
+  "ends waiting on peer %s without waking the model or allowing automatic redispatch",
+  async (state) => {
+    const f = await automaticallyDelegatedFixture();
+    const resume = vi.fn(async () => true);
+    f.ops.resumeDelegation = resume;
+    f.gateway.store.put("native-tasks", f.result[0]!.id, {
+      ...f.result[0],
+      state,
+      result: "Peer stopped this task",
+    });
+    f.thread.status = "idle";
+    await f.service.poll();
+    expect(resume).not.toHaveBeenCalled();
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(f.waits()[0]).toMatchObject({
+      state: "interrupted",
+      reason: expect.stringContaining("Peer stopped"),
+    });
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "collaborate", command: f.command },
+        "execute",
+        randomUUID(),
+        randomUUID(),
+      ),
+    ).rejects.toThrow("click Retry");
+    const waitId = f.waits()[0]!.id;
+    if (state === "cancelled") {
+      await f.service.accept({
+        ...f.request,
+        id: randomUUID(),
+        messageId: randomUUID(),
+        taskId: f.threadId,
+        text: `/retry ${waitId}`,
+      });
+    } else {
+      await f.service.manage({ action: "delegation-retry", waitId });
+    }
+    await f.service.poll();
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(resume.mock.calls[0])).toContain(
+      "explicitly authorized retry",
+    );
+    await f.service.poll();
+    expect(resume).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("queries unknown and recovered task heartbeats without rearming an interrupted wait", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const resume = vi.fn(async () => true);
+  f.ops.resumeDelegation = resume;
+  const task = f.result[0]!;
+  f.gateway.store.put("native-tasks", task.id, {
+    ...task,
+    state: "failed",
+    result: "Interrupted",
+  });
+  f.thread.status = "idle";
+  await f.service.poll();
+  for (const fresh of [false, true]) {
+    f.gateway.store.put("native-tasks", task.id, {
+      ...task,
+      state: "running",
+      heartbeatAt: Date.now() - (fresh ? 0 : 240_000),
+    });
+    const status = await f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: { action: "status", text: "" } },
+      "execute",
+      randomUUID(),
+      randomUUID(),
+    );
+    expect(status).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          state: fresh ? "running" : "unknown",
+          reportedState: "running",
+          liveness: fresh ? "responsive" : "unknown",
+        }),
+      ]),
+    );
+    await f.service.accept({
+      ...f.request,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      taskId: f.threadId,
+      text: `/status ${f.threadId}`,
+    });
+    expect(f.waits()[0]!.state).toBe("interrupted");
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(resume).not.toHaveBeenCalled();
+  }
+});

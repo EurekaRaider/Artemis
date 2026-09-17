@@ -19,6 +19,7 @@ import {
 
 type Peer = { id: string; name: string; verifiedAt?: number };
 export type NativeTask = {
+  heartbeatAt?: number;
   version: 1;
   id: string;
   groupId: string;
@@ -364,7 +365,7 @@ export class NativeCooperation {
       return true;
     }
     if (
-      !["progress", "completed", "failed", "cancelled"].includes(
+      !["progress", "heartbeat", "completed", "failed", "cancelled"].includes(
         envelope.action,
       ) &&
       envelope.expiresAt <= this.now()
@@ -469,6 +470,7 @@ export class NativeCooperation {
           };
           const task: NativeTask = {
             version: 1,
+            heartbeatAt: this.now(),
             id: envelope.task,
             groupId: group.id,
             workflow: envelope.workflow,
@@ -541,6 +543,7 @@ export class NativeCooperation {
             const states = {
               accepted: "accepted",
               progress: "running",
+              heartbeat: "running",
               completed: "completed",
               failed: "failed",
               rejected: "rejected",
@@ -557,7 +560,10 @@ export class NativeCooperation {
                       ["accepted", "running"].includes(state)
                     ? "cancel-sent"
                     : state,
-              result: envelope.text,
+              ...(envelope.action !== "heartbeat"
+                ? { result: envelope.text }
+                : {}),
+              heartbeatAt: this.now(),
               sequence: envelope.sequence,
               updatedAt: this.now(),
             });
@@ -611,6 +617,10 @@ export class NativeCooperation {
     );
     if (!task || task.direction !== "incoming" || terminal(task.state)) return;
     const group = this.group(task.groupId);
+    if (reply.heartbeat) {
+      this.respond(group, task, "heartbeat", "任务仍在执行");
+      return;
+    }
     const final = reply.final && reply.deliveryState !== "pending";
     const oversized =
       final &&

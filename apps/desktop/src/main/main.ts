@@ -2680,6 +2680,7 @@ function scheduleGoalContinuation(
       thread.mode !== "execute" ||
       thread.goal?.goalId !== goalId ||
       thread.goal.status !== "active" ||
+      imService?.hasDelegationWait(threadId) ||
       activeTurns.has(threadId) ||
       compactingThreads.has(threadId) ||
       cancellingTurns.has(threadId) ||
@@ -3106,11 +3107,12 @@ async function emitInitialTurn(
     } => source.kind === "image" && !("type" in source.attachment),
   );
   try {
-    await Promise.all(
-      savedImages.map((source) =>
-        taskSourceImages().save(threadId, source.sourceId, source.attachment),
-      ),
-    );
+    if (savedImages.length)
+      await Promise.all(
+        savedImages.map((source) =>
+          taskSourceImages().save(threadId, source.sourceId, source.attachment),
+        ),
+      );
   } catch (error) {
     await Promise.allSettled(
       savedImages.map((source) =>
@@ -5617,6 +5619,7 @@ async function startTaskTurnUnchecked(
     displayText?: string;
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
+    delegationContinuationId?: string;
     afterCompaction?: boolean;
   } = {},
 ): Promise<StartTurnResult> {
@@ -5662,7 +5665,7 @@ async function startTaskTurnUnchecked(
   if (!text && attachments.length === 0 && taskBlocks.length === 0) {
     throw new Error("Prompt cannot be empty.");
   }
-  const turnId = randomUUID();
+  const turnId = options.delegationContinuationId ?? randomUUID();
   if (
     options.origin === "desktop" ||
     (options.origin !== "im" && !imService?.profile(thread.id))
@@ -5959,6 +5962,13 @@ async function startTaskTurnUnchecked(
     }
   }
   try {
+    if (
+      options.delegationContinuationId &&
+      !imService?.canResumeDelegation(options.delegationContinuationId)
+    )
+      throw new Error(
+        "IM continuation was cancelled or its authorization changed.",
+      );
     await emitInitialTurn(
       thread.id,
       turnId,
@@ -5968,6 +5978,19 @@ async function startTaskTurnUnchecked(
       source === "user",
       checkpoint,
     );
+    // Cancellation may arrive while the initial events are being persisted.
+    // Recheck before dispatching any work to the agent process.
+    if (
+      options.delegationContinuationId &&
+      !imService?.canResumeDelegation(options.delegationContinuationId)
+    ) {
+      store.clearTurnCheckpoint(thread.id, turnId);
+      emitPayload(thread.id, turnId, {
+        type: "turn.completed",
+        reason: "cancelled",
+      });
+      return { turnId, thread: store.getThread(thread.id) ?? thread };
+    }
   } catch (error) {
     for (const invocation of invocations) {
       store.transitionCustomAgentInvocation(
@@ -6610,6 +6633,16 @@ function automationRunNotification(
 }
 
 async function cancelTaskTurn(threadId: string): Promise<void> {
+  imService?.cancelOperations(threadId);
+  const results = await Promise.allSettled([
+    ...(activeTurns.has(threadId) ? [cancelLocalTaskTurn(threadId)] : []),
+    imService?.cancelThreadDelegations(threadId),
+  ]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed?.status === "rejected") throw failed.reason;
+}
+
+async function cancelLocalTaskTurn(threadId: string): Promise<void> {
   imService?.cancelOperations(threadId);
   if (!agentProcess || !store) {
     throw new Error("Application is not ready.");
@@ -21143,6 +21176,43 @@ app
       app.getPath("userData"),
       safeStorage,
       {
+        cancelDelegationContinuation: async (id, waitIds) => {
+          const turnId = activeTurns.get(id);
+          if (turnId && waitIds.includes(turnId) && !cancellingTurns.has(id))
+            await cancelLocalTaskTurn(id);
+        },
+        resumeDelegation: async (id, text, mode, continuationId, local) => {
+          // The deterministic turn ID is committed with the turn checkpoint. A
+          // crash after dispatch but before IM acknowledgement cannot duplicate it.
+          if (
+            store!
+              .getThreadEvents(id)
+              .some((event) => event.turnId === continuationId)
+          )
+            return true;
+          const queue = recoverableTurnQueues.snapshot(id);
+          if (
+            activeTurns.has(id) ||
+            compactingThreads.has(id) ||
+            cancellingTurns.has(id) ||
+            queue.steering.length ||
+            queue.followUp.length ||
+            compactionFollowUps.snapshot(id).followUp.length ||
+            pendingApprovals.hasWhere((p) => p.request.threadId === id) ||
+            pendingUserInputs.hasWhere((p) => p.request.threadId === id) ||
+            pendingMultiUserInputs.hasWhere((p) => p.request.threadId === id)
+          )
+            return false;
+          await startTaskTurn(
+            { threadId: id, text, mode, attachments: [] },
+            {
+              origin: local ? "desktop" : "im",
+              delegationContinuationId: continuationId,
+              displayText: "IM 委派结果已返回，结合最新要求继续处理。",
+            },
+          );
+          return true;
+        },
         groupActivity: (id, taskId, phase) => {
           const thread = store!.getThread(id);
           if (!thread) return;
@@ -21213,7 +21283,7 @@ app
           });
         },
         cancel: async (id) => {
-          await cancelTaskTurn(id);
+          await cancelLocalTaskTurn(id);
         },
         approve: resolveApproval,
         answer: (resolution) => {

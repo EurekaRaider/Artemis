@@ -266,6 +266,11 @@ function assistantUsage(
 }
 
 export class PiAdapter {
+  private stoppedAfterTools = false;
+  /** The host deliberately ended the loop at a completed tool boundary. */
+  stopAfterTools(): void {
+    this.stoppedAfterTools = true;
+  }
   private activeMessageId: string | undefined;
   private activeMessageContent: Record<AssistantPartType, string> = {
     text: "",
@@ -542,7 +547,11 @@ export class PiAdapter {
         if (this.turnAborted) {
           return [];
         }
-        if (this.sawAssistantMessage && !this.sawAssistantContent) {
+        if (
+          this.sawAssistantMessage &&
+          !this.sawAssistantContent &&
+          !this.stoppedAfterTools
+        ) {
           this.turnFailed = true;
           return [
             {

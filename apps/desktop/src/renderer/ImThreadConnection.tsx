@@ -4,11 +4,15 @@ import type {
   AppLocale,
   ImConnectionStatus,
   ImGroupContext,
+  ImStatus,
 } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { imGroupMentionTargets } from "@artemis/protocol";
 
 type ThreadConnection = {
+  delegationWaits?: NonNullable<
+    ImStatus["remoteTasks"]
+  >[number]["delegationWaits"];
   parentThreadId?: string;
   channel?: string;
   connectionState: ImConnectionStatus["state"] | "unknown";
@@ -34,6 +38,7 @@ export function useImThreadStatus() {
               task.threadId,
               {
                 channel: task.channel,
+                delegationWaits: task.delegationWaits,
                 ...(task.parentThreadId
                   ? { parentThreadId: task.parentThreadId }
                   : {}),
@@ -50,6 +55,8 @@ export function useImThreadStatus() {
               ([id, value]) =>
                 current[id]?.parentThreadId === value.parentThreadId &&
                 current[id]?.channel === value.channel &&
+                JSON.stringify(current[id]?.delegationWaits) ===
+                  JSON.stringify(value.delegationWaits) &&
                 current[id]?.connectionState === value.connectionState &&
                 JSON.stringify(current[id]?.group) ===
                   JSON.stringify(value.group),

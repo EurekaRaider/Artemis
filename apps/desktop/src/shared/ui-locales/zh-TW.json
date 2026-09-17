@@ -1451,5 +1451,14 @@
   "avatar.process": "無法處理頭像圖片。",
   "avatar.optimizedSize": "優化後的頭像圖片仍然過大。",
   "browser.address": "請輸入網址。",
-  "browser.protocol": "僅支援 HTTP 和 HTTPS 網址。"
+  "browser.protocol": "僅支援 HTTP 和 HTTPS 網址。",
+  "ImDelegation.waiting": "等待委派結果 · 你可以繼續傳送訊息",
+  "ImDelegation.ready": "委派結果已返回 · 等待繼續處理",
+  "ImDelegation.cancel": "取消委派",
+  "ImDelegation.cancelSent": "已取消自動繼續，遠端取消狀態以回執為準。",
+  "ImDelegation.waitingShort": "等待委派結果",
+  "ImDelegation.interrupted": "等待已結束",
+  "ImDelegation.retry": "重新委派",
+  "ImDelegation.retryHint": "不會自動重派。請確認是否重新委派；逾時的隊友任務可能仍在執行。",
+  "ImDelegation.continueWaiting": "繼續等待"
 }

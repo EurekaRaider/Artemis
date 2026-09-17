@@ -1,3 +1,4 @@
+import { decodeNativeEnvelope } from "./native-protocol.js";
 import { formatSlackMarkdown } from "./slack-format.js";
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
@@ -221,6 +222,7 @@ export function normalizeSlack(
 }
 
 export class SlackAdapter implements ChannelAdapter {
+  private readonly heartbeatThreads = new Map<string, string>();
   private socket: WebSocket | undefined;
   private controller: AbortController | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -440,12 +442,59 @@ export class SlackAdapter implements ChannelAdapter {
   ) {
     if (!/^[a-zA-Z0-9_-]+$/u.test(recipient) && recipient !== "*")
       throw new Error("Invalid native bot identity.");
+    const frame = decodeNativeEnvelope(text);
+    if (!frame || frame.recipient !== recipient)
+      throw new Error("Invalid native collaboration message.");
+    const labels = {
+      hello: "协作机器人已就绪",
+      probe: "正在验证协作连接",
+      proof: "协作连接已验证",
+      delegate: "委派任务",
+      continue: "继续任务",
+      accepted: "已接收任务",
+      note: "补充任务说明",
+      progress: "任务进展",
+      heartbeat: "任务仍在执行",
+      completed: "任务已完成",
+      failed: "任务未完成",
+      rejected: "任务未接收",
+      cancel: "请求取消任务",
+      cancelled: "任务已取消",
+    };
+    const mention = recipient === "*" ? "" : `<@${recipient}> · `;
+    const heartbeatKey = `${conversation.id}:${frame.task}`;
     const result = await slackApi(
       "chat.postMessage",
       this.config.botToken,
       {
         channel: conversation.id,
+        ...(frame.action === "heartbeat" &&
+        this.heartbeatThreads.has(heartbeatKey)
+          ? { thread_ts: this.heartbeatThreads.get(heartbeatKey) }
+          : {}),
+        // Keep the v1 wire text for existing receivers. Slack renders blocks in
+        // the channel; text remains its notification/accessibility fallback.
         text: `${recipient === "*" ? "" : `<@${recipient}> `}${text}`,
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `${mention}${labels[frame.action]}` },
+          },
+          ...(frame.text.trim()
+            ? [
+                {
+                  type: "section",
+                  text: {
+                    type: "plain_text",
+                    text:
+                      Array.from(frame.text).slice(0, 2400).join("") +
+                      (Array.from(frame.text).length > 2400 ? "…" : ""),
+                    emoji: false,
+                  },
+                },
+              ]
+            : []),
+        ],
         mrkdwn: true,
         parse: "none",
         unfurl_links: false,
@@ -460,6 +509,13 @@ export class SlackAdapter implements ChannelAdapter {
     );
     if (!string(result.ts))
       throw new DeliveryUncertain("Slack did not return a message ID.");
+    if (
+      frame.action === "heartbeat" &&
+      !this.heartbeatThreads.has(heartbeatKey)
+    )
+      this.heartbeatThreads.set(heartbeatKey, string(result.ts));
+    if (["completed", "failed", "cancelled", "rejected"].includes(frame.action))
+      this.heartbeatThreads.delete(heartbeatKey);
     return string(result.ts);
   }
   async publish(

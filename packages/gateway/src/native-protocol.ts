@@ -23,6 +23,7 @@ export const nativeEnvelopeSchema = z
       "accepted",
       "rejected",
       "progress",
+      "heartbeat",
       "completed",
       "failed",
       "cancel",

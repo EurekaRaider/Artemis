@@ -44,3 +44,24 @@ it.each([
 ])("accepts valid collaboration commands: %j", (command) => {
   expect(collaborationCommandSchema.parse(command)).toMatchObject(command);
 });
+
+it.each([
+  { action: "wait" },
+  { action: "wait", taskIds: ["a"], text: "" },
+  { action: "wait", taskIds: ["a"], text: "Continue", waitSeconds: 61 },
+  { action: "wait", taskIds: ["a"], text: "Continue", timeoutSeconds: 0 },
+  { action: "status", taskIds: ["a"] },
+])("rejects invalid durable waits: %j", (command) => {
+  expect(() => collaborationCommandSchema.parse(command)).toThrow();
+});
+it("accepts immediate durable waits with a bounded deadline", () => {
+  expect(
+    collaborationCommandSchema.parse({
+      action: "wait",
+      taskIds: ["a"],
+      text: "Review",
+      waitSeconds: 0,
+      timeoutSeconds: 3600,
+    }),
+  ).toMatchObject({ action: "wait", waitSeconds: 0 });
+});

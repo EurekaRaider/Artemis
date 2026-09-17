@@ -819,3 +819,37 @@ it("probes once across cooldowns and restarts, but allows a bounded manual retry
   expect(a.store.pending("outgoing")).toHaveLength(3);
   expect(() => restarted.native.authorize(a.group.id, ["B"])).toThrow();
 });
+
+it("carries a sequenced task heartbeat without overwriting the peer progress result", () => {
+  const f = pair();
+  const [task] = delegate(f);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native.tasks(f.b.group.id)[0]!;
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "worker-session",
+    text: "Analyzing files",
+    final: false,
+    started: true,
+  });
+  exchange(f.b, f.a);
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "worker-session",
+    text: "Heartbeat",
+    final: false,
+    heartbeat: true,
+  });
+  exchange(f.b, f.a);
+  expect(
+    f.a.router.native.tasks(f.a.group.id).find((t) => t.id === task!.id),
+  ).toMatchObject({
+    state: "running",
+    result: "Analyzing files",
+    heartbeatAt: expect.any(Number),
+  });
+});

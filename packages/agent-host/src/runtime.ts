@@ -1350,6 +1350,7 @@ export class ArtemisAgentHost {
   private readonly shellRuntime: ArtemisShellRuntime;
   private readonly bashExecutions: ObservedBashRegistry;
   private readonly cancelledTurns = new Set<string>();
+  private readonly parkedDelegationTurns = new Set<string>();
   private readonly userInputTails = new Map<string, Promise<void>>();
   private readonly registeredProviderIds = new Set<string>();
   private readonly providerAdmissionBlockedUntil = new Map<string, number>();
@@ -3436,6 +3437,32 @@ export class ArtemisAgentHost {
       });
       if (!result.approved)
         throw new Error(result.error ?? "Remote operation was denied.");
+      if (
+        operation.action === "collaborate" &&
+        operation.command.action === "cancel" &&
+        result.data &&
+        typeof result.data === "object" &&
+        "cancelDelegationTurn" in result.data &&
+        result.data.cancelDelegationTurn === true
+      ) {
+        hosted.adapter?.stopAfterTools();
+        void this.cancel(request.threadId).catch(() => undefined);
+      }
+      if (
+        operation.action === "collaborate" &&
+        (operation.command.action === "status" ||
+          operation.command.action === "wait") &&
+        result.data &&
+        typeof result.data === "object" &&
+        "parkDelegation" in result.data &&
+        result.data.parkDelegation === true
+      ) {
+        // Stop this Pi loop without cancelling its durable IM dependency.
+        this.parkedDelegationTurns.add(
+          `${request.threadId}\0${hosted.currentTurnId}`,
+        );
+        hosted.adapter?.stopAfterTools();
+      }
       return result.data;
     };
     const remoteTools = request.remoteExecution
@@ -5973,6 +6000,23 @@ export class ArtemisAgentHost {
         ...extensionTools.map((tool) => tool.name),
       ],
     });
+    const previousStopAfterTurn = session.agent.shouldStopAfterTurn;
+    session.agent.shouldStopAfterTurn = async (context, signal) => {
+      const hosted = this.threads.get(request.threadId);
+      const turn = hosted?.currentTurnId;
+      const key = `${request.threadId}\0${turn}`;
+      if (this.parkedDelegationTurns.has(key) || this.cancelledTurns.has(key)) {
+        if (hosted && session.pendingMessageCount > 0) {
+          const queue = session.clearQueue();
+          hosted.recoveredQueueMessages.push(
+            ...queue.steering,
+            ...queue.followUp,
+          );
+        }
+        return true;
+      }
+      return (await previousStopAfterTurn?.(context, signal)) === true;
+    };
     const restoredTopLevelUserTurns = session.messages.filter(
       (message) => message.role === "user",
     ).length;
@@ -6197,7 +6241,14 @@ export class ArtemisAgentHost {
           });
           hosted.recoveredQueueMessages = [];
         }
-        for (const payload of hosted.adapter.adapt(event as never)) {
+        for (let payload of hosted.adapter.adapt(event as never)) {
+          if (
+            payload.type === "turn.completed" &&
+            this.cancelledTurns.has(
+              `${hosted.threadId}\0${hosted.currentTurnId}`,
+            )
+          )
+            payload = { ...payload, reason: "cancelled" };
           if (
             payload.type === "turn.completed" &&
             hosted.team &&
@@ -6523,6 +6574,7 @@ export class ArtemisAgentHost {
       hosted.deferredTurnCompletion = undefined;
       hosted.adapter = undefined;
       this.cancelledTurns.delete(cancellationKey);
+      this.parkedDelegationTurns.delete(cancellationKey);
     }
   }
 
