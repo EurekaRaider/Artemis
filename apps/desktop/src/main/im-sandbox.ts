@@ -123,10 +123,9 @@ export async function validateImShellScope(
   const policy: ImShellLinkPolicy = { denyRead: [], denyWrite: [] };
   const visited = new Set<string>();
   const inodes = new Map<string, { count: number; paths: string[] }>();
-  let remaining = 50000;
+  // Scope size is not an authorization boundary. Inspect every entry so large
+  // projects remain usable without silently omitting hard-link deny rules.
   const visit = async (path: string): Promise<void> => {
-    if (--remaining < 0)
-      throw new Error("命令范围过大，无法验证文件链接；请缩小范围。");
     if (isImProtectedPath(path)) return;
     const full = resolve(root, path);
     const part = relative(root, full);

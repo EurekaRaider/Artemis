@@ -78,6 +78,15 @@ export interface ChannelStatus {
   state: "disabled" | "connecting" | "connected" | "error";
   error?: string;
 }
+export function validateMentionUserId(value: string): string {
+  if (
+    !/^[a-zA-Z0-9_.@-]+$/u.test(value) ||
+    /^(?:@?all|here|everyone)$/iu.test(value)
+  )
+    throw new Error("Invalid mention identity.");
+  return value;
+}
+
 export interface ChannelAdapter {
   status(): ChannelStatus;
   start(): void;
@@ -86,6 +95,7 @@ export interface ChannelAdapter {
     conversation: ImConversation,
     text: string,
     idempotencyKey: string,
+    mentionUserId?: string,
   ): Promise<string | undefined>;
   sendNative?(
     conversation: ImConversation,
@@ -690,8 +700,13 @@ export class FeishuAdapter implements ChannelAdapter {
     conversation: ImConversation,
     text: string,
     key: string,
+    mentionUserId?: string,
   ): Promise<string> {
-    return this.message(conversation, { text }, "text", key);
+    const mention =
+      mentionUserId && conversation.kind === "group"
+        ? `<at user_id="${validateMentionUserId(mentionUserId)}"></at>\n`
+        : "";
+    return this.message(conversation, { text: mention + text }, "text", key);
   }
   async statusCard(
     conversation: ImConversation,
@@ -1081,15 +1096,20 @@ export class WecomAdapter implements ChannelAdapter {
     conversation: ImConversation,
     text: string,
     key: string,
+    mentionUserId?: string,
   ): Promise<undefined> {
     if (!this.connected) throw new ChannelUnavailable("WeCom is offline.");
+    const mention =
+      mentionUserId && conversation.kind === "group"
+        ? `<@${validateMentionUserId(mentionUserId)}>\n`
+        : "";
     await this.command(
       "aibot_send_msg",
       {
         chatid: conversation.id,
         chat_type: conversation.kind === "direct" ? 1 : 2,
         msgtype: "markdown",
-        markdown: { content: text },
+        markdown: { content: mention + text },
       },
       createHash("sha256").update(key).digest("hex").slice(0, 32),
     );

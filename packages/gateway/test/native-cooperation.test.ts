@@ -133,6 +133,116 @@ function delegate(
     text,
   }) as Array<{ id: string }>;
 }
+it.each([
+  {
+    status: "waiting",
+    final: false,
+    action: "progress",
+    text: "请补充目标分支，收到后继续。",
+  },
+  {
+    status: "completed",
+    final: true,
+    action: "completed",
+    text: "任务已完成，检查通过。",
+  },
+  {
+    status: "failed",
+    final: true,
+    action: "failed",
+    text: "连接失败，请恢复连接后重试。",
+  },
+] as const)(
+  "returns $status and next actions to the dispatching bot",
+  ({ status, final, action, text }) => {
+    const f = pair();
+    delegate(f);
+    exchange(f.a, f.b);
+    const task = f.b.router.native.tasks(f.b.group.id)[0]!;
+    const reply = {
+      version: 1,
+      id: "worker-status",
+      invocationId: task.invocationId,
+      taskId: "worker",
+      final,
+      status,
+      text,
+      ...(final ? { outcome: status } : {}),
+    };
+    f.b.router.receiveReply(f.b.device.id, reply);
+    f.b.router.receiveReply(f.b.device.id, reply);
+    const responses = f.b.store
+      .pending<Delivery>("outgoing")
+      .filter((item) => item.payload.native?.text === text);
+    expect(responses).toHaveLength(1);
+    expect(responses[0]!.payload.native).toMatchObject({
+      sender: "B",
+      recipient: "A",
+      action,
+      text,
+    });
+    exchange(f.b, f.a);
+    const returned = f.a.router.native.tasks(f.a.group.id)[0]!;
+    expect(returned.result).toBe(text);
+    expect(returned.state).toBe(final ? status : "running");
+  },
+);
+
+it.each(["owner-A", "dispatcher"])(
+  "mentions requester %s when the coordinator returns a delegated result",
+  (userId) => {
+    const f = pair();
+    f.a.router.ingest({
+      ...f.a.event,
+      messageId: randomUUID(),
+      identity: { ...f.a.event.identity, userId },
+      timestamp: Date.now(),
+    });
+    f.a.router.processIncoming();
+    f.request =
+      f.a.store.pending<RemoteInvocationContext>("device")[0]!.payload;
+    delegate(f);
+    exchange(f.a, f.b);
+    const task = f.b.router.native.tasks(f.b.group.id)[0]!;
+    f.b.router.receiveReply(f.b.device.id, {
+      version: 1,
+      id: randomUUID(),
+      invocationId: task.invocationId,
+      taskId: "worker",
+      text: "当前工程是 KairosBoot",
+      final: true,
+      outcome: "completed",
+    });
+    exchange(f.b, f.a);
+    const command = {
+      action: "finish" as const,
+      text: "Jupiter 回复：KairosBoot",
+    };
+    for (let attempt = 0; attempt < 2; attempt++)
+      f.a.router.native.command(f.request, "coordinator", "finish", command);
+    const summaries = f.a.store
+      .pending<Delivery>("outgoing")
+      .filter((item) => item.payload.text === command.text);
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]!.payload.mentionUserId).toBe(userId);
+    f.a.router.receiveReply(f.a.device.id, {
+      version: 1,
+      id: "coordinator-final",
+      invocationId: f.request.id,
+      taskId: "coordinator",
+      text: "普通最终回复：KairosBoot",
+      final: true,
+      outcome: "completed",
+    });
+    expect(
+      f.a.store
+        .pending<Delivery>("outgoing")
+        .find((item) => item.payload.text.includes("普通最终回复：KairosBoot"))
+        ?.payload.mentionUserId,
+    ).toBe(userId);
+  },
+);
+
 it("continues the same peer session across coordinator turns, with an explicit fresh-task escape", () => {
   const f = pair();
   const [first] = delegate(f);

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { imConversationKey, type ChannelEvent } from "@artemis/protocol";
 import { GatewayStore } from "../src/store.js";
-import { GatewayRouter } from "../src/router.js";
+import { GatewayRouter, type Delivery } from "../src/router.js";
 import { saveNativeGroup, retireLegacySpaces } from "../src/native-groups.js";
 const stores: GatewayStore[] = [];
 afterEach(() => {
@@ -42,6 +42,91 @@ function fixture() {
   const router = new GatewayRouter(store);
   return { store, device, identity, conversation, event, router };
 }
+it.each([
+  {
+    status: "completed",
+    final: true,
+    text: "已完成，结果如下。",
+    notify: true,
+  },
+  {
+    status: "failed",
+    final: true,
+    text: "连接失败，请恢复连接后重试。",
+    notify: true,
+  },
+  { status: "cancelled", final: true, text: "任务已取消。", notify: true },
+  {
+    status: "waiting",
+    final: false,
+    text: "请提供目标分支后继续。",
+    notify: true,
+  },
+  { status: "running", final: false, text: "正在执行。", notify: false },
+] as const)(
+  "notifies the actual group dispatcher for $status, preserving next steps",
+  ({ status, final, text, notify }) => {
+    const f = fixture();
+    f.router.ingest(f.event);
+    f.router.processIncoming();
+    saveNativeGroup(f.store, {
+      conversation: f.conversation,
+      owner: f.identity,
+      deviceId: f.device.id,
+      name: "Room",
+      projectId: "p",
+      enabled: true,
+    });
+    f.router.ingest({
+      ...f.event,
+      identity: { ...f.identity, userId: "dispatcher" },
+      messageId: "assignment",
+      timestamp: Date.now(),
+    });
+    f.router.processIncoming();
+    const request = f.store.pending<any>("device")[0]!.payload;
+    for (const item of f.store.pending("outgoing"))
+      f.store.mark("outgoing", item.id, "done");
+    const reply = {
+      version: 1,
+      id: "status",
+      invocationId: request.id,
+      taskId: "task",
+      text,
+      final,
+      status,
+    };
+    f.router.receiveReply(f.device.id, reply);
+    f.router.receiveReply(f.device.id, reply);
+    const deliveries = f.store
+      .pending<Delivery>("outgoing")
+      .map((item) => item.payload);
+    const notifications = deliveries.filter((item) => item.mentionUserId);
+    expect(notifications).toHaveLength(notify ? 1 : 0);
+    if (notify) {
+      expect(notifications[0]).toMatchObject({
+        mentionUserId: "dispatcher",
+        text: expect.stringContaining(text),
+      });
+      expect(notifications[0]!.cardKey).toBeUndefined();
+    }
+  },
+);
+
+it("mentions only in the first chunk of a long status reply", () => {
+  const f = fixture();
+  f.router.queueDelivery("long", {
+    conversation: f.conversation,
+    text: "结果与下一步。".repeat(2000),
+    mentionUserId: "dispatcher",
+  });
+  const deliveries = f.store
+    .pending<Delivery>("outgoing")
+    .map((item) => item.payload);
+  expect(deliveries.length).toBeGreaterThan(1);
+  expect(deliveries.filter((item) => item.mentionUserId)).toHaveLength(1);
+  expect(deliveries[0]!.mentionUserId).toBe("dispatcher");
+});
 it("requires an observed group and a paired owner, without replaying discovery", () => {
   const f = fixture();
   const input = {

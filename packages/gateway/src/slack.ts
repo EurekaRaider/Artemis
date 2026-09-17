@@ -14,6 +14,7 @@ import {
   ChannelRateLimit,
   ChannelUnavailable,
   DeliveryUncertain,
+  validateMentionUserId,
   type ChannelAdapter,
   type ChannelConnection,
   type ChannelStatus,
@@ -167,6 +168,17 @@ export function normalizeSlack(
     return undefined;
   const direct = event.type === "message" && event.channel_type === "im";
   const mention = `<@${config.botUserId}>`;
+  const rawText = string(event.text).trim();
+  const addressee = /^<@([^>]+)>/u.exec(rawText)?.[1];
+  // A leading mention addresses the request; later mentions are task subjects.
+  if (
+    !direct &&
+    !event.bot_id &&
+    !event.bot_profile &&
+    addressee &&
+    addressee !== config.botUserId
+  )
+    return undefined;
   if (
     !direct &&
     !(event.type === "app_mention" && string(event.text).includes(mention)) &&
@@ -177,8 +189,9 @@ export function normalizeSlack(
     )
   )
     return undefined;
-  let text = string(event.text)
-    .replaceAll(mention, "")
+  let text = (
+    rawText.startsWith(mention) ? rawText.slice(mention.length) : rawText
+  )
     .trim()
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")
@@ -720,8 +733,9 @@ export class SlackAdapter implements ChannelAdapter {
     conversation: ImConversation,
     text: string,
     key: string,
+    mentionUserId?: string,
   ): Promise<string> {
-    return this.message(conversation, text, key);
+    return this.message(conversation, text, key, undefined, mentionUserId);
   }
   async statusCard(
     conversation: ImConversation,
@@ -736,6 +750,7 @@ export class SlackAdapter implements ChannelAdapter {
     text: string,
     key: string,
     messageId?: string,
+    mentionUserId?: string,
   ): Promise<string> {
     const bytes = createHash("sha256").update(key).digest().subarray(0, 16);
     bytes[6] = (bytes[6]! & 0x0f) | 0x40;
@@ -747,9 +762,13 @@ export class SlackAdapter implements ChannelAdapter {
       this.config.botToken,
       {
         channel: conversation.id,
-        text: formatSlackMarkdown(text, (value) =>
-          value.replace(commandOutput, (match) => match.replace("/", "")),
-        ),
+        text:
+          (mentionUserId && conversation.kind === "group"
+            ? `<@${validateMentionUserId(mentionUserId)}>\n`
+            : "") +
+          formatSlackMarkdown(text, (value) =>
+            value.replace(commandOutput, (match) => match.replace("/", "")),
+          ),
         mrkdwn: true,
         parse: "none",
         link_names: false,

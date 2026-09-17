@@ -20,6 +20,7 @@ async function fixture(
   groupMembers?: () => Promise<ImGroupRoster>,
 ) {
   const sent: string[] = [];
+  const mentions: Array<string | undefined> = [];
   const cards: Array<{ text: string; messageId: string | undefined }> = [];
   let receive: ((event: ChannelEvent) => void) | undefined;
   let downloads = 0;
@@ -47,8 +48,9 @@ async function fixture(
           published.push(file.data.toString());
           return "file-message";
         },
-        send: async (_conversation, text) => {
+        send: async (_conversation, text, _key, mentionUserId) => {
           sent.push(text);
+          mentions.push(mentionUserId);
           return randomUUID();
         },
         ...(withCards
@@ -122,6 +124,7 @@ async function fixture(
     headers,
     input,
     sent,
+    mentions,
     published,
     cards,
     stop,
@@ -130,6 +133,50 @@ async function fixture(
   };
 }
 describe("Gateway lifecycle and delivery authorization", () => {
+  it("passes actionable group status mentions to the adapter as a new message", async () => {
+    const f = await fixture(true);
+    const conversation = {
+      ...f.input.conversation,
+      kind: "group" as const,
+      id: "room",
+    };
+    f.gateway.router.ingest({ ...f.input, conversation });
+    f.gateway.router.processIncoming();
+    saveNativeGroup(f.gateway.store, {
+      conversation,
+      owner: f.input.identity,
+      deviceId: f.device.id,
+      name: "Room",
+      projectId: "project",
+      enabled: true,
+    });
+    f.gateway.router.ingest({
+      ...f.input,
+      conversation,
+      messageId: "assignment",
+      timestamp: Date.now(),
+      identity: { ...f.input.identity, userId: "dispatcher" },
+    });
+    f.gateway.router.processIncoming();
+    for (const item of f.gateway.store.pending("outgoing"))
+      f.gateway.store.mark("outgoing", item.id, "done");
+    const request =
+      f.gateway.store.pending<RemoteInvocationContext>("device")[0]!.payload;
+    f.gateway.router.receiveReply(f.device.id, {
+      version: 1,
+      id: "waiting",
+      invocationId: request.id,
+      taskId: "task",
+      text: "请补充目标分支。",
+      status: "waiting",
+    });
+    await f.gateway.tick();
+    // The status card may be updated first; the actionable notification is separate.
+    f.gateway.store.delete("throttle", imConversationKey(request.conversation));
+    await f.gateway.tick();
+    expect(f.sent.at(-1)).toContain("请补充目标分支。");
+    expect(f.mentions.at(-1)).toBe("dispatcher");
+  });
   it("requires security capability and drops queued output after grant revocation", async () => {
     const f = await fixture();
     const oldHeaders = { ...f.headers, "x-artemis-security-version": "1" };

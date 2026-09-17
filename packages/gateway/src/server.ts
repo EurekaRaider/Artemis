@@ -1652,6 +1652,7 @@ export class ArtemisGateway {
               item.payload.conversation,
               item.payload.text,
               item.id,
+              item.payload.mentionUserId,
             );
           this.store.transaction(() => {
             this.store.mark("outgoing", item.id, "done");

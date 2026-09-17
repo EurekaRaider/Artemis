@@ -6,6 +6,7 @@ import {
   verifyFeishu,
   splitImText,
   FeishuAdapter,
+  WecomAdapter,
   ChannelRateLimit,
   ChannelUnavailable,
   DeliveryUncertain,
@@ -25,6 +26,63 @@ const config: Extract<ChannelConnection, { channel: "feishu" }> = {
   enabled: true,
 };
 describe("Channel trust boundary", () => {
+  it.each(["feishu", "lark"] as const)(
+    "sends a native requester mention with next steps on %s",
+    async (domain) => {
+      const fetcher = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (url) =>
+          Response.json(
+            String(url).includes("tenant_access_token")
+              ? { code: 0, tenant_access_token: "test", expire: 7200 }
+              : { code: 0, data: { message_id: "message" } },
+          ),
+        );
+      try {
+        const adapter = new FeishuAdapter({ ...config, domain });
+        await adapter.send(
+          { connectionId: "f", kind: "group", id: "room" },
+          "等待补充：请提供目标分支。",
+          "waiting",
+          "ou_dispatcher",
+        );
+        const body = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body));
+        expect(JSON.parse(body.content).text).toBe(
+          '<at user_id="ou_dispatcher"></at>\n等待补充：请提供目标分支。',
+        );
+      } finally {
+        fetcher.mockRestore();
+      }
+    },
+  );
+
+  it("sends WeCom group status mentions without changing direct replies", async () => {
+    const adapter = new WecomAdapter(
+      {
+        id: "w",
+        name: "w",
+        channel: "wecom",
+        tenantId: "tenant",
+        botId: "bot",
+        secret: "secret",
+        enabled: true,
+      },
+      () => {},
+    );
+    const command = vi.fn().mockResolvedValue({});
+    Object.assign(adapter, { connected: true, command });
+    for (const kind of ["group", "direct"] as const) {
+      await adapter.send(
+        { connectionId: "w", id: "room", kind },
+        "请确认下一步。",
+        kind,
+        "dispatcher",
+      );
+      expect(command.mock.calls.at(-1)?.[1].markdown.content).toBe(
+        `${kind === "group" ? "<@dispatcher>\n" : ""}请确认下一步。`,
+      );
+    }
+  });
   it("extracts one rich-post rendition and message image resources while preserving human mentions", () => {
     const event = normalizeFeishu(config, {
       header: { event_type: "im.message.receive_v1" },

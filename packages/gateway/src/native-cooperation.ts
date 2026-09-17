@@ -960,6 +960,7 @@ export class NativeCooperation {
           conversation: request.conversation,
           invocationId: request.id,
           text: command.text,
+          mentionUserId: (request.originator ?? request.identity).userId,
         });
         result = { state: "summary-queued", workflow: workflow.id };
       } else

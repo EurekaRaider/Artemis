@@ -32,6 +32,8 @@ export interface Delivery {
   };
   conversation: ImConversation;
   text: string;
+  /** Trusted platform sender identity, separate from model-written text. */
+  mentionUserId?: string;
   invocationId?: string;
   taskId?: string;
   cardKey?: string;
@@ -96,7 +98,13 @@ export class GatewayRouter {
         "outgoing",
         `${id}:${index}`,
         delivery.conversation.connectionId,
-        { ...delivery, text, ...(index > 0 ? { approval: undefined } : {}) },
+        {
+          ...delivery,
+          text,
+          ...(index > 0
+            ? { approval: undefined, mentionUserId: undefined }
+            : {}),
+        },
       ),
     );
   }
@@ -702,6 +710,7 @@ export class GatewayRouter {
     taskId?: string,
     cardKey?: string,
     replyId?: string,
+    mention?: ImIdentity,
   ): void {
     for (const endpoint of space.endpoints) {
       if (except && imConversationKey(except) === imConversationKey(endpoint))
@@ -713,6 +722,10 @@ export class GatewayRouter {
           ...(space.revision ? { spaceRevision: space.revision } : {}),
         },
         text,
+        ...(mention?.connectionId === endpoint.connectionId &&
+        endpoint.kind === "group"
+          ? { mentionUserId: mention.userId }
+          : {}),
         ...(replyId ? { replyId } : {}),
         ...(invocationId ? { invocationId } : {}),
         ...(taskId ? { taskId } : {}),
@@ -805,11 +818,21 @@ export class GatewayRouter {
         reply.taskId && reply.status && reply.visibility === "conversation"
           ? `${deviceId}:${reply.taskId}`
           : undefined;
-      if (cardKey && reply.final) {
+      // Notify the actual sender, not the receiving bot's owner. Keep progress
+      // card updates quiet; actionable waits and final results need a new message.
+      const mention =
+        reply.taskId &&
+        reply.visibility === "conversation" &&
+        request.conversation.kind === "group" &&
+        !reply.heartbeat &&
+        (reply.final || reply.status === "waiting")
+          ? (request.originator ?? request.identity)
+          : undefined;
+      if (cardKey && (reply.final || mention)) {
         const labels = {
           queued: "排队中",
           running: "正在执行",
-          waiting: "等待主人确认",
+          waiting: "等待处理",
           completed: "已完成",
           failed: "失败",
           cancelled: "已停止",
@@ -856,8 +879,9 @@ export class GatewayRouter {
           undefined,
           request.id,
           reply.taskId,
-          reply.final ? undefined : cardKey,
+          reply.final || mention ? undefined : cardKey,
           parsedReply.id,
+          mention,
         );
       } else
         this.queueDelivery(reply.id, {
@@ -865,7 +889,8 @@ export class GatewayRouter {
           text: reply.text,
           invocationId: request.id,
           ...(reply.taskId ? { taskId: reply.taskId } : {}),
-          ...(!reply.final && cardKey ? { cardKey } : {}),
+          ...(mention ? { mentionUserId: mention.userId } : {}),
+          ...(!reply.final && !mention && cardKey ? { cardKey } : {}),
         });
       const assignment = request.collaboration
         ? this.store.get<CollaborationTask>(

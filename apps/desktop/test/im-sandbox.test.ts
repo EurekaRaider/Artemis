@@ -18,6 +18,63 @@ import {
   runRemoteShell,
 } from "../src/main/im-sandbox.js";
 
+it("allows commands in scopes larger than 50,000 entries while preserving link isolation", async () => {
+  const { link, readFile } = await import("node:fs/promises");
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "artemis-im-large-")),
+  );
+  const workspace = join(root, "project");
+  try {
+    await mkdir(join(workspace, "bulk"), { recursive: true });
+    for (let start = 0; start < 50_010; start += 128) {
+      await Promise.all(
+        Array.from({ length: Math.min(128, 50_010 - start) }, (_, offset) =>
+          writeFile(
+            join(workspace, "bulk", `${start + offset}.txt`),
+            "allowed\n",
+          ),
+        ),
+      );
+    }
+    await writeFile(join(root, "secret.txt"), "LARGE_SCOPE_SECRET");
+    await link(join(root, "secret.txt"), join(workspace, "bulk", "hard"));
+    await symlink(join(root, "secret.txt"), join(workspace, "bulk", "escape"));
+    const scope = { audience: "owner", readPaths: [], writePaths: ["bulk"] };
+    const policy = await validateImShellScope(workspace, scope);
+    expect(policy).toEqual({
+      denyRead: [join(workspace, "bulk", "hard")],
+      denyWrite: [join(workspace, "bulk", "hard")],
+    });
+    if (process.platform === "darwin") {
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          workspace,
+          "set -e; sysctl -n hw.memsize; cat bulk/50009.txt | tr a-z A-Z > bulk/output; mkdir bulk/work; cp bulk/output bulk/work/copy; mv bulk/work/copy bulk/work/moved; cat bulk/work/moved; rm bulk/work/moved; rmdir bulk/work; if cat bulk/hard; then exit 41; fi; if cat bulk/escape; then exit 42; fi; if printf changed > bulk/hard; then exit 43; fi; printf SHELL_COMPLETED",
+          false,
+          scope,
+          "darwin",
+          policy,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output).toMatch(/^[0-9]+\n/);
+      expect(result.output).toContain("ALLOWED\n");
+      expect(result.output).toContain("SHELL_COMPLETED");
+      expect(result.output).not.toContain("LARGE_SCOPE_SECRET");
+      expect(await readFile(join(workspace, "bulk", "output"), "utf8")).toBe(
+        "ALLOWED\n",
+      );
+      expect(await readFile(join(root, "secret.txt"), "utf8")).toBe(
+        "LARGE_SCOPE_SECRET",
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120_000);
+
 it("never falls back to a broad Windows or Linux shell for scoped work", () => {
   for (const platform of ["win32", "linux"] as const)
     expect(() =>

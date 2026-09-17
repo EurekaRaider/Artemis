@@ -78,6 +78,45 @@ function api() {
   });
 }
 describe("Slack Socket Mode", () => {
+  it("routes a multi-mention request only to its leading addressee", () => {
+    const event = payload({
+      type: "app_mention",
+      channel_type: "channel",
+      channel: "C1",
+      text: "  <@Usolar> 问一下 <@Ujupiter> 他电脑的内存是多大的",
+    });
+    expect(
+      normalizeSlack({ ...config, botUserId: "Usolar" }, event)?.text,
+    ).toBe("问一下 <@Ujupiter> 他电脑的内存是多大的");
+    expect(
+      normalizeSlack({ ...config, botUserId: "Ujupiter" }, event),
+    ).toBeUndefined();
+  });
+  it("preserves mentions in the request body, including the receiving bot", () => {
+    for (const event of [
+      { type: "app_mention", channel_type: "channel" },
+      { type: "message", channel_type: "im" },
+    ]) {
+      expect(
+        normalizeSlack(
+          config,
+          payload({
+            ...event,
+            text: "<@Ubot> 请告诉 <@Upeer> 回复给 <@Ubot>",
+          }),
+        )?.text,
+      ).toBe("请告诉 <@Upeer> 回复给 <@Ubot>");
+      expect(
+        normalizeSlack(
+          config,
+          payload({
+            ...event,
+            text: "请检查 <@Ubot> 的任务",
+          }),
+        )?.text,
+      ).toBe("请检查 <@Ubot> 的任务");
+    }
+  });
   it.each(["agents", "ask device-b Inspect the API"])(
     "normalizes explicit group targeting: %s",
     (text) => {
@@ -569,56 +608,95 @@ it.each(["missing_scope", "invalid_auth"])(
   },
 );
 
-it("renders native cooperation as readable blocks without changing the protocol received by existing bots", async () => {
-  const { encodeNativeEnvelope, decodeNativeEnvelope } =
-    await import("../src/native-protocol.js");
-  const { randomUUID } = await import("node:crypto");
-  const envelope = {
-    version: 1 as const,
-    id: randomUUID(),
-    platform: "slack" as const,
-    tenant: "T1",
-    group: "C1",
-    sender: "Ubot",
-    recipient: "Upeer",
-    workflow: randomUUID(),
-    task: randomUUID(),
-    action: "completed" as const,
-    issuedAt: Date.now(),
-    expiresAt: Date.now() + 60000,
-    sequence: 2,
-    text: "RAM: 24 GB <@everyone>",
-  };
-  const wire = encodeNativeEnvelope(envelope);
+it("notifies only the trusted dispatcher while keeping model-written mentions escaped", async () => {
   const fetcher = api().mockResolvedValue(
     Response.json({ ok: true, ts: "123.456" }),
   );
   const adapter = new SlackAdapter(config, () => {});
-  adapters.push(adapter);
-  await adapter.sendNative(
+  await adapter.send(
     { connectionId: "slack", id: "C1", kind: "group" },
-    wire,
-    "result",
-    "Upeer",
+    "请提供目标分支。 <@Uother> <!everyone>",
+    "waiting",
+    "Urequester",
   );
   const body = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body));
-  expect(body.blocks[0].text.text).toBe("<@Upeer> · 任务已完成");
-  expect(body.blocks[1].text).toMatchObject({
-    type: "plain_text",
-    text: envelope.text,
-  });
-  expect(JSON.stringify(body.blocks)).not.toContain("ARTEMIS-IM/1:");
-  const normalized = normalizeSlack(
-    { ...config, botUserId: "Upeer" },
-    payload({
-      type: "message",
-      channel_type: "channel",
-      channel: "C1",
-      user: "Ubot",
-      bot_id: "Bbot",
-      text: body.text,
-      blocks: body.blocks,
-    }),
+  expect(body.text).toBe(
+    "<@Urequester>\n请提供目标分支。 &lt;@Uother&gt; &lt;!everyone&gt;",
   );
-  expect(decodeNativeEnvelope(normalized!.text)).toEqual(envelope);
+  expect(body.link_names).toBe(false);
 });
+
+it.each(["all", "here", "everyone", "U1> <!everyone", 'U1" onclick="x'])(
+  "rejects an invalid notification target %s before sending",
+  async (recipient) => {
+    const fetcher = api();
+    await expect(
+      new SlackAdapter(config, () => {}).send(
+        { connectionId: "slack", id: "C1", kind: "group" },
+        "下一步请确认。",
+        "waiting",
+        recipient,
+      ),
+    ).rejects.toThrow("Invalid mention identity");
+    expect(fetcher).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["completed", "failed", "cancelled", "progress"] as const)(
+  "renders native %s with the coordinator mention and intact next steps",
+  async (action) => {
+    const { encodeNativeEnvelope, decodeNativeEnvelope } =
+      await import("../src/native-protocol.js");
+    const { randomUUID } = await import("node:crypto");
+    const envelope = {
+      version: 1 as const,
+      id: randomUUID(),
+      platform: "slack" as const,
+      tenant: "T1",
+      group: "C1",
+      sender: "Ubot",
+      recipient: "Upeer",
+      workflow: randomUUID(),
+      task: randomUUID(),
+      action,
+      issuedAt: Date.now(),
+      expiresAt: Date.now() + 60000,
+      sequence: 2,
+      text: "RAM: 24 GB。下一步请确认目标分支。 <@everyone>",
+    };
+    const wire = encodeNativeEnvelope(envelope);
+    const fetcher = api().mockResolvedValue(
+      Response.json({ ok: true, ts: "123.456" }),
+    );
+    const adapter = new SlackAdapter(config, () => {});
+    adapters.push(adapter);
+    await adapter.sendNative(
+      { connectionId: "slack", id: "C1", kind: "group" },
+      wire,
+      "result",
+      "Upeer",
+    );
+    const body = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body));
+    expect(body.blocks[0].text.text).toBe(
+      `<@Upeer> · ${{ completed: "任务已完成", failed: "任务未完成", cancelled: "任务已取消", progress: "任务进展" }[action]}`,
+    );
+    expect(body.blocks[1].text).toMatchObject({
+      type: "plain_text",
+      text: envelope.text,
+    });
+    expect(JSON.stringify(body.blocks)).not.toContain("ARTEMIS-IM/1:");
+    const normalized = normalizeSlack(
+      { ...config, botUserId: "Upeer" },
+      payload({
+        type: "message",
+        channel_type: "channel",
+        channel: "C1",
+        user: "Ubot",
+        bot_id: "Bbot",
+        text: body.text,
+        blocks: body.blocks,
+      }),
+    );
+    expect(decodeNativeEnvelope(normalized!.text)).toEqual(envelope);
+  },
+);
