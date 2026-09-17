@@ -1,0 +1,179 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ImFeishuScanPollResult } from "@artemis/protocol";
+import {
+  beginFeishuScan,
+  pollFeishuScan,
+} from "../src/main/feishu-register.js";
+
+/** Route mocked responses by the `action` field of the form body. */
+function stubFetch(responses: Record<string, unknown>) {
+  const calls: Array<{ url: string; body: Record<string, string> }> = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string | URL, init?: { body?: unknown }) => {
+      const body = Object.fromEntries(
+        new URLSearchParams(String(init?.body ?? "")),
+      );
+      calls.push({ url: String(url), body });
+      const action = body.action ?? "";
+      if (!(action in responses)) throw new Error(`unexpected action ${action}`);
+      const response = responses[action];
+      if (typeof response === "number")
+        return { ok: false, status: response, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => response };
+    }),
+  );
+  return calls;
+}
+
+describe("feishu scan-to-register", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("begins a session with the PersonalAgent archetype", async () => {
+    const calls = stubFetch({
+      init: { supported_auth_methods: ["client_secret", "private_key_jwt"] },
+      begin: {
+        device_code: "dev1",
+        verification_uri_complete: "https://accounts.feishu.cn/confirm?c=1",
+        user_code: "ABCD",
+        expire_in: 600,
+        interval: 5,
+      },
+    });
+    const before = Date.now();
+    const result = await beginFeishuScan();
+    expect(calls[0]!.url).toBe(
+      "https://accounts.feishu.cn/oauth/v1/app/registration",
+    );
+    expect(calls[1]!.body).toMatchObject({
+      action: "begin",
+      archetype: "PersonalAgent",
+      auth_method: "client_secret",
+      request_user_info: "open_id",
+    });
+    expect(result).toMatchObject({
+      deviceCode: "dev1",
+      qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+      userCode: "ABCD",
+      intervalMs: 5000,
+      domain: "feishu",
+    });
+    expect(result.expiresAt).toBeGreaterThanOrEqual(before + 600_000);
+  });
+
+  it("rejects environments without client_secret registration", async () => {
+    stubFetch({ init: { supported_auth_methods: ["private_key_jwt"] } });
+    await expect(beginFeishuScan()).rejects.toThrow("扫码创建应用");
+  });
+
+  it("maps poll outcomes through the device-flow states", async () => {
+    const cases: Array<{
+      response: Record<string, unknown>;
+      expected: ImFeishuScanPollResult;
+    }> = [
+      {
+        response: {},
+        expected: { status: "pending", intervalMs: 5000, domain: "feishu" },
+      },
+      {
+        response: { interval: 3 },
+        expected: { status: "pending", intervalMs: 3000, domain: "feishu" },
+      },
+      {
+        response: { error: "slow_down" },
+        expected: { status: "pending", intervalMs: 10000, domain: "feishu" },
+      },
+      {
+        response: { error: "expired_token" },
+        expected: { status: "expired" },
+      },
+      {
+        response: { error: "access_denied" },
+        expected: { status: "denied" },
+      },
+      {
+        response: { error: "unknown_failure" },
+        expected: {
+          status: "error",
+          message: "Feishu registration error: unknown_failure",
+        },
+      },
+      {
+        response: {
+          client_id: "cli_x",
+          client_secret: "sec",
+          app_name: "Donald",
+          user_info: {
+            open_id: "ou_1",
+            tenant_key: "tk1",
+            tenant_brand: "feishu",
+          },
+        },
+        expected: {
+          status: "success",
+          appId: "cli_x",
+          appSecret: "sec",
+          appName: "Donald",
+          openId: "ou_1",
+          tenantKey: "tk1",
+          domain: "feishu",
+        },
+      },
+    ];
+    for (const { response, expected } of cases) {
+      stubFetch({ poll: response });
+      const result = await pollFeishuScan({
+        deviceCode: "dev1",
+        domain: "feishu",
+      });
+      expect(result).toEqual(expected);
+    }
+  });
+
+  it("follows a Lark brand confirmation to the Lark poll host", async () => {
+    const calls = stubFetch({
+      poll: { user_info: { tenant_brand: "lark" } },
+    });
+    const result = await pollFeishuScan({
+      deviceCode: "dev1",
+      domain: "feishu",
+    });
+    expect(result).toEqual({ status: "pending", intervalMs: 0, domain: "lark" });
+    expect(calls[0]!.url).toBe(
+      "https://accounts.feishu.cn/oauth/v1/app/registration",
+    );
+    // The next poll must hit the Lark host with the same device code.
+    const second = await pollFeishuScan({
+      deviceCode: "dev1",
+      domain: "lark",
+    });
+    expect(second).toEqual({
+      status: "pending",
+      intervalMs: 5000,
+      domain: "lark",
+    });
+    expect(calls[1]!.url).toBe(
+      "https://accounts.larksuite.com/oauth/v1/app/registration",
+    );
+  });
+
+  it("keeps polling through transient network failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+    const result = await pollFeishuScan({
+      deviceCode: "dev1",
+      domain: "feishu",
+    });
+    expect(result).toEqual({
+      status: "pending",
+      intervalMs: 5000,
+      domain: "feishu",
+    });
+  });
+});

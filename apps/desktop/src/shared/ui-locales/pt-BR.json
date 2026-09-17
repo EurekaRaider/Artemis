@@ -1463,5 +1463,12 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Impedir suspensão enquanto o Artemis estiver aberto",
   "SettingsPanel.preventSleepHint": "Mantém este computador ativo enquanto o Artemis estiver em execução, inclusive em segundo plano. A tela pode apagar. Sair do Artemis ou desativar esta opção restaura a suspensão normal.",
-  "App_copy.loadEarlierMessages": "Carregar mensagens anteriores"
+  "App_copy.loadEarlierMessages": "Carregar mensagens anteriores",
+  "ImFeishuScan.message1": "Conectar por QR code",
+  "ImFeishuScan.message2": "Escaneie o código QR com o Feishu e confirme no celular; o app é criado e as credenciais salvas automaticamente.",
+  "ImFeishuScan.message3": "Escanear e criar app",
+  "ImFeishuScan.message4": "Aguardando confirmação no celular…",
+  "ImFeishuScan.message5": "\"{{name}}\" criado e conectado.",
+  "ImFeishuScan.message6": "A digitalização não foi concluída ou expirou. Tente novamente.",
+  "ImFeishuScan.message9": "Cancelar"
 }

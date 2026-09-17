@@ -10501,6 +10501,35 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   border-radius: var(--artemis-radius-control, 8px);
   padding: 10px;
 }
+/* 飞书扫码接入块：说明居左、操作钮居右；扫码中二维码恒为白底（对比度）。 */
+.im-scan {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.im-scan-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-inline-end: auto;
+}
+.im-scan-copy h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+.im-scan-active {
+  align-items: flex-start;
+}
+.im-scan-qr {
+  width: 132px;
+  height: 132px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  background: #fff;
+}
 .im-project-list-title {
   margin: 2px 0 6px;
   font-size: 11px;

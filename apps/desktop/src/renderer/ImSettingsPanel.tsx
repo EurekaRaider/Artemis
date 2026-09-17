@@ -60,6 +60,7 @@ import {
 } from "./ImAccountControls";
 
 import { ImPlatformSetup } from "./ImPlatformSetup";
+import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
 
@@ -865,6 +866,15 @@ export function ImSettingsPanel({
       <section id="im-bot" className="im-channel-body" tabIndex={-1}>
         {/* 渠道名与连接状态已由上方 tab（信号灯 + 提亮）表达，主体直接
             进入操作内容，不再重复标题/约束/状态行。 */}
+        {/* 飞书首选扫码接入（官方应用注册流程）；指引折叠块保持其下。 */}
+        {channel === "feishu" && (
+          <ImFeishuScan
+            t={t}
+            busy={busy}
+            disabled={!settings.deviceId}
+            onConnected={() => void run(refresh)}
+          />
+        )}
         {/* 平台接入指引统一收进顶部折叠块：slack 恒显示，飞书/企微一致。 */}
         <details className="im-setup-guide-top">
           <summary>{t("ImSettingsPanel.message59")}</summary>

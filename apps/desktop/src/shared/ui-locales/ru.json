@@ -1463,5 +1463,12 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Не переходить в спящий режим, пока открыт Artemis",
   "SettingsPanel.preventSleepHint": "Этот компьютер не засыпает, пока работает Artemis, в том числе в фоне. Экран может выключаться. Выход из Artemis или отключение этой настройки восстанавливает обычный режим сна.",
-  "App_copy.loadEarlierMessages": "Загрузить предыдущие сообщения"
+  "App_copy.loadEarlierMessages": "Загрузить предыдущие сообщения",
+  "ImFeishuScan.message1": "Подключение по QR-коду",
+  "ImFeishuScan.message2": "Отсканируйте QR-код в Feishu и подтвердите на телефоне; приложение будет создано, а учётные данные сохранены автоматически.",
+  "ImFeishuScan.message3": "Сканировать и создать приложение",
+  "ImFeishuScan.message4": "Ожидание подтверждения на телефоне…",
+  "ImFeishuScan.message5": "Приложение «{{name}}» создано и подключено.",
+  "ImFeishuScan.message6": "Сканирование не завершено или истекло. Повторите попытку.",
+  "ImFeishuScan.message9": "Отмена"
 }
