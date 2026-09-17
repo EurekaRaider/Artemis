@@ -115,12 +115,12 @@ it("bulk selects only explicit unprotected entries for the chosen audience and r
     );
   }
   render(<Editor />);
-  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
   expect(value!.security!.scopes[0]).toMatchObject({
     audience: "owner",
-    readPaths: ["src", "README.md"],
+    readPaths: [],
     writePaths: [],
-    filePaths: ["README.md"],
+    filePaths: [],
   });
   await user.click(screen.getByRole("checkbox", { name: /我确认以上/ }));
   await user.click(screen.getByRole("button", { name: "全选可修改" }));
@@ -128,10 +128,10 @@ it("bulk selects only explicit unprotected entries for the chosen audience and r
   expect(value!.security!.scopes[0]!.writePaths).toEqual(["src", "README.md"]);
   await user.click(screen.getByRole("button", { name: /^分享给谁/ }));
   await user.click(screen.getByRole("option", { name: "Team", exact: true }));
-  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
   expect(value!.security!.scopes[1]).toMatchObject({
     audience: "space:team",
-    readPaths: ["src", "README.md"],
+    readPaths: [],
     writePaths: [],
     spaceRevision: "v1",
   });
@@ -171,7 +171,8 @@ it("exposes disclosure state and preserves inherited permissions with keyboard c
     );
   }
   render(<Editor />);
-  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
+  await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
   const disclosure = screen.getByRole("button", {
     name: "展开 src",
     expanded: false,
@@ -311,7 +312,7 @@ it("requires explicit removal of unavailable audiences before confirmation", asy
     );
   }
   render(<Editor />);
-  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
   const confirmation = screen.getByRole("checkbox", { name: /我确认以上/ });
   expect(confirmation).toBeDisabled();
   expect(screen.getByText(/Old group/)).toBeVisible();

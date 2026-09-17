@@ -42,6 +42,26 @@ export function requireImScope(
   if (!scope) throw new Error("此会话的数据与分享范围尚未授权，请在桌面设置。");
   return scope;
 }
+export class ImPermissionError extends Error {
+  constructor(
+    readonly code: "scope-denied" | "system-denied",
+    message: string,
+  ) {
+    super(message);
+    this.name = "ImPermissionError";
+  }
+}
+/** Only directory reads may address the root; never broaden file/write paths. */
+export function authorizeImReadPath(scope: ImDataScope, input: string): string {
+  if (input !== ".") return authorizeImPath(scope, input);
+  if (scope.readPaths.length)
+    throw new ImPermissionError(
+      "scope-denied",
+      "当前仅授权选定条目，项目根目录枚举不在此会话的授权范围内。",
+    );
+  return ".";
+}
+
 export function authorizeImPath(
   scope: ImDataScope,
   input: string,
@@ -58,8 +78,9 @@ export function authorizeImPath(
     ? imPathWithinScope(path, scope.writePaths)
     : scope.readPaths.length === 0 || imPathWithinScope(path, scope.readPaths);
   if (!withinScope)
-    throw new Error(
-      "文件不在此会话的授权范围内，请在桌面调整范围后重新发起任务。",
+    throw new ImPermissionError(
+      "scope-denied",
+      "文件不在此会话的授权范围内，请在桌面调整范围后继续原任务。",
     );
   return path;
 }

@@ -43,7 +43,7 @@ export function createRemoteTools(
       name: "remote_read",
       label: "Read project file",
       description:
-        "Read an authorized UTF-8 file, or list entries of an authorized directory. Protected files, links and paths outside this audience's data scope are denied.",
+        "Read an authorized UTF-8 file, or list entries of an authorized directory. Use path '.' for the project root (requires whole-project read permission). A permission-required result pauses this task: report the required permission and never switch tools, guess names or read indexes to probe denied content. Protected files, links and paths outside this audience's data scope are denied.",
       parameters: Type.Object({ path: Type.String({ minLength: 1 }) }),
       execute: (id, p) => call({ action: "read", path: p.path }, id),
     }),

@@ -69,6 +69,36 @@ const helper = fileURLToPath(
 describe.runIf(process.platform === "win32")(
   "Windows IM native file and shell boundary",
   () => {
+    it("reads and snapshots a whole-project grant without admitting protected paths", async () => {
+      const root = await mkdtemp(join(tmpdir(), "artemis-im-whole-"));
+      const files = new WindowsImFiles(helper);
+      const scope = { audience: "owner", readPaths: [], writePaths: [] };
+      try {
+        await mkdir(join(root, "folder"));
+        await writeFile(join(root, "folder", "a.txt"), "OK");
+        await writeFile(join(root, ".env"), "PROTECTED");
+        expect(await files.list(root, ".", scope)).toEqual([
+          { path: "folder", directory: true },
+        ]);
+        expect((await files.read(root, "folder/a.txt", scope)).toString()).toBe(
+          "OK",
+        );
+        expect(await files.snapshot(root, scope, () => {})).toEqual(
+          expect.arrayContaining([
+            {
+              path: "folder/a.txt",
+              data: Buffer.from("OK").toString("base64"),
+              directory: false,
+            },
+          ]),
+        );
+        await expect(
+          files.list(root, ".", { ...scope, readPaths: ["folder"] }),
+        ).rejects.toThrow();
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }, 120000);
     // Keep native scenarios separate: every request starts PowerShell and
     // compiles the broker, with a 60-second operation limit of its own.
     it("creates, edits, reads and lists files within the grant", async () => {

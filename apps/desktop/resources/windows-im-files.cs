@@ -128,7 +128,7 @@ public sealed class ArtemisImFiles : IDisposable
             if (part == "" || part == "." || part == ".." || part.EndsWith(".") || part.EndsWith(" ") || Protected(part) || Regex.IsMatch(part, @"^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)", RegexOptions.IgnoreCase)) throw new IOException("Protected or invalid path.");
         }
         foreach (var file in fileRoots) if (path.StartsWith(file + "/", StringComparison.Ordinal)) throw new IOException("File grant cannot expand into a directory.");
-        bool allowed = false;
+        bool allowed = !write && readable.Length == 0;
         foreach (var scope in write ? writable : readable) if (path == scope || path.StartsWith(scope + "/", StringComparison.Ordinal)) allowed = true;
         if (!allowed) throw new IOException("Path is outside the grant.");
         return Path.Combine(root, path.Replace('/', '\\'));
@@ -152,13 +152,14 @@ public sealed class ArtemisImFiles : IDisposable
     }
     public Entry[] List(string path)
     {
-        string full = Checked(path, false);
+        bool wholeRoot = path == "." && readable.Length == 0;
+        string full = wholeRoot ? root : Checked(path, false);
         if (Array.IndexOf(fileRoots, path) >= 0) throw new IOException("File grant cannot expand into a directory.");
         LockDirectory(full, false);
         var result = new List<Entry>();
         foreach (var item in Directory.EnumerateFileSystemEntries(full))
         {
-            string child = path + "/" + Path.GetFileName(item);
+            string child = (wholeRoot ? "" : path + "/") + Path.GetFileName(item);
             try { Checked(child, false); } catch (IOException) { continue; }
             // Do not follow a child link even to decide its type.
             var handle = CreateFileW(item, 0x80, 3, IntPtr.Zero, 3, Flags, IntPtr.Zero);
@@ -195,6 +196,8 @@ public sealed class ArtemisImFiles : IDisposable
     public Entry[] Snapshot()
     {
         var result = new List<Entry>(); long total = 0;
+        if (readable.Length == 0)
+            foreach (var child in List(".")) Visit(child.path, result, ref total);
         foreach (var path in readable)
         {
             bool nested = false;

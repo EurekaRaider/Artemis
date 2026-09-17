@@ -60,6 +60,32 @@ export function ImDelegationWaitStatus({
             {wait.state === "interrupted" && (
               <p>{uiText(locale, "ImDelegation.retryHint")}</p>
             )}
+            {wait.state === "interrupted" && (
+              <button
+                type="button"
+                disabled={!!pending}
+                className="im-delegation-continue"
+                onClick={async () => {
+                  setPending(wait.id);
+                  setNotice("");
+                  try {
+                    await window.artemis.manageIm({
+                      action: "delegation-stop-wait",
+                      waitId: wait.id,
+                    });
+                    setNotice(uiText(locale, "ImDelegation.waitStopped"));
+                  } catch (error) {
+                    setNotice(
+                      error instanceof Error ? error.message : String(error),
+                    );
+                  } finally {
+                    setPending(undefined);
+                  }
+                }}
+              >
+                {uiText(locale, "ImDelegation.stopWaiting")}
+              </button>
+            )}
             {wait.canContinue && (
               <button
                 type="button"

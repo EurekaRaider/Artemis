@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inspectImOutbound, requireImScope } from "../src/main/im-policy.js";
 import {
   authorizeImPath,
+  authorizeImReadPath,
   readImFile,
   writeImFile,
 } from "../src/main/im-policy.js";
@@ -20,6 +21,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 describe("IM policy", () => {
+  it("allows root listing only for whole-project reads without relaxing file/write paths", () => {
+    const whole = { audience: "owner", readPaths: [], writePaths: [] };
+    expect(authorizeImReadPath(whole, ".")).toBe(".");
+    expect(() =>
+      authorizeImReadPath({ ...whole, readPaths: ["README.md"] }, "."),
+    ).toThrow(/范围/);
+    for (const path of ["", "..", "./src", "/tmp", "src/.."])
+      expect(() => authorizeImReadPath(whole, path)).toThrow();
+    expect(() => authorizeImPath(whole, ".", true)).toThrow();
+    expect(() => authorizeImPath(whole, ".")).toThrow();
+  });
   it("fails closed on legacy grants", () => {
     expect(() => requireImScope({} as never, "owner")).toThrow(/确认/u);
   });

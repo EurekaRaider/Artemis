@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -13,6 +13,7 @@ import {
   type AgentEvent,
 } from "@artemis/protocol";
 import type { ArtemisGateway } from "@artemis/gateway";
+import { ImPermissionError } from "../src/main/im-policy.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -1610,3 +1611,147 @@ it.each([false, true])(
     ).toHaveLength(0);
   },
 );
+
+it.runIf(process.platform === "darwin")(
+  "lists the authorized root and future directories, but parks a file-only scope until it changes",
+  async () => {
+    const f = await delegatedFixture();
+    f.thread.status = "idle";
+    const root = join(f.root, "project");
+    await writeFile(join(root, "allowed.txt"), "allowed");
+    await mkdir(join(root, "first"));
+    await writeFile(join(root, ".env"), "secret");
+    const setScope = async (readPaths: string[]) => {
+      const settings = f.service.status().settings;
+      await f.service.save({
+        ...settings,
+        grants: settings.grants.map((g) => ({
+          ...g,
+          security: {
+            ...g.security!,
+            scopes: g.security!.scopes.map((s) => ({
+              ...s,
+              readPaths,
+              writePaths: [],
+              filePaths: readPaths.length ? ["allowed.txt"] : [],
+            })),
+          },
+        })),
+      });
+    };
+    await setScope(["allowed.txt"]);
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "read", path: "." },
+        "execute",
+        randomUUID(),
+        "denied-turn",
+      ),
+    ).resolves.toMatchObject({
+      state: "permission-required",
+      code: "scope-denied",
+      parkPermission: true,
+    });
+    await expect(
+      f.service.operate(
+        f.threadId,
+        {
+          action: "shell",
+          command: "python3 -c 'print(1)'",
+          timeoutSeconds: 1,
+        },
+        "execute",
+        randomUUID(),
+        "denied-turn",
+      ),
+    ).resolves.toMatchObject({ state: "permission-required" });
+    expect(
+      f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)
+        ?.permissionBlock,
+    ).toContain("根目录");
+    await setScope([]);
+    expect(f.service.hasPermissionBlock(f.threadId)).toBe(false);
+    const read = () =>
+      f.service.operate(
+        f.threadId,
+        { action: "read", path: "." },
+        "execute",
+        randomUUID(),
+        "new-turn",
+      );
+    const listing = (await read()) as {
+      entries: Array<{ path: string; directory: boolean }>;
+    };
+    expect(listing.entries).toEqual(
+      expect.arrayContaining([
+        { path: "first", directory: true },
+        { path: "allowed.txt", directory: false },
+      ]),
+    );
+    expect(listing.entries.some((e) => e.path === ".env")).toBe(false);
+    await mkdir(join(root, "later"));
+    expect(await read()).toMatchObject({
+      entries: expect.arrayContaining([{ path: "later", directory: true }]),
+    });
+    expect(f.service.profile(f.threadId)).toBeDefined();
+  },
+);
+
+it("stops an interrupted wait locally without cancelling the peer or resuming late results", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const wait = f.waits()[0]!;
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  const row = db
+    .prepare(
+      "select value from im_state where namespace='delegation-waits' and id=?",
+    )
+    .get(wait.id)!;
+  db.prepare(
+    "update im_state set value=? where namespace='delegation-waits' and id=?",
+  ).run(
+    JSON.stringify({ ...JSON.parse(String(row.value)), state: "interrupted" }),
+    wait.id,
+  );
+  db.close();
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  const before = f.gateway.router.native
+    .tasks(f.groupId)
+    .map((t) => ({ id: t.id, state: t.state }));
+  await expect(
+    f.service.manage({ action: "delegation-stop-wait", waitId: wait.id }),
+  ).resolves.toEqual({ state: "cancelled", remoteCancelled: false });
+  expect(
+    f.gateway.router.native
+      .tasks(f.groupId)
+      .map((t) => ({ id: t.id, state: t.state })),
+  ).toEqual(before);
+  expect(
+    f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)
+      ?.delegationWaits,
+  ).toEqual([]);
+  f.thread.status = "idle";
+  for (const task of f.gateway.router.native.tasks(f.groupId))
+    if (task.direction === "outgoing")
+      f.gateway.store.put("native-tasks", task.id, {
+        ...task,
+        state: "completed",
+        result: "Late result",
+      });
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+});
+
+it("parks preflight denials idempotently and permits a new turn after a system permission repair", async () => {
+  const f = await delegatedFixture();
+  const error = new ImPermissionError("system-denied", "System denied directory listing");
+  const blocked = f.service.blockPermission(f.threadId, error, "old-turn");
+  expect(blocked).toMatchObject({state: "permission-required", parkPermission: true});
+  expect(() => f.service.authorizeOperation(f.threadId, {action: "read", path: "."}, "execute", "old-turn")).toThrow("System denied");
+  expect(f.service.blockPermission(f.threadId, new ImPermissionError("system-denied", blocked.message), "old-turn")).toEqual(blocked);
+  await expect(f.service.operate(f.threadId, {action: "read", path: "."}, "execute", randomUUID(), "old-turn")).resolves.toEqual(blocked);
+  expect(() => f.service.authorizeOperation(f.threadId, {action: "read", path: "."}, "execute", "new-turn")).not.toThrow();
+});

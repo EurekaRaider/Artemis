@@ -18,6 +18,8 @@ import {
   imAudience,
   requireImScope,
   authorizeImPath,
+  authorizeImReadPath,
+  ImPermissionError,
   inspectImOutbound,
   imContentHash,
   readImFile,
@@ -314,7 +316,7 @@ export class ImService {
     if (binding && !binding.localExecution)
       this.reply(
         binding.request,
-        `${reason}\n已结束等待，不会自动重派。可在 Artemis 选择，或发送 /retry ${wait.id} 重新委派${wait.results.some((t) => t.state === "timeout") ? `，/wait ${wait.id} 继续等待` : ""}。`,
+        `${reason}\n已结束等待，不会自动重派。可在 Artemis 选择，或发送 /retry ${wait.id} 重新委派${wait.results.some((t) => t.state === "timeout") ? `，/wait ${wait.id} 继续等待` : ""}，/stopwait ${wait.id} 停止等待（不取消队友任务）。`,
         wait.threadId,
       );
     if (stopTurn)
@@ -947,6 +949,14 @@ export class ImService {
       spaces: structuredClone(this.displaySpaces()),
       remoteTasks: this.list<Binding>("bindings").map((b) => ({
         threadId: b.threadId,
+        ...(this.hasPermissionBlock(b.threadId)
+          ? {
+              permissionBlock: this.get<{ result: { message: string } }>(
+                "permission-blocks",
+                b.threadId,
+              )!.result.message,
+            }
+          : {}),
         ...(b.parentThreadId ? { parentThreadId: b.parentThreadId } : {}),
         channel: b.request.identity.channel,
         kind: b.request.conversation.kind,
@@ -1352,7 +1362,10 @@ export class ImService {
         return true;
       }
     });
-    for (const binding of invalid) this.cancelOperations(binding.threadId);
+    for (const binding of invalid) {
+      this.cancelOperations(binding.threadId);
+      this.remove("permission-blocks", binding.threadId);
+    }
     for (const candidate of this.list<ImOutboundCandidate>(
       "outbound-candidates",
     )) {
@@ -1451,6 +1464,16 @@ export class ImService {
         state:
           action.action === "delegation-retry" ? "retry-approved" : "waiting",
       };
+    }
+    if (action.action === "delegation-stop-wait") {
+      const wait = this.get<DelegationWait>("delegation-waits", action.waitId);
+      if (!wait) throw new Error("Delegation wait not found.");
+      await Promise.all(
+        wait.tasks.map((task) =>
+          this.cancelDelegationTask(wait.threadId, task.id),
+        ),
+      );
+      return { state: "cancelled", remoteCancelled: false };
     }
     if (action.action === "delegation-cancel") {
       const wait = this.get<DelegationWait>("delegation-waits", action.waitId);
@@ -2330,7 +2353,12 @@ export class ImService {
           "UPDATE im_state SET value=json_remove(value,'$.threadId') WHERE namespace='selections' AND json_extract(value,'$.threadId')=?",
         )
         .run(threadId);
-      for (const namespace of ["bindings", "subscriptions", "progress-time"])
+      for (const namespace of [
+        "bindings",
+        "subscriptions",
+        "progress-time",
+        "permission-blocks",
+      ])
         this.remove(namespace, threadId);
       this.db
         .prepare(
@@ -2355,6 +2383,18 @@ export class ImService {
     const binding = this.get<Binding>("bindings", threadId);
     if (!binding) throw new Error("Remote tool is unavailable in this task.");
     const current = this.grant(binding);
+    const block = this.get<{
+      revision?: string;
+      turnId?: string;
+      result: { code: "scope-denied" | "system-denied"; message: string };
+    }>("permission-blocks", threadId);
+    if (
+      block &&
+      block.revision === current.security?.revision &&
+      (block.result.code === "scope-denied" || block.turnId === turnId) &&
+      operation.action !== "participants"
+    )
+      throw new ImPermissionError(block.result.code, block.result.message);
     if (operation.action === "participants") {
       if (
         binding.request.conversation.kind !== "group" ||
@@ -2366,11 +2406,16 @@ export class ImService {
       this.authorizeThread(threadId, mode);
       return current;
     }
-    if (operation.action === "read" || operation.action === "write")
+    if (operation.action === "read")
+      authorizeImReadPath(
+        requireImScope(current, imAudience(binding.request.conversation)),
+        operation.path,
+      );
+    if (operation.action === "write")
       authorizeImPath(
         requireImScope(current, imAudience(binding.request.conversation)),
         operation.path,
-        operation.action === "write",
+        true,
       );
     if (operation.action === "shell" && !this.scopedExecutionSupported)
       throw new Error("此平台尚不能强制执行细粒度 IM 命令范围。");
@@ -2457,7 +2502,85 @@ export class ImService {
       !this.groupContext(binding).stale
     );
   }
+  hasPermissionBlock(threadId: string): boolean {
+    return !!this.get("permission-blocks", threadId);
+  }
   async operate(
+    threadId: string,
+    operationInput: RemoteOperation,
+    mode: RunMode,
+    callId: string,
+    turnId?: string,
+  ): Promise<unknown> {
+    const binding = this.get<Binding>("bindings", threadId);
+    const grant = binding ? this.grant(binding) : undefined;
+    const blocked = this.get<{
+      revision?: string;
+      turnId?: string;
+      result: { message: string; code: "scope-denied" | "system-denied" };
+    }>("permission-blocks", threadId);
+    if (
+      blocked &&
+      blocked.revision === grant?.security?.revision &&
+      (blocked.result.code === "scope-denied" || blocked.turnId === turnId)
+    )
+      return blocked.result;
+    if (blocked) this.remove("permission-blocks", threadId);
+    try {
+      return await this.operateScoped(
+        threadId,
+        operationInput,
+        mode,
+        callId,
+        turnId,
+      );
+    } catch (error) {
+      const denied =
+        error instanceof ImPermissionError
+          ? error
+          : ["EACCES", "EPERM"].includes(
+                (error as NodeJS.ErrnoException).code ?? "",
+              )
+            ? new ImPermissionError(
+                "system-denied",
+                "系统拒绝访问项目目录或文件；请检查 Artemis 的系统文件访问权限。",
+              )
+            : undefined;
+      if (!denied) throw error;
+      return this.blockPermission(threadId, denied, turnId);
+    }
+  }
+  blockPermission(
+    threadId: string,
+    denied: ImPermissionError,
+    turnId?: string,
+  ) {
+    const existing = this.get<{
+      result: {
+        message: string;
+        code: string;
+        parkPermission: boolean;
+        state: string;
+      };
+    }>("permission-blocks", threadId);
+    if (existing?.result.message === denied.message) return existing.result;
+    const binding = this.get<Binding>("bindings", threadId);
+    const grant = binding ? this.grant(binding) : undefined;
+    const result = {
+      state: "permission-required",
+      parkPermission: true,
+      code: denied.code,
+      message: `${denied.message} 请在接收方 Artemis 设置的 IM 项目授权中核对当前分享对象与数据范围；系统拒绝时检查系统文件访问权限。处理后在本任务发送“继续”。请勿改用 Shell、Python、猜测名称或索引文件探测被拒绝的范围。`,
+    };
+    this.put("permission-blocks", threadId, {
+      revision: grant?.security?.revision,
+      turnId,
+      result,
+    });
+    this.cancelOperations(threadId);
+    return result;
+  }
+  private async operateScoped(
     threadId: string,
     operationInput: RemoteOperation,
     mode: RunMode,
@@ -2707,10 +2830,11 @@ export class ImService {
       imAudience(binding.request.conversation),
     );
     if (operation.action === "read") {
-      const path = await checkedRemotePath(
-        workspace,
-        authorizeImPath(scope, operation.path),
-      );
+      const readPath = authorizeImReadPath(scope, operation.path);
+      const path =
+        readPath === "."
+          ? workspace
+          : await checkedRemotePath(workspace, readPath);
       if ((await lstat(path)).isDirectory()) {
         if (scope.filePaths?.includes(operation.path))
           throw new Error("授权文件已被替换为目录。");
@@ -2738,22 +2862,33 @@ export class ImService {
           10,
         );
         this.authorizeOperation(threadId, operation, mode, turnId);
-        if (result.exitCode !== 0)
-          throw new Error("目录读取被原生范围策略拒绝。");
-        return {
-          entries: result.output
-            .split("\n")
-            .filter(Boolean)
-            .flatMap((name) => {
-              const item = `${operation.path}/${name}`;
-              try {
-                authorizeImPath(scope, item);
-                return [{ path: item }];
-              } catch {
-                return [];
-              }
-            }),
-        };
+        if (result.exitCode !== 0) {
+          if (/Permission denied|Operation not permitted/iu.test(result.output))
+            throw new ImPermissionError(
+              "system-denied",
+              "目录读取被系统或沙箱拒绝；请核对项目授权及系统文件访问权限。",
+            );
+          throw new Error("目录读取失败，请检查目录是否仍存在。");
+        }
+        const entries = [];
+        for (const name of result.output.split("\n").filter(Boolean)) {
+          const item =
+            operation.path === "." ? name : `${operation.path}/${name}`;
+          try {
+            const child = await checkedRemotePath(
+              workspace,
+              authorizeImPath(scope, item),
+            );
+            entries.push({
+              path: item,
+              directory: (await lstat(child)).isDirectory(),
+            });
+          } catch {
+            /* Protected or linked children are not part of the listing. */
+          }
+        }
+        this.authorizeOperation(threadId, operation, mode, turnId);
+        return { entries };
       }
       const bytes = this.windowsFiles
         ? await this.windowsFiles.read(workspace, operation.path, scope, () =>
@@ -2820,6 +2955,17 @@ export class ImService {
               operation.timeoutSeconds,
             );
       this.put("operations", receiptKey, { state: "done", operation, result });
+      if (
+        result.exitCode !== 0 &&
+        !result.cancelled &&
+        /(?:^|: )(?:Permission denied|Operation not permitted)(?:\r?\n|$)/imu.test(
+          result.output,
+        )
+      )
+        throw new ImPermissionError(
+          "system-denied",
+          "命令访问被系统或沙箱拒绝。请检查授权，不要更换工具探测相同范围。",
+        );
       return result;
     } finally {
       clearTimeout(expiry);
@@ -3045,6 +3191,7 @@ export class ImService {
     });
   }
   private taskState(thread: Thread): string {
+    if (this.hasPermissionBlock(thread.id)) return "等待权限处理";
     if (thread.status === "running") return "正在执行";
     if (thread.status === "waiting-approval") return "等待确认";
     if (this.hasDelegationWait(thread.id)) return "等待委派结果";
@@ -3196,23 +3343,29 @@ export class ImService {
     };
     if (command === "help") {
       complete(
-        "/projects 查看授权项目\n/project 项目编号 切换项目\n/new 任务内容 新建任务\n/tasks 查看任务\n/continue 任务编号 选择并订阅任务\n/status [任务编号] 查看状态\n/stop [任务编号] 停止任务\n/retry 等待编号 确认重新委派\n/wait 等待编号 继续等待状态未知的委派\n/approve 确认码 yes|no 处理审批\n/answer 确认码 [问题编号] 答案 回答澄清\n/publish [任务编号] 相对路径 发布选定文件（15 分钟链接）\n/unsubscribe 停止当前会话回传\n群聊仅处理授权账号的 @ 派工；引用机器人消息并 @ 可继续对应任务。需要交接时，请在同一 IM 群中手动 @ 下一只机器人并附上摘要。群对话显示此机器人参与的消息和任务。",
+        "/projects 查看授权项目\n/project 项目编号 切换项目\n/new 任务内容 新建任务\n/tasks 查看任务\n/continue 任务编号 选择并订阅任务\n/status [任务编号] 查看状态\n/stop [任务编号] 停止任务\n/retry 等待编号 确认重新委派\n/stopwait 等待编号 停止本地等待（不取消队友任务）\n/wait 等待编号 继续等待状态未知的委派\n/approve 确认码 yes|no 处理审批\n/answer 确认码 [问题编号] 答案 回答澄清\n/publish [任务编号] 相对路径 发布选定文件（15 分钟链接）\n/unsubscribe 停止当前会话回传\n群聊仅处理授权账号的 @ 派工；引用机器人消息并 @ 可继续对应任务。需要交接时，请在同一 IM 群中手动 @ 下一只机器人并附上摘要。群对话显示此机器人参与的消息和任务。",
       );
       return;
     }
-    if (command === "retry" || command === "wait") {
+    if (command === "retry" || command === "wait" || command === "stopwait") {
       const wait = this.get<DelegationWait>("delegation-waits", argument);
       if (!wait) throw new Error("请提供提示中的等待编号。");
       this.accessibleThread(request, wait.threadId, true);
       await this.manage({
         action:
-          command === "retry" ? "delegation-retry" : "delegation-continue-wait",
+          command === "retry"
+            ? "delegation-retry"
+            : command === "stopwait"
+              ? "delegation-stop-wait"
+              : "delegation-continue-wait",
         waitId: wait.id,
       });
       complete(
-        command === "retry"
-          ? "已确认重新委派，将在任务空闲后执行。"
-          : "已继续等待，尚未重新委派。",
+        command === "stopwait"
+          ? "已停止本地等待，迟到结果不会自动恢复此任务；队友任务未被取消。"
+          : command === "retry"
+            ? "已确认重新委派，将在任务空闲后执行。"
+            : "已继续等待，尚未重新委派。",
         wait.threadId,
       );
       return;
@@ -3983,6 +4136,24 @@ export class ImService {
       }
     }
     if (payload.type === "turn.completed" || payload.type === "turn.failed") {
+      const permission = this.get<{ result: { message: string } }>(
+        "permission-blocks",
+        event.threadId,
+      );
+      if (permission) {
+        this.reply(
+          binding.request,
+          permission.result.message,
+          event.threadId,
+          false,
+          "conversation",
+          event.eventId,
+          undefined,
+          false,
+          "waiting",
+        );
+        return;
+      }
       const finalText =
         payload.type === "turn.failed"
           ? `任务失败：${payload.message}`

@@ -6,7 +6,11 @@ import { dirname, join, win32 } from "node:path";
 import { tmpdir } from "node:os";
 import { IM_PROTECTED_COMPONENT, type ImDataScope } from "@artemis/protocol";
 import { buildWindowsAppContainerLaunch } from "@artemis/platform";
-import { authorizeImPath, imContentHash } from "./im-policy.js";
+import {
+  authorizeImPath,
+  authorizeImReadPath,
+  imContentHash,
+} from "./im-policy.js";
 import { runRemoteShell } from "./im-sandbox.js";
 
 export interface ImFileSnapshotEntry {
@@ -183,7 +187,7 @@ export class WindowsImFiles {
     scope: ImDataScope,
     assertCurrent?: () => void,
   ) {
-    authorizeImPath(scope, path);
+    authorizeImReadPath(scope, path);
     const result = await this.request(
       workspace,
       scope,

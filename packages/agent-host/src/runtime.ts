@@ -3438,6 +3438,17 @@ export class ArtemisAgentHost {
       if (!result.approved)
         throw new Error(result.error ?? "Remote operation was denied.");
       if (
+        result.data &&
+        typeof result.data === "object" &&
+        "parkPermission" in result.data &&
+        result.data.parkPermission === true
+      ) {
+        this.parkedDelegationTurns.add(
+          `${request.threadId}\0${hosted.currentTurnId}`,
+        );
+        hosted.adapter?.stopAfterTools();
+      }
+      if (
         operation.action === "collaborate" &&
         operation.command.action === "cancel" &&
         result.data &&

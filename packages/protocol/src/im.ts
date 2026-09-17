@@ -296,6 +296,7 @@ export interface ImStatus {
   remoteTasks?: Array<{
     threadId: string;
     parentThreadId?: string;
+    permissionBlock?: string;
     delegationWaits?: Array<{
       id: string;
       state: "waiting" | "ready" | "interrupted";
@@ -623,8 +624,11 @@ export const remoteOperationSchema = z.discriminatedUnion("action", [
 export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delegation-cancel"), waitId: id }).strict(),
+  z.object({ action: z.literal("delegation-stop-wait"), waitId: id }).strict(),
   z.object({ action: z.literal("delegation-retry"), waitId: id }).strict(),
-  z.object({ action: z.literal("delegation-continue-wait"), waitId: id }).strict(),
+  z
+    .object({ action: z.literal("delegation-continue-wait"), waitId: id })
+    .strict(),
   z
     .object({
       action: z.literal("native-cancel"),

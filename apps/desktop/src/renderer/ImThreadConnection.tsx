@@ -10,6 +10,7 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 import { imGroupMentionTargets } from "@artemis/protocol";
 
 type ThreadConnection = {
+  permissionBlock?: string;
   delegationWaits?: NonNullable<
     ImStatus["remoteTasks"]
   >[number]["delegationWaits"];
@@ -39,6 +40,9 @@ export function useImThreadStatus() {
               {
                 channel: task.channel,
                 delegationWaits: task.delegationWaits,
+                ...(task.permissionBlock
+                  ? { permissionBlock: task.permissionBlock }
+                  : {}),
                 ...(task.parentThreadId
                   ? { parentThreadId: task.parentThreadId }
                   : {}),
@@ -55,6 +59,7 @@ export function useImThreadStatus() {
               ([id, value]) =>
                 current[id]?.parentThreadId === value.parentThreadId &&
                 current[id]?.channel === value.channel &&
+                current[id]?.permissionBlock === value.permissionBlock &&
                 JSON.stringify(current[id]?.delegationWaits) ===
                   JSON.stringify(value.delegationWaits) &&
                 current[id]?.connectionState === value.connectionState &&

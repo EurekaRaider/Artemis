@@ -1,3 +1,4 @@
+import { ImPermissionError } from "./im-policy.js";
 import { ThreadHistoryService } from "./thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
 import { statusText } from "../shared/status-text.js";
@@ -2690,6 +2691,7 @@ function scheduleGoalContinuation(
       thread.goal?.goalId !== goalId ||
       thread.goal.status !== "active" ||
       imService?.hasDelegationWait(threadId) ||
+      imService?.hasPermissionBlock(threadId) ||
       activeTurns.has(threadId) ||
       compactingThreads.has(threadId) ||
       cancellingTurns.has(threadId) ||
@@ -4165,6 +4167,27 @@ async function handleBrokerRequest(
             source: "policy",
           });
       } catch (error) {
+        // Route typed permission denials through the service so it persists the
+        // blocked state and returns a park result, without executing the tool.
+        if (error instanceof ImPermissionError) {
+          agentProcess?.post({
+            type: "broker.resolve",
+            requestId: workerRequestId,
+            resolution: {
+              approvalId: request.approvalId,
+              nonce: randomUUID(),
+              approved: true,
+              scope: "once",
+              source: "policy",
+            },
+            result: imService!.blockPermission(
+              request.threadId,
+              error,
+              request.turnId,
+            ),
+          });
+          return;
+        }
         rejectBrokerRequest(
           workerRequestId,
           request,

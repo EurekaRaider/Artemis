@@ -71,7 +71,9 @@ export function ImDataPermissions({
           []),
         {
           ...next,
-          filePaths: next.readPaths.filter(
+          filePaths: [
+            ...new Set([...next.readPaths, ...next.writePaths]),
+          ].filter(
             (path) =>
               knownEntries.find((e) => e.path === path)?.directory === false ||
               scope.filePaths?.includes(path),
@@ -87,6 +89,10 @@ export function ImDataPermissions({
     });
   }
   async function selectAll(write: boolean) {
+    if (!write) {
+      change({ ...scope, readPaths: [] }, undefined, true);
+      return;
+    }
     setPending(true);
     setError("");
     try {
@@ -105,12 +111,11 @@ export function ImDataPermissions({
       change(
         {
           ...scope,
-          readPaths: paths,
-          writePaths: write
-            ? paths
-            : scope.writePaths.filter((path) => imPathWithinScope(path, paths)),
+          readPaths: scope.readPaths.length ? paths : [],
+          writePaths: paths,
         },
         root,
+        scope.readPaths.length === 0,
       );
     } catch (e) {
       setError(String(e));
@@ -278,6 +283,13 @@ export function ImDataPermissions({
         ]}
       />
       <p>{t("ImDataPermissions.message10")}</p>
+      <p role="status">
+        {t(
+          scope.readPaths.length === 0
+            ? "ImDataPermissions.wholeProject"
+            : "ImDataPermissions.selectedOnly",
+        )}
+      </p>
       <div className="im-scope-actions">
         <Button
           size="compact"

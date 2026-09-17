@@ -10,7 +10,7 @@ import {
 import type { AgentPayload } from "@artemis/protocol";
 import { ArtemisAgentHost } from "../src/runtime.js";
 
-it.each(["status", "wait", "cancel", "read"] as const)(
+it.each(["status", "wait", "cancel", "read", "permission"] as const)(
   "applies delegation stopping only to the intended %s tool and allows a new turn",
   async (action) => {
     const root = await mkdtemp(join(tmpdir(), "im-park-"));
@@ -18,9 +18,16 @@ it.each(["status", "wait", "cancel", "read"] as const)(
     const broker = vi.fn(async () => ({
       approved: true,
       data:
-        action === "cancel"
-          ? { cancelDelegationTurn: true }
-          : { state: "waiting", parkDelegation: true, tasks: [] },
+        action === "permission"
+          ? {
+              state: "permission-required",
+              parkPermission: true,
+              code: "scope-denied",
+              message: "Authorize the directory",
+            }
+          : action === "cancel"
+            ? { cancelDelegationTurn: true }
+            : { state: "waiting", parkDelegation: true, tasks: [] },
     }));
     const host = new ArtemisAgentHost(
       { request: broker },
@@ -74,9 +81,14 @@ it.each(["status", "wait", "cancel", "read"] as const)(
                 {
                   type: "toolCall",
                   id: "poll",
-                  name: action === "read" ? "remote_read" : "collaborate",
+                  name:
+                    action === "read" || action === "permission"
+                      ? "remote_read"
+                      : "collaborate",
                   arguments: {
-                    ...(action === "read" ? { path: "README.md" } : { action }),
+                    ...(action === "read" || action === "permission"
+                      ? { path: "README.md" }
+                      : { action }),
                     ...(action === "wait"
                       ? { taskIds: ["delegated"], text: "Continue later" }
                       : action === "cancel"

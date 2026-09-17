@@ -67,3 +67,33 @@ it("shows unknown status with explicit retry and keep-waiting choices", async ()
     }),
   );
 });
+
+it("offers stop waiting after timeout without invoking remote cancellation", async () => {
+  const manageIm = vi.fn(async () => ({
+    state: "cancelled",
+    remoteCancelled: false,
+  }));
+  stubWindowArtemis({ manageIm });
+  render(
+    <ImDelegationWaitStatus
+      locale="zh-CN"
+      waits={[
+        {
+          id: "timeout",
+          state: "interrupted",
+          taskIds: ["remote"],
+          continuation: "Wait for directory listing",
+          canContinue: true,
+        },
+      ]}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "停止等待" }));
+  expect(manageIm).toHaveBeenCalledWith({
+    action: "delegation-stop-wait",
+    waitId: "timeout",
+  });
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "队友任务未被取消",
+  );
+});

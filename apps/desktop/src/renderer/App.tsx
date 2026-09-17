@@ -3906,7 +3906,11 @@ export function App() {
         (wait) => wait.state !== "interrupted",
       )
     );
-  const statusDotStatus = delegationWaiting
+  const permissionBlock = activeThreadId
+    ? imThreadStatus[activeThreadId]?.permissionBlock
+    : undefined;
+  const remoteWaiting = delegationWaiting || (!turnActive && !!permissionBlock);
+  const statusDotStatus = remoteWaiting
     ? "waiting-approval"
     : threadState?.status === "running" &&
         threadState.activity?.phase === "queued"
@@ -6629,20 +6633,21 @@ export function App() {
                   >
                     <span className={`status-dot ${statusDotStatus}`} />
                     <span className="status-pill-label">
-                      {delegationWaiting
-                        ? uiText(locale, "ImDelegation.waitingShort")
-                        : runPresentation.status === "completed"
-                          ? t.completed
-                          : statusLabel(threadState, locale, clockMs)}
+                      {permissionBlock && !turnActive
+                        ? uiText(locale, "ImPermission.waiting")
+                        : delegationWaiting
+                          ? uiText(locale, "ImDelegation.waitingShort")
+                          : runPresentation.status === "completed"
+                            ? t.completed
+                            : statusLabel(threadState, locale, clockMs)}
                     </span>
-                    {!delegationWaiting &&
-                      runPresentation.status !== "idle" && (
-                        <time
-                          dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                        >
-                          {formatRunDuration(runPresentation.elapsedMs)}
-                        </time>
-                      )}
+                    {!remoteWaiting && runPresentation.status !== "idle" && (
+                      <time
+                        dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                      >
+                        {formatRunDuration(runPresentation.elapsedMs)}
+                      </time>
+                    )}
                   </span>
                   {activeProject && (
                     <EnvironmentPanel
@@ -6910,10 +6915,10 @@ export function App() {
                     runPresentation.status !== "idle" &&
                     !latestTimelineEntryIsCompaction && (
                       <TurnStatus
-                        className={`turn-status ${delegationWaiting ? "waiting-approval" : runPresentation.status}`}
+                        className={`turn-status ${remoteWaiting ? "waiting-approval" : runPresentation.status}`}
                         onAnimationStart={synchronizeTurnIndicator}
                         durationLabel={
-                          delegationWaiting ? undefined : (
+                          remoteWaiting ? undefined : (
                             <time
                               dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
                               title={t.elapsed}
@@ -6924,25 +6929,27 @@ export function App() {
                         }
                         label={t.elapsed}
                         state={
-                          delegationWaiting ||
+                          remoteWaiting ||
                           runPresentation.status === "waiting-approval" ||
                           runPresentation.status === "waiting-user-input"
                             ? "waiting"
                             : runPresentation.status
                         }
                         statusLabel={
-                          delegationWaiting
-                            ? uiText(locale, "ImDelegation.waitingShort")
-                            : runPresentation.status === "running"
-                              ? statusLabel(threadState, locale, clockMs)
-                              : runPresentation.status === "waiting-approval"
-                                ? t.waiting
-                                : runPresentation.status ===
-                                    "waiting-user-input"
-                                  ? t.waitingInput
-                                  : runPresentation.status === "failed"
-                                    ? t.failed
-                                    : t.completed
+                          permissionBlock && !turnActive
+                            ? uiText(locale, "ImPermission.waiting")
+                            : delegationWaiting
+                              ? uiText(locale, "ImDelegation.waitingShort")
+                              : runPresentation.status === "running"
+                                ? statusLabel(threadState, locale, clockMs)
+                                : runPresentation.status === "waiting-approval"
+                                  ? t.waiting
+                                  : runPresentation.status ===
+                                      "waiting-user-input"
+                                    ? t.waitingInput
+                                    : runPresentation.status === "failed"
+                                      ? t.failed
+                                      : t.completed
                         }
                       />
                     )}
@@ -6970,6 +6977,19 @@ export function App() {
                 {!activeThread?.archived && (
                   <div className="composer-wrap">
                     {turnFailureBanner}
+                    {permissionBlock && (
+                      <div className="sandbox-notice" role="status">
+                        <span>{permissionBlock}</span>
+                        <button
+                          type="button"
+                          onClick={(event) =>
+                            openSettings("general", event.currentTarget)
+                          }
+                        >
+                          {uiText(locale, "ImPermission.settings")}
+                        </button>
+                      </div>
+                    )}
                     {activeThread && (
                       <ImDelegationWaitStatus
                         key={activeThread.id}

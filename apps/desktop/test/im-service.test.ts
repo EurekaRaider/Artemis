@@ -677,7 +677,11 @@ describe("IM desktop and Gateway loop", () => {
         "read",
         "desktop-turn",
       ),
-    ).rejects.toThrow(/授权范围/);
+    ).resolves.toMatchObject({
+      state: "permission-required",
+      code: "scope-denied",
+      parkPermission: true,
+    });
     const release = f.service.reserveStart(id, "plan", false);
     try {
       await f.send(`/continue ${id}`);
