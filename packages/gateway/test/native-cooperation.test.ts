@@ -1097,3 +1097,189 @@ it("carries a sequenced task heartbeat without overwriting the peer progress res
     heartbeatAt: expect.any(Number),
   });
 });
+
+it("rejects unqualified reverse dispatch even from a separate owner invocation", () => {
+  const f = pair();
+  delegate(f, "请告诉我你当前所在的项目名称是什么");
+  exchange(f.a, f.b);
+  const owner = f.b.router.groupConversationContext(
+    f.b.device.id,
+    f.b.group.id,
+  );
+  expect(() =>
+    f.b.router.native.command(owner, "other-thread", randomUUID(), {
+      action: "delegate",
+      participantId: "A",
+      text: "William 让你告诉他：你现在项目的名称叫什么？",
+    }),
+  ).toThrow(/dependency/i);
+  expect(
+    f.b.router.native
+      .tasks(f.b.group.id)
+      .filter((t) => t.direction === "outgoing"),
+  ).toHaveLength(0);
+});
+
+it("allows a distinct upstream dependency and returns its result to the worker", () => {
+  const f = pair();
+  const [parent] = delegate(
+    f,
+    "Analyze my project using the deployment constraints",
+  );
+  exchange(f.a, f.b);
+  const received = f.b.router.native.tasks(f.b.group.id)[0]!;
+  const worker = f.b.store.get<RemoteInvocationContext>(
+    "invocations",
+    received.invocationId,
+  )!;
+  const dependency = {
+    reason: "Only A has the deployment constraints",
+    retainedWork:
+      "I will analyze my own project after receiving the constraints",
+  };
+  const [child] = f.b.router.native.command(worker, "worker", randomUUID(), {
+    action: "delegate",
+    participantId: "A",
+    text: "Provide your deployment constraints",
+    dependency,
+  }) as Array<{ id: string; workflow: string; envelope: NativeEnvelope }>;
+  expect(child!.envelope).toMatchObject({ parentTask: parent!.id, dependency });
+  exchange(f.b, f.a);
+  const incoming = f.a.router.native
+    .tasks(f.a.group.id)
+    .find((t) => t.id === child!.id)!;
+  expect(incoming.direction).toBe("incoming");
+  expect(incoming.workflow).toBe(received.workflow);
+  f.a.router.receiveReply(f.a.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "dependency-worker",
+    final: true,
+    outcome: "completed",
+    text: "Linux only",
+  });
+  exchange(f.a, f.b);
+  expect(
+    f.b.router.native.tasks(f.b.group.id).find((t) => t.id === child!.id),
+  ).toMatchObject({
+    result: "Linux only",
+    state: "completed",
+    threadId: "worker",
+  });
+  expect(
+    f.a.router.native.tasks(f.a.group.id).find((t) => t.id === parent!.id)!
+      .state,
+  ).not.toBe("completed");
+});
+
+it("rejects copying the parent assignment back despite a dependency declaration", () => {
+  const f = pair();
+  delegate(f, "Report your project name");
+  exchange(f.a, f.b);
+  const received = f.b.router.native.tasks(f.b.group.id)[0]!;
+  const worker = f.b.store.get<RemoteInvocationContext>(
+    "invocations",
+    received.invocationId,
+  )!;
+  expect(() =>
+    f.b.router.native.command(worker, "worker", randomUUID(), {
+      action: "delegate",
+      participantId: "A",
+      text: "Report your project name!",
+      dependency: {
+        reason: "Need the answer",
+        retainedWork: "Forward the answer",
+      },
+    }),
+  ).toThrow(/original assignment/i);
+});
+
+it("rejects unlinked reverse frames from older peers without creating a local task", () => {
+  const f = pair();
+  delegate(f, "Report your own project name");
+  exchange(f.a, f.b);
+  const task = f.b.router.native.tasks(f.b.group.id)[0]!;
+  const reverse: NativeEnvelope = {
+    ...task.envelope,
+    id: randomUUID(),
+    task: randomUUID(),
+    workflow: randomUUID(),
+    sender: "B",
+    recipient: "A",
+    action: "delegate",
+    text: "Tell me your project name",
+  };
+  expect(
+    f.a.router.ingest({
+      ...f.a.event,
+      messageId: randomUUID(),
+      timestamp: Date.now(),
+      bot: true,
+      identity: { ...f.a.event.identity, userId: "B" },
+      text: encodeNativeEnvelope(reverse),
+    }),
+  ).toBe(true);
+  expect(
+    f.a.router.native
+      .tasks(f.a.group.id)
+      .filter((t) => t.direction === "incoming"),
+  ).toHaveLength(0);
+  expect(
+    f.a.store
+      .pending<Delivery>("outgoing")
+      .some(
+        (i) =>
+          i.payload.native?.action === "rejected" &&
+          i.payload.native.task === reverse.task,
+      ),
+  ).toBe(true);
+});
+
+it("rejects ancestor replay and duplicate pending dependencies without blocking different prerequisites", () => {
+  const f = pair();
+  delegate(f, "Report your own project name");
+  exchange(f.a, f.b);
+  const parent = f.b.router.native.tasks(f.b.group.id)[0]!;
+  const worker = f.b.store.get<RemoteInvocationContext>(
+    "invocations",
+    parent.invocationId,
+  )!;
+  const command = {
+    action: "delegate" as const,
+    participantId: "A",
+    text: "Provide deployment constraints",
+    dependency: {
+      reason: "Constraints are stored on A",
+      retainedWork: "Identify and assess my own project",
+    },
+  };
+  f.b.router.native.command(worker, "worker", randomUUID(), command);
+  expect(() =>
+    f.b.router.native.command(worker, "worker", randomUUID(), {
+      ...command,
+      newTask: true,
+    }),
+  ).toThrow(/already pending/);
+  exchange(f.b, f.a);
+  const child = f.a.router.native
+    .tasks(f.a.group.id)
+    .find((t) => t.direction === "incoming")!;
+  const nested = f.a.store.get<RemoteInvocationContext>(
+    "invocations",
+    child.invocationId,
+  )!;
+  expect(() =>
+    f.a.router.native.command(nested, "nested", randomUUID(), {
+      ...command,
+      participantId: "B",
+      text: "Provide deployment constraints!",
+    }),
+  ).toThrow(/original assignment/);
+  expect(() =>
+    f.b.router.native.command(worker, "worker", randomUUID(), {
+      ...command,
+      text: "Provide the required deployment region",
+    }),
+  ).not.toThrow();
+});

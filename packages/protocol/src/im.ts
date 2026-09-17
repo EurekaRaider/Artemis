@@ -384,6 +384,13 @@ export interface RemoteExecutionProfile {
   shell: boolean;
   security?: ImSecurityContext;
 }
+export const collaborationDependencySchema = z
+  .object({
+    reason: z.string().trim().min(1).max(1000),
+    retainedWork: z.string().trim().min(1).max(1000),
+  })
+  .strict();
+
 export const collaborationCommandSchema = z
   .object({
     action: z.enum([
@@ -398,6 +405,7 @@ export const collaborationCommandSchema = z
     ]),
     participantId: id.optional(),
     newTask: z.boolean().optional(),
+    dependency: collaborationDependencySchema.optional(),
     assignments: z
       .array(
         z
@@ -405,6 +413,7 @@ export const collaborationCommandSchema = z
             participantId: id,
             text: text.min(1),
             dependsOn: z.array(id).max(16).optional(),
+            dependency: collaborationDependencySchema.optional(),
           })
           .strict(),
       )
@@ -446,6 +455,11 @@ export const collaborationCommandSchema = z
       issue(
         ["newTask"],
         "newTask is only supported for delegate or delegate-many.",
+      );
+    if (command.dependency && command.action !== "delegate")
+      issue(
+        ["dependency"],
+        "dependency belongs on delegate or individual batch assignments.",
       );
     if (command.action === "delegate") {
       if (command.assignments !== undefined)

@@ -12,9 +12,9 @@ import {
 } from "../src/remote-tools.js";
 
 describe("remote Pi tool boundary", () => {
-  it("keeps received assignments from delegating back to their coordinator", () => {
+  it("allows worker prerequisites while preserving read-only modes", () => {
     expect(isRemoteToolAllowed("collaborate", "execute", true, "worker")).toBe(
-      false,
+      true,
     );
     expect(isRemoteToolAllowed("remote_shell", "execute", true, "worker")).toBe(
       true,
@@ -28,6 +28,11 @@ describe("remote Pi tool boundary", () => {
       collaborationRole: "worker",
     }).appendSystemPromptOverride!([]);
     expect(JSON.stringify(prompts)).toContain("automatically returned");
+    expect(JSON.stringify(prompts)).toContain("retainedWork");
+    for (const mode of ["plan", "review"] as const)
+      expect(isRemoteToolAllowed("collaborate", mode, true, "worker")).toBe(
+        false,
+      );
   });
   it("exposes only read-only IM discovery in Plan and Review", async () => {
     const calls: unknown[] = [];
@@ -254,9 +259,7 @@ describe("remote Pi tool boundary", () => {
       const worker = (
         host as unknown as { threads: Map<string, typeof thread> }
       ).threads.get("worker")!;
-      expect(worker.executeTools.map((t) => t.name)).not.toContain(
-        "collaborate",
-      );
+      expect(worker.executeTools.map((t) => t.name)).toContain("collaborate");
       expect(worker.executeTools.map((t) => t.name)).toContain("remote_shell");
       expect(worker.executeTools.map((t) => t.name)).toContain(
         "im_participants",

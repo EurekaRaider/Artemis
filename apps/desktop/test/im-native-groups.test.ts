@@ -1493,3 +1493,64 @@ it("queries unknown and recovered task heartbeats without rearming an interrupte
     expect(resume).not.toHaveBeenCalled();
   }
 });
+
+it("lets a receiving worker wait for a prerequisite and resume its own assignment once", async () => {
+  const f = await delegatedFixture();
+  f.thread.status = "idle";
+  const nativeTaskId = randomUUID();
+  await f.service.accept({
+    ...f.request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    nativeTaskId,
+    text: "Analyze this project's deployment readiness",
+    collaboration: {
+      taskId: nativeTaskId,
+      coordinatorDeviceId: f.request.deviceId,
+      coordinatorThreadId: f.request.id,
+      mission: "Analyze this project's deployment readiness",
+    },
+  });
+  const workerId = f.starts.at(-1)!;
+  expect(workerId).not.toBe(f.threadId);
+  const worker = f.threads.find((t) => t.id === workerId)!;
+  const child = {
+    ...f.task,
+    id: randomUUID(),
+    threadId: workerId,
+    text: "Provide deployment constraints",
+  };
+  f.gateway.store.put("native-tasks", child.id, child);
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  worker.status = "running";
+  await expect(
+    f.service.operate(
+      workerId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [child.id],
+          waitSeconds: 0,
+          text: "Apply constraints to my own project",
+        },
+      },
+      "execute",
+      randomUUID(),
+    ),
+  ).resolves.toMatchObject({ state: "waiting" });
+  f.gateway.store.put("native-tasks", child.id, {
+    ...child,
+    state: "completed",
+    result: "Linux only",
+  });
+  worker.status = "idle";
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(resume.mock.calls[0]![0]).toBe(workerId);
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { collaborationDependencySchema } from "@artemis/protocol";
 
 export const NATIVE_PREFIX = "ARTEMIS-IM/1:";
 const identity = z.string().min(1).max(256);
@@ -31,12 +32,42 @@ export const nativeEnvelopeSchema = z
     ]),
     replyTo: z.string().uuid().optional(),
     previousTask: z.string().uuid().optional(),
+    parentTask: z.string().uuid().optional(),
+    dependency: collaborationDependencySchema.optional(),
+    ancestors: z
+      .array(
+        z
+          .object({
+            task: z.string().uuid(),
+            sender: identity,
+            objective: z.string().regex(/^[a-f0-9]{64}$/u),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(16)
+      .optional(),
     issuedAt: z.number().int().positive(),
     expiresAt: z.number().int().positive(),
     sequence: z.number().int().min(0),
     text: z.string().max(8000),
   })
   .strict()
+  .refine(
+    (frame) => {
+      const linked = !!frame.parentTask;
+      return (
+        linked === !!frame.dependency &&
+        linked === !!frame.ancestors &&
+        (!linked ||
+          (["delegate", "continue"].includes(frame.action) &&
+            frame.ancestors!.at(-1)!.task === frame.parentTask))
+      );
+    },
+    {
+      message: "Dependency assignments require a parent and bounded ancestry.",
+    },
+  )
   .refine((frame) => (frame.action === "continue") === !!frame.previousTask, {
     message: "Only continuation frames must identify a previous task.",
   });

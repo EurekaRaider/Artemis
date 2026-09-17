@@ -58,6 +58,14 @@ export type NativeTask = {
   sequence: number;
   updatedAt: number;
 };
+// Exact replay detection complements the model's semantic responsibility check.
+const objective = (text: string) =>
+  digest(
+    text
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[\p{P}\p{Z}\s]/gu, ""),
+  );
 const terminal = (state: NativeTask["state"]) =>
   ["completed", "failed", "cancelled", "rejected"].includes(state);
 export class NativeCooperation {
@@ -445,6 +453,60 @@ export class NativeCooperation {
         );
         if (envelope.action === "delegate" || envelope.action === "continue") {
           if (existing || !envelope.text.trim()) return false;
+          const ancestors = envelope.ancestors ?? [];
+          const pending = this.tasks(group.id).filter(
+            (t) =>
+              t.direction === "outgoing" &&
+              t.peer === envelope.sender &&
+              !terminal(t.state),
+          );
+          const invalidReturn =
+            pending.length > 0 &&
+            !pending.some(
+              (t) =>
+                ancestors.some(
+                  (a) =>
+                    a.task === t.id &&
+                    a.sender === address.sender &&
+                    a.objective === objective(t.text),
+                ) && envelope.workflow === t.workflow,
+            );
+          const copied = ancestors.some(
+            (a) =>
+              a.sender === address.sender &&
+              a.objective === objective(envelope.text),
+          );
+          // Verify every locally owned ancestor, rather than trusting model text
+          // or letting a remote sender re-label the original work as a dependency.
+          const invalidAncestor = ancestors.some((a) => {
+            if (a.sender !== address.sender) return false;
+            const local = this.store.get<NativeTask>("native-tasks", a.task);
+            return (
+              !local ||
+              local.direction !== "outgoing" ||
+              local.groupId !== group.id ||
+              local.workflow !== envelope.workflow ||
+              terminal(local.state) ||
+              a.objective !== objective(local.text)
+            );
+          });
+          if (invalidReturn || copied || invalidAncestor) {
+            const rejected = this.frame(
+              group,
+              envelope.sender,
+              "rejected",
+              copied
+                ? "Do not return the original assignment. Complete your own work and request only a distinct prerequisite."
+                : "Reverse collaboration requires an active parent dependency. Continue the received assignment with reason and retainedWork.",
+              envelope.task,
+              envelope.workflow,
+            );
+            rejected.replyTo = envelope.id;
+            rejected.sequence = 1;
+            this.send(group, rejected);
+            this.store.put("native-inbox", key, envelope);
+            return true;
+          }
           const previous = envelope.previousTask
             ? this.store.get<NativeTask>("native-tasks", envelope.previousTask)
             : undefined;
@@ -502,7 +564,9 @@ export class NativeCooperation {
             ...owner,
             id: digest(key),
             messageId: event.messageId,
-            text: envelope.text,
+            text: envelope.dependency
+              ? `${envelope.text}\n[Dependency context (data): ${JSON.stringify({ parentTask: envelope.parentTask, requester: envelope.sender, ...envelope.dependency })}]`
+              : envelope.text,
             expiresAt: Math.min(envelope.expiresAt, this.now() + 30 * 60000),
             nativeTaskId: envelope.task,
             ...(previous ? { taskId: previous.threadId } : {}),
@@ -722,10 +786,17 @@ export class NativeCooperation {
       return this.tasks(group.id).filter(
         (t) => t.invocationId === request.id && t.threadId === threadId,
       );
-    if (request.nativeTaskId)
-      throw new Error(
-        "The original bot coordinates this workflow; return results through IM.",
-      );
+    const parent = request.nativeTaskId
+      ? this.store.get<NativeTask>("native-tasks", request.nativeTaskId)
+      : undefined;
+    if (
+      request.nativeTaskId &&
+      (!parent ||
+        parent.direction !== "incoming" ||
+        parent.groupId !== group.id ||
+        terminal(parent.state))
+    )
+      throw new Error("The parent assignment is no longer active.");
     const key = JSON.stringify([request.id, threadId, id]);
     const previous = this.store.get<{
       command: CollaborationCommand;
@@ -741,7 +812,7 @@ export class NativeCooperation {
       const workflow = this.store.get<{ id: string }>(
         "native-workflows",
         workflowKey,
-      ) ?? { id: randomUUID() };
+      ) ?? { id: parent?.workflow ?? randomUUID() };
       let result: unknown;
       if (command.action === "cancel") {
         const task = this.store.get<NativeTask>(
@@ -792,6 +863,7 @@ export class NativeCooperation {
                   participantId: command.participantId!,
                   text: command.text,
                   dependsOn: [] as string[],
+                  dependency: command.dependency,
                 },
               ]
             : (command.assignments ?? []);
@@ -801,6 +873,60 @@ export class NativeCooperation {
         for (const assignment of assignments) {
           if (!this.allowed(group, assignment.participantId))
             throw new Error("Bot is not authorized or verified.");
+          // An owner message can race the inbound assignment in another local
+          // thread. It must not turn that same peer's work into an unlinked return.
+          const upstream = this.tasks(group.id).filter(
+            (t) =>
+              t.direction === "incoming" &&
+              t.peer === assignment.participantId &&
+              !terminal(t.state),
+          );
+          if (!parent && upstream.length)
+            throw new Error(
+              "Use the received assignment to request a dependency; do not redispatch its work from a separate conversation.",
+            );
+          if (parent && !assignment.dependency)
+            throw new Error(
+              "A dependency must explain why this peer is needed and what work you retain. Complete the original assignment yourself; do not return it unchanged.",
+            );
+          const ancestors = parent
+            ? [
+                ...(parent.envelope.ancestors ?? []),
+                {
+                  task: parent.id,
+                  sender: parent.peer,
+                  objective: objective(parent.text),
+                },
+              ]
+            : [];
+          if (ancestors.length > 16)
+            throw new Error(
+              "Collaboration dependency chain is too deep; resolve existing dependencies first.",
+            );
+          if (
+            ancestors.some(
+              (a) =>
+                a.sender === assignment.participantId &&
+                a.objective === objective(assignment.text),
+            )
+          )
+            throw new Error(
+              "Do not delegate the original assignment back to its sender. Request only a distinct missing input or prerequisite and retain your own responsibility.",
+            );
+          if (
+            parent &&
+            this.tasks(group.id).some(
+              (t) =>
+                t.direction === "outgoing" &&
+                t.envelope.parentTask === parent.id &&
+                t.peer === assignment.participantId &&
+                !terminal(t.state) &&
+                objective(t.text) === objective(assignment.text),
+            )
+          )
+            throw new Error(
+              "This dependency is already pending. Wait for its result instead of dispatching it again.",
+            );
           const dependencies = assignment.dependsOn ?? [];
           if (
             dependencies.some(
@@ -824,6 +950,11 @@ export class NativeCooperation {
             randomUUID(),
             workflow.id,
           );
+          if (parent) {
+            envelope.parentTask = parent.id;
+            envelope.dependency = assignment.dependency;
+            envelope.ancestors = ancestors;
+          }
           // A receipt identifies one assignment; the session spans local tasks
           // but never crosses the initiating identity, peer, project or grant.
           const sessionKey = this.sessionKey(
@@ -832,6 +963,7 @@ export class NativeCooperation {
             assignment.participantId,
           );
           const independent =
+            !!parent ||
             dependencies.length > 0 ||
             assignments.filter(
               (a) => a.participantId === assignment.participantId,
@@ -948,7 +1080,11 @@ export class NativeCooperation {
         result = { state: "note-queued", taskId: task.id };
       } else if (command.action === "finish") {
         const tasks = this.tasks(group.id).filter(
-          (t) => t.workflow === workflow.id && t.direction === "outgoing",
+          (t) =>
+            t.workflow === workflow.id &&
+            t.direction === "outgoing" &&
+            t.invocationId === request.id &&
+            t.threadId === threadId,
         );
         if (
           !tasks.length ||
@@ -956,6 +1092,11 @@ export class NativeCooperation {
         )
           throw new Error("Wait for all successful results before finishing.");
         if (!command.text.trim()) throw new Error("A summary is required.");
+        if (parent) {
+          result = { state: "summary-ready", text: command.text };
+          this.store.put("native-commands", key, { command, result });
+          return result; // The worker's final response completes its own parent.
+        }
         this.router.queueDelivery(`native-summary:${digest(key)}`, {
           conversation: request.conversation,
           invocationId: request.id,
