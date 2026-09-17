@@ -425,6 +425,11 @@ const ResourceCenter = lazy(() =>
 const SettingsPanel = lazy(() =>
   loadSettingsPanel().then((module) => ({ default: module.SettingsPanel })),
 );
+const ImSettingsPanel = lazy(() =>
+  import("./ImSettingsPanel.js").then((module) => ({
+    default: module.ImSettingsPanel,
+  })),
+);
 const TerminalPanel = lazy(() =>
   loadTerminalPanel().then((module) => ({ default: module.TerminalPanel })),
 );
@@ -1056,6 +1061,8 @@ export function App() {
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
+  const [imSettingsOpen, setImSettingsOpen] = useState(false);
+  const imSettingsTrigger = useRef<HTMLButtonElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(
     () => window.innerWidth > 1060,
   );
@@ -5555,6 +5562,18 @@ export function App() {
             <button
               type="button"
               className="rail-item"
+              aria-label={uiText(locale, "ImSettingsPanel.message191")}
+              title={uiText(locale, "ImSettingsPanel.message191")}
+              onClick={(event) => {
+                imSettingsTrigger.current = event.currentTarget;
+                setImSettingsOpen(true);
+              }}
+            >
+              <ArtemisIcon name="message" />
+            </button>
+            <button
+              type="button"
+              className="rail-item"
               aria-label={t.settings}
               title={t.settings}
               onClick={(event) => openSettings("general", event.currentTarget)}
@@ -5565,15 +5584,6 @@ export function App() {
         }
         footer={
           <div className="sidebar-footer">
-            <button
-              className="activity-button foot-icon"
-              type="button"
-              aria-label={t.settings}
-              title={t.settings}
-              onClick={(event) => openSettings("general", event.currentTarget)}
-            >
-              <SettingsIcon />
-            </button>
             <span className="local-indicator" title={username}>
               <span aria-hidden="true" className="sidebar-profile-avatar">
                 {runtimeSettings?.profileAvatar ? (
@@ -5584,19 +5594,29 @@ export function App() {
               </span>
               <span className="local-user-name">{username}</span>
             </span>
-            {runtimeSettings?.update.currentVersion && (
+            <span className="sidebar-footer-actions">
               <button
-                aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                className="app-version"
-                onClick={(event) =>
-                  openSettings("maintenance", event.currentTarget)
-                }
-                title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                className="activity-button foot-icon"
                 type="button"
+                aria-label={uiText(locale, "ImSettingsPanel.message191")}
+                title={uiText(locale, "ImSettingsPanel.message191")}
+                onClick={(event) => {
+                  imSettingsTrigger.current = event.currentTarget;
+                  setImSettingsOpen(true);
+                }}
               >
-                v{runtimeSettings.update.currentVersion}
+                <ArtemisIcon name="message" />
               </button>
-            )}
+              <button
+                className="activity-button foot-icon"
+                type="button"
+                aria-label={t.settings}
+                title={t.settings}
+                onClick={(event) => openSettings("general", event.currentTarget)}
+              >
+                <SettingsIcon />
+              </button>
+            </span>
             {runtimeSettings?.update.availableVersion && (
               <button
                 className={`update-btn ${runtimeSettings.update.state}`}
@@ -5648,6 +5668,18 @@ export function App() {
                   <ArtemisMark />
                   <strong>Artemis</strong>
                 </button>
+                {runtimeSettings?.update.currentVersion && (
+                  <button
+                    className="app-version brand-version"
+                    onClick={(event) =>
+                      openSettings("maintenance", event.currentTarget)
+                    }
+                    title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                    type="button"
+                  >
+                    v{runtimeSettings.update.currentVersion}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="sidebar-collapse"
@@ -9131,11 +9163,6 @@ export function App() {
             locale={locale}
             projects={projects}
             onClose={() => setSettingsOpen(false)}
-            onOpenThread={async (threadId) => {
-              await openAutomationThread(threadId);
-              setSettingsOpen(false);
-              window.requestAnimationFrame(() => promptInput.current?.focus());
-            }}
             returnFocusRef={settingsTrigger}
             onSettingsChange={(value, options) => {
               setRuntimeSettings(value);
@@ -9165,6 +9192,27 @@ export function App() {
             }}
           />
         </Suspense>
+      )}
+
+      {imSettingsOpen && (
+        <Dialog
+          className="im-settings-dialog"
+          label={uiText(locale, "ImSettingsPanel.message191")}
+          onOpenChange={(open) => {
+            if (!open) setImSettingsOpen(false);
+          }}
+          open
+          returnFocusRef={imSettingsTrigger}
+        >
+          <ImSettingsPanel
+            locale={locale}
+            onOpenThread={async (threadId) => {
+              await openAutomationThread(threadId);
+              setImSettingsOpen(false);
+              window.requestAnimationFrame(() => promptInput.current?.focus());
+            }}
+          />
+        </Dialog>
       )}
 
       {confirmation && (

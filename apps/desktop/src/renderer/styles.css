@@ -869,17 +869,25 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   align-items: center;
 
   display: flex;
-  height: 46px;
+  height: 56px;
   justify-content: space-between;
   padding: 8px 10px 16px 14px;
   gap: 8px;
+}
+
+.sidebar-footer-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
 }
 
 .local-indicator {
   align-items: center;
   color: var(--muted);
   display: flex;
-  gap: 7px;
+  flex: 1 1 auto;
+  gap: 9px;
   min-width: 0;
 }
 
@@ -890,13 +898,13 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   border-radius: 50%;
   color: var(--artemis-color-accent-primary);
   display: inline-flex;
-  flex: 0 0 22px;
-  font-size: 10px;
+  flex: 0 0 32px;
+  font-size: 13px;
   font-weight: 620;
-  height: 22px;
+  height: 32px;
   justify-content: center;
   overflow: hidden;
-  width: 22px;
+  width: 32px;
 }
 
 .sidebar-profile-avatar img,
@@ -915,6 +923,11 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   white-space: nowrap;
   font-size: 11.5px;
   font-weight: 510;
+}
+
+.brand-version {
+  margin-inline-start: 2px;
+  padding: 2px 6px;
 }
 
 .app-version {
@@ -7761,6 +7774,24 @@ button.sources-panel-entry.attachment:focus-visible {
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+}
+
+/* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token。 */
+.im-settings-dialog {
+  background: var(--artemis-color-surface-raised);
+  width: min(960px, 94vw);
+  height: min(680px, 88dvh);
+  max-block-size: calc(100dvh - 52px);
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  padding: 0;
+  --border-soft: var(--artemis-color-border-subtle);
+  --blue: var(--artemis-color-accent-primary);
+}
+.im-settings-dialog .im-settings {
+  height: 100%;
+  overflow: auto;
+  padding: 18px 22px;
 }
 
 .settings-profile-avatar {

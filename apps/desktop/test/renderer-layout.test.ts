@@ -496,7 +496,33 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("toggleTerminalPanel();");
   });
 
-  it("shows the current version in the sidebar footer and opens update settings", () => {
+  it("shows the current version beside the sidebar brand and opens update settings", () => {
+    // 版本号挂在品牌行（Artemis 右侧），账号行让位给 IM/设置图标。
+    const sidebarBrandStart = appSource.indexOf(
+      '<div className="sidebar-brand">',
+    );
+    const sidebarBrandEnd = appSource.indexOf(
+      '<nav className="sidebar-nav"',
+      sidebarBrandStart,
+    );
+    const sidebarBrandSource = appSource.slice(
+      sidebarBrandStart,
+      sidebarBrandEnd,
+    );
+
+    expect(sidebarBrandStart).toBeGreaterThan(-1);
+    expect(sidebarBrandEnd).toBeGreaterThan(sidebarBrandStart);
+    expect(sidebarBrandSource).toContain('className="app-version brand-version"');
+    expect(sidebarBrandSource).toContain(
+      "runtimeSettings?.update.currentVersion",
+    );
+    expect(sidebarBrandSource).toContain(
+      'openSettings("maintenance", event.currentTarget)',
+    );
+    expect(sidebarBrandSource).toContain(
+      "v{runtimeSettings.update.currentVersion}",
+    );
+    // 账号行：头像+名称居左，IM/设置图标成组靠右。
     const sidebarFooterStart = appSource.indexOf(
       '<div className="sidebar-footer">',
     );
@@ -505,19 +531,8 @@ describe("renderer layout contract", () => {
       sidebarFooterStart,
       sidebarFooterEnd,
     );
-
-    expect(sidebarFooterStart).toBeGreaterThan(-1);
-    expect(sidebarFooterEnd).toBeGreaterThan(sidebarFooterStart);
-    expect(sidebarFooterSource).toContain('className="app-version"');
-    expect(sidebarFooterSource).toContain(
-      "runtimeSettings?.update.currentVersion",
-    );
-    expect(sidebarFooterSource).toContain(
-      'openSettings("maintenance", event.currentTarget)',
-    );
-    expect(sidebarFooterSource).toContain(
-      "v{runtimeSettings.update.currentVersion}",
-    );
+    expect(sidebarFooterSource).toContain('className="sidebar-footer-actions"');
+    expect(sidebarFooterSource).toContain('name="message"');
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
     expect(settingsSource).toContain("useState<SettingsTab>(initialTab)");

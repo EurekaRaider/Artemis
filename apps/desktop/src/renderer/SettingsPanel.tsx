@@ -1,7 +1,6 @@
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
-import { ImSettingsPanel } from "./ImSettingsPanel.js";
 import { CustomAgentsSettingsSection } from "./CustomAgentsSettingsSection.js";
 import {
   useEffect,
@@ -64,7 +63,6 @@ interface SettingsPanelProps {
   /** Project list for scoped custom sub-agent definitions (D#152). */
   projects?: ReadonlyArray<{ id: string; name: string }> | undefined;
   onClose(): void;
-  onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
   returnFocusRef?: RefObject<HTMLElement | null> | undefined;
   onSettingsChange(
     settings: SettingsSnapshot,
@@ -82,7 +80,7 @@ type ProviderThinkingLevel = NonNullable<
 >;
 
 type SettingsTab =
-  "general" | "providers" | "agents" | "capabilities" | "im" | "maintenance";
+  "general" | "providers" | "agents" | "capabilities" | "maintenance";
 
 function modelKey(providerId: string, modelId: string): string {
   return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
@@ -162,7 +160,6 @@ export function SettingsPanel({
   locale,
   projects = [],
   onClose,
-  onOpenThread,
   onSettingsChange,
   returnFocusRef,
 }: SettingsPanelProps) {
@@ -737,7 +734,6 @@ export function SettingsPanel({
     agents: t.tabAgents,
     capabilities: t.tabCapabilities,
     maintenance: t.tabMaintenance,
-    im: uiText(locale, "SettingsPanel.inline1"),
   };
 
   return (
@@ -789,13 +785,6 @@ export function SettingsPanel({
                     value: "providers",
                   },
                   {
-                    id: "settings-tab-im-button",
-                    icon: <ArtemisIcon name="message" />,
-                    label: activeTabLabel.im,
-                    panelId: "settings-tab-im",
-                    value: "im",
-                  },
-                  {
                     id: "settings-tab-agents-button",
                     icon: <ArtemisIcon name="agent-configuration" />,
                     label: t.tabAgents,
@@ -833,7 +822,6 @@ export function SettingsPanel({
                 "agents",
                 "capabilities",
                 "maintenance",
-                "im",
               ] as const
             )
               .filter((tab) => tab !== activeTab)
@@ -865,9 +853,6 @@ export function SettingsPanel({
               id={`settings-tab-${activeTab}`}
               role="tabpanel"
             >
-              {activeTab === "im" && (
-                <ImSettingsPanel locale={locale} onOpenThread={onOpenThread} />
-              )}
               {activeTab === "providers" && (
                 <>
                   <Tabs<"builtin" | "custom">
