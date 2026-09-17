@@ -1,3 +1,5 @@
+import { ThreadHistoryService } from "./thread-history-service.js";
+import type { ThreadHistoryCursor } from "../shared/thread-history.js";
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
 import {
@@ -423,6 +425,7 @@ interface PendingMultiUserInput {
 
 let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
+let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
 let notificationRendererReady = false;
@@ -6883,6 +6886,14 @@ function registerIpc(): void {
       userName: smokeMode ? "Artemis" : userInfo().username,
     };
   });
+  ipcMain.handle(
+    IPC.threadHistory,
+    (_event, threadId: string, cursor?: ThreadHistoryCursor) => {
+      if (!store?.getThread(String(threadId ?? "")) || !threadHistoryService)
+        throw new Error("Thread not found.");
+      return threadHistoryService.read(threadId, cursor);
+    },
+  );
   ipcMain.handle(IPC.threadEvents, (_event, threadId: string) => {
     if (!store) {
       throw new Error("Application store is not ready.");
@@ -10016,6 +10027,7 @@ function registerIpc(): void {
       await taskSourceImages().deleteThread(threadId);
       await attachmentStore().deleteThread(attachmentScope(threadId));
       store.deleteThread(threadId);
+      threadHistoryService?.discard(threadId);
       taskNotifications?.refresh();
       imService?.deleteThread(threadId);
       await cleanupGoalObjective(goalObjective);
@@ -21151,6 +21163,9 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+    threadHistoryService = new ThreadHistoryService(
+      join(app.getPath("userData"), "artemis.sqlite"),
+    );
     taskNotifications = new TaskNotifications({
       store,
       window: () => mainWindow,
@@ -21665,5 +21680,6 @@ app.on("before-quit", () => {
 // Keep the store available while renderer IPC drains during window teardown.
 app.on("will-quit", () => {
   imService?.stop();
+  threadHistoryService?.close();
   store?.close();
 });

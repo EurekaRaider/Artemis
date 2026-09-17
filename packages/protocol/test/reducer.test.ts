@@ -768,6 +768,69 @@ describe("reduceAgentEvent", () => {
     expect(Object.keys(state.seenEventIds)).toHaveLength(10_000);
   });
 
+  it("replays many complete turns within a bounded history budget", () => {
+    const events: AgentEvent[] = [];
+    for (let turn = 0; turn < 2_000; turn += 1) {
+      const add = (payload: AgentEvent["payload"]) => {
+        events.push({
+          ...event(`event-${events.length}`, events.length, payload),
+          turnId: `turn-${turn}`,
+        });
+      };
+      add({
+        type: "user.message",
+        messageId: `user-${turn}`,
+        text: "Question",
+      });
+      add({ type: "turn.started", mode: "execute" });
+      for (let delta = 0; delta < 20; delta += 1) {
+        add({
+          type: "message.part.delta",
+          partId: `part-${turn}`,
+          partType: "text",
+          delta: "x",
+        });
+      }
+      add({
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: `part-${turn}`,
+      });
+    }
+    const started = performance.now();
+    const state = reduceAgentEvents("thread-1", events);
+    expect(performance.now() - started).toBeLessThan(1_500);
+    expect(state.turnOrder).toHaveLength(2_000);
+    expect(state.turns["turn-1999"]?.order).toEqual([
+      "user:user-1999",
+      "part:part-1999",
+    ]);
+    expect(state.messageParts["part-1999"]?.text).toBe("x".repeat(20));
+  });
+
+  it("preserves completed turn identity when a different turn streams", () => {
+    const first = event("first-turn", 1, {
+      type: "user.message",
+      messageId: "u1",
+      text: "Question",
+    });
+    const original = reduceAgentEvents("thread-1", [first]);
+    const next = reduceAgentEventBatch(original, [
+      {
+        ...event("second-turn", 2, {
+          type: "message.part.delta",
+          partId: "p2",
+          partType: "text",
+          delta: "Answer",
+        }),
+        turnId: "turn-2",
+      },
+    ]);
+    expect(next.turns["turn-1"]).toBe(original.turns["turn-1"]);
+    expect(original.turnOrder).toEqual(["turn-1"]);
+    expect(next.turns["turn-2"]?.order).toEqual(["part:p2"]);
+  });
+
   it("applies a live event batch with one immutable state update", () => {
     const original = reduceAgentEvents("thread-1", [
       event("first", 1, {

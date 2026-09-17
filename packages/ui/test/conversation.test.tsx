@@ -48,6 +48,22 @@ describe("Conversation component contracts", () => {
 });
 
 describe("Conversation surfaces", () => {
+  it("mounts execution details only after expansion", async () => {
+    const content = vi.fn(() => <div>Heavy tool output</div>);
+    render(
+      <TurnExecutionDisclosure label="History work" summary="Expand work">
+        {content}
+      </TurnExecutionDisclosure>,
+    );
+    expect(content).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByText("Expand work"));
+    expect(await screen.findByText("Heavy tool output")).toBeTruthy();
+    await userEvent.click(screen.getByText("Expand work"));
+    await vi.waitFor(() =>
+      expect(screen.queryByText("Heavy tool output")).toBeNull(),
+    );
+  });
+
   it("keeps scroll state and events caller-owned without remounting content", () => {
     const onScroll = vi.fn();
     const { rerender } = render(

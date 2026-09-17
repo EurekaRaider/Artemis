@@ -62,6 +62,8 @@ describe("task notification shutdown", () => {
       const imService = undefined, automationScheduler = undefined, terminalService = undefined;
       const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
       const mcpClientManager = undefined, agentProcess = undefined;
+      const threadHistoryService = undefined;
+      const sleepPrevention = { dispose: () => {} };
       const pendingUserInputs = { cancelWhere: () => [] };
       const pendingMultiUserInputs = { cancelWhere: () => [] };
       const stopAgentCapacityMonitoring = () => {};

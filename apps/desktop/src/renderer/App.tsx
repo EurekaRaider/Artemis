@@ -1,3 +1,8 @@
+import { HistoryTurn } from "./HistoryTurn.js";
+import {
+  mergeHistoryPage,
+  type ThreadHistoryPage,
+} from "../shared/thread-history.js";
 import { reviewMessage } from "../shared/review-copy.js";
 import { GOAL_RESOURCES } from "../shared/goal-resources.js";
 import { statusText } from "../shared/status-text.js";
@@ -1358,6 +1363,13 @@ export function App() {
   >(undefined);
   const timelineScrollIntent = useRef(false);
   const timelineScrollbarPointerActive = useRef(false);
+  const [historyPages, setHistoryPages] = useState<
+    Record<string, ThreadHistoryPage>
+  >({});
+  const loadingHistoryPages = useRef(new Set<string>());
+  const historyPrependAnchor = useRef<
+    { threadId: string; element: Element; top: number } | undefined
+  >(undefined);
   const loadedEventThreads = useRef(new Set<string>());
   const loadingEventThreads = useRef(new Set<string>());
   const pendingAgentEvents = useRef<AgentEvent[]>([]);
@@ -1393,6 +1405,7 @@ export function App() {
     new Map<
       string,
       {
+        history?: ThreadHistoryPage;
         eventCount: number;
         lastEventId?: string;
         mode: RunMode;
@@ -3336,6 +3349,36 @@ export function App() {
     }
     const threadId = activeThreadId;
     loadingEventThreads.current.add(threadId);
+    if (window.artemis.getThreadHistory) {
+      void window.artemis
+        .getThreadHistory(threadId)
+        .then((page) => {
+          loadedEventThreads.current.add(threadId);
+          setHistoryPages((current) => ({ ...current, [threadId]: page }));
+          setSnapshot((current) =>
+            current
+              ? {
+                  ...current,
+                  events: {
+                    ...current.events,
+                    [threadId]: mergeThreadEvents(
+                      page.events,
+                      (current.events[threadId] ?? []).filter(
+                        (event) => event.seq > page.state.lastSeq,
+                      ),
+                    ),
+                  },
+                }
+              : current,
+          );
+        })
+        .catch((error) => {
+          if (activeThreadIdRef.current === threadId)
+            setToast(error instanceof Error ? error.message : String(error));
+        })
+        .finally(() => loadingEventThreads.current.delete(threadId));
+      return;
+    }
     void window.artemis
       .getThreadEvents(threadId)
       .then((history) => {
@@ -3363,6 +3406,52 @@ export function App() {
         loadingEventThreads.current.delete(threadId);
       });
   }, [activeThreadId]);
+  const activeHistory = activeThreadId
+    ? historyPages[activeThreadId]
+    : undefined;
+  const loadEarlierHistory = useCallback(() => {
+    const threadId = activeThreadId;
+    const page = threadId ? historyPages[threadId] : undefined;
+    if (!threadId || !page?.cursor || loadingHistoryPages.current.has(threadId))
+      return;
+    loadingHistoryPages.current.add(threadId);
+    void window.artemis
+      .getThreadHistory(threadId, page.cursor)
+      .then((earlier) => {
+        if (activeThreadIdRef.current === threadId) {
+          const element = timelineScroll.current?.querySelector(
+            "[data-history-turn]",
+          );
+          if (element)
+            historyPrependAnchor.current = {
+              threadId,
+              element,
+              top: element.getBoundingClientRect().top,
+            };
+        }
+        setHistoryPages((current) =>
+          current[threadId] === page
+            ? { ...current, [threadId]: mergeHistoryPage(page, earlier) }
+            : current,
+        );
+      })
+      .catch((error) =>
+        setToast(error instanceof Error ? error.message : String(error)),
+      )
+      .finally(() => loadingHistoryPages.current.delete(threadId));
+  }, [activeThreadId, historyPages]);
+  useLayoutEffect(() => {
+    const anchor = historyPrependAnchor.current;
+    if (
+      anchor &&
+      anchor.threadId === activeThreadId &&
+      timelineScroll.current
+    ) {
+      timelineScroll.current.scrollTop +=
+        anchor.element.getBoundingClientRect().top - anchor.top;
+      historyPrependAnchor.current = undefined;
+    }
+  }, [activeHistory, activeThreadId]);
   const activeEvents = activeThread
     ? (snapshot?.events[activeThread.id] ?? [])
     : [];
@@ -3373,7 +3462,10 @@ export function App() {
       ? activeThreadId
       : undefined,
     activeThread?.notification?.unread &&
-      (activeEvents.at(-1)?.seq ?? -1) >= activeThread.notification.seq
+      Math.max(
+        activeHistory?.state.lastSeq ?? -1,
+        activeEvents.at(-1)?.seq ?? -1,
+      ) >= activeThread.notification.seq
       ? activeThread.notification.seq
       : undefined,
   );
@@ -3406,6 +3498,7 @@ export function App() {
     const cached = threadStateCache.current.get(activeThread.id);
     const prefixMatches =
       cached &&
+      cached.history === activeHistory &&
       cached.mode === activeThread.mode &&
       cached.eventCount <= activeEvents.length &&
       (cached.eventCount === 0 ||
@@ -3413,11 +3506,24 @@ export function App() {
     const state = prefixMatches
       ? reduceAgentEventBatch(
           cached.state,
-          activeEvents.slice(cached.eventCount),
+          activeEvents
+            .slice(cached.eventCount)
+            .filter(
+              (event) =>
+                !activeHistory || event.seq > activeHistory.state.lastSeq,
+            ),
         )
-      : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
+      : activeHistory
+        ? reduceAgentEventBatch(
+            activeHistory.state,
+            activeEvents.filter(
+              (event) => event.seq > activeHistory.state.lastSeq,
+            ),
+          )
+        : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
     threadStateCache.current.delete(activeThread.id);
     threadStateCache.current.set(activeThread.id, {
+      ...(activeHistory ? { history: activeHistory } : {}),
       eventCount: activeEvents.length,
       ...(activeEvents.at(-1)
         ? { lastEventId: activeEvents.at(-1)!.eventId }
@@ -3462,7 +3568,13 @@ export function App() {
       childAgents[agentId] = merged;
     }
     return { ...state, childAgents };
-  }, [activeEvents, activeThread?.id, activeThread?.mode, liveChildActivities]);
+  }, [
+    activeEvents,
+    activeHistory,
+    activeThread?.id,
+    activeThread?.mode,
+    liveChildActivities,
+  ]);
   const activePromptHistory = useMemo(() => {
     if (!threadState?.order.length) {
       return promptHistoryForConversation(promptHistory, undefined);
@@ -6674,6 +6786,7 @@ export function App() {
                   (!activeThread.archived &&
                     loadedEventThreads.current.has(activeThread.id) &&
                     activeEvents.length === 0 &&
+                    !activeHistory?.state.order.length &&
                     !busy)
                     ? "empty"
                     : "ready"
@@ -6699,6 +6812,12 @@ export function App() {
                   }}
                   onScroll={(event) => {
                     const container = event.currentTarget;
+                    if (
+                      container.scrollTop < 240 &&
+                      (timelineScrollIntent.current ||
+                        timelineScrollbarPointerActive.current)
+                    )
+                      loadEarlierHistory();
                     timelinePinned.current = resolveTimelinePinned({
                       clientHeight: container.clientHeight,
                       pinned: timelinePinned.current,
@@ -6732,6 +6851,7 @@ export function App() {
                   (!activeThread.archived &&
                     loadedEventThreads.current.has(activeThread.id) &&
                     activeEvents.length === 0 &&
+                    !activeHistory?.state.order.length &&
                     !busy) ? (
                     <ConversationEmptyState
                       className="conversation-empty-state"
@@ -6754,30 +6874,37 @@ export function App() {
                       }
                     />
                   ) : (
-                    <Timeline
-                      installedPlugins={installedPlugins}
-                      installedSkills={installedSkills}
-                      locale={locale}
-                      onExternalLink={openConversationExternalLink}
-                      onFileLink={openConversationFileLink}
-                      onFileLinkContextMenu={openConversationFileLinkMenu}
-                      onOpenChildAgent={openChildAgentPanel}
-                      onOpenTurnReview={openReviewTurnPanel}
-                      onCopyText={copyConversationText}
-                      onEditUserMessage={
-                        activeThread?.archived
-                          ? undefined
-                          : editConversationMessage
-                      }
-                      onResolve={(approval, approved, scope) =>
-                        void resolveApprovalRequest(approval, approved, scope)
-                      }
-                      onResolveUserInput={resolveUserInputRequest}
-                      onUndoTurnChanges={(turnId) =>
-                        void undoTurnChanges(turnId)
-                      }
-                      state={threadState!}
-                    />
+                    <Fragment>
+                      {activeHistory?.cursor ? (
+                        <button type="button" onClick={loadEarlierHistory}>
+                          {uiText(locale, "App_copy.loadEarlierMessages")}
+                        </button>
+                      ) : null}
+                      <Timeline
+                        installedPlugins={installedPlugins}
+                        installedSkills={installedSkills}
+                        locale={locale}
+                        onExternalLink={openConversationExternalLink}
+                        onFileLink={openConversationFileLink}
+                        onFileLinkContextMenu={openConversationFileLinkMenu}
+                        onOpenChildAgent={openChildAgentPanel}
+                        onOpenTurnReview={openReviewTurnPanel}
+                        onCopyText={copyConversationText}
+                        onEditUserMessage={
+                          activeThread?.archived
+                            ? undefined
+                            : editConversationMessage
+                        }
+                        onResolve={(approval, approved, scope) =>
+                          void resolveApprovalRequest(approval, approved, scope)
+                        }
+                        onResolveUserInput={resolveUserInputRequest}
+                        onUndoTurnChanges={(turnId) =>
+                          void undoTurnChanges(turnId)
+                        }
+                        state={threadState!}
+                      />
+                    </Fragment>
                   )}
                   {activeThread &&
                     runPresentation.status !== "idle" &&
@@ -10872,88 +10999,100 @@ export function Timeline({
 
   return (
     <TimelineSurface className="timeline">
-      {groupedTimeline.turns.map(({ entries, turn }) => {
-        if (turn.status !== "completed") {
-          return (
-            <TimelineTurn
-              className="timeline-turn"
-              key={turn.id}
-              state={turn.status}
-            >
-              {entries.map(renderTimelineEntry)}
-              <TurnChangeSetCard
-                locale={locale}
-                onReview={onOpenTurnReview}
-                onUndo={onUndoTurnChanges}
-                turn={turn}
-                undoEnabled={
-                  turn.id === latestCompletedTurnId &&
-                  state.status === "idle" &&
-                  turn.changeSet?.undoAvailable === true
-                }
-              />
-            </TimelineTurn>
-          );
-        }
-        const finalEntry = turn.finalPartId
-          ? entries.find(
-              (entry) =>
-                entry.kind === "entry" &&
-                entry.entry === `part:${turn.finalPartId}`,
-            )
-          : entries.findLast(
-              (entry) =>
-                entry.kind === "entry" && entry.entry.startsWith("part:"),
-            );
-        const userEntries = entries.filter(
-          (entry) => entry.kind === "entry" && entry.entry.startsWith("user:"),
-        );
-        const executionEntries = entries.filter(
-          (entry) => entry !== finalEntry && !userEntries.includes(entry),
-        );
-        return (
-          <TimelineTurn
-            className="timeline-turn completed"
-            key={turn.id}
-            state="completed"
-          >
-            {userEntries.map(renderTimelineEntry)}
-            <TurnExecutionDisclosure
-              className="turn-execution-details"
-              label={`${t.workedFor} ${formatWorkedDuration(turn.durationMs)}`}
-              summary={
-                <>
-                  <span>
-                    {t.workedFor} {formatWorkedDuration(turn.durationMs)}
-                  </span>
-                  <ArtemisIcon
-                    className="icon"
-                    height={14}
-                    name="chev-right"
-                    width={14}
+      {groupedTimeline.turns.map(({ entries, turn }, turnIndex) => (
+        <HistoryTurn
+          key={`${state.threadId}:${turn.id}`}
+          cacheKey={`${state.threadId}:${turn.id}`}
+          active={turn.status === "running"}
+          initialVisible={turnIndex >= groupedTimeline.turns.length - 8}
+        >
+          {() => {
+            if (turn.status !== "completed") {
+              return (
+                <TimelineTurn
+                  className="timeline-turn"
+                  key={turn.id}
+                  state={turn.status}
+                >
+                  {entries.map(renderTimelineEntry)}
+                  <TurnChangeSetCard
+                    locale={locale}
+                    onReview={onOpenTurnReview}
+                    onUndo={onUndoTurnChanges}
+                    turn={turn}
+                    undoEnabled={
+                      turn.id === latestCompletedTurnId &&
+                      state.status === "idle" &&
+                      turn.changeSet?.undoAvailable === true
+                    }
                   />
-                </>
-              }
-            >
-              <div className="turn-execution-entries">
-                {executionEntries.map(renderTimelineEntry)}
-              </div>
-            </TurnExecutionDisclosure>
-            {finalEntry ? renderTimelineEntry(finalEntry) : null}
-            <TurnChangeSetCard
-              locale={locale}
-              onReview={onOpenTurnReview}
-              onUndo={onUndoTurnChanges}
-              turn={turn}
-              undoEnabled={
-                turn.id === latestCompletedTurnId &&
-                state.status === "idle" &&
-                turn.changeSet?.undoAvailable === true
-              }
-            />
-          </TimelineTurn>
-        );
-      })}
+                </TimelineTurn>
+              );
+            }
+            const finalEntry = turn.finalPartId
+              ? entries.find(
+                  (entry) =>
+                    entry.kind === "entry" &&
+                    entry.entry === `part:${turn.finalPartId}`,
+                )
+              : entries.findLast(
+                  (entry) =>
+                    entry.kind === "entry" && entry.entry.startsWith("part:"),
+                );
+            const userEntries = entries.filter(
+              (entry) =>
+                entry.kind === "entry" && entry.entry.startsWith("user:"),
+            );
+            const executionEntries = entries.filter(
+              (entry) => entry !== finalEntry && !userEntries.includes(entry),
+            );
+            return (
+              <TimelineTurn
+                className="timeline-turn completed"
+                key={turn.id}
+                state="completed"
+              >
+                {userEntries.map(renderTimelineEntry)}
+                <TurnExecutionDisclosure
+                  className="turn-execution-details"
+                  label={`${t.workedFor} ${formatWorkedDuration(turn.durationMs)}`}
+                  summary={
+                    <>
+                      <span>
+                        {t.workedFor} {formatWorkedDuration(turn.durationMs)}
+                      </span>
+                      <ArtemisIcon
+                        className="icon"
+                        height={14}
+                        name="chev-right"
+                        width={14}
+                      />
+                    </>
+                  }
+                >
+                  {() => (
+                    <div className="turn-execution-entries">
+                      {executionEntries.map(renderTimelineEntry)}
+                    </div>
+                  )}
+                </TurnExecutionDisclosure>
+                {finalEntry ? renderTimelineEntry(finalEntry) : null}
+                <TurnChangeSetCard
+                  locale={locale}
+                  onReview={onOpenTurnReview}
+                  onUndo={onUndoTurnChanges}
+                  turn={turn}
+                  undoEnabled={
+                    turn.id === latestCompletedTurnId &&
+                    state.status === "idle" &&
+                    turn.changeSet?.undoAvailable === true
+                  }
+                />
+              </TimelineTurn>
+            );
+          }}
+        </HistoryTurn>
+      ))}
       {groupedTimeline.unassigned.map(renderTimelineEntry)}
       {state.queue.steering.map((message, index) => (
         <ConversationMessage

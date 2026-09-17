@@ -1462,5 +1462,6 @@
   "ImDelegation.retryHint": "No automatic retry. Choose Retry only when you want to delegate again. A timed-out peer may still be running.",
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Impedir suspensão enquanto o Artemis estiver aberto",
-  "SettingsPanel.preventSleepHint": "Mantém este computador ativo enquanto o Artemis estiver em execução, inclusive em segundo plano. A tela pode apagar. Sair do Artemis ou desativar esta opção restaura a suspensão normal."
+  "SettingsPanel.preventSleepHint": "Mantém este computador ativo enquanto o Artemis estiver em execução, inclusive em segundo plano. A tela pode apagar. Sair do Artemis ou desativar esta opção restaura a suspensão normal.",
+  "App_copy.loadEarlierMessages": "Carregar mensagens anteriores"
 }

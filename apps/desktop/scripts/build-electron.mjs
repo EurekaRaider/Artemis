@@ -44,6 +44,13 @@ const shared = {
 await Promise.all([
   build({
     ...shared,
+    entryPoints: ["src/main/thread-history-worker.ts"],
+    banner: esmRequireBridge,
+    format: "esm",
+    outfile: "dist-electron/thread-history-worker.js",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/main/attachment-worker.ts"],
     banner: esmRequireBridge,
     external: [

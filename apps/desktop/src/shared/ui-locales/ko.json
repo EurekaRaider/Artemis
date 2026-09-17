@@ -1462,5 +1462,6 @@
   "ImDelegation.retryHint": "No automatic retry. Choose Retry only when you want to delegate again. A timed-out peer may still be running.",
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Artemis 실행 중 시스템 절전 방지",
-  "SettingsPanel.preventSleepHint": "백그라운드를 포함하여 Artemis가 실행되는 동안 이 컴퓨터를 깨어 있게 유지합니다. 화면은 꺼질 수 있습니다. Artemis를 종료하거나 이 옵션을 끄면 일반 절전 설정으로 돌아갑니다."
+  "SettingsPanel.preventSleepHint": "백그라운드를 포함하여 Artemis가 실행되는 동안 이 컴퓨터를 깨어 있게 유지합니다. 화면은 꺼질 수 있습니다. Artemis를 종료하거나 이 옵션을 끄면 일반 절전 설정으로 돌아갑니다.",
+  "App_copy.loadEarlierMessages": "이전 메시지 불러오기"
 }

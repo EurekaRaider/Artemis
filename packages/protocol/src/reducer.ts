@@ -215,23 +215,7 @@ function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
     ...state,
     order: [...state.order],
     turnOrder: [...state.turnOrder],
-    turns: Object.fromEntries(
-      Object.entries(state.turns).map(([id, turn]) => [
-        id,
-        {
-          ...turn,
-          order: [...turn.order],
-          ...(turn.changeSet
-            ? {
-                changeSet: {
-                  ...turn.changeSet,
-                  files: [...turn.changeSet.files],
-                },
-              }
-            : {}),
-        },
-      ]),
-    ),
+    turns: { ...state.turns },
     entryTurnIds: { ...state.entryTurnIds },
     userMessages: { ...state.userMessages },
     messageParts: { ...state.messageParts },
@@ -269,18 +253,16 @@ function appendOnce(items: string[], seenItems: Set<string>, id: string): void {
 function clearThinkingParts(
   state: ThreadViewState,
   orderedItems: Set<string>,
+  index: ReductionIndex,
 ): void {
-  const thinkingEntries = new Set(
-    Object.values(state.messageParts)
-      .filter((part) => part.type === "thinking")
-      .map((part) => `part:${part.id}`),
-  );
+  const thinkingEntries = index.thinkingEntries;
   if (thinkingEntries.size === 0) return;
   for (const entry of thinkingEntries) {
     delete state.messageParts[entry.slice("part:".length)];
     orderedItems.delete(entry);
   }
   state.order = state.order.filter((entry) => !thinkingEntries.has(entry));
+  thinkingEntries.clear();
 }
 
 // Multi-question duck typing validates the value, not just the key: IPC
@@ -528,36 +510,54 @@ function runningContextCompaction(
 
 const AFTER_TOOL_SEGMENT = "::after-tool::";
 
-function timelinePartId(state: ThreadViewState, sourcePartId: string): string {
-  const baseEntry = `part:${sourcePartId}`;
-  const segmentPrefix = `${baseEntry}${AFTER_TOOL_SEGMENT}`;
-  let lastPartIndex = -1;
-  let lastPartId: string | undefined;
-  let lastToolIndex = -1;
-  let lastToolId: string | undefined;
+interface ReductionIndex {
+  writableTurns: Set<string>;
+  parts: Map<string, { id: string; position: number }>;
+  lastTool?: { id: string; position: number } | undefined;
+  thinkingEntries: Set<string>;
+}
 
-  for (const [index, item] of state.order.entries()) {
-    if (item.startsWith("tool:")) {
-      lastToolIndex = index;
-      lastToolId = item.slice("tool:".length);
-    }
-    if (item === baseEntry || item.startsWith(segmentPrefix)) {
-      lastPartIndex = index;
-      lastPartId = item.slice("part:".length);
-    }
+function indexEntry(
+  index: ReductionIndex,
+  entry: string,
+  position: number,
+): void {
+  if (entry.startsWith("tool:"))
+    index.lastTool = { id: entry.slice(5), position };
+  if (entry.startsWith("part:")) {
+    const id = entry.slice(5);
+    const sourceId = id.split(AFTER_TOOL_SEGMENT)[0]!;
+    index.parts.set(sourceId, { id, position });
   }
+}
 
-  if (lastPartIndex < 0) return sourcePartId;
-  if (lastToolIndex > lastPartIndex && lastToolId) {
-    return `${sourcePartId}${AFTER_TOOL_SEGMENT}${lastToolId}`;
+function createReductionIndex(state: ThreadViewState): ReductionIndex {
+  const index: ReductionIndex = {
+    writableTurns: new Set(),
+    parts: new Map(),
+    thinkingEntries: new Set(),
+  };
+  state.order.forEach((entry, position) => indexEntry(index, entry, position));
+  for (const part of Object.values(state.messageParts)) {
+    if (part.type === "thinking") index.thinkingEntries.add(`part:${part.id}`);
   }
-  return lastPartId ?? sourcePartId;
+  return index;
+}
+
+function timelinePartId(index: ReductionIndex, sourcePartId: string): string {
+  const part = index.parts.get(sourcePartId);
+  if (!part) return sourcePartId;
+  if (index.lastTool && index.lastTool.position > part.position) {
+    return `${sourcePartId}${AFTER_TOOL_SEGMENT}${index.lastTool.id}`;
+  }
+  return part.id;
 }
 
 function applyAgentPayload(
   state: ThreadViewState,
   event: AgentEvent,
   orderedItems: Set<string>,
+  index: ReductionIndex,
 ): void {
   const payload = event.payload;
   switch (payload.type) {
@@ -571,7 +571,7 @@ function applyAgentPayload(
       return;
     }
     case "turn.started": {
-      clearThinkingParts(state, orderedItems);
+      clearThinkingParts(state, orderedItems, index);
       state.status = "running";
       state.mode = payload.mode;
       delete state.activity;
@@ -604,10 +604,10 @@ function applyAgentPayload(
       return;
     }
     case "message.part.delta": {
-      clearThinkingParts(state, orderedItems);
+      clearThinkingParts(state, orderedItems, index);
       if (payload.partType === "thinking") return;
       delete state.activity;
-      const partId = timelinePartId(state, payload.partId);
+      const partId = timelinePartId(index, payload.partId);
       const existing = state.messageParts[partId];
       state.messageParts[partId] = {
         id: partId,
@@ -618,7 +618,7 @@ function applyAgentPayload(
       return;
     }
     case "tool.started": {
-      clearThinkingParts(state, orderedItems);
+      clearThinkingParts(state, orderedItems, index);
       delete state.activity;
       const tool = payload as ToolStartedPayload;
       state.tools[tool.toolCallId] = {
@@ -949,13 +949,13 @@ function applyAgentPayload(
     case "terminal.output":
       return;
     case "turn.completed": {
-      clearThinkingParts(state, orderedItems);
+      clearThinkingParts(state, orderedItems, index);
       state.status = "idle";
       delete state.activity;
       return;
     }
     case "turn.failed": {
-      clearThinkingParts(state, orderedItems);
+      clearThinkingParts(state, orderedItems, index);
       state.status = "failed";
       delete state.activity;
       state.error = payload.message;
@@ -1018,23 +1018,45 @@ function applyAgentEvent(
   state: ThreadViewState,
   event: AgentEvent,
   orderedItems: Set<string>,
+  index: ReductionIndex,
 ): void {
   state.seenEventIds[event.eventId] = true;
   state.lastSeq = Math.max(state.lastSeq, event.seq);
+  if (event.turnId && !index.writableTurns.has(event.turnId)) {
+    const existing = state.turns[event.turnId];
+    if (existing)
+      state.turns[event.turnId] = { ...existing, order: [...existing.order] };
+    index.writableTurns.add(event.turnId);
+  }
   const turn = ensureTurn(state, event);
-  const previousEntries = new Set(state.order);
+  const previousOrder = state.order;
+  const previousLength = previousOrder.length;
 
-  applyAgentPayload(state, event, orderedItems);
+  applyAgentPayload(state, event, orderedItems, index);
 
-  if (!turn) return;
-  for (const entry of state.order) {
-    if (!previousEntries.has(entry) && !state.entryTurnIds[entry]) {
+  if (state.order !== previousOrder) {
+    // Superseded/legacy thinking entries are rare removals, not the streaming path.
+    const rebuilt = createReductionIndex(state);
+    index.parts = rebuilt.parts;
+    index.lastTool = rebuilt.lastTool;
+    index.thinkingEntries = rebuilt.thinkingEntries;
+    if (turn)
+      turn.order = state.order.filter(
+        (entry) => state.entryTurnIds[entry] === turn.id,
+      );
+  }
+  const added =
+    state.order === previousOrder
+      ? state.order.slice(previousLength)
+      : state.order.filter((entry) => !previousOrder.includes(entry));
+  for (const [offset, entry] of added.entries()) {
+    indexEntry(index, entry, state.order.length - added.length + offset);
+    if (turn && !state.entryTurnIds[entry]) {
       state.entryTurnIds[entry] = turn.id;
+      turn.order.push(entry);
     }
   }
-  turn.order = state.order.filter(
-    (entry) => state.entryTurnIds[entry] === turn.id,
-  );
+  if (!turn) return;
 
   const payload = event.payload;
   if (payload.type === "turn.started") {
@@ -1082,7 +1104,7 @@ export function reduceAgentEvent(
   }
 
   const next = cloneThreadViewState(state);
-  applyAgentEvent(next, event, new Set(next.order));
+  applyAgentEvent(next, event, new Set(next.order), createReductionIndex(next));
   return next;
 }
 
@@ -1092,6 +1114,7 @@ export function reduceAgentEventBatch(
 ): ThreadViewState {
   let next: ThreadViewState | undefined;
   let orderedItems: Set<string> | undefined;
+  let index: ReductionIndex | undefined;
   for (const event of events) {
     const current = next ?? state;
     if (
@@ -1103,8 +1126,9 @@ export function reduceAgentEventBatch(
     if (!next) {
       next = cloneThreadViewState(state);
       orderedItems = new Set(next.order);
+      index = createReductionIndex(next);
     }
-    applyAgentEvent(next, event, orderedItems!);
+    applyAgentEvent(next, event, orderedItems!, index!);
   }
   return next ?? state;
 }
@@ -1116,11 +1140,12 @@ export function reduceAgentEvents(
 ): ThreadViewState {
   const state = createThreadViewState(threadId, mode);
   const orderedItems = new Set<string>();
+  const index = createReductionIndex(state);
   for (const event of events) {
     if (event.threadId !== threadId || state.seenEventIds[event.eventId]) {
       continue;
     }
-    applyAgentEvent(state, event, orderedItems);
+    applyAgentEvent(state, event, orderedItems, index);
   }
   return state;
 }

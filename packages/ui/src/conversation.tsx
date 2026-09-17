@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useState,
   type DetailsHTMLAttributes,
   type HTMLAttributes,
   type LiHTMLAttributes,
@@ -464,7 +465,7 @@ export interface TurnExecutionDisclosureProps extends Omit<
   DetailsHTMLAttributes<HTMLDetailsElement>,
   "children"
 > {
-  readonly children: ReactNode;
+  readonly children: ReactNode | (() => ReactNode);
   readonly label: string;
   readonly summary: ReactNode;
 }
@@ -476,16 +477,27 @@ export function TurnExecutionDisclosure({
   ...attributes
 }: TurnExecutionDisclosureProps) {
   requirePerceptibleText(label);
+  const [expanded, setExpanded] = useState(Boolean(attributes.open));
   return (
     <details
       {...attributes}
       aria-label={label}
+      onToggle={(event) => {
+        setExpanded(event.currentTarget.open);
+        attributes.onToggle?.(event);
+      }}
       data-artemis-component="turn-execution-disclosure"
       data-part="root"
       data-state="ready"
     >
       <summary data-part="summary">{summary}</summary>
-      <div data-part="content">{children}</div>
+      <div data-part="content">
+        {expanded
+          ? typeof children === "function"
+            ? children()
+            : children
+          : null}
+      </div>
     </details>
   );
 }

@@ -1462,5 +1462,6 @@
   "ImDelegation.retryHint": "不会自动重派。请确认是否重新委派；超时的队友任务可能仍在执行。",
   "ImDelegation.continueWaiting": "继续等待",
   "SettingsPanel.preventSleep": "运行时防止系统休眠",
-  "SettingsPanel.preventSleepHint": "只要 Artemis 仍在运行（包括后台），就让本机保持唤醒，屏幕仍可熄灭。退出 Artemis 或关闭此开关后恢复正常休眠。"
+  "SettingsPanel.preventSleepHint": "只要 Artemis 仍在运行（包括后台），就让本机保持唤醒，屏幕仍可熄灭。退出 Artemis 或关闭此开关后恢复正常休眠。",
+  "App_copy.loadEarlierMessages": "加载更早的消息"
 }

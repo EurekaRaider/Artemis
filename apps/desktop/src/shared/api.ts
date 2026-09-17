@@ -1,3 +1,7 @@
+import type {
+  ThreadHistoryCursor,
+  ThreadHistoryPage,
+} from "./thread-history.js";
 import type { ImSettings, ImStatus, ImManagement } from "@artemis/protocol";
 import type {
   AgentEvent,
@@ -839,6 +843,10 @@ export interface ArtemisApi {
   saveImSettings(settings: ImSettings): Promise<ImStatus>;
   manageIm(input: ImManagement): Promise<unknown>;
   getSnapshot(): Promise<DesktopSnapshot>;
+  getThreadHistory(
+    threadId: string,
+    cursor?: ThreadHistoryCursor,
+  ): Promise<ThreadHistoryPage>;
   getThreadEvents(threadId: string): Promise<AgentEvent[]>;
   getThreadTaskSummary(threadId: string): Promise<string | undefined>;
   getTokenUsageEvents(): Promise<AgentEvent[]>;
@@ -1189,6 +1197,7 @@ export const IPC = {
   imSave: "artemis:im-save",
   imManage: "artemis:im-manage",
   snapshot: "artemis:snapshot",
+  threadHistory: "artemis:thread-history",
   threadEvents: "artemis:thread-events",
   threadTaskSummary: "artemis:thread-task-summary",
   tokenUsageEvents: "artemis:token-usage-events",
