@@ -865,6 +865,24 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/stop");
     expect(f.threads[0]?.status).toBe("idle");
   });
+  it.each(["取消任务", "停止任务", "取消任务！"])(
+    "handles the owner's %s without queueing another prompt",
+    async (text) => {
+      const f = await fixture();
+      await f.send("/new analyze");
+      await f.send(text);
+      expect(f.threads[0]?.status).toBe("idle");
+      expect(f.starts).toHaveLength(1);
+      expect(f.queued).toHaveLength(0);
+    },
+  );
+  it("keeps cancellation mentioned within a task as ordinary content", async () => {
+    const f = await fixture();
+    await f.send("/new analyze");
+    await f.send("请解释取消任务的流程");
+    expect(f.threads[0]?.status).toBe("running");
+    expect(f.queued).toHaveLength(1);
+  });
   it("denies an unpaired sender before task creation", async () => {
     const f = await fixture();
     await f.send("/new steal", undefined, "bob");

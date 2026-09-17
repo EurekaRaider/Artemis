@@ -9873,6 +9873,19 @@ kbd {
   font-size: 12.5px;
   line-height: 1.5;
 }
+.im-project:not(.im-project-builtin) > [data-artemis-component="checkbox"] {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 45%;
+}
+.im-project:not(.im-project-builtin)
+  > [data-artemis-component="checkbox"]
+  [data-part="label"] {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .im-grant-open {
   flex: none;
 }
@@ -9911,8 +9924,8 @@ kbd {
   visibility: hidden;
 }
 .im-row-summary {
-  flex: 1 1 auto;
-  min-inline-size: 48px;
+  flex: 1 1 0;
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

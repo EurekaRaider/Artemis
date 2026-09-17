@@ -20,6 +20,61 @@ afterEach(async () => {
   vi.restoreAllMocks();
   for (const fn of cleanup.splice(0).reverse()) await fn();
 });
+it.each(["idle", "running"] as const)(
+  "acknowledges remote cancellation of a %s assignment",
+  async (status) => {
+    const f = await fixture();
+    await f.authorize();
+    const owner = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      f.service.status().remoteTasks![0]!.group!.spaceId,
+    );
+    const nativeTaskId = randomUUID();
+    const request = {
+      ...owner,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      text: "Do the work",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: owner.deviceId,
+        coordinatorThreadId: owner.id,
+        mission: "Do the work",
+      },
+    };
+    await f.service.accept(request);
+    const thread = f.threads.find((t) => t.id === f.starts[0])!;
+    thread.status = status;
+    const cancel = vi.fn(async () => {
+      if (thread.status !== "running")
+        throw new Error("Task has no active turn.");
+      thread.status = "idle";
+    });
+    f.ops.cancel = cancel;
+    const cancellation = {
+      ...request,
+      id: randomUUID(),
+      text: "",
+      control: "cancel",
+    };
+    await f.service.accept(cancellation);
+    expect(cancel).toHaveBeenCalledTimes(status === "running" ? 1 : 0);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const replies = db
+        .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+        .all()
+        .map((r) => JSON.parse(String(r.value)))
+        .filter((r) => r.invocationId === cancellation.id);
+      expect(replies).toEqual([
+        expect.objectContaining({ final: true, outcome: "cancelled" }),
+      ]);
+    } finally {
+      db.close();
+    }
+  },
+);
 async function fixture(channel: "wecom" | "feishu" | "slack" = "slack") {
   const root = await mkdtemp(join(tmpdir(), "artemis-native-"));
   cleanup.push(() => rm(root, { recursive: true, force: true }));

@@ -3287,11 +3287,21 @@ export class ImService {
         : undefined;
       if (threadId) {
         this.cancelOperations(threadId);
-        await this.ops.cancel(threadId);
+        const thread = this.ops.thread(threadId);
+        const results = await Promise.allSettled([
+          ...(thread && busy(thread) ? [this.ops.cancel(threadId)] : []),
+          this.cancelThreadDelegations(threadId),
+        ]);
+        const failed = results.find((r) => r.status === "rejected");
+        if (failed?.status === "rejected") throw failed.reason;
         this.reply(
           request,
-          "停止请求已处理，请以任务的实际结束状态为准。",
+          "任务已取消。",
           threadId,
+          true,
+          "conversation",
+          randomUUID(),
+          "cancelled",
         );
       } else
         this.reply(
@@ -3319,13 +3329,24 @@ export class ImService {
           "selections",
           key,
         ) ?? {};
+    // Only a standalone owner instruction is a control command. Assignments,
+    // other participants and tool output must remain literal task content.
+    const commandText =
+      !request.nativeTaskId &&
+      !request.collaboration &&
+      !request.originator &&
+      request.sourceKind !== "tool-result" &&
+      request.attachments.length === 0 &&
+      /^(?:取消|停止)任务[。！!]?$/u.test(request.text.trim())
+        ? "/stop"
+        : request.text.trim();
     const match =
       request.nativeTaskId ||
       (request.collaboration && !request.taskId) ||
       (request.originator && !/^\/new(?:\s|$)/u.test(request.text.trim())) ||
       request.sourceKind === "tool-result"
         ? null
-        : /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(request.text.trim());
+        : /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(commandText);
     const command = match?.[1]?.toLowerCase(),
       argument = match?.[2]?.trim() ?? "";
     const complete = (text: string, id?: string, started = false) => {
