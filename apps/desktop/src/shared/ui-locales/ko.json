@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "연결 ID 복사",
   "ImSetupGuide.message1": "한 번에 시작 및 자동 등록",
   "ImSetupGuide.message2": "기본 제공 Gateway 준비 완료",
-  "ImSetupGuide.message3": "원격 작업을 받으려면 컴퓨터가 깨어 있고 Artemis가 실행 중이어야 합니다. Bot이 접근할 수 있도록 프로젝트 권한을 설정하세요.",
+  "ImSetupGuide.message3": "1、원격 작업 수신 시 컴퓨터를 깨어 있는 상태로 유지하고 Artemis를 실행하세요;",
   "ImSetupGuide.message4": "고급: 팀 서비스 또는 독립 배포",
   "ImSetupGuide.message5": "팀 Gateway가 있다면 관리자가 제공한 HTTPS URL과 관리자 자격 증명을 사용하세요. Feishu / Lark의 HTTPS 콜백 방식에는 공개 콜백 URL이 필요합니다.",
   "ImSetupGuide.message6": "팀 Gateway 사용",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "뒤로",
   "ImSettingsPanel.channelBotsCount": "봇 {{value1}}개",
   "ImSettingsPanel.projectsSummary": "프로젝트 {{value1}}개 · 모든 채널 공통",
-  "ImFeishuScan.message10": "스캔"
+  "ImFeishuScan.message10": "스캔",
+  "ImSetupGuide.message25": "참고:",
+  "ImSetupGuide.message26": "2、Bot이 접근할 수 있도록 프로젝트 권한을 설정하세요.",
+  "ImSettingsPanel.powerStart": "시작",
+  "ImSettingsPanel.powerStop": "중지"
 }

@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "接続 ID をコピー",
   "ImSetupGuide.message1": "ワンクリックで起動・登録",
   "ImSetupGuide.message2": "組み込み Gateway の準備ができました",
-  "ImSetupGuide.message3": "リモートタスクの受信中はPCのスリープを無効にし、Artemisを実行し続けてください。Botがアクセスできるようプロジェクト権限を設定してください。",
+  "ImSetupGuide.message3": "1、リモートタスクの受信中はPCのスリープを無効にし、Artemisを実行し続けてください；",
   "ImSetupGuide.message4": "詳細：チームサービスまたは単体デプロイ",
   "ImSetupGuide.message5": "チームの Gateway がある場合は、管理者から提供された HTTPS URL と管理者認証情報を入力してください。Feishu / Lark の HTTPS コールバック方式には公開コールバック URL が必要です。",
   "ImSetupGuide.message6": "チームの Gateway を使用",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "戻る",
   "ImSettingsPanel.channelBotsCount": "{{value1}} 個のボット",
   "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通",
-  "ImFeishuScan.message10": "スキャン"
+  "ImFeishuScan.message10": "スキャン",
+  "ImSetupGuide.message25": "ご注意：",
+  "ImSetupGuide.message26": "2、Botがアクセスできるようプロジェクト権限を設定してください。",
+  "ImSettingsPanel.powerStart": "起動",
+  "ImSettingsPanel.powerStop": "停止"
 }

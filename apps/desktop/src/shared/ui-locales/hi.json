@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "कनेक्शन ID कॉपी करें",
   "ImSetupGuide.message1": "अपने आप शुरू और पंजीकृत करें",
   "ImSetupGuide.message2": "अंतर्निहित Gateway तैयार है",
-  "ImSetupGuide.message3": "रिमोट कार्यों के लिए इस कंप्यूटर को सक्रिय और Artemis चालू रखें; बॉट के ऐक्सेस के लिए प्रोजेक्ट अनुमतियाँ सेट करें।",
+  "ImSetupGuide.message3": "1、रिमोट कार्यों के लिए इस कंप्यूटर को सक्रिय और Artemis चालू रखें;",
   "ImSetupGuide.message4": "उन्नत: टीम सेवा या अलग तैनाती",
   "ImSetupGuide.message5": "टीम का Gateway पहले से हो तो व्यवस्थापक का दिया HTTPS URL और टोकन भरें। Feishu/Lark के HTTPS कॉलबैक मोड को अभी भी सार्वजनिक कॉलबैक URL चाहिए।",
   "ImSetupGuide.message6": "टीम Gateway इस्तेमाल करें",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "वापस",
   "ImSettingsPanel.channelBotsCount": "{{value1}} बॉट",
   "ImSettingsPanel.projectsSummary": "{{value1}} प्रोजेक्ट · सभी चैनलों के लिए साझ़ा",
-  "ImFeishuScan.message10": "स्कैन करें"
+  "ImFeishuScan.message10": "स्कैन करें",
+  "ImSetupGuide.message25": "सुझाव:",
+  "ImSetupGuide.message26": "2、बॉट के ऐक्सेस के लिए प्रोजेक्ट अनुमतियाँ सेट करें।",
+  "ImSettingsPanel.powerStart": "शुरू करें",
+  "ImSettingsPanel.powerStop": "रोकें"
 }

@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "Копировать ID подключения",
   "ImSetupGuide.message1": "Автоматически запустить и зарегистрировать",
   "ImSetupGuide.message2": "Встроенный Gateway готов",
-  "ImSetupGuide.message3": "Для удалённых задач держите компьютер активным и Artemis запущенным; настройте права доступа к проектам, чтобы боты могли ими пользоваться.",
+  "ImSetupGuide.message3": "1. Для удалённых задач держите компьютер активным и Artemis запущенным;",
   "ImSetupGuide.message4": "Дополнительно: сервис команды или отдельное развёртывание",
   "ImSetupGuide.message5": "Для существующего Gateway команды укажите HTTPS URL и токен администратора, полученные у администратора. Транспорт HTTPS callback Feishu/Lark по-прежнему требует публичного адреса callback.",
   "ImSetupGuide.message6": "Использовать Gateway команды",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "Назад",
   "ImSettingsPanel.channelBotsCount": "{{value1}} ботов",
   "ImSettingsPanel.projectsSummary": "{{value1}} проектов · общие для всех каналов",
-  "ImFeishuScan.message10": "Сканировать"
+  "ImFeishuScan.message10": "Сканировать",
+  "ImSetupGuide.message25": "Подсказки:",
+  "ImSetupGuide.message26": "2. Настройте права доступа к проектам, чтобы боты могли ими пользоваться.",
+  "ImSettingsPanel.powerStart": "Запустить",
+  "ImSettingsPanel.powerStop": "Остановить"
 }

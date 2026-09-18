@@ -25,13 +25,17 @@ export function ImGatewayInstructions({
       className="im-flow-section"
       title={t("ImSetupGuide.message9")}
     >
-      {/* 就绪后不再展示禁用态按钮，只留说明行。 */}
+      {/* 就绪后不再展示禁用态按钮，只留提示。 */}
       {!ready && (
         <Button disabled={busy} onClick={setup}>
           {t("ImSetupGuide.message1")}
         </Button>
       )}
-      <p>{t("ImSetupGuide.message3")}</p>
+      <div className="im-gateway-tip">
+        <p className="im-gateway-tip-head">{t("ImSetupGuide.message25")}</p>
+        <p>{t("ImSetupGuide.message3")}</p>
+        <p>{t("ImSetupGuide.message26")}</p>
+      </div>
       <details>
         <summary>{t("ImSetupGuide.message4")}</summary>
         <p>{t("ImSetupGuide.message5")}</p>

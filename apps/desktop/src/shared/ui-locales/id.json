@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "Salin ID koneksi",
   "ImSetupGuide.message1": "Mulai dan daftarkan otomatis",
   "ImSetupGuide.message2": "Gateway bawaan siap",
-  "ImSetupGuide.message3": "Jaga komputer ini tetap terjaga dan Artemis berjalan untuk tugas jarak jauh; atur izin proyek agar bot dapat mengaksesnya.",
+  "ImSetupGuide.message3": "1. Jaga komputer ini tetap terjaga dan Artemis berjalan untuk tugas jarak jauh;",
   "ImSetupGuide.message4": "Lanjutan: layanan tim atau penerapan terpisah",
   "ImSetupGuide.message5": "Untuk Gateway tim yang sudah ada, gunakan URL HTTPS dan token administrator yang disediakan. Metode callback HTTPS Feishu / Lark tetap memerlukan URL callback publik.",
   "ImSetupGuide.message6": "Gunakan Gateway tim",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "Kembali",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
   "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
-  "ImFeishuScan.message10": "Pindai"
+  "ImFeishuScan.message10": "Pindai",
+  "ImSetupGuide.message25": "Tips:",
+  "ImSetupGuide.message26": "2. Atur izin proyek agar bot dapat mengaksesnya.",
+  "ImSettingsPanel.powerStart": "Mulai",
+  "ImSettingsPanel.powerStop": "Hentikan"
 }

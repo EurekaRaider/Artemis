@@ -10504,32 +10504,31 @@ kbd {
   gap: 8px;
   min-width: 0;
 }
-/* 启动/停止双态圆钮（红绿灯式）：运行=绿底白停止块，停止=描边圆+播放三角。 */
+/* 启动/停止双态钮（图标+文字）：停止=描边+播放三角「启动」，运行=绿图标「停止」。 */
 .im-power-toggle {
-  display: grid;
-  place-items: center;
-  inline-size: 20px;
-  block-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: none;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 50%;
+  padding: 3px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
   cursor: pointer;
 }
 .im-power-toggle[data-state="on"] {
-  background: var(--success);
-  border-color: var(--success);
-  color: #fff;
+  color: var(--text);
 }
-.im-power-toggle[data-state="off"] {
-  border-color: var(--border-soft);
-  color: var(--muted);
-}
-.im-power-toggle[data-state="off"]:hover {
-  border-color: var(--success);
+.im-power-toggle[data-state="on"] svg {
   color: var(--success);
+}
+.im-power-toggle[data-state="off"]:hover,
+.im-power-toggle[data-state="off"]:hover svg {
+  color: var(--success);
+  border-color: var(--success);
 }
 .im-power-toggle:disabled {
   opacity: 0.45;
@@ -10541,6 +10540,24 @@ kbd {
 }
 .im-service-device-line {
   margin-block: 0 8px;
+}
+/* Gateway 温馨提示块：标题+编号行。 */
+.im-gateway-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-block: 8px 0;
+}
+.im-gateway-tip-head {
+  color: var(--muted);
+  font-weight: 590;
+  margin: 0;
+}
+.im-gateway-tip p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 19px;
 }
 .im-service-body {
   padding-block-start: 12px;

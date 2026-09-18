@@ -2416,35 +2416,41 @@ export function ImSettingsPanel({
                         })
                       }
                     >
-                      {/* 启动/停止双态图标：停止态=播放三角，运行态=绿色圆点+停止块。 */}
+                      {/* 启动/停止双态=图标+文字：停止态 ▶启动，运行态 ■停止。 */}
                       {settings.enabled || status?.settings.enabled ? (
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          width="12"
-                          height="12"
-                        >
-                          <rect
-                            x="4"
-                            y="4"
-                            width="8"
-                            height="8"
-                            rx="1.5"
-                            fill="currentColor"
-                          />
-                        </svg>
+                        <>
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 16 16"
+                            width="12"
+                            height="12"
+                          >
+                            <rect
+                              x="4"
+                              y="4"
+                              width="8"
+                              height="8"
+                              rx="1.5"
+                              fill="currentColor"
+                            />
+                          </svg>
+                          <span>{t("ImSettingsPanel.powerStop")}</span>
+                        </>
                       ) : (
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          width="12"
-                          height="12"
-                        >
-                          <path
-                            d="M5 3.2v9.6l8-4.8z"
-                            fill="currentColor"
-                          />
-                        </svg>
+                        <>
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 16 16"
+                            width="12"
+                            height="12"
+                          >
+                            <path
+                              d="M5 3.2v9.6l8-4.8z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                          <span>{t("ImSettingsPanel.powerStart")}</span>
+                        </>
                       )}
                     </button>
                   </>

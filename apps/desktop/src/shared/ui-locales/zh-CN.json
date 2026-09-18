@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "复制连接 ID",
   "ImSetupGuide.message1": "一键启动并注册",
   "ImSetupGuide.message2": "内置 Gateway 已就绪",
-  "ImSetupGuide.message3": "接收远程任务时请保持电脑唤醒、Artemis 运行；设置项目权限以便Bot访问。",
+  "ImSetupGuide.message3": "1、接收远程任务时请保持电脑唤醒、Artemis 运行；",
   "ImSetupGuide.message4": "高级：使用团队服务或独立部署",
   "ImSetupGuide.message5": "团队已有 Gateway 时，填写管理员提供的 HTTPS 地址和管理凭据。飞书 / Lark 选择 HTTPS 回调方式时，仍需要公网回调地址。",
   "ImSetupGuide.message6": "使用团队 Gateway",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "返回",
   "ImSettingsPanel.channelBotsCount": "{{value1}} 个机器人",
   "ImSettingsPanel.projectsSummary": "{{value1}} 个项目 · 所有渠道通用",
-  "ImFeishuScan.message10": "扫码"
+  "ImFeishuScan.message10": "扫码",
+  "ImSetupGuide.message25": "温馨提示：",
+  "ImSetupGuide.message26": "2、设置项目权限以便Bot访问。",
+  "ImSettingsPanel.powerStart": "启动",
+  "ImSettingsPanel.powerStop": "停止"
 }

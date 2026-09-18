@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "Copiar ID de conexión",
   "ImSetupGuide.message1": "Iniciar y registrar automáticamente",
   "ImSetupGuide.message2": "Gateway integrado listo",
-  "ImSetupGuide.message3": "Mantén este equipo despierto y Artemis en ejecución para las tareas remotas; configura permisos de proyecto para que los bots puedan acceder.",
+  "ImSetupGuide.message3": "1. Mantén este equipo despierto y Artemis en ejecución para las tareas remotas;",
   "ImSetupGuide.message4": "Avanzado: servicio de equipo o despliegue independiente",
   "ImSetupGuide.message5": "Si ya hay un Gateway de equipo, usa la URL HTTPS y el token facilitados por el administrador. El transporte por callback HTTPS de Feishu / Lark sigue requiriendo una URL pública.",
   "ImSetupGuide.message6": "Usar Gateway de equipo",
@@ -1483,5 +1483,9 @@
   "ImSettingsPanel.channelBack": "Volver",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
   "ImSettingsPanel.projectsSummary": "{{value1}} proyectos · compartidos por todos los canales",
-  "ImFeishuScan.message10": "Escanear"
+  "ImFeishuScan.message10": "Escanear",
+  "ImSetupGuide.message25": "Sugerencias:",
+  "ImSetupGuide.message26": "2. Configura permisos de proyecto para que los bots puedan acceder.",
+  "ImSettingsPanel.powerStart": "Iniciar",
+  "ImSettingsPanel.powerStop": "Detener"
 }
