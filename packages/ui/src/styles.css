@@ -758,7 +758,9 @@
   }
 
   [data-artemis-component="switch"][data-state="checked"] [data-part="thumb"] {
-    background: var(--artemis-color-surface-base);
+    /* 选中态圆钮恒白（accent 轨道上的标准开关范式），随主题取
+       surface-base 会在深色主题里变成黑圆。 */
+    background: #fff;
     transform: translateX(
       calc(var(--artemis-space-4) + var(--artemis-space-1))
     );

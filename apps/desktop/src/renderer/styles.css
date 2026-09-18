@@ -10361,6 +10361,9 @@ kbd {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px;
 }
 @media (max-width: 680px) {
   .im-two-col {
@@ -10439,9 +10442,8 @@ kbd {
 }
 /* 渠道详情（右栏下钻）：返回行 + 原渠道主体。 */
 .im-channel-detail {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--artemis-radius-control, 8px);
-  padding: 10px;
+  border: 0;
+  padding: 0;
 }
 .im-channel-detail-head {
   display: flex;
