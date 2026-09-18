@@ -1468,7 +1468,7 @@
   "ImFeishuScan.message2": "Scansiona il codice QR con Feishu e conferma sul telefono; l'app viene creata e le credenziali salvate automaticamente.",
   "ImFeishuScan.message3": "Scansiona e crea app",
   "ImFeishuScan.message4": "In attesa di conferma sul telefono…",
-  "ImFeishuScan.message5": "\"{{name}}\" creato e connesso.",
+  "ImFeishuScan.message5": "\"{{name}}\" creato e connesso. Invia il comando di abbinamento nella chat del bot per completare il binding.",
   "ImFeishuScan.message6": "La scansione non è stata completata o è scaduta. Riprova.",
   "ImFeishuScan.message9": "Annulla",
   "ImSettingsPanel.imChannelsTitle": "Canali IM",

@@ -1468,7 +1468,7 @@
   "ImFeishuScan.message2": "Pindai kode QR dengan Feishu dan konfirmasi di ponsel; aplikasi dibuat dan kredensialnya disimpan otomatis.",
   "ImFeishuScan.message3": "Pindai dan buat aplikasi",
   "ImFeishuScan.message4": "Menunggu konfirmasi di ponsel…",
-  "ImFeishuScan.message5": "\"{{name}}\" dibuat dan tersambung.",
+  "ImFeishuScan.message5": "\"{{name}}\" dibuat dan tersambung. Kirim perintah pemasangan di chat bot untuk menyelesaikan pengikatan.",
   "ImFeishuScan.message6": "Pemindaian tidak selesai atau kedaluwarsa. Coba lagi.",
   "ImFeishuScan.message9": "Batal",
   "ImSettingsPanel.imChannelsTitle": "Saluran IM",

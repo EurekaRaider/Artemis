@@ -1468,7 +1468,7 @@
   "ImFeishuScan.message2": "امسح رمز QR باستخدام Feishu وأكد على هاتفك؛ سيتم إنشاء التطبيق وحفظ بيانات الاعتماد تلقائياً.",
   "ImFeishuScan.message3": "امسح وأنشئ تطبيقاً",
   "ImFeishuScan.message4": "في انتظار التأكيد على الهاتف…",
-  "ImFeishuScan.message5": "تم إنشاء \"{{name}}\" وربطه.",
+  "ImFeishuScan.message5": "تم إنشاء \"{{name}}\" وربطه. أرسل أمر الاقتران في محادثة الروبوت لإكمال الربط.",
   "ImFeishuScan.message6": "لم يكتمل المسح أو انتهت صلاحيته. حاول مرة أخرى.",
   "ImFeishuScan.message9": "إلغاء",
   "ImSettingsPanel.imChannelsTitle": "قنوات المراسلة",

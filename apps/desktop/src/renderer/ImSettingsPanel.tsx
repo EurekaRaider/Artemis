@@ -864,7 +864,20 @@ export function ImSettingsPanel({
             t={t}
             busy={busy}
             disabled={!settings.deviceId}
-            onConnected={() => void run(refresh)}
+            /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
+               并弹开配对弹窗，用户复制指令去飞书私聊发送即可。 */
+            onConnected={(connectionId) => {
+              void run(async () => {
+                await refresh();
+                if (!connectionId) return;
+                try {
+                  await generatePairCode();
+                  setPairDialogId(connectionId);
+                } catch {
+                  // 配对码生成失败不打断：弹窗可从机器人行随时重开。
+                }
+              });
+            }}
           />
         )}
         {/* 平台接入指引统一收进顶部折叠块：slack 恒显示，飞书/企微一致。 */}

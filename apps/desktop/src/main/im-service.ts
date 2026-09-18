@@ -1664,7 +1664,9 @@ export class ImService {
         },
       });
       await this.refreshConnection();
-      return this.status();
+      // The renderer chains the pairing-code dialog right after a scan, so
+      // the freshly minted connection id travels with the status.
+      return { connectionId: id, status: this.status() };
     }
     if (action.action === "setup-local") {
       this.localSetup ??= this.setupLocalGateway().finally(() => {

@@ -34,7 +34,8 @@ export function ImFeishuScan({
   t: ImTranslate;
   busy: boolean;
   disabled: boolean;
-  onConnected: () => void;
+  /** 扫码建连成功后携带新连接 id，供面板接续配对引导（ZCode 同款动线）。 */
+  onConnected: (connectionId?: string) => void;
 }) {
   const [phase, setPhase] = useState<ImFeishuScanPhase>({ stage: "idle" });
   // Incremented to invalidate in-flight polls after cancel/unmount; timers
@@ -87,19 +88,21 @@ export function ImFeishuScan({
       return;
     }
     if (result.status === "success") {
+      let savedConnectionId: string | undefined;
       setPhase((previous) => ({
         stage: "connecting",
         image: previous.stage === "scanning" ? previous.image : "",
       }));
       try {
-        await window.artemis.manageIm({
+        const saved = (await window.artemis.manageIm({
           action: "feishu-scan-connect",
           appId: result.appId,
           appSecret: result.appSecret,
           appName: result.appName,
           domain: result.domain,
           tenantId: result.tenantKey,
-        });
+        })) as { connectionId?: string };
+        savedConnectionId = saved.connectionId;
       } catch (error) {
         if (epoch.current !== run) return;
         setPhase({ stage: "failed", message: messageOf(error) });
@@ -111,7 +114,7 @@ export function ImFeishuScan({
           ? { stage: "done", name: result.appName }
           : { stage: "done" },
       );
-      onConnected();
+      onConnected(savedConnectionId);
       return;
     }
     setPhase({
