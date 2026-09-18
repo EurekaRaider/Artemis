@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Cegah tidur sistem saat Artemis terbuka",
   "SettingsPanel.preventSleepHint": "Menjaga komputer ini tetap aktif selama Artemis berjalan, termasuk di latar belakang. Layar tetap dapat mati. Keluar dari Artemis atau mematikan opsi ini memulihkan pengaturan tidur normal.",
-  "App_copy.loadEarlierMessages": "Muat pesan sebelumnya"
+  "App_copy.loadEarlierMessages": "Muat pesan sebelumnya",
+  "ImFeishuScan.message1": "Sambungkan dengan pemindaian",
+  "ImFeishuScan.message2": "Pindai kode QR dengan Feishu dan konfirmasi di ponsel; aplikasi dibuat dan kredensialnya disimpan otomatis.",
+  "ImFeishuScan.message3": "Pindai dan buat aplikasi",
+  "ImFeishuScan.message4": "Menunggu konfirmasi di ponsel…",
+  "ImFeishuScan.message5": "\"{{name}}\" dibuat dan tersambung. Kirim perintah pemasangan di chat bot untuk menyelesaikan pengikatan.",
+  "ImFeishuScan.message6": "Pemindaian tidak selesai atau kedaluwarsa. Coba lagi.",
+  "ImFeishuScan.message9": "Batal",
+  "ImSettingsPanel.imChannelsTitle": "Saluran IM",
+  "ImSettingsPanel.channelBack": "Kembali",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
+  "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
+  "ImFeishuScan.message10": "Pindai"
 }

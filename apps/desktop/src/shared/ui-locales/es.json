@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Evitar la suspensión mientras Artemis esté abierto",
   "SettingsPanel.preventSleepHint": "Mantiene este equipo activo mientras Artemis se ejecuta, incluso en segundo plano. La pantalla puede apagarse. Al salir de Artemis o desactivar esta opción se restaura la suspensión normal.",
-  "App_copy.loadEarlierMessages": "Cargar mensajes anteriores"
+  "App_copy.loadEarlierMessages": "Cargar mensajes anteriores",
+  "ImFeishuScan.message1": "Conectar escaneando",
+  "ImFeishuScan.message2": "Escanea el código QR con Feishu y confirma en tu teléfono; la app se crea y sus credenciales se guardan automáticamente.",
+  "ImFeishuScan.message3": "Escanear y crear app",
+  "ImFeishuScan.message4": "Esperando confirmación en el teléfono…",
+  "ImFeishuScan.message5": "Se creó y conectó \"{{name}}\". Envía el comando de emparejamiento en el chat del bot para terminar de vincular.",
+  "ImFeishuScan.message6": "El escaneo no se completó o expiró. Inténtalo de nuevo.",
+  "ImFeishuScan.message9": "Cancelar",
+  "ImSettingsPanel.imChannelsTitle": "Canales de IM",
+  "ImSettingsPanel.channelBack": "Volver",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
+  "ImSettingsPanel.projectsSummary": "{{value1}} proyectos · compartidos por todos los canales",
+  "ImFeishuScan.message10": "Escanear"
 }

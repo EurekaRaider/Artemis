@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "繼續等待",
   "SettingsPanel.preventSleep": "執行時防止系統休眠",
   "SettingsPanel.preventSleepHint": "只要 Artemis 仍在執行（包括背景），就讓本機保持喚醒，螢幕仍可關閉。結束 Artemis 或關閉此開關後恢復正常休眠。",
-  "App_copy.loadEarlierMessages": "載入更早的訊息"
+  "App_copy.loadEarlierMessages": "載入更早的訊息",
+  "ImFeishuScan.message1": "掃碼接入",
+  "ImFeishuScan.message2": "用飛書掃描QR Code並在手機上確認，自動建立應用程式並保存憑證。",
+  "ImFeishuScan.message3": "掃碼並建立應用",
+  "ImFeishuScan.message4": "等待手機確認…",
+  "ImFeishuScan.message5": "已建立並連線「{{name}}」，請在飛書私聊中發送配對指令完成綁定。",
+  "ImFeishuScan.message6": "掃碼未完成或已過期，請重試。",
+  "ImFeishuScan.message9": "取消",
+  "ImSettingsPanel.imChannelsTitle": "IM 頻道",
+  "ImSettingsPanel.channelBack": "返回",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} 個機器人",
+  "ImSettingsPanel.projectsSummary": "{{value1}} 個專案 · 所有頻道通用",
+  "ImFeishuScan.message10": "掃碼"
 }

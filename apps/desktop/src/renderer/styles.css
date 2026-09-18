@@ -102,7 +102,9 @@ body,
 }
 
 body {
-  background: var(--bg);
+  /* macOS 窗口 vibrancy 需要背景链路留透明：body 不画底，
+     主区由 .workspace 的实色兜底（非 macOS 窗口本身是不透明底色）。 */
+  background: transparent;
   color: var(--text);
   font-size: var(--artemis-typography-body-size);
   font-family: var(--ui-font);
@@ -308,10 +310,10 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .project-row {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 590;
   height: 32px;
-  line-height: 18.75px;
+  line-height: 20.25px;
   padding-inline-end: 6px;
 }
 
@@ -369,7 +371,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   padding: 6px 6px 6px 10px;
   text-align: start;
   gap: 9px;
-  font-size: 11px;
+  font-size: 13.5px;
   font-weight: 620;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -390,11 +392,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   width: 20px;
   z-index: 1;
   inset-inline-start: 8px;
-}
-
-.project-toggle:hover {
-  background: var(--panel-3);
-  color: var(--text);
 }
 
 .project-toggle:focus-visible {
@@ -533,11 +530,11 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .thread-select .thread-title {
   flex: 1;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 400;
   grid-column: 2;
   min-width: 0;
-  line-height: 18px;
+  line-height: 18.75px;
 }
 
 .thread-select:has(.im-thread-indicators) {
@@ -564,6 +561,9 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .im-thread-indicators svg {
   flex: none;
+  /* 会话行图标比项目行（16px）小一号。 */
+  inline-size: 15px;
+  block-size: 15px;
 }
 
 .im-thread-connection[data-state="connected"],
@@ -869,17 +869,35 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   align-items: center;
 
   display: flex;
-  height: 46px;
+  height: 56px;
   justify-content: space-between;
   padding: 8px 10px 16px 14px;
   gap: 8px;
+}
+
+.sidebar-footer-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+/* 侧栏 IM 图标联动连接状态：绿=有 bot 连接在线，橙=已配置但掉线。 */
+.foot-icon.im-link-ok,
+.rail-item.im-link-ok {
+  color: var(--success);
+}
+.foot-icon.im-link-down,
+.rail-item.im-link-down {
+  color: var(--warning);
 }
 
 .local-indicator {
   align-items: center;
   color: var(--muted);
   display: flex;
-  gap: 7px;
+  flex: 1 1 auto;
+  gap: 9px;
   min-width: 0;
 }
 
@@ -890,13 +908,13 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   border-radius: 50%;
   color: var(--artemis-color-accent-primary);
   display: inline-flex;
-  flex: 0 0 22px;
-  font-size: 10px;
+  flex: 0 0 40px;
+  font-size: 15px;
   font-weight: 620;
-  height: 22px;
+  height: 40px;
   justify-content: center;
   overflow: hidden;
-  width: 22px;
+  width: 40px;
 }
 
 .sidebar-profile-avatar img,
@@ -913,8 +931,13 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11.5px;
-  font-weight: 510;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.brand-version {
+  margin-inline-start: 2px;
+  padding: 2px 6px;
 }
 
 .app-version {
@@ -7740,7 +7763,9 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .settings-panel {
-  background: var(--artemis-color-surface-base);
+  /* 整块背板：用户拍板的 #2b2b2b（深色即体系令牌 surface-raised，
+     比面板原先的 surface-base 亮一档；浅色主题下两者同为白色不受影响）。 */
+  background: var(--artemis-color-surface-raised);
   max-block-size: calc(100dvh - 52px);
   height: min(560px, 84dvh);
   max-width: calc(100vw - 32px);
@@ -7759,6 +7784,51 @@ button.sources-panel-entry.attachment:focus-visible {
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+}
+
+/* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token。 */
+.im-settings-dialog {
+  display: flex;
+  flex-direction: column;
+  background: var(--artemis-color-surface-raised);
+  width: min(960px, 94vw);
+  height: min(680px, 88dvh);
+  max-block-size: calc(100dvh - 52px);
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  padding: 0;
+  --border-soft: var(--artemis-color-border-subtle);
+  --blue: var(--artemis-color-accent-primary);
+}
+.im-settings-dialog > [data-part="content"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+.im-settings-dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: 10px 14px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-settings-dialog-close:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--text);
+}
+.im-settings-dialog .im-settings {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 4px 22px 18px;
 }
 
 .settings-profile-avatar {
@@ -10324,64 +10394,120 @@ kbd {
   font-style: normal;
   opacity: 0.85;
 }
-/* ===== 三步版（2026-09 原型迁移）：② 渠道 tab 条 / ②尾验证段 / ③尾完成仪式 ===== */
-/* 渠道 tab 吸顶：停靠线必须与滚动容器的 overflow 裁剪线重合。Chromium 的 sticky
-   参照滚动容器 content box 顶（= 裁剪线 + padding-top）；设置面板滚动容器是
-   [data-part="content"]（packages/ui，padding 18px 22px）——top: -18px 抵消这段
-   padding，否则停靠线上方留出穿透带，滚过的内容从 tab 条上方露出（原型已踩）。
-   背景必须不透明（surface-base 与面板同底），否则内容从条后透出。 */
-.im-channel-tabs {
-  position: sticky;
-  top: -18px;
-  z-index: 6;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  /* 下 margin 负值抵消 .im-flow-body 的 12px gap：条底 padding 直接贴住
-     渠道主体，避免 margin+gap+padding 三层间距叠加把内容推远 */
-  margin: 0 -14px -12px;
-  padding: 4px 14px 8px;
-  background: var(--artemis-color-surface-base);
+/* ===== 两栏布局（2026-09 定稿规划）：左=连接服务+授权项目，右=渠道列表/详情 ===== */
+/* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 状态摘要；点击下钻单渠道详情。
+   授权是设备级全局共用，行上不重复计数。 */
+.im-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  /* 两栏边框封顶在弹窗可视高度（与弹窗底部保留边距），内容超高时在栏内滚动。 */
+  flex: 1;
+  min-height: 0;
 }
-.im-channel-tab {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+.im-col-left,
+.im-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-soft);
-  border-radius: var(--artemis-radius-control, 8px);
-  background: var(--artemis-color-surface-base);
+  border-radius: 12px;
+  padding: 14px;
+}
+@media (max-width: 680px) {
+  .im-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+.im-channel-list {
+  border: 0;
+  background: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-channel-list-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.im-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
   cursor: pointer;
   text-align: start;
+  color: inherit;
 }
-.im-channel-tab[aria-selected="true"] {
-  border-color: var(--artemis-color-border-strong, var(--border));
-  background: var(--selected);
+.im-channel-row:hover {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
-/* tab 仅渠道名 + 信号灯：未配置渠道名降为次要色，已配置（有连接/已存
-   凭据）提亮区分；连接状态由名称前信号灯表达（绿=正常/红=异常/黄=连接中）。 */
-.im-channel-tab strong {
-  font-size: 12.5px;
+.im-channel-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* 飞书渠道标 = ZCode 同款彩色官方 logo（位图资产），圆角对齐图标钮。 */
+.im-channel-logo {
+  border-radius: 5px;
+  flex: none;
+}
+.im-channel-row > .im-channel-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.im-channel-row strong {
+  font-size: 14px;
   font-weight: 590;
   color: var(--muted);
 }
-.im-channel-tab[data-configured] strong {
+.im-channel-row[data-configured] strong {
   color: var(--text);
 }
-.im-channel-tab .im-dot {
+.im-channel-row-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.im-channel-row-summary .im-dot {
   flex: none;
 }
-.im-channel-tab[data-connection-state="error"] {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-soft));
+.im-channel-row-caret {
+  color: var(--muted);
 }
-/* 吸顶停靠态投影（scroll 监听加 .stuck）：与卡内滚过内容区分。 */
-.im-channel-tabs.stuck {
-  box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.28);
+/* 渠道详情（右栏下钻）：返回行 + 原渠道主体。 */
+.im-channel-detail {
+  border: 0;
+  padding: 0;
 }
-html[data-theme="dark"] .im-channel-tabs.stuck,
-:root[data-theme="dark"] .im-channel-tabs.stuck {
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.7);
+.im-channel-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.im-channel-detail-head strong {
+  font-size: 13px;
+  font-weight: 650;
 }
 /* ②尾「顺手验证」折叠段：与卡内容同层级，仅细分隔。 */
 .im-verify {
@@ -10513,6 +10639,35 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   border: 1px solid var(--border-soft);
   border-radius: var(--artemis-radius-control, 8px);
   padding: 10px;
+}
+/* 飞书扫码接入块：说明居左、操作钮居右；扫码中二维码恒为白底（对比度）。 */
+.im-scan {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.im-scan-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-inline-end: auto;
+}
+.im-scan-copy h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+.im-scan-active {
+  align-items: flex-start;
+}
+.im-scan-qr {
+  width: 132px;
+  height: 132px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  background: #fff;
 }
 .im-project-list-title {
   margin: 2px 0 6px;
@@ -12721,13 +12876,13 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 }
 .nested-project
   > .project-row:not(.active)
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 0;
   pointer-events: none;
 }
 .nested-project
   > .project-row:focus-within
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 1;
   pointer-events: auto;
 }

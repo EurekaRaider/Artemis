@@ -15,6 +15,7 @@ import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
+import { useImLinkState } from "./im-link-state.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
@@ -55,7 +56,7 @@ import {
   TurnChangeSummary,
   TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
-import { Dialog, LoadingState, Popover, Toast } from "@artemis/ui/feedback";
+import { Dialog, LoadingState, Popover, Toast, Tooltip } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import artemisIcon from "../../build/icon.png";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
@@ -424,6 +425,11 @@ const ResourceCenter = lazy(() =>
 );
 const SettingsPanel = lazy(() =>
   loadSettingsPanel().then((module) => ({ default: module.SettingsPanel })),
+);
+const ImSettingsPanel = lazy(() =>
+  import("./ImSettingsPanel.js").then((module) => ({
+    default: module.ImSettingsPanel,
+  })),
 );
 const TerminalPanel = lazy(() =>
   loadTerminalPanel().then((module) => ({ default: module.TerminalPanel })),
@@ -1056,6 +1062,9 @@ export function App() {
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
+  const [imSettingsOpen, setImSettingsOpen] = useState(false);
+  const imSettingsTrigger = useRef<HTMLButtonElement>(null);
+  const imLink = useImLinkState();
   const [sidebarOpen, setSidebarOpen] = useState(
     () => window.innerWidth > 1060,
   );
@@ -5558,6 +5567,18 @@ export function App() {
             </button>
             <button
               type="button"
+              className={`rail-item${imLink ? ` im-link-${imLink}` : ""}`}
+              aria-label={uiText(locale, "ImSettingsPanel.message191")}
+              title={uiText(locale, "ImSettingsPanel.message191")}
+              onClick={(event) => {
+                imSettingsTrigger.current = event.currentTarget;
+                setImSettingsOpen(true);
+              }}
+            >
+              <ArtemisIcon name="mobile" />
+            </button>
+            <button
+              type="button"
               className="rail-item"
               aria-label={t.settings}
               title={t.settings}
@@ -5569,15 +5590,6 @@ export function App() {
         }
         footer={
           <div className="sidebar-footer">
-            <button
-              className="activity-button foot-icon"
-              type="button"
-              aria-label={t.settings}
-              title={t.settings}
-              onClick={(event) => openSettings("general", event.currentTarget)}
-            >
-              <SettingsIcon />
-            </button>
             <span className="local-indicator" title={username}>
               <span aria-hidden="true" className="sidebar-profile-avatar">
                 {runtimeSettings?.profileAvatar ? (
@@ -5588,19 +5600,29 @@ export function App() {
               </span>
               <span className="local-user-name">{username}</span>
             </span>
-            {runtimeSettings?.update.currentVersion && (
+            <span className="sidebar-footer-actions">
               <button
-                aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                className="app-version"
-                onClick={(event) =>
-                  openSettings("maintenance", event.currentTarget)
-                }
-                title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                className={`activity-button foot-icon${imLink ? ` im-link-${imLink}` : ""}`}
                 type="button"
+                aria-label={uiText(locale, "ImSettingsPanel.message191")}
+                title={uiText(locale, "ImSettingsPanel.message191")}
+                onClick={(event) => {
+                  imSettingsTrigger.current = event.currentTarget;
+                  setImSettingsOpen(true);
+                }}
               >
-                v{runtimeSettings.update.currentVersion}
+                <ArtemisIcon name="mobile" />
               </button>
-            )}
+              <button
+                className="activity-button foot-icon"
+                type="button"
+                aria-label={t.settings}
+                title={t.settings}
+                onClick={(event) => openSettings("general", event.currentTarget)}
+              >
+                <SettingsIcon />
+              </button>
+            </span>
             {runtimeSettings?.update.availableVersion && (
               <button
                 className={`update-btn ${runtimeSettings.update.state}`}
@@ -5652,6 +5674,18 @@ export function App() {
                   <ArtemisMark />
                   <strong>Artemis</strong>
                 </button>
+                {runtimeSettings?.update.currentVersion && (
+                  <button
+                    className="app-version brand-version"
+                    onClick={(event) =>
+                      openSettings("maintenance", event.currentTarget)
+                    }
+                    title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                    type="button"
+                  >
+                    v{runtimeSettings.update.currentVersion}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="sidebar-collapse"
@@ -5805,15 +5839,16 @@ export function App() {
                   )}
                 </svg>
               </button>
-              <button
-                aria-label={t.openProject}
-                className="project-new-thread"
-                onClick={() => void openProject()}
-                title={t.openProject}
-                type="button"
-              >
-                <PlusIcon />
-              </button>
+              <Tooltip align="end" label={t.openProject}>
+                <button
+                  aria-label={t.openProject}
+                  className="project-new-thread"
+                  onClick={() => void openProject()}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              </Tooltip>
             </div>
             <div
               className="project-collection-rows"
@@ -5958,31 +5993,34 @@ export function App() {
                       >
                         <span className="project-title">{project.name}</span>
                       </button>
-                      <button
-                        aria-label={`${t.newTask}: ${project.name}`}
-                        className="project-new-thread"
-                        onClick={() => beginNewConversation(project.id)}
-                        title={t.newTask}
-                      >
-                        <ArtemisIcon
-                          name="edit-square"
-                          width={16}
-                          height={16}
-                        />
-                      </button>
-                      <button
-                        aria-label={t.moreProjectActions}
-                        className="project-action"
-                        onClick={() => {
-                          setThreadMenuId(undefined);
-                          setProjectMenuId((current) =>
-                            current === project.id ? undefined : project.id,
-                          );
-                        }}
-                        title={t.moreProjectActions}
-                      >
-                        <ArtemisIcon name="more" width={16} height={16} />
-                      </button>
+                      <Tooltip align="end" label={t.newTask}>
+                        <button
+                          aria-label={`${t.newTask}: ${project.name}`}
+                          className="project-new-thread"
+                          onClick={() => beginNewConversation(project.id)}
+                          type="button"
+                        >
+                          <ArtemisIcon
+                            name="edit-square"
+                            width={16}
+                            height={16}
+                          />
+                        </button>
+                      </Tooltip>
+                      <Tooltip align="end" label={t.moreProjectActions}>
+                        <button
+                          aria-label={t.moreProjectActions}
+                          className="project-action"
+                          onClick={() => {
+                            setThreadMenuId(undefined);
+                            setProjectMenuId((current) =>
+                              current === project.id ? undefined : project.id,
+                            );
+                          }}
+                        >
+                          <ArtemisIcon name="more" width={16} height={16} />
+                        </button>
+                      </Tooltip>
                       {projectMenuId === project.id && (
                         <div className="project-menu">
                           <button
@@ -6198,29 +6236,30 @@ export function App() {
                                   )}
                                 </time>
                               </button>
-                              <button
-                                aria-label={t.moreActions}
-                                aria-haspopup="menu"
-                                aria-expanded={threadMenuId === thread.id}
-                                className="thread-action"
-                                onClick={(event) => {
-                                  threadMenuAnchor.current =
-                                    event.currentTarget;
-                                  setProjectMenuId(undefined);
-                                  setThreadMenuId((current) =>
-                                    current === thread.id
-                                      ? undefined
-                                      : thread.id,
-                                  );
-                                }}
-                                title={t.moreActions}
-                              >
-                                <ArtemisIcon
-                                  name="more"
-                                  width={16}
-                                  height={16}
-                                />
-                              </button>
+                              <Tooltip align="end" label={t.moreActions}>
+                                <button
+                                  aria-label={t.moreActions}
+                                  aria-haspopup="menu"
+                                  aria-expanded={threadMenuId === thread.id}
+                                  className="thread-action"
+                                  onClick={(event) => {
+                                    threadMenuAnchor.current =
+                                      event.currentTarget;
+                                    setProjectMenuId(undefined);
+                                    setThreadMenuId((current) =>
+                                      current === thread.id
+                                        ? undefined
+                                        : thread.id,
+                                    );
+                                  }}
+                                >
+                                  <ArtemisIcon
+                                    name="more"
+                                    width={16}
+                                    height={16}
+                                  />
+                                </button>
+                              </Tooltip>
                               {threadMenuId === thread.id && (
                                 <Popover
                                   anchorRef={threadMenuAnchor}
@@ -6371,15 +6410,16 @@ export function App() {
                 </span>
                 <ChevronIcon />
               </button>
-              <button
-                aria-label={`${t.newTask}: ${t.temporaryConversations}`}
-                className="project-new-thread"
-                onClick={beginTemporaryConversation}
-                title={t.newTask}
-                type="button"
-              >
-                <PlusIcon />
-              </button>
+              <Tooltip align="end" label={t.newTask}>
+                <button
+                  aria-label={`${t.newTask}: ${t.temporaryConversations}`}
+                  className="project-new-thread"
+                  onClick={beginTemporaryConversation}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              </Tooltip>
             </div>
             <div
               className="project-thread-list"
@@ -6448,23 +6488,24 @@ export function App() {
                         {formatSidebarTime(thread.updatedAt, clockMs, locale)}
                       </time>
                     </button>
-                    <button
-                      aria-label={t.moreActions}
-                      aria-haspopup="menu"
-                      aria-expanded={threadMenuId === thread.id}
-                      className="thread-action"
-                      onClick={(event) => {
-                        threadMenuAnchor.current = event.currentTarget;
-                        setProjectMenuId(undefined);
-                        setThreadMenuId((current) =>
-                          current === thread.id ? undefined : thread.id,
-                        );
-                      }}
-                      title={t.moreActions}
-                      type="button"
-                    >
-                      <ArtemisIcon name="more" width={16} height={16} />
-                    </button>
+                    <Tooltip align="end" label={t.moreActions}>
+                      <button
+                        aria-label={t.moreActions}
+                        aria-haspopup="menu"
+                        aria-expanded={threadMenuId === thread.id}
+                        className="thread-action"
+                        onClick={(event) => {
+                          threadMenuAnchor.current = event.currentTarget;
+                          setProjectMenuId(undefined);
+                          setThreadMenuId((current) =>
+                            current === thread.id ? undefined : thread.id,
+                          );
+                        }}
+                        type="button"
+                      >
+                        <ArtemisIcon name="more" width={16} height={16} />
+                      </button>
+                    </Tooltip>
                     {threadMenuId === thread.id && (
                       <Popover
                         anchorRef={threadMenuAnchor}
@@ -9151,11 +9192,6 @@ export function App() {
             locale={locale}
             projects={projects}
             onClose={() => setSettingsOpen(false)}
-            onOpenThread={async (threadId) => {
-              await openAutomationThread(threadId);
-              setSettingsOpen(false);
-              window.requestAnimationFrame(() => promptInput.current?.focus());
-            }}
             returnFocusRef={settingsTrigger}
             onSettingsChange={(value, options) => {
               setRuntimeSettings(value);
@@ -9185,6 +9221,36 @@ export function App() {
             }}
           />
         </Suspense>
+      )}
+
+      {imSettingsOpen && (
+        <Dialog
+          className="im-settings-dialog"
+          label={uiText(locale, "ImSettingsPanel.message191")}
+          onOpenChange={(open) => {
+            if (!open) setImSettingsOpen(false);
+          }}
+          open
+          returnFocusRef={imSettingsTrigger}
+        >
+          <button
+            type="button"
+            className="im-settings-dialog-close"
+            aria-label={uiText(locale, "App_copy.renameClose")}
+            title={uiText(locale, "App_copy.renameClose")}
+            onClick={() => setImSettingsOpen(false)}
+          >
+            <ArtemisIcon height={15} name="close" width={15} />
+          </button>
+          <ImSettingsPanel
+            locale={locale}
+            onOpenThread={async (threadId) => {
+              await openAutomationThread(threadId);
+              setImSettingsOpen(false);
+              window.requestAnimationFrame(() => promptInput.current?.focus());
+            }}
+          />
+        </Dialog>
       )}
 
       {confirmation && (

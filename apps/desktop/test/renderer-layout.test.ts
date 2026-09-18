@@ -354,6 +354,20 @@ describe("renderer layout contract", () => {
         '.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top',
       ),
     ).toContain("padding-block-start: 38px");
+    // 新建会话与项目列表之间不再画分隔线，列表上移。
+    const sidebarTop = findCssDeclarations(composition, ".sidebar-top");
+    expect(sidebarTop).toContain("padding: 10px 10px 2px");
+    expect(sidebarTop).not.toContain("border-block-end");
+    // 深色模式：导航行与会话行提白，项目文件夹行维持 --muted 现状。
+    expect(
+      findCssDeclarations(
+        composition,
+        '[data-theme="dark"] .project-thread-row',
+      ),
+    ).toContain("color: var(--text)");
+    expect(
+      findCssDeclarations(composition, '[data-theme="dark"] .project-row'),
+    ).toBeUndefined();
     expect(publicUiStylesSource).not.toMatch(
       /data-platform|-webkit-app-region/u,
     );
@@ -496,7 +510,33 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("toggleTerminalPanel();");
   });
 
-  it("shows the current version in the sidebar footer and opens update settings", () => {
+  it("shows the current version beside the sidebar brand and opens update settings", () => {
+    // 版本号挂在品牌行（Artemis 右侧），账号行让位给 IM/设置图标。
+    const sidebarBrandStart = appSource.indexOf(
+      '<div className="sidebar-brand">',
+    );
+    const sidebarBrandEnd = appSource.indexOf(
+      '<nav className="sidebar-nav"',
+      sidebarBrandStart,
+    );
+    const sidebarBrandSource = appSource.slice(
+      sidebarBrandStart,
+      sidebarBrandEnd,
+    );
+
+    expect(sidebarBrandStart).toBeGreaterThan(-1);
+    expect(sidebarBrandEnd).toBeGreaterThan(sidebarBrandStart);
+    expect(sidebarBrandSource).toContain('className="app-version brand-version"');
+    expect(sidebarBrandSource).toContain(
+      "runtimeSettings?.update.currentVersion",
+    );
+    expect(sidebarBrandSource).toContain(
+      'openSettings("maintenance", event.currentTarget)',
+    );
+    expect(sidebarBrandSource).toContain(
+      "v{runtimeSettings.update.currentVersion}",
+    );
+    // 账号行：头像+名称居左，IM/设置图标成组靠右。
     const sidebarFooterStart = appSource.indexOf(
       '<div className="sidebar-footer">',
     );
@@ -505,19 +545,12 @@ describe("renderer layout contract", () => {
       sidebarFooterStart,
       sidebarFooterEnd,
     );
-
-    expect(sidebarFooterStart).toBeGreaterThan(-1);
-    expect(sidebarFooterEnd).toBeGreaterThan(sidebarFooterStart);
-    expect(sidebarFooterSource).toContain('className="app-version"');
-    expect(sidebarFooterSource).toContain(
-      "runtimeSettings?.update.currentVersion",
-    );
-    expect(sidebarFooterSource).toContain(
-      'openSettings("maintenance", event.currentTarget)',
-    );
-    expect(sidebarFooterSource).toContain(
-      "v{runtimeSettings.update.currentVersion}",
-    );
+    expect(sidebarFooterSource).toContain('className="sidebar-footer-actions"');
+    expect(sidebarFooterSource).toContain('name="mobile"');
+    // IM 图标联动连接状态：绿=有 bot 在线，橙=已配置但掉线。
+    expect(sidebarFooterSource).toContain("im-link-${imLink}");
+    expect(cssRule(".foot-icon.im-link-ok")).toContain("color: var(--success)");
+    expect(cssRule(".foot-icon.im-link-down")).toContain("color: var(--warning)");
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
     expect(settingsSource).toContain("useState<SettingsTab>(initialTab)");

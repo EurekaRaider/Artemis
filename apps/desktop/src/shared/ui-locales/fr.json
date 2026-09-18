@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Empêcher la veille tant qu’Artemis est ouvert",
   "SettingsPanel.preventSleepHint": "Garde cet ordinateur éveillé tant qu’Artemis fonctionne, même en arrière-plan. L’écran peut s’éteindre. Quitter Artemis ou désactiver cette option rétablit la veille normale.",
-  "App_copy.loadEarlierMessages": "Charger les messages précédents"
+  "App_copy.loadEarlierMessages": "Charger les messages précédents",
+  "ImFeishuScan.message1": "Connexion par scan",
+  "ImFeishuScan.message2": "Scannez le QR code avec Feishu et confirmez sur votre téléphone ; l'application est créée et ses identifiants enregistrés automatiquement.",
+  "ImFeishuScan.message3": "Scanner et créer l'app",
+  "ImFeishuScan.message4": "En attente de confirmation sur le téléphone…",
+  "ImFeishuScan.message5": "« {{name}} » a été créé et connecté. Envoyez la commande d’appariement dans le chat du bot pour terminer la liaison.",
+  "ImFeishuScan.message6": "Le scan n'a pas abouti ou a expiré. Réessayez.",
+  "ImFeishuScan.message9": "Annuler",
+  "ImSettingsPanel.imChannelsTitle": "Canaux IM",
+  "ImSettingsPanel.channelBack": "Retour",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} robots",
+  "ImSettingsPanel.projectsSummary": "{{value1}} projets · partagés par tous les canaux",
+  "ImFeishuScan.message10": "Scanner"
 }

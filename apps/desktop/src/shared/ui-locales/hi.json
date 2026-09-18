@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Artemis खुला रहने पर सिस्टम को स्लीप से रोकें",
   "SettingsPanel.preventSleepHint": "Artemis चलने के दौरान इस कंप्यूटर को जागृत रखें, बैकग्राउंड में भी। स्क्रीन बंद हो सकती है। Artemis से बाहर निकलने या यह विकल्प बंद करने पर सामान्य स्लीप बहाल होती है।",
-  "App_copy.loadEarlierMessages": "पुराने संदेश लोड करें"
+  "App_copy.loadEarlierMessages": "पुराने संदेश लोड करें",
+  "ImFeishuScan.message1": "स्कैन करके कनेक्ट करें",
+  "ImFeishuScan.message2": "Feishu से QR कोड स्कैन करें और फ़ोन पर पुष्टि करें; ऐप बन जाएगा और क्रेडेंशियल अपने आप सहेज लिए जाएँगे।",
+  "ImFeishuScan.message3": "स्कैन करें और ऐप बनाएँ",
+  "ImFeishuScan.message4": "फ़ोन पर पुष्टि की प्रतीक्षा…",
+  "ImFeishuScan.message5": "\"{{name}}\" बनाया और कनेक्ट किया गया। बाइंडिंग पूरी करने के लिए बॉट चैट में पेयरिंग कमांड भेजें।",
+  "ImFeishuScan.message6": "स्कैन पूरा नहीं हुआ या समाप्त हो गया। फिर से प्रयास करें।",
+  "ImFeishuScan.message9": "रद्द करें",
+  "ImSettingsPanel.imChannelsTitle": "IM चैनल",
+  "ImSettingsPanel.channelBack": "वापस",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} बॉट",
+  "ImSettingsPanel.projectsSummary": "{{value1}} प्रोजेक्ट · सभी चैनलों के लिए साझ़ा",
+  "ImFeishuScan.message10": "स्कैन करें"
 }

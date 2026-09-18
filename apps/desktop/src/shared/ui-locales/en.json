@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "Prevent system sleep while Artemis is open",
   "SettingsPanel.preventSleepHint": "Keep this computer awake while Artemis is running, including in the background. The screen can still turn off. Quitting Artemis or turning this off restores normal sleep.",
-  "App_copy.loadEarlierMessages": "Load earlier messages"
+  "App_copy.loadEarlierMessages": "Load earlier messages",
+  "ImFeishuScan.message1": "Scan to connect",
+  "ImFeishuScan.message2": "Scan the QR code with Feishu and confirm on your phone; the app is created and its credentials saved automatically.",
+  "ImFeishuScan.message3": "Scan and create app",
+  "ImFeishuScan.message4": "Waiting for confirmation on your phone…",
+  "ImFeishuScan.message5": "Created and connected \"{{name}}\". Send the pairing command in the bot chat to finish binding.",
+  "ImFeishuScan.message6": "The scan was not completed or expired. Try again.",
+  "ImFeishuScan.message9": "Cancel",
+  "ImSettingsPanel.imChannelsTitle": "IM channels",
+  "ImSettingsPanel.channelBack": "Back",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
+  "ImSettingsPanel.projectsSummary": "{{value1}} projects · shared by all channels",
+  "ImFeishuScan.message10": "Scan"
 }

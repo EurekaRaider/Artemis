@@ -7,6 +7,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { prepareImShellRuntime } from "./im-shell-runtime.js";
+import { beginFeishuScan, pollFeishuScan } from "./feishu-register.js";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
   IM_ADHOC_PROJECT_ID,
@@ -1735,6 +1736,36 @@ export class ImService {
       });
       this.legacyImports.delete(action.importId);
       return { id, requiresPairing: true, requiresProjectGrant: true };
+    }
+    if (action.action === "feishu-scan-begin") return beginFeishuScan();
+    if (action.action === "feishu-scan-poll")
+      return pollFeishuScan({
+        deviceCode: action.deviceCode,
+        domain: action.domain,
+      });
+    if (action.action === "feishu-scan-connect") {
+      // 扫码凭据走与手动表单相同的连接保存通道：网关负责解析剩余平台身份
+      // （tenantId/botOpenId）；扫码会话若带回 tenant_key 则直接跳过企业解析。
+      const id = `feishu-${randomUUID()}`;
+      await this.manage({
+        action: "admin",
+        operation: "connections",
+        configuration: {
+          id,
+          name: action.appName ?? `Feishu ${id.slice(7, 15)}`,
+          channel: "feishu",
+          transport: "websocket",
+          domain: action.domain ?? "feishu",
+          appId: action.appId,
+          appSecret: action.appSecret,
+          ...(action.tenantId ? { tenantId: action.tenantId } : {}),
+          enabled: true,
+        },
+      });
+      await this.refreshConnection();
+      // The renderer chains the pairing-code dialog right after a scan, so
+      // the freshly minted connection id travels with the status.
+      return { connectionId: id, status: this.status() };
     }
     if (action.action === "setup-local") {
       this.localSetup ??= this.setupLocalGateway().finally(() => {

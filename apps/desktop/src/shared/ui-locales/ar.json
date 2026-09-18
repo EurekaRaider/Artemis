@@ -1471,5 +1471,17 @@
   "ImDelegation.continueWaiting": "Keep waiting",
   "SettingsPanel.preventSleep": "منع السكون أثناء تشغيل Artemis",
   "SettingsPanel.preventSleepHint": "يبقى هذا الكمبيوتر مستيقظًا أثناء تشغيل Artemis، بما في ذلك في الخلفية. يمكن إيقاف الشاشة. يؤدي إنهاء Artemis أو تعطيل هذا الخيار إلى استعادة السكون المعتاد.",
-  "App_copy.loadEarlierMessages": "تحميل الرسائل السابقة"
+  "App_copy.loadEarlierMessages": "تحميل الرسائل السابقة",
+  "ImFeishuScan.message1": "الاتصال بمسح رمز QR",
+  "ImFeishuScan.message2": "امسح رمز QR باستخدام Feishu وأكد على هاتفك؛ سيتم إنشاء التطبيق وحفظ بيانات الاعتماد تلقائياً.",
+  "ImFeishuScan.message3": "امسح وأنشئ تطبيقاً",
+  "ImFeishuScan.message4": "في انتظار التأكيد على الهاتف…",
+  "ImFeishuScan.message5": "تم إنشاء \"{{name}}\" وربطه. أرسل أمر الاقتران في محادثة الروبوت لإكمال الربط.",
+  "ImFeishuScan.message6": "لم يكتمل المسح أو انتهت صلاحيته. حاول مرة أخرى.",
+  "ImFeishuScan.message9": "إلغاء",
+  "ImSettingsPanel.imChannelsTitle": "قنوات المراسلة",
+  "ImSettingsPanel.channelBack": "رجوع",
+  "ImSettingsPanel.channelBotsCount": "{{value1}} روبوت",
+  "ImSettingsPanel.projectsSummary": "{{value1}} مشاريع · مشتركة بين كل القنوات",
+  "ImFeishuScan.message10": "امسح"
 }

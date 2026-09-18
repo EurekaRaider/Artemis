@@ -15870,7 +15870,7 @@ function createMainWindow(): BrowserWindow {
       ? {
           trafficLightPosition: { x: 18, y: 17 },
           vibrancy: "sidebar" as const,
-          visualEffectState: "followWindow" as const,
+          visualEffectState: "active" as const,
         }
       : {}),
     webPreferences: {

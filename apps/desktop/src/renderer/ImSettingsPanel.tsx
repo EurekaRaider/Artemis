@@ -33,7 +33,7 @@ import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
 
 import { ImSlackSetup, slackAppManifest } from "./ImSlackSetup";
 import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
-import { ImFlowCard, ImFlowProgress } from "./ImFlowCard";
+import { ImFlowCard } from "./ImFlowCard";
 import {
   imFirstPendingStep,
   imFlowProgress,
@@ -49,6 +49,7 @@ import {
   imChannelConstraint,
   imChannelConnectionState,
   imConnectionHealth,
+  imConnectionLabel,
   imConnectionSummary,
   type ImView,
   type ImChannel,
@@ -62,6 +63,8 @@ import {
 } from "./ImAccountControls";
 
 import { ImPlatformSetup } from "./ImPlatformSetup";
+import feishuChannelIcon from "./assets/feishu-channel.png";
+import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
 
@@ -119,6 +122,8 @@ export function ImSettingsPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
   const [channel, setChannel] = useState<ImChannel>("slack");
+  /* 两栏布局：右栏渠道列表 ↔ 单渠道详情（下钻）。 */
+  const [channelDetail, setChannelDetail] = useState(false);
   const [showRemote, setShowRemote] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
@@ -302,11 +307,14 @@ export function ImSettingsPanel({
 
     if (IM_CHANNELS.includes(next as ImChannel)) {
       setChannel(next as ImChannel);
+      setChannelDetail(true);
       setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
     }
     if (next === "test") {
       verifyTouched.current = true;
       setVerifyOpen(true);
+      /* 验证段挂在渠道详情尾部，深链时一并下钻。 */
+      setChannelDetail(true);
     }
     setFlowCard(step);
     setFocusTarget(next === "test" ? "im-verify" : `im-${next}`);
@@ -647,6 +655,18 @@ export function ImSettingsPanel({
     if (allDone)
       setScreen((current) => (current === "overview" ? current : "overview"));
   }, [allDone, screen]);
+  /* 两栏引导：真首跑（服务已连、尚无任何已配置渠道）自动下钻当前渠道，
+     相当于原②卡的自动展开；已有渠道配置（含半配/异常）保持列表态，
+     不与用户的返回动作打架。 */
+  const noConfiguredChannel =
+    !connections.length && !Object.keys(savedPending).length;
+  const channelPendingFirst =
+    activeScreen === "flow" &&
+    flowOpenCard === "channel" &&
+    noConfiguredChannel;
+  useEffect(() => {
+    if (channelPendingFirst) setChannelDetail(true);
+  }, [channelPendingFirst]);
   const flowDoneKey = flowSteps.map((step) => (step.done ? "1" : "0")).join("");
   const prevFlowDoneKey = useRef(flowDoneKey);
   useEffect(() => {
@@ -659,32 +679,6 @@ export function ImSettingsPanel({
     );
     return () => unsubscribe?.();
   }, []);
-  /* 渠道 tab 吸顶投影：贴住滚动容器顶缘（停靠线 = padding-top + top，
-     Chromium sticky 参照 content box 顶）时加 .stuck，与卡内内容区分。
-     捕获阶段监听设置面板滚动容器（[data-part="content"]）的 scroll。 */
-  useEffect(() => {
-    const root = panelRef.current;
-    if (!root) return;
-    const update = () => {
-      const strip = root.querySelector(".im-channel-tabs");
-      const scroller = root.closest("[data-part='content']");
-      if (!(strip instanceof HTMLElement) || !(scroller instanceof Element))
-        return;
-      if (strip.offsetParent === null) return; /* ②卡折叠时不判定 */
-      const padTop = parseFloat(getComputedStyle(scroller).paddingTop) || 0;
-      const stickTop = parseFloat(getComputedStyle(strip).top) || 0;
-      const stuck =
-        strip.getBoundingClientRect().top -
-          scroller.getBoundingClientRect().top <=
-        padTop + stickTop + 1;
-      strip.classList.toggle("stuck", stuck);
-    };
-    const onScroll = () => update();
-    update();
-    root.addEventListener("scroll", onScroll, { passive: true, capture: true });
-    return () =>
-      root.removeEventListener("scroll", onScroll, { capture: true });
-  }, [!!settings, flowOpenCard, activeScreen]);
   useEffect(() => {
     if (prevFlowDoneKey.current === flowDoneKey) return;
     const previous = prevFlowDoneKey.current;
@@ -861,6 +855,29 @@ export function ImSettingsPanel({
       <section id="im-bot" className="im-channel-body" tabIndex={-1}>
         {/* 渠道名与连接状态已由上方 tab（信号灯 + 提亮）表达，主体直接
             进入操作内容，不再重复标题/约束/状态行。 */}
+        {/* 飞书首选扫码接入（官方应用注册流程）；指引折叠块保持其下。 */}
+        {channel === "feishu" && (
+          <ImFeishuScan
+            t={t}
+            autoStart={channel === "feishu" && !channelConnections.length}
+            busy={busy}
+            disabled={!settings.deviceId}
+            /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
+               并弹开配对弹窗，用户复制指令去飞书私聊发送即可。 */
+            onConnected={(connectionId) => {
+              void run(async () => {
+                await refresh();
+                if (!connectionId) return;
+                try {
+                  await generatePairCode();
+                  setPairDialogId(connectionId);
+                } catch {
+                  // 配对码生成失败不打断：弹窗可从机器人行随时重开。
+                }
+              });
+            }}
+          />
+        )}
         {/* 平台接入指引统一收进顶部折叠块：slack 恒显示，飞书/企微一致。 */}
         <details className="im-setup-guide-top">
           <summary>{t("ImSettingsPanel.message59")}</summary>
@@ -2199,136 +2216,168 @@ export function ImSettingsPanel({
     const settings = activeSettings;
     const openStep = (id: ImFlowStepId) =>
       activeScreen === "flow" ? flowOpenCard === id : flowCard === id;
-    /* ② 摘要按渠道配对谓词给出：已配对渠道名 / 已连接待绑定 / 连接概况。 */
-    const connectedChannelSet = new Set(
-      connections.filter((c) => c.state === "connected").map((c) => c.channel),
-    );
-    const pairedNames = IM_CHANNELS.filter(
-      (platform) =>
-        connectedChannelSet.has(platform) &&
-        (status?.identities ?? []).some((i) => i.channel === platform),
-    ).map((platform) => imChannelLabel(platform, t));
-    const channelSummary = pairedNames.length
-      ? t("ImSettingsPanel.connectedMembers", {
-          names: locale.startsWith("zh")
-            ? pairedNames.join("、")
-            : new Intl.ListFormat(locale, { type: "unit" }).format(pairedNames),
-        })
-      : health.failed > 0
-        ? imConnectionSummary(connections, t)
-        : hasBot
-          ? t("ImSettingsPanel.message178")
-          : connections.length
-            ? imConnectionSummary(connections, t)
-            : t("ImSettingsPanel.message177");
-    return (
-      <>
-        <ImFlowCard
-          icon="connector"
-          title={t("ImSettingsPanel.message180")}
-          done={flowSteps[0]!.done}
-          summary={settings.deviceId || t("ImSettingsPanel.message181")}
-          open={openStep("service")}
-          onToggle={() => setFlowCard(openStep("service") ? null : "service")}
-          t={t}
+    /* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 一行状态；已配置（有连接或
+       已存凭据）渠道名提亮。授权是设备级全局共用，行上不重复计数。 */
+    const channelRow = (platform: ImChannel) => {
+      const platformConnections = connections.filter(
+        (c) => c.channel === platform,
+      );
+      const state = imChannelConnectionState(platformConnections, {
+        savedCredentials: !!savedPending[platform],
+      });
+      const lit =
+        state === "connected" ||
+        state === "error" ||
+        state === "partial_error" ||
+        state === "connecting";
+      const configured =
+        platformConnections.length > 0 || !!savedPending[platform];
+      const summary = !configured
+        ? imConnectionLabel("unconfigured", t)
+        : state === "connected"
+          ? `${imConnectionLabel("connected", t)} · ${t(
+              "ImSettingsPanel.channelBotsCount",
+              { value1: platformConnections.length },
+            )}`
+          : imConnectionLabel(state, t);
+      return (
+        <button
+          type="button"
+          key={platform}
+          className="im-channel-row"
+          data-connection-state={state}
+          data-configured={configured || undefined}
+          onClick={() => {
+            flowSelectChannel(platform);
+            setChannelDetail(true);
+          }}
         >
-          {renderGatewayBody()}
-        </ImFlowCard>
-        {/* ② 合并卡（原②添加机器人+③绑定账号）：同一渠道内线性完成接入与配对；
-            尾部「顺手验证」为可选段，不计入完成链。 */}
-        <ImFlowCard
-          icon="message"
-          title={t("ImSettingsPanel.message183")}
-          done={flowSteps[1]!.done}
-          summary={channelSummary}
-          open={openStep("channel")}
-          onToggle={() => setFlowCard(openStep("channel") ? null : "channel")}
-          t={t}
-        >
-          <div
-            className="im-channel-tabs"
-            role="tablist"
-            aria-label={t("ImSettingsPanel.message182")}
-          >
-            {IM_CHANNELS.map((platform) => {
-              if (platform === "wecom") return null;
-              /* tab 仅保留渠道名：连接状态由名称前的信号灯表达（正常亮绿、
-                 异常亮红、连接中黄灯），已配置（有连接或已存凭据）渠道名
-                 提亮区分；约束文案不再挤进 tab。 */
-              const platformConnections = connections.filter(
-                (c) => c.channel === platform,
-              );
-              const state = imChannelConnectionState(platformConnections);
-              const lit =
-                state === "connected" ||
-                state === "error" ||
-                state === "partial_error" ||
-                state === "connecting";
-              const configured =
-                platformConnections.length > 0 || !!savedPending[platform];
-              return (
-                <button
-                  type="button"
-                  role="tab"
-                  key={platform}
-                  className="im-channel-tab"
-                  aria-selected={channel === platform}
-                  data-connection-state={state}
-                  data-configured={configured || undefined}
-                  onClick={() => flowSelectChannel(platform)}
-                >
-                  {lit ? (
-                    <span
-                      aria-hidden="true"
-                      className="im-dot"
-                      data-state={state}
-                    />
-                  ) : null}
-                  <strong>{imChannelLabel(platform, t)}</strong>
-                </button>
-              );
-            })}
-          </div>
-          {renderChannelBody()}
-          {renderVerifySection()}
-        </ImFlowCard>
-        {/* 临时会话是内置授权目标，③摘要计作 1 个项目。 */}
-        <ImFlowCard
-          icon="folder"
-          title={t("ImSettingsPanel.message189")}
-          done={flowSteps[2]!.done}
-          summary={t("ImSettingsPanel.message190", {
-            value1: settings.grants.length + 1,
-          })}
-          open={openStep("projects")}
-          onToggle={() => setFlowCard(openStep("projects") ? null : "projects")}
-          t={t}
-        >
-          {renderPermissionsBody()}
-          {renderSpacesBody()}
-          {allDone && (
-            <div className="im-ceremony">
-              <p className="im-ceremony-title">
-                {t("ImSettingsPanel.message184")}
-              </p>
-              <div className="im-ceremony-actions">
-                <Button onClick={() => selectView("overview")}>
-                  {t("ImSettingsPanel.message185")}
-                </Button>
-                <Button variant="quiet" onClick={() => selectView("test")}>
-                  {t("ImSettingsPanel.message186")}
-                </Button>
-                {channel !== "wecom" && (
-                  <Button variant="quiet" onClick={() => selectView("spaces")}>
-                    {t("ImSettingsPanel.message176")}
-                  </Button>
-                )}
-              </div>
-              <p className="im-fine">{t("ImSettingsPanel.message188")}</p>
-            </div>
+          {platform === "feishu" ? (
+            <img
+              alt=""
+              aria-hidden="true"
+              className="im-channel-logo"
+              height={20}
+              src={feishuChannelIcon}
+              width={20}
+            />
+          ) : (
+            <ArtemisIcon
+              aria-hidden="true"
+              name={platform}
+              width={20}
+              height={20}
+            />
           )}
-        </ImFlowCard>
-      </>
+          <span className="im-channel-row-copy">
+            <strong>{imChannelLabel(platform, t)}</strong>
+            <span className="im-channel-row-summary">
+              {lit ? (
+                <span
+                  aria-hidden="true"
+                  className="im-dot"
+                  data-state={state}
+                />
+              ) : null}
+              {summary}
+            </span>
+          </span>
+          <span aria-hidden="true" className="im-channel-row-caret">
+            <ArtemisIcon name="chevron" width={14} height={14} />
+          </span>
+        </button>
+      );
+    };
+    return (
+      <div className="im-two-col">
+        {/* 左栏：这台电脑是谁（服务）、能碰什么（授权）。 */}
+        <div className="im-col-left">
+          <ImFlowCard
+            icon="connector"
+            title={t("ImSettingsPanel.message180")}
+            done={flowSteps[0]!.done}
+            summary={settings.deviceId || t("ImSettingsPanel.message181")}
+            open={openStep("service")}
+            onToggle={() => setFlowCard(openStep("service") ? null : "service")}
+            t={t}
+          >
+            {renderGatewayBody()}
+          </ImFlowCard>
+          {/* 临时会话是内置授权目标，③摘要计作 1 个项目；授权对所有渠道生效。 */}
+          <ImFlowCard
+            icon="folder"
+            title={t("ImSettingsPanel.message189")}
+            done={flowSteps[2]!.done}
+            summary={t("ImSettingsPanel.projectsSummary", {
+              value1: settings.grants.length + 1,
+            })}
+            open={openStep("projects")}
+            onToggle={() =>
+              setFlowCard(openStep("projects") ? null : "projects")
+            }
+            t={t}
+          >
+            {renderPermissionsBody()}
+            {/* 群协作设置并入授权卡：spaces/group 深链统一落在项目权限入口。 */}
+            {renderSpacesBody()}
+            {allDone && (
+              <div className="im-ceremony">
+                <p className="im-ceremony-title">
+                  {t("ImSettingsPanel.message184")}
+                </p>
+                <div className="im-ceremony-actions">
+                  <Button onClick={() => selectView("overview")}>
+                    {t("ImSettingsPanel.message185")}
+                  </Button>
+                  <Button variant="quiet" onClick={() => selectView("test")}>
+                    {t("ImSettingsPanel.message186")}
+                  </Button>
+                  {channel !== "wecom" && (
+                    <Button variant="quiet" onClick={() => selectView("spaces")}>
+                      {t("ImSettingsPanel.message176")}
+                    </Button>
+                  )}
+                </div>
+                <p className="im-fine">{t("ImSettingsPanel.message188")}</p>
+              </div>
+            )}
+          </ImFlowCard>
+        </div>
+        {/* 右栏：门（渠道）。列表 ↔ 单渠道详情下钻；wecom 接入暂未开放。 */}
+        <div className="im-col-right">
+          {channelDetail ? (
+            <section className="im-channel-detail" tabIndex={-1}>
+              <div className="im-channel-detail-head">
+                <Button
+                  size="compact"
+                  variant="quiet"
+                  onClick={() => setChannelDetail(false)}
+                >
+                  {t("ImSettingsPanel.channelBack")}
+                </Button>
+                <strong>{imChannelLabel(channel, t)}</strong>
+              </div>
+              {renderChannelBody()}
+              {renderVerifySection()}
+            </section>
+          ) : (
+            <section className="im-channel-list" aria-label={t("ImSettingsPanel.imChannelsTitle")}>
+              <h3 className="im-channel-list-title">
+                {t("ImSettingsPanel.imChannelsTitle")}
+              </h3>
+              {IM_CHANNELS.map((platform) =>
+                /* wecom 接入未开放：仅存量连接（或已存凭据）才显示行，
+                   未配置渠道不出现；飞书/Slack 恒显示。 */
+                platform === "wecom" &&
+                !connections.some((c) => c.channel === "wecom") &&
+                !savedPending.wecom
+                  ? null
+                  : channelRow(platform),
+              )}
+            </section>
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -2348,11 +2397,8 @@ export function ImSettingsPanel({
           className="im-header-state"
           title={t("ImSettingsPanel.message196")}
         >
-          {activeScreen === "flow" && (
-            <ImFlowProgress done={flowDone} total={flowSteps.length} t={t} />
-          )}
+          {/* 两栏布局：流程进度条退役，头部只保留状态胶囊与总开关（D1 首跑无开关）。 */}
           {(activeScreen === "overview" ||
-            /* D1：首次流程不出现总开关；已注册设备回看引导流时保留暂停/恢复。 */
             (activeScreen === "flow" && !!status?.settings.deviceId)) && (
             <>
               {activeScreen === "overview" && (
