@@ -7802,8 +7802,8 @@ button.sources-panel-entry.attachment:focus-visible {
   flex-direction: column;
   background: var(--artemis-color-surface-raised);
   width: min(960px, 94vw);
-  height: min(680px, 88dvh);
-  max-block-size: calc(100dvh - 52px);
+  /* 高度随内容收缩、上限封顶：内容不足时不留大片底部空白，超出时内部滚动。 */
+  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
   max-width: calc(100vw - 32px);
   overflow: hidden;
   padding: 0;
