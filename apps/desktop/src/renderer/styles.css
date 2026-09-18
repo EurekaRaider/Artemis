@@ -10507,8 +10507,10 @@ kbd {
 .im-gateway-fold[open] > summary::after {
   transform: rotate(45deg);
 }
-.im-gateway-fold > summary:hover {
-  color: color-mix(in srgb, var(--text) 82%, transparent);
+/* hover 与渠道卡同款：文字色低透明度填充+边框微亮，只在卡面呈现。 */
+.im-gateway-fold:hover {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
 .im-gateway-fold-body {
   padding: 12px 14px 14px;
@@ -10544,9 +10546,6 @@ kbd {
 .im-channel-row strong {
   font-size: 14px;
   font-weight: 590;
-  color: var(--muted);
-}
-.im-channel-row[data-configured] strong {
   color: var(--text);
 }
 .im-channel-row-summary {
