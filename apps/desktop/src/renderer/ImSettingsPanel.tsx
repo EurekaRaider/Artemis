@@ -130,6 +130,7 @@ export function ImSettingsPanel({
   /* 右栏第四卡：授权项目详情（与渠道/群详情互斥）。 */
   const [projectsDetail, setProjectsDetail] = useState(initialPermissions);
   const [showRemote, setShowRemote] = useState(false);
+  const [advancedDetail, setAdvancedDetail] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [savedMetadata, setSavedMetadata] = useState<
@@ -801,28 +802,7 @@ export function ImSettingsPanel({
         <section id="im-prepare" tabIndex={-1}>
           <ImGatewayInstructions
             t={t}
-            busy={busy}
-            useRemote={() => {
-              setShowRemote(true);
-              window.setTimeout(
-                () =>
-                  document
-                    .getElementById("im-device")
-                    ?.scrollIntoView({ block: "start" }),
-                0,
-              );
-            }}
-            exportPackage={() =>
-              void run(async () => {
-                const path = await window.artemis.manageIm({
-                  action: "export-gateway",
-                });
-                if (path)
-                  setMessage(
-                    t("ImSettingsPanel.message43", { value1: String(path) }),
-                  );
-              })
-            }
+            onOpen={() => setAdvancedDetail(true)}
           />
         </section>
         <section id="im-device" tabIndex={-1}>
@@ -2369,6 +2349,64 @@ export function ImSettingsPanel({
         <strong>{label}</strong>
       </div>
     );
+    if (advancedDetail) {
+      /* 二级整幅卡：覆盖两栏区，头部=返回+tab标题，内容=原「高级」折叠体。 */
+      return (
+        <section className="im-screen-detail">
+          <div className="im-screen-detail-head">
+            <Button
+              size="compact"
+              variant="quiet"
+              onClick={() => setAdvancedDetail(false)}
+            >
+              {t("ImSettingsPanel.channelBack")}
+            </Button>
+            <strong>{t("ImSetupGuide.message4")}</strong>
+          </div>
+          <div className="im-screen-detail-body">
+            <p>{t("ImSetupGuide.message5")}</p>
+            <div className="im-actions">
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  setAdvancedDetail(false);
+                  setShowRemote(true);
+                  window.setTimeout(
+                    () =>
+                      document
+                        .getElementById("im-device")
+                        ?.scrollIntoView({ block: "start" }),
+                    0,
+                  );
+                }}
+              >
+                {t("ImSetupGuide.message6")}
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const path = await window.artemis.manageIm({
+                      action: "export-gateway",
+                    });
+                    if (path)
+                      setMessage(
+                        t("ImSettingsPanel.message43", {
+                          value1: String(path),
+                        }),
+                      );
+                  })
+                }
+              >
+                {t("ImSetupGuide.message7")}
+              </Button>
+            </div>
+            <p>{t("ImSetupGuide.message8")}</p>
+            <pre className="im-command">node gateway.mjs</pre>
+          </div>
+        </section>
+      );
+    }
     return (
       <div className="im-two-col">
         {/* 左栏：这台电脑是谁（服务）。固定标题+内容，不再折叠。 */}

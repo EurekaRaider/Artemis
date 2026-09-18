@@ -7,33 +7,16 @@ type Translate = UiTranslate;
 
 export function ImGatewayInstructions({
   t,
-  busy,
-  useRemote,
-  exportPackage,
+  onOpen,
 }: {
   t: Translate;
-  busy: boolean;
-  useRemote(): void;
-  exportPackage(): void;
+  onOpen(): void;
 }) {
-  // 直接渲染 details：折叠卡与右栏渠道卡逐行对齐，区域壳（header）会引入 12px 偏移。
+  // 入口卡：点击进入整幅二级卡（不再内联折叠展开）。
   return (
-    <details className="im-gateway-fold">
-        <summary>{t("ImSetupGuide.message4")}</summary>
-        <div className="im-gateway-fold-body">
-          <p>{t("ImSetupGuide.message5")}</p>
-          <div className="im-actions">
-            <Button disabled={busy} onClick={useRemote}>
-              {t("ImSetupGuide.message6")}
-            </Button>
-            <Button disabled={busy} onClick={exportPackage}>
-              {t("ImSetupGuide.message7")}
-            </Button>
-          </div>
-          <p>{t("ImSetupGuide.message8")}</p>
-          <pre className="im-command">node gateway.mjs</pre>
-        </div>
-      </details>
+    <button type="button" className="im-gateway-fold" onClick={onOpen}>
+      <span className="im-gateway-fold-head">{t("ImSetupGuide.message4")}</span>
+    </button>
   );
 }
 

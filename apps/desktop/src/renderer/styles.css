@@ -10490,11 +10490,17 @@ kbd {
 }
 /* 高级/手动注册两张折叠卡：头部行=标题+右侧箭头，展开内容下拉包进卡内。 */
 .im-gateway-fold {
+  display: block;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: start;
   border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--text) 4.5%, transparent);
 }
-.im-gateway-fold > summary {
+.im-gateway-fold > summary,
+.im-gateway-fold > .im-gateway-fold-head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -10512,7 +10518,8 @@ kbd {
 .im-gateway-fold > summary::-webkit-details-marker {
   display: none;
 }
-.im-gateway-fold > summary::after {
+.im-gateway-fold > summary::after,
+.im-gateway-fold > .im-gateway-fold-head::after {
   content: "";
   flex: none;
   margin-inline-start: auto;
@@ -10538,6 +10545,41 @@ kbd {
   padding: 12px 14px 14px;
   display: grid;
   gap: 10px;
+  font-size: 12.5px;
+}
+/* 二级整幅卡：覆盖两栏区。头部=返回+tab标题，内容区超高时内部滚动。 */
+.im-screen-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+.im-screen-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 12px 14px;
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-screen-detail-head strong {
+  font-size: 14px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-screen-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 12px 14px 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
   font-size: 12.5px;
 }
 /* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致；
