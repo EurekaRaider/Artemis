@@ -10455,10 +10455,14 @@ kbd {
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
+  /* 收起高度与右栏渠道卡等高（实测 66.8px 含边框），展开时为头部行最小高。 */
+  box-sizing: border-box;
+  min-block-size: 64.8px;
   cursor: pointer;
   list-style: none;
-  font-size: 13px;
-  font-weight: 640;
+  font-size: 14px;
+  font-weight: 590;
+  line-height: 21px;
   color: var(--text);
 }
 .im-gateway-fold > summary::-webkit-details-marker {
@@ -10489,6 +10493,10 @@ kbd {
   display: grid;
   gap: 10px;
   font-size: 12.5px;
+}
+/* 两张折叠卡分属两个 section，拉开与右栏卡列一致的 10px 间距。 */
+.im-service-body > section + section {
+  margin-block-start: 10px;
 }
 .im-service-body {
   padding-block-start: 12px;
