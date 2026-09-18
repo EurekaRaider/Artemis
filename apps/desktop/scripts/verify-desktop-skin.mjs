@@ -1539,8 +1539,10 @@ async function driveElectron() {
       systemLight.result.status === "applied" &&
         systemLight.snapshot.attrs.theme === "light" &&
         systemLight.snapshot.attrs.legacyTheme === null &&
-        systemLight.snapshot.tokenCount === expectedTokenCount,
-      "System light bridge was incomplete.",
+        systemLight.snapshot.tokenCount === expectedTokenCount &&
+        systemLight.snapshot.surfaces.sidebar.backgroundColor ===
+          systemLight.snapshot.surfaces.sidebar.resolvedTokenColor,
+      "System light bridge or sidebar material was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-color-scheme", value: "dark" }],
@@ -1557,8 +1559,10 @@ async function driveElectron() {
     assert(
       systemDark.attrs.theme === "dark" &&
         systemDark.attrs.legacyTheme === null &&
-        systemDark.tokenCount === expectedTokenCount,
-      "System dark bridge was incomplete.",
+        systemDark.tokenCount === expectedTokenCount &&
+        systemDark.surfaces.sidebar.backgroundColor ===
+          systemDark.surfaces.sidebar.resolvedTokenColor,
+      "System dark bridge or sidebar material was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
       features: [
