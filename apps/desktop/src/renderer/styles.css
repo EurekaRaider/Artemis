@@ -10368,12 +10368,12 @@ kbd {
   }
 }
 .im-channel-list {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--artemis-radius-control, 8px);
-  padding: 10px;
+  border: 0;
+  background: none;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 .im-channel-list-title {
   margin: 0 0 4px;
@@ -10388,16 +10388,17 @@ kbd {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--artemis-radius-control, 8px);
-  background: none;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
   cursor: pointer;
   text-align: start;
   color: inherit;
 }
 .im-channel-row:hover {
-  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
 .im-channel-row:focus-visible {
   outline: 2px solid var(--accent);
@@ -10416,7 +10417,7 @@ kbd {
   flex: 1;
 }
 .im-channel-row strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 590;
   color: var(--muted);
 }
@@ -10427,7 +10428,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 .im-channel-row-summary .im-dot {
