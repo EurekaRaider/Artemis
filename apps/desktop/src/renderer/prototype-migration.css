@@ -28,7 +28,8 @@
    导航行与会话行整体提白；语义状态色（连接/任务状态点）不受影响。 */
 [data-theme="dark"] .sidebar-nav .nav-row,
 [data-theme="dark"] .project-thread-row,
-[data-theme="dark"] .project-thread-row .thread-time {
+[data-theme="dark"] .project-thread-row .thread-time,
+[data-theme="dark"] .local-user-name {
   color: var(--text);
 }
 .sidebar-brand {
@@ -161,9 +162,6 @@
 .project-group-row:hover .project-group-select > svg,
 .project-group-row:has(:focus-visible) .project-group-select > svg {
   opacity: 1;
-}
-.project-toggle[aria-expanded="true"] svg {
-  transform: scale(0.8125);
 }
 .thread-time {
   grid-column: 3;
