@@ -5,7 +5,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Documents",
-    "shortDescription": "Basic normalized Word document reading and writing without Codex runtime.",
+    "shortDescription": "Basic normalized Word document reading and writing.",
     "category": "Productivity",
     "brandColor": "#2563EB",
     "logo": "./assets/icon.png"
