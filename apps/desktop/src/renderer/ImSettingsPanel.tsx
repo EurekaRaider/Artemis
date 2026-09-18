@@ -63,6 +63,8 @@ import {
 import { ImPlatformSetup } from "./ImPlatformSetup";
 import feishuChannelIcon from "./assets/feishu-channel.png";
 import slackChannelIcon from "./assets/slack-channel.svg";
+import groupChannelIcon from "./assets/im-group-icon.svg";
+import projectsChannelIcon from "./assets/im-projects-icon.svg";
 import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
@@ -2513,33 +2515,7 @@ export function ImSettingsPanel({
                   ? null
                   : channelRow(platform),
               )}
-              {/* 第三卡：群协作（对所有渠道生效，独立于单渠道接入）。 */}
-              <button
-                type="button"
-                className="im-channel-row"
-                onClick={() => {
-                  setChannelDetail(false);
-                  setGroupDetail(true);
-                  setProjectsDetail(false);
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  className="im-channel-logo im-channel-logo-glyph"
-                >
-                  <ArtemisIcon name="agents" width={20} height={20} />
-                </span>
-                <span className="im-channel-row-copy">
-                  <strong>{t("ImSettingsPanel.message165")}</strong>
-                  <span className="im-channel-row-summary">
-                    {t("ImSettingsPanel.message166")}
-                  </span>
-                </span>
-                <span aria-hidden="true" className="im-channel-row-caret">
-                  <ArtemisIcon name="chevron" width={14} height={14} />
-                </span>
-              </button>
-              {/* 第四卡：授权项目（设备级，对所有渠道生效）。 */}
+              {/* 第三卡：授权项目（设备级，对所有渠道生效）。 */}
               <button
                 type="button"
                 className="im-channel-row"
@@ -2552,18 +2528,48 @@ export function ImSettingsPanel({
                   setProjectsDetail(true);
                 }}
               >
-                <span
+                <img
+                  alt=""
                   aria-hidden="true"
-                  className="im-channel-logo im-channel-logo-glyph"
-                >
-                  <ArtemisIcon name="folder" width={20} height={20} />
-                </span>
+                  className="im-channel-logo"
+                  height={20}
+                  src={projectsChannelIcon}
+                  width={20}
+                />
                 <span className="im-channel-row-copy">
                   <strong>{t("ImSettingsPanel.message189")}</strong>
                   <span className="im-channel-row-summary">
                     {t("ImSettingsPanel.projectsSummary", {
                       value1: settings.grants.length + 1,
                     })}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="im-channel-row-caret">
+                  <ArtemisIcon name="chevron" width={14} height={14} />
+                </span>
+              </button>
+              {/* 第四卡：群协作（对所有渠道生效，独立于单渠道接入）。 */}
+              <button
+                type="button"
+                className="im-channel-row"
+                onClick={() => {
+                  setChannelDetail(false);
+                  setGroupDetail(true);
+                  setProjectsDetail(false);
+                }}
+              >
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="im-channel-logo"
+                  height={20}
+                  src={groupChannelIcon}
+                  width={20}
+                />
+                <span className="im-channel-row-copy">
+                  <strong>{t("ImSettingsPanel.message165")}</strong>
+                  <span className="im-channel-row-summary">
+                    {t("ImSettingsPanel.message166")}
                   </span>
                 </span>
                 <span aria-hidden="true" className="im-channel-row-caret">
