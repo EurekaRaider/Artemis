@@ -2281,7 +2281,7 @@ export function ImSettingsPanel({
       const summary = !configured
         ? imConnectionLabel("unconfigured", t)
         : state === "connected"
-          ? `${imConnectionLabel("connected", t)} · ${platformConnections.length}`
+          ? imConnectionLabel("connected", t)
           : imConnectionLabel(state, t);
       return (
         <button
@@ -2335,13 +2335,18 @@ export function ImSettingsPanel({
               ) : null}
               {summary}
               {configured && state === "connected" && (
-                <ArtemisIcon
-                  aria-hidden="true"
-                  className="im-channel-row-bots"
-                  name="bot"
-                  width={13}
-                  height={13}
-                />
+                <>
+                  <ArtemisIcon
+                    aria-hidden="true"
+                    className="im-channel-row-bots"
+                    name="bot"
+                    width={13}
+                    height={13}
+                  />
+                  <span className="im-channel-row-bots-count">
+                    · {platformConnections.length}
+                  </span>
+                </>
               )}
             </span>
           </span>
