@@ -140,6 +140,8 @@ export interface ImTaskOperations {
 }
 interface Binding {
   executionStarted?: boolean;
+  /** Original requester; later group messages cannot acquire task control. */
+  controllerIdentity?: string;
   security?: ImSecurityContext;
   threadId: string;
   /** Absent for ad-hoc plan tasks, which run without any project grant. */
@@ -306,25 +308,41 @@ export class ImService {
   private async interruptFailedWait(
     wait: DelegationWait,
     stopTurn: boolean,
+    turnId?: string,
   ): Promise<boolean> {
     const reason = this.interruptionReason(wait);
     if (!reason || wait.retryApproved) return false;
     const ids = wait.tasks.flatMap((task) =>
       this.delegationWaits.cancelTask(wait.threadId, task.id),
     );
-    for (const id of ids)
+    if (turnId) ids.push(turnId);
+    for (const id of ids) {
+      this.put(
+        "delegation-interrupted-turns",
+        JSON.stringify([wait.threadId, id]),
+        wait.id,
+      );
       this.put(
         "cancelled-delegation-turns",
         JSON.stringify([wait.threadId, id]),
         true,
       );
+    }
     this.delegationWaits.interrupt(wait.id);
     const binding = this.get<Binding>("bindings", wait.threadId);
     if (binding && !binding.localExecution)
       this.reply(
         binding.request,
-        `${reason}\n已结束等待，不会自动重派。可在 Artemis 选择，或发送 /retry ${wait.id} 重新委派${wait.results.some((t) => t.state === "timeout") ? `，/wait ${wait.id} 继续等待` : ""}，/stopwait ${wait.id} 停止等待（不取消队友任务）。`,
+        `${reason}\n已结束本次任务，不会自动重派。可在 Artemis 选择，或发送 /retry ${wait.id} 重新委派${wait.results.some((t) => t.state === "timeout") ? `，/wait ${wait.id} 继续等待` : ""}。`,
         wait.threadId,
+        true,
+        "conversation",
+        `delegation-interrupted:${wait.id}`,
+        wait.results.some((t) =>
+          ["failed", "rejected", "timeout"].includes(t.state),
+        )
+          ? "failed"
+          : "cancelled",
       );
     if (stopTurn)
       await this.ops.cancelDelegationContinuation?.(wait.threadId, ids);
@@ -440,6 +458,8 @@ export class ImService {
         command.text,
         command.timeoutSeconds,
       );
+    // An existing automatic wait may still contain the pre-reply snapshot.
+    this.delegationWaits.update(groupId, tasks);
     const wait = this.delegationWaits.register(
       existing?.waitId ?? (automatic ? automatic.id : randomUUID()),
       binding.threadId,
@@ -481,7 +501,7 @@ export class ImService {
       if (this.closed)
         throw new Error("IM service closed; the wait is saved for restart.");
       if (current?.state === "ready") {
-        if (await this.interruptFailedWait(current, false))
+        if (await this.interruptFailedWait(current, false, turnId))
           return complete({
             state: "interrupted",
             parkDelegation: true,
@@ -571,8 +591,8 @@ export class ImService {
         {},
     );
     if (!this.get<boolean>("migrations", "whole-project-reads")) {
-      // Old empty scopes granted no reads. Their consent cannot authorize
-      // the new whole-project default without a fresh desktop confirmation.
+      // Preserve the legacy migration's execution-consent reset. Configured
+      // reads are now the default; write and shell access still need consent.
       for (const grant of this.config.grants)
         if (grant.security?.scopes.some((scope) => !scope.readPaths.length)) {
           for (const scope of grant.security.scopes) scope.confirmedAt = 0;
@@ -1333,9 +1353,9 @@ export class ImService {
           (s) => s.audience === scope.audience,
         );
         const confirmedAt = imScopeConfirmation(grant.security, scope);
-        if (confirmedAt && !allowed.has(scope.audience))
+        if (!allowed.has(scope.audience))
           throw new Error("数据范围引用了未授权的协作空间。");
-        if (confirmedAt && !scope.filePaths) {
+        if (!scope.filePaths) {
           scope.filePaths = [];
           for (const path of scope.readPaths) {
             const full = await checkedRemotePath(
@@ -1361,8 +1381,6 @@ export class ImService {
         const retainsReadableData =
           old &&
           previous?.security &&
-          imScopeConfirmation(previous.security, old) &&
-          confirmedAt &&
           old.spaceRevision === scope.spaceRevision &&
           (!scope.readPaths.length ||
             (old.readPaths.length > 0 &&
@@ -1511,6 +1529,10 @@ export class ImService {
       else this.delegationWaits.continueWaiting(wait.id);
       this.remove(
         "cancelled-delegation-turns",
+        JSON.stringify([wait.threadId, wait.id]),
+      );
+      this.remove(
+        "delegation-interrupted-turns",
         JSON.stringify([wait.threadId, wait.id]),
       );
       return {
@@ -1914,7 +1936,6 @@ export class ImService {
         );
       if (!binding)
         throw new Error("Only the local coordinator can cancel this task.");
-      this.checkContext(binding);
       await this.cancelDelegationTask(binding.threadId, action.taskId);
       return (
         await this.http("/v1/device/native-command", "POST", {
@@ -1922,7 +1943,6 @@ export class ImService {
           invocationId: task!.invocationId,
           threadId: binding.threadId,
           command: { action: "cancel", taskId: action.taskId, text: "" },
-          security: this.deliverySecurity(binding.security!),
         })
       ).json();
     }
@@ -2293,14 +2313,29 @@ export class ImService {
     const dataScope = grant?.security?.scopes.find(
       (s) => s.audience === binding.security?.audience,
     );
+    const executionConfirmed =
+      !!dataScope && !!imScopeConfirmation(grant?.security, dataScope);
     return {
       collaborationRole:
         binding.request.nativeTaskId || binding.request.collaboration
           ? "worker"
           : "coordinator",
-      ...(dataScope ? { dataScope } : {}),
+      ...(dataScope
+        ? {
+            dataScope: executionConfirmed
+              ? dataScope
+              : {
+                  ...dataScope,
+                  writePaths: [],
+                  writeMode: "selected" as const,
+                },
+          }
+        : {}),
       network: grant?.network ?? false,
-      shell: this.scopedExecutionSupported && (grant?.shell ?? false),
+      shell:
+        executionConfirmed &&
+        this.scopedExecutionSupported &&
+        (grant?.shell ?? false),
       ...(binding.security ? { security: binding.security } : {}),
     };
   }
@@ -2498,9 +2533,19 @@ export class ImService {
       );
     if (operation.action === "write")
       authorizeImPath(
-        requireImScope(current, imAudience(binding.request.conversation)),
+        requireImScope(
+          current,
+          imAudience(binding.request.conversation),
+          "write",
+        ),
         operation.path,
         true,
+      );
+    if (operation.action === "shell")
+      requireImScope(
+        current,
+        imAudience(binding.request.conversation),
+        "write",
       );
     if (operation.action === "shell" && !this.scopedExecutionSupported)
       throw new Error("此平台尚不能强制执行细粒度 IM 命令范围。");
@@ -2756,7 +2801,7 @@ export class ImService {
             tasks,
           );
           for (const wait of this.delegationWaits.active(threadId)) {
-            if (await this.interruptFailedWait(wait, false))
+            if (await this.interruptFailedWait(wait, false, turnId))
               return {
                 state: "interrupted",
                 parkDelegation: true,
@@ -3286,6 +3331,15 @@ export class ImService {
           e.payload.type === "turn.failed",
       )
       .at(-1)?.payload;
+    const latestTurn = this.ops.events(thread.id).at(-1)?.turnId;
+    if (
+      latestTurn &&
+      this.get(
+        "delegation-interrupted-turns",
+        JSON.stringify([thread.id, latestTurn]),
+      )
+    )
+      return "委派已中断，本次任务已结束";
     return payload?.type === "turn.completed"
       ? payload.reason === "cancelled"
         ? "已停止"
@@ -3339,12 +3393,41 @@ export class ImService {
       throw new Error("请在本人单聊使用 /continue 任务编号 明确选择桌面任务。");
     return thread;
   }
+  /** Task control returns no project content and survives data-grant revocation. */
+  private controllableThread(
+    request: RemoteInvocationContext,
+    id: string,
+  ): Thread {
+    const thread = this.ops.thread(id);
+    const binding = this.get<Binding>("bindings", id);
+    if (
+      !thread ||
+      thread.archived ||
+      thread.target !== "local" ||
+      !binding ||
+      binding.privateLocal ||
+      binding.nativeGroup ||
+      binding.request.deviceId !== request.deviceId ||
+      imIdentityKey(binding.request.identity) !==
+        imIdentityKey(request.identity) ||
+      imConversationKey(binding.request.conversation) !==
+        imConversationKey(request.conversation) ||
+      binding.request.conversation.spaceId !== request.conversation.spaceId ||
+      (request.originator &&
+        (binding.controllerIdentity ??
+          imIdentityKey(
+            binding.request.originator ?? binding.request.identity,
+          )) !== imIdentityKey(request.originator))
+    )
+      throw new Error("只能查询或停止自己在此会话中的任务。");
+    return thread;
+  }
   private async dispatch(receipt: Receipt): Promise<void> {
     const request = receipt.request;
     if (
       request.originator &&
       request.text.trimStart().startsWith("/") &&
-      !/^\/new(?:\s|$)/u.test(request.text.trim())
+      !/^\/(?:new|stop|status|stopwait)(?:\s|$)/iu.test(request.text.trim())
     )
       throw new Error(
         "Other participants cannot submit owner control commands.",
@@ -3352,6 +3435,11 @@ export class ImService {
     if (request.control === "cancel") {
       if (!request.collaboration)
         throw new Error("Cancellation must name an assignment.");
+      const assigned = this.get<string>(
+        "assignments",
+        request.collaboration.taskId,
+      );
+      if (assigned) this.controllableThread(request, assigned);
       for (const pending of this.list<Receipt>("receipts"))
         if (
           pending.state === "pending" &&
@@ -3378,7 +3466,7 @@ export class ImService {
         this.reply(
           request,
           "任务已取消。",
-          threadId,
+          undefined,
           true,
           "conversation",
           randomUUID(),
@@ -3413,7 +3501,10 @@ export class ImService {
     const match =
       request.nativeTaskId ||
       (request.collaboration && !request.taskId) ||
-      (request.originator && !/^\/new(?:\s|$)/u.test(request.text.trim())) ||
+      (request.originator &&
+        !/^\/(?:new|stop|status|stopwait)(?:\s|$)/iu.test(
+          request.text.trim(),
+        )) ||
       request.sourceKind === "tool-result"
         ? null
         : /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(request.text.trim());
@@ -3442,7 +3533,9 @@ export class ImService {
     if (command === "retry" || command === "wait" || command === "stopwait") {
       const wait = this.get<DelegationWait>("delegation-waits", argument);
       if (!wait) throw new Error("请提供提示中的等待编号。");
-      this.accessibleThread(request, wait.threadId, true);
+      if (command === "stopwait")
+        this.controllableThread(request, wait.threadId);
+      else this.accessibleThread(request, wait.threadId, true);
       await this.manage({
         action:
           command === "retry"
@@ -3458,7 +3551,7 @@ export class ImService {
           : command === "retry"
             ? "已确认重新委派，将在任务空闲后执行。"
             : "已继续等待，尚未重新委派。",
-        wait.threadId,
+        command === "stopwait" ? undefined : wait.threadId,
       );
       return;
     }
@@ -3678,35 +3771,57 @@ export class ImService {
       threadId = undefined;
     if (["status", "stop", "continue"].includes(command ?? "") && argument)
       threadId = argument;
+    let controlThreadId = threadId;
+    if (!request.collaboration && !request.taskId && !argument) {
+      const candidates = [
+        threadId,
+        ...this.ops
+          .threads()
+          .slice()
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .map((t) => t.id),
+      ];
+      controlThreadId = candidates.find((id) => {
+        if (!id) return false;
+        try {
+          this.controllableThread(request, id);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+    }
     if (
       !command &&
-      threadId &&
       this.ops.classifyControlIntent &&
       !request.text.trimStart().startsWith("/") &&
       !request.nativeTaskId &&
       !request.collaboration &&
-      !request.originator &&
       request.sourceKind !== "tool-result" &&
       request.attachments.length === 0
     ) {
-      // Resolve identity, scope and target before consulting a model. Only the
-      // owner's message can become a control action; attachments never authorize it.
+      // Check ownership independently of project data permissions. With no
+      // accepted task, use the group entry only to classify an idempotent stop.
       let target: Thread | undefined;
       try {
-        target = this.accessibleThread(request, threadId);
+        if (controlThreadId)
+          target = this.controllableThread(request, controlThreadId);
       } catch {
-        // A stale implicit selection must follow normal message routing instead.
+        // A foreign explicit target must not fall back to another task.
       }
-      if (
-        target &&
-        (busy(target) ||
-          this.hasDelegationWait(threadId) ||
-          this.hasPermissionBlock(threadId))
-      ) {
+      const groupEntry =
+        !controlThreadId && !request.taskId && request.conversation.spaceId
+          ? this.get<GroupEntry>(
+              "group-entries",
+              this.groupEntryKey(request.conversation.spaceId),
+            )
+          : undefined;
+      const classifierId = target?.id ?? groupEntry?.threadId;
+      if (classifierId) {
         receipt.state = "dispatching";
         this.put("receipts", request.id, receipt);
         try {
-          if (await this.ops.classifyControlIntent(threadId, request.text))
+          if (await this.ops.classifyControlIntent(classifierId, request.text))
             command = "stop";
         } catch {
           // Offline, timeout or invalid model output preserves ordinary delivery.
@@ -3715,8 +3830,15 @@ export class ImService {
       }
     }
     if (command === "status" || command === "stop") {
-      if (!threadId) throw new Error("请指定任务编号。");
-      const thread = this.accessibleThread(request, threadId);
+      if (!controlThreadId) {
+        complete(
+          command === "stop"
+            ? "当前没有可取消的任务。"
+            : "当前没有可查询的任务。",
+        );
+        return;
+      }
+      const thread = this.controllableThread(request, controlThreadId);
       if (command === "stop") {
         this.cancelOperations(thread.id);
         const results = await Promise.allSettled([
@@ -3729,7 +3851,6 @@ export class ImService {
       let delegationStatus = "";
       const binding = this.get<Binding>("bindings", thread.id);
       if (command === "status" && binding?.request.conversation.spaceId) {
-        this.checkContext(binding);
         const state = (await (
           await this.http("/v1/device/native-cooperation", "POST", {
             groupId: binding.request.conversation.spaceId,
@@ -3759,7 +3880,7 @@ export class ImService {
           .join("");
       }
       complete(
-        `任务 ${thread.id} · ${this.ops.thread(thread.id) ? this.taskState(this.ops.thread(thread.id)!) : "已删除"}${delegationStatus}`,
+        `任务 ${thread.id} · ${command === "stop" ? "本地任务已停止" : this.ops.thread(thread.id) ? this.taskState(this.ops.thread(thread.id)!) : "已删除"}${delegationStatus}`,
       );
       return;
     }
@@ -3938,6 +4059,13 @@ export class ImService {
       threadId: receipt.threadId,
       ...(projectId ? { projectId } : {}),
       request,
+      controllerIdentity:
+        priorBinding?.controllerIdentity ??
+        imIdentityKey(
+          priorBinding
+            ? (priorBinding.request.originator ?? priorBinding.request.identity)
+            : (request.originator ?? request.identity),
+        ),
       ...(request.conversation.spaceId &&
       this.get<GroupEntry>(
         "group-entries",
@@ -4099,17 +4227,23 @@ export class ImService {
     if (binding?.parentThreadId && !this.get("group-observed", event.eventId)) {
       const p = event.payload;
       const phase =
-        p.type === "turn.completed" &&
-        p.reason === "completed" &&
-        !this.hasDelegationWait(event.threadId)
-          ? "completed"
-          : p.type === "turn.failed"
-            ? "failed"
-            : p.type === "approval.requested"
-              ? "approval-required"
-              : p.type === "user-input.requested"
-                ? "input-required"
-                : undefined;
+        (p.type === "turn.completed" || p.type === "turn.failed") &&
+        this.get(
+          "delegation-interrupted-turns",
+          JSON.stringify([event.threadId, event.turnId]),
+        )
+          ? "failed"
+          : p.type === "turn.completed" &&
+              p.reason === "completed" &&
+              !this.hasDelegationWait(event.threadId)
+            ? "completed"
+            : p.type === "turn.failed"
+              ? "failed"
+              : p.type === "approval.requested"
+                ? "approval-required"
+                : p.type === "user-input.requested"
+                  ? "input-required"
+                  : undefined;
       if (phase) {
         this.ops.groupActivity?.(binding.parentThreadId, event.threadId, phase);
         this.put("group-observed", event.eventId, true);
@@ -4146,6 +4280,13 @@ export class ImService {
       return;
     if (this.get("observed", event.eventId)) return;
     this.put("observed", event.eventId, true);
+    if (
+      this.get(
+        "delegation-interrupted-turns",
+        JSON.stringify([event.threadId, event.turnId]),
+      )
+    )
+      return;
     try {
       this.checkContext(binding);
     } catch {
@@ -4550,9 +4691,8 @@ export class ImService {
               ? g.security.scopes
                   .filter(
                     (scope) =>
-                      imScopeConfirmation(g.security, scope) &&
-                      (scope.audience === "owner" ||
-                        g.groups.includes(scope.audience)),
+                      scope.audience === "owner" ||
+                      g.groups.includes(scope.audience),
                   )
                   .map((scope) => ({
                     projectId: g.projectId,
@@ -4714,9 +4854,7 @@ export class ImService {
         (s) => s.audience === `space:${space.id}`,
       );
       const currentRevision =
-        currentGrant?.security &&
-        currentScope &&
-        imScopeConfirmation(currentGrant.security, currentScope)
+        currentGrant?.security && currentScope
           ? imScopeRevision(currentGrant.security, currentScope)
           : undefined;
       const channel = this.channelStatus

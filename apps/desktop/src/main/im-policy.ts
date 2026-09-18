@@ -35,13 +35,16 @@ export function imAudience(conversation: ImConversation): string {
 export function requireImScope(
   grant: ExecutionGrant,
   audience: string,
+  access: "read" | "write" = "read",
 ): ImDataScope {
   if (grant.security?.version !== IM_SECURITY_VERSION)
     throw new Error("请在桌面确认此项目的数据与分享范围后继续。");
   const scope = grant.security.scopes.find((s) => s.audience === audience);
   if (!scope) throw new Error("此会话的数据与分享范围尚未授权，请在桌面设置。");
-  if (!imScopeConfirmation(grant.security, scope))
-    throw new Error("请在桌面确认此会话的数据与分享范围后继续。");
+  // Enabling this project/audience grants its configured reads by default.
+  // Pending execution consent must not block queries or ordinary coordination.
+  if (access === "write" && !imScopeConfirmation(grant.security, scope))
+    throw new Error("请在桌面确认此会话的写入与命令执行权限后继续。");
   return scope;
 }
 export class ImPermissionError extends Error {

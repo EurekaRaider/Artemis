@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "Schreiben im gesamten Projekt erlauben",
   "ImDataPermissions.message15": "Standardbereich wiederherstellen",
   "ImDataPermissions.message16": "Verzeichnis oder Datei",
-  "ImDataPermissions.message19": "Bestätige Daten- und Empfängerbereiche; Remote-Aufgaben beginnen erst nach dem Speichern der Bestätigung.",
+  "ImDataPermissions.message19": "Aktivierte Unterhaltungen können den gewählten Bereich standardmäßig abfragen. Schreibzugriffe und Befehle müssen bestätigt und gespeichert werden. Für neue Gruppen müssen die Empfänger bestätigt werden.",
   "ImDataPermissions.unavailableAudiences": "Diese Freigabeempfänger sind nicht verfügbar oder noch nicht synchronisiert. Aktualisieren Sie die Gruppenliste oder entfernen Sie ihre Freigaben vor der Bestätigung:",
   "ImDataPermissions.removeUnavailableScopes": "Nicht verfügbare Freigaben entfernen",
   "ImDataPermissions.message20": "Ich bestätige Dateibereich und Empfänger dieser Unterhaltung; gilt nach dem Speichern",

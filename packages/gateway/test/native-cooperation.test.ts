@@ -133,6 +133,59 @@ function delegate(
     text,
   }) as Array<{ id: string }>;
 }
+
+it("delivers cancellation acknowledgments after the worker's data grant expires", () => {
+  const f = pair();
+  const [sent] = delegate(f);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native.tasks(f.b.group.id)[0]!;
+  f.b.router.native.reply(
+    f.b.store.get<RemoteInvocationContext>(
+      "invocations",
+      incoming.invocationId,
+    )!,
+    {
+      version: 1,
+      id: randomUUID(),
+      invocationId: incoming.invocationId,
+      taskId: "worker",
+      text: "Running",
+      started: true,
+      final: false,
+      visibility: "conversation",
+    },
+  );
+  exchange(f.b, f.a);
+  f.b.store.put("invocation-security", incoming.invocationId, {
+    version: 2,
+    deviceId: f.b.device.id,
+    projectId: "project",
+    revision: "expired",
+    audience: `space:${f.b.group.id}`,
+  });
+  f.b.store.put("device-security", f.b.device.id, { version: 2, grants: [] });
+  f.a.router.native.command(f.request, "coordinator", randomUUID(), {
+    action: "cancel",
+    taskId: sent!.id,
+    text: "",
+  });
+  exchange(f.a, f.b);
+  const cancel = f.b.store
+    .list<RemoteInvocationContext>("invocations")
+    .find((r) => r.control === "cancel")!;
+  expect(cancel).toBeDefined();
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: cancel.id,
+    text: "任务已取消。",
+    final: true,
+    outcome: "cancelled",
+    visibility: "conversation",
+  });
+  exchange(f.b, f.a);
+  expect(f.a.router.native.tasks(f.a.group.id)[0]!.state).toBe("cancelled");
+});
 it.each([
   {
     status: "waiting",

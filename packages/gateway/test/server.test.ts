@@ -833,6 +833,62 @@ it("restricts native cooperation state to its owner and rejects obsolete continu
   );
 });
 
+it("does not let the data-free cancellation route authorize dispatch or foreign tasks", async () => {
+  const f = await fixture();
+  const conversation = {
+    ...f.input.conversation,
+    id: "group",
+    kind: "group" as const,
+  };
+  f.gateway.router.ingest({ ...f.input, conversation });
+  f.gateway.router.processIncoming();
+  const group = saveNativeGroup(f.gateway.store, {
+    conversation,
+    owner: f.input.identity,
+    deviceId: f.device.id,
+    name: "Group",
+    projectId: "p",
+    enabled: true,
+  });
+  const invocation = f.gateway.router.groupConversationContext(
+    f.device.id,
+    group.id,
+  );
+  const command = async (command: unknown, invocationId = invocation.id) => {
+    const response = await fetch(`${f.url}/v1/device/native-command`, {
+      method: "POST",
+      headers: f.headers,
+      body: JSON.stringify({
+        id: randomUUID(),
+        invocationId,
+        threadId: "coordinator",
+        command,
+      }),
+    });
+    return { ok: response.ok, body: await response.json() };
+  };
+  const dispatch = await command({
+    action: "delegate",
+    participantId: "peer",
+    text: "work",
+  });
+  expect(dispatch.ok).toBe(false);
+  expect(dispatch.body.error).toContain("current data grant");
+  const cancel = await command({
+    action: "cancel",
+    taskId: "foreign",
+    text: "",
+  });
+  expect(cancel.ok).toBe(false);
+  expect(cancel.body.error).toContain("not owned");
+  const other = await command(
+    { action: "cancel", taskId: "foreign", text: "" },
+    "unknown-invocation",
+  );
+  expect(other.ok).toBe(false);
+  expect(other.body.error).toContain("owner mismatch");
+});
+
 it("resolves discovered group names before authorization and preserves cached names on lookup failure", async () => {
   const info = vi.fn(async () => ({ name: "Design team" }));
   const f = await fixture(false, info);

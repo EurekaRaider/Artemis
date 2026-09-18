@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "Allow writes across the project",
   "ImDataPermissions.message15": "Reset to default scope",
   "ImDataPermissions.message16": "Directory or file",
-  "ImDataPermissions.message19": "Confirm the data and audience scopes before remote work can start.",
+  "ImDataPermissions.message19": "Enabled conversations can query the selected scope by default. Confirm and save before writes or command execution. Enabling a new group still requires recipient confirmation.",
   "ImDataPermissions.unavailableAudiences": "These sharing recipients are unavailable or not yet synced. Refresh the group list, or remove their scopes before confirming:",
   "ImDataPermissions.removeUnavailableScopes": "Remove unavailable sharing scopes",
   "ImDataPermissions.message20": "I confirm this audience’s file scope and recipients; apply when saved",

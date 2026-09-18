@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "整个项目可修改",
   "ImDataPermissions.message15": "恢复默认范围",
   "ImDataPermissions.message16": "目录或文件",
-  "ImDataPermissions.message19": "需要确认数据与分享范围；保存确认前不会启动远程任务。",
+  "ImDataPermissions.message19": "已启用的会话默认可查询所选范围；写入和命令执行需确认后保存。首次启用群仍需确认分享对象。",
   "ImDataPermissions.unavailableAudiences": "以下分享对象已失效或尚未同步，无法确认。请刷新群列表，或移除这些分享范围后重新确认：",
   "ImDataPermissions.removeUnavailableScopes": "移除失效的分享范围",
   "ImDataPermissions.message20": "我确认当前会话的文件范围与全部成员，保存后生效",

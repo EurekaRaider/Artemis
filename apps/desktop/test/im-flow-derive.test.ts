@@ -86,7 +86,30 @@ describe("im flow derive (three-step chain)", () => {
     const confirmed = imFlowSteps(status());
     expect(imFlowProgress(confirmed)).toBe(3);
   });
-  it("does not finish project setup for unconfirmed or expired grants", () => {
+  it("accepts default reads but does not finish project setup for missing or expired scopes", () => {
+    expect(
+      imFlowSteps(
+        status({
+          grants: [
+            {
+              projectId: "p",
+              expiresAt: Date.now() + 60000,
+              security: {
+                confirmedAt: 0,
+                scopes: [
+                  {
+                    audience: "owner",
+                    confirmedAt: 0,
+                    readPaths: [],
+                    writePaths: [],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      )[2]!.done,
+    ).toBe(true);
     expect(
       imFlowSteps(
         status({ grants: [{ projectId: "p", expiresAt: Date.now() + 60000 }] }),

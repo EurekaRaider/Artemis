@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "Autoriser l’écriture dans tout le projet",
   "ImDataPermissions.message15": "Rétablir le périmètre par défaut",
   "ImDataPermissions.message16": "Dossier ou fichier",
-  "ImDataPermissions.message19": "Confirmez les données et les destinataires ; le travail à distance ne démarrera qu’après l’enregistrement de la confirmation.",
+  "ImDataPermissions.message19": "Les conversations activées peuvent consulter le périmètre sélectionné par défaut. Confirmez et enregistrez avant toute écriture ou exécution de commande. Un nouveau groupe nécessite de confirmer les destinataires.",
   "ImDataPermissions.unavailableAudiences": "Ces destinataires sont indisponibles ou pas encore synchronisés. Actualisez les groupes ou retirez leurs périmètres avant de confirmer :",
   "ImDataPermissions.removeUnavailableScopes": "Retirer les périmètres indisponibles",
   "ImDataPermissions.message20": "Je confirme les fichiers et destinataires de cette conversation ; appliquer après enregistrement",

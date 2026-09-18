@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "프로젝트 전체 쓰기 허용",
   "ImDataPermissions.message15": "기본 범위로 복원",
   "ImDataPermissions.message16": "디렉터리 또는 파일",
-  "ImDataPermissions.message19": "데이터 및 공유 범위를 확인해야 합니다. 확인 내용을 저장하기 전에는 원격 작업을 시작하지 않습니다.",
+  "ImDataPermissions.message19": "활성화된 대화는 기본적으로 선택한 범위를 조회할 수 있습니다. 쓰기나 명령 실행 전에는 확인 후 저장해야 합니다. 새 그룹을 활성화하려면 공유 대상을 확인해야 합니다.",
   "ImDataPermissions.unavailableAudiences": "공유 대상이 없거나 아직 동기화되지 않았습니다. 그룹 목록을 새로 고치거나 해당 공유 범위를 제거한 후 확인하세요:",
   "ImDataPermissions.removeUnavailableScopes": "사용할 수 없는 공유 범위 제거",
   "ImDataPermissions.message20": "현재 대화의 파일 범위와 모든 수신자를 확인했으며 저장 후 적용합니다",

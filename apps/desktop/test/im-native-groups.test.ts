@@ -1502,6 +1502,237 @@ it.each(["cancelled", "failed", "rejected"] as const)(
   },
 );
 
+it.each(["wait", "status"] as const)(
+  "publishes one terminal rejection instead of stale model text after %s",
+  async (action) => {
+    const turnId = randomUUID();
+    const f = await automaticallyDelegatedFixture(false, turnId);
+    const events: AgentEvent[] = [
+      {
+        version: 1,
+        eventId: randomUUID(),
+        threadId: f.threadId,
+        turnId,
+        timestamp: new Date().toISOString(),
+        payload: {
+          type: "message.part.delta",
+          messageId: "message",
+          partId: "part",
+          partType: "text",
+          delta: "任务已发送给 Solar，现在等待它的结果。",
+        },
+      },
+    ];
+    f.ops.events = () => events;
+    f.ops.groupActivity = vi.fn();
+    f.gateway.store.put("native-tasks", f.result[0]!.id, {
+      ...f.result[0],
+      state: "rejected",
+      result: "Peer scope is not confirmed",
+    });
+    await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command:
+          action === "wait"
+            ? {
+                action,
+                taskIds: [f.result[0]!.id],
+                waitSeconds: 0,
+                text: "Review result",
+              }
+            : { action, text: "" },
+      },
+      "execute",
+      randomUUID(),
+      turnId,
+    );
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    const finished: AgentEvent = {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: f.threadId,
+      turnId,
+      timestamp: new Date().toISOString(),
+      payload: { type: "turn.completed", reason: "completed", durationMs: 1 },
+    };
+    events.push(finished);
+    f.service.observe([finished]);
+    f.service.observe([finished]);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const replies = db
+        .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+        .all()
+        .map((row) => JSON.parse(String(row.value)))
+        .filter(
+          (reply) => reply.invocationId === f.request.id && !reply.started,
+        );
+      expect(replies).toHaveLength(1);
+      expect(replies[0]).toMatchObject({
+        final: true,
+        outcome: "failed",
+        status: "failed",
+      });
+      expect(replies[0].text).toContain("Peer scope is not confirmed");
+      expect(replies[0].text).not.toContain("现在等待");
+      expect(replies[0].text).not.toContain("/stopwait");
+    } finally {
+      db.close();
+    }
+    expect(f.ops.groupActivity).toHaveBeenCalledWith(
+      expect.any(String),
+      f.threadId,
+      "failed",
+    );
+  },
+);
+
+it.each(["/stop", "取消任务"])(
+  "handles %s from a group member with no accepted task before data permission checks",
+  async (text) => {
+    const f = await fixture();
+    await f.authorize();
+    const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      groupId,
+    );
+    await f.service.save({ ...f.service.status().settings, grants: [] });
+    f.ops.classifyControlIntent = vi.fn(async () => true);
+    const id = randomUUID();
+    await f.service.accept({
+      ...request,
+      id,
+      messageId: id,
+      text,
+      originator: { ...request.identity, userId: "member" },
+      sourceKind: "member",
+    });
+    expect(f.starts).toHaveLength(0);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const replies = db
+        .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+        .all()
+        .map((row) => JSON.parse(String(row.value)))
+        .filter((reply) => reply.invocationId === id);
+      expect(replies).toHaveLength(1);
+      expect(replies[0].text).toContain("没有可取消");
+    } finally {
+      db.close();
+    }
+  },
+);
+
+it("allows group members to stop only their own task after its data grant is revoked", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+  const owner = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    groupId,
+  );
+  const member = { ...owner.identity, userId: "member" };
+  await f.service.accept({
+    ...owner,
+    id: randomUUID(),
+    originator: member,
+    sourceKind: "member",
+    text: "Analyze",
+  });
+  const thread = f.threads.find((t) => t.id === f.starts[0])!;
+  thread.status = "running";
+  // A follow-up from another member cannot acquire control of the current task.
+  await f.service.accept({
+    ...owner,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: thread.id,
+    originator: { ...member, userId: "stranger" },
+    sourceKind: "member",
+    text: "Additional context",
+  });
+  await f.service.save({ ...f.service.status().settings, grants: [] });
+  thread.status = "running";
+  f.ops.cancel = vi.fn(async () => {
+    thread.status = "idle";
+  });
+  for (const userId of ["stranger", "member"]) {
+    await f.service.accept({
+      ...owner,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      originator: { ...member, userId },
+      sourceKind: "member",
+      text: `/stop ${thread.id}`,
+    });
+    expect(f.ops.cancel).toHaveBeenCalledTimes(userId === "member" ? 1 : 0);
+  }
+  expect(thread.status).toBe("idle");
+});
+
+it("sends a cancellation for an owned delegation after project access is revoked", async () => {
+  const f = await automaticallyDelegatedFixture();
+  await f.service.save({ ...f.service.status().settings, grants: [] });
+  await expect(
+    f.service.manage({
+      action: "native-cancel",
+      groupId: f.groupId,
+      taskId: f.result[0]!.id,
+      messageId: randomUUID(),
+    }),
+  ).resolves.toMatchObject({ state: "cancel-sent" });
+  const cancellation = f.gateway.store
+    .pending<import("@artemis/gateway").Delivery>("outgoing")
+    .find((item) => item.payload.native?.action === "cancel")!.payload;
+  expect(f.gateway.router.canDeliver(cancellation)).toBe(true);
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  await expect(
+    f.service.manage({
+      action: "native-cancel",
+      groupId: f.groupId,
+      taskId: "foreign",
+      messageId: randomUUID(),
+    }),
+  ).rejects.toThrow();
+});
+
+it.each(["/stop", "取消任务"])(
+  "routes a real group member's %s through Gateway to their own task",
+  async (text) => {
+    const f = await fixture();
+    await f.authorize();
+    const send = async (body: string) => {
+      f.gateway.router.ingest({
+        ...f.event,
+        messageId: randomUUID(),
+        identity: { ...f.event.identity, userId: "member" },
+        text: body,
+        timestamp: Date.now(),
+      });
+      f.gateway.router.processIncoming();
+      await f.service.poll();
+    };
+    await send("Do the work");
+    const thread = f.threads.find((t) => t.id === f.starts[0])!;
+    thread.status = "running";
+    f.ops.cancel = vi.fn(async () => {
+      thread.status = "idle";
+    });
+    f.ops.classifyControlIntent = vi.fn(async () => true);
+    await send(text);
+    expect(f.ops.cancel).toHaveBeenCalledOnce();
+    expect(f.starts).toHaveLength(1);
+    expect(
+      f.gateway.store
+        .pending<{ text: string }>("outgoing")
+        .some((item) => item.payload.text.includes("本地任务已停止")),
+    ).toBe(true);
+  },
+);
+
 it("queries unknown and recovered task heartbeats without rearming an interrupted wait", async () => {
   const f = await automaticallyDelegatedFixture();
   const resume = vi.fn(async () => true);
@@ -1898,6 +2129,100 @@ it("changes only the edited audience revision and keeps another audience active"
   });
   expect(f.service.profile(f.threadId)!.security!.revision).toBe(before);
   expect(() => f.service.authorizeThread(f.threadId, "execute")).not.toThrow();
+});
+
+it("defaults to configured reads in an enabled group while write confirmation is pending", async () => {
+  const f = await fixture();
+  f.grant.mode = "execute";
+  await f.authorize();
+  const settings = f.service.status().settings;
+  await f.service.save({
+    ...settings,
+    grants: settings.grants.map((grant) => ({
+      ...grant,
+      security: {
+        ...grant.security!,
+        scopes: grant.security!.scopes.map((scope) => ({
+          ...scope,
+          confirmedAt: 0,
+          readMode: "selected" as const,
+          readPaths: ["docs/public"],
+          writePaths: ["docs/public"],
+          filePaths: [],
+        })),
+      },
+    })),
+  });
+  f.gateway.router.ingest({
+    ...f.event,
+    messageId: randomUUID(),
+    text: "List the project directories",
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  expect(f.starts).toHaveLength(1);
+  const id = f.starts[0]!;
+  await expect(
+    f.service.operate(
+      id,
+      { action: "read", path: "." },
+      "execute",
+      randomUUID(),
+    ),
+  ).resolves.toEqual({ entries: [{ path: "docs", directory: true }] });
+  for (const path of ["private.txt", "docs/public/.env"]) {
+    expect(() =>
+      f.service.authorizeOperation(id, { action: "read", path }, "execute"),
+    ).toThrow();
+  }
+  expect(() =>
+    f.service.authorizeOperation(
+      id,
+      { action: "write", path: "docs/public/new.txt", content: "no" },
+      "execute",
+    ),
+  ).toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      id,
+      { action: "shell", command: "ls", timeoutSeconds: 1 },
+      "execute",
+    ),
+  ).toThrow();
+  const turnId = randomUUID();
+  const events: AgentEvent[] = [
+    {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: id,
+      turnId,
+      timestamp: new Date().toISOString(),
+      payload: {
+        type: "message.part.delta",
+        messageId: "read-result",
+        partId: "read-result",
+        partType: "text",
+        delta: "Default read result: docs",
+      },
+    },
+    {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: id,
+      turnId,
+      timestamp: new Date().toISOString(),
+      payload: { type: "turn.completed", reason: "completed", durationMs: 1 },
+    },
+  ];
+  f.ops.events = () => events;
+  f.service.observe(events);
+  await f.service.poll();
+  expect(
+    f.gateway.store
+      .pending<{ text: string }>("outgoing")
+      .some((item) => item.payload.text.includes("Default read result: docs")),
+  ).toBe(true);
 });
 
 it("starts current-authorized group input independently of a stale implicit selection", async () => {

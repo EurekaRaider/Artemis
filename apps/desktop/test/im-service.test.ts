@@ -928,6 +928,61 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads[0]?.status).toBe("running");
     expect(f.queued).toHaveLength(1);
   });
+  it.each(["/status", "/stop", "取消任务"])(
+    "keeps owner control %s independent of revoked project access",
+    async (text) => {
+      const f = await fixture();
+      await f.send("/new analyze");
+      const thread = f.threads[0]!;
+      await f.service.save({
+        ...f.service.status().settings,
+        defaultProjectId: "",
+        grants: [],
+      });
+      thread.status = "running";
+      f.ops.cancel = vi.fn(async () => {
+        thread.status = "idle";
+      });
+      f.ops.classifyControlIntent = vi.fn(async () => true);
+      const id = randomUUID();
+      await f.service.accept({
+        version: 1,
+        id,
+        messageId: id,
+        deviceId: f.service.status().settings.deviceId,
+        identity: f.identity,
+        conversation: { connectionId: "w", id: "alice", kind: "direct" },
+        text,
+        expiresAt: Date.now() + 60000,
+        attachments: [],
+        taskId: thread.id,
+      });
+      const db = new DatabaseSync(join(f.root, "im.sqlite"));
+      try {
+        const replies = db
+          .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+          .all()
+          .map((row) => JSON.parse(String(row.value)))
+          .filter((reply) => reply.invocationId === id);
+        expect(replies).toHaveLength(1);
+        expect(replies[0].text).toContain(
+          text === "/status" ? "正在执行" : "已停止",
+        );
+      } finally {
+        db.close();
+      }
+      expect(f.ops.cancel).toHaveBeenCalledTimes(text === "/status" ? 0 : 1);
+      expect(f.starts).toHaveLength(1);
+      expect(f.queued).toHaveLength(0);
+      expect(() =>
+        f.service.authorizeOperation(
+          thread.id,
+          { action: "read", path: "README.md" },
+          "plan",
+        ),
+      ).toThrow();
+    },
+  );
   it("denies an unpaired sender before task creation", async () => {
     const f = await fixture();
     await f.send("/new steal", undefined, "bob");

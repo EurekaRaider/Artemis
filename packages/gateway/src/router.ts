@@ -315,11 +315,11 @@ export class GatewayRouter {
           if (
             groupSender &&
             event.text.trimStart().startsWith("/") &&
-            !/^\/new(?:\s|$)/u.test(event.text.trim())
+            !/^\/(?:new|stop|status|stopwait)(?:\s|$)/iu.test(event.text.trim())
           ) {
             this.queueDelivery(`${item.id}:owner-command`, {
               conversation: event.conversation,
-              text: "群成员可以直接 @ 机器人提交任务；切换项目、审批和停止等控制指令仅供机器人主人使用。",
+              text: "群成员可以提交、查询或停止自己的任务；切换项目和审批仅供机器人主人使用。",
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -464,8 +464,12 @@ export class GatewayRouter {
     if (dependencies.length)
       this.store.put("invocation-dependencies", targetId, dependencies);
   }
-  isInvocationAuthorized(request: RemoteInvocationContext): boolean {
+  isInvocationAuthorized(
+    request: RemoteInvocationContext,
+    control = request.control === "cancel",
+  ): boolean {
     if (
+      !control &&
       (
         this.store.get<Array<NonNullable<Delivery["security"]>>>(
           "invocation-dependencies",
@@ -492,7 +496,7 @@ export class GatewayRouter {
     if (
       !space ||
       space.id !== request.conversation.spaceId ||
-      space.revision !== request.conversation.spaceRevision ||
+      (!control && space.revision !== request.conversation.spaceRevision) ||
       !space.participants.some(
         (p) =>
           p.deviceId === request.deviceId &&
@@ -525,7 +529,9 @@ export class GatewayRouter {
         source.data.messageId === request.messageId &&
         source.data.text === request.text &&
         (!request.text.trimStart().startsWith("/") ||
-          /^\/new(?:\s|$)/u.test(request.text.trim())) &&
+          /^\/(?:new|stop|status|stopwait)(?:\s|$)/iu.test(
+            request.text.trim(),
+          )) &&
         imIdentityKey(source.data.identity) ===
           imIdentityKey(request.originator) &&
         imConversationKey(source.data.conversation) ===

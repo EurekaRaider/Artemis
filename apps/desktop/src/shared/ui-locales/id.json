@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "Izinkan penulisan di seluruh proyek",
   "ImDataPermissions.message15": "Pulihkan cakupan bawaan",
   "ImDataPermissions.message16": "Direktori atau file",
-  "ImDataPermissions.message19": "Konfirmasikan cakupan data dan penerima; tugas jarak jauh tidak dimulai sebelum konfirmasi disimpan.",
+  "ImDataPermissions.message19": "Percakapan aktif dapat memeriksa cakupan yang dipilih secara default. Konfirmasi dan simpan sebelum menulis atau menjalankan perintah. Grup baru tetap memerlukan konfirmasi penerima.",
   "ImDataPermissions.unavailableAudiences": "Penerima ini tidak tersedia atau belum disinkronkan. Segarkan daftar grup atau hapus cakupan mereka sebelum mengonfirmasi:",
   "ImDataPermissions.removeUnavailableScopes": "Hapus cakupan yang tidak tersedia",
   "ImDataPermissions.message20": "Saya mengonfirmasi cakupan berkas dan semua penerima percakapan ini; terapkan setelah disimpan",

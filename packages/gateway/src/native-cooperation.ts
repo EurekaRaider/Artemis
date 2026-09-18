@@ -717,13 +717,16 @@ export class NativeCooperation {
     task: NativeTask,
     action: NativeEnvelope["action"],
     text: string,
+    cancellationReceipt = false,
   ) {
     const current = this.store.get<NativeTask>("native-tasks", task.id)!;
     const envelope = this.frame(
       group,
       task.peer,
       action,
-      Buffer.from(text).subarray(0, 12000).toString("utf8").slice(0, 8000),
+      cancellationReceipt
+        ? "任务已取消。"
+        : Buffer.from(text).subarray(0, 12000).toString("utf8").slice(0, 8000),
       task.id,
       task.workflow,
     );
@@ -733,7 +736,11 @@ export class NativeCooperation {
       ...current,
       sequence: envelope.sequence,
     });
-    this.send(group, envelope, task.invocationId);
+    this.send(
+      group,
+      envelope,
+      cancellationReceipt ? undefined : task.invocationId,
+    );
   }
   localTaskDeleted(
     deviceId: string,
@@ -826,6 +833,7 @@ export class NativeCooperation {
             ? (reply.outcome ?? "completed")
             : "progress",
       updated.result,
+      request.control === "cancel" && final && reply.outcome === "cancelled",
     );
   }
   command(
@@ -835,9 +843,11 @@ export class NativeCooperation {
     command: CollaborationCommand,
   ): unknown {
     const group = this.group(request.conversation.spaceId!);
-    if (!this.router.isInvocationAuthorized(request))
-      throw new Error("Authorization revoked.");
     command = collaborationCommandSchema.parse(command);
+    if (
+      !this.router.isInvocationAuthorized(request, command.action === "cancel")
+    )
+      throw new Error("Authorization revoked.");
     if (command.action === "participants")
       return this.peers(group.id).filter((p) => this.allowed(group, p.id));
     if (command.action === "status")
@@ -848,6 +858,7 @@ export class NativeCooperation {
       ? this.store.get<NativeTask>("native-tasks", request.nativeTaskId)
       : undefined;
     if (
+      command.action !== "cancel" &&
       request.nativeTaskId &&
       (!parent ||
         parent.direction !== "incoming" ||
@@ -900,7 +911,9 @@ export class NativeCooperation {
               task.id,
               task.workflow,
             );
-            this.send(group, cancel, request.id);
+            // This authenticated, ownership-checked frame contains no task data.
+            // It remains deliverable when the original data grant has expired.
+            this.send(group, cancel);
             this.store.put("native-tasks", task.id, {
               ...task,
               state: "cancel-sent",

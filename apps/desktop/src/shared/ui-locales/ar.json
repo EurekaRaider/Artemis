@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "السماح بالكتابة في المشروع بالكامل",
   "ImDataPermissions.message15": "استعادة النطاق الافتراضي",
   "ImDataPermissions.message16": "مجلد أو ملف",
-  "ImDataPermissions.message19": "أكّد نطاق البيانات والمستلمين قبل بدء العمل عن بُعد.",
+  "ImDataPermissions.message19": "يمكن للمحادثات المفعّلة الاستعلام ضمن النطاق المحدد افتراضياً. أكّد واحفظ قبل الكتابة أو تنفيذ الأوامر. يتطلب تفعيل مجموعة جديدة تأكيد المستلمين.",
   "ImDataPermissions.unavailableAudiences": "جهات المشاركة هذه غير متاحة أو لم تتم مزامنتها بعد. حدّث قائمة المجموعات أو أزل نطاقاتها قبل التأكيد:",
   "ImDataPermissions.removeUnavailableScopes": "إزالة نطاقات المشاركة غير المتاحة",
   "ImDataPermissions.message20": "أؤكد نطاق الملفات وجميع مستلمي هذه المحادثة؛ يُطبّق بعد الحفظ",

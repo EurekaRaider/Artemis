@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "Permitir escritura en todo el proyecto",
   "ImDataPermissions.message15": "Restablecer ámbito predeterminado",
   "ImDataPermissions.message16": "Carpeta o archivo",
-  "ImDataPermissions.message19": "Confirma los ámbitos de datos y destinatarios; el trabajo remoto no comenzará hasta que guardes la confirmación.",
+  "ImDataPermissions.message19": "Las conversaciones habilitadas pueden consultar el ámbito seleccionado de forma predeterminada. Confirma y guarda antes de escribir o ejecutar comandos. Los grupos nuevos requieren confirmar los destinatarios.",
   "ImDataPermissions.unavailableAudiences": "Estos destinatarios no están disponibles o aún no se han sincronizado. Actualiza los grupos o elimina sus ámbitos antes de confirmar:",
   "ImDataPermissions.removeUnavailableScopes": "Eliminar ámbitos no disponibles",
   "ImDataPermissions.message20": "Confirmo los archivos y destinatarios de esta conversación; aplicar al guardar",

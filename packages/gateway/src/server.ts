@@ -1301,11 +1301,16 @@ export class ArtemisGateway {
           invocationId: z.string(),
           threadId: z.string(),
           command: collaborationCommandSchema,
-          security: imDeliverySecuritySchema,
+          security: imDeliverySecuritySchema.optional(),
         })
         .strict()
         .parse(body);
-      this.router.acceptSecurity(deviceId, input.invocationId, input.security);
+      if (input.command.action !== "cancel")
+        this.router.acceptSecurity(
+          deviceId,
+          input.invocationId,
+          input.security,
+        );
       const request = this.store.get<RemoteInvocationContext>(
         "invocations",
         input.invocationId,

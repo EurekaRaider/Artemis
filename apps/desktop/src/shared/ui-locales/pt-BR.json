@@ -613,7 +613,7 @@
   "ImDataPermissions.message14": "Permitir escrita em todo o projeto",
   "ImDataPermissions.message15": "Restaurar escopo padrão",
   "ImDataPermissions.message16": "Diretório ou arquivo",
-  "ImDataPermissions.message19": "Confirme os escopos de dados e destinatários antes de iniciar o trabalho remoto.",
+  "ImDataPermissions.message19": "Conversas ativadas podem consultar o escopo selecionado por padrão. Confirme e salve antes de gravar ou executar comandos. Novos grupos exigem confirmação dos destinatários.",
   "ImDataPermissions.unavailableAudiences": "Estes destinatários estão indisponíveis ou ainda não foram sincronizados. Atualize os grupos ou remova seus escopos antes de confirmar:",
   "ImDataPermissions.removeUnavailableScopes": "Remover escopos indisponíveis",
   "ImDataPermissions.message20": "Confirmo os arquivos e destinatários desta conversa; aplicar ao salvar",
