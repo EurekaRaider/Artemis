@@ -7816,10 +7816,10 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 1 1 auto;
   min-block-size: 0;
 }
-/* 遮罩毛玻璃化：全局 scrim 色调 + 环境菜单同款模糊配方，压住背景细节。 */
+/* 遮罩毛玻璃化：全局 scrim 再叠黑压暗 + 重模糊，弹窗外只剩背景轮廓。 */
 .im-settings-dialog::backdrop {
-  background: var(--artemis-color-overlay-scrim);
-  backdrop-filter: blur(22px) saturate(1.15);
+  background: color-mix(in srgb, var(--artemis-color-overlay-scrim) 60%, #000);
+  backdrop-filter: blur(34px) saturate(1.15);
 }
 .im-settings-dialog-close {
   display: grid;
