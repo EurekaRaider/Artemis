@@ -125,6 +125,8 @@ export function ImSettingsPanel({
   const [channel, setChannel] = useState<ImChannel>("slack");
   /* 两栏布局：右栏渠道列表 ↔ 单渠道详情（下钻）。 */
   const [channelDetail, setChannelDetail] = useState(false);
+  /* 右栏第三卡：群协作详情（与渠道详情互斥）。 */
+  const [groupDetail, setGroupDetail] = useState(false);
   const [showRemote, setShowRemote] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
@@ -213,7 +215,7 @@ export function ImSettingsPanel({
             action: "refresh",
           })) as Status;
         const groupDiagnostics =
-          flowCard === "projects" &&
+          (groupDetail || grantDialog) &&
           current.localGateway &&
           current.settings.deviceId
             ? await window.artemis.manageIm({
@@ -244,7 +246,7 @@ export function ImSettingsPanel({
       window.removeEventListener("focus", refreshStatus);
       document.removeEventListener("visibilitychange", refreshStatus);
     };
-  }, [screen, flowCard, grantDialog]);
+  }, [screen, groupDetail, flowCard, grantDialog]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -286,7 +288,14 @@ export function ImSettingsPanel({
     setFields({});
     setAdminToken("");
     setBotDialog(null);
-    if (next === "group" || next === "spaces") next = "permissions";
+    if (next === "group" || next === "spaces") {
+      /* 群协作=右栏第三卡详情；深链统一落到该入口。 */
+      setFlowCard(null);
+      setChannelDetail(false);
+      setGroupDetail(true);
+      setFocusTarget("im-spaces");
+      return;
+    }
     if (next === "overview") {
       setScreen("overview");
       setFlowCard(null);
@@ -309,6 +318,7 @@ export function ImSettingsPanel({
     if (IM_CHANNELS.includes(next as ImChannel)) {
       setChannel(next as ImChannel);
       setChannelDetail(true);
+      setGroupDetail(false);
       setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
     }
     if (next === "test") {
@@ -316,6 +326,7 @@ export function ImSettingsPanel({
       setVerifyOpen(true);
       /* 验证段挂在渠道详情尾部，深链时一并下钻。 */
       setChannelDetail(true);
+      setGroupDetail(false);
     }
     setFlowCard(step);
     setFocusTarget(next === "test" ? "im-verify" : `im-${next}`);
@@ -518,7 +529,9 @@ export function ImSettingsPanel({
   )!.label;
   const local = !!status?.localGateway;
   useEffect(() => {
-    if (flowCard !== "projects" || !local || !status?.settings.deviceId) return;
+    /* 群诊断在群协作详情或授权弹窗（群选项/属主观察）打开时拉取。 */
+    if ((!groupDetail && !grantDialog) || !local || !status?.settings.deviceId)
+      return;
     let active = true;
     void run(async () => {
       const result = await window.artemis.manageIm({
@@ -530,7 +543,7 @@ export function ImSettingsPanel({
     return () => {
       active = false;
     };
-  }, [flowCard, local, status?.settings.deviceId]);
+  }, [groupDetail, grantDialog, local, status?.settings.deviceId]);
   const resolvePairing = (requestId: string, approve: boolean) =>
     run(async () => {
       await window.artemis.manageIm({
@@ -2251,6 +2264,7 @@ export function ImSettingsPanel({
           onClick={() => {
             flowSelectChannel(platform);
             setChannelDetail(true);
+            setGroupDetail(false);
           }}
         >
           {platform === "feishu" ? (
@@ -2328,8 +2342,6 @@ export function ImSettingsPanel({
             t={t}
           >
             {renderPermissionsBody()}
-            {/* 群协作设置并入授权卡：spaces/group 深链统一落在项目权限入口。 */}
-            {renderSpacesBody()}
             {allDone && (
               <div className="im-ceremony">
                 <p className="im-ceremony-title">
@@ -2353,7 +2365,7 @@ export function ImSettingsPanel({
             )}
           </ImFlowCard>
         </div>
-        {/* 右栏：门（渠道）。列表 ↔ 单渠道详情下钻；wecom 接入暂未开放。 */}
+        {/* 右栏：门（渠道）。列表 ↔ 单渠道详情/群协作详情下钻；wecom 接入暂未开放。 */}
         <div className="im-col-right">
           {channelDetail ? (
             <section className="im-channel-detail" tabIndex={-1}>
@@ -2370,6 +2382,20 @@ export function ImSettingsPanel({
               {renderChannelBody()}
               {renderVerifySection()}
             </section>
+          ) : groupDetail ? (
+            <section className="im-channel-detail" tabIndex={-1}>
+              <div className="im-channel-detail-head">
+                <Button
+                  size="compact"
+                  variant="quiet"
+                  onClick={() => setGroupDetail(false)}
+                >
+                  {t("ImSettingsPanel.channelBack")}
+                </Button>
+                <strong>{t("ImSettingsPanel.message199")}</strong>
+              </div>
+              {renderSpacesBody()}
+            </section>
           ) : (
             <section className="im-channel-list" aria-label={t("ImSettingsPanel.imChannelsTitle")}>
               <h3 className="im-channel-list-title">
@@ -2384,6 +2410,31 @@ export function ImSettingsPanel({
                   ? null
                   : channelRow(platform),
               )}
+              {/* 第三卡：群协作（对所有渠道生效，独立于单渠道接入）。 */}
+              <button
+                type="button"
+                className="im-channel-row"
+                onClick={() => {
+                  setChannelDetail(false);
+                  setGroupDetail(true);
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="im-channel-logo im-channel-logo-glyph"
+                >
+                  <ArtemisIcon name="agents" width={20} height={20} />
+                </span>
+                <span className="im-channel-row-copy">
+                  <strong>{t("ImSettingsPanel.message165")}</strong>
+                  <span className="im-channel-row-summary">
+                    {t("ImSettingsPanel.message166")}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="im-channel-row-caret">
+                  <ArtemisIcon name="chevron" width={14} height={14} />
+                </span>
+              </button>
             </section>
           )}
         </div>
@@ -2399,6 +2450,9 @@ export function ImSettingsPanel({
       data-compact={compact}
     >
       <header className="im-header">
+        <span aria-hidden="true" className="im-header-mark">
+          <ArtemisIcon name="mobile" />
+        </span>
         <div className="im-header-copy">
           <h2>{t("ImSettingsPanel.message191")}</h2>{" "}
           <p>{t("ImSettingsPanel.message192")}</p>

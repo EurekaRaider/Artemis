@@ -156,15 +156,13 @@ const openChannel = async (
 };
 const platformState = (channel: keyof typeof platformLabels) =>
   platformCard(channel).closest("[data-connection-state]") as HTMLElement;
-/* 两栏版：群协作入口在②尾「顺手验证」段，深链统一落授权项目卡。 */
+/* 两栏版：群协作=IM 渠道第三卡，点击下钻群协作详情（带返回）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
-  await openChannel(user, "slack");
-  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
-  await user.click(screen.getByRole("button", { name: "设置群协作（可选）" }));
+  await screen.findByRole("button", { name: /^连接服务/ });
+  await user.click(screen.getByRole("button", { name: /^IM 群聊/ }));
   expect(
-    screen.getByRole("button", { name: /^授权项目.*个项目/ }),
-  ).toHaveAttribute("aria-expanded", "true");
-  expect(screen.queryByText("← 返回单聊设置")).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "返回", exact: true }),
+  ).toBeVisible();
 };
 
 describe("production IM settings", () => {
@@ -1523,17 +1521,14 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 完成态直达概览，群协作入口在概览（D2）。
+    // 完成态直达概览，群协作入口在概览（D2）→ 右栏第三卡详情。
     expect(
       await screen.findByRole("button", { name: "设置群协作" }),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "设置群协作" }));
     expect(
-      screen.queryByRole("button", { name: /返回单聊设置/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /^授权项目.*个项目/ }),
-    ).toHaveAttribute("aria-expanded", "true");
+      screen.getByRole("button", { name: "返回", exact: true }),
+    ).toBeVisible();
     expect(screen.getByText("IM 群聊")).toBeVisible();
   });
   it("advances the honest test track from real task signals only", async () => {
@@ -1793,6 +1788,8 @@ describe("single project authorization editor", () => {
     await openCard(user, /^授权项目/);
     expect(screen.queryByText("Private member name")).not.toBeInTheDocument();
     expect(screen.queryByText(/群协作成员/)).not.toBeInTheDocument();
+    // 群协作入口已移至 IM 渠道第三卡。
+    await user.click(screen.getByRole("button", { name: /^IM 群聊/ }));
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);

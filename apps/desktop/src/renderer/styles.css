@@ -10472,6 +10472,22 @@ kbd {
   border-radius: 5px;
   flex: none;
 }
+.im-channel-logo-glyph {
+  display: inline-flex;
+  color: var(--muted);
+}
+/* 面板头部图标：与「标题+副标题」文字块等高、同色系。 */
+.im-header-mark {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--muted);
+}
+.im-header-mark svg {
+  block-size: 42px;
+  inline-size: 42px;
+}
 .im-channel-row > .im-channel-row-copy {
   display: flex;
   flex-direction: column;
