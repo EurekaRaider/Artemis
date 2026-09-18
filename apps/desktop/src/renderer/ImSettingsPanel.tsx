@@ -61,6 +61,7 @@ import {
 } from "./ImAccountControls";
 
 import { ImPlatformSetup } from "./ImPlatformSetup";
+import feishuChannelIcon from "./assets/feishu-channel.png";
 import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
@@ -2081,12 +2082,23 @@ export function ImSettingsPanel({
             setChannelDetail(true);
           }}
         >
-          <ArtemisIcon
-            aria-hidden="true"
-            name={platform === "feishu" ? "feishu" : platform}
-            width={20}
-            height={20}
-          />
+          {platform === "feishu" ? (
+            <img
+              alt=""
+              aria-hidden="true"
+              className="im-channel-logo"
+              height={20}
+              src={feishuChannelIcon}
+              width={20}
+            />
+          ) : (
+            <ArtemisIcon
+              aria-hidden="true"
+              name={platform}
+              width={20}
+              height={20}
+            />
+          )}
           <span className="im-channel-row-copy">
             <strong>{imChannelLabel(platform, t)}</strong>
             <span className="im-channel-row-summary">

@@ -10403,6 +10403,11 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+/* 飞书渠道标 = ZCode 同款彩色官方 logo（位图资产），圆角对齐图标钮。 */
+.im-channel-logo {
+  border-radius: 5px;
+  flex: none;
+}
 .im-channel-row > .im-channel-row-copy {
   display: flex;
   flex-direction: column;
