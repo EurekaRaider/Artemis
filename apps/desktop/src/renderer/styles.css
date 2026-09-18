@@ -10274,6 +10274,16 @@ kbd {
 /* ===== 两栏布局（2026-09 定稿规划）：左=连接服务+授权项目，右=渠道列表/详情 ===== */
 /* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 状态摘要；点击下钻单渠道详情。
    授权是设备级全局共用，行上不重复计数。 */
+/* 各屏幕共用外壳：flex 定高链的一环，撑出时由内部滚动兜底。
+   （类名为运行时拼接 im-flow im-<screen>，收敛契约按动态类登记。） */
+.im-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+}
 .im-two-col {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -10347,12 +10357,14 @@ kbd {
 .im-service-block {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
 }
 .im-service-head,
 .im-channel-list-head {
   display: flex;
   align-items: center;
+  flex: none;
   gap: 10px;
   /* 两栏头部等高：固定块高+垂直居中，上下留白天然对称（左栏钮 32px→各 14px）。 */
   block-size: 60px;
@@ -10518,11 +10530,17 @@ kbd {
   gap: 10px;
   font-size: 12.5px;
 }
-/* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致。 */
+/* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致；
+   折叠卡展开超高时在区内滚动（从设备编号行起），卡片边框始终封顶。 */
 .im-service-body {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 /* 面板头部图标：与「标题+副标题」文字块等高、同色系。 */
 .im-header-mark {
