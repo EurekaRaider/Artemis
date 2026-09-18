@@ -6683,9 +6683,6 @@ export function App() {
                       }
                       agents={environmentAgents}
                       onMentionMember={groupMentions.insert}
-                      onManageImPermissions={(trigger) =>
-                        openSettings("im", trigger)
-                      }
                       memberRemovalDisabled={turnActive || busy}
                       onRemoveMember={async (deviceId) => {
                         if (!activeThread) return false;

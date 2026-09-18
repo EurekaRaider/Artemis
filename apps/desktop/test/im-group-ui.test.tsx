@@ -673,21 +673,15 @@ it("shows successful verification and removes the retry action", async () => {
   ).not.toBeInTheDocument();
 });
 
-it("keeps task member lists read-only and links to the central permission entry", async () => {
+it("keeps task member lists read-only without a permission settings entry", () => {
   stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
-  const open = vi.fn();
-  render(
-    <ImGroupMembers
-      group={{ ...group, native: true }}
-      locale="zh-CN"
-      onManagePermissions={open}
-    />,
-  );
+  render(<ImGroupMembers group={{ ...group, native: true }} locale="zh-CN" />);
   expect(
     screen.queryByRole("button", { name: /允许.*派任务|禁止.*派任务/ }),
   ).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "项目与协作权限" }));
-  expect(open).toHaveBeenCalledOnce();
+  expect(
+    screen.queryByRole("button", { name: "项目与协作权限" }),
+  ).not.toBeInTheDocument();
 });
 
 it("keeps group status free of permission controls", async () => {
