@@ -2411,7 +2411,8 @@ export function ImSettingsPanel({
                         })
                       }
                     >
-                      {/* 启动/断开双态=Lucide 插头图标+文字（单色描边）：断开=unplug+启动，就绪=plug+断开。 */}
+                      {/* 启动/断开双态=电源符号（单色描边，与全库 1.5 线宽一致）：
+                           运行中=电源+斜杠（断开），已停止=电源符号（启动）。 */}
                       {settings.enabled || status?.settings.enabled ? (
                         <>
                           <svg
@@ -2421,17 +2422,13 @@ export function ImSettingsPanel({
                             height="14"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="1.7"
+                            strokeWidth="1.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           >
-                            <path d="m19 5 3-3" />
-                            <path d="m22 8-3-3" />
-                            <path d="m2 22 4-4" />
-                            <path d="m5 19 3-3" />
-                            <path d="M9 8V2" />
-                            <path d="M15 8V2" />
-                            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+                            <path d="M12 2.5v7.5" />
+                            <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
+                            <path d="m3.5 3.5 17 17" />
                           </svg>
                           <span>{t("ImSettingsPanel.powerStop")}</span>
                         </>
@@ -2444,14 +2441,12 @@ export function ImSettingsPanel({
                             height="14"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="1.7"
+                            strokeWidth="1.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           >
-                            <path d="M12 22v-5" />
-                            <path d="M9 8V2" />
-                            <path d="M15 8V2" />
-                            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+                            <path d="M12 2.5v7.5" />
+                            <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
                           </svg>
                           <span>{t("ImSettingsPanel.powerStart")}</span>
                         </>
