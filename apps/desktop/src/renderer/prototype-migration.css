@@ -212,6 +212,9 @@
   font-size: 11px;
   color: var(--muted-2);
   white-space: nowrap;
+  /* 版本号与「Artemis」文字底边对齐（沉到行底再收起文字降部的高度差）。 */
+  align-self: flex-end;
+  margin-block-end: 5px;
 }
 .update-btn {
   inline-size: 24px;
