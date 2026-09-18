@@ -16240,6 +16240,21 @@ function createMainWindow(): BrowserWindow {
                   const viewport = document.querySelector(
                     '[data-artemis-component="timeline-viewport"]',
                   );
+                  if (
+                    view === 'conversation-timeline-rich' &&
+                    viewport instanceof HTMLElement
+                  ) {
+                    // Completed turns mount when scrolled into view.
+                    viewport.scrollTop = 0;
+                    const disclosureDeadline = performance.now() + 1_000;
+                    while (
+                      !document.querySelector(
+                        '[data-artemis-component="turn-execution-disclosure"]',
+                      ) && performance.now() < disclosureDeadline
+                    ) {
+                      await wait(25);
+                    }
+                  }
                   const disclosure = document.querySelector(
                     '[data-artemis-component="turn-execution-disclosure"]',
                   );
