@@ -80,6 +80,7 @@ import {
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
   type ModelSelection,
+  type ImControlIntent,
   type McpToolCallResult,
   type McpToolResultContent,
   type PromptAttachment,
@@ -3402,7 +3403,7 @@ export class ArtemisAgentHost {
     taskTitle: string,
     message: string,
     selection?: ModelSelection,
-  ): Promise<boolean> {
+  ): Promise<ImControlIntent> {
     return classifyImControlIntent(
       await this.getModelRuntime(),
       selection ?? this.configuration.selection,

@@ -467,7 +467,7 @@ it("continues across local tasks and single-recipient batches after a gateway re
   expect(received.sessionId).toBe(first!.id);
 });
 
-it("isolates peer sessions by grant and initiating identity, and reports lost associations", () => {
+it("shares peer sessions across group senders while isolating grants and reporting lost associations", () => {
   const f = pair();
   const [first] = delegate(f);
   // Same peer and grant while busy must not silently start a fresh session.
@@ -494,7 +494,7 @@ it("isolates peer sessions by grant and initiating identity, and reports lost as
     f.a.router.native.tasks(f.a.group.id).find((t) => t.id === separate!.id)
       ?.envelope.action,
   ).toBe("delegate");
-  // A real group-member event must not reuse the owner's peer session.
+  // A different human sender belongs to the same group task.
   f.a.router.ingest({
     ...f.a.event,
     messageId: randomUUID(),
@@ -507,6 +507,27 @@ it("isolates peer sessions by grant and initiating identity, and reports lost as
     .list<RemoteInvocationContext>("invocations")
     .find((r) => r.originator?.userId === "member")!;
   expect(member).toBeDefined();
+  expect(() =>
+    f.a.router.native.command(member, "coordinator", randomUUID(), {
+      action: "delegate",
+      participantId: "B",
+      text: "Member follow-up while busy",
+    }),
+  ).toThrow(/Wait/);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native
+    .tasks(f.b.group.id)
+    .find((t) => t.id === first!.id)!;
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "shared-worker-session",
+    text: "Done",
+    final: true,
+    outcome: "completed",
+  });
+  exchange(f.b, f.a);
   const [memberTask] = f.a.router.native.command(
     member,
     "coordinator",
@@ -520,8 +541,16 @@ it("isolates peer sessions by grant and initiating identity, and reports lost as
   expect(
     f.a.router.native.tasks(f.a.group.id).find((t) => t.id === memberTask!.id)
       ?.envelope.action,
-  ).toBe("delegate");
-  f.a.store.delete("native-tasks", first!.id);
+  ).toBe("continue");
+  exchange(f.a, f.b);
+  const received = f.b.router.native
+    .tasks(f.b.group.id)
+    .find((t) => t.id === memberTask!.id)!;
+  expect(
+    f.b.store.get<RemoteInvocationContext>("invocations", received.invocationId)
+      ?.taskId,
+  ).toBe("shared-worker-session");
+  f.a.store.delete("native-tasks", memberTask!.id);
   expect(() => delegate(f, "Follow up")).toThrow(
     /saved peer session is missing/,
   );
@@ -552,6 +581,68 @@ it("rejects an unavailable continuation instead of silently dropping it or creat
   expect(rejected.state).toBe("rejected");
   expect(rejected.result).toContain("saved peer session is missing");
   expect(f.b.router.native.tasks(f.b.group.id)).toHaveLength(0);
+});
+
+it("migrates the latest sender-keyed session after restart without crossing its saved grant", () => {
+  const f = pair();
+  const [first] = delegate(f);
+  exchange(f.a, f.b);
+  const incoming = f.b.router.native.tasks(f.b.group.id)[0]!;
+  f.b.router.receiveReply(f.b.device.id, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: incoming.invocationId,
+    taskId: "legacy-worker-session",
+    text: "Done",
+    final: true,
+    outcome: "completed",
+  });
+  exchange(f.b, f.a);
+  const task = f.a.router.native
+    .tasks(f.a.group.id)
+    .find((t) => t.id === first!.id)!;
+  const key = JSON.parse(task.sessionKey!) as unknown[];
+  const legacyKey = JSON.stringify([
+    ...key.slice(0, 3),
+    "another-human",
+    ...key.slice(3),
+  ]);
+  f.a.store.delete("native-sessions-v3", task.sessionKey!);
+  f.a.store.put("native-sessions-v2", legacyKey, task.id);
+  f.a.store.put("native-tasks", task.id, { ...task, sessionKey: legacyKey });
+  // A more recent session from another permission revision must stay separate.
+  const foreignId = randomUUID();
+  const foreignKey = JSON.parse(legacyKey);
+  foreignKey[7] = "obsolete-grant";
+  f.a.store.put("native-tasks", foreignId, {
+    ...task,
+    id: foreignId,
+    sessionKey: JSON.stringify(foreignKey),
+    updatedAt: task.updatedAt + 100,
+  });
+  const restarted = new GatewayRouter(f.a.store);
+  const [next] = restarted.native.command(
+    f.request,
+    "coordinator",
+    randomUUID(),
+    {
+      action: "delegate",
+      participantId: "B",
+      text: "Follow up",
+    },
+  ) as Array<{ id: string }>;
+  expect(
+    restarted.native.tasks(f.a.group.id).find((t) => t.id === next!.id)
+      ?.envelope,
+  ).toMatchObject({ action: "continue", previousTask: first!.id });
+  exchange(f.a, f.b);
+  const received = f.b.router.native
+    .tasks(f.b.group.id)
+    .find((t) => t.id === next!.id)!;
+  expect(
+    f.b.store.get<RemoteInvocationContext>("invocations", received.invocationId)
+      ?.taskId,
+  ).toBe("legacy-worker-session");
 });
 
 it("reports malformed delegation separately from authorization without dispatching", () => {

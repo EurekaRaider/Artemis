@@ -884,7 +884,7 @@ describe("IM desktop and Gateway loop", () => {
     "routes a model-confirmed cancellation before queueing: %s",
     async (text) => {
       const f = await fixture();
-      const classify = vi.fn(async () => true);
+      const classify = vi.fn(async () => "cancel-current" as const);
       f.ops.classifyControlIntent = classify;
       await f.send("/new analyze");
       expect(classify).not.toHaveBeenCalled();
@@ -895,7 +895,7 @@ describe("IM desktop and Gateway loop", () => {
       expect(f.queued).toHaveLength(0);
     },
   );
-  it.each([false, "error"] as const)(
+  it.each(["message", "error"] as const)(
     "preserves messages when classification returns %s",
     async (result) => {
       const f = await fixture();
@@ -911,7 +911,7 @@ describe("IM desktop and Gateway loop", () => {
   );
   it("keeps explicit stop independent of the model and denies unpaired control", async () => {
     const f = await fixture();
-    const classify = vi.fn(async () => true);
+    const classify = vi.fn(async () => "cancel-current" as const);
     f.ops.classifyControlIntent = classify;
     await f.send("/new analyze");
     await f.send("stop what you are doing", undefined, "bob");
@@ -943,7 +943,9 @@ describe("IM desktop and Gateway loop", () => {
       f.ops.cancel = vi.fn(async () => {
         thread.status = "idle";
       });
-      f.ops.classifyControlIntent = vi.fn(async () => true);
+      f.ops.classifyControlIntent = vi.fn(
+        async () => "cancel-current" as const,
+      );
       const id = randomUUID();
       await f.service.accept({
         version: 1,

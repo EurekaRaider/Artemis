@@ -97,6 +97,7 @@ import type {
   BrokerExecutionRequest,
   CustomAgentDefinition,
   ModelSelection,
+  ImControlIntent,
   PromptAttachment,
   PromptImage,
   Project,
@@ -21382,10 +21383,10 @@ app
         classifyControlIntent: async (id, text) => {
           const thread = store?.getThread(id);
           const process = agentProcess;
-          if (!thread || thread.archived || !process) return false;
+          if (!thread || thread.archived || !process) return "message";
           const turnId = activeTurns.get(id);
           const selection = thread.modelSelection ?? activeRuntimeSelection;
-          const cancel = await process.request<boolean>(
+          const intent = await process.request<ImControlIntent>(
             {
               type: "im.classify-control-intent",
               requestId: randomUUID(),
@@ -21397,14 +21398,14 @@ app
           );
           const latest = store?.getThread(id);
           // A slow classification must not stop a replacement turn or session.
-          return (
-            cancel === true &&
-            agentProcess === process &&
+          return agentProcess === process &&
             !!latest &&
             !latest.archived &&
             activeTurns.get(id) === turnId &&
-            (turnId !== undefined || latest.updatedAt === thread.updatedAt)
-          );
+            (turnId !== undefined || latest.updatedAt === thread.updatedAt) &&
+            (intent === "cancel-current" || intent === "new-task")
+            ? intent
+            : "message";
         },
         cancel: async (id) => {
           await cancelLocalTaskTurn(id);

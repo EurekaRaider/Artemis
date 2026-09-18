@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   formatSlackMarkdown,
   splitSlackMarkdown,
+  slackMarkdownSections,
 } from "../src/slack-format.js";
 
 it("renders headings, emphasis, lists and quotes using Slack syntax", () => {
@@ -14,6 +15,27 @@ it("renders headings, emphasis, lists and quotes using Slack syntax", () => {
   expect(result).toContain("> 备注");
   expect(result).not.toContain("##");
   expect(result).not.toContain("**");
+});
+it("keeps long escaped code and expanded tables inside Slack section limits", () => {
+  const code = "<>&".repeat(1500);
+  const sections = slackMarkdownSections("```\n" + code + "\n```\n\n**End**");
+  for (const section of sections) {
+    expect(section.length).toBeLessThanOrEqual(3000);
+    expect((section.match(/```/gu) ?? []).length % 2).toBe(0);
+  }
+  expect(sections.join("\n")).toContain("*End*");
+  for (const entity of ["&lt;", "&gt;", "&amp;"])
+    expect(sections.join("\n").split(entity).length - 1).toBe(1500);
+  const table =
+    "| " +
+    "Long header ".repeat(15) +
+    " | Value |\n|---|---|\n" +
+    Array.from({ length: 80 }, (_, i) => `| Row ${i} | Result ${i} |`).join(
+      "\n",
+    );
+  const rows = slackMarkdownSections(table);
+  for (const row of rows) expect(row.length).toBeLessThanOrEqual(3000);
+  for (let i = 0; i < 80; i++) expect(rows.join("\n")).toContain(`Result ${i}`);
 });
 it("turns a GFM table into labelled rows without losing any cell", () => {
   const result = formatSlackMarkdown(

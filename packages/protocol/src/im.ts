@@ -7,6 +7,7 @@ import {
 } from "./im-security.js";
 
 export const IM_PROTOCOL_VERSION = 1 as const;
+export type ImControlIntent = "message" | "cancel-current" | "new-task";
 const id = z.string().min(1).max(256);
 const text = z.string().max(64 * 1024);
 export const imChannelSchema = z.enum(["wecom", "feishu", "slack"]);

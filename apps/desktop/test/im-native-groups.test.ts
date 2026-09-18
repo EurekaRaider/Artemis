@@ -699,6 +699,51 @@ async function delegatedFixture() {
   return { ...f, groupId, request, threadId, thread, task };
 }
 
+it.each(["slack", "feishu", "wecom"] as const)(
+  "keeps %s human follow-ups in one group task until an explicit new-task request",
+  async (channel) => {
+    const f = await fixture(channel);
+    await f.authorize();
+    const send = async (userId: string, text: string) => {
+      f.gateway.router.ingest({
+        ...f.event,
+        messageId: randomUUID(),
+        identity: { ...f.event.identity, userId },
+        text,
+        timestamp: Date.now(),
+      });
+      f.gateway.router.processIncoming();
+      await f.service.poll();
+    };
+    await send("owner", "Analyze the project");
+    const first = f.starts[0]!;
+    await send("second-owner", "Please include the test results");
+    await send("third-owner", "Also explain the findings");
+    expect(f.starts).toEqual([first, first, first]);
+    const firstThread = f.threads.find((t) => t.id === first)!;
+    firstThread.status = "running";
+    f.ops.queue = vi.fn(async () => {});
+    await send("second-owner", "One more detail while it is running");
+    expect(f.ops.queue).toHaveBeenCalledWith(
+      first,
+      expect.stringContaining("One more detail"),
+      [],
+    );
+    expect(f.starts).toHaveLength(3);
+    firstThread.status = "idle";
+    f.ops.classifyControlIntent = vi.fn().mockResolvedValue("new-task");
+    await send("second-owner", "这是另一个任务，请单独新建对话分析文档");
+    const second = f.starts.at(-1)!;
+    expect(second).not.toBe(first);
+    f.ops.classifyControlIntent = vi.fn().mockResolvedValue("message");
+    await send("owner", "继续补充文档结论");
+    expect(f.starts.at(-1)).toBe(second);
+    await send("third-owner", "/new Explicit separate task");
+    expect(f.starts.at(-1)).not.toBe(second);
+    expect(f.starts.at(-1)).not.toBe(first);
+  },
+);
+
 it("parks delegated work, preserves intervening conversation, and resumes once after the turn is idle", async () => {
   const f = await delegatedFixture();
   const { threadId, thread, task } = f;
@@ -1600,7 +1645,7 @@ it.each(["/stop", "取消任务"])(
       groupId,
     );
     await f.service.save({ ...f.service.status().settings, grants: [] });
-    f.ops.classifyControlIntent = vi.fn(async () => true);
+    f.ops.classifyControlIntent = vi.fn(async () => "cancel-current" as const);
     const id = randomUUID();
     await f.service.accept({
       ...request,
@@ -1721,7 +1766,7 @@ it.each(["/stop", "取消任务"])(
     f.ops.cancel = vi.fn(async () => {
       thread.status = "idle";
     });
-    f.ops.classifyControlIntent = vi.fn(async () => true);
+    f.ops.classifyControlIntent = vi.fn(async () => "cancel-current" as const);
     await send(text);
     expect(f.ops.cancel).toHaveBeenCalledOnce();
     expect(f.starts).toHaveLength(1);

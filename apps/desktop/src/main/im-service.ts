@@ -63,6 +63,7 @@ import {
   type ImIdentity,
   type ImManagement,
   type ImReply,
+  type ImControlIntent,
   type ImSettings,
   type ImStatus,
   type Project,
@@ -87,7 +88,7 @@ import {
 } from "./im-sandbox.js";
 
 export interface ImTaskOperations {
-  classifyControlIntent?(id: string, text: string): Promise<boolean>;
+  classifyControlIntent?(id: string, text: string): Promise<ImControlIntent>;
   resumeDelegation?(
     id: string,
     text: string,
@@ -3509,7 +3510,7 @@ export class ImService {
         ? null
         : /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(request.text.trim());
     let command = match?.[1]?.toLowerCase();
-    const argument = match?.[2]?.trim() ?? "";
+    let argument = match?.[2]?.trim() ?? "";
     const complete = (text: string, id?: string, started = false) => {
       receipt.state = "done";
       this.put("receipts", request.id, receipt);
@@ -3821,8 +3822,15 @@ export class ImService {
         receipt.state = "dispatching";
         this.put("receipts", request.id, receipt);
         try {
-          if (await this.ops.classifyControlIntent(classifierId, request.text))
-            command = "stop";
+          const intent = await this.ops.classifyControlIntent(
+            classifierId,
+            request.text,
+          );
+          if (intent === "cancel-current") command = "stop";
+          else if (intent === "new-task" && !request.taskId) {
+            command = "new";
+            argument = request.text;
+          }
         } catch {
           // Offline, timeout or invalid model output preserves ordinary delivery.
           // Explicit /stop remains available without a model.

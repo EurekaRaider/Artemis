@@ -1,5 +1,5 @@
 import { decodeNativeEnvelope } from "./native-protocol.js";
-import { formatSlackMarkdown } from "./slack-format.js";
+import { formatSlackMarkdown, slackMarkdownSections } from "./slack-format.js";
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import {
@@ -493,20 +493,10 @@ export class SlackAdapter implements ChannelAdapter {
             type: "section",
             text: { type: "mrkdwn", text: `${mention}${labels[frame.action]}` },
           },
-          ...(frame.text.trim()
-            ? [
-                {
-                  type: "section",
-                  text: {
-                    type: "plain_text",
-                    text:
-                      Array.from(frame.text).slice(0, 2400).join("") +
-                      (Array.from(frame.text).length > 2400 ? "…" : ""),
-                    emoji: false,
-                  },
-                },
-              ]
-            : []),
+          ...slackMarkdownSections(frame.text).map((text) => ({
+            type: "section",
+            text: { type: "mrkdwn", text, verbatim: true },
+          })),
         ],
         mrkdwn: true,
         parse: "none",

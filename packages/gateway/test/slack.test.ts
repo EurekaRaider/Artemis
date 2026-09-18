@@ -662,7 +662,10 @@ it.each(["completed", "failed", "cancelled", "progress"] as const)(
       issuedAt: Date.now(),
       expiresAt: Date.now() + 60000,
       sequence: 2,
-      text: "RAM: 24 GB。下一步请确认目标分支。 <@everyone>",
+      text:
+        "## 任务结果\n\n**已完成**\n\n- `spawn_agent` 成功\n- 下一步请确认目标分支。 <@everyone>\n\n" +
+        "详细结果内容。\n\n".repeat(350) +
+        "末尾结论",
     };
     const wire = encodeNativeEnvelope(envelope);
     const fetcher = api().mockResolvedValue(
@@ -680,10 +683,22 @@ it.each(["completed", "failed", "cancelled", "progress"] as const)(
     expect(body.blocks[0].text.text).toBe(
       `<@Upeer> · ${{ completed: "任务已完成", failed: "任务未完成", cancelled: "任务已取消", progress: "任务进展" }[action]}`,
     );
-    expect(body.blocks[1].text).toMatchObject({
-      type: "plain_text",
-      text: envelope.text,
-    });
+    const sections = body.blocks.slice(1);
+    expect(sections.length).toBeGreaterThan(1);
+    for (const block of sections) {
+      expect(block.text.type).toBe("mrkdwn");
+      expect(block.text.verbatim).toBe(true);
+      expect(block.text.text.length).toBeLessThanOrEqual(3000);
+    }
+    const visible = sections
+      .map((block: { text: { text: string } }) => block.text.text)
+      .join("\n");
+    expect(visible).toContain("*任务结果*");
+    expect(visible).toContain("*已完成*");
+    expect(visible).toContain("• `spawn_agent` 成功\n• 下一步");
+    expect(visible).toContain("&lt;@everyone&gt;");
+    expect(visible).not.toContain("**");
+    expect(visible).toContain("末尾结论");
     expect(JSON.stringify(body.blocks)).not.toContain("ARTEMIS-IM/1:");
     const normalized = normalizeSlack(
       { ...config, botUserId: "Upeer" },

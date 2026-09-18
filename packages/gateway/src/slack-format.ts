@@ -96,6 +96,27 @@ export function formatSlackMarkdown(
   return render(Lexer.lex(markdown, { gfm: true })).trimEnd();
 }
 
+/** Slack sections allow 3000 characters after escaping and table expansion. */
+export function slackMarkdownSections(markdown: string): string[] {
+  const sections: string[] = [];
+  const append = (source: string, budget: number) => {
+    for (const part of splitSlackMarkdown(source, budget)) {
+      const rendered = formatSlackMarkdown(part);
+      if (!rendered.trim()) continue;
+      if (rendered.length > 3000) {
+        append(part, Math.max(16, Math.floor(budget / 2)));
+        continue;
+      }
+      const last = sections.length - 1;
+      if (last >= 0 && sections[last]!.length + rendered.length + 2 <= 3000)
+        sections[last] += `\n\n${rendered}`;
+      else sections.push(rendered);
+    }
+  };
+  append(markdown, 2400);
+  return sections;
+}
+
 /** Keep table rows and code fences intact before the delivery queue assigns chunk IDs. */
 export function splitSlackMarkdown(
   markdown: string,

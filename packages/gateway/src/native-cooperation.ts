@@ -134,7 +134,6 @@ export class NativeCooperation {
       request.deviceId,
       group.id,
       group.revision,
-      imIdentityKey(request.originator ?? request.identity),
       peer,
       security?.projectId ?? group.nativeGroup?.projectId,
       security?.audience ?? `space:${group.id}`,
@@ -1014,8 +1013,8 @@ export class NativeCooperation {
             envelope.dependency = assignment.dependency;
             envelope.ancestors = ancestors;
           }
-          // A receipt identifies one assignment; the session spans local tasks
-          // but never crosses the initiating identity, peer, project or grant.
+          // All authorized human senders share the group's current peer session.
+          // Keep the device, group revision, peer, project and grant boundaries.
           const sessionKey = this.sessionKey(
             request,
             group,
@@ -1035,7 +1034,7 @@ export class NativeCooperation {
               : "first-assignment";
           if (!command.newTask && !independent) {
             const selected = this.store.get<string>(
-              "native-sessions-v2",
+              "native-sessions-v3",
               sessionKey,
             );
             const previous = selected
@@ -1048,7 +1047,20 @@ export class NativeCooperation {
                     )
                       return false;
                     if (t.sessionReason === "independent-batch") return false;
-                    if (t.sessionKey) return t.sessionKey === sessionKey;
+                    if (t.sessionKey) {
+                      if (t.sessionKey === sessionKey) return true;
+                      // v2 also keyed by the human originator. Migrate the
+                      // latest matching group session without importing an old
+                      // group revision, project or permission snapshot.
+                      const legacy = JSON.parse(t.sessionKey) as unknown[];
+                      return (
+                        legacy.length === 8 &&
+                        JSON.stringify([
+                          ...legacy.slice(0, 3),
+                          ...legacy.slice(4),
+                        ]) === sessionKey
+                      );
+                    }
                     // Only migrate legacy entries from this coordinator; old
                     // records did not explicitly identify a shared session.
                     const prior = this.store.get<RemoteInvocationContext>(
@@ -1106,7 +1118,7 @@ export class NativeCooperation {
           };
           this.store.put("native-tasks", task.id, task);
           if (!independent)
-            this.store.put("native-sessions-v2", sessionKey, task.id);
+            this.store.put("native-sessions-v3", sessionKey, task.id);
           tasks.push(task);
           if (!dependencies.length) this.send(group, envelope, request.id);
         }
