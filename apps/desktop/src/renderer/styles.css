@@ -10301,6 +10301,9 @@ kbd {
   .im-two-col {
     grid-template-columns: 1fr;
   }
+  .im-service-meta {
+    block-size: auto;
+  }
 }
 .im-channel-list {
   border: 0;
@@ -10424,25 +10427,44 @@ kbd {
   outline-offset: 2px;
 }
 .im-service-device-line {
-  margin-block: 0 8px;
+  margin-block: 0;
 }
-/* Gateway 温馨提示块：标题+编号行。 */
-.im-gateway-tip {
+/* 顶部信息区：块高=右栏头部下沿到 Slack 卡底（60+153.6=213.6），
+   两张折叠卡随之与右栏第 3、4 张卡逐行对齐。 */
+.im-service-meta {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  block-size: 153.6px;
+  padding-block-start: 22px;
+}
+/* 温馨提示卡：填满信息区剩余高度，底边与 Slack 卡底对齐。 */
+.im-tip-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 2px;
-  margin-block: 8px 0;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
 }
-.im-gateway-tip-head {
-  color: var(--muted);
-  font-weight: 590;
-  margin: 0;
-}
-.im-gateway-tip p {
+.im-tip-card p {
   margin: 0;
   color: var(--muted);
   font-size: 12.5px;
   line-height: 19px;
+}
+.im-tip-card-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 590;
+}
+.im-tip-card-head svg {
+  color: var(--warning);
 }
 /* 高级/手动注册两张折叠卡：头部行=标题+右侧箭头，展开内容下拉包进卡内。 */
 .im-gateway-fold {
@@ -10494,12 +10516,11 @@ kbd {
   gap: 10px;
   font-size: 12.5px;
 }
-/* 两张折叠卡分属两个 section，拉开与右栏卡列一致的 10px 间距。 */
-.im-service-body > section + section {
-  margin-block-start: 10px;
-}
+/* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致。 */
 .im-service-body {
-  padding-block-start: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 /* 面板头部图标：与「标题+副标题」文字块等高、同色系。 */
 .im-header-mark {

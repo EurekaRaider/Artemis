@@ -730,36 +730,59 @@ export function ImSettingsPanel({
   const activeSettings = settings;
   function renderGatewayBody() {
     const settings = activeSettings;
+    const gatewayReady = status?.localGateway?.state === "running";
     return (
       <>
-        {/* 内容区首行：设备编号（注册后出现）。 */}
-        {settings.deviceId && (
-          <p className="im-identifier im-service-device-line">
-            {t("ImSettingsPanel.message44")}
-            {settings.deviceId}
-          </p>
-        )}
+        {/* 顶部信息区：定高，与右栏「飞书+Slack」卡带等高对齐。 */}
+        <div className="im-service-meta">
+          {settings.deviceId && (
+            <p className="im-identifier im-service-device-line">
+              {t("ImSettingsPanel.message44")}
+              {settings.deviceId}
+            </p>
+          )}
+          {/* 就绪后不再展示禁用态按钮，只留提示。 */}
+          {!gatewayReady && (
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const current = (await window.artemis.manageIm({
+                    action: "setup-local",
+                  })) as Status;
+                  setStatus(current);
+                  setSettings(current.settings);
+                  setUrl(current.settings.gatewayUrl);
+                  setName(current.settings.deviceName);
+                  setShowRemote(false);
+                  setAdminToken("");
+                  setMessage(t("ImSettingsPanel.message42"));
+                  selectView(channel);
+                  setFocusTarget("im-bot");
+                })
+              }
+            >
+              {t("ImSetupGuide.message1")}
+            </Button>
+          )}
+          <aside className="im-tip-card">
+            <p className="im-tip-card-head">
+              <ArtemisIcon
+                aria-hidden="true"
+                name="lightbulb"
+                width={14}
+                height={14}
+              />
+              {t("ImSetupGuide.message25")}
+            </p>
+            <p>{t("ImSetupGuide.message3")}</p>
+            <p>{t("ImSetupGuide.message26")}</p>
+          </aside>
+        </div>
         <section id="im-prepare" tabIndex={-1}>
           <ImGatewayInstructions
             t={t}
             busy={busy}
-            ready={status?.localGateway?.state === "running"}
-            setup={() =>
-              void run(async () => {
-                const current = (await window.artemis.manageIm({
-                  action: "setup-local",
-                })) as Status;
-                setStatus(current);
-                setSettings(current.settings);
-                setUrl(current.settings.gatewayUrl);
-                setName(current.settings.deviceName);
-                setShowRemote(false);
-                setAdminToken("");
-                setMessage(t("ImSettingsPanel.message42"));
-                selectView(channel);
-                setFocusTarget("im-bot");
-              })
-            }
             useRemote={() => {
               setShowRemote(true);
               window.setTimeout(
