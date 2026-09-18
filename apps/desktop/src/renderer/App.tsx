@@ -9204,14 +9204,15 @@ export function App() {
           open
           returnFocusRef={imSettingsTrigger}
         >
-          <Button
+          <button
+            type="button"
             className="im-settings-dialog-close"
-            size="compact"
-            variant="quiet"
+            aria-label={uiText(locale, "App_copy.renameClose")}
+            title={uiText(locale, "App_copy.renameClose")}
             onClick={() => setImSettingsOpen(false)}
           >
-            {uiText(locale, "App_copy.renameClose")}
-          </Button>
+            <ArtemisIcon height={15} name="close" width={15} />
+          </button>
           <ImSettingsPanel
             locale={locale}
             onOpenThread={async (threadId) => {

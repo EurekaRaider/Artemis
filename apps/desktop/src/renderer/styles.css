@@ -7780,7 +7780,8 @@ button.sources-panel-entry.attachment:focus-visible {
 
 /* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token。 */
 .im-settings-dialog {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--artemis-color-surface-raised);
   width: min(960px, 94vw);
   height: min(680px, 88dvh);
@@ -7791,16 +7792,35 @@ button.sources-panel-entry.attachment:focus-visible {
   --border-soft: var(--artemis-color-border-subtle);
   --blue: var(--artemis-color-accent-primary);
 }
+.im-settings-dialog > [data-part="content"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
 .im-settings-dialog-close {
-  position: absolute;
-  inset-block-start: 10px;
-  inset-inline-end: 14px;
-  z-index: 5;
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: 10px 14px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-settings-dialog-close:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--text);
 }
 .im-settings-dialog .im-settings {
-  height: 100%;
+  flex: 1 1 auto;
+  min-block-size: 0;
   overflow: auto;
-  padding: 14px 22px 18px;
+  padding: 4px 22px 18px;
 }
 
 .settings-profile-avatar {
