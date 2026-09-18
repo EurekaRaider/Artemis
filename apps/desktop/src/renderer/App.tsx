@@ -56,7 +56,7 @@ import {
   TurnChangeSummary,
   TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
-import { Dialog, LoadingState, Popover, Toast } from "@artemis/ui/feedback";
+import { Dialog, LoadingState, Popover, Toast, Tooltip } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import artemisIcon from "../../build/icon.png";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
@@ -5835,15 +5835,16 @@ export function App() {
                   )}
                 </svg>
               </button>
-              <button
-                aria-label={t.openProject}
-                className="project-new-thread"
-                onClick={() => void openProject()}
-                title={t.openProject}
-                type="button"
-              >
-                <PlusIcon />
-              </button>
+              <Tooltip align="end" label={t.openProject}>
+                <button
+                  aria-label={t.openProject}
+                  className="project-new-thread"
+                  onClick={() => void openProject()}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              </Tooltip>
             </div>
             <div
               className="project-collection-rows"
@@ -5988,31 +5989,34 @@ export function App() {
                       >
                         <span className="project-title">{project.name}</span>
                       </button>
-                      <button
-                        aria-label={`${t.newTask}: ${project.name}`}
-                        className="project-new-thread"
-                        onClick={() => beginNewConversation(project.id)}
-                        title={t.newTask}
-                      >
-                        <ArtemisIcon
-                          name="edit-square"
-                          width={16}
-                          height={16}
-                        />
-                      </button>
-                      <button
-                        aria-label={t.moreProjectActions}
-                        className="project-action"
-                        onClick={() => {
-                          setThreadMenuId(undefined);
-                          setProjectMenuId((current) =>
-                            current === project.id ? undefined : project.id,
-                          );
-                        }}
-                        title={t.moreProjectActions}
-                      >
-                        <ArtemisIcon name="more" width={16} height={16} />
-                      </button>
+                      <Tooltip align="end" label={t.newTask}>
+                        <button
+                          aria-label={`${t.newTask}: ${project.name}`}
+                          className="project-new-thread"
+                          onClick={() => beginNewConversation(project.id)}
+                          type="button"
+                        >
+                          <ArtemisIcon
+                            name="edit-square"
+                            width={16}
+                            height={16}
+                          />
+                        </button>
+                      </Tooltip>
+                      <Tooltip align="end" label={t.moreProjectActions}>
+                        <button
+                          aria-label={t.moreProjectActions}
+                          className="project-action"
+                          onClick={() => {
+                            setThreadMenuId(undefined);
+                            setProjectMenuId((current) =>
+                              current === project.id ? undefined : project.id,
+                            );
+                          }}
+                        >
+                          <ArtemisIcon name="more" width={16} height={16} />
+                        </button>
+                      </Tooltip>
                       {projectMenuId === project.id && (
                         <div className="project-menu">
                           <button
@@ -6228,29 +6232,30 @@ export function App() {
                                   )}
                                 </time>
                               </button>
-                              <button
-                                aria-label={t.moreActions}
-                                aria-haspopup="menu"
-                                aria-expanded={threadMenuId === thread.id}
-                                className="thread-action"
-                                onClick={(event) => {
-                                  threadMenuAnchor.current =
-                                    event.currentTarget;
-                                  setProjectMenuId(undefined);
-                                  setThreadMenuId((current) =>
-                                    current === thread.id
-                                      ? undefined
-                                      : thread.id,
-                                  );
-                                }}
-                                title={t.moreActions}
-                              >
-                                <ArtemisIcon
-                                  name="more"
-                                  width={16}
-                                  height={16}
-                                />
-                              </button>
+                              <Tooltip align="end" label={t.moreActions}>
+                                <button
+                                  aria-label={t.moreActions}
+                                  aria-haspopup="menu"
+                                  aria-expanded={threadMenuId === thread.id}
+                                  className="thread-action"
+                                  onClick={(event) => {
+                                    threadMenuAnchor.current =
+                                      event.currentTarget;
+                                    setProjectMenuId(undefined);
+                                    setThreadMenuId((current) =>
+                                      current === thread.id
+                                        ? undefined
+                                        : thread.id,
+                                    );
+                                  }}
+                                >
+                                  <ArtemisIcon
+                                    name="more"
+                                    width={16}
+                                    height={16}
+                                  />
+                                </button>
+                              </Tooltip>
                               {threadMenuId === thread.id && (
                                 <Popover
                                   anchorRef={threadMenuAnchor}
@@ -6401,15 +6406,16 @@ export function App() {
                 </span>
                 <ChevronIcon />
               </button>
-              <button
-                aria-label={`${t.newTask}: ${t.temporaryConversations}`}
-                className="project-new-thread"
-                onClick={beginTemporaryConversation}
-                title={t.newTask}
-                type="button"
-              >
-                <PlusIcon />
-              </button>
+              <Tooltip align="end" label={t.newTask}>
+                <button
+                  aria-label={`${t.newTask}: ${t.temporaryConversations}`}
+                  className="project-new-thread"
+                  onClick={beginTemporaryConversation}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              </Tooltip>
             </div>
             <div
               className="project-thread-list"
@@ -6478,23 +6484,24 @@ export function App() {
                         {formatSidebarTime(thread.updatedAt, clockMs, locale)}
                       </time>
                     </button>
-                    <button
-                      aria-label={t.moreActions}
-                      aria-haspopup="menu"
-                      aria-expanded={threadMenuId === thread.id}
-                      className="thread-action"
-                      onClick={(event) => {
-                        threadMenuAnchor.current = event.currentTarget;
-                        setProjectMenuId(undefined);
-                        setThreadMenuId((current) =>
-                          current === thread.id ? undefined : thread.id,
-                        );
-                      }}
-                      title={t.moreActions}
-                      type="button"
-                    >
-                      <ArtemisIcon name="more" width={16} height={16} />
-                    </button>
+                    <Tooltip align="end" label={t.moreActions}>
+                      <button
+                        aria-label={t.moreActions}
+                        aria-haspopup="menu"
+                        aria-expanded={threadMenuId === thread.id}
+                        className="thread-action"
+                        onClick={(event) => {
+                          threadMenuAnchor.current = event.currentTarget;
+                          setProjectMenuId(undefined);
+                          setThreadMenuId((current) =>
+                            current === thread.id ? undefined : thread.id,
+                          );
+                        }}
+                        type="button"
+                      >
+                        <ArtemisIcon name="more" width={16} height={16} />
+                      </button>
+                    </Tooltip>
                     {threadMenuId === thread.id && (
                       <Popover
                         anchorRef={threadMenuAnchor}

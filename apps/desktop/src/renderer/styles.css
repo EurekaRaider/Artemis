@@ -12865,13 +12865,13 @@ kbd {
 }
 .nested-project
   > .project-row:not(.active)
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 0;
   pointer-events: none;
 }
 .nested-project
   > .project-row:focus-within
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 1;
   pointer-events: auto;
 }

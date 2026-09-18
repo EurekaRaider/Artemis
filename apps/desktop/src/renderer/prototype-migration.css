@@ -177,7 +177,9 @@
 .thread-select:has(.im-thread-indicators) .thread-time {
   grid-column: 4;
 }
-.project-thread-row > .thread-action {
+/* The action button lives inside a Tooltip anchor span; keep anchoring the span. */
+.project-thread-row > .thread-action,
+.project-thread-row > [data-artemis-component="tooltip-anchor"] {
   position: absolute;
   inset-inline-end: 7px;
   inset-block-start: 50%;
@@ -1014,13 +1016,13 @@ body:has(.app-shell[data-platform="darwin"]),
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
   z-index: 60;
 }
-.nested-project > .project-row > :is(.project-new-thread, .project-action) {
+.nested-project > .project-row :is(.project-new-thread, .project-action) {
   opacity: 0;
   pointer-events: none;
 }
 .nested-project
   > .project-row:is(:hover, :has(:focus-visible))
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 1;
   pointer-events: auto;
 }
