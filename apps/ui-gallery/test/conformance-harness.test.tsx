@@ -1816,7 +1816,9 @@ const caseRunners = {
     expect(wheel).toHaveBeenCalledOnce();
     expect(copy).toHaveBeenCalledOnce();
     expect(queueAction).toHaveBeenCalledOnce();
-    expect(screen.getByText("Details")).toBeTruthy();
+    expect(screen.queryByText("Details")).toBeNull();
+    await user.click(screen.getByText("Worked"));
+    expect(await screen.findByText("Details")).toBeTruthy();
   },
 
   "conversation-rtl-long-content"() {
