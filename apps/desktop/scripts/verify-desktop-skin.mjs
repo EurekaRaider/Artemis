@@ -1921,7 +1921,7 @@ async function driveElectron() {
             (configuration.reducedMotion ||
             snapshot.environment.sidebarOpen === "true"
               ? "0s"
-              : "0.56s"),
+              : "0.32s"),
         `Runtime environment failed: ${JSON.stringify({ configuration, environment: snapshot.environment })}`,
       );
       const expectedSurfaceCounts = {
