@@ -927,7 +927,7 @@
   "ImSettingsPanel.message189": "プロジェクトを許可",
   "ImSettingsPanel.message190": "{{value1}} プロジェクト",
   "ImSettingsPanel.message191": "メッセージ連携",
-  "ImSettingsPanel.message192": "IM の個別チャットやグループでの共同作業を通じて、このコンピューターにタスクを依頼します。",
+  "ImSettingsPanel.message192": "IM の個別チャットやグループでの共同作業を通じて、Artemis にタスクを依頼します。",
   "ImSettingsPanel.message193": "有効化",
   "ImSettingsPanel.message194": "IM 接続を有効化",
   "ImSettingsPanel.message195": "一時停止しても設定と許可は保持されます。",

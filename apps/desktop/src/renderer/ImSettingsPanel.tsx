@@ -802,11 +802,6 @@ export function ImSettingsPanel({
           />
         </section>
         <section id="im-device" tabIndex={-1}>
-          {local && (
-            <InlineNotice tone="info">
-              {t("ImSettingsPanel.message45")}
-            </InlineNotice>
-          )}
           <details
             open={showRemote}
             onToggle={(event) => setShowRemote(event.currentTarget.open)}

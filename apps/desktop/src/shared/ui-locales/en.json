@@ -927,7 +927,7 @@
   "ImSettingsPanel.message189": "Authorize projects",
   "ImSettingsPanel.message190": "{{value1}} projects",
   "ImSettingsPanel.message191": "Message integrations",
-  "ImSettingsPanel.message192": "Send tasks to this computer through private bot chats or group collaboration.",
+  "ImSettingsPanel.message192": "Send tasks to Artemis through private bot chats or group collaboration.",
   "ImSettingsPanel.message193": "Enable",
   "ImSettingsPanel.message194": "Enable IM connection",
   "ImSettingsPanel.message195": "Pausing keeps configuration and grants.",

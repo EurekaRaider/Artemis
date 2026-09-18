@@ -927,7 +927,7 @@
   "ImSettingsPanel.message189": "授权项目",
   "ImSettingsPanel.message190": "{{value1}} 个项目",
   "ImSettingsPanel.message191": "消息接入",
-  "ImSettingsPanel.message192": "通过 IM 单聊或群协作，把任务交给这台电脑执行。",
+  "ImSettingsPanel.message192": "通过 IM 单聊或群协作，把任务交给Artemis执行。",
   "ImSettingsPanel.message193": "启用",
   "ImSettingsPanel.message194": "启用 IM 连接",
   "ImSettingsPanel.message195": "暂停会保留已有配置与授权。",
