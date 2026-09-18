@@ -2338,8 +2338,8 @@ export function ImSettingsPanel({
               <ArtemisIcon
                 aria-hidden="true"
                 name="connector"
-                width={20}
-                height={20}
+                width={24}
+                height={24}
               />
               <strong>{t("ImSettingsPanel.message180")}</strong>
               <div
@@ -2510,8 +2510,8 @@ export function ImSettingsPanel({
                 <ArtemisIcon
                   aria-hidden="true"
                   name="message"
-                  width={20}
-                  height={20}
+                  width={24}
+                  height={24}
                 />
                 <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
               </div>

@@ -10478,15 +10478,15 @@ kbd {
 .im-channel-list-head {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding-block: 12px;
+  gap: 10px;
+  padding-block: 18px;
   border-block-end: 1px solid var(--border-soft);
   margin-block-end: 2px;
 }
 .im-service-head strong,
 .im-channel-list-head strong {
-  font-size: 14px;
-  font-weight: 620;
+  font-size: 16px;
+  font-weight: 640;
 }
 .im-channel-list-head svg {
   color: var(--muted);
