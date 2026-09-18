@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { lstat, realpath, readdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import type { ImShellRuntime } from "./im-shell-runtime.js";
 import type { RunMode } from "@artemis/protocol";
 import {
   normalizeImPath,
   isImProtectedPath,
-  imPathWithinScope,
+  imScopeCanWrite,
   type ImDataScope,
 } from "@artemis/protocol";
 import {
@@ -171,10 +172,7 @@ export async function validateImShellScope(
       !complete ||
       inode.paths.some(
         (path) =>
-          !imPathWithinScope(
-            relative(root, path).split(sep).join("/"),
-            scope.writePaths,
-          ),
+          !imScopeCanWrite(scope, relative(root, path).split(sep).join("/")),
       )
     )
       policy.denyWrite.push(...inode.paths);
@@ -189,6 +187,7 @@ export function buildScopedImShellLaunch(
   scope: ImDataScope,
   platform: NodeJS.Platform = process.platform,
   links: ImShellLinkPolicy = { denyRead: [], denyWrite: [] },
+  runtime?: ImShellRuntime,
 ): SandboxLaunch {
   // Windows' current SandboxSpec only has allow trees; classic AppContainer also
   // inherits directory ACLs. Neither can enforce protection of future credential
@@ -209,7 +208,8 @@ export function buildScopedImShellLaunch(
   // Empty readPaths means the whole project root; the dotfile and key denies
   // below still apply to it.
   const read = scope.readPaths.length ? roots(scope.readPaths) : [workspace],
-    write = roots(scope.writePaths);
+    write =
+      scope.writeMode === "project" ? [workspace] : roots(scope.writePaths);
   const rules = (operation: string, paths: string[]) =>
     paths.length
       ? [
@@ -217,7 +217,7 @@ export function buildScopedImShellLaunch(
         ]
       : [];
   // ASCII case folding is explicit: Seatbelt regular expressions do not support
-  // JavaScript flags/lookarounds. Hidden configuration is conservatively denied.
+  // JavaScript flags/lookarounds. Protected categories match the file broker; ordinary build caches stay usable.
   const folded = (s: string) =>
     [...s]
       .map((c) => (/[a-z]/u.test(c) ? `[${c}${c.toUpperCase()}]` : c))
@@ -228,8 +228,28 @@ export function buildScopedImShellLaunch(
     "auth[.]json",
     "credentials",
     "credentials[.]json",
-    "id_rsa",
-    "id_ed25519",
+    "id_(rsa|dsa|ecdsa|ed25519)([.]pub)?",
+    ...[
+      "git",
+      "ssh",
+      "aws",
+      "azure",
+      "kube",
+      "gnupg",
+      "codex",
+      "claude",
+      "artemis",
+      "pi",
+      "vscode",
+      "idea",
+      "github",
+      "cursor",
+      "windsurf",
+      "mcp.json",
+      "npmrc",
+      "pypirc",
+      "netrc",
+    ].map((name) => "[.]" + name.replaceAll(".", "[.]")),
     "mcp[.]json",
     "opencode[.]json",
     "opencode[.]jsonc",
@@ -238,9 +258,7 @@ export function buildScopedImShellLaunch(
     "windows-im-files[.]ps1",
     "windows-sandbox[.]ps1",
     "windows-sandbox-setup[.]ps1",
-  ]
-    .map(folded)
-    .join("|");
+  ].map(folded);
   const profile = [
     "(version 1)",
     "(deny default)",
@@ -253,6 +271,17 @@ export function buildScopedImShellLaunch(
     '(allow file-read* file-write* (literal "/dev/null") (subpath "/dev/fd"))',
     ...rules("file-read*", read),
     ...rules("file-write*", write),
+    ...(runtime
+      ? [
+          ...runtime.readFiles.map(
+            (path) => `(allow file-read* (literal ${quote(path)}))`,
+          ),
+          ...runtime.readDirectories.map(
+            (path) => `(allow file-read* (subpath ${quote(path)}))`,
+          ),
+          `(allow file-read* file-write* (subpath ${quote(runtime.writableDirectory)}))`,
+        ]
+      : []),
     // An inode shared with unreadable/read-only names cannot acquire broader
     // access through a writable alias. Fully authorized hard links stay usable.
     ...links.denyRead.map(
@@ -262,8 +291,11 @@ export function buildScopedImShellLaunch(
       (path) => `(deny file-write* (literal ${quote(path)}))`,
     ),
     "(deny file-link)",
-    `(deny file-read-data file-write* (regex #"/([.][^/]+|${control})(/|$)"))`,
-    `(deny file-read-data file-write* (regex #"/[^/]*[.](${["pem", "key", "p12", "pfx", "keystore"].map(folded).join("|")})$"))`,
+    ...control.map(
+      (name) => `(deny file-read-data file-write* (regex #"/${name}(/|$)"))`,
+    ),
+    `(deny file-read-data file-write* (require-all (regex #"/[.]${folded("env")}([.][^/]*)?(/|$)") (require-not (regex #"/[.]${folded("env")}[.](${["example", "sample", "template"].map(folded).join("|")})(/|$)"))))`,
+    `(deny file-read-data file-write* (regex #"/[^/]*[.](${["pem", "key", "p12", "pfx", "keystore"].map(folded).join("|")})(/|$)"))`,
     "(deny mach-lookup)",
     "(deny ipc-posix-shm)",
     network ? "(allow network-outbound)" : "(deny network*)",
@@ -277,6 +309,7 @@ export function buildScopedImShellLaunch(
       HOME: workspace,
       TMPDIR: workspace,
       LANG: "en_US.UTF-8",
+      ...runtime?.env,
     },
     implementation: "macos-seatbelt",
   };

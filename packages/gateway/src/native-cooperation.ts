@@ -212,12 +212,20 @@ export class NativeCooperation {
     if (peer && this.pendingProbeUntil(groupId, peer) > this.now()) return;
     if (peer) envelope.expiresAt = this.now() + 30000;
     this.store.transaction(() => {
-      if (peer)
-        this.store.put(
-          "native-auto-probe",
-          JSON.stringify([groupId, peer]),
-          this.now(),
+      if (peer) {
+        const key = JSON.stringify([groupId, peer]);
+        const previous = this.store.get<
+          number | { attempts: number; nextAt: number }
+        >("native-auto-probe", key);
+        const attempts = Math.min(
+          3,
+          (typeof previous === "number" ? 1 : (previous?.attempts ?? 0)) + 1,
         );
+        this.store.put("native-auto-probe", key, {
+          attempts,
+          nextAt: this.now() + (attempts === 1 ? 60000 : 300000),
+        });
+      }
       this.store.put("native-probes", envelope.id, {
         groupId,
         peer,
@@ -362,9 +370,15 @@ export class NativeCooperation {
       if (!group.nativeGroup?.allowedBots?.includes(peer.id) || peer.verifiedAt)
         continue;
       const key = JSON.stringify([groupId, peer.id]);
-      // Presence of the persisted marker means discovery was already attempted.
-      // This also stops retries from legacy five-minute cooldown records.
-      if (this.store.get("native-auto-probe", key) !== undefined) continue;
+      // Retry only discovery, never task delivery. Keep the budget across restarts.
+      const previous = this.store.get<
+        number | { attempts: number; nextAt: number }
+      >("native-auto-probe", key);
+      const retry =
+        typeof previous === "number"
+          ? { attempts: 1, nextAt: previous + 60000 }
+          : previous;
+      if (retry && (retry.attempts >= 3 || retry.nextAt > this.now())) continue;
       this.probe(groupId, peer.id);
     }
   }

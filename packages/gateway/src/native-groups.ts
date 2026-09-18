@@ -115,8 +115,8 @@ export function saveNativeGroup(
   };
   if (
     previous &&
-    JSON.stringify({ ...previous, revision: "" }) !==
-      JSON.stringify({ ...next, revision: "" })
+    JSON.stringify({ ...previous, revision: "", name: "" }) !==
+      JSON.stringify({ ...next, revision: "", name: "" })
   )
     next.revision = randomUUID();
   store.transaction(() => {

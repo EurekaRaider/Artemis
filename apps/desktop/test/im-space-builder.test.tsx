@@ -44,8 +44,11 @@ it("distinguishes groups by real route identifiers and permits keyboard selectio
   expect(
     screen.getByRole("option", { name: "设计群 · Slack · room-b" }),
   ).toBeVisible();
+  // The shared Select moves keyboard focus on the next animation frame.
+  await waitFor(() => expect(screen.getByRole("listbox")).toHaveFocus());
   await user.keyboard("{Escape}");
   await waitFor(() => expect(select).toHaveFocus());
+  expect(select).toHaveAttribute("aria-expanded", "false");
   expect(
     screen.queryByRole("button", { name: "确认并启用群聊" }),
   ).not.toBeInTheDocument();
@@ -86,7 +89,9 @@ it("keeps many groups compact and searches without expanding their settings", as
   await user.click(screen.getByRole("button", { name: /已发现的群/ }));
   expect(screen.getAllByRole("option")).toHaveLength(2);
   await user.click(screen.getByRole("option", { name: "Team 39 · Slack" }));
-  expect(screen.getAllByRole("button", { name: /本地项目/ })).toHaveLength(1);
+  expect(
+    screen.queryByRole("button", { name: /本地项目/ }),
+  ).not.toBeInTheDocument();
 });
 
 it("hides discovered and saved WeCom groups while keeping Slack and Lark selectable", async () => {

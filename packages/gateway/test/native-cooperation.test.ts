@@ -1022,7 +1022,7 @@ it.each(["feishu", "lark"] as const)(
   },
 );
 
-it("probes once across cooldowns and restarts, but allows a bounded manual retry", () => {
+it("retries only authorized peer discovery with a persisted three-attempt budget", () => {
   vi.useFakeTimers();
   const a = instance("A");
   a.store.put("native-group-info", a.group.id, {
@@ -1034,33 +1034,36 @@ it("probes once across cooldowns and restarts, but allows a bounded manual retry
           name: "Solar",
           kind: "bot",
         },
+        {
+          identity: { ...a.event.identity, userId: "C" },
+          name: "Unknown",
+          kind: "bot",
+        },
       ],
     },
   });
   a.router.native.setMemberAssignment(a.group.id, "B", true);
   a.router.native.syncRoster(a.group.id);
   expect(a.store.pending("outgoing")).toHaveLength(1);
-  vi.advanceTimersByTime(360000);
+  vi.advanceTimersByTime(31000);
+  a.router.native.syncRoster(a.group.id);
+  expect(a.store.pending("outgoing")).toHaveLength(1);
+  vi.advanceTimersByTime(30000);
   const restarted = new GatewayRouter(a.store);
   restarted.native.syncRoster(a.group.id);
-  expect(a.store.pending("outgoing")).toHaveLength(1);
-  // Legacy cooldown timestamps also mean an attempt was already made.
-  a.store.put(
-    "native-auto-probe",
-    JSON.stringify([a.group.id, "B"]),
-    Date.now() - 1,
-  );
-  restarted.native.syncRoster(a.group.id);
-  expect(a.store.pending("outgoing")).toHaveLength(1);
-  restarted.native.probe(a.group.id, "B");
-  restarted.native.probe(a.group.id, "B");
   expect(a.store.pending("outgoing")).toHaveLength(2);
+  vi.advanceTimersByTime(300000);
+  restarted.native.syncRoster(a.group.id);
+  expect(a.store.pending("outgoing")).toHaveLength(3);
+  vi.advanceTimersByTime(86400000);
+  restarted.native.syncRoster(a.group.id);
+  expect(a.store.pending("outgoing")).toHaveLength(3);
+  restarted.native.probe(a.group.id, "B");
+  restarted.native.probe(a.group.id, "B");
+  expect(a.store.pending("outgoing")).toHaveLength(4);
   expect(restarted.native.pendingProbeUntil(a.group.id, "B")).toBe(
     Date.now() + 30000,
   );
-  vi.advanceTimersByTime(31000);
-  restarted.native.probe(a.group.id, "B");
-  expect(a.store.pending("outgoing")).toHaveLength(3);
   expect(() => restarted.native.authorize(a.group.id, ["B"])).toThrow();
 });
 

@@ -1,5 +1,5 @@
 import { uiTranslator } from "../shared/ui-text.js";
-import { ImNativeGroups } from "./ImNativeGroups";
+import { ImNativeGroups, imNativeGroupChoices } from "./ImNativeGroups";
 import { useEffect, useRef, useState } from "react";
 import { ImDataPermissions } from "./ImDataPermissions";
 import { ImHandoff } from "./ImHandoff";
@@ -8,6 +8,8 @@ import {
   executionGrantSchema,
   IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
+  imScopeConfirmation,
+  imIdentityKey,
   type AppLocale,
   type ExecutionGrant,
   type ImConnectionStatus,
@@ -79,8 +81,10 @@ type Status = ImStatus & { connections?: unknown[]; spaces?: unknown[] };
 export function ImSettingsPanel({
   locale,
   onOpenThread,
+  initialPermissions = false,
 }: {
   locale: AppLocale;
+  initialPermissions?: boolean;
   onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
 }) {
   const t = uiTranslator(locale);
@@ -98,11 +102,9 @@ export function ImSettingsPanel({
   const refreshEpoch = useRef(0);
   const [refreshError, setRefreshError] = useState("");
   const [pairCode, setPairCode] = useState<ImPairCode>();
-  /* 屏幕状态机：流程 / 完成概览 / 群协作第二流程。undefined = 未显式导航，按完成度自动落位。 */
-  const [screen, setScreen] = useState<
-    "flow" | "overview" | "group" | undefined
-  >();
-  const [groupFrom, setGroupFrom] = useState<"flow" | "overview">("overview");
+  const [screen, setScreen] = useState<"flow" | "overview" | undefined>(
+    initialPermissions ? "overview" : undefined,
+  );
   /* 凭据表单收敛进弹窗：null 关闭；{} 新建；{ connectionId } 更换该连接。 */
   const [botDialog, setBotDialog] = useState<{ connectionId?: string } | null>(
     null,
@@ -131,9 +133,14 @@ export function ImSettingsPanel({
   const [customScopeOpen, setCustomScopeOpen] = useState<
     Record<string, boolean>
   >({});
+  const [grantAudience, setGrantAudience] = useState("owner");
+  const [nativeScopeDraft, setNativeScopeDraft] =
+    useState<NonNullable<ExecutionGrant["security"]>>();
   const [grantDialog, setGrantDialog] = useState<string | null>(null);
   const grantDialogAnchor = useRef<HTMLButtonElement | null>(null);
-  const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(null);
+  const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(
+    initialPermissions ? "projects" : null,
+  );
   /* ②尾「顺手验证」折叠段：imReadVerify 恢复确认态；开合本次会话内记住
      （首绑自动展开一次，用户手动开合后不再抢开）。 */
   const [verify, setVerify] = useState<ImVerifyState>({ confirmed: false });
@@ -190,7 +197,7 @@ export function ImSettingsPanel({
     let active = true;
     let refreshing = false;
     const refreshStatus = async () => {
-      if (running.current || refreshing) return;
+      if (running.current || refreshing || grantDialog) return;
       refreshing = true;
       const epoch = refreshEpoch.current;
       try {
@@ -200,7 +207,7 @@ export function ImSettingsPanel({
             action: "refresh",
           })) as Status;
         const groupDiagnostics =
-          screen === "group" &&
+          flowCard === "projects" &&
           current.localGateway &&
           current.settings.deviceId
             ? await window.artemis.manageIm({
@@ -231,7 +238,7 @@ export function ImSettingsPanel({
       window.removeEventListener("focus", refreshStatus);
       document.removeEventListener("visibilitychange", refreshStatus);
     };
-  }, [screen]);
+  }, [screen, flowCard, grantDialog]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -266,20 +273,14 @@ export function ImSettingsPanel({
   }, [screen, focusTarget]);
   /**
    * 兼容旧分区目标的导航：渠道/分区都映射到对应步骤卡（流程或概览里
-   * 共用），spaces 进入群协作第二流程。undefined 的 screen 表示尚未显
+   * 共用），spaces 共用项目权限入口。undefined 的 screen 表示尚未显
    * 式导航，按完成度自动落在概览或流程。
    */
   function selectView(next: ImView | "guide" | "flow" | "overview" | "group") {
     setFields({});
     setAdminToken("");
     setBotDialog(null);
-    if (next === "group" || next === "spaces") {
-      if (channel === "wecom") return;
-      setGroupFrom(activeScreen === "group" ? groupFrom : activeScreen);
-      setScreen("group");
-      setFocusTarget("im-spaces");
-      return;
-    }
+    if (next === "group" || next === "spaces") next = "permissions";
     if (next === "overview") {
       setScreen("overview");
       setFlowCard(null);
@@ -298,9 +299,7 @@ export function ImSettingsPanel({
         : next === "permissions"
           ? "projects"
           : "channel";
-    setScreen((current) =>
-      current === "group" ? (groupFrom ?? "flow") : current,
-    );
+
     if (IM_CHANNELS.includes(next as ImChannel)) {
       setChannel(next as ImChannel);
       setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
@@ -461,7 +460,6 @@ export function ImSettingsPanel({
                 ? {
                     security: {
                       ...g.security,
-                      confirmedAt: 0,
                       scopes: g.security.scopes.filter(
                         (s) =>
                           s.audience === "owner" ||
@@ -511,8 +509,7 @@ export function ImSettingsPanel({
   )!.label;
   const local = !!status?.localGateway;
   useEffect(() => {
-    if (activeScreen !== "group" || !local || !status?.settings.deviceId)
-      return;
+    if (flowCard !== "projects" || !local || !status?.settings.deviceId) return;
     let active = true;
     void run(async () => {
       const result = await window.artemis.manageIm({
@@ -524,7 +521,7 @@ export function ImSettingsPanel({
     return () => {
       active = false;
     };
-  }, [screen, local, status?.settings.deviceId]);
+  }, [flowCard, local, status?.settings.deviceId]);
   const resolvePairing = (requestId: string, approve: boolean) =>
     run(async () => {
       await window.artemis.manageIm({
@@ -647,14 +644,14 @@ export function ImSettingsPanel({
       : t("ImSettingsPanel.message27");
   /* 完成即概览：三步全部完成时粘性落在概览（群协作屏除外）；回退时停留概览并提示。 */
   useEffect(() => {
-    if (allDone && screen !== "group")
+    if (allDone)
       setScreen((current) => (current === "overview" ? current : "overview"));
   }, [allDone, screen]);
   const flowDoneKey = flowSteps.map((step) => (step.done ? "1" : "0")).join("");
   const prevFlowDoneKey = useRef(flowDoneKey);
   useEffect(() => {
     setVerify(imReadVerify(status?.settings.deviceId));
-    setFlowCard(null);
+    setFlowCard(initialPermissions ? "projects" : null);
   }, [status?.settings.deviceId]);
   useEffect(() => {
     const unsubscribe = window.artemis.onImTaskCreated?.(() =>
@@ -693,7 +690,6 @@ export function ImSettingsPanel({
     const previous = prevFlowDoneKey.current;
     prevFlowDoneKey.current = flowDoneKey;
     if (
-      activeScreen !== "group" &&
       [...previous].some(
         (flag, index) => flag === "1" && flowDoneKey[index] === "0",
       )
@@ -1376,13 +1372,14 @@ export function ImSettingsPanel({
   }
   function renderPermissionsBody() {
     const settings = activeSettings;
-    /* D3：Execute 必须显式选择可写范围（owner 受众），否则禁止保存。 */
-    const executeMissingWrite = settings.grants.some(
-      (g) =>
-        g.mode === "execute" &&
-        !g.security?.scopes.find((s) => s.audience === "owner")?.writePaths
-          .length,
-    );
+    const nativeChoices = status?.localGateway
+      ? imNativeGroupChoices(
+          diagnostics,
+          status.spaces ?? [],
+          settings.deviceId,
+          t,
+        )
+      : [];
     /* 默认项目落点：未设置或哨兵 = 临时会话。 */
     const adhocDefault =
       !settings.defaultProjectId ||
@@ -1393,18 +1390,26 @@ export function ImSettingsPanel({
         grant.security?.scopes.find((s) => s.audience === "owner")
           ?.writePaths ?? [];
       const scope =
-        grant.mode === "execute" && write.length
-          ? t("ImSettingsPanel.writePaths", {
-              paths: locale.startsWith("zh")
-                ? write.join("、")
-                : new Intl.ListFormat(locale, { type: "unit" }).format(write),
-            })
-          : t("ImSettingsPanel.message109");
-      const state = !grant.security?.confirmedAt
-        ? t("ImSettingsPanel.message112")
-        : grant.expiresAt <= Date.now()
-          ? t("ImSettingsPanel.message111")
-          : "";
+        grant.mode === "execute" &&
+        grant.security?.scopes.find((s) => s.audience === "owner")
+          ?.writeMode === "project"
+          ? t("ImDataPermissions.message14")
+          : grant.mode === "execute" && write.length
+            ? t("ImSettingsPanel.writePaths", {
+                paths: locale.startsWith("zh")
+                  ? write.join("、")
+                  : new Intl.ListFormat(locale, { type: "unit" }).format(write),
+              })
+            : t("ImSettingsPanel.message109");
+      const state =
+        !grant.security?.scopes.length ||
+        grant.security.scopes.some(
+          (scope) => !imScopeConfirmation(grant.security, scope),
+        )
+          ? t("ImSettingsPanel.message112")
+          : grant.expiresAt <= Date.now()
+            ? t("ImSettingsPanel.message111")
+            : "";
       return state ? `${scope} · ${state}` : scope;
     };
     /* 行内操作（勾选/撤销/设默认）与弹窗「确认设置」共用：next = 要保存的设置；
@@ -1510,6 +1515,42 @@ export function ImSettingsPanel({
         </h4>
         {projects.map((project) => {
           const grant = settings.grants.find((g) => g.projectId === project.id);
+          const nativeTarget = nativeChoices.find(
+            (group) => group.value === grantAudience,
+          );
+          const authorizeGroup =
+            nativeTarget &&
+            (!nativeTarget.saved?.nativeGroup?.enabled ||
+              nativeTarget.saved.nativeGroup.projectId !== project.id ||
+              !grant?.groups.includes(nativeTarget.value));
+          const audiences = [
+            ...nativeChoices.map((group) => ({
+              value: group.value,
+              label: group.label,
+              ...(group.saved?.revision
+                ? { revision: group.saved.revision }
+                : {}),
+            })),
+            ...(grant?.groups ?? [])
+              .filter(
+                (value) =>
+                  !nativeChoices.some((group) => group.value === value),
+              )
+              .map((value) => {
+                const space = (
+                  (status?.spaces ?? []) as CollaborationSpace[]
+                ).find((space) => `space:${space.id}` === value);
+                return {
+                  value,
+                  label: space?.name ?? value,
+                  ...(space?.revision ? { revision: space.revision } : {}),
+                };
+              }),
+          ];
+          const groupScope = nativeScopeDraft?.scopes[0];
+          const groupConfirmed =
+            !!groupScope && !!imScopeConfirmation(nativeScopeDraft, groupScope);
+
           return (
             <div className="im-project" key={project.id}>
               <Checkbox
@@ -1587,21 +1628,45 @@ export function ImSettingsPanel({
                   {t("ImSettingsPanel.message122")}
                 </Button>
               )}
-              {grant && (
-                <Button
-                  className="im-grant-open"
-                  size="compact"
-                  variant="quiet"
-                  title={t("ImSettingsPanel.message130")}
-                  disabled={busy}
-                  onClick={(event) => {
-                    grantDialogAnchor.current = event.currentTarget;
-                    setGrantDialog(project.id);
-                  }}
-                >
-                  {t("ImSettingsPanel.message129")}
-                </Button>
-              )}
+              <Button
+                className="im-grant-open"
+                size="compact"
+                variant="quiet"
+                title={t("ImSettingsPanel.message130")}
+                disabled={busy}
+                onClick={(event) => {
+                  grantDialogAnchor.current = event.currentTarget;
+                  setGrantAudience("owner");
+                  setNativeScopeDraft(undefined);
+                  if (!grant)
+                    setSettings({
+                      ...settings,
+                      grants: [
+                        ...settings.grants,
+                        executionGrantSchema.parse({
+                          projectId: project.id,
+                          expiresAt: Date.now() + 30 * 86400000,
+                          security: {
+                            version: IM_SECURITY_VERSION,
+                            revision: "draft",
+                            confirmedAt: 0,
+                            scopes: [
+                              {
+                                audience: "owner",
+                                readPaths: [],
+                                writePaths: [],
+                                confirmedAt: 0,
+                              },
+                            ],
+                          },
+                        }),
+                      ],
+                    });
+                  setGrantDialog(project.id);
+                }}
+              >
+                {t("ImSettingsPanel.message129")}
+              </Button>
               {grant && grantDialog === project.id && (
                 <Dialog
                   className="im-grant-dialog"
@@ -1622,6 +1687,53 @@ export function ImSettingsPanel({
                     </h2>
                   </header>
                   <div className="im-grant-dialog-body">
+                    {messageError && (
+                      <InlineNotice tone="warning">{message}</InlineNotice>
+                    )}
+                    <Select
+                      labelVisibility="visible"
+                      label={t("ImDataPermissions.message8")}
+                      value={grantAudience}
+                      disabled={busy}
+                      options={[
+                        {
+                          value: "owner",
+                          label: t("ImDataPermissions.message9"),
+                        },
+                        ...audiences,
+                      ]}
+                      onValueChange={(audience) => {
+                        setGrantAudience(audience);
+                        setCustomScopeOpen((current) => ({
+                          ...current,
+                          [project.id]: true,
+                        }));
+                        // A new or paused audience needs its own explicit confirmation.
+                        // Keep this draft separate from the owner's saved scope.
+                        const scope = grant.security?.scopes.find(
+                          (scope) => scope.audience === audience,
+                        );
+                        setNativeScopeDraft({
+                          version: IM_SECURITY_VERSION,
+                          revision: "draft",
+                          confirmedAt: 0,
+                          scopes: [
+                            {
+                              ...scope,
+                              audience: "owner",
+                              readPaths: scope?.readPaths ?? [],
+                              writePaths: scope?.writePaths ?? [],
+                              confirmedAt: 0,
+                            },
+                          ],
+                        });
+                      }}
+                    />
+                    {authorizeGroup && !nativeTarget.owner && (
+                      <InlineNotice tone="warning">
+                        {t("ImSettingsPanel.nativeOwnerRequired")}
+                      </InlineNotice>
+                    )}
                     {/* 三档模式（D3）：档位切换收窄离开 Execute 时同步关闭命令与网络。 */}
                     <div
                       className="im-mode-tiers"
@@ -1698,29 +1810,31 @@ export function ImSettingsPanel({
                       </Button>
                     )}
                     {(grant.mode === "execute" ||
-                      !grant.security?.confirmedAt ||
+                      !grant.security?.scopes.some(
+                        (scope) =>
+                          scope.audience === grantAudience &&
+                          imScopeConfirmation(grant.security, scope),
+                      ) ||
                       customScopeOpen[project.id]) && (
                       <ImDataPermissions
-                        grant={grant}
+                        key={`${project.id}:${grantAudience}`}
+                        initialAudience={
+                          authorizeGroup ? "owner" : grantAudience
+                        }
+                        showAudienceSelector={false}
+                        grant={
+                          authorizeGroup
+                            ? { ...grant, security: nativeScopeDraft! }
+                            : grant
+                        }
                         t={t}
                         disabled={busy}
                         onChange={(security) =>
-                          updateGrant(project.id, { security })
+                          authorizeGroup
+                            ? setNativeScopeDraft(security)
+                            : updateGrant(project.id, { security })
                         }
-                        audiences={grant.groups.map((value) => {
-                          const space = (
-                            (status?.spaces ?? []) as CollaborationSpace[]
-                          ).find((s) => `space:${s.id}` === value);
-                          return {
-                            value,
-                            ...(space?.revision
-                              ? { revision: space.revision as string }
-                              : {}),
-                            label: space
-                              ? `${space.name} · ${(space.endpoints ?? []).map((e) => `${e.connectionId}: ${e.id}`).join(", ")} · ${(space.participants ?? []).map((p) => p.name || p.deviceId).join(", ")}`
-                              : value,
-                          };
-                        })}
+                        audiences={authorizeGroup ? [] : audiences}
                       />
                     )}
                     <div className="im-grant-fields">
@@ -1771,29 +1885,43 @@ export function ImSettingsPanel({
                           />
                         </>
                       )}
-                      <div className="im-field-stack">
-                        <h4>{t("ImSettingsPanel.message150")}</h4>
-                        {!availableSpaces.length && (
-                          <p>{t("ImSettingsPanel.message151")}</p>
-                        )}
-                        {availableSpaces.map((space) => (
-                          <Checkbox
-                            key={space.id}
-                            label={space.name}
-                            checked={grant.groups.includes(`space:${space.id}`)}
-                            disabled={busy}
-                            onCheckedChange={(checked) =>
-                              updateGrant(project.id, {
-                                groups: checked
-                                  ? [...grant.groups, `space:${space.id}`]
-                                  : grant.groups.filter(
-                                      (id) => id !== `space:${space.id}`,
-                                    ),
-                              })
-                            }
-                          />
-                        ))}
-                      </div>
+                      {availableSpaces.some(
+                        (space) =>
+                          !nativeChoices.some(
+                            (group) => group.value === `space:${space.id}`,
+                          ),
+                      ) && (
+                        <div className="im-field-stack">
+                          <h4>{t("ImSettingsPanel.message150")}</h4>
+                          {availableSpaces
+                            .filter(
+                              (space) =>
+                                !nativeChoices.some(
+                                  (group) =>
+                                    group.value === `space:${space.id}`,
+                                ),
+                            )
+                            .map((space) => (
+                              <Checkbox
+                                key={space.id}
+                                label={space.name}
+                                checked={grant.groups.includes(
+                                  `space:${space.id}`,
+                                )}
+                                disabled={busy}
+                                onCheckedChange={(checked) =>
+                                  updateGrant(project.id, {
+                                    groups: checked
+                                      ? [...grant.groups, `space:${space.id}`]
+                                      : grant.groups.filter(
+                                          (id) => id !== `space:${space.id}`,
+                                        ),
+                                  })
+                                }
+                              />
+                            ))}
+                        </div>
+                      )}
                       <details>
                         <summary>{t("ImSettingsPanel.message152")}</summary>
                         <TextField
@@ -1842,18 +1970,59 @@ export function ImSettingsPanel({
                       </Button>
                       <Button
                         disabled={
-                          busy || !settings.deviceId || executeMissingWrite
+                          busy ||
+                          !settings.deviceId ||
+                          (!!authorizeGroup &&
+                            (!nativeTarget.owner || !groupConfirmed))
                         }
                         onClick={() => {
                           void (async () => {
-                            // 保存失败（false）保持弹窗打开让用户修正；
-                            // 已保存（含启用失败）关闭，重试入口在④卡。
-                            if (await run(() => performSaveAndEnable()))
-                              setGrantDialog(null);
+                            const saved = await run(async () => {
+                              if (authorizeGroup) {
+                                if (!nativeTarget.owner || !groupConfirmed)
+                                  return false;
+                                // Save the shared operation policy before adding the group scope;
+                                // the backend preserves the project's existing owner grant.
+                                if (
+                                  !(await performSaveAndEnable(settings, false))
+                                )
+                                  return false;
+                                const next = (await window.artemis.manageIm({
+                                  action: "authorize-native-group",
+                                  conversation: nativeTarget.conversation,
+                                  owner: nativeTarget.owner,
+                                  allowedSenders:
+                                    nativeTarget.saved?.participants
+                                      .filter(
+                                        (member) =>
+                                          imIdentityKey(member.identity) !==
+                                          imIdentityKey(nativeTarget.owner!),
+                                      )
+                                      .map((member) => member.identity) ?? [],
+                                  name: (
+                                    nativeTarget.name || nativeTarget.label
+                                  ).slice(0, 100),
+                                  grant: {
+                                    ...grant,
+                                    security: nativeScopeDraft!,
+                                  },
+                                  confirmed: true,
+                                })) as Status;
+                                setStatus(next);
+                                setSettings(next.settings);
+                                return true;
+                              }
+                              return performSaveAndEnable();
+                            });
+                            if (saved) setGrantDialog(null);
                           })();
                         }}
                       >
-                        {t("ImSettingsPanel.message158")}
+                        {t(
+                          authorizeGroup
+                            ? "ImNativeGroups.message20"
+                            : "ImSettingsPanel.message158",
+                        )}
                       </Button>
                     </div>
                   </footer>
@@ -2136,6 +2305,7 @@ export function ImSettingsPanel({
           t={t}
         >
           {renderPermissionsBody()}
+          {renderSpacesBody()}
           {allDone && (
             <div className="im-ceremony">
               <p className="im-ceremony-title">
@@ -2258,19 +2428,6 @@ export function ImSettingsPanel({
               {t("ImSettingsPanel.message201")}
             </Button>
           )}
-        </div>
-      ) : activeScreen === "group" ? (
-        <div className="im-flow im-group-flow">
-          <Button
-            variant="secondary"
-            size="compact"
-            className="im-group-back"
-            disabled={busy}
-            onClick={() => setScreen(groupFrom)}
-          >
-            {t("ImSettingsPanel.message200")}
-          </Button>
-          {renderSpacesBody()}
         </div>
       ) : (
         <div id="im-overview" className="im-flow im-overview" tabIndex={-1}>

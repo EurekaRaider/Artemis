@@ -678,9 +678,9 @@ describe("IM desktop and Gateway loop", () => {
         "desktop-turn",
       ),
     ).resolves.toMatchObject({
-      state: "permission-required",
+      state: "operation-denied",
       code: "scope-denied",
-      parkPermission: true,
+      parkPermission: false,
     });
     const release = f.service.reserveStart(id, "plan", false);
     try {
@@ -961,7 +961,14 @@ describe("IM desktop and Gateway loop", () => {
       ...current,
       grants: current.grants.map((grant) => ({
         ...grant,
-        security: { ...grant.security!, confirmedAt: Date.now() },
+        security: {
+          ...grant.security!,
+          confirmedAt: Date.now(),
+          scopes: grant.security!.scopes.map((scope) => ({
+            ...scope,
+            confirmedAt: Date.now(),
+          })),
+        },
       })),
     });
     await upgraded.close();

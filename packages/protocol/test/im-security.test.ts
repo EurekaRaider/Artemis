@@ -4,9 +4,52 @@ import {
   isImProtectedPath,
   normalizeImPath,
   imPathWithinScope,
+  imScopeCanWrite,
+  imScopeConfirmation,
+  imScopeRevision,
 } from "../src/im-security.js";
 
 describe("IM data boundaries", () => {
+  it("requires explicit consent for future project writes and preserves legacy selected roots", () => {
+    const legacy = imDataScopeSchema.parse({
+      audience: "owner",
+      readPaths: [],
+      writePaths: ["src"],
+    });
+    expect(imScopeCanWrite(legacy, "new/file.ts")).toBe(false);
+    const whole = imDataScopeSchema.parse({
+      ...legacy,
+      readMode: "project",
+      writeMode: "project",
+      writePaths: [],
+    });
+    expect(imScopeCanWrite(whole, "new/file.ts")).toBe(true);
+    expect(
+      imDataScopeSchema.safeParse({
+        ...whole,
+        readPaths: ["src"],
+        readMode: "selected",
+      }).success,
+    ).toBe(false);
+    expect(
+      imDataScopeSchema.safeParse({ ...legacy, readMode: "selected" }).success,
+    ).toBe(false);
+  });
+  it("isolates confirmation and revisions by audience with a legacy fallback", () => {
+    const security = {
+      version: 2 as const,
+      revision: "old",
+      confirmedAt: 10,
+      scopes: [],
+    };
+    const scope = { audience: "owner", readPaths: [], writePaths: [] };
+    expect(imScopeConfirmation(security, scope)).toBe(10);
+    expect(imScopeRevision(security, scope)).toBe("old");
+    expect(imScopeConfirmation(security, { ...scope, confirmedAt: 0 })).toBe(0);
+    expect(imScopeRevision(security, { ...scope, revision: "own" })).toBe(
+      "own",
+    );
+  });
   it.each([
     "../private",
     "/etc/passwd",
@@ -78,4 +121,23 @@ describe("IM data boundaries", () => {
       }).success,
     ).toBe(false);
   });
+});
+
+it("allows a file-only write grant alongside whole-project reads without widening that file into a directory", () => {
+  expect(
+    imDataScopeSchema.safeParse({
+      audience: "owner",
+      readPaths: [],
+      writePaths: ["README.md"],
+      filePaths: ["README.md"],
+    }).success,
+  ).toBe(true);
+  expect(
+    imDataScopeSchema.safeParse({
+      audience: "owner",
+      readPaths: [],
+      writePaths: [],
+      filePaths: ["README.md"],
+    }).success,
+  ).toBe(false);
 });

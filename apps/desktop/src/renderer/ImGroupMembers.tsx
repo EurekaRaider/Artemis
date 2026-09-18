@@ -9,7 +9,7 @@ import {
 } from "@artemis/protocol";
 import { EnvironmentSection } from "@artemis/ui/workflow";
 import { Tooltip } from "@artemis/ui/feedback";
-import { IconButton } from "@artemis/ui/actions";
+import { Button, IconButton } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { imChannelLabel } from "./ImNavigation";
 
@@ -19,12 +19,16 @@ export function ImGroupMembers({
   onMention,
   onRemove,
   removalDisabled = false,
+  managePermissions = false,
+  onManagePermissions,
 }: {
   group: ImGroupContext;
   locale: AppLocale;
   onMention?: ((token: string) => void) | undefined;
   onRemove?: ((deviceId: string) => Promise<boolean>) | undefined;
   removalDisabled?: boolean | undefined;
+  managePermissions?: boolean;
+  onManagePermissions?: ((trigger: HTMLButtonElement) => void) | undefined;
 }) {
   const t = uiTranslator(locale);
   type Person = NonNullable<ImGroupContext["roster"]>["members"][number];
@@ -174,6 +178,14 @@ export function ImGroupMembers({
         title={`${t("ImGroupMembers.message28")}${roster?.complete ? ` · ${roster.members.length}` : ""}`}
       >
         <div className="environment-setting-copy im-group-members im-native-members">
+          {!managePermissions && onManagePermissions && (
+            <Button
+              size="compact"
+              onClick={(event) => onManagePermissions(event.currentTarget)}
+            >
+              {t("ImSettingsPanel.message189")}
+            </Button>
+          )}
           {error && <small role="alert">{error}</small>}
           {(!roster?.complete || group.stale) && (
             <small role="status">
@@ -272,7 +284,8 @@ export function ImGroupMembers({
                       )}
                     </strong>
                   </span>
-                  {editable &&
+                  {managePermissions &&
+                    editable &&
                     member.kind === "bot" &&
                     verificationState(member) !== "verified" && (
                       <Tooltip
@@ -303,7 +316,7 @@ export function ImGroupMembers({
                         </button>
                       </Tooltip>
                     )}
-                  {editable && (
+                  {managePermissions && editable && (
                     <Tooltip
                       label={
                         canAssign(member)

@@ -373,3 +373,95 @@ it.runIf(process.platform === "darwin")(
     }
   },
 );
+
+it.runIf(process.platform === "darwin")(
+  "allows future ordinary files and build dot-directories with explicit project writes, while protecting secrets",
+  async () => {
+    const { readFile } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-project-write-")),
+    );
+    try {
+      await writeFile(join(root, ".env"), "SECRET_SENTINEL");
+      await writeFile(join(root, ".env.example"), "EXAMPLE");
+      await mkdir(join(root, ".git"));
+      await writeFile(join(root, ".git", "config"), "SECRET_SENTINEL");
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "set -e; mkdir future .cache; printf OK > future/new.txt; printf CACHE > .cache/build; cat .env.example; if cat .env; then exit 41; fi; if cat .git/config; then exit 42; fi; if printf bad > .env.production; then exit 43; fi; if printf bad > id_dsa; then exit 44; fi; if printf bad > .npmrc; then exit 45; fi; if printf bad > .env.; then exit 46; fi; cat future/new.txt .cache/build",
+          false,
+          {
+            audience: "owner",
+            readPaths: [],
+            writePaths: [],
+            writeMode: "project",
+          },
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output).toContain("EXAMPLE");
+      expect(result.output).toContain("OKCACHE");
+      expect(result.output).not.toContain("SECRET_SENTINEL");
+      expect(await readFile(join(root, ".env"), "utf8")).toBe(
+        "SECRET_SENTINEL",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "runs Node and npm with isolated home/cache while host secrets stay unreadable",
+  async () => {
+    const { prepareImShellRuntime } =
+      await import("../src/main/im-shell-runtime.js");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-node-")),
+    );
+    const project = join(root, "project");
+    await mkdir(project);
+    await writeFile(join(root, "private.txt"), "HOST_SECRET");
+    await writeFile(
+      join(project, "package.json"),
+      JSON.stringify({
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('.cache/result', 'OK'); console.log('NODE_TEST_OK')\"",
+        },
+      }),
+    );
+    const runtime = await prepareImShellRuntime();
+    try {
+      expect(runtime.node).toBeDefined();
+      expect(runtime.npm).toBeDefined();
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          project,
+          `set -e; mkdir .cache; node --version; npm test; if cat '${join(root, "private.txt")}'; then exit 42; fi`,
+          false,
+          {
+            audience: "owner",
+            readPaths: [],
+            writePaths: [],
+            writeMode: "project",
+          },
+          "darwin",
+          undefined,
+          runtime,
+        ),
+        new AbortController().signal,
+        20,
+      );
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output).toContain("NODE_TEST_OK");
+      expect(result.output).not.toContain("HOST_SECRET");
+      expect(runtime.env.HOME).not.toBe(process.env.HOME);
+    } finally {
+      await runtime.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

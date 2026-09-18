@@ -1668,7 +1668,7 @@ it.each([false, true])(
 );
 
 it.runIf(process.platform === "darwin")(
-  "lists the authorized root and future directories, but parks a file-only scope until it changes",
+  "projects file-only scopes and denies only the rejected operation while legal work continues",
   async () => {
     const f = await delegatedFixture();
     f.thread.status = "idle";
@@ -1703,28 +1703,38 @@ it.runIf(process.platform === "darwin")(
         randomUUID(),
         "denied-turn",
       ),
+    ).resolves.toEqual({
+      entries: [{ path: "allowed.txt", directory: false }],
+    });
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "read", path: "first/private.txt" },
+        "execute",
+        randomUUID(),
+        "denied-turn",
+      ),
     ).resolves.toMatchObject({
-      state: "permission-required",
+      state: "operation-denied",
       code: "scope-denied",
-      parkPermission: true,
+      parkPermission: false,
     });
     await expect(
       f.service.operate(
         f.threadId,
         {
-          action: "shell",
-          command: "python3 -c 'print(1)'",
-          timeoutSeconds: 1,
+          action: "read",
+          path: "allowed.txt",
         },
         "execute",
         randomUUID(),
         "denied-turn",
       ),
-    ).resolves.toMatchObject({ state: "permission-required" });
+    ).resolves.toMatchObject({ output: "allowed" });
     expect(
       f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)
         ?.permissionBlock,
-    ).toContain("根目录");
+    ).toBeUndefined();
     await setScope([]);
     expect(f.service.hasPermissionBlock(f.threadId)).toBe(false);
     const read = () =>
@@ -1800,15 +1810,94 @@ it("stops an interrupted wait locally without cancelling the peer or resuming la
   expect(resume).not.toHaveBeenCalled();
 });
 
-it("parks preflight denials idempotently and permits a new turn after a system permission repair", async () => {
+it("reports system denials without blocking unrelated operations in the same turn", async () => {
   const f = await delegatedFixture();
-  const error = new ImPermissionError("system-denied", "System denied directory listing");
+  const error = new ImPermissionError(
+    "system-denied",
+    "System denied directory listing",
+  );
   const blocked = f.service.blockPermission(f.threadId, error, "old-turn");
-  expect(blocked).toMatchObject({state: "permission-required", parkPermission: true});
-  expect(() => f.service.authorizeOperation(f.threadId, {action: "read", path: "."}, "execute", "old-turn")).toThrow("System denied");
-  expect(f.service.blockPermission(f.threadId, new ImPermissionError("system-denied", blocked.message), "old-turn")).toEqual(blocked);
-  await expect(f.service.operate(f.threadId, {action: "read", path: "."}, "execute", randomUUID(), "old-turn")).resolves.toEqual(blocked);
-  expect(() => f.service.authorizeOperation(f.threadId, {action: "read", path: "."}, "execute", "new-turn")).not.toThrow();
+  expect(blocked).toMatchObject({
+    state: "operation-denied",
+    parkPermission: false,
+  });
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threadId,
+      { action: "read", path: "." },
+      "execute",
+      "old-turn",
+    ),
+  ).not.toThrow();
+  expect(f.service.hasPermissionBlock(f.threadId)).toBe(false);
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threadId,
+      { action: "read", path: "." },
+      "execute",
+      "new-turn",
+    ),
+  ).not.toThrow();
+});
+
+it("keeps member discovery and coordination available while a local writer is busy", async () => {
+  const f = await delegatedFixture();
+  f.threads.push({
+    ...f.thread,
+    id: "local-writer",
+    status: "running",
+    mode: "execute",
+  });
+  expect(() => f.service.authorizeThread(f.threadId, "execute")).not.toThrow();
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "participants" },
+      "execute",
+      randomUUID(),
+    ),
+  ).resolves.toHaveProperty("members");
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: { action: "status", text: "" } },
+      "execute",
+      randomUUID(),
+    ),
+  ).resolves.toBeDefined();
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threadId,
+      { action: "write", path: "denied.txt", content: "no" },
+      "plan",
+    ),
+  ).toThrow();
+});
+
+it("changes only the edited audience revision and keeps another audience active", async () => {
+  const f = await delegatedFixture();
+  const before = f.service.profile(f.threadId)!.security!.revision;
+  const settings = f.service.status().settings;
+  await f.service.save({
+    ...settings,
+    grants: settings.grants.map((g) => ({
+      ...g,
+      security: {
+        ...g.security!,
+        scopes: [
+          ...g.security!.scopes.filter((s) => s.audience !== "owner"),
+          {
+            audience: "owner",
+            readPaths: ["README.md"],
+            writePaths: [],
+            confirmedAt: 0,
+          },
+        ],
+      },
+    })),
+  });
+  expect(f.service.profile(f.threadId)!.security!.revision).toBe(before);
+  expect(() => f.service.authorizeThread(f.threadId, "execute")).not.toThrow();
 });
 
 it("starts current-authorized group input independently of a stale implicit selection", async () => {
@@ -1860,4 +1949,102 @@ it("starts current-authorized group input independently of a stale implicit sele
   expect(() =>
     f.service.authorizeOperation(old, { action: "read", path: "." }, "plan"),
   ).toThrow();
+});
+
+it.runIf(process.platform === "darwin")(
+  "queues an actual write behind a local writer, rechecks its scope, and cancels waiting work",
+  async () => {
+    const f = await delegatedFixture();
+    f.thread.status = "idle";
+    const settings = f.service.status().settings;
+    await f.service.save({
+      ...settings,
+      grants: settings.grants.map((g) => ({
+        ...g,
+        security: {
+          ...g.security!,
+          scopes: g.security!.scopes.map((s) => ({
+            ...s,
+            writeMode: "project",
+          })),
+        },
+      })),
+    });
+    const local = {
+      ...f.thread,
+      id: "local-writer",
+      status: "running" as const,
+    };
+    f.threads.push(local);
+    let finished = false;
+    const writing = f.service
+      .operate(
+        f.threadId,
+        { action: "write", path: "queued.txt", content: "OK" },
+        "execute",
+        randomUUID(),
+      )
+      .then((result) => {
+        finished = true;
+        return result;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(finished).toBe(false);
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "participants" },
+        "execute",
+        randomUUID(),
+      ),
+    ).resolves.toHaveProperty("members");
+    local.status = "idle";
+    await expect(writing).resolves.toMatchObject({ exitCode: 0 });
+    local.status = "running";
+    const cancelled = f.service.operate(
+      f.threadId,
+      { action: "write", path: "cancelled.txt", content: "NO" },
+      "execute",
+      randomUUID(),
+    );
+    const rejected = expect(cancelled).rejects.toThrow();
+    f.service.cancelOperations(f.threadId);
+    await rejected;
+    const { readFile } = await import("node:fs/promises");
+    await expect(
+      readFile(join(f.root, "project", "cancelled.txt")),
+    ).rejects.toThrow();
+  },
+);
+
+it("preserves the model context for additive access and replaces it when readable data shrinks", async () => {
+  const f = await delegatedFixture();
+  f.thread.status = "idle";
+  await mkdir(join(f.root, "project", "src"));
+  await mkdir(join(f.root, "project", "docs"));
+  const setReads = async (readPaths: string[]) => {
+    const settings = f.service.status().settings;
+    await f.service.save({
+      ...settings,
+      grants: settings.grants.map((g) => ({
+        ...g,
+        security: {
+          ...g.security!,
+          scopes: g.security!.scopes.map((s) => ({
+            ...s,
+            readPaths,
+            filePaths: [],
+            confirmedAt: Date.now(),
+          })),
+        },
+      })),
+    });
+    return f.service.profile(f.threadId)!.security!;
+  };
+  const restricted = await setReads(["src"]);
+  const expanded = await setReads(["src", "docs"]);
+  expect(expanded.revision).not.toBe(restricted.revision);
+  expect(expanded.contextRevision).toBe(restricted.contextRevision);
+  const narrowed = await setReads(["docs"]);
+  expect(narrowed.contextRevision).not.toBe(expanded.contextRevision);
 });

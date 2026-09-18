@@ -4,6 +4,8 @@ import { CaretRightIcon } from "@phosphor-icons/react";
 import {
   IM_SECURITY_VERSION,
   imPathWithinScope,
+  imScopeCanWrite,
+  imScopeConfirmation,
   type ExecutionGrant,
   type ImDataScope,
   type ImScopeEntry,
@@ -18,14 +20,18 @@ export function ImDataPermissions({
   t,
   audiences,
   disabled,
+  initialAudience = "owner",
+  showAudienceSelector = true,
 }: {
   grant: ExecutionGrant;
   onChange: (security: NonNullable<ExecutionGrant["security"]>) => void;
   t: UiTranslate;
   audiences: Array<{ value: string; label: string; revision?: string }>;
   disabled: boolean;
+  initialAudience?: string | undefined;
+  showAudienceSelector?: boolean;
 }) {
-  const [selectedAudience, setAudience] = useState("owner");
+  const [selectedAudience, setAudience] = useState(initialAudience);
   const audience =
     selectedAudience === "owner" ||
     audiences.some((a) => a.value === selectedAudience)
@@ -39,14 +45,27 @@ export function ImDataPermissions({
     readPaths: [],
     writePaths: [],
   };
+  const audienceRevision = audiences.find(
+    (a) => a.value === audience,
+  )?.revision;
   const confirmed =
-    !!grant.security?.confirmedAt &&
-    grant.security.scopes.every(
-      (s) =>
-        s.audience === "owner" ||
-        s.spaceRevision ===
-          audiences.find((a) => a.value === s.audience)?.revision,
-    );
+    !!imScopeConfirmation(grant.security, scope) &&
+    (audience === "owner" ||
+      (!!audienceRevision && scope.spaceRevision === audienceRevision));
+  function updateScopes(scopes: ImDataScope[]) {
+    onChange({
+      version: IM_SECURITY_VERSION,
+      revision: grant.security?.revision ?? "draft",
+      confirmedAt: Math.max(0, ...scopes.map((s) => s.confirmedAt ?? 0)),
+      scopes,
+    });
+  }
+  const otherScopes = (grant.security?.scopes ?? [])
+    .filter((s) => s.audience !== audience)
+    .map((s) => ({
+      ...s,
+      confirmedAt: imScopeConfirmation(grant.security, s),
+    }));
   const unavailableScopes = (grant.security?.scopes ?? []).filter(
     (s) =>
       s.audience !== "owner" &&
@@ -62,66 +81,32 @@ export function ImDataPermissions({
       return;
     }
     setError("");
-    onChange({
-      version: IM_SECURITY_VERSION,
-      revision: grant.security?.revision ?? "draft",
-      confirmedAt: 0,
-      scopes: [
-        ...(grant.security?.scopes.filter((s) => s.audience !== audience) ??
-          []),
-        {
-          ...next,
-          filePaths: [
-            ...new Set([...next.readPaths, ...next.writePaths]),
-          ].filter(
-            (path) =>
-              knownEntries.find((e) => e.path === path)?.directory === false ||
-              scope.filePaths?.includes(path),
-          ),
-          ...(audiences.find((a) => a.value === audience)?.revision
-            ? {
-                spaceRevision: audiences.find((a) => a.value === audience)!
-                  .revision!,
-              }
-            : {}),
-        },
-      ],
-    });
+    updateScopes([
+      ...otherScopes,
+      {
+        ...next,
+        confirmedAt: 0,
+        readMode: next.readPaths.length ? "selected" : "project",
+        filePaths: [...new Set([...next.readPaths, ...next.writePaths])].filter(
+          (path) =>
+            knownEntries.find((e) => e.path === path)?.directory === false ||
+            scope.filePaths?.includes(path),
+        ),
+        ...(audienceRevision ? { spaceRevision: audienceRevision } : {}),
+      },
+    ]);
   }
-  async function selectAll(write: boolean) {
-    if (!write) {
-      change({ ...scope, readPaths: [] }, undefined, true);
-      return;
-    }
-    setPending(true);
-    setError("");
-    try {
-      const root =
-        entries[""] ??
-        ((await window.artemis.manageIm({
-          action: "scope-entries",
-          projectId: grant.projectId,
-          path: "",
-        })) as ImScopeEntry[]);
-      setEntries((old) => ({ ...old, "": root }));
-      // Enumerate explicit roots; never grant a wildcard or protected entry.
-      const paths = root
-        .filter((entry) => !entry.protected)
-        .map((entry) => entry.path);
-      change(
-        {
-          ...scope,
-          readPaths: scope.readPaths.length ? paths : [],
-          writePaths: paths,
-        },
-        root,
-        scope.readPaths.length === 0,
-      );
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setPending(false);
-    }
+  function selectAll(write: boolean) {
+    change(
+      {
+        ...scope,
+        readPaths: [],
+        writePaths: [],
+        writeMode: write ? "project" : "selected",
+      },
+      undefined,
+      true,
+    );
   }
   async function expand(path: string) {
     if (entries[path]) {
@@ -204,6 +189,7 @@ export function ImDataPermissions({
                         change(
                           {
                             ...scope,
+                            writeMode: "selected",
                             readPaths: paths,
                             writePaths: scope.writePaths.filter((p) =>
                               imPathWithinScope(p, paths),
@@ -215,6 +201,7 @@ export function ImDataPermissions({
                       }
                       change({
                         ...scope,
+                        writeMode: "selected",
                         readPaths: checked
                           ? [...scope.readPaths, entry.path]
                           : scope.readPaths.filter(
@@ -232,9 +219,10 @@ export function ImDataPermissions({
                     className="im-scope-check"
                     label={`${t("ImDataPermissions.message5")} ${entry.path}`}
                     labelVisibility="hidden"
-                    checked={imPathWithinScope(entry.path, scope.writePaths)}
+                    checked={imScopeCanWrite(scope, entry.path)}
                     disabled={
                       disabled ||
+                      (scope.writeMode === "project" && path !== "") ||
                       (scope.readPaths.length > 0 &&
                         !imPathWithinScope(entry.path, scope.readPaths)) ||
                       scope.writePaths.some(
@@ -247,11 +235,19 @@ export function ImDataPermissions({
                       change(
                         {
                           ...scope,
+                          writeMode: "selected",
                           writePaths: checked
                             ? [...scope.writePaths, entry.path]
-                            : scope.writePaths.filter(
-                                (p) => !imPathWithinScope(p, [entry.path]),
-                              ),
+                            : scope.writeMode === "project"
+                              ? (entries[""] ?? [])
+                                  .filter(
+                                    (e) =>
+                                      !e.protected && e.path !== entry.path,
+                                  )
+                                  .map((e) => e.path)
+                              : scope.writePaths.filter(
+                                  (p) => !imPathWithinScope(p, [entry.path]),
+                                ),
                         },
                         undefined,
                         scope.readPaths.length === 0,
@@ -272,22 +268,29 @@ export function ImDataPermissions({
   return (
     <fieldset className="im-security-scope" disabled={disabled || pending}>
       <legend>{t("ImDataPermissions.message7")}</legend>
-      <Select
-        labelVisibility="visible"
-        label={t("ImDataPermissions.message8")}
-        value={audience}
-        onValueChange={setAudience}
-        options={[
-          { value: "owner", label: t("ImDataPermissions.message9") },
-          ...audiences,
-        ]}
-      />
+      {showAudienceSelector && (
+        <Select
+          labelVisibility="visible"
+          label={t("ImDataPermissions.message8")}
+          value={audience}
+          onValueChange={setAudience}
+          options={[
+            {
+              value: "owner",
+              label: t("ImDataPermissions.message9"),
+            },
+            ...audiences,
+          ]}
+        />
+      )}
       <p>{t("ImDataPermissions.message10")}</p>
       <p role="status">
         {t(
-          scope.readPaths.length === 0
-            ? "ImDataPermissions.wholeProject"
-            : "ImDataPermissions.selectedOnly",
+          scope.writeMode === "project"
+            ? "ImDataPermissions.wholeProjectWrite"
+            : scope.readPaths.length === 0
+              ? "ImDataPermissions.wholeProject"
+              : "ImDataPermissions.selectedOnly",
         )}
       </p>
       <div className="im-scope-actions">
@@ -318,7 +321,16 @@ export function ImDataPermissions({
           size="compact"
           disabled={disabled}
           onClick={() =>
-            change({ ...scope, readPaths: [], writePaths: [] }, undefined, true)
+            change(
+              {
+                ...scope,
+                readPaths: [],
+                writePaths: [],
+                writeMode: "selected",
+              },
+              undefined,
+              true,
+            )
           }
         >
           {t("ImDataPermissions.message15")}
@@ -350,13 +362,14 @@ export function ImDataPermissions({
             disabled={disabled || pending}
             onClick={() => {
               if (grant.security)
-                onChange({
-                  ...grant.security,
-                  confirmedAt: 0,
-                  scopes: grant.security.scopes.filter(
-                    (s) => !unavailableScopes.includes(s),
-                  ),
-                });
+                updateScopes(
+                  grant.security.scopes
+                    .filter((s) => !unavailableScopes.includes(s))
+                    .map((s) => ({
+                      ...s,
+                      confirmedAt: imScopeConfirmation(grant.security, s),
+                    })),
+                );
             }}
           >
             {t("ImDataPermissions.removeUnavailableScopes")}
@@ -371,28 +384,17 @@ export function ImDataPermissions({
       <Checkbox
         label={t("ImDataPermissions.message20")}
         checked={confirmed}
-        disabled={
-          disabled ||
-          !grant.security?.scopes.length ||
-          unavailableScopes.length > 0
-        }
-        onCheckedChange={(checked) => {
-          if (grant.security)
-            onChange({
-              ...grant.security,
+        disabled={disabled || (audience !== "owner" && !audienceRevision)}
+        onCheckedChange={(checked) =>
+          updateScopes([
+            ...otherScopes,
+            {
+              ...scope,
               confirmedAt: checked ? Date.now() : 0,
-              scopes: grant.security.scopes.map((s) => ({
-                ...s,
-                ...(audiences.find((a) => a.value === s.audience)?.revision
-                  ? {
-                      spaceRevision: audiences.find(
-                        (a) => a.value === s.audience,
-                      )!.revision!,
-                    }
-                  : {}),
-              })),
-            });
-        }}
+              ...(audienceRevision ? { spaceRevision: audienceRevision } : {}),
+            },
+          ])
+        }
       />
     </fieldset>
   );

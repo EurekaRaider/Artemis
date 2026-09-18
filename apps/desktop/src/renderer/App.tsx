@@ -315,7 +315,7 @@ type Locale = AppLocale;
 type ModelPickerSection = "model" | "thinking";
 type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
-type SettingsEntryTab = "general" | "maintenance";
+type SettingsEntryTab = "general" | "maintenance" | "im";
 type ConfirmationTone = "default" | "danger";
 type ToastContent = string | { error: true; message: string };
 
@@ -6683,6 +6683,9 @@ export function App() {
                       }
                       agents={environmentAgents}
                       onMentionMember={groupMentions.insert}
+                      onManageImPermissions={(trigger) =>
+                        openSettings("im", trigger)
+                      }
                       memberRemovalDisabled={turnActive || busy}
                       onRemoveMember={async (deviceId) => {
                         if (!activeThread) return false;

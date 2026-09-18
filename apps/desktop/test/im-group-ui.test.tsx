@@ -215,6 +215,7 @@ describe("group collaboration UI", () => {
     const mention = vi.fn();
     render(
       <ImGroupMembers
+        managePermissions
         group={{ ...group, targetDeviceIds: ["bob-device"] }}
         locale="zh-CN"
         onMention={mention}
@@ -229,6 +230,7 @@ describe("group collaboration UI", () => {
     const remove = vi.fn(async () => true);
     render(
       <ImGroupMembers
+        managePermissions
         group={{ ...group, targetDeviceIds: ["bob-device"] }}
         locale="zh-CN"
         onRemove={remove}
@@ -274,7 +276,7 @@ describe("group collaboration UI", () => {
   });
   it("shows actual member platforms, devices, executor and stale state", () => {
     const { rerender } = render(
-      <ImGroupMembers group={group} locale="zh-CN" />,
+      <ImGroupMembers managePermissions group={group} locale="zh-CN" />,
     );
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
@@ -294,7 +296,11 @@ describe("group collaboration UI", () => {
     ).not.toBeInTheDocument();
     expect(within(rows[1]!).getByText("本任务执行者")).toBeVisible();
     rerender(
-      <ImGroupMembers group={{ ...group, stale: true }} locale="zh-CN" />,
+      <ImGroupMembers
+        managePermissions
+        group={{ ...group, stale: true }}
+        locale="zh-CN"
+      />,
     );
     expect(screen.queryByText("电脑在线")).not.toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: "状态未知" })).toHaveLength(2);
@@ -302,7 +308,11 @@ describe("group collaboration UI", () => {
       expect(icon).toHaveAttribute("data-state", "offline");
     }
     rerender(
-      <ImGroupMembers group={{ ...group, confirmed: false }} locale="zh-CN" />,
+      <ImGroupMembers
+        managePermissions
+        group={{ ...group, confirmed: false }}
+        locale="zh-CN"
+      />,
     );
     for (const icon of screen.getAllByRole("img")) {
       expect(icon).toHaveAttribute("data-state", "offline");
@@ -355,6 +365,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   };
   const { rerender } = render(
     <ImGroupMembers
+      managePermissions
       group={{ ...group, native: true, roster }}
       locale="zh-CN"
       onMention={vi.fn()}
@@ -445,6 +456,7 @@ it("shows all four native members with robot icons only for bots", async () => {
 
   rerender(
     <ImGroupMembers
+      managePermissions
       group={{
         ...group,
         native: true,
@@ -466,6 +478,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   ).not.toBeInTheDocument();
   rerender(
     <ImGroupMembers
+      managePermissions
       group={{
         ...group,
         native: true,
@@ -476,6 +489,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   );
   rerender(
     <ImGroupMembers
+      managePermissions
       group={{
         ...group,
         native: true,
@@ -491,6 +505,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   );
   rerender(
     <ImGroupMembers
+      managePermissions
       group={{ ...group, native: true, roster, stale: true }}
       locale="zh-CN"
     />,
@@ -503,6 +518,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   ).toBe(true);
   rerender(
     <ImGroupMembers
+      managePermissions
       group={{
         ...group,
         native: true,
@@ -546,6 +562,7 @@ it("shows Slack active and away presence, and makes stale presence unknown", () 
   };
   const { rerender } = render(
     <ImGroupMembers
+      managePermissions
       group={{ ...group, native: true, roster }}
       locale="zh-CN"
     />,
@@ -557,6 +574,7 @@ it("shows Slack active and away presence, and makes stale presence unknown", () 
   ).toEqual(["active", "away", "unknown", "unknown"]);
   rerender(
     <ImGroupMembers
+      managePermissions
       group={{ ...group, native: true, roster, stale: true }}
       locale="zh-CN"
     />,
@@ -574,6 +592,7 @@ it("retries bot verification from its icon and releases the wait after timeout",
   stubWindowArtemis({ manageIm: manage });
   render(
     <ImGroupMembers
+      managePermissions
       locale="zh-CN"
       group={{
         ...group,
@@ -624,6 +643,7 @@ it("shows successful verification and removes the retry action", async () => {
   stubWindowArtemis({ manageIm: manage });
   render(
     <ImGroupMembers
+      managePermissions
       locale="zh-CN"
       group={{
         ...group,
@@ -650,5 +670,70 @@ it("shows successful verification and removes the retry action", async () => {
   fireEvent.contextMenu(screen.getByText("Solar"));
   expect(
     screen.queryByRole("button", { name: "重新验证" }),
+  ).not.toBeInTheDocument();
+});
+
+it("keeps task member lists read-only and links to the central permission entry", async () => {
+  stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
+  const open = vi.fn();
+  render(
+    <ImGroupMembers
+      group={{ ...group, native: true }}
+      locale="zh-CN"
+      onManagePermissions={open}
+    />,
+  );
+  expect(
+    screen.queryByRole("button", { name: /允许.*派任务|禁止.*派任务/ }),
+  ).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "项目与协作权限" }));
+  expect(open).toHaveBeenCalledOnce();
+});
+
+it("keeps group status free of permission controls", async () => {
+  const native = {
+    ...space,
+    endpoints: [space.endpoints[0]],
+    participants: [space.participants[0]],
+    nativeGroup: {
+      version: 1,
+      projectId: "project",
+      enabled: true,
+      capability: "manual",
+      enabledAt: 1,
+      ownerDeviceId: "alice-device",
+    },
+  };
+  render(
+    <ImNativeGroups
+      spaces={[native]}
+      settings={imSettingsSchema.parse({
+        grants: [{ projectId: "project", expiresAt: Date.now() + 60000 }],
+      })}
+      diagnostics={{ identities: [], groups: [], spaces: [], deliveries: [] }}
+      projects={[]}
+      busy={false}
+      t={uiTranslator("zh-CN")}
+      run={async (run) => {
+        await run();
+        return true;
+      }}
+      refresh={async () => {}}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /已发现的群/ }));
+  await user.click(screen.getByRole("option", { name: /Design team/ }));
+  expect(
+    screen.queryByRole("group", { name: "数据与分享范围" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "确认并启用群聊" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "授权配置" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /本地项目/ }),
   ).not.toBeInTheDocument();
 });

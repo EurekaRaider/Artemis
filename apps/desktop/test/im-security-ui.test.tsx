@@ -81,11 +81,11 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
   await user.click(screen.getByRole("checkbox", { name: "可处理 docs" }));
   expect(value!.security!.scopes[0]!.readPaths).toEqual(["docs"]);
   expect(screen.getByText(/撤销项目授权/)).toBeVisible();
-  await user.click(screen.getByRole("checkbox", { name: /我确认以上/ }));
+  await user.click(screen.getByRole("checkbox", { name: /我确认当前会话/ }));
   expect(value!.security!.confirmedAt).toBeGreaterThan(0);
 });
 
-it("bulk selects only explicit unprotected entries for the chosen audience and resets confirmation", async () => {
+it("requires explicit whole-project write consent including future files for only the selected audience", async () => {
   const user = userEvent.setup();
   stubWindowArtemis({
     manageIm: vi.fn(async () => [
@@ -122,10 +122,15 @@ it("bulk selects only explicit unprotected entries for the chosen audience and r
     writePaths: [],
     filePaths: [],
   });
-  await user.click(screen.getByRole("checkbox", { name: /我确认以上/ }));
-  await user.click(screen.getByRole("button", { name: "全选可修改" }));
+  await user.click(screen.getByRole("checkbox", { name: /我确认当前会话/ }));
+  await user.click(screen.getByRole("button", { name: "整个项目可修改" }));
   expect(value!.security!.confirmedAt).toBe(0);
-  expect(value!.security!.scopes[0]!.writePaths).toEqual(["src", "README.md"]);
+  expect(value!.security!.scopes[0]).toMatchObject({
+    readPaths: [],
+    writePaths: [],
+    writeMode: "project",
+    confirmedAt: 0,
+  });
   await user.click(screen.getByRole("button", { name: /^分享给谁/ }));
   await user.click(screen.getByRole("option", { name: "Team", exact: true }));
   await user.click(screen.getByRole("button", { name: "整个项目可读" }));
@@ -140,8 +145,8 @@ it("bulk selects only explicit unprotected entries for the chosen audience and r
     value!.security!.scopes.find((s) => s.audience === "space:team")!.readPaths,
   ).toEqual([]);
   expect(
-    value!.security!.scopes.find((s) => s.audience === "owner")!.writePaths,
-  ).toEqual(["src", "README.md"]);
+    value!.security!.scopes.find((s) => s.audience === "owner")!.writeMode,
+  ).toBe("project");
 });
 
 it("exposes disclosure state and preserves inherited permissions with keyboard controls", async () => {
@@ -262,7 +267,7 @@ it("requires an explicit handoff target and selected text", () => {
   ).toBe(true);
 });
 
-it("requires explicit removal of unavailable audiences before confirmation", async () => {
+it("confirms only the selected audience without confirming or blocking on unrelated stale audiences", async () => {
   const user = userEvent.setup();
   stubWindowArtemis({
     manageIm: vi.fn(async () => [
@@ -313,23 +318,31 @@ it("requires explicit removal of unavailable audiences before confirmation", asy
   }
   render(<Editor />);
   await user.click(screen.getByRole("button", { name: "整个项目可读" }));
-  const confirmation = screen.getByRole("checkbox", { name: /我确认以上/ });
-  expect(confirmation).toBeDisabled();
+  const confirmation = screen.getByRole("checkbox", { name: /我确认当前会话/ });
+  expect(confirmation).toBeEnabled();
   expect(screen.getByText(/Old group/)).toBeVisible();
   expect(value!.security!.scopes).toHaveLength(3);
+  await user.click(confirmation);
+  expect(
+    value!.security!.scopes.find((s) => s.audience === "owner")!.confirmedAt,
+  ).toBeGreaterThan(0);
+  expect(
+    value!.security!.scopes.find((s) => s.audience === "space:team")!
+      .confirmedAt,
+  ).toBe(0);
   await user.click(screen.getByRole("button", { name: "移除失效的分享范围" }));
-  expect(value!.security!.confirmedAt).toBe(0);
   expect(value!.security!.scopes.map((s) => s.audience).sort()).toEqual([
     "owner",
     "space:team",
   ]);
   expect(confirmation).toBeEnabled();
-  await user.click(confirmation);
+  if (!(confirmation as HTMLInputElement).checked)
+    await user.click(confirmation);
   expect(confirmation).toBeChecked();
   expect(
     value!.security!.scopes.find((s) => s.audience === "space:team"),
   ).toMatchObject({
-    spaceRevision: "v1",
+    spaceRevision: "v0",
     readPaths: ["src"],
     writePaths: [],
   });

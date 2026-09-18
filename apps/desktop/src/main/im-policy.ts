@@ -7,9 +7,12 @@ import {
   imPathWithinScope,
   isImProtectedPath,
   normalizeImPath,
+  imScopeCanWrite,
+  imScopeConfirmation,
   type ExecutionGrant,
   type ImDataScope,
   type ImConversation,
+  type RemoteOperation,
 } from "@artemis/protocol";
 import { checkedRemotePath } from "./im-sandbox.js";
 
@@ -33,13 +36,12 @@ export function requireImScope(
   grant: ExecutionGrant,
   audience: string,
 ): ImDataScope {
-  if (
-    grant.security?.version !== IM_SECURITY_VERSION ||
-    !grant.security.confirmedAt
-  )
+  if (grant.security?.version !== IM_SECURITY_VERSION)
     throw new Error("请在桌面确认此项目的数据与分享范围后继续。");
   const scope = grant.security.scopes.find((s) => s.audience === audience);
   if (!scope) throw new Error("此会话的数据与分享范围尚未授权，请在桌面设置。");
+  if (!imScopeConfirmation(grant.security, scope))
+    throw new Error("请在桌面确认此会话的数据与分享范围后继续。");
   return scope;
 }
 export class ImPermissionError extends Error {
@@ -51,15 +53,46 @@ export class ImPermissionError extends Error {
     this.name = "ImPermissionError";
   }
 }
+/** Ancestors expose a projection of the grant, never a filesystem listing. */
+export function imProjectedDirectory(scope: ImDataScope, input: string) {
+  if (!scope.readPaths.length) return undefined;
+  const path = input === "." ? "" : normalizeImPath(input);
+  if (path && imPathWithinScope(path, scope.readPaths)) return undefined;
+  const prefix = path ? `${path}/` : "";
+  const entries = new Map<string, { path: string; directory: boolean }>();
+  for (const root of scope.readPaths) {
+    if (!root.startsWith(prefix) || isImProtectedPath(root)) continue;
+    const child = prefix + root.slice(prefix.length).split("/")[0];
+    entries.set(child, {
+      path: child,
+      directory: child !== root || !scope.filePaths?.includes(root),
+    });
+  }
+  return entries.size
+    ? [...entries.values()].sort((a, b) => a.path.localeCompare(b.path))
+    : undefined;
+}
+
+export function imRequiresApproval(
+  approval: ExecutionGrant["approval"],
+  operation: RemoteOperation,
+): boolean {
+  if (operation.action === "read" || operation.action === "participants")
+    return false;
+  if (
+    operation.action === "collaborate" &&
+    ["participants", "status", "wait", "cancel"].includes(
+      operation.command.action,
+    )
+  )
+    return false;
+  return approval === "ask";
+}
+
 /** Only directory reads may address the root; never broaden file/write paths. */
 export function authorizeImReadPath(scope: ImDataScope, input: string): string {
-  if (input !== ".") return authorizeImPath(scope, input);
-  if (scope.readPaths.length)
-    throw new ImPermissionError(
-      "scope-denied",
-      "当前仅授权选定条目，项目根目录枚举不在此会话的授权范围内。",
-    );
-  return ".";
+  if (input === "." || imProjectedDirectory(scope, input)) return input;
+  return authorizeImPath(scope, input);
 }
 
 export function authorizeImPath(
@@ -75,7 +108,7 @@ export function authorizeImPath(
   // Empty readPaths grants the whole project root; empty writePaths still
   // grants no writes.
   const withinScope = write
-    ? imPathWithinScope(path, scope.writePaths)
+    ? imScopeCanWrite(scope, path)
     : scope.readPaths.length === 0 || imPathWithinScope(path, scope.readPaths);
   if (!withinScope)
     throw new ImPermissionError(
@@ -219,6 +252,7 @@ export async function writeImFile(
   content: string,
   scope: ImDataScope,
   assertCurrent: () => void = () => {},
+  expectedHash?: string,
 ): Promise<void> {
   const path = await checkedRemotePath(
     workspace,
@@ -228,8 +262,14 @@ export async function writeImFile(
   await checkedRemotePath(workspace, input);
   const handle = await open(
     path,
-    constants.O_WRONLY |
-      (process.platform === "darwin" ? constants.O_CREAT : 0) |
+    (expectedHash && expectedHash !== "absent"
+      ? constants.O_RDWR
+      : constants.O_WRONLY) |
+      (expectedHash === "absent" ? constants.O_EXCL : 0) |
+      (process.platform === "darwin" &&
+      (!expectedHash || expectedHash === "absent")
+        ? constants.O_CREAT
+        : 0) |
       noFollowFlags(),
     0o600,
   );
@@ -243,9 +283,27 @@ export async function writeImFile(
       current.dev !== opened.dev
     )
       throw new Error("File changed or is linked. Write denied.");
+    if (expectedHash && expectedHash !== "absent") {
+      if (
+        opened.size > 10 * 1024 * 1024 ||
+        imContentHash(await handle.readFile()) !== expectedHash
+      )
+        throw new Error(
+          "File changed since it was read. Read it again and merge before writing.",
+        );
+    }
     assertCurrent();
     await handle.truncate(0);
-    await handle.writeFile(content, "utf8");
+    const bytes = Buffer.from(content, "utf8");
+    for (let offset = 0; offset < bytes.length;) {
+      const { bytesWritten } = await handle.write(
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      offset += bytesWritten;
+    }
   } finally {
     await handle.close();
   }

@@ -5,10 +5,15 @@ import {
   type DelegatedTaskResult,
 } from "./im-delegation-waits.js";
 import { randomUUID } from "node:crypto";
+import { setTimeout as wait } from "node:timers/promises";
+import { prepareImShellRuntime } from "./im-shell-runtime.js";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
   IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
+  imScopeConfirmation,
+  imScopeRevision,
+  imPathWithinScope,
   type ImSecurityContext,
   type ImOutboundCandidate,
   type ExecutionGrant,
@@ -25,6 +30,7 @@ import {
   readImFile,
   writeImFile,
   imScopeEntries,
+  imProjectedDirectory,
 } from "./im-policy.js";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -534,6 +540,8 @@ export class ImService {
   >();
   private controllers = new Map<string, Set<AbortController>>();
   private validatedSandboxes = new Set<string>();
+  private readonly projectWrites = new Map<string, Promise<void>>();
+  private readonly activeProjectWrites = new Set<string>();
   private readonly windowsFiles?: WindowsImFiles;
   private get scopedExecutionSupported() {
     return (
@@ -566,8 +574,10 @@ export class ImService {
       // Old empty scopes granted no reads. Their consent cannot authorize
       // the new whole-project default without a fresh desktop confirmation.
       for (const grant of this.config.grants)
-        if (grant.security?.scopes.some((scope) => !scope.readPaths.length))
+        if (grant.security?.scopes.some((scope) => !scope.readPaths.length)) {
+          for (const scope of grant.security.scopes) scope.confirmedAt = 0;
           grant.security.confirmedAt = 0;
+        }
       this.put("settings", "current", this.config);
       this.put("migrations", "whole-project-reads", true);
     }
@@ -704,7 +714,9 @@ export class ImService {
     return {
       version: IM_SECURITY_VERSION,
       projectId: binding.projectId,
-      revision: grant.security!.revision,
+      revision: imScopeRevision(grant.security!, scope),
+      contextRevision:
+        scope.contextRevision ?? imScopeRevision(grant.security!, scope),
       audience,
       identityKey: imIdentityKey(binding.request.identity),
       source,
@@ -1271,12 +1283,13 @@ export class ImService {
         );
     // A confirmation names the exact recipient roster, not a mutable space ID.
     if (
-      settings.grants.some(
-        (g) =>
-          g.security?.confirmedAt &&
-          g.security.scopes.some(
-            (s) => s.audience !== "owner" && !s.spaceRevision,
-          ),
+      settings.grants.some((g) =>
+        g.security?.scopes.some(
+          (s) =>
+            imScopeConfirmation(g.security, s) &&
+            s.audience !== "owner" &&
+            !s.spaceRevision,
+        ),
       )
     ) {
       const status = await (await this.http("/v1/device/status")).json();
@@ -1284,7 +1297,7 @@ export class ImService {
       for (const grant of settings.grants)
         for (const scope of grant.security?.scopes ?? []) {
           if (
-            !grant.security?.confirmedAt ||
+            !imScopeConfirmation(grant.security, scope) ||
             scope.audience === "owner" ||
             scope.spaceRevision
           )
@@ -1301,54 +1314,91 @@ export class ImService {
       const previous = this.config.grants.find(
         (g) => g.projectId === grant.projectId,
       );
-      if (grant.security?.confirmedAt) {
-        for (const scope of grant.security.scopes) {
-          if (!scope.filePaths) {
-            scope.filePaths = [];
-            for (const path of scope.readPaths) {
-              const full = await checkedRemotePath(
-                projects.find((p) => p.id === grant.projectId)!.path,
-                path,
-              );
-              const info = await lstat(full).catch((error) => {
-                if (error.code === "ENOENT") return undefined;
-                throw error;
-              });
-              if (!info?.isDirectory()) scope.filePaths.push(path);
-            }
+      if (!grant.security) continue;
+      const allowed = new Set(["owner", ...grant.groups]);
+      const controls = (g: ExecutionGrant) =>
+        JSON.stringify([g.mode, g.approval, g.shell, g.network, g.expiresAt]);
+      const semantic = (scope: import("@artemis/protocol").ImDataScope) =>
+        JSON.stringify({
+          audience: scope.audience,
+          spaceRevision: scope.spaceRevision,
+          readPaths: [...scope.readPaths].sort(),
+          writePaths: [...scope.writePaths].sort(),
+          filePaths: [...(scope.filePaths ?? [])].sort(),
+          writeMode: scope.writeMode ?? "selected",
+        });
+      let changed = false;
+      for (const scope of grant.security.scopes) {
+        const old = previous?.security?.scopes.find(
+          (s) => s.audience === scope.audience,
+        );
+        const confirmedAt = imScopeConfirmation(grant.security, scope);
+        if (confirmedAt && !allowed.has(scope.audience))
+          throw new Error("数据范围引用了未授权的协作空间。");
+        if (confirmedAt && !scope.filePaths) {
+          scope.filePaths = [];
+          for (const path of scope.readPaths) {
+            const full = await checkedRemotePath(
+              projects.find((p) => p.id === grant.projectId)!.path,
+              path,
+            );
+            const info = await lstat(full).catch((error) => {
+              if (error.code !== "ENOENT") throw error;
+              return undefined;
+            });
+            if (!info?.isDirectory()) scope.filePaths.push(path);
           }
         }
-        const allowed = new Set(["owner", ...grant.groups]);
-        if (grant.security.scopes.some((scope) => !allowed.has(scope.audience)))
-          throw new Error("数据范围引用了未授权的协作空间。");
-        const semantic = (g: ExecutionGrant) =>
-          JSON.stringify({
-            ...g,
-            security: g.security
-              ? {
-                  scopes: g.security.scopes.map((s) => ({
-                    audience: s.audience,
-                    spaceRevision: s.spaceRevision,
-                    filePaths: s.filePaths,
-                    readPaths: s.readPaths,
-                    writePaths: s.writePaths,
-                  })),
-                }
-              : undefined,
-          });
-        if (!previous?.security || semantic(previous) !== semantic(grant)) {
-          grant.security.revision = randomUUID();
-          grant.security.confirmedAt = Date.now();
-        } else if (previous.security.confirmedAt) {
-          grant.security = previous.security;
-        } else {
-          // This branch is inside `if (grant.security?.confirmedAt)` above:
-          // preserve the explicit confirmation supplied by the desktop form.
-          // Unconfirmed input never enters here. Rotate the revision so old
-          // task bindings cannot inherit the newly confirmed scope.
-          grant.security.revision = randomUUID();
-        }
+        const same =
+          !!old &&
+          !!previous?.security &&
+          semantic(old) === semantic(scope) &&
+          controls(previous) === controls(grant) &&
+          !!imScopeConfirmation(previous.security, old) === !!confirmedAt;
+        scope.revision = same
+          ? imScopeRevision(previous!.security!, old!)
+          : randomUUID();
+        const retainsReadableData =
+          old &&
+          previous?.security &&
+          imScopeConfirmation(previous.security, old) &&
+          confirmedAt &&
+          old.spaceRevision === scope.spaceRevision &&
+          (!scope.readPaths.length ||
+            (old.readPaths.length > 0 &&
+              old.readPaths.every((path) =>
+                imPathWithinScope(path, scope.readPaths),
+              ))) &&
+          (scope.filePaths ?? []).every((file) =>
+            old.filePaths?.includes(file),
+          );
+        scope.contextRevision = retainsReadableData
+          ? (old.contextRevision ?? imScopeRevision(previous!.security!, old))
+          : scope.revision;
+        scope.confirmedAt = confirmedAt;
+        changed ||= !same;
       }
+      for (const audience of grant.groups) {
+        if (
+          !previous?.groups.includes(audience) &&
+          !grant.security.scopes.some(
+            (s) =>
+              s.audience === audience && imScopeConfirmation(grant.security, s),
+          )
+        )
+          throw new Error("请在统一权限入口为新增群确认数据范围。");
+      }
+      if (
+        changed ||
+        previous?.security?.scopes.length !== grant.security.scopes.length
+      )
+        grant.security.revision = randomUUID();
+      else if (previous?.security)
+        grant.security.revision = previous.security.revision;
+      grant.security.confirmedAt = Math.max(
+        0,
+        ...grant.security.scopes.map((s) => s.confirmedAt ?? 0),
+      );
     }
     this.config = settings;
     this.put("settings", "current", settings);
@@ -1390,6 +1440,7 @@ export class ImService {
       })
       .map((binding) => this.ops.cancel(binding.threadId));
     await Promise.allSettled(cancellations);
+    for (const binding of invalid) await this.ops.close(binding.threadId);
     if (this.securityReady)
       await this.syncSecurity().catch(() => {
         this.error =
@@ -1784,14 +1835,10 @@ export class ImService {
       const existingGrant = this.config.grants.find(
         (g) => g.projectId === action.grant.projectId,
       );
-      if (existingGrant?.security && !existingGrant.security.confirmedAt)
-        throw new Error(
-          "请先确认该项目已有的数据范围，再添加群。否则会隐式确认其他分享对象。",
-        );
       const scope = action.grant.security?.scopes.find(
         (s) => s.audience === "owner",
       );
-      if (!scope || !action.grant.security?.confirmedAt)
+      if (!scope || !imScopeConfirmation(action.grant.security, scope))
         throw new Error("请确认数据与分享范围。");
       const credential = await this.ensureLocalGateway();
       const group = (await (
@@ -1826,7 +1873,13 @@ export class ImService {
             ...(previous?.security?.scopes.filter(
               (s) => s.audience !== audience,
             ) ?? []),
-            { ...scope, audience, spaceRevision: group.revision! },
+            {
+              ...scope,
+              audience,
+              confirmedAt: Date.now(),
+              revision: randomUUID(),
+              spaceRevision: group.revision!,
+            },
           ],
         },
       };
@@ -2288,32 +2341,15 @@ export class ImService {
     const thread = this.ops.thread(threadId),
       remote = remoteOrigin ?? !!this.profile(threadId);
     if (!thread) return () => {};
-    for (const [id, pending] of this.starts)
-      if (
-        mode === "execute" &&
-        pending.mode === "execute" &&
-        thread.projectId &&
-        id !== threadId &&
-        pending.projectId === thread.projectId &&
-        (remote || pending.remote)
-      )
-        throw new Error("Project is starting another write task.");
     if (
       mode === "execute" &&
       thread.projectId &&
       !remote &&
-      this.ops
-        .threads()
-        .some(
-          (t) =>
-            t.id !== threadId &&
-            t.projectId === thread.projectId &&
-            t.mode === "execute" &&
-            busy(t) &&
-            !!this.profile(t.id),
-        )
+      this.activeProjectWrites.has(thread.projectId)
     )
-      throw new Error("Project is executing a remote write task.");
+      throw new Error(
+        "Project is executing a remote write operation. Retry after it finishes.",
+      );
     this.starts.set(threadId, { projectId: thread.projectId, remote, mode });
     return () => {
       this.starts.delete(threadId);
@@ -2326,18 +2362,77 @@ export class ImService {
     const grant = this.grant(binding);
     if (mode === "execute" && grant.mode !== "execute")
       throw new Error("Remote Execute is not authorized for this project.");
-    if (
-      this.ops
-        .threads()
-        .some(
-          (t) =>
-            t.id !== threadId &&
-            t.projectId === binding.projectId &&
-            t.mode === "execute" &&
-            busy(t),
+  }
+  private async withProjectWrite<T>(
+    threadId: string,
+    operation: RemoteOperation,
+    mode: RunMode,
+    turnId: string | undefined,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const binding = this.get<Binding>("bindings", threadId)!;
+    const projectId = binding.projectId!;
+    const predecessor = this.projectWrites.get(projectId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = predecessor.then(() => current);
+    this.projectWrites.set(projectId, tail);
+    const controller = new AbortController();
+    const controllers =
+      this.controllers.get(threadId) ?? new Set<AbortController>();
+    controllers.add(controller);
+    this.controllers.set(threadId, controllers);
+    try {
+      // A cancelled waiter still releases its place only after its predecessor.
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => reject(controller.signal.reason);
+        controller.signal.addEventListener("abort", abort, { once: true });
+        void predecessor.then(() => {
+          controller.signal.removeEventListener("abort", abort);
+          resolve();
+        });
+      });
+      while (
+        this.ops
+          .threads()
+          .some(
+            (t) =>
+              t.id !== threadId &&
+              t.projectId === projectId &&
+              t.mode === "execute" &&
+              busy(t) &&
+              !this.profile(t.id),
+          ) ||
+        [...this.starts.values()].some(
+          (pending) =>
+            pending.projectId === projectId &&
+            pending.mode === "execute" &&
+            !pending.remote,
         )
-    )
-      throw new Error("此项目正在执行另一个写任务；远程任务等待项目空闲。");
+      ) {
+        controller.signal.throwIfAborted();
+        this.authorizeOperation(threadId, operation, mode, turnId);
+        await wait(100, undefined, { signal: controller.signal });
+      }
+      controller.signal.throwIfAborted();
+      this.authorizeOperation(threadId, operation, mode, turnId);
+      this.activeProjectWrites.add(projectId);
+      try {
+        return await run();
+      } finally {
+        this.activeProjectWrites.delete(projectId);
+      }
+    } finally {
+      release();
+      void tail.then(() => {
+        if (this.projectWrites.get(projectId) === tail)
+          this.projectWrites.delete(projectId);
+      });
+      controllers.delete(controller);
+      if (!controllers.size) this.controllers.delete(threadId);
+    }
   }
   cancelOperations(threadId: string): void {
     for (const controller of this.controllers.get(threadId) ?? [])
@@ -2385,18 +2480,6 @@ export class ImService {
     const binding = this.get<Binding>("bindings", threadId);
     if (!binding) throw new Error("Remote tool is unavailable in this task.");
     const current = this.grant(binding);
-    const block = this.get<{
-      revision?: string;
-      turnId?: string;
-      result: { code: "scope-denied" | "system-denied"; message: string };
-    }>("permission-blocks", threadId);
-    if (
-      block &&
-      block.revision === current.security?.revision &&
-      (block.result.code === "scope-denied" || block.turnId === turnId) &&
-      operation.action !== "participants"
-    )
-      throw new ImPermissionError(block.result.code, block.result.message);
     if (operation.action === "participants") {
       if (
         binding.request.conversation.kind !== "group" ||
@@ -2514,28 +2597,16 @@ export class ImService {
     callId: string,
     turnId?: string,
   ): Promise<unknown> {
-    const binding = this.get<Binding>("bindings", threadId);
-    const grant = binding ? this.grant(binding) : undefined;
-    const blocked = this.get<{
-      revision?: string;
-      turnId?: string;
-      result: { message: string; code: "scope-denied" | "system-denied" };
-    }>("permission-blocks", threadId);
-    if (
-      blocked &&
-      blocked.revision === grant?.security?.revision &&
-      (blocked.result.code === "scope-denied" || blocked.turnId === turnId)
-    )
-      return blocked.result;
-    if (blocked) this.remove("permission-blocks", threadId);
+    // Old task-wide denials must not freeze operations under the new policy.
+    this.remove("permission-blocks", threadId);
     try {
-      return await this.operateScoped(
-        threadId,
-        operationInput,
-        mode,
-        callId,
-        turnId,
-      );
+      const operation = remoteOperationSchema.parse(operationInput);
+      this.authorizeOperation(threadId, operation, mode, turnId);
+      const run = () =>
+        this.operateScoped(threadId, operation, mode, callId, turnId);
+      return operation.action === "write" || operation.action === "shell"
+        ? await this.withProjectWrite(threadId, operation, mode, turnId, run)
+        : await run();
     } catch (error) {
       const denied =
         error instanceof ImPermissionError
@@ -2557,30 +2628,20 @@ export class ImService {
     denied: ImPermissionError,
     turnId?: string,
   ) {
-    const existing = this.get<{
-      result: {
-        message: string;
-        code: string;
-        parkPermission: boolean;
-        state: string;
-      };
-    }>("permission-blocks", threadId);
-    if (existing?.result.message === denied.message) return existing.result;
+    this.remove("permission-blocks", threadId);
     const binding = this.get<Binding>("bindings", threadId);
     const grant = binding ? this.grant(binding) : undefined;
-    const result = {
-      state: "permission-required",
-      parkPermission: true,
+    const scope =
+      grant && binding
+        ? requireImScope(grant, imAudience(binding.request.conversation))
+        : undefined;
+    return {
+      state: "operation-denied",
+      parkPermission: false,
       code: denied.code,
-      message: `${denied.message} 请在接收方 Artemis 设置的 IM 项目授权中核对当前分享对象与数据范围；系统拒绝时检查系统文件访问权限。处理后在本任务发送“继续”。请勿改用 Shell、Python、猜测名称或索引文件探测被拒绝的范围。`,
+      ...(scope ? { allowedScope: scope } : {}),
+      message: `${denied.message} 仅此操作被拒绝，其他已授权工作可以继续。若任务确实需要此能力，请向主人说明缺少的范围；系统拒绝时检查系统文件权限。不得换用其他工具访问同一被拒资源。`,
     };
-    this.put("permission-blocks", threadId, {
-      revision: grant?.security?.revision,
-      turnId,
-      result,
-    });
-    this.cancelOperations(threadId);
-    return result;
   }
   private async operateScoped(
     threadId: string,
@@ -2833,6 +2894,8 @@ export class ImService {
     );
     if (operation.action === "read") {
       const readPath = authorizeImReadPath(scope, operation.path);
+      const projected = imProjectedDirectory(scope, readPath);
+      if (projected) return { entries: projected };
       const path =
         readPath === "."
           ? workspace
@@ -2898,7 +2961,12 @@ export class ImService {
           )
         : await readImFile(workspace, operation.path, scope);
       this.authorizeOperation(threadId, operation, mode, turnId);
-      return { output: bytes.toString("utf8"), exitCode: 0, cancelled: false };
+      return {
+        output: bytes.toString("utf8"),
+        contentHash: imContentHash(bytes),
+        exitCode: 0,
+        cancelled: false,
+      };
     }
     if (operation.action === "write") {
       if (mode !== "execute") throw new Error("Plan and Review cannot write.");
@@ -2907,8 +2975,13 @@ export class ImService {
         this.windowsFiles
           ? this.windowsFiles.write.bind(this.windowsFiles)
           : writeImFile
-      )(workspace, operation.path, operation.content, scope, () =>
-        this.authorizeOperation(threadId, operation, mode, turnId),
+      )(
+        workspace,
+        operation.path,
+        operation.content,
+        scope,
+        () => this.authorizeOperation(threadId, operation, mode, turnId),
+        operation.expectedHash,
       );
       const result = { output: "File written.", exitCode: 0, cancelled: false };
       this.put("operations", receiptKey, { state: "done", operation, result });
@@ -2929,7 +3002,12 @@ export class ImService {
         controller.abort();
     }, 500);
     this.put("operations", receiptKey, { state: "started", operation });
+    let runtime: Awaited<ReturnType<typeof prepareImShellRuntime>> | undefined;
     try {
+      runtime =
+        process.platform === "darwin"
+          ? await prepareImShellRuntime()
+          : undefined;
       const result =
         this.windowsFiles && this.windowsHelper
           ? await runWindowsImShell({
@@ -2952,6 +3030,7 @@ export class ImService {
                 scope,
                 process.platform,
                 shellLinkPolicy,
+                runtime,
               ),
               controller.signal,
               operation.timeoutSeconds,
@@ -2973,6 +3052,7 @@ export class ImService {
       clearTimeout(expiry);
       set.delete(controller);
       if (!set.size) this.controllers.delete(threadId);
+      await runtime?.dispose();
     }
   }
   private async checkSandbox(workspace: string): Promise<void> {
@@ -3821,18 +3901,7 @@ export class ImService {
         (!!current && busy(current) && !this.profile(existing.id))
       );
     };
-    if (
-      localTurnActive() ||
-      this.ops
-        .threads()
-        .some(
-          (t) =>
-            t.id !== threadId &&
-            t.projectId === projectId &&
-            t.mode === "execute" &&
-            busy(t),
-        )
-    ) {
+    if (localTurnActive()) {
       if (!this.get("queued-notices", request.id)) {
         this.reply(
           request,
@@ -4477,13 +4546,20 @@ export class ImService {
       version: IM_SECURITY_VERSION,
       grants: this.config.enabled
         ? this.config.grants.flatMap((g) =>
-            g.security?.confirmedAt
-              ? g.security.scopes.map((scope) => ({
-                  projectId: g.projectId,
-                  revision: g.security!.revision,
-                  audience: scope.audience,
-                  expiresAt: g.expiresAt,
-                }))
+            g.security
+              ? g.security.scopes
+                  .filter(
+                    (scope) =>
+                      imScopeConfirmation(g.security, scope) &&
+                      (scope.audience === "owner" ||
+                        g.groups.includes(scope.audience)),
+                  )
+                  .map((scope) => ({
+                    projectId: g.projectId,
+                    revision: imScopeRevision(g.security!, scope),
+                    audience: scope.audience,
+                    expiresAt: g.expiresAt,
+                  }))
               : [],
           )
         : [],
@@ -4631,6 +4707,18 @@ export class ImService {
       if (entry?.created)
         await this.refreshNativeHistory(entry.threadId, space.id);
       const currentBinding = thread && this.get<Binding>("bindings", thread.id);
+      const currentGrant = this.config.grants.find(
+        (g) => g.projectId === currentBinding?.projectId,
+      );
+      const currentScope = currentGrant?.security?.scopes.find(
+        (s) => s.audience === `space:${space.id}`,
+      );
+      const currentRevision =
+        currentGrant?.security &&
+        currentScope &&
+        imScopeConfirmation(currentGrant.security, currentScope)
+          ? imScopeRevision(currentGrant.security, currentScope)
+          : undefined;
       const channel = this.channelStatus
         .map((c) =>
           z
@@ -4657,10 +4745,7 @@ export class ImService {
       if (thread) this.ops.updateGroup?.(thread.id, title);
       if (
         thread &&
-        currentBinding?.security?.revision ===
-          this.config.grants.find(
-            (g) => g.projectId === currentBinding?.projectId,
-          )?.security?.revision &&
+        currentBinding?.security?.revision === currentRevision &&
         !!currentBinding?.security &&
         currentBinding.projectId === space.nativeGroup.projectId &&
         currentBinding.request.expiresAt > Date.now() + 60000 &&

@@ -55,6 +55,11 @@ const pathSchema = z.string().superRefine((path, ctx) => {
 export const imDataScopeSchema = z
   .object({
     audience: z.string().min(1).max(1024),
+    revision: z.string().min(1).max(256).optional(),
+    contextRevision: z.string().min(1).max(256).optional(),
+    confirmedAt: z.number().int().nonnegative().optional(),
+    readMode: z.enum(["project", "selected"]).optional(),
+    writeMode: z.enum(["project", "selected"]).optional(),
     spaceRevision: z.string().min(1).max(256).optional(),
     filePaths: z.array(pathSchema).max(256).optional(),
     readPaths: z.array(pathSchema).max(256),
@@ -66,10 +71,23 @@ export const imDataScopeSchema = z
     // everything, write nothing), so writable paths are not constrained by
     // it; non-empty readPaths keep the explicit subset invariants.
     const wholeProject = scope.readPaths.length === 0;
-    if (wholeProject && scope.filePaths?.length)
+    if (
+      (scope.readMode === "project" && !wholeProject) ||
+      (scope.readMode === "selected" && wholeProject) ||
+      (scope.writeMode === "project" && !wholeProject)
+    )
       ctx.addIssue({
         code: "custom",
-        message: "File roots require explicit readable paths",
+        message:
+          "Project access must be explicit and writable scope must remain readable",
+      });
+    if (
+      wholeProject &&
+      scope.filePaths?.some((path) => !scope.writePaths.includes(path))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "File roots require explicit readable or writable paths",
       });
     if (
       !wholeProject &&
@@ -89,6 +107,23 @@ export const imDataScopeSchema = z
       });
   });
 export type ImDataScope = z.infer<typeof imDataScopeSchema>;
+export function imScopeCanWrite(scope: ImDataScope, path: string): boolean {
+  return (
+    scope.writeMode === "project" || imPathWithinScope(path, scope.writePaths)
+  );
+}
+export function imScopeConfirmation(
+  security: { confirmedAt: number } | undefined,
+  scope: ImDataScope,
+): number {
+  return scope.confirmedAt ?? security?.confirmedAt ?? 0;
+}
+export function imScopeRevision(
+  security: { revision: string },
+  scope: ImDataScope,
+): string {
+  return scope.revision ?? security.revision;
+}
 export const imGrantSecuritySchema = z
   .object({
     version: z.literal(IM_SECURITY_VERSION),
@@ -107,6 +142,7 @@ export interface ImSecurityContext {
   version: typeof IM_SECURITY_VERSION;
   projectId: string;
   revision: string;
+  contextRevision?: string;
   audience: string;
   identityKey: string;
   source: "owner" | "member" | "desktop" | "tool-result";

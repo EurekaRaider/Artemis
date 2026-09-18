@@ -1,4 +1,4 @@
-import { ImPermissionError } from "./im-policy.js";
+import { ImPermissionError, imRequiresApproval } from "./im-policy.js";
 import { ThreadHistoryService } from "./thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
 import { statusText } from "../shared/status-text.js";
@@ -4124,11 +4124,7 @@ async function handleBrokerRequest(
           request.mode,
           request.turnId,
         );
-        if (
-          request.operation.action !== "read" &&
-          request.operation.action !== "participants" &&
-          grant.approval === "ask"
-        ) {
+        if (imRequiresApproval(grant.approval, request.operation)) {
           const nonce = randomUUID();
           pendingApprovals.register({
             approvalId: request.approvalId,

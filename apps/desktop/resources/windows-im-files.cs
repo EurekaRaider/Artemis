@@ -129,7 +129,7 @@ public sealed class ArtemisImFiles : IDisposable
         }
         foreach (var file in fileRoots) if (path.StartsWith(file + "/", StringComparison.Ordinal)) throw new IOException("File grant cannot expand into a directory.");
         bool allowed = !write && readable.Length == 0;
-        foreach (var scope in write ? writable : readable) if (path == scope || path.StartsWith(scope + "/", StringComparison.Ordinal)) allowed = true;
+        foreach (var scope in write ? writable : readable) if ((write && scope == ".") || path == scope || path.StartsWith(scope + "/", StringComparison.Ordinal)) allowed = true;
         if (!allowed) throw new IOException("Path is outside the grant.");
         return Path.Combine(root, path.Replace('/', '\\'));
     }

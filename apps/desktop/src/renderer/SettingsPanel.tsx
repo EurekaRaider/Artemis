@@ -866,7 +866,11 @@ export function SettingsPanel({
               role="tabpanel"
             >
               {activeTab === "im" && (
-                <ImSettingsPanel locale={locale} onOpenThread={onOpenThread} />
+                <ImSettingsPanel
+                  locale={locale}
+                  onOpenThread={onOpenThread}
+                  initialPermissions={initialTab === "im"}
+                />
               )}
               {activeTab === "providers" && (
                 <>

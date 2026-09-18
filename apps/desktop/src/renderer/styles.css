@@ -13108,11 +13108,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   cursor: default;
 }
 
-.im-group-back {
-  align-self: start;
-  width: fit-content;
-}
-
 .im-delegation-wait {
   position: relative;
   margin-block-end: 6px;

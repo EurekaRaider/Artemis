@@ -605,6 +605,9 @@ export const remoteOperationSchema = z.discriminatedUnion("action", [
       action: z.literal("write"),
       path: z.string().min(1).max(4096),
       content: z.string().max(1_000_000),
+      expectedHash: z
+        .union([z.literal("absent"), z.string().regex(/^[a-f0-9]{64}$/u)])
+        .optional(),
     })
     .strict(),
   z

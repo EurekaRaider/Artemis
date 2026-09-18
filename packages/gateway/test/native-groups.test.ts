@@ -42,6 +42,26 @@ function fixture() {
   const router = new GatewayRouter(store);
   return { store, device, identity, conversation, event, router };
 }
+it("keeps authorization stable on a display-name edit but invalidates a project change", () => {
+  const f = fixture();
+  f.router.ingest(f.event);
+  f.router.processIncoming();
+  const input = {
+    conversation: f.conversation,
+    owner: f.identity,
+    deviceId: f.device.id,
+    name: "Room",
+    projectId: "p",
+    enabled: true,
+  };
+  const first = saveNativeGroup(f.store, input);
+  expect(saveNativeGroup(f.store, { ...input, name: "Renamed" }).revision).toBe(
+    first.revision,
+  );
+  expect(
+    saveNativeGroup(f.store, { ...input, projectId: "other" }).revision,
+  ).not.toBe(first.revision);
+});
 it.each([
   {
     status: "completed",

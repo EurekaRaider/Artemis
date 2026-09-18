@@ -22,6 +22,7 @@
 ## projects/ · 进行中专项
 
 - [消息接入引导式设置提案](projects/im-guided-settings/README.md)：实际参数、步骤依赖、五步首次设置、群协作与异常恢复。
+- [群协作权限体系重新评估](projects/im-permission-redesign/README.md)：统一权限入口、按会话独立授权、写入调度、原生隔离及实施验收记录。
 
 ## records/ · 台账
 

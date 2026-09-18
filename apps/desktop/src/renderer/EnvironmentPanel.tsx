@@ -605,6 +605,7 @@ export function EnvironmentPanel({
   dockOpen,
   imGroup,
   onMentionMember,
+  onManageImPermissions,
   onRemoveMember,
   memberRemovalDisabled,
   workspaceIsWorktree,
@@ -635,6 +636,7 @@ export function EnvironmentPanel({
   defaultOpen: boolean;
   dockOpen: boolean;
   imGroup?: ImGroupContext | undefined;
+  onManageImPermissions?: ((trigger: HTMLButtonElement) => void) | undefined;
   onMentionMember?: ((token: string) => void) | undefined;
   onRemoveMember?: ((deviceId: string) => Promise<boolean>) | undefined;
   memberRemovalDisabled?: boolean | undefined;
@@ -1506,6 +1508,7 @@ export function EnvironmentPanel({
               group={imGroup}
               locale={locale}
               onMention={onMentionMember}
+              onManagePermissions={onManageImPermissions}
               onRemove={onRemoveMember}
               removalDisabled={memberRemovalDisabled}
             />

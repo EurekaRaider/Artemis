@@ -5,6 +5,8 @@ import {
   authorizeImReadPath,
   readImFile,
   writeImFile,
+  imProjectedDirectory,
+  imRequiresApproval,
 } from "../src/main/im-policy.js";
 import {
   mkdtemp,
@@ -21,16 +23,60 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 describe("IM policy", () => {
-  it("allows root listing only for whole-project reads without relaxing file/write paths", () => {
+  it("projects only authorized names for scoped navigation without granting ancestor reads or writes", () => {
     const whole = { audience: "owner", readPaths: [], writePaths: [] };
     expect(authorizeImReadPath(whole, ".")).toBe(".");
-    expect(() =>
-      authorizeImReadPath({ ...whole, readPaths: ["README.md"] }, "."),
-    ).toThrow(/范围/);
+    const scoped = {
+      ...whole,
+      readPaths: ["src/public", "docs/guide.md"],
+      filePaths: ["docs/guide.md"],
+    };
+    expect(authorizeImReadPath(scoped, ".")).toBe(".");
+    expect(authorizeImReadPath(scoped, "docs")).toBe("docs");
+    expect(imProjectedDirectory(scoped, ".")).toEqual([
+      { path: "docs", directory: true },
+      { path: "src", directory: true },
+    ]);
+    expect(imProjectedDirectory(scoped, "docs")).toEqual([
+      { path: "docs/guide.md", directory: false },
+    ]);
+    expect(imProjectedDirectory(scoped, "src/public")).toBeUndefined();
+    expect(() => authorizeImPath(scoped, "docs")).toThrow();
+    expect(() => authorizeImPath(scoped, "docs", true)).toThrow();
+    expect(() => authorizeImReadPath(scoped, "src/private")).toThrow();
     for (const path of ["", "..", "./src", "/tmp", "src/.."])
       expect(() => authorizeImReadPath(whole, path)).toThrow();
     expect(() => authorizeImPath(whole, ".", true)).toThrow();
     expect(() => authorizeImPath(whole, ".")).toThrow();
+  });
+  it("does not ask again for collaboration queries or waits, but preserves strict approval for dispatch and writes", () => {
+    for (const action of ["participants", "status", "wait", "cancel"] as const)
+      expect(
+        imRequiresApproval("ask", {
+          action: "collaborate",
+          command: { action, text: "" },
+        }),
+      ).toBe(false);
+    expect(
+      imRequiresApproval("ask", {
+        action: "collaborate",
+        command: { action: "delegate", participantId: "peer", text: "work" },
+      }),
+    ).toBe(true);
+    expect(
+      imRequiresApproval("ask", {
+        action: "write",
+        path: "src/x",
+        content: "x",
+      }),
+    ).toBe(true);
+    expect(
+      imRequiresApproval("automatic", {
+        action: "write",
+        path: "src/x",
+        content: "x",
+      }),
+    ).toBe(false);
   });
   it("fails closed on legacy grants", () => {
     expect(() => requireImScope({} as never, "owner")).toThrow(/确认/u);
@@ -207,3 +253,47 @@ describe("IM policy", () => {
     },
   );
 });
+
+it.runIf(process.platform === "darwin")(
+  "rejects stale file content before truncation and supports absence preconditions",
+  async () => {
+    const { imContentHash } = await import("../src/main/im-policy.js");
+    const root = await mkdtemp(join(tmpdir(), "im-write-conflict-"));
+    const scope = {
+      audience: "owner",
+      readPaths: [],
+      writePaths: [],
+      writeMode: "project" as const,
+    };
+    try {
+      await writeFile(join(root, "shared.txt"), "newer");
+      await expect(
+        writeImFile(
+          root,
+          "shared.txt",
+          "stale edit",
+          scope,
+          undefined,
+          imContentHash("older"),
+        ),
+      ).rejects.toThrow(/changed/i);
+      await expect(
+        writeImFile(root, "shared.txt", "replace", scope, undefined, "absent"),
+      ).rejects.toThrow();
+      expect(await readFile(join(root, "shared.txt"), "utf8")).toBe("newer");
+      await writeImFile(
+        root,
+        "shared.txt",
+        "merged",
+        scope,
+        undefined,
+        imContentHash("newer"),
+      );
+      expect(await readFile(join(root, "shared.txt"), "utf8")).toBe("merged");
+      await writeImFile(root, "new.txt", "created", scope, undefined, "absent");
+      expect(await readFile(join(root, "new.txt"), "utf8")).toBe("created");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

@@ -5879,7 +5879,8 @@ export class ArtemisAgentHost {
                 request.threadId,
                 request.remoteExecution.security?.identityKey,
                 request.remoteExecution.security?.audience,
-                request.remoteExecution.security?.revision,
+                request.remoteExecution.security?.contextRevision ??
+                  request.remoteExecution.security?.revision,
                 request.remoteExecution.security?.spaceRevision,
               ]),
             )

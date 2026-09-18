@@ -1,4 +1,8 @@
-import type { ImConnectionStatus, ImStatus } from "@artemis/protocol";
+import {
+  imScopeConfirmation,
+  type ImConnectionStatus,
+  type ImStatus,
+} from "@artemis/protocol";
 
 /** Live status shape returned by getImStatus / manageIm refresh. */
 export type ImFlowStatus = ImStatus & {
@@ -41,8 +45,12 @@ export function imFlowSteps(status: ImFlowStatus | undefined): ImFlowStep[] {
       done: !!settings?.grants?.some(
         (grant) =>
           grant.expiresAt > Date.now() &&
-          !!grant.security?.confirmedAt &&
-          grant.security.scopes.some((scope) => scope.audience === "owner"),
+          !!grant.security?.scopes.some(
+            (scope) =>
+              !!imScopeConfirmation(grant.security, scope) &&
+              (scope.audience === "owner" ||
+                grant.groups.includes(scope.audience)),
+          ),
       ),
     },
   ];

@@ -45,6 +45,24 @@ describe("Windows IM snapshot writeback policy", () => {
     expect(changes[1]?.expected).toBe("absent");
     expect(changes[2]?.delete).toBe(true);
   });
+  it("accepts future ordinary project files only under explicit project writes", () => {
+    const whole = {
+      audience: "owner",
+      readPaths: [],
+      writePaths: [],
+      writeMode: "project" as const,
+    };
+    expect(
+      imSnapshotChanges([], [file("new-root/result.txt", "OK")], whole),
+    ).toHaveLength(1);
+    expect(() =>
+      imSnapshotChanges([], [file("new-root/result.txt", "OK")], {
+        ...whole,
+        writeMode: "selected",
+      }),
+    ).toThrow();
+    expect(() => imSnapshotChanges([], [file(".env", "bad")], whole)).toThrow();
+  });
   it("rejects readonly changes, protected paths and type changes before any writeback", () => {
     for (const path of [
       "docs/guide.txt",

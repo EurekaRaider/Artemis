@@ -155,7 +155,12 @@ export class WindowsImFiles {
       child.stdin.write(
         JSON.stringify({
           workspace,
-          scope: { ...scope, filePaths: scope.filePaths ?? [] },
+          scope: {
+            ...scope,
+            writePaths:
+              scope.writeMode === "project" ? ["."] : scope.writePaths,
+            filePaths: scope.filePaths ?? [],
+          },
           protection: IM_PROTECTED_COMPONENT.source,
           ...operation,
         }) + "\n",
@@ -205,11 +210,18 @@ export class WindowsImFiles {
     content: string,
     scope: ImDataScope,
     assertCurrent: () => void,
+    expectedHash?: string,
   ) {
     await this.apply(
       workspace,
       scope,
-      [{ path, data: Buffer.from(content).toString("base64") }],
+      [
+        {
+          path,
+          data: Buffer.from(content).toString("base64"),
+          ...(expectedHash ? { expected: expectedHash } : {}),
+        },
+      ],
       assertCurrent,
     );
   }
@@ -403,7 +415,10 @@ Set-Location -LiteralPath 'ArtemisWorkspace:\' -ErrorAction Stop`,
         mode: "execute",
         network: input.network ? "allow" : "deny",
         readOnlyPaths: [stage],
-        writablePaths: input.scope.writePaths.map((p) => join(stage, p)),
+        writablePaths:
+          input.scope.writeMode === "project"
+            ? [stage]
+            : input.scope.writePaths.map((p) => join(stage, p)),
       },
       {
         helperPath: input.helper,
