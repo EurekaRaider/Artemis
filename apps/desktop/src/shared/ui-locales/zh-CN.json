@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "IM 渠道",
   "ImSettingsPanel.channelBack": "返回",
   "ImSettingsPanel.channelBotsCount": "{{value1}} 个机器人",
-  "ImSettingsPanel.projectsSummary": "{{value1}} 个项目 · 所有渠道通用"
+  "ImSettingsPanel.projectsSummary": "{{value1}} 个项目 · 所有渠道通用",
+  "ImFeishuScan.message10": "扫码"
 }

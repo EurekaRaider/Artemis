@@ -203,7 +203,7 @@ export function ImFeishuScan({
           onClick={start}
         >
           <ArtemisIcon aria-hidden="true" height={14} name="qr-code" width={14} />
-          {t("ImFeishuScan.message1")}
+          {t("ImFeishuScan.message10")}
         </Button>
       </div>
     );

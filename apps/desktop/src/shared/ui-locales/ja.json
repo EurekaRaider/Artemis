@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "IM チャネル",
   "ImSettingsPanel.channelBack": "戻る",
   "ImSettingsPanel.channelBotsCount": "{{value1}} 個のボット",
-  "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通"
+  "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通",
+  "ImFeishuScan.message10": "スキャン"
 }

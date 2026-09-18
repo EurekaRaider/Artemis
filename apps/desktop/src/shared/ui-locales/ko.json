@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "IM 채널",
   "ImSettingsPanel.channelBack": "뒤로",
   "ImSettingsPanel.channelBotsCount": "봇 {{value1}}개",
-  "ImSettingsPanel.projectsSummary": "프로젝트 {{value1}}개 · 모든 채널 공통"
+  "ImSettingsPanel.projectsSummary": "프로젝트 {{value1}}개 · 모든 채널 공통",
+  "ImFeishuScan.message10": "스캔"
 }

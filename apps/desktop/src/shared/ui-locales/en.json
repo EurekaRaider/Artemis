@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "IM channels",
   "ImSettingsPanel.channelBack": "Back",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
-  "ImSettingsPanel.projectsSummary": "{{value1}} projects · shared by all channels"
+  "ImSettingsPanel.projectsSummary": "{{value1}} projects · shared by all channels",
+  "ImFeishuScan.message10": "Scan"
 }

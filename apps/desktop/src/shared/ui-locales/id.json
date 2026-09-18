@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "Saluran IM",
   "ImSettingsPanel.channelBack": "Kembali",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
-  "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran"
+  "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
+  "ImFeishuScan.message10": "Pindai"
 }

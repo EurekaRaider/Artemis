@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "IM चैनल",
   "ImSettingsPanel.channelBack": "वापस",
   "ImSettingsPanel.channelBotsCount": "{{value1}} बॉट",
-  "ImSettingsPanel.projectsSummary": "{{value1}} प्रोजेक्ट · सभी चैनलों के लिए साझ़ा"
+  "ImSettingsPanel.projectsSummary": "{{value1}} प्रोजेक्ट · सभी चैनलों के लिए साझ़ा",
+  "ImFeishuScan.message10": "स्कैन करें"
 }

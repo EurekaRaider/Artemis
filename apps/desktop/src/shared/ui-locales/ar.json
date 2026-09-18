@@ -1474,5 +1474,6 @@
   "ImSettingsPanel.imChannelsTitle": "قنوات المراسلة",
   "ImSettingsPanel.channelBack": "رجوع",
   "ImSettingsPanel.channelBotsCount": "{{value1}} روبوت",
-  "ImSettingsPanel.projectsSummary": "{{value1}} مشاريع · مشتركة بين كل القنوات"
+  "ImSettingsPanel.projectsSummary": "{{value1}} مشاريع · مشتركة بين كل القنوات",
+  "ImFeishuScan.message10": "امسح"
 }
