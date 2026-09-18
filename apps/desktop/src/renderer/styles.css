@@ -10282,7 +10282,7 @@ kbd {
   gap: 10px;
   min-width: 0;
   min-height: 0;
-  padding: 4px;
+  padding: 4px 4px 14px;
 }
 .im-two-col {
   display: grid;
