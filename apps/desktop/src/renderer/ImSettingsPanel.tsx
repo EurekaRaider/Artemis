@@ -863,6 +863,7 @@ export function ImSettingsPanel({
         {channel === "feishu" && (
           <ImFeishuScan
             t={t}
+            autoStart={channel === "feishu" && !channelConnections.length}
             busy={busy}
             disabled={!settings.deviceId}
             /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码

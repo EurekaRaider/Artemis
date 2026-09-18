@@ -5,7 +5,8 @@ import type {
   ImFeishuScanPollResult,
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
-import { InlineNotice } from "@artemis/ui/feedback";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import { InlineNotice, Tooltip } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation.js";
 
 /**
@@ -26,12 +27,15 @@ function messageOf(error: unknown): string {
 }
 
 export function ImFeishuScan({
+  autoStart = false,
   t,
   busy,
   disabled,
   onConnected,
 }: {
   t: ImTranslate;
+  /** 渠道详情打开即触发扫码（ZCode 动线：点渠道 = 出二维码）。 */
+  autoStart?: boolean;
   busy: boolean;
   disabled: boolean;
   /** 扫码建连成功后携带新连接 id，供面板接续配对引导（ZCode 同款动线）。 */
@@ -153,6 +157,15 @@ export function ImFeishuScan({
     window.clearTimeout(timer.current);
     setPhase({ stage: "idle" });
   };
+  const started = useRef(false);
+  useEffect(() => {
+    if (autoStart && !started.current) {
+      started.current = true;
+      start();
+    }
+    // 仅在挂载/解锁自动触发时执行一次；start 捕获当前闭包即可。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   if (phase.stage === "done")
     return (
@@ -183,13 +196,19 @@ export function ImFeishuScan({
           <h4>{t("ImFeishuScan.message1")}</h4>
           <p className="im-fine">{t("ImFeishuScan.message2")}</p>
         </div>
-        <Button
-          size="compact"
-          disabled={busy || disabled}
-          onClick={start}
-        >
-          {t("ImFeishuScan.message3")}
-        </Button>
+        {/* Button 契约要求可见文字，纯图标触发钮用原生 button（im-icon-action）。 */}
+        <Tooltip label={t("ImFeishuScan.message3")}>
+          <button
+            type="button"
+            className="im-icon-action"
+            disabled={busy || disabled}
+            aria-label={t("ImFeishuScan.message3")}
+            title={t("ImFeishuScan.message3")}
+            onClick={start}
+          >
+            <ArtemisIcon height={15} name="qr-code" width={15} />
+          </button>
+        </Tooltip>
       </div>
     );
   const image = phase.image;

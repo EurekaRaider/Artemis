@@ -115,6 +115,7 @@ export const ARTEMIS_ICON_NAMES = [
   "pdf",
   "plugin",
   "presentation",
+  "qr-code",
   "slack",
   "skill",
   "skill-authoring",
@@ -610,6 +611,15 @@ const ARTEMIS_ICON_GLYPHS = {
       fill="currentColor"
       stroke="none"
     />
+  ),
+  /* QR: three finder squares + a dot-matrix module corner. */
+  "qr-code": (
+    <>
+      <rect height="7" rx="1.5" width="7" x="4" y="4" />
+      <rect height="7" rx="1.5" width="7" x="13" y="4" />
+      <rect height="7" rx="1.5" width="7" x="4" y="13" />
+      <path d="M13.5 13.5h.01M17 13.5h.01M20.5 13.5h.01M13.5 17h.01M20.5 17h.01M13.5 20.5h.01M17 20.5h.01M20.5 20.5h.01" />
+    </>
   ),
   wecom: (
     <path

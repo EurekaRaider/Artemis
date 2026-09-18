@@ -13,8 +13,8 @@ describe("ArtemisIcon", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe(
       "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
     );
-    expect(ARTEMIS_ICON_NAMES).toHaveLength(117);
-    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(117);
+    expect(ARTEMIS_ICON_NAMES).toHaveLength(118);
+    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(118);
     expect(ARTEMIS_ICON_NAMES).toEqual(
       expect.arrayContaining([
         "artemis",
@@ -35,6 +35,7 @@ describe("ArtemisIcon", () => {
         "feishu",
         "slack",
         "wecom",
+        "qr-code",
       ]),
     );
   });
