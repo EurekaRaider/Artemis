@@ -33,7 +33,6 @@ import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
 
 import { ImSlackSetup, slackAppManifest } from "./ImSlackSetup";
 import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
-import { ImFlowCard } from "./ImFlowCard";
 import {
   imFirstPendingStep,
   imFlowProgress,
@@ -127,6 +126,8 @@ export function ImSettingsPanel({
   const [channelDetail, setChannelDetail] = useState(false);
   /* 右栏第三卡：群协作详情（与渠道详情互斥）。 */
   const [groupDetail, setGroupDetail] = useState(false);
+  /* 右栏第四卡：授权项目详情（与渠道/群详情互斥）。 */
+  const [projectsDetail, setProjectsDetail] = useState(initialPermissions);
   const [showRemote, setShowRemote] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
@@ -146,9 +147,7 @@ export function ImSettingsPanel({
     useState<NonNullable<ExecutionGrant["security"]>>();
   const [grantDialog, setGrantDialog] = useState<string | null>(null);
   const grantDialogAnchor = useRef<HTMLButtonElement | null>(null);
-  const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(
-    initialPermissions ? "projects" : null,
-  );
+  const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(null);
   /* ②尾「顺手验证」折叠段：imReadVerify 恢复确认态；开合本次会话内记住
      （首绑自动展开一次，用户手动开合后不再抢开）。 */
   const [verify, setVerify] = useState<ImVerifyState>({ confirmed: false });
@@ -293,6 +292,7 @@ export function ImSettingsPanel({
       setFlowCard(null);
       setChannelDetail(false);
       setGroupDetail(true);
+      setProjectsDetail(false);
       setFocusTarget("im-spaces");
       return;
     }
@@ -315,10 +315,20 @@ export function ImSettingsPanel({
           ? "projects"
           : "channel";
 
+    if (next === "permissions") {
+      /* 授权项目=右栏第四卡详情；深链统一落到该入口。 */
+      setFlowCard(null);
+      setChannelDetail(false);
+      setGroupDetail(false);
+      setProjectsDetail(true);
+      setFocusTarget("im-permissions");
+      return;
+    }
     if (IM_CHANNELS.includes(next as ImChannel)) {
       setChannel(next as ImChannel);
       setChannelDetail(true);
       setGroupDetail(false);
+      setProjectsDetail(false);
       setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
     }
     if (next === "test") {
@@ -327,6 +337,7 @@ export function ImSettingsPanel({
       /* 验证段挂在渠道详情尾部，深链时一并下钻。 */
       setChannelDetail(true);
       setGroupDetail(false);
+      setProjectsDetail(false);
     }
     setFlowCard(step);
     setFocusTarget(next === "test" ? "im-verify" : `im-${next}`);
@@ -685,7 +696,7 @@ export function ImSettingsPanel({
   const prevFlowDoneKey = useRef(flowDoneKey);
   useEffect(() => {
     setVerify(imReadVerify(status?.settings.deviceId));
-    setFlowCard(initialPermissions ? "projects" : null);
+    setProjectsDetail(initialPermissions);
   }, [status?.settings.deviceId]);
   useEffect(() => {
     const unsubscribe = window.artemis.onImTaskCreated?.(() =>
@@ -2228,8 +2239,6 @@ export function ImSettingsPanel({
 
   function renderStepCards() {
     const settings = activeSettings;
-    const openStep = (id: ImFlowStepId) =>
-      activeScreen === "flow" ? flowOpenCard === id : flowCard === id;
     /* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 一行状态；已配置（有连接或
        已存凭据）渠道名提亮。授权是设备级全局共用，行上不重复计数。 */
     const channelRow = (platform: ImChannel) => {
@@ -2265,6 +2274,7 @@ export function ImSettingsPanel({
             flowSelectChannel(platform);
             setChannelDetail(true);
             setGroupDetail(false);
+            setProjectsDetail(false);
           }}
         >
           {platform === "feishu" ? (
@@ -2312,89 +2322,83 @@ export function ImSettingsPanel({
         </button>
       );
     };
+    const detailHead = (
+      label: string,
+      onBack: () => void,
+    ) => (
+      <div className="im-channel-detail-head">
+        <Button size="compact" variant="quiet" onClick={onBack}>
+          {t("ImSettingsPanel.channelBack")}
+        </Button>
+        <strong>{label}</strong>
+      </div>
+    );
     return (
       <div className="im-two-col">
-        {/* 左栏：这台电脑是谁（服务）、能碰什么（授权）。 */}
+        {/* 左栏：这台电脑是谁（服务）。固定标题+内容，不再折叠。 */}
         <div className="im-col-left">
-          <ImFlowCard
-            icon="connector"
-            title={t("ImSettingsPanel.message180")}
-            done={flowSteps[0]!.done}
-            summary={settings.deviceId || t("ImSettingsPanel.message181")}
-            open={openStep("service")}
-            onToggle={() => setFlowCard(openStep("service") ? null : "service")}
-            t={t}
-          >
-            {renderGatewayBody()}
-          </ImFlowCard>
-          {/* 临时会话是内置授权目标，③摘要计作 1 个项目；授权对所有渠道生效。 */}
-          <ImFlowCard
-            icon="folder"
-            title={t("ImSettingsPanel.message189")}
-            done={flowSteps[2]!.done}
-            summary={t("ImSettingsPanel.projectsSummary", {
-              value1: settings.grants.length + 1,
-            })}
-            open={openStep("projects")}
-            onToggle={() =>
-              setFlowCard(openStep("projects") ? null : "projects")
-            }
-            t={t}
-          >
-            {renderPermissionsBody()}
-            {allDone && (
-              <div className="im-ceremony">
-                <p className="im-ceremony-title">
-                  {t("ImSettingsPanel.message184")}
-                </p>
-                <div className="im-ceremony-actions">
-                  <Button onClick={() => selectView("overview")}>
-                    {t("ImSettingsPanel.message185")}
-                  </Button>
-                  <Button variant="quiet" onClick={() => selectView("test")}>
-                    {t("ImSettingsPanel.message186")}
-                  </Button>
-                  {channel !== "wecom" && (
-                    <Button variant="quiet" onClick={() => selectView("spaces")}>
-                      {t("ImSettingsPanel.message176")}
-                    </Button>
-                  )}
-                </div>
-                <p className="im-fine">{t("ImSettingsPanel.message188")}</p>
-              </div>
-            )}
-          </ImFlowCard>
+          <section className="im-service-block" id="im-gateway" tabIndex={-1}>
+            <div className="im-service-head">
+              <ArtemisIcon
+                aria-hidden="true"
+                name="connector"
+                width={20}
+                height={20}
+              />
+              <strong>{t("ImSettingsPanel.message180")}</strong>
+              {settings.deviceId && (
+                <code className="im-service-device" title={settings.deviceId}>
+                  {settings.deviceId}
+                </code>
+              )}
+            </div>
+            <div className="im-service-body">{renderGatewayBody()}</div>
+          </section>
         </div>
-        {/* 右栏：门（渠道）。列表 ↔ 单渠道详情/群协作详情下钻；wecom 接入暂未开放。 */}
+        {/* 右栏：门（渠道）。四张卡（渠道×N、群协作、授权项目）↔ 详情下钻。 */}
         <div className="im-col-right">
           {channelDetail ? (
             <section className="im-channel-detail" tabIndex={-1}>
-              <div className="im-channel-detail-head">
-                <Button
-                  size="compact"
-                  variant="quiet"
-                  onClick={() => setChannelDetail(false)}
-                >
-                  {t("ImSettingsPanel.channelBack")}
-                </Button>
-                <strong>{imChannelLabel(channel, t)}</strong>
-              </div>
+              {detailHead(imChannelLabel(channel, t), () =>
+                setChannelDetail(false),
+              )}
               {renderChannelBody()}
               {renderVerifySection()}
             </section>
           ) : groupDetail ? (
             <section className="im-channel-detail" tabIndex={-1}>
-              <div className="im-channel-detail-head">
-                <Button
-                  size="compact"
-                  variant="quiet"
-                  onClick={() => setGroupDetail(false)}
-                >
-                  {t("ImSettingsPanel.channelBack")}
-                </Button>
-                <strong>{t("ImSettingsPanel.message199")}</strong>
-              </div>
+              {detailHead(t("ImSettingsPanel.message199"), () =>
+                setGroupDetail(false),
+              )}
               {renderSpacesBody()}
+            </section>
+          ) : projectsDetail ? (
+            <section className="im-channel-detail" tabIndex={-1}>
+              {detailHead(t("ImSettingsPanel.message189"), () =>
+                setProjectsDetail(false),
+              )}
+              {renderPermissionsBody()}
+              {allDone && (
+                <div className="im-ceremony">
+                  <p className="im-ceremony-title">
+                    {t("ImSettingsPanel.message184")}
+                  </p>
+                  <div className="im-ceremony-actions">
+                    <Button onClick={() => selectView("overview")}>
+                      {t("ImSettingsPanel.message185")}
+                    </Button>
+                    <Button variant="quiet" onClick={() => selectView("test")}>
+                      {t("ImSettingsPanel.message186")}
+                    </Button>
+                    {channel !== "wecom" && (
+                      <Button variant="quiet" onClick={() => selectView("spaces")}>
+                        {t("ImSettingsPanel.message176")}
+                      </Button>
+                    )}
+                  </div>
+                  <p className="im-fine">{t("ImSettingsPanel.message188")}</p>
+                </div>
+              )}
             </section>
           ) : (
             <section className="im-channel-list" aria-label={t("ImSettingsPanel.imChannelsTitle")}>
@@ -2417,6 +2421,7 @@ export function ImSettingsPanel({
                 onClick={() => {
                   setChannelDetail(false);
                   setGroupDetail(true);
+                  setProjectsDetail(false);
                 }}
               >
                 <span
@@ -2429,6 +2434,37 @@ export function ImSettingsPanel({
                   <strong>{t("ImSettingsPanel.message165")}</strong>
                   <span className="im-channel-row-summary">
                     {t("ImSettingsPanel.message166")}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="im-channel-row-caret">
+                  <ArtemisIcon name="chevron" width={14} height={14} />
+                </span>
+              </button>
+              {/* 第四卡：授权项目（设备级，对所有渠道生效）。 */}
+              <button
+                type="button"
+                className="im-channel-row"
+                data-configured={
+                  (settings.grants.length > 0 || undefined) as boolean | undefined
+                }
+                onClick={() => {
+                  setChannelDetail(false);
+                  setGroupDetail(false);
+                  setProjectsDetail(true);
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="im-channel-logo im-channel-logo-glyph"
+                >
+                  <ArtemisIcon name="folder" width={20} height={20} />
+                </span>
+                <span className="im-channel-row-copy">
+                  <strong>{t("ImSettingsPanel.message189")}</strong>
+                  <span className="im-channel-row-summary">
+                    {t("ImSettingsPanel.projectsSummary", {
+                      value1: settings.grants.length + 1,
+                    })}
                   </span>
                 </span>
                 <span aria-hidden="true" className="im-channel-row-caret">
@@ -2541,8 +2577,8 @@ export function ImSettingsPanel({
         </div>
       ) : (
         <div id="im-overview" className="im-flow im-overview" tabIndex={-1}>
-          <div className="im-overview-actions">
-            {!allDone && (
+          {!allDone && (
+            <div className="im-overview-actions">
               <Button
                 disabled={busy}
                 onClick={() => {
@@ -2552,13 +2588,8 @@ export function ImSettingsPanel({
               >
                 {t("ImSettingsPanel.message198")}
               </Button>
-            )}
-            {channel !== "wecom" && (
-              <Button disabled={busy} onClick={() => selectView("spaces")}>
-                {t("ImSettingsPanel.message199")}
-              </Button>
-            )}
-          </div>
+            </div>
+          )}
           {renderStepCards()}
         </div>
       )}

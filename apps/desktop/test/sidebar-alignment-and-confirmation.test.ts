@@ -129,7 +129,9 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
 
     expect(projectTree).toContain('className="thread-title"');
     expect(projectTree).toContain("onPointerEnter={prepareThreadTitleScroll}");
-    expect(projectTree).toContain('className="thread-title-text"');
+    /* 渠道图标+跑马灯结构在 ThreadTitleContent 组件内（树外定义）。 */
+    expect(projectTree).toContain("<ThreadTitleContent");
+    expect(appSource).toContain('className="thread-title-text"');
     expect(appSource).toContain("titleWidth - viewport.clientWidth");
     expect(appSource).toContain('dataset.overflowing = "true"');
 

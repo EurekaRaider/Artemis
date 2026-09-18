@@ -138,27 +138,30 @@ const openCard = async (
   user: ReturnType<typeof userEvent.setup>,
   title: RegExp | string,
 ) => {
+  /* 卡片下钻：点击列表态的卡片行（详情态自带内容，无需展开）。 */
   const head = await screen.findByRole("button", { name: title });
-  if (head.getAttribute("aria-expanded") !== "true") await user.click(head);
+  await user.click(head);
 };
 const platformCard = (channel: keyof typeof platformLabels) =>
   within(document.querySelector(".im-channel-list") as HTMLElement).getByRole(
     "button",
     { name: new RegExp(platformLabels[channel]) },
   );
+/* 面板加载完成信号：左栏固定标题「连接服务」出现（不再折叠、非按钮）。 */
+const panelReady = () => screen.findByText("连接服务");
 /* 渠道行下钻：先等面板加载完（原 openCard 的 findByRole 等待语义）。 */
 const openChannel = async (
   user: ReturnType<typeof userEvent.setup>,
   channel: keyof typeof platformLabels,
 ) => {
-  await screen.findByRole("button", { name: /^连接服务/ });
+  await panelReady();
   await user.click(platformCard(channel));
 };
 const platformState = (channel: keyof typeof platformLabels) =>
   platformCard(channel).closest("[data-connection-state]") as HTMLElement;
 /* 两栏版：群协作=IM 渠道第三卡，点击下钻群协作详情（带返回）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
-  await screen.findByRole("button", { name: /^连接服务/ });
+  await panelReady();
   await user.click(screen.getByRole("button", { name: /^IM 群聊/ }));
   expect(
     screen.getByRole("button", { name: "返回", exact: true }),
@@ -250,10 +253,6 @@ describe("production IM settings", () => {
               ? "查看连接概览"
               : "发测试消息验证（可选）",
         }),
-      );
-      expect(cardHead(/^授权项目/)).toHaveAttribute(
-        "aria-expanded",
-        "false",
       );
       if (destination === "overview") {
         expect(document.querySelector(".im-overview")).toHaveFocus();
@@ -363,7 +362,7 @@ describe("production IM settings", () => {
     );
     const user = userEvent.setup();
     const first = render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openGroupSetup(user);
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: /Saved team/ }));
@@ -375,7 +374,7 @@ describe("production IM settings", () => {
     });
     first.unmount();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openGroupSetup(user);
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: /Saved team/ }));
@@ -562,7 +561,7 @@ describe("production IM settings", () => {
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openChannel(user, "feishu");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(
@@ -608,7 +607,7 @@ describe("production IM settings", () => {
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     /* 两栏：初始态在列表行断言（未配置不亮灯）；操作进详情。 */
     expect(platformState("feishu")).toHaveAttribute(
       "data-connection-state",
@@ -686,7 +685,7 @@ describe("production IM settings", () => {
     );
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openGroupSetup(user);
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "Slack · room" }));
@@ -734,7 +733,7 @@ describe("production IM settings", () => {
     );
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openGroupSetup(user);
     expect(
       screen.queryByRole("button", { name: "确认并启用群聊" }),
@@ -747,6 +746,9 @@ describe("production IM settings", () => {
     expect(
       screen.queryByRole("button", { name: /本地项目/ }),
     ).not.toBeInTheDocument();
+    /* 授权项目已移至右栏第四卡：返回列表后下钻。 */
+    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
+    await user.click(screen.getByRole("button", { name: /^授权项目/ }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "授权配置" }));
     const dialog = screen.getByRole("dialog", {
@@ -792,7 +794,7 @@ describe("production IM settings", () => {
     fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     expect(
       document.querySelector('.im-header [data-artemis-component="switch"]'),
     ).toHaveAttribute("data-label-visibility", "hidden");
@@ -820,7 +822,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     expect(imConnectionHealth([connection, failed])).toEqual({
       total: 2,
       failed: 1,
@@ -837,7 +839,7 @@ describe("production IM settings", () => {
     fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openChannel(user, "feishu");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(screen.getByLabelText("接入方式")).toHaveTextContent("长连接");
@@ -887,7 +889,7 @@ describe("production IM settings", () => {
     await act(async () => {
       render(<ImSettingsPanel locale="zh-CN" />);
     });
-    expect(screen.getByRole("button", { name: /^连接服务/ })).toBeVisible();
+    expect(screen.getByText("连接服务")).toBeVisible();
     fireEvent.click(platformCard("wecom"));
     const old = structuredClone(f.get());
     let finishRefresh!: (value: Status) => void;
@@ -920,16 +922,16 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     expect(await screen.findByText("IM 渠道")).toBeVisible();
-    for (const title of ["连接服务", "授权项目"])
-      expect(
-        screen.getByRole("button", { name: new RegExp(`^${title}`) }),
-      ).toBeInTheDocument();
+    /* 左栏=固定标题连接服务；右栏=四张卡（渠道/群协作/授权项目）。 */
+    expect(screen.getByText("连接服务")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /^授权项目/ }),
+    ).toBeInTheDocument();
     // D1：未注册设备的首次流程不出现总开关。
     expect(screen.queryByRole("switch", { name: "启用 IM 连接" })).toBeNull();
-    // 渠道列表常显（品牌图标+名称+信号灯）；①卡一键启动后进入渠道编辑。
+    // 渠道列表常显（品牌图标+名称+信号灯）；①一键启动后进入渠道编辑。
     expect(platformCard("feishu")).toBeVisible();
     expect(screen.queryByText("长连接或 HTTPS 回调")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^连接服务/ }));
     await user.click(screen.getByRole("button", { name: "一键启动并注册" }));
     await waitFor(() =>
       expect(f.manage).toHaveBeenCalledWith({ action: "setup-local" }),
@@ -983,25 +985,31 @@ describe("production IM settings", () => {
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
     ).toBeVisible();
-    // 临时会话计入④摘要；默认项目以临时会话行的徽章呈现（无下拉）。
-    expect(screen.getAllByText(/2 个项目/).length).toBeGreaterThan(0);
+    // 临时会话计入④摘要（列表态已断言）；默认项目以临时会话行的徽章呈现。
     expect(
       document.querySelector(".im-project-builtin .im-default-badge"),
     ).toBeVisible();
     expect(f.save).not.toHaveBeenCalled();
     expect(f.get().identities).toEqual([identity]);
   });
-  it("toggles step cards with the keyboard", async () => {
+  it("keeps the service block always expanded and drills cards with the keyboard", async () => {
     fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
-    const service = cardHead(/^连接服务/);
-    service.focus();
+    await panelReady();
+    /* 左栏连接服务=固定标题+常驻内容：无折叠按钮，主体直接可见。 */
+    expect(
+      screen.queryByRole("button", { name: /^连接服务/ }),
+    ).not.toBeInTheDocument();
+    expect(document.getElementById("im-prepare")).toBeVisible();
+    /* 卡片行可键盘下钻。 */
+    const projects = screen.getByRole("button", { name: /^授权项目/ });
+    projects.focus();
     await user.keyboard("{Enter}");
-    expect(service).toHaveAttribute("aria-expanded", "true");
-    await user.keyboard("{Enter}");
-    expect(service).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByRole("button", { name: "返回", exact: true }),
+    ).toBeVisible();
+    expect(document.getElementById("im-permissions")).toBeVisible();
   });
   it("replaces credentials using public identifiers, never fills secrets, and cancels locally", async () => {
     const f = fixture();
@@ -1075,7 +1083,7 @@ describe("production IM settings", () => {
     f.set({ settings: { ...f.get().settings, enabled: true } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openCard(user, /^授权项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 勾选即时生效：已启用的服务一次保存授权；首个项目自动成为默认并带徽章。
@@ -1123,7 +1131,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openCard(user, /^授权项目/);
     f.save.mockRejectedValueOnce(new Error("Grant rejected"));
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
@@ -1141,7 +1149,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openCard(user, /^授权项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 勾选即时保存：保存成功但启用失败 → 提示与重试入口出现在④卡。
@@ -1165,7 +1173,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openCard(user, /^授权项目/);
     const builtin = screen.getByRole("checkbox", {
       name: "临时会话（内置，始终可用）",
@@ -1190,7 +1198,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openCard(user, /^授权项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 授权设置收进行右侧按钮的聚焦弹窗。
@@ -1226,8 +1234,7 @@ describe("production IM settings", () => {
     expect(f.get().settings.grants[0]!.security!.scopes[0]!.writeMode).toBe(
       "project",
     );
-    // 确认后弹窗关闭；重新展开④，按项目摘要在行内呈现可写范围。
-    await openCard(user, /^授权项目/);
+    // 确认后弹窗关闭；④详情仍在（卡片无需重新下钻），行内摘要更新。
     await waitFor(() =>
       expect(document.querySelector(".im-row-summary")?.textContent).toContain(
         "整个项目可修改",
@@ -1250,7 +1257,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openCard(user, /^授权项目/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 勾选即时生效（两阶段：保存 + 启用）。
@@ -1354,9 +1361,7 @@ describe("production IM settings", () => {
       screen.getByRole("button", { name: "我已发送，刷新配对结果" }),
     );
     await user.click(await screen.findByRole("button", { name: "批准" }));
-    expect(
-      await screen.findByRole("button", { name: /^连接服务/ }),
-    ).toBeVisible();
+    expect(await panelReady()).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "批准" }),
     ).not.toBeInTheDocument();
@@ -1391,7 +1396,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await screen.findByRole("button", { name: /^连接服务/ });
+    await panelReady();
     await openGroupSetup(user);
     expect(screen.queryByLabelText("空间配置（JSON）")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("协作空间管理凭据")).not.toBeInTheDocument();
@@ -1521,11 +1526,13 @@ describe("pairing code lifecycle", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 完成态直达概览，群协作入口在概览（D2）→ 右栏第三卡详情。
+    // 完成态直达概览；顶部设置群协作按钮已移除，入口=右栏第三卡。
     expect(
-      await screen.findByRole("button", { name: "设置群协作" }),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "设置群协作" }));
+      screen.queryByRole("button", { name: "设置群协作" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: /^IM 群聊/ }),
+    );
     expect(
       screen.getByRole("button", { name: "返回", exact: true }),
     ).toBeVisible();
@@ -1770,7 +1777,8 @@ describe("single project authorization editor", () => {
     return { ...f, owner };
   }
   async function openGroupEditor(user: ReturnType<typeof userEvent.setup>) {
-    await openCard(user, /^授权项目/);
+    /* initialPermissions 渲染时授权详情直接打开：等数据到位后点授权配置。 */
+    await screen.findByRole("button", { name: "授权配置" });
     await user.click(screen.getByRole("button", { name: "授权配置" }));
     const dialog = screen.getByRole("dialog", {
       name: "Test project · 授权设置",
@@ -1785,13 +1793,18 @@ describe("single project authorization editor", () => {
     groupFixture(true);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" initialPermissions />);
-    await openCard(user, /^授权项目/);
+    /* initialPermissions：授权详情直接打开，无需点卡片。 */
+    await screen.findByRole("button", { name: "授权配置" });
     expect(screen.queryByText("Private member name")).not.toBeInTheDocument();
     expect(screen.queryByText(/群协作成员/)).not.toBeInTheDocument();
-    // 群协作入口已移至 IM 渠道第三卡。
+    // 群协作入口已移至 IM 渠道第三卡：返回列表后下钻。
+    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
     await user.click(screen.getByRole("button", { name: /^IM 群聊/ }));
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
+    /* 授权项目=第四卡：返回列表后下钻再断言授权配置。 */
+    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
+    await user.click(screen.getByRole("button", { name: /^授权项目/ }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
     expect(
       screen.queryByRole("group", { name: "数据与分享范围" }),
