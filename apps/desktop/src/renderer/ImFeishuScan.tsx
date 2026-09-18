@@ -6,7 +6,7 @@ import type {
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { InlineNotice, Tooltip } from "@artemis/ui/feedback";
+import { InlineNotice } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation.js";
 
 /**
@@ -196,19 +196,15 @@ export function ImFeishuScan({
           <h4>{t("ImFeishuScan.message1")}</h4>
           <p className="im-fine">{t("ImFeishuScan.message2")}</p>
         </div>
-        {/* Button 契约要求可见文字，纯图标触发钮用原生 button（im-icon-action）。 */}
-        <Tooltip label={t("ImFeishuScan.message3")}>
-          <button
-            type="button"
-            className="im-icon-action"
-            disabled={busy || disabled}
-            aria-label={t("ImFeishuScan.message3")}
-            title={t("ImFeishuScan.message3")}
-            onClick={start}
-          >
-            <ArtemisIcon height={15} name="qr-code" width={15} />
-          </button>
-        </Tooltip>
+        <Button
+          size="compact"
+          variant="secondary"
+          disabled={busy || disabled}
+          onClick={start}
+        >
+          <ArtemisIcon aria-hidden="true" height={14} name="qr-code" width={14} />
+          {t("ImFeishuScan.message1")}
+        </Button>
       </div>
     );
   const image = phase.image;
