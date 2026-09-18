@@ -17953,6 +17953,26 @@ function createMainWindow(): BrowserWindow {
                       trigger.click();
                       await wait(300);
                     }
+                    if (view !== 'environment-feedback-approval') {
+                      const completedTurnDetails = document.querySelector(
+                        '.timeline-scroll details.turn-execution-details',
+                      );
+                      if (
+                        completedTurnDetails instanceof HTMLDetailsElement &&
+                        !completedTurnDetails.open
+                      ) {
+                        const summary = completedTurnDetails.querySelector(
+                          ':scope > summary',
+                        );
+                        if (!(summary instanceof HTMLElement)) {
+                          throw new Error(
+                            'Completed turn execution disclosure missing.',
+                          );
+                        }
+                        summary.click();
+                        await wait(350);
+                      }
+                    }
                     const approvalSelector = view === 'environment-feedback-approval'
                       ? '.approval-card[data-artemis-component="approval-card"]'
                       : '.approval-card[data-artemis-component="result-disclosure"]';
@@ -17977,24 +17997,6 @@ function createMainWindow(): BrowserWindow {
                         throw new Error(
                           'Public resolved approval ResultDisclosure missing.',
                         );
-                      }
-                      const completedTurnDetails = disclosure.closest(
-                        'details.turn-execution-details',
-                      );
-                      if (
-                        completedTurnDetails instanceof HTMLDetailsElement &&
-                        !completedTurnDetails.open
-                      ) {
-                        const summary = completedTurnDetails.querySelector(
-                          ':scope > summary',
-                        );
-                        if (!(summary instanceof HTMLElement)) {
-                          throw new Error(
-                            'Completed turn execution disclosure missing.',
-                          );
-                        }
-                        summary.click();
-                        await wait(350);
                       }
                       const timelineScroll = disclosure.closest('.timeline-scroll');
                       if (!(timelineScroll instanceof HTMLElement)) {
