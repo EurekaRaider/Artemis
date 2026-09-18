@@ -10479,9 +10479,12 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-block: 14px 16px;
+  /* 两栏头部等高：固定块高（上下各 20px 对称），内容垂直居中。 */
+  block-size: 76px;
+  box-sizing: border-box;
+  padding-block: 0;
+  margin-block: 0;
   border-block-end: 1px solid var(--border-soft);
-  margin-block-end: 2px;
 }
 .im-service-head strong,
 .im-channel-list-head strong {
