@@ -7816,10 +7816,11 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 1 1 auto;
   min-block-size: 0;
 }
-/* 遮罩毛玻璃化：保持全局 scrim 32% 黑调，仅靠重模糊虚化背景。 */
+/* 遮罩毛玻璃化：保持全局 scrim 32% 黑调；模糊压在降采样劣化阈值之下保证
+   柔和无条纹，再以 brightness 压掉背景文字对比度，使其糊到几乎不可辨。 */
 .im-settings-dialog::backdrop {
   background: var(--artemis-color-overlay-scrim);
-  backdrop-filter: blur(40px) saturate(1.15);
+  backdrop-filter: blur(32px) saturate(1.05) brightness(0.8);
 }
 .im-settings-dialog-close {
   display: grid;
