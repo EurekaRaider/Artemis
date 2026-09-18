@@ -24,11 +24,13 @@ export function ImGatewayInstructions({
     <ManagementSection
       className="im-flow-section"
       title={t("ImSetupGuide.message9")}
-      description={t("ImSetupGuide.message10")}
     >
-      <Button disabled={busy || ready} onClick={setup}>
-        {ready ? t("ImSetupGuide.message2") : t("ImSetupGuide.message1")}
-      </Button>
+      {/* 就绪后不再展示禁用态按钮，只留说明行。 */}
+      {!ready && (
+        <Button disabled={busy} onClick={setup}>
+          {t("ImSetupGuide.message1")}
+        </Button>
+      )}
       <p>{t("ImSetupGuide.message3")}</p>
       <details>
         <summary>{t("ImSetupGuide.message4")}</summary>

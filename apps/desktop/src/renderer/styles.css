@@ -10497,15 +10497,50 @@ kbd {
   color: var(--muted);
   flex: none;
 }
-.im-service-device {
+.im-service-state {
   margin-inline-start: auto;
-  max-inline-size: 46%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted-2);
-  font-family: var(--artemis-typography-mono-family, ui-monospace, monospace);
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 启动/停止双态圆钮（红绿灯式）：运行=绿底白停止块，停止=描边圆+播放三角。 */
+.im-power-toggle {
+  display: grid;
+  place-items: center;
+  inline-size: 20px;
+  block-size: 20px;
+  flex: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-power-toggle[data-state="on"] {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.im-power-toggle[data-state="off"] {
+  border-color: var(--border-soft);
+  color: var(--muted);
+}
+.im-power-toggle[data-state="off"]:hover {
+  border-color: var(--success);
+  color: var(--success);
+}
+.im-power-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.im-power-toggle:focus-visible {
+  outline: 1px solid var(--muted-2);
+  outline-offset: 2px;
+}
+.im-service-device-line {
+  margin-block: 0 8px;
 }
 .im-service-body {
   padding-block-start: 12px;

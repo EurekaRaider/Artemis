@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "复制连接 ID",
   "ImSetupGuide.message1": "一键启动并注册",
   "ImSetupGuide.message2": "内置 Gateway 已就绪",
-  "ImSetupGuide.message3": "企业微信、飞书 / Lark 长连接和 Slack 可直接连接，无需公网地址。服务随 Artemis 启动和退出；接收远程任务时请保持电脑唤醒、Artemis 运行。项目权限在第 5 步由你选择。",
+  "ImSetupGuide.message3": "接收远程任务时请保持电脑唤醒、Artemis 运行；设置项目权限以便Bot访问。",
   "ImSetupGuide.message4": "高级：使用团队服务或独立部署",
   "ImSetupGuide.message5": "团队已有 Gateway 时，填写管理员提供的 HTTPS 地址和管理凭据。飞书 / Lark 选择 HTTPS 回调方式时，仍需要公网回调地址。",
   "ImSetupGuide.message6": "使用团队 Gateway",

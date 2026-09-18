@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "कनेक्शन ID कॉपी करें",
   "ImSetupGuide.message1": "अपने आप शुरू और पंजीकृत करें",
   "ImSetupGuide.message2": "अंतर्निहित Gateway तैयार है",
-  "ImSetupGuide.message3": "WeCom, Feishu/Lark के स्थायी कनेक्शन और Slack सार्वजनिक URL के बिना जुड़ते हैं। सेवा Artemis के साथ चलती है; दूरस्थ कार्यों के लिए कंप्यूटर जागृत और Artemis खुला रखें। चरण 5 में प्रोजेक्ट अनुमतियाँ चुनें।",
+  "ImSetupGuide.message3": "रिमोट कार्यों के लिए इस कंप्यूटर को सक्रिय और Artemis चालू रखें; बॉट के ऐक्सेस के लिए प्रोजेक्ट अनुमतियाँ सेट करें।",
   "ImSetupGuide.message4": "उन्नत: टीम सेवा या अलग तैनाती",
   "ImSetupGuide.message5": "टीम का Gateway पहले से हो तो व्यवस्थापक का दिया HTTPS URL और टोकन भरें। Feishu/Lark के HTTPS कॉलबैक मोड को अभी भी सार्वजनिक कॉलबैक URL चाहिए।",
   "ImSetupGuide.message6": "टीम Gateway इस्तेमाल करें",

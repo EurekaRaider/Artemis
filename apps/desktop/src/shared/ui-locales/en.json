@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "Copy connection ID",
   "ImSetupGuide.message1": "Start and register automatically",
   "ImSetupGuide.message2": "Built-in Gateway is ready",
-  "ImSetupGuide.message3": "WeCom, Feishu / Lark long connections and Slack connect without a public URL. The service runs with Artemis; keep this computer awake and Artemis open for remote tasks. Choose project permissions in step 5.",
+  "ImSetupGuide.message3": "Keep this computer awake and Artemis running for remote tasks; set project permissions so bots can access them.",
   "ImSetupGuide.message4": "Advanced: team service or separate deployment",
   "ImSetupGuide.message5": "For an existing team Gateway, use the HTTPS URL and administrator token supplied by your administrator. The Feishu / Lark HTTPS callback transport still needs a public callback URL.",
   "ImSetupGuide.message6": "Use a team Gateway",

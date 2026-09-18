@@ -26,7 +26,7 @@ import {
   LoadingState,
   Tooltip,
 } from "@artemis/ui/feedback";
-import { Checkbox, Select, Switch, TextField } from "@artemis/ui/forms";
+import { Checkbox, Select, TextField } from "@artemis/ui/forms";
 import { ManagementSection } from "@artemis/ui/management";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
@@ -750,6 +750,13 @@ export function ImSettingsPanel({
     const settings = activeSettings;
     return (
       <>
+        {/* 内容区首行：设备编号（注册后出现）。 */}
+        {settings.deviceId && (
+          <p className="im-identifier im-service-device-line">
+            {t("ImSettingsPanel.message44")}
+            {settings.deviceId}
+          </p>
+        )}
         <section id="im-prepare" tabIndex={-1}>
           <ImGatewayInstructions
             t={t}
@@ -795,12 +802,6 @@ export function ImSettingsPanel({
           />
         </section>
         <section id="im-device" tabIndex={-1}>
-          {settings.deviceId && (
-            <p className="im-identifier">
-              {t("ImSettingsPanel.message44")}
-              {settings.deviceId}
-            </p>
-          )}
           {local && (
             <InlineNotice tone="info">
               {t("ImSettingsPanel.message45")}
@@ -2346,11 +2347,109 @@ export function ImSettingsPanel({
                 height={20}
               />
               <strong>{t("ImSettingsPanel.message180")}</strong>
-              {settings.deviceId && (
-                <code className="im-service-device" title={settings.deviceId}>
-                  {settings.deviceId}
-                </code>
-              )}
+              <div
+                className="im-service-state"
+                title={t("ImSettingsPanel.message196")}
+              >
+                {/* 状态胶囊与启动/停止总开关收进连接服务标题栏（D1 首跑无开关）。 */}
+                {(activeScreen === "overview" ||
+                  (activeScreen === "flow" && !!status?.settings.deviceId)) && (
+                  <>
+                    {activeScreen === "overview" && (
+                      <span className="im-status-pill" role="status">
+                        <span
+                          className="im-dot"
+                          data-state={
+                            status?.settings.enabled
+                              ? health.failed
+                                ? "error"
+                                : status?.state
+                              : "disabled"
+                          }
+                          aria-hidden="true"
+                        />
+                        {summary}
+                        {health.failed > 0 &&
+                          ` · ${imConnectionSummary(connections, t)}`}
+                      </span>
+                    )}
+                    {!settings.enabled && enableReason && (
+                      <span className="im-power-reason">{enableReason}</span>
+                    )}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={status?.settings.enabled ?? settings.enabled}
+                      aria-label={t("ImSettingsPanel.message194")}
+                      title={
+                        (status?.settings.enabled ?? settings.enabled)
+                          ? t("ImSettingsPanel.message195")
+                          : t("ImSettingsPanel.message194")
+                      }
+                      disabled={
+                        busy || (!settings.enabled && !!enableReason)
+                      }
+                      className="im-power-toggle"
+                      data-state={
+                        (status?.settings.enabled ?? settings.enabled)
+                          ? "on"
+                          : "off"
+                      }
+                      onClick={() =>
+                        void run(async () => {
+                          const enabled = !(
+                            status?.settings.enabled ?? settings.enabled
+                          );
+                          const current = await window.artemis.saveImSettings({
+                            ...status!.settings,
+                            enabled,
+                          });
+                          setStatus((previous) => ({
+                            ...previous,
+                            ...current,
+                          }));
+                          setSettings((draft) =>
+                            draft
+                              ? { ...draft, enabled: current.settings.enabled }
+                              : current.settings,
+                          );
+                        })
+                      }
+                    >
+                      {/* 启动/停止双态图标：停止态=播放三角，运行态=绿色圆点+停止块。 */}
+                      {settings.enabled || status?.settings.enabled ? (
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          width="12"
+                          height="12"
+                        >
+                          <rect
+                            x="4"
+                            y="4"
+                            width="8"
+                            height="8"
+                            rx="1.5"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          width="12"
+                          height="12"
+                        >
+                          <path
+                            d="M5 3.2v9.6l8-4.8z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <div className="im-service-body">{renderGatewayBody()}</div>
           </section>
@@ -2492,60 +2591,6 @@ export function ImSettingsPanel({
         <div className="im-header-copy">
           <h2>{t("ImSettingsPanel.message191")}</h2>{" "}
           <p>{t("ImSettingsPanel.message192")}</p>
-        </div>
-        <div
-          className="im-header-state"
-          title={t("ImSettingsPanel.message196")}
-        >
-          {/* 两栏布局：流程进度条退役，头部只保留状态胶囊与总开关（D1 首跑无开关）。 */}
-          {(activeScreen === "overview" ||
-            (activeScreen === "flow" && !!status?.settings.deviceId)) && (
-            <>
-              {activeScreen === "overview" && (
-                <span className="im-status-pill" role="status">
-                  <span
-                    className="im-dot"
-                    data-state={
-                      status?.settings.enabled
-                        ? health.failed
-                          ? "error"
-                          : status?.state
-                        : "disabled"
-                    }
-                    aria-hidden="true"
-                  />
-                  {summary}
-                  {health.failed > 0 &&
-                    ` · ${imConnectionSummary(connections, t)}`}
-                </span>
-              )}
-              <span className="im-master-label" aria-hidden="true">
-                {t("ImSettingsPanel.message193")}
-              </span>
-              <Switch
-                labelVisibility="hidden"
-                label={t("ImSettingsPanel.message194")}
-                title={t("ImSettingsPanel.message195")}
-                checked={status?.settings.enabled ?? settings.enabled}
-                disabled={busy || (!settings.enabled && !!enableReason)}
-                description={!settings.enabled ? enableReason : undefined}
-                onCheckedChange={(enabled) =>
-                  void run(async () => {
-                    const current = await window.artemis.saveImSettings({
-                      ...status!.settings,
-                      enabled,
-                    });
-                    setStatus((previous) => ({ ...previous, ...current }));
-                    setSettings((draft) =>
-                      draft
-                        ? { ...draft, enabled: current.settings.enabled }
-                        : current.settings,
-                    );
-                  })
-                }
-              />
-            </>
-          )}
         </div>
       </header>
       {message && (

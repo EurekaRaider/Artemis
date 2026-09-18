@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "نسخ معرف الاتصال",
   "ImSetupGuide.message1": "تشغيل وتسجيل تلقائي",
   "ImSetupGuide.message2": "Gateway المدمج جاهز",
-  "ImSetupGuide.message3": "تتصل WeCom واتصالات Feishu/Lark الدائمة وSlack دون عنوان عام. تعمل الخدمة مع Artemis؛ أبقِ الكمبيوتر مستيقظًا وArtemis مفتوحًا لاستقبال المهام البعيدة. اختر صلاحيات المشاريع في الخطوة 5.",
+  "ImSetupGuide.message3": "أبقِ هذا الحاسوب مستيقظًا وArtemis قيد التشغيل لاستلام المهام البعيدة؛ اضبط أذونات المشروع ليتمكن الروبوت من الوصول.",
   "ImSetupGuide.message4": "متقدم: خدمة فريق أو نشر مستقل",
   "ImSetupGuide.message5": "إذا كان لدى الفريق Gateway، فاستخدم عنوان HTTPS ورمز المسؤول اللذين يوفرهما مسؤولك. يظل اتصال Feishu/Lark عبر HTTPS بحاجة إلى عنوان استدعاء راجع عام.",
   "ImSetupGuide.message6": "استخدام Gateway الفريق",

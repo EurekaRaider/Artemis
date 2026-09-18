@@ -795,9 +795,10 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
+    /* 总开关=连接服务标题栏内的启动/停止双态圆钮。 */
     expect(
-      document.querySelector('.im-header [data-artemis-component="switch"]'),
-    ).toHaveAttribute("data-label-visibility", "hidden");
+      document.querySelector(".im-service-head .im-power-toggle"),
+    ).toHaveAttribute("role", "switch");
     /* 两栏：wecom 存量连接在渠道列表可见（未配置渠道不出现）。 */
     expect(platformCard("wecom")).toBeVisible();
     await openChannel(user, "wecom");

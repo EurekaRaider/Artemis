@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "Salin ID koneksi",
   "ImSetupGuide.message1": "Mulai dan daftarkan otomatis",
   "ImSetupGuide.message2": "Gateway bawaan siap",
-  "ImSetupGuide.message3": "WeCom, koneksi persisten Feishu / Lark, dan Slack terhubung tanpa URL publik. Layanan berjalan dan berhenti bersama Artemis; jaga komputer tetap aktif dan Artemis terbuka untuk tugas jarak jauh. Pilih izin proyek di langkah 5.",
+  "ImSetupGuide.message3": "Jaga komputer ini tetap terjaga dan Artemis berjalan untuk tugas jarak jauh; atur izin proyek agar bot dapat mengaksesnya.",
   "ImSetupGuide.message4": "Lanjutan: layanan tim atau penerapan terpisah",
   "ImSetupGuide.message5": "Untuk Gateway tim yang sudah ada, gunakan URL HTTPS dan token administrator yang disediakan. Metode callback HTTPS Feishu / Lark tetap memerlukan URL callback publik.",
   "ImSetupGuide.message6": "Gunakan Gateway tim",

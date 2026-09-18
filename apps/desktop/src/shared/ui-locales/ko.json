@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "연결 ID 복사",
   "ImSetupGuide.message1": "한 번에 시작 및 자동 등록",
   "ImSetupGuide.message2": "기본 제공 Gateway 준비 완료",
-  "ImSetupGuide.message3": "WeCom, Feishu / Lark 지속 연결 및 Slack은 공개 URL 없이 연결할 수 있습니다. 서비스는 Artemis와 함께 시작하고 종료됩니다. 원격 작업을 받으려면 컴퓨터를 절전 상태로 두지 말고 Artemis를 실행해 두세요. 프로젝트 권한은 5단계에서 선택합니다.",
+  "ImSetupGuide.message3": "원격 작업을 받으려면 컴퓨터가 깨어 있고 Artemis가 실행 중이어야 합니다. Bot이 접근할 수 있도록 프로젝트 권한을 설정하세요.",
   "ImSetupGuide.message4": "고급: 팀 서비스 또는 독립 배포",
   "ImSetupGuide.message5": "팀 Gateway가 있다면 관리자가 제공한 HTTPS URL과 관리자 자격 증명을 사용하세요. Feishu / Lark의 HTTPS 콜백 방식에는 공개 콜백 URL이 필요합니다.",
   "ImSetupGuide.message6": "팀 Gateway 사용",

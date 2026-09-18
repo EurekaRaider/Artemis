@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "Verbindungs-ID kopieren",
   "ImSetupGuide.message1": "Automatisch starten und registrieren",
   "ImSetupGuide.message2": "Integriertes Gateway bereit",
-  "ImSetupGuide.message3": "WeCom, Feishu-/Lark-Dauerverbindungen und Slack benötigen keine öffentliche URL. Der Dienst startet und endet mit Artemis; halte den Computer wach und Artemis geöffnet, um Remote-Aufgaben zu empfangen. Projektberechtigungen wählst du in Schritt 5.",
+  "ImSetupGuide.message3": "Halte diesen Computer wach und Artemis für Remote-Aufgaben laufen; lege Projektberechtigungen fest, damit Bots zugreifen können.",
   "ImSetupGuide.message4": "Erweitert: Teamdienst oder separate Bereitstellung",
   "ImSetupGuide.message5": "Bei vorhandenem Team-Gateway verwende HTTPS-URL und Administratortoken eures Administrators. Der HTTPS-Callback-Transport von Feishu / Lark benötigt weiterhin eine öffentliche Callback-URL.",
   "ImSetupGuide.message6": "Team-Gateway verwenden",

@@ -941,7 +941,7 @@
   "ImSettingsPanel.message204": "接続 ID をコピー",
   "ImSetupGuide.message1": "ワンクリックで起動・登録",
   "ImSetupGuide.message2": "組み込み Gateway の準備ができました",
-  "ImSetupGuide.message3": "WeCom、Feishu / Lark の常時接続、Slack は公開 URL なしで直接接続できます。サービスは Artemis とともに起動・終了します。リモートタスクを受信する際は、コンピューターをスリープさせず Artemis を開いておいてください。プロジェクト権限は手順 5 で選択します。",
+  "ImSetupGuide.message3": "リモートタスクの受信中はPCのスリープを無効にし、Artemisを実行し続けてください。Botがアクセスできるようプロジェクト権限を設定してください。",
   "ImSetupGuide.message4": "詳細：チームサービスまたは単体デプロイ",
   "ImSetupGuide.message5": "チームの Gateway がある場合は、管理者から提供された HTTPS URL と管理者認証情報を入力してください。Feishu / Lark の HTTPS コールバック方式には公開コールバック URL が必要です。",
   "ImSetupGuide.message6": "チームの Gateway を使用",
