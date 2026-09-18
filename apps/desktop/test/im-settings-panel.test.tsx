@@ -162,7 +162,7 @@ const platformState = (channel: keyof typeof platformLabels) =>
 /* 两栏版：群协作=IM 渠道第三卡，点击下钻群协作详情（带返回）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
   await panelReady();
-  await user.click(screen.getByRole("button", { name: /^IM 群聊/ }));
+  await user.click(screen.getByRole("button", { name: /^群聊项目授权/ }));
   expect(
     screen.getByRole("button", { name: "返回", exact: true }),
   ).toBeVisible();
@@ -245,7 +245,7 @@ describe("production IM settings", () => {
       await waitFor(() =>
         expect(document.querySelector(".im-overview")).toBeInTheDocument(),
       );
-      await openCard(user, /^授权项目/);
+      await openCard(user, /^单聊项目授权/);
       await user.click(
         screen.getByRole("button", {
           name:
@@ -746,9 +746,9 @@ describe("production IM settings", () => {
     expect(
       screen.queryByRole("button", { name: /本地项目/ }),
     ).not.toBeInTheDocument();
-    /* 授权项目已移至右栏第四卡：返回列表后下钻。 */
+    /* 单聊项目授权已移至右栏第四卡：返回列表后下钻。 */
     await user.click(screen.getByRole("button", { name: "返回", exact: true }));
-    await user.click(screen.getByRole("button", { name: /^授权项目/ }));
+    await user.click(screen.getByRole("button", { name: /^单聊项目授权/ }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "授权配置" }));
     const dialog = screen.getByRole("dialog", {
@@ -923,10 +923,10 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     expect(await screen.findByText("IM渠道设置")).toBeVisible();
-    /* 左栏=固定标题连接服务；右栏=四张卡（渠道/群协作/授权项目）。 */
+    /* 左栏=固定标题连接服务；右栏=四张卡（渠道/群协作/单聊项目授权）。 */
     expect(screen.getByText("连接服务")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /^授权项目/ }),
+      screen.getByRole("button", { name: /^单聊项目授权/ }),
     ).toBeInTheDocument();
     // D1：未注册设备的首次流程不出现总开关。
     expect(screen.queryByRole("switch", { name: "启用 IM 连接" })).toBeNull();
@@ -981,7 +981,7 @@ describe("production IM settings", () => {
     ).toBeVisible();
     expect(screen.getAllByRole("switch")).toHaveLength(1);
     // 概览分区可展开编辑，配置不被清除；授权设置在行右侧按钮的聚焦弹窗里。
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     await user.click(screen.getByRole("button", { name: "授权配置" }));
     expect(
       screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
@@ -1004,7 +1004,7 @@ describe("production IM settings", () => {
     ).not.toBeInTheDocument();
     expect(document.getElementById("im-prepare")).toBeVisible();
     /* 卡片行可键盘下钻。 */
-    const projects = screen.getByRole("button", { name: /^授权项目/ });
+    const projects = screen.getByRole("button", { name: /^单聊项目授权/ });
     projects.focus();
     await user.keyboard("{Enter}");
     expect(
@@ -1085,7 +1085,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 勾选即时生效：已启用的服务一次保存授权；首个项目自动成为默认并带徽章。
     await waitFor(() => expect(f.save).toHaveBeenCalledTimes(1));
@@ -1133,7 +1133,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     f.save.mockRejectedValueOnce(new Error("Grant rejected"));
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     expect(await screen.findByText("Grant rejected")).toBeVisible();
@@ -1151,7 +1151,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 勾选即时保存：保存成功但启用失败 → 提示与重试入口出现在④卡。
     expect(await screen.findByText(/授权已保存，连接未启用/)).toBeVisible();
@@ -1175,7 +1175,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     const builtin = screen.getByRole("checkbox", {
       name: "临时会话（内置，始终可用）",
     }) as HTMLInputElement;
@@ -1200,7 +1200,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 授权设置收进行右侧按钮的聚焦弹窗。
     await user.click(screen.getByRole("button", { name: "授权配置" }));
@@ -1259,7 +1259,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    await openCard(user, /^授权项目/);
+    await openCard(user, /^单聊项目授权/);
     await user.click(screen.getByRole("checkbox", { name: "Test project" }));
     // 勾选即时生效（两阶段：保存 + 启用）。
     await waitFor(() => expect(f.save).toHaveBeenCalledTimes(2));
@@ -1532,12 +1532,12 @@ describe("pairing code lifecycle", () => {
       screen.queryByRole("button", { name: "设置群协作" }),
     ).not.toBeInTheDocument();
     await user.click(
-      await screen.findByRole("button", { name: /^IM 群聊/ }),
+      await screen.findByRole("button", { name: /^群聊项目授权/ }),
     );
     expect(
       screen.getByRole("button", { name: "返回", exact: true }),
     ).toBeVisible();
-    expect(screen.getByText("IM 群聊")).toBeVisible();
+    expect(screen.getByText("群聊项目授权")).toBeVisible();
   });
   it("advances the honest test track from real task signals only", async () => {
     const f = fixture();
@@ -1572,7 +1572,7 @@ describe("pairing code lifecycle", () => {
       expect(document.querySelector(".im-overview")).toBeInTheDocument(),
     );
     expect(
-      screen.queryByRole("button", { name: "授权项目" }),
+      screen.queryByRole("button", { name: "单聊项目授权" }),
     ).not.toBeInTheDocument();
     await openChannel(user, "wecom");
     await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
@@ -1622,7 +1622,7 @@ describe("pairing code lifecycle", () => {
       expect(document.querySelector(".im-overview")).toBeInTheDocument(),
     );
     expect(
-      screen.queryByRole("button", { name: "授权项目" }),
+      screen.queryByRole("button", { name: "单聊项目授权" }),
     ).not.toBeInTheDocument();
     // 删除连接后②③完成态回退：卡片摘要回退、给出一次性提示并出现「继续设置」。
     f.set({ connections: [], identities: [] });
@@ -1651,7 +1651,7 @@ it("hides WeCom group setup while retaining direct-chat setup and other platform
   await openChannel(user, "wecom");
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(
-    screen.queryByRole("button", { name: /^授权项目$/ }),
+    screen.queryByRole("button", { name: /^单聊项目授权$/ }),
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "生成配对码 Test bot" }),
@@ -1800,12 +1800,12 @@ describe("single project authorization editor", () => {
     expect(screen.queryByText(/群协作成员/)).not.toBeInTheDocument();
     // 群协作入口已移至 IM 渠道第三卡：返回列表后下钻。
     await user.click(screen.getByRole("button", { name: "返回", exact: true }));
-    await user.click(screen.getByRole("button", { name: /^IM 群聊/ }));
+    await user.click(screen.getByRole("button", { name: /^群聊项目授权/ }));
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
-    /* 授权项目=第四卡：返回列表后下钻再断言授权配置。 */
+    /* 单聊项目授权=第四卡：返回列表后下钻再断言授权配置。 */
     await user.click(screen.getByRole("button", { name: "返回", exact: true }));
-    await user.click(screen.getByRole("button", { name: /^授权项目/ }));
+    await user.click(screen.getByRole("button", { name: /^单聊项目授权/ }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
     expect(
       screen.queryByRole("group", { name: "数据与分享范围" }),

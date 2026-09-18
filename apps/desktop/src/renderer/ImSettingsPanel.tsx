@@ -738,9 +738,26 @@ export function ImSettingsPanel({
         {/* 顶部信息区：定高，与右栏「飞书+Slack」卡带等高对齐。 */}
         <div className="im-service-meta">
           {settings.deviceId && (
-            <p className="im-identifier im-service-device-line">
-              {t("ImSettingsPanel.message44")}
-              {settings.deviceId}
+            <p
+              className="im-identifier im-service-device-line"
+              title={t("ImSettingsPanel.message44")}
+            >
+              <ArtemisIcon
+                aria-hidden="true"
+                name="mobile"
+                width={15}
+                height={15}
+              />
+              <span className="im-device-id">{settings.deviceId}</span>
+              <button
+                type="button"
+                className="im-capsule-btn"
+                onClick={() =>
+                  void navigator.clipboard.writeText(settings.deviceId)
+                }
+              >
+                {t("ImSettingsPanel.deviceCopy")}
+              </button>
             </p>
           )}
           {/* 就绪后不再展示禁用态按钮，只留提示。 */}
@@ -2264,10 +2281,7 @@ export function ImSettingsPanel({
       const summary = !configured
         ? imConnectionLabel("unconfigured", t)
         : state === "connected"
-          ? `${imConnectionLabel("connected", t)} · ${t(
-              "ImSettingsPanel.channelBotsCount",
-              { value1: platformConnections.length },
-            )}`
+          ? `${imConnectionLabel("connected", t)} · ${platformConnections.length}`
           : imConnectionLabel(state, t);
       return (
         <button
@@ -2320,10 +2334,21 @@ export function ImSettingsPanel({
                 />
               ) : null}
               {summary}
+              {configured && state === "connected" && (
+                <ArtemisIcon
+                  aria-hidden="true"
+                  className="im-channel-row-bots"
+                  name="bot"
+                  width={13}
+                  height={13}
+                />
+              )}
             </span>
           </span>
-          <span aria-hidden="true" className="im-channel-row-caret">
-            <ArtemisIcon name="chevron" width={14} height={14} />
+          <span aria-hidden="true" className="im-capsule-btn">
+            {configured
+              ? t("ImSettingsPanel.goManage")
+              : t("ImSettingsPanel.goConfigure")}
           </span>
         </button>
       );
@@ -2544,8 +2569,8 @@ export function ImSettingsPanel({
                     })}
                   </span>
                 </span>
-                <span aria-hidden="true" className="im-channel-row-caret">
-                  <ArtemisIcon name="chevron" width={14} height={14} />
+                <span aria-hidden="true" className="im-capsule-btn">
+                  {t("ImSettingsPanel.goGrant")}
                 </span>
               </button>
               {/* 第四卡：群协作（对所有渠道生效，独立于单渠道接入）。 */}
@@ -2572,8 +2597,8 @@ export function ImSettingsPanel({
                     {t("ImSettingsPanel.message166")}
                   </span>
                 </span>
-                <span aria-hidden="true" className="im-channel-row-caret">
-                  <ArtemisIcon name="chevron" width={14} height={14} />
+                <span aria-hidden="true" className="im-capsule-btn">
+                  {t("ImSettingsPanel.goGrant")}
                 </span>
               </button>
             </section>
