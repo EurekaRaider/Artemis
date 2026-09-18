@@ -2,50 +2,51 @@ import { type UiTranslate } from "../shared/ui-text.js";
 import { Button } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 
-export const slackAppManifest = (userName: string) => JSON.stringify(
-  {
-    display_information: {
-      name: `${userName}_bot`,
-      description: "Connect your Artemis desktop tasks to Slack",
-    },
-    features: {
-      bot_user: { display_name: `${userName}_bot`, always_online: false },
-      app_home: {
-        home_tab_enabled: false,
-        messages_tab_enabled: true,
-        messages_tab_read_only_enabled: false,
+export const slackAppManifest = (userName: string) =>
+  JSON.stringify(
+    {
+      display_information: {
+        name: `${userName}_bot`,
+        description: "Connect your Artemis desktop tasks to Slack",
+      },
+      features: {
+        bot_user: { display_name: `${userName}_bot`, always_online: false },
+        app_home: {
+          home_tab_enabled: false,
+          messages_tab_enabled: true,
+          messages_tab_read_only_enabled: false,
+        },
+      },
+      oauth_config: {
+        scopes: {
+          bot: [
+            "chat:write",
+            "channels:read",
+            "groups:read",
+            "im:history",
+            "app_mentions:read",
+            "files:read",
+            "users:read",
+          ],
+        },
+      },
+      settings: {
+        event_subscriptions: {
+          bot_events: [
+            "message.im",
+            "app_mention",
+            "member_joined_channel",
+            "member_left_channel",
+          ],
+        },
+        socket_mode_enabled: true,
+        org_deploy_enabled: false,
+        token_rotation_enabled: false,
       },
     },
-    oauth_config: {
-      scopes: {
-        bot: [
-          "chat:write",
-          "channels:read",
-          "groups:read",
-          "im:history",
-          "app_mentions:read",
-          "files:read",
-          "users:read",
-        ],
-      },
-    },
-    settings: {
-      event_subscriptions: {
-        bot_events: [
-          "message.im",
-          "app_mention",
-          "member_joined_channel",
-          "member_left_channel",
-        ],
-      },
-      socket_mode_enabled: true,
-      org_deploy_enabled: false,
-      token_rotation_enabled: false,
-    },
-  },
-  null,
-  2,
-);
+    null,
+    2,
+  );
 
 export function ImSlackSetup({
   t,
@@ -56,8 +57,9 @@ export function ImSlackSetup({
   copy(): void;
   busy: boolean;
 }) {
-  const [beforePairingIcon, afterPairingIcon] =
-    t("ImSlackSetup.message20").split("{{pairingIcon}}");
+  const [beforePairingIcon, afterPairingIcon] = t(
+    "ImSlackSetup.message20",
+  ).split("{{pairingIcon}}");
 
   return (
     <>
@@ -121,7 +123,10 @@ export function ImSlackSetup({
                 name="send"
                 width={16}
                 height={16}
-                style={{ display: "inline-block", verticalAlign: "text-bottom" }}
+                style={{
+                  display: "inline-block",
+                  verticalAlign: "text-bottom",
+                }}
               />
             </span>
             {afterPairingIcon}
