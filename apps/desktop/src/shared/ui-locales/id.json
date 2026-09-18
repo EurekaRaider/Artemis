@@ -1489,5 +1489,6 @@
   "ImSettingsPanel.powerStart": "Mulai",
   "ImSettingsPanel.powerStop": "Putuskan",
   "ImSettingsPanel.serviceReady": "Siap",
-  "ImSettingsPanel.serviceDisconnected": "Terputus"
+  "ImSettingsPanel.serviceDisconnected": "Terputus",
+  "ImSettingsPanel.powerConnected": "Terhubung"
 }

@@ -49,7 +49,6 @@ import {
   imChannelConnectionState,
   imConnectionHealth,
   imConnectionLabel,
-  imConnectionSummary,
   type ImView,
   type ImChannel,
   type ImTranslate,
@@ -722,29 +721,12 @@ export function ImSettingsPanel({
     ) : (
       <LoadingState label={t("ImSettingsPanel.message31")} lines={3} />
     );
-  const stateLabels: Record<NonNullable<ImStatus["state"]>, string> = {
-    disabled: t("ImSettingsPanel.serviceDisconnected"),
-    connecting: t("ImNavigation.message11"),
-    connected: t("ImSettingsPanel.serviceReady"),
-    error: t("ImSettingsPanel.serviceDisconnected"),
-  };
+
   const enableReason = !settings.deviceId
     ? t("ImSettingsPanel.message37")
     : !hasBot
       ? t("ImSettingsPanel.message36")
       : "";
-  const summary = refreshError
-    ? t("ImSettingsPanel.message41")
-    : !status?.settings.deviceId
-      ? t("ImNavigation.message6")
-      : !status.settings.enabled
-        ? t("ImSettingsPanel.serviceDisconnected")
-        : status?.state === "error"
-          ? stateLabels.error
-          : !hasBot
-            ? t("ImSettingsPanel.message38")
-            : stateLabels[status?.state ?? "connecting"];
-  const health = imConnectionHealth(connections);
   const activeSettings = settings;
   function renderGatewayBody() {
     const settings = activeSettings;
@@ -2346,28 +2328,10 @@ export function ImSettingsPanel({
                 className="im-service-state"
                 title={t("ImSettingsPanel.message196")}
               >
-                {/* 状态胶囊与启动/停止总开关收进连接服务标题栏（D1 首跑无开关）。 */}
+                {/* 电源图标即状态：绿+连接 / 红+断开（正向态展示，D1 首跑无开关）。 */}
                 {(activeScreen === "overview" ||
                   (activeScreen === "flow" && !!status?.settings.deviceId)) && (
                   <>
-                    {activeScreen === "overview" && (
-                      <span className="im-status-pill" role="status">
-                        <span
-                          className="im-dot"
-                          data-state={
-                            status?.settings.enabled
-                              ? health.failed
-                                ? "error"
-                                : status?.state
-                              : "disabled"
-                          }
-                          aria-hidden="true"
-                        />
-                        {summary}
-                        {health.failed > 0 &&
-                          ` · ${imConnectionSummary(connections, t)}`}
-                      </span>
-                    )}
                     {!settings.enabled && enableReason && (
                       <span className="im-power-reason">{enableReason}</span>
                     )}
@@ -2411,9 +2375,26 @@ export function ImSettingsPanel({
                         })
                       }
                     >
-                      {/* 启动/断开双态=电源符号（单色描边，与全库 1.5 线宽一致）：
-                           运行中=电源+斜杠（断开），已停止=电源符号（启动）。 */}
+                      {/* 电源符号（正向态）：就绪=绿+连接，断开=红+斜杠+断开；线宽 1.5 对齐全库。 */}
                       {settings.enabled || status?.settings.enabled ? (
+                        <>
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 2.5v7.5" />
+                            <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
+                          </svg>
+                          <span>{t("ImSettingsPanel.powerConnected")}</span>
+                        </>
+                      ) : (
                         <>
                           <svg
                             aria-hidden="true"
@@ -2431,24 +2412,6 @@ export function ImSettingsPanel({
                             <path d="m3.5 3.5 17 17" />
                           </svg>
                           <span>{t("ImSettingsPanel.powerStop")}</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            width="14"
-                            height="14"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M12 2.5v7.5" />
-                            <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
-                          </svg>
-                          <span>{t("ImSettingsPanel.powerStart")}</span>
                         </>
                       )}
                     </button>

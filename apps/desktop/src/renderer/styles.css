@@ -10518,8 +10518,18 @@ kbd {
   line-height: 16px;
   cursor: pointer;
 }
+/* 电源状态钮（正向态）：就绪=绿图标+「连接」，断开=红图标+「断开」。 */
 .im-power-toggle[data-state="on"] {
   color: var(--text);
+}
+.im-power-toggle[data-state="on"] svg {
+  color: var(--success);
+}
+.im-power-toggle[data-state="off"] {
+  color: var(--muted);
+}
+.im-power-toggle[data-state="off"] svg {
+  color: var(--danger);
 }
 .im-power-toggle:hover {
   color: var(--text);

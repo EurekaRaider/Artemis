@@ -1489,5 +1489,6 @@
   "ImSettingsPanel.powerStart": "Starten",
   "ImSettingsPanel.powerStop": "Trennen",
   "ImSettingsPanel.serviceReady": "Bereit",
-  "ImSettingsPanel.serviceDisconnected": "Getrennt"
+  "ImSettingsPanel.serviceDisconnected": "Getrennt",
+  "ImSettingsPanel.powerConnected": "Verbunden"
 }

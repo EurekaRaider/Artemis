@@ -1489,5 +1489,6 @@
   "ImSettingsPanel.powerStart": "शुरू करें",
   "ImSettingsPanel.powerStop": "डिस्कनेक्ट करें",
   "ImSettingsPanel.serviceReady": "तैयार",
-  "ImSettingsPanel.serviceDisconnected": "डिस्कनेक्टेड"
+  "ImSettingsPanel.serviceDisconnected": "डिस्कनेक्टेड",
+  "ImSettingsPanel.powerConnected": "कनेक्टेड"
 }
