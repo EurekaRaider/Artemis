@@ -7780,6 +7780,7 @@ button.sources-panel-entry.attachment:focus-visible {
 
 /* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token。 */
 .im-settings-dialog {
+  position: relative;
   background: var(--artemis-color-surface-raised);
   width: min(960px, 94vw);
   height: min(680px, 88dvh);
@@ -7790,10 +7791,16 @@ button.sources-panel-entry.attachment:focus-visible {
   --border-soft: var(--artemis-color-border-subtle);
   --blue: var(--artemis-color-accent-primary);
 }
+.im-settings-dialog-close {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 14px;
+  z-index: 5;
+}
 .im-settings-dialog .im-settings {
   height: 100%;
   overflow: auto;
-  padding: 18px 22px;
+  padding: 14px 22px 18px;
 }
 
 .settings-profile-avatar {

@@ -9204,6 +9204,14 @@ export function App() {
           open
           returnFocusRef={imSettingsTrigger}
         >
+          <Button
+            className="im-settings-dialog-close"
+            size="compact"
+            variant="quiet"
+            onClick={() => setImSettingsOpen(false)}
+          >
+            {uiText(locale, "App_copy.renameClose")}
+          </Button>
           <ImSettingsPanel
             locale={locale}
             onOpenThread={async (threadId) => {
