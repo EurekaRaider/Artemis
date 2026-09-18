@@ -64,6 +64,7 @@ import {
 
 import { ImPlatformSetup } from "./ImPlatformSetup";
 import feishuChannelIcon from "./assets/feishu-channel.png";
+import slackChannelIcon from "./assets/slack-channel.svg";
 import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
@@ -2259,6 +2260,15 @@ export function ImSettingsPanel({
               className="im-channel-logo"
               height={20}
               src={feishuChannelIcon}
+              width={20}
+            />
+          ) : platform === "slack" ? (
+            <img
+              alt=""
+              aria-hidden="true"
+              className="im-channel-logo"
+              height={20}
+              src={slackChannelIcon}
               width={20}
             />
           ) : (
