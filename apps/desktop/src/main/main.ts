@@ -17083,6 +17083,10 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.thread-select')?.click();
                   await wait(400);
                   if (view === 'markdown-editor-navigation-preview') {
+                    const completedTurn = await waitFor('.turn-execution-details');
+                    if (completedTurn instanceof HTMLDetailsElement && !completedTurn.open) {
+                      completedTurn.querySelector(':scope > summary')?.click();
+                    }
                     const disclosure = await waitFor(
                       '.tool-card[data-artemis-component="tool-activity"] [data-part="disclosure"]',
                     );
