@@ -184,7 +184,7 @@ export function ImSettingsPanel({
           setUrl(current.settings.gatewayUrl);
           setName(current.settings.deviceName);
           setProjects(snapshot.projects);
-          setShowRemote(!!current.settings.deviceId && !current.localGateway);
+          /* 手动注册入口卡不再自动顶开整屏详情，用户点击时才进入。 */
           const connections = (current.connections ??
             []) as ImConnectionStatus[];
           const connected =
@@ -806,73 +806,16 @@ export function ImSettingsPanel({
           />
         </section>
         <section id="im-device" tabIndex={-1}>
-          <details
+          {/* 入口卡：点击进入整幅二级卡（与「高级」同模式）。 */}
+          <button
+            type="button"
             className="im-gateway-fold"
-            open={showRemote}
-            onToggle={(event) => setShowRemote(event.currentTarget.open)}
+            onClick={() => setShowRemote(true)}
           >
-            <summary>{t("ImSettingsPanel.message46")}</summary>
-            <div className="im-gateway-fold-body">
-              <ManagementSection
-                title={t("ImSettingsPanel.message57")}
-                description={t("ImSettingsPanel.message58")}
-              >
-              <TextField
-                label={t("ImSettingsPanel.message47")}
-                description={t("ImSettingsPanel.message48")}
-                type="url"
-                value={url}
-                onValueChange={setUrl}
-                placeholder="https://artemis.example.com"
-                disabled={busy || settings.enabled}
-              />
-              <TextField
-                label={t("ImSettingsPanel.message49")}
-                description={t("ImSettingsPanel.message50")}
-                value={name}
-                onValueChange={setName}
-                disabled={busy}
-              />
-              <TextField
-                label={t("ImSettingsPanel.message51")}
-                type="password"
-                value={adminToken}
-                onValueChange={setAdminToken}
-                autoComplete="off"
-                disabled={busy}
-                description={t("ImSettingsPanel.message52")}
-              />
-              <div className="im-actions">
-                <Button
-                  disabled={busy || settings.enabled || !url || !adminToken}
-                  onClick={() =>
-                    void run(async () => {
-                      const token = adminToken;
-                      setAdminToken("");
-                      await window.artemis.manageIm({
-                        action: "register",
-                        gatewayUrl: url,
-                        name,
-                        adminToken: token,
-                      });
-                      setPairCode(undefined);
-                      const current = await window.artemis.getImStatus();
-                      setStatus(current);
-                      setSettings(current.settings);
-                      setMessage(t("ImSettingsPanel.message54"));
-                    })
-                  }
-                >
-                  {t("ImSettingsPanel.message53")}
-                </Button>
-                <Button disabled={busy} onClick={() => void run(refresh)}>
-                  {t("ImSettingsPanel.message55")}
-                </Button>
-              </div>
-              <p>{t("ImSettingsPanel.message56")}</p>
-              </ManagementSection>
-            </div>
-          </details>
+            <span className="im-gateway-fold-head">
+              {t("ImSettingsPanel.message46")}
+            </span>
+          </button>
         </section>
       </>
     );
@@ -2349,6 +2292,83 @@ export function ImSettingsPanel({
         <strong>{label}</strong>
       </div>
     );
+    if (showRemote) {
+      /* 二级整幅卡：手动注册（原「使用团队 Gateway」折叠体）。 */
+      return (
+        <section className="im-screen-detail" id="im-device" tabIndex={-1}>
+          <div className="im-screen-detail-head">
+            <Button
+              size="compact"
+              variant="quiet"
+              onClick={() => setShowRemote(false)}
+            >
+              {t("ImSettingsPanel.channelBack")}
+            </Button>
+            <strong>{t("ImSettingsPanel.message46")}</strong>
+          </div>
+          <div className="im-screen-detail-body">
+            <ManagementSection
+              title={t("ImSettingsPanel.message57")}
+              description={t("ImSettingsPanel.message58")}
+            >
+              <TextField
+                label={t("ImSettingsPanel.message47")}
+                description={t("ImSettingsPanel.message48")}
+                type="url"
+                value={url}
+                onValueChange={setUrl}
+                placeholder="https://artemis.example.com"
+                disabled={busy || settings.enabled}
+              />
+              <TextField
+                label={t("ImSettingsPanel.message49")}
+                description={t("ImSettingsPanel.message50")}
+                value={name}
+                onValueChange={setName}
+                disabled={busy}
+              />
+              <TextField
+                label={t("ImSettingsPanel.message51")}
+                type="password"
+                value={adminToken}
+                onValueChange={setAdminToken}
+                autoComplete="off"
+                disabled={busy}
+                description={t("ImSettingsPanel.message52")}
+              />
+              <div className="im-actions">
+                <Button
+                  disabled={busy || settings.enabled || !url || !adminToken}
+                  onClick={() =>
+                    void run(async () => {
+                      const token = adminToken;
+                      setAdminToken("");
+                      await window.artemis.manageIm({
+                        action: "register",
+                        gatewayUrl: url,
+                        name,
+                        adminToken: token,
+                      });
+                      setPairCode(undefined);
+                      const current = await window.artemis.getImStatus();
+                      setStatus(current);
+                      setSettings(current.settings);
+                      setMessage(t("ImSettingsPanel.message54"));
+                    })
+                  }
+                >
+                  {t("ImSettingsPanel.message53")}
+                </Button>
+                <Button disabled={busy} onClick={() => void run(refresh)}>
+                  {t("ImSettingsPanel.message55")}
+                </Button>
+              </div>
+              <p>{t("ImSettingsPanel.message56")}</p>
+            </ManagementSection>
+          </div>
+        </section>
+      );
+    }
     if (advancedDetail) {
       /* 二级整幅卡：覆盖两栏区，头部=返回+tab标题，内容=原「高级」折叠体。 */
       return (
