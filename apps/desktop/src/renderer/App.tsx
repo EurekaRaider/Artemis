@@ -316,7 +316,7 @@ type Locale = AppLocale;
 type ModelPickerSection = "model" | "thinking";
 type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
-type SettingsEntryTab = "general" | "maintenance" | "im";
+type SettingsEntryTab = "general" | "maintenance";
 type ConfirmationTone = "default" | "danger";
 type ToastContent = string | { error: true; message: string };
 

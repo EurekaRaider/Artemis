@@ -362,11 +362,14 @@ describe("renderer layout contract", () => {
     expect(
       findCssDeclarations(
         composition,
-        '[data-theme="dark"] .project-thread-row',
+        '[data-artemis-theme="dark"] .project-thread-row',
       ),
     ).toContain("color: var(--text)");
     expect(
-      findCssDeclarations(composition, '[data-theme="dark"] .project-row'),
+      findCssDeclarations(
+        composition,
+        '[data-artemis-theme="dark"] .project-row',
+      ),
     ).toBeUndefined();
     expect(publicUiStylesSource).not.toMatch(
       /data-platform|-webkit-app-region/u,

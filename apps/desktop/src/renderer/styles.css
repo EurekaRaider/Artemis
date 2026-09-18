@@ -10080,10 +10080,6 @@ kbd {
   margin-block: 8px;
 }
 
-/* Message integration content only; the shared settings window keeps its geometry. */
-#settings-tab-im {
-  min-height: 0;
-}
 .im-settings {
   --success: light-dark(#078b3c, #07c160);
   --artemis-color-switch-on: #07c160;
