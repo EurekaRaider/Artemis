@@ -7816,11 +7816,15 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 1 1 auto;
   min-block-size: 0;
 }
-/* 遮罩毛玻璃化：保持全局 scrim 32% 黑调；模糊压在降采样劣化阈值之下保证
-   柔和无条纹，再以 brightness 压掉背景文字对比度，使其糊到几乎不可辨。 */
-.im-settings-dialog::backdrop {
+/* 毛玻璃遮罩用真实 div：::backdrop 的 backdrop-filter 在真机 GPU 上静默
+   失效且大半径呈水纹劣化；div 是应用内其它玻璃层同款路径，高斯模糊真实生效。
+   div 处于 top layer 之下的 inert 区，纯做视觉层，外点关闭仍由原生 modal 命中。 */
+.im-settings-frost {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
   background: var(--artemis-color-overlay-scrim);
-  backdrop-filter: blur(32px) saturate(1.05) brightness(0.8);
+  backdrop-filter: blur(28px) saturate(1.05);
 }
 .im-settings-dialog-close {
   display: grid;

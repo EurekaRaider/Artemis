@@ -9276,6 +9276,9 @@ export function App() {
       )}
 
       {imSettingsOpen && (
+        <div aria-hidden="true" className="im-settings-frost" />
+      )}
+      {imSettingsOpen && (
         <Dialog
           className="im-settings-dialog"
           label={uiText(locale, "ImSettingsPanel.message191")}
