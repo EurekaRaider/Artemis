@@ -35,7 +35,9 @@ describe("IM thread connection indicators", () => {
       );
       const indicator = screen.getByRole("img");
       expect(screen.queryByRole("img", { name: "群协作对话" })).toBeNull();
-      expect(indicator).toHaveAccessibleName(`Slack · IM 连接：${label}`);
+      expect(indicator).toHaveAccessibleName(
+        connectionState === "connected" ? "单聊·在线" : "单聊·离线",
+      );
       expect(indicator).toHaveAttribute("data-state", connectionState);
       expect(
         indicator.querySelector(`[data-artemis-icon="${icon}"]`),
@@ -83,7 +85,7 @@ describe("IM thread connection indicators", () => {
     ).toHaveLength(1);
     const indicator = container.querySelector(".im-thread-group")!;
     expect(indicator).toHaveAttribute("data-state", "connected");
-    expect(indicator).toHaveAccessibleName("Slack · IM 连接：已连接");
+    expect(indicator).toHaveAccessibleName("群聊·在线");
     expect(
       indicator.querySelector('[data-artemis-icon="agents"]'),
     ).toBeTruthy();

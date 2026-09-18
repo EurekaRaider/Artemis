@@ -890,41 +890,64 @@ function splitImChannelPrefix(
   return { channel: IM_TITLE_CHANNELS[matched]!, rest: title.slice(match[0].length) };
 }
 
-function ThreadChannelMark({ channel }: { channel: string }) {
-  if (channel === "feishu")
-    return (
-      <img
-        alt=""
-        aria-hidden="true"
-        className="thread-channel-logo"
-        src={feishuChannelIcon}
-      />
-    );
-  if (channel === "slack")
-    return (
-      <img
-        alt=""
-        aria-hidden="true"
-        className="thread-channel-logo"
-        src={slackChannelIcon}
-      />
-    );
+function ThreadChannelMark({
+  channel,
+  locale,
+}: {
+  channel: string;
+  locale: AppLocale;
+}) {
+  /* 第二个图标悬浮气泡：渠道名称。 */
+  const label =
+    channel === "slack"
+      ? "Slack"
+      : channel === "feishu" || channel === "lark"
+        ? uiText(locale, "ImNavigation.message1")
+        : channel === "wecom"
+          ? uiText(locale, "ImNavigation.message2")
+          : "IM";
   return (
-    <ArtemisIcon
-      aria-hidden="true"
-      className="thread-channel-logo"
-      name="wecom"
-    />
+    <Tooltip label={label}>
+      {channel === "feishu" ? (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="thread-channel-logo"
+          src={feishuChannelIcon}
+        />
+      ) : channel === "slack" ? (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="thread-channel-logo"
+          src={slackChannelIcon}
+        />
+      ) : (
+        <ArtemisIcon
+          aria-hidden="true"
+          className="thread-channel-logo"
+          name="wecom"
+        />
+      )}
+    </Tooltip>
   );
 }
 
-function ThreadTitleContent({ title }: { title: string }) {
+function ThreadTitleContent({
+  title,
+  locale,
+}: {
+  title: string;
+  locale: AppLocale;
+}) {
   const visible = visibleThreadTitle(title);
   const parsed = splitImChannelPrefix(visible);
   const text = parsed ? parsed.rest : visible;
   return (
     <>
-      {parsed && <ThreadChannelMark channel={parsed.channel} />}
+      {parsed && (
+        <ThreadChannelMark channel={parsed.channel} locale={locale} />
+      )}
       <span className="thread-title-text">
         <span>{text}</span>
         <span aria-hidden="true" className="thread-title-copy">
@@ -6280,6 +6303,7 @@ export function App() {
                                 >
                                   <ThreadTitleContent
                                     title={thread.title}
+                                    locale={locale}
                                   />
                                 </span>
                                 <time
@@ -6528,7 +6552,10 @@ export function App() {
                         onPointerEnter={prepareThreadTitleScroll}
                         title={visibleThreadTitle(thread.title)}
                       >
-                        <ThreadTitleContent title={thread.title} />
+                        <ThreadTitleContent
+                          title={thread.title}
+                          locale={locale}
+                        />
                       </span>
                       <time
                         className="thread-time"

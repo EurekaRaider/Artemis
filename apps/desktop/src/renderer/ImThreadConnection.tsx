@@ -7,6 +7,7 @@ import type {
   ImStatus,
 } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
+import { Tooltip } from "@artemis/ui/feedback";
 
 type ThreadConnection = {
   permissionBlock?: string;
@@ -119,68 +120,60 @@ export function ImThreadConnection({
   status: ThreadConnection;
   locale: AppLocale;
 }) {
-  const channel =
-    status.channel === "slack"
-      ? "Slack"
-      : status.channel === "feishu" || status.channel === "lark"
-        ? uiText(locale, "ImNavigation.message1")
-        : status.channel === "wecom"
-          ? uiText(locale, "ImNavigation.message2")
-          : "IM";
   const state =
     status.group?.native && !status.group.confirmed
       ? "disabled"
       : status.connectionState;
-  const label = {
-    connected: uiText(locale, "ImNavigation.message12"),
-    connecting: uiText(locale, "ImNavigation.message11"),
-    error: uiText(locale, "ImThreadConnection.inline1"),
-    disabled: uiText(
-      locale,
-      "CustomAgentsSettingsSection_labels.disabledBadge",
-    ),
-    unknown: uiText(locale, "ImGroupMembers.message6"),
-  }[state];
-  const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
+  /* 首个图标悬浮气泡：对话类型 · 在线/离线。 */
+  const summary = `${uiText(
+    locale,
+    status.group
+      ? "ImThreadConnection.inline8"
+      : "ImThreadConnection.inline7",
+  )}·${uiText(
+    locale,
+    state === "connected"
+      ? "ImThreadConnection.inline9"
+      : "ImThreadConnection.inline10",
+  )}`;
   const group = status.group;
   return (
     <span className="im-thread-indicators">
-      {group ? (
-        /* 群聊只保留群聊图标，颜色随 IM 连接状态变化。 */
-        <span
-          aria-label={summary}
-          className="im-thread-group"
-          data-state={state}
-          role="img"
-          title={summary}
-        >
-          <ArtemisIcon name="agents" width={15} height={15} />
-        </span>
-      ) : (
-        <span
-          aria-label={summary}
-          className="im-thread-connection"
-          data-state={state}
-          role="img"
-          title={summary}
-        >
-          <ArtemisIcon
-            name={
-              state === "error"
-                ? "alert"
-                : state === "connecting"
-                  ? "clock"
-                  : state === "disabled"
-                    ? "unlink"
-                    : state === "unknown"
-                      ? "info"
-                      : "message"
-            }
-            width={15}
-            height={15}
-          />
-        </span>
-      )}
+      <Tooltip label={summary}>
+        {group ? (
+          <span
+            aria-label={summary}
+            className="im-thread-group"
+            data-state={state}
+            role="img"
+          >
+            <ArtemisIcon name="agents" width={15} height={15} />
+          </span>
+        ) : (
+          <span
+            aria-label={summary}
+            className="im-thread-connection"
+            data-state={state}
+            role="img"
+          >
+            <ArtemisIcon
+              name={
+                state === "error"
+                  ? "alert"
+                  : state === "connecting"
+                    ? "clock"
+                    : state === "disabled"
+                      ? "unlink"
+                      : state === "unknown"
+                        ? "info"
+                        : "message"
+              }
+              width={15}
+              height={15}
+            />
+          </span>
+        )}
+      </Tooltip>
     </span>
   );
 }
