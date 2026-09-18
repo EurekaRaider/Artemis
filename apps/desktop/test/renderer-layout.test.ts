@@ -354,6 +354,20 @@ describe("renderer layout contract", () => {
         '.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top',
       ),
     ).toContain("padding-block-start: 38px");
+    // 新建会话与项目列表之间不再画分隔线，列表上移。
+    const sidebarTop = findCssDeclarations(composition, ".sidebar-top");
+    expect(sidebarTop).toContain("padding: 10px 10px 2px");
+    expect(sidebarTop).not.toContain("border-block-end");
+    // 深色模式：导航行与会话行提白，项目文件夹行维持 --muted 现状。
+    expect(
+      findCssDeclarations(
+        composition,
+        '[data-theme="dark"] .project-thread-row',
+      ),
+    ).toContain("color: var(--text)");
+    expect(
+      findCssDeclarations(composition, '[data-theme="dark"] .project-row'),
+    ).toBeUndefined();
     expect(publicUiStylesSource).not.toMatch(
       /data-platform|-webkit-app-region/u,
     );

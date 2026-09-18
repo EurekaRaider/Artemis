@@ -22,8 +22,14 @@
   --sidebar-native-color: var(--artemis-color-background-sidebar);
 }
 .sidebar-top {
-  padding: 10px 10px 8px;
-  border-block-end: 1px solid var(--border-soft);
+  padding: 10px 10px 2px;
+}
+/* 深色模式对照参考稿：除项目文件夹行（维持 --muted）与分组标题外，
+   导航行与会话行整体提白；语义状态色（连接/任务状态点）不受影响。 */
+[data-theme="dark"] .sidebar-nav .nav-row,
+[data-theme="dark"] .project-thread-row,
+[data-theme="dark"] .project-thread-row .thread-time {
+  color: var(--text);
 }
 .sidebar-brand {
   display: flex;
