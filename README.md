@@ -19,11 +19,11 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2639 passing tests" src="https://img.shields.io/badge/Tests-2639_passing-2EA44F" />
+  <img alt="3052 passing tests" src="https://img.shields.io/badge/Tests-3052_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
-[Product preview](#product-preview) · [Plugins](#plugin-marketplace-and-capability-center) · [IM & group chat](#im-access-and-cross-platform-collaboration) · [Quick start](#quick-start) · [Workspace](#desktop-workspace-and-task-lifecycle) · [Permissions](#execution-permissions-and-trust-boundary) · [Architecture](#architecture) · [Documentation](#documentation)
+[Product preview](#product-preview) · [Plugins](#plugin-marketplace-and-capability-center) · [IM & group chat](#im-access-and-native-group-collaboration) · [Quick start](#quick-start) · [Workspace](#desktop-workspace-and-task-lifecycle) · [Permissions](#execution-permissions-and-trust-boundary) · [Architecture](#architecture) · [Documentation](#documentation)
 
 </div>
 
@@ -146,7 +146,7 @@ recurring follow-up alongside the same coding and Git workflows.
 
 ## Product preview
 
-[IM connections and group collaboration previews](#im-access-and-cross-platform-collaboration)
+[IM connections and group collaboration previews](#im-access-and-native-group-collaboration)
 
 The screenshots below show the running Artemis desktop on macOS, using a
 sample **Field Notes** project. Conversations, Agent activity, usage totals and
@@ -175,8 +175,8 @@ workspace and activity without leaving the conversation.
   details.
 - **Sources:** inspect attachment and source-call counts, open the full source
   list, or add context when the task has source information.
-- **IM groups:** group tasks also show participating members and their computer
-  states, with member mention controls.
+- **IM groups:** group tasks also show participating members and available platform
+  presence, with member mention controls.
 
 The panel adapts to the task's available content. Non-Git projects retain Agent,
 source and group information; the Git section appears only for Git workspaces.
@@ -189,7 +189,7 @@ The screenshots use the isolated Field Notes project and synthetic Agent records
 
 环境信息面板可从任务顶部打开，可集中查看当前任务的本地工作区或工作树、分支与变更，
 进行比较、提交和推送，并在存在 PR 时查看其状态及 CI 检查。面板还展示子 Agent
-活动、团队详情和来源摘要；IM 群任务会显示成员及电脑状态，并支持提及成员。
+活动、团队详情和来源摘要；IM 群任务会显示成员及可用的平台在线状态，并支持提及成员。
 各区域按实际内容显示，非 Git 项目仍保留 Agent、来源和群成员信息。
 
 </details>
@@ -1130,98 +1130,117 @@ for validation evidence and current limitations.
 
 </details>
 
-### IM access and cross-platform collaboration
+### IM access and native group collaboration
 
 Give Artemis a task from **WeCom, Feishu / Lark or Slack**, then follow its
-progress and results in your bot conversation. Private chats connect to your
-paired computer; group spaces let independently authorized members work together
-from their own IM platforms and Artemis desktops.
+progress and results in your private bot conversation. For group work, each
+participant connects their own bot and Artemis desktop independently to the
+**same native IM group or channel**. Bots exchange assignments and results
+through that platform; they do not require a shared Gateway or a cross-IM space.
 
-| Capability                     | How it works                                                                                                                                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Private bot chat**           | Pair your IM account, select an authorized project, send a task and continue the same conversation. Receive results, answer questions and handle one-time approvals privately.               |
-| **Group collaboration**        | Link one or more existing IM groups/channels into an Artemis space. Each group administrator confirms the space, and each member grants access to their own project.                         |
-| **Desktop group conversation** | Confirmed, authorized spaces appear as group conversations. Inspect members and computer connection states, choose target members, and use `@` mentions to address their Agents.             |
-| **Targeted assignments**       | Mention the bot with `/agents` to list available members, then `/ask member-id task`. Comma-separated IDs address up to 16 members; Slack uses `agents` and `ask` without the leading slash. |
-| **Shared progress and files**  | Bot-directed tasks, public progress and results reach the linked groups. Files are shared only through explicit publication with temporary download links.                                   |
-
-![Artemis group collaboration conversation with synthetic members and computer states](docs/images/screenshots/im-group-chat.png)
-
-<details>
-<summary><strong>Group collaboration in dark mode</strong></summary>
-
-![Artemis dark group conversation with the same demonstration member roster](docs/images/screenshots/im-group-chat-dark.png)
-
-</details>
+| Capability                     | How it works                                                                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Private bot chat**           | Pair your IM account, authorize a project and continue tasks from your bot chat. Receive results, answer questions and handle one-time approvals privately.                                                                                               |
+| **Native group collaboration** | Authorize an existing Slack channel or Feishu / Lark group for a local project. Each owner controls which members may assign work to their bot. WeCom private chat remains available; its group setup is currently hidden.                                |
+| **Verified bot delegation**    | Discover bot identities from platform members or authenticated messages. Automatic handoff requires owner permission and a successful IM round-trip probe; otherwise use manual @ assignment.                                                             |
+| **Conversation continuity**    | Follow-up assignments to the same peer reuse the authorized conversation. Explicit new tasks and independent batch assignments can create separate sessions. Results return to the originating group and address the requester.                           |
+| **Durable waiting**            | Delegated work saves its wait state and can resume the original conversation when results arrive, including after restart and permission rechecks. You can keep chatting while it waits.                                                                  |
+| **Cancellation and recovery**  | Stop the task from Artemis or send a cancellation request in chat. Natural-language cancellation is classified semantically across languages. A sent cancellation is pending until the peer confirms; failed or interrupted work requires explicit retry. |
+| **Scoped access and sharing**  | Grant project, folder or file access, with separate write, command and network permissions. Files are shared only through explicit publication with temporary download links.                                                                             |
 
 #### Connect an IM account
 
-1. Open **Settings → Messaging** and follow the six-step guide. Start the
-   bundled Gateway and register this computer, or join a team Gateway.
-2. Connect a bot for your platform. WeCom and Feishu long connections and Slack
+1. Open **Settings → Messaging** and follow the setup guide to start the
+   bundled Gateway and register this computer.
+2. Connect your platform's bot. WeCom and Feishu long connections and Slack
    Socket Mode can receive messages without a public callback endpoint.
-3. Send the pairing command in your private bot chat and approve the incoming
-   request in Artemis. Pairing codes expire after five minutes.
+3. Complete account pairing in your private bot chat and Artemis. Pairing codes
+   expire after five minutes.
 4. Choose the project, mode, allowed paths, command/network access and approval
    policy, then enable the connection. Keep the computer awake and Artemis running.
+5. For group work, add the participating bots to the same native group/channel,
+   refresh the group and member list, and authorize the group for your project.
+   Each bot owner selects permitted senders and bot peers on their own computer.
 
-The installed desktop includes the local Gateway runtime. A team administrator
-can also export the standalone Gateway for a shared server with Node.js 24+.
-Remote Gateway access, Feishu HTTPS callbacks and public artifact download links
-require reachable HTTPS endpoints.
+The installed desktop includes the local Gateway runtime. Standalone Gateway
+export remains available for advanced deployments. Remote Gateway access,
+Feishu HTTPS callbacks and public artifact download links require reachable
+HTTPS endpoints. Native bot delegation currently requires the local Gateway.
 
-<table>
-  <tr>
-    <td width="50%"><a href="docs/images/screenshots/im-connections.png"><img src="docs/images/screenshots/im-connections.png" alt="Artemis IM connection manager with synthetic Feishu and Slack connections" /></a></td>
-    <td width="50%"><a href="docs/images/screenshots/im-spaces.png"><img src="docs/images/screenshots/im-spaces.png" alt="Artemis group spaces setup and saved demonstration collaboration space" /></a></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Message integrations</strong><br /><sub>Manage bots, pairing and project permissions.</sub></td>
-    <td align="center"><strong>Group spaces</strong><br /><sub>Connect existing groups and choose participating members.</sub></td>
-  </tr>
-</table>
+![Native group collaboration through independent local Gateways and owner-authorized projects](docs/images/artemis-im-collaboration.svg)
 
-#### What a shared space includes
+<sub>[Open the editable collaboration diagram](docs/diagrams/artemis-im-collaboration.html)</sub>
 
-All participating computers and bots must use the same reachable Gateway.
-Create each native group/channel in its IM platform first. In Artemis, discover
-and select the groups and paired members, save the space, then have the designated
-administrator of **every** group mention the bot with `/space-confirm space-id`
-(`space-confirm space-id` in Slack). Each member must also authorize that space
-for a local project. Changing the groups or members requires confirmation again.
+#### Group identity, permissions and task state
 
-Ordinary group chatter is not relayed. Joining a space does not open a member's
-computer: the target desktop rechecks its own project, path and operation grants.
-Approvals stay with the owner in private chat. Paused or offline devices queue
-requests with an expiry; group computer indicators describe Artemis availability,
-not whether someone is using a phone or desktop IM client.
+Group members come from platform identities, not model-written names. Slack
+presence distinguishes active, away and unknown; it does not prove that the
+member's Artemis computer is online. Feishu / Lark member directories can be
+partial because the member API excludes bots; authenticated group messages
+supply observed bot identities. Observation alone never grants execution access.
 
-![IM collaboration flow from existing groups through the Gateway to independently authorized desktops](docs/images/artemis-im-collaboration.svg)
+A recipient rechecks its own project and operation grants before running work.
+Project access covers the selected project, folder access includes its subtree,
+and file access remains limited to that file. Approvals stay with the owner;
+ordinary group chatter and copied protocol text do not authorize bot execution.
+Changed or revoked permissions cannot be bypassed by resuming an old task.
+
+Delegation status distinguishes completed, failed, cancelled and unknown.
+Missing heartbeats or a timeout mean the peer's execution state is unknown;
+they do not prove a crash or cancellation. A cancellation request stops local
+continuation and asks the peer to stop, while retaining the pending status until
+an acknowledgement arrives. Retry and continued waiting are explicit choices.
 
 <details>
-<summary><strong>中文介绍：IM 接入与群聊协作</strong></summary>
+<summary><strong>中文介绍：IM 接入与原生群协作</strong></summary>
 
 通过**企业微信、飞书 / Lark、Slack** 的机器人单聊，把任务交给已配对的
 Artemis 电脑，在 IM 中接收进度、结果，处理澄清和本人审批。
-设置 → **IM 连接**提供内置 Gateway 启动、机器人接入、账号配对和项目授权引导。
+设置中的消息接入引导负责启动内置 Gateway、连接机器人、配对账号与授权项目。
 
-**群聊协作**关联各平台已有的群或频道；既支持同平台群，也支持跨平台空间。
-每个群由指定管理员确认，每位成员独立授权自己的项目。完成确认与授权后，
-桌面会同步群协作对话，可查看成员与电脑状态，选择目标成员或用 `@` 定向交办。
-在 IM 群中先 @机器人发送 `/agents` 查看成员，再用 `/ask 成员编号 任务内容`
-派发；多个编号用英文逗号分隔，Slack 指令去掉开头的 `/`。
+**群协作使用平台已有的群或频道。** 每位成员独立连接自己的机器人和 Artemis，
+机器人通过同一个 IM 群交换任务与结果，无需共用 Gateway，也无需建立跨 IM 空间。
+当前群设置支持 Slack 和飞书 / Lark；企业微信保留单聊，群协作入口暂时隐藏。
 
-空间共享发给机器人的任务、公开进度和成果，普通闲聊不会转发。
-文件须明确发布，审批仍由本人单聊处理；加入群不会自动开放电脑或其他项目。
-远程执行需要电脑保持唤醒、Artemis 开启且 IM 连接已启用。
+主人分别决定哪些成员可以派工、哪些机器人可以协作，以及可访问的项目、目录、文件、
+写入范围、命令与网络权限。自动派工还需通过真实 IM 往返验证；未验证时由人手动
+@下一位机器人。群成员可见、机器人身份已发现，并不等于获得执行权限。
+
+向同一机器人追问默认续用原会话，明确新任务或独立批量任务可创建新会话。
+委派等待持久保存，结果到达后在重检授权的前提下恢复原任务，等待期间仍可继续聊天；
+结果回到来源群并提及请求者。自然语言取消按语意识别，不依赖固定语言词表。
+“已发送取消”不等于对方已经停止，超时或心跳缺失也不等于对方崩溃；失败或中断后
+不会自动重新派工，需要明确选择重试或继续等待。
+
+Slack 的活跃、离开和未知是平台在线状态，不代表电脑连通性。飞书 / Lark 的成员
+目录可能不包含机器人，会结合已认证群消息补充发现。文件须明确发布，审批由主人
+处理；加入群不会自动开放电脑或其他项目。远程执行需要电脑唤醒、Artemis 开启且
+连接已启用。
+
+</details>
+
+<details>
+<summary><strong>Native group collaboration previews</strong></summary>
+
+These screenshots show the current production Electron build with isolated
+demonstration identities, a synthetic Slack roster and read-only transport
+fixtures. No personal IM account or live bot service was contacted.
+
+![Native group conversation with synthetic members](docs/images/screenshots/im-group-chat.png)
+
+![Native group conversation in dark mode](docs/images/screenshots/im-group-chat-dark.png)
+
+![Current message integration setup](docs/images/screenshots/im-connections.png)
+
+![Native group status and conversation controls](docs/images/screenshots/im-spaces.png)
 
 </details>
 
 IM is disabled by default. Remote sessions use scoped tools and native sandbox
-boundaries. The screenshots show the current production UI with demonstration
-transport data; they do not establish delivery in a real IM tenant. See
-[IM deployment and collaboration](docs/features/im-gateway/README.md) for configuration, command
-reference, security details and deployment acceptance checks.
+boundaries. Local tests cover simulated independent bots, routing, authorization,
+continuation and cancellation; they do not establish real Slack or Feishu / Lark
+two-bot delivery. See [IM deployment and collaboration](docs/features/im-gateway/README.md)
+for setup and deployment acceptance checks.
 
 ### Diagnostics and update recovery
 
@@ -1333,14 +1352,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.5.8`. After verification succeeds, native GitHub-hosted runners build
+`v1.6.0`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.5.8
-git push origin v1.5.8
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
 ### Build and test matrix
@@ -1363,17 +1382,17 @@ working native desktop environment is required. Existing custom Git hooks are
 preserved and must invoke `.githooks/pre-push` themselves. Other platforms still
 require the remote CI matrix to pass.
 
-Version 1.5.8 keeps stopped Goal status labels and elapsed time inside the
+Artemis keeps stopped Goal status labels and elapsed time inside the
 compact capsule. Long status text truncates within the available width;
 hover and keyboard focus still reveal the existing Goal actions.
 
-Version 1.5.8 keeps conversation menu triggers visible while their menus are
+Artemis keeps conversation menu triggers visible while their menus are
 open, including after the pointer leaves the row. Clicking the trigger again,
 Escape and outside clicks close the menu. Conversation history and the composer
 share horizontal bounds and responsive padding, including with the environment
 panel open, stable scrollbar gutters and right-to-left layout.
 
-Version 1.5.8 opens the Dock at a compact 328px by default and preserves
+Artemis opens the Dock at a compact 328px by default and preserves
 manually resized widths across reopening and restart. Project, project-task
 and temporary-task menus pair each action with a semantic icon and aligned
 left-aligned text. The compact “Remove project” (“移除项目”) action retains
@@ -1381,19 +1400,19 @@ regular text weight, active-task protection and its existing confirmation.
 Agent activity replaces the team summary row with a “Details” action before
 “View all”; it opens the latest team in the right-hand Agent team panel.
 
-This release gives model/provider and archive deletion neutral trash icons,
+The interface gives model/provider and archive deletion neutral trash icons,
 softens plugin uninstall and automation delete actions, pairs automation actions
 with icons and explicit Pause/Enable labels, and keeps a 2px gap between projects
 in the sidebar. Existing deletion confirmations remain in place.
 
-Version 1.5.8 retries a silent model request twice after 120 seconds without
+Artemis retries a silent model request twice after 120 seconds without
 streaming activity, waiting 5 and 10 seconds between attempts. It preserves the
 same Pi turn and completed tool results; partial output still stops automatic
 replay. Retry status distinguishes model silence from network recovery. A
 persistent failure points to the composer model selector, and the error banner
 shares the composer's horizontal bounds in both layout directions.
 
-Version 1.5.8 adds consistent inset hover rows to the composer's project,
+Artemis provides consistent inset hover rows to the composer's project,
 branch and mode menus, with 12px option labels and the mode menu opening above
 the composer. Plugin switches retain white thumbs in dark mode. Marketplace
 tabs stay on one line, truncate long names, and show horizontal scroll arrows
@@ -1409,18 +1428,19 @@ inset attachment hover rows and aligned MCP content. Missing or unreadable
 images show explicit feedback; valid local images retain thumbnails and
 previews. The Dock add menu uses one border and aligned icon/text columns.
 All workspace packages, theme metadata and MCP client identities use the same
-release version. Product screenshots retain their original capture provenance.
+release version. Product screenshots were refreshed from the current build using isolated demo
+state; the screenshot manifest records the capture version and source checkout.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The full `npm test` run for **1.5.8**, verified on September 12, 2026,
-contains **2639 passing tests** (12 skipped).
-Repeated UI and UI Gallery runs inside the verification pipeline are counted
-once:
+The `npm test` pipeline for **1.6.0**, verified on September 18, 2026,
+contains **3052 passing tests** (13 skipped).
+The nine workspace Vitest suites are counted once; skipped tests and additional
+script-based verification fixtures are excluded from the passing total:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      174 |       25 |        226 |             15 | 307 |             5 |        142 |    1631 |  **2639** |
+|     197 |      208 |       25 |        270 |             15 | 313 |             5 |        142 |    1877 |  **3052** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1430,7 +1450,9 @@ write-scope conflict checks, audited collaboration and lifecycle control, draft
 and deletion lifecycles, Git Review with untracked/binary staging, attachments,
 automations, usage insights, persisted project ordering, local profile images,
 configuration import, Skills, MCP, extensions, Terminal behavior and
-Windows-native extension sandbox boundaries.
+Windows-native extension sandbox boundaries. IM coverage includes native group
+identity and permissions, independent bot delegation, session reuse, durable
+waits, semantic cancellation, requester routing and scoped project reads.
 
 The production dependency audit for this release reports **0 high or critical
 vulnerabilities**, with 1 moderate and 3 low findings. The configured release
@@ -1450,13 +1472,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.5.8` packaging configuration produces:
+The `1.6.0` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.8.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.8.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.8.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.0.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.0.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.0.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "capturedAt": "2026-09-11T04:30:06.695Z",
-  "appVersion": "1.5.7",
-  "sourceHead": "03a77e279c253331e4818cbde15b9c27bd3865dd",
+  "capturedAt": "2026-09-18T05:14:55.366Z",
+  "appVersion": "1.6.0",
+  "sourceHead": "0d81aab6f5e1a3691f764491adb208aa2c070f90",
   "sourceState": "Local working tree, including in-progress changes present at capture time.",
   "platform": "macOS arm64",
   "renderer": "Production Electron build",
@@ -14,7 +14,12 @@
   "privacy": {
     "displayName": "Artemis",
     "visiblePersonalNames": false,
-    "visibleHomePaths": false
+    "visibleHomePaths": false,
+    "review": {
+      "reviewedAt": "2026-09-18",
+      "method": "Every final image inspected at original resolution; visible DOM text checked for personal username and home/temp paths.",
+      "result": "No personal identity, account, credential, real project path or global Skills catalog visible."
+    }
   },
   "security": {
     "sandbox": true,
@@ -27,15 +32,15 @@
       "file": "environment-panel-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 129544,
-      "sha256": "a235af84a158790ba8030ad70d8094020870a015e17539cfd4bc5e16b9cfb740"
+      "bytes": 155505,
+      "sha256": "28d2ca05ff3d5bdee7cd0a1a3394eb0806450b43c0c92ccc4f7b531c02faf514"
     },
     {
       "file": "environment-panel-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 119804,
-      "sha256": "7e8a1e8d11c5c61e2709bcc2b5e6f9ed1a52765062796dfff047a5659da9c149"
+      "bytes": 143500,
+      "sha256": "aef4b7bc2ec76aef8219bfbd6315b58940d72afe8949feb93e58bc76bd298e7d"
     }
   ]
 }

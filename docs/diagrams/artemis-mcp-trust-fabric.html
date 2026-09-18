@@ -1,760 +1,201 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Artemis MCP Trust Fabric</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
-      rel="stylesheet"
-    />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>From MCP discovery to controlled tools</title>
     <style>
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      :root {
-        --paper: #f7f7f6;
-        --paper-2: #f0f0ef;
-        --ink: #1f2023;
-        --muted: #6e7279;
-        --soft: #93969c;
-        --rule: #d8d8d5;
-        --accent: #326fcb;
-        --accent-tint: rgba(50, 111, 203, 0.08);
-        --link: #1264a3;
-        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        --font-serif: "Instrument Serif", Georgia, serif;
-        --font-mono:
-          ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
-      }
       body {
-        background: var(--paper);
-        color: var(--ink);
-        font-family: var(--font-sans);
-        min-height: 100vh;
-        padding: 32px;
+        margin: 0;
+        background: #f5f5f7;
       }
-      .frame {
-        margin: 0 auto;
-        max-width: 1400px;
-        min-width: 960px;
-        width: 100%;
-      }
-      .eyebrow {
-        color: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-        font-weight: 600;
-        letter-spacing: 0.16em;
-        margin-bottom: 8px;
-        text-transform: uppercase;
-      }
-      h1 {
-        color: var(--ink);
-        font-family: var(--font-serif);
-        font-size: 32px;
-        font-weight: 400;
-        letter-spacing: -0.02em;
-        line-height: 1.12;
-        margin-bottom: 24px;
+      main {
+        max-width: 1280px;
+        margin: auto;
       }
       svg {
         display: block;
-        min-width: 960px;
         width: 100%;
-      }
-      .zone {
-        fill: rgba(31, 32, 35, 0.02);
-        stroke: rgba(31, 32, 35, 0.14);
-        stroke-width: 1;
-      }
-      .zone.runtime {
-        fill: rgba(50, 111, 203, 0.025);
-        stroke: rgba(50, 111, 203, 0.32);
-        stroke-dasharray: 4 4;
-      }
-      .zone-label {
-        fill: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-        font-weight: 600;
-        letter-spacing: 0.14em;
-      }
-      .zone-label.runtime {
-        fill: var(--accent);
-      }
-      .node-mask {
-        fill: var(--paper);
-      }
-      .node {
-        fill: #ffffff;
-        stroke: var(--ink);
-        stroke-width: 1;
-      }
-      .node.focal {
-        fill: var(--accent-tint);
-        stroke: var(--accent);
-        stroke-width: 1.2;
-      }
-      .node.store {
-        fill: rgba(31, 32, 35, 0.05);
-        stroke: var(--muted);
-      }
-      .node.external {
-        fill: rgba(31, 32, 35, 0.03);
-        stroke: rgba(31, 32, 35, 0.32);
-      }
-      .node.optional {
-        fill: rgba(31, 32, 35, 0.02);
-        stroke: rgba(31, 32, 35, 0.28);
-        stroke-dasharray: 4 4;
-      }
-      .tag {
-        fill: transparent;
-        stroke: rgba(31, 32, 35, 0.34);
-        stroke-width: 0.8;
-      }
-      .tag.focal {
-        stroke: rgba(50, 111, 203, 0.62);
-      }
-      .tag-text {
-        fill: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-      }
-      .tag-text.focal {
-        fill: var(--accent);
-      }
-      .node-name {
-        fill: var(--ink);
-        font-family: var(--font-sans);
-        font-size: 12px;
-        font-weight: 600;
-      }
-      .node-sub {
-        fill: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-      }
-      .flow {
-        fill: none;
-        stroke: var(--muted);
-        stroke-width: 1.2;
-      }
-      .flow.link {
-        stroke: var(--link);
-      }
-      .flow.accent {
-        stroke: var(--accent);
-      }
-      .flow.passive {
-        stroke-dasharray: 4 4;
-        stroke-width: 1;
-      }
-      .flow.blocked {
-        stroke: var(--ink);
-        stroke-dasharray: 4 4;
-        stroke-width: 1.2;
-      }
-      .arrow-mask {
-        fill: var(--paper);
-      }
-      .arrow-label {
-        fill: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-        letter-spacing: 0.06em;
-      }
-      .arrow-label.link {
-        fill: var(--link);
-      }
-      .arrow-label.accent {
-        fill: var(--accent);
-      }
-      .blocked-caption {
-        fill: var(--ink);
-        font-family: var(--font-mono);
-        font-size: 8px;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-      }
-      .legend-text {
-        fill: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-      }
-      .legend-head {
-        fill: var(--muted);
-        font-family: var(--font-mono);
-        font-size: 8px;
-        font-weight: 600;
-        letter-spacing: 0.14em;
+        height: auto;
       }
     </style>
   </head>
   <body>
-    <main class="frame">
-      <p class="eyebrow">
-        SECURE PAVED ROAD · MCP REGISTRY · CURRENT IMPLEMENTATION
-      </p>
-      <h1>Artemis MCP Trust Fabric</h1>
-
+    <main>
       <svg
-        viewBox="0 0 1280 720"
         xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 1280 760"
         role="img"
         aria-labelledby="artemis-mcp-trust-fabric-title artemis-mcp-trust-fabric-desc"
       >
         <title id="artemis-mcp-trust-fabric-title">
-          Artemis MCP Trust Fabric
+          From MCP discovery to controlled tools
         </title>
         <desc id="artemis-mcp-trust-fabric-desc">
-          展示官方 MCP Registry
-          元数据从发现、重新拉取和严格验证，到用户明确安装连接、OS 加密凭据、MCP
-          客户端连接和运行状态反馈的受控路径，并明确 Registry 不能直接触发执行。
+          Registry discovery feeds validated server configuration. The MCP
+          manager applies local stdio sandbox policy or remote transport
+          authentication before exposing tools to an Execute task.
         </desc>
         <defs>
+          <style>
+            text {
+              font-family:
+                -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              fill: #1d1d1f;
+            }
+            .title {
+              font-size: 34px;
+              font-weight: 650;
+              letter-spacing: -0.6px;
+            }
+            .sub {
+              font-size: 17px;
+              fill: #5a5a60;
+            }
+            .name {
+              font-size: 21px;
+              font-weight: 600;
+            }
+            .body {
+              font-size: 16px;
+              fill: #5a5a60;
+            }
+            .tag {
+              font-size: 12px;
+              letter-spacing: 1.2px;
+              fill: #5a5a60;
+              font-weight: 600;
+            }
+            .node {
+              fill: #fff;
+              stroke: #b9b9be;
+              stroke-width: 1.2;
+            }
+            .focal {
+              fill: #e4effb;
+              stroke: #0071e3;
+              stroke-width: 1.5;
+            }
+            .zone {
+              fill: #ececee;
+              fill-opacity: 0.45;
+              stroke: #b9b9be;
+              stroke-dasharray: 5 5;
+            }
+            .edge {
+              fill: none;
+              stroke: #5a5a60;
+              stroke-width: 1.6;
+              marker-end: url(#artemis-mcp-trust-fabric-arrow);
+            }
+            .network {
+              stroke: #0071e3;
+              marker-end: url(#artemis-mcp-trust-fabric-blue);
+            }
+            .label {
+              font-size: 13px;
+              fill: #5a5a60;
+            }
+            .rule {
+              stroke: #c9c9ce;
+              stroke-width: 1;
+            }
+          </style>
           <marker
-            id="trust-arrow"
+            id="artemis-mcp-trust-fabric-arrow"
             markerWidth="8"
             markerHeight="8"
             refX="8"
             refY="4"
             orient="auto"
           >
-            <polygon points="0 0, 8 4, 0 8" fill="#6f737a" />
+            <path d="M0 0 8 4 0 8Z" fill="#5a5a60" />
           </marker>
           <marker
-            id="trust-arrow-link"
+            id="artemis-mcp-trust-fabric-blue"
             markerWidth="8"
             markerHeight="8"
             refX="8"
             refY="4"
             orient="auto"
           >
-            <polygon points="0 0, 8 4, 0 8" fill="#1264a3" />
-          </marker>
-          <marker
-            id="trust-arrow-accent"
-            markerWidth="8"
-            markerHeight="8"
-            refX="8"
-            refY="4"
-            orient="auto"
-          >
-            <polygon points="0 0, 8 4, 0 8" fill="#326fcb" />
+            <path d="M0 0 8 4 0 8Z" fill="#0071e3" />
           </marker>
         </defs>
-
-        <rect width="1280" height="720" fill="#f7f7f6" />
-
-        <!-- Trust zones -->
-        <rect class="zone" x="40" y="64" width="280" height="524" rx="8" />
-        <rect x="56" y="68" width="148" height="16" rx="4" fill="#f7f7f6" />
-        <text class="zone-label" x="64" y="80">DISCOVERY / INTENT</text>
-
-        <rect class="zone" x="344" y="64" width="400" height="524" rx="8" />
-        <rect x="360" y="68" width="176" height="16" rx="4" fill="#f7f7f6" />
-        <text class="zone-label" x="368" y="80">VALIDATION / CONSENT</text>
-
-        <rect
-          class="zone runtime"
-          x="768"
-          y="64"
-          width="472"
-          height="524"
-          rx="8"
-        />
-        <rect x="784" y="68" width="216" height="16" rx="4" fill="#f7f7f6" />
-        <text class="zone-label runtime" x="792" y="80">
-          RUNTIME · NOT A SANDBOX
+        <rect width="1280" height="760" fill="#f5f5f7" />
+        <text x="40" y="44" class="tag">ARTEMIS / 1.6.0</text>
+        <text x="40" y="92" class="title">
+          From MCP discovery to controlled tools
         </text>
-
-        <!-- Approved and passive paths paint before nodes -->
-        <line
-          class="flow link"
-          x1="180"
-          y1="240"
-          x2="180"
-          y2="360"
-          marker-end="url(#trust-arrow-link)"
-        />
-        <line
-          class="flow link"
-          x1="284"
-          y1="408"
-          x2="380"
-          y2="408"
-          marker-end="url(#trust-arrow-link)"
-        />
-        <line
-          class="flow accent"
-          x1="284"
-          y1="200"
-          x2="568"
-          y2="200"
-          marker-end="url(#trust-arrow-accent)"
-        />
+        <text x="40" y="128" class="sub">
+          Registry metadata, connection configuration and execution are separate
+          steps.
+        </text>
+        <rect x="24" y="352" width="804" height="288" rx="12" class="zone" />
+        <text x="44" y="380" class="tag">
+          LOCAL MCP RUNTIME / PER-SERVER CONTROLS
+        </text>
+        <path d="M328 268 H456" class="edge" />
+        <rect x="356.0" y="233" width="72" height="21" fill="#f5f5f7" />
+        <text x="392" y="248" class="label" text-anchor="middle">metadata</text>
+        <path d="M784 268 H920" class="edge" />
+        <rect x="795.0" y="233" width="114" height="21" fill="#f5f5f7" />
+        <text x="852" y="248" class="label" text-anchor="middle">
+          save + connect
+        </text>
         <path
-          class="flow"
-          d="M 460 360 V 320 Q 460 312 468 312 H 640 Q 648 312 648 304 V 256"
-          marker-end="url(#trust-arrow)"
+          d="M1080 316 V372 Q1080 380 1072 380 H644 Q636 380 636 388 V424"
+          class="edge"
         />
-        <line
-          class="flow accent"
-          x1="728"
-          y1="200"
-          x2="804"
-          y2="200"
-          marker-end="url(#trust-arrow-accent)"
-        />
-        <line
-          class="flow"
-          x1="620"
-          y1="256"
-          x2="620"
-          y2="360"
-          marker-end="url(#trust-arrow)"
-        />
-        <path
-          class="flow passive"
-          d="M 684 360 V 336 Q 684 328 692 328 H 876 Q 884 328 884 320 V 256"
-          marker-end="url(#trust-arrow)"
-        />
-        <line
-          class="flow"
-          x1="964"
-          y1="200"
-          x2="1040"
-          y2="200"
-          marker-end="url(#trust-arrow)"
-        />
-        <path
-          class="flow passive"
-          d="M 1120 256 V 320 Q 1120 328 1112 328 H 1008 Q 1000 328 1000 336 V 372"
-          marker-end="url(#trust-arrow)"
-        />
-
-        <!-- Forbidden direct ingress stops at the validation boundary -->
-        <line class="flow blocked" x1="284" y1="456" x2="324" y2="456" />
-        <circle
-          cx="332"
-          cy="456"
-          r="8"
-          fill="#f7f7f6"
-          stroke="#1f2023"
-          stroke-width="1.2"
-        />
-        <line
-          x1="328"
-          y1="452"
-          x2="336"
-          y2="460"
-          stroke="#1f2023"
-          stroke-width="1.2"
-        />
-        <line
-          x1="336"
-          y1="452"
-          x2="328"
-          y2="460"
-          stroke="#1f2023"
-          stroke-width="1.2"
-        />
-        <text class="blocked-caption" x="304" y="480" text-anchor="middle">
-          DIRECT EXECUTION BLOCKED
+        <path d="M472 500 H360" class="edge" />
+        <path d="M800 500 H920" class="edge" />
+        <rect x="48" y="200" width="280" height="116" rx="8" class="node" />
+        <text x="68" y="236" class="name">Registry discovery</text>
+        <text x="68" y="268" class="body">Public metadata and packages</text>
+        <text x="68" y="292" class="body">
+          Discovery is not execution trust
         </text>
-
-        <!-- Arrow labels with clear connector gaps -->
-        <rect
-          class="arrow-mask"
-          x="144"
-          y="280"
-          width="72"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label link" x="180" y="288" text-anchor="middle">
-          SEARCH
+        <rect x="456" y="200" width="328" height="116" rx="8" class="focal" />
+        <text x="476" y="236" class="name">Validated configuration</text>
+        <text x="476" y="268" class="body">Installation path + transport</text>
+        <text x="476" y="292" class="body">
+          Explicit server settings and auth
         </text>
-
-        <rect
-          class="arrow-mask"
-          x="304"
-          y="388"
-          width="56"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label link" x="332" y="396" text-anchor="middle">
-          METADATA
+        <rect x="920" y="200" width="312" height="116" rx="8" class="node" />
+        <text x="940" y="236" class="name">Agent tool exposure</text>
+        <text x="940" y="268" class="body">Execute mode only</text>
+        <text x="940" y="292" class="body">Model approval still applies</text>
+        <rect x="48" y="424" width="312" height="164" rx="8" class="node" />
+        <text x="68" y="460" class="name">Local stdio server</text>
+        <text x="68" y="492" class="body">Seatbelt / AppContainer default</text>
+        <text x="68" y="516" class="body">
+          Workspace + private runtime files
         </text>
-
-        <rect
-          class="arrow-mask"
-          x="392"
-          y="180"
-          width="76"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label accent" x="430" y="188" text-anchor="middle">
-          AUTHORIZE
+        <text x="68" y="540" class="body">Minimal forwarded environment</text>
+        <text x="68" y="564" class="body">Per-server network switch</text>
+        <rect x="472" y="424" width="328" height="164" rx="8" class="focal" />
+        <text x="492" y="460" class="name">MCP client manager</text>
+        <text x="492" y="492" class="body">Start, connect and stop safely</text>
+        <text x="492" y="516" class="body">Apply per-server policy</text>
+        <text x="492" y="540" class="body">Normalize results for Artemis</text>
+        <text x="492" y="564" class="body">No renderer Node access</text>
+        <rect x="920" y="424" width="312" height="164" rx="8" class="node" />
+        <text x="940" y="460" class="name">Remote MCP server</text>
+        <text x="940" y="492" class="body">Authenticated HTTP transport</text>
+        <text x="940" y="516" class="body">Provider-held remote execution</text>
+        <text x="940" y="540" class="body">No local sandbox implication</text>
+        <text x="940" y="564" class="body">
+          Remote service trust is separate
         </text>
-
-        <rect
-          class="arrow-mask"
-          x="520"
-          y="292"
-          width="68"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label" x="554" y="300" text-anchor="middle">
-          VALIDATE
+        <path d="M40 684 H1240" class="rule" />
+        <text x="40" y="716" class="body">
+          A trusted local server may explicitly opt into desktop-user
+          compatibility mode.
         </text>
-
-        <rect
-          class="arrow-mask"
-          x="740"
-          y="180"
-          width="52"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label accent" x="766" y="188" text-anchor="middle">
-          CONNECT
+        <text x="40" y="744" class="label">
+          Solid arrows: permitted flow · Dashed arrows: return or optional flow
+          · Dashed boxes: local boundary
         </text>
-
-        <rect
-          class="arrow-mask"
-          x="548"
-          y="328"
-          width="56"
-          height="16"
-          rx="4"
-        />
-        <text class="arrow-label" x="576" y="340" text-anchor="middle">
-          ENCRYPT
-        </text>
-
-        <rect
-          class="arrow-mask"
-          x="756"
-          y="308"
-          width="56"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label" x="784" y="316" text-anchor="middle">
-          DECRYPT
-        </text>
-
-        <rect
-          class="arrow-mask"
-          x="972"
-          y="180"
-          width="60"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label" x="1002" y="188" text-anchor="middle">
-          START / CALL
-        </text>
-
-        <rect
-          class="arrow-mask"
-          x="1028"
-          y="308"
-          width="52"
-          height="12"
-          rx="4"
-        />
-        <text class="arrow-label" x="1054" y="316" text-anchor="middle">
-          STATUS
-        </text>
-
-        <!-- Resource Center / explicit user -->
-        <rect class="node-mask" x="76" y="160" width="208" height="80" rx="8" />
-        <rect class="node" x="76" y="160" width="208" height="80" rx="8" />
-        <rect class="tag" x="88" y="172" width="44" height="16" rx="4" />
-        <text class="tag-text" x="110" y="184" text-anchor="middle">ACTOR</text>
-        <text class="node-name" x="180" y="204" text-anchor="middle">
-          User · Resource Center
-        </text>
-        <text class="node-sub" x="180" y="224" text-anchor="middle">
-          explicit install-and-connect intent
-        </text>
-
-        <!-- Official Registry -->
-        <rect class="node-mask" x="76" y="360" width="208" height="96" rx="8" />
-        <rect
-          class="node external"
-          x="76"
-          y="360"
-          width="208"
-          height="96"
-          rx="8"
-        />
-        <rect class="tag" x="88" y="372" width="64" height="16" rx="4" />
-        <text class="tag-text" x="120" y="384" text-anchor="middle">
-          EXTERNAL
-        </text>
-        <text class="node-name" x="180" y="412" text-anchor="middle">
-          Official MCP Registry
-        </text>
-        <text class="node-sub" x="180" y="432" text-anchor="middle">
-          discovery metadata · no endorsement
-        </text>
-
-        <!-- Resolver -->
-        <rect
-          class="node-mask"
-          x="380"
-          y="360"
-          width="160"
-          height="96"
-          rx="8"
-        />
-        <rect class="node" x="380" y="360" width="160" height="96" rx="8" />
-        <rect class="tag" x="392" y="372" width="64" height="16" rx="4" />
-        <text class="tag-text" x="424" y="384" text-anchor="middle">
-          RESOLVER
-        </text>
-        <text class="node-name" x="460" y="412" text-anchor="middle">
-          Re-fetch &amp; Validate
-        </text>
-        <text class="node-sub" x="460" y="432" text-anchor="middle">
-          name · version · inputs
-        </text>
-        <text class="node-sub" x="460" y="448" text-anchor="middle">
-          fixed HTTPS / pinned npm
-        </text>
-
-        <!-- Privileged consent gate -->
-        <rect
-          class="node-mask"
-          x="568"
-          y="144"
-          width="160"
-          height="112"
-          rx="8"
-        />
-        <rect
-          class="node focal"
-          x="568"
-          y="144"
-          width="160"
-          height="112"
-          rx="8"
-        />
-        <rect class="tag focal" x="580" y="156" width="44" height="16" rx="4" />
-        <text class="tag-text focal" x="602" y="168" text-anchor="middle">
-          GATE
-        </text>
-        <text class="node-name" x="648" y="196" text-anchor="middle">
-          Install &amp; Connect
-        </text>
-        <text class="node-sub" x="648" y="216" text-anchor="middle">
-          explicit user action
-        </text>
-        <text class="node-sub" x="648" y="232" text-anchor="middle">
-          validated option only
-        </text>
-
-        <!-- OS encrypted secrets -->
-        <rect
-          class="node-mask"
-          x="568"
-          y="360"
-          width="160"
-          height="96"
-          rx="8"
-        />
-        <rect
-          class="node store"
-          x="568"
-          y="360"
-          width="160"
-          height="96"
-          rx="8"
-        />
-        <rect class="tag" x="580" y="372" width="48" height="16" rx="4" />
-        <text class="tag-text" x="604" y="384" text-anchor="middle">
-          SECRET
-        </text>
-        <text class="node-name" x="648" y="412" text-anchor="middle">
-          OS-encrypted Store
-        </text>
-        <text class="node-sub" x="648" y="432" text-anchor="middle">
-          safeStorage · mode 0600
-        </text>
-
-        <!-- MCP manager -->
-        <rect
-          class="node-mask"
-          x="804"
-          y="144"
-          width="160"
-          height="112"
-          rx="8"
-        />
-        <rect class="node" x="804" y="144" width="160" height="112" rx="8" />
-        <rect class="tag" x="816" y="156" width="44" height="16" rx="4" />
-        <text class="tag-text" x="838" y="168" text-anchor="middle">HOST</text>
-        <text class="node-name" x="884" y="196" text-anchor="middle">
-          McpClientManager
-        </text>
-        <text class="node-sub" x="884" y="216" text-anchor="middle">
-          config · auth · tools
-        </text>
-        <text class="node-sub" x="884" y="232" text-anchor="middle">
-          connect then refresh Agent
-        </text>
-
-        <!-- Runtime -->
-        <rect
-          class="node-mask"
-          x="1040"
-          y="144"
-          width="160"
-          height="112"
-          rx="8"
-        />
-        <rect
-          class="node external"
-          x="1040"
-          y="144"
-          width="160"
-          height="112"
-          rx="8"
-        />
-        <rect class="tag" x="1052" y="156" width="60" height="16" rx="4" />
-        <text class="tag-text" x="1082" y="168" text-anchor="middle">
-          RUNTIME
-        </text>
-        <text class="node-name" x="1120" y="196" text-anchor="middle">
-          MCP Server
-        </text>
-        <text class="node-sub" x="1120" y="216" text-anchor="middle">
-          remote HTTPS or local stdio
-        </text>
-        <text class="node-sub" x="1120" y="232" text-anchor="middle">
-          stdio = native sandbox
-        </text>
-
-        <!-- Status and diagnostics destination -->
-        <rect
-          class="node-mask"
-          x="904"
-          y="372"
-          width="192"
-          height="96"
-          rx="8"
-        />
-        <rect
-          class="node optional"
-          x="904"
-          y="372"
-          width="192"
-          height="96"
-          rx="8"
-        />
-        <rect class="tag" x="916" y="384" width="52" height="16" rx="4" />
-        <text class="tag-text" x="942" y="396" text-anchor="middle">
-          RECORD
-        </text>
-        <text class="node-name" x="1000" y="424" text-anchor="middle">
-          Status &amp; Diagnostics
-        </text>
-        <text class="node-sub" x="1000" y="444" text-anchor="middle">
-          connection state · bounded errors
-        </text>
-
-        <!-- Legend strip -->
-        <line
-          x1="40"
-          y1="656"
-          x2="1240"
-          y2="656"
-          stroke="rgba(31,32,35,0.12)"
-          stroke-width="0.8"
-        />
-        <text class="legend-head" x="40" y="680">LEGEND</text>
-        <line
-          class="flow accent"
-          x1="144"
-          y1="676"
-          x2="184"
-          y2="676"
-          marker-end="url(#trust-arrow-accent)"
-        />
-        <text class="legend-text" x="196" y="680">approved path</text>
-        <line
-          class="flow link"
-          x1="360"
-          y1="676"
-          x2="400"
-          y2="676"
-          marker-end="url(#trust-arrow-link)"
-        />
-        <text class="legend-text" x="412" y="680">external HTTPS</text>
-        <line
-          class="flow passive"
-          x1="568"
-          y1="676"
-          x2="608"
-          y2="676"
-          marker-end="url(#trust-arrow)"
-        />
-        <text class="legend-text" x="620" y="680">
-          credential / status flow
-        </text>
-        <circle
-          cx="844"
-          cy="676"
-          r="8"
-          fill="#f7f7f6"
-          stroke="#1f2023"
-          stroke-width="1.2"
-        />
-        <line
-          x1="840"
-          y1="672"
-          x2="848"
-          y2="680"
-          stroke="#1f2023"
-          stroke-width="1.2"
-        />
-        <line
-          x1="848"
-          y1="672"
-          x2="840"
-          y2="680"
-          stroke="#1f2023"
-          stroke-width="1.2"
-        />
-        <text class="legend-text" x="864" y="680">
-          blocked boundary crossing
-        </text>
-        <rect
-          x="1064"
-          y="668"
-          width="36"
-          height="16"
-          rx="4"
-          fill="rgba(50,111,203,0.025)"
-          stroke="rgba(50,111,203,0.40)"
-          stroke-dasharray="4 4"
-          stroke-width="0.8"
-        />
-        <text class="legend-text" x="1112" y="680">runtime boundary</text>
       </svg>
     </main>
   </body>

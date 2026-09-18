@@ -1,6 +1,6 @@
 {
   "name": "@artemis/gateway",
-  "version": "1.5.8",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -18,7 +18,7 @@
     "start": "node dist/cli.js"
   },
   "dependencies": {
-    "@artemis/protocol": "1.5.8",
+    "@artemis/protocol": "1.6.0",
     "@larksuiteoapi/node-sdk": "1.73.3",
     "marked": "18.0.5",
     "ws": "8.21.1",

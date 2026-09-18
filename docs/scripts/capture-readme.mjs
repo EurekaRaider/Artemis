@@ -52,6 +52,7 @@ for (const [id, title] of [
   ["demo-report", "Prepare the weekly research brief"],
   ["demo-review", "Review the search experience"],
   ["demo-group", "Research team · Group collaboration"],
+  ["demo-group-entry", "Research team"],
 ]) {
   store.createThread({
     id,
@@ -171,7 +172,7 @@ store.appendEvent("demo-group-answer", "demo-group", "demo-group-turn", {
   partId: "demo-group-result",
   partType: "text",
   delta:
-    "### Research team update\n\nThe shared brief is ready for review.\n\n- **Research Agent** checked the source notes.\n- **Review Agent** reviewed the summary and follow-up questions.\n\nPublic progress and results belong to this collaboration space. Each member works within their own project permissions.\n\nChoose a member from the panel to address the next task.",
+    "### Research team update\n\nThe shared brief is ready for review.\n\n- **Research Agent** checked the source notes.\n- **Review Agent** reviewed the summary and follow-up questions.\n\nAssignments and results travel through the same Slack channel. Each bot runs on its own Artemis desktop with independent project permissions.\n\nChoose a member from the panel to address the next task.",
 });
 store.close();
 const git = (args) =>
@@ -246,6 +247,7 @@ async function capture(name, { keepEnvironment = false } = {}) {
     !visibleText.includes("/Users/"),
     "Personal home paths must not appear in documentation screenshots.",
   );
+  await writeFile(join(temp, name + ".txt"), visibleText);
   await page.screenshot({
     path: join(out, name + ".png"),
     scale: "css",
@@ -272,6 +274,27 @@ async function dock(label) {
     .getByRole("button", { name: label, exact: true })
     .click();
 }
+async function openDemoGroup() {
+  await page
+    .locator(".sidebar-footer")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await page.locator("#settings-tab-im-button").click();
+  await page
+    .locator(".im-overview-actions")
+    .getByRole("button", {
+      name: "Project and collaboration permissions",
+      exact: true,
+    })
+    .click();
+  await page.locator('#im-spaces [aria-haspopup="listbox"]').click();
+  await page.getByRole("option", { name: /Research team/ }).click();
+  await page
+    .locator("#im-spaces")
+    .getByRole("button", { name: "Open group conversation", exact: true })
+    .click();
+  await page.waitForSelector(".composer");
+}
 try {
   await page.waitForFunction(() => !!window.artemis);
   // Substitute only the presentation identity in this isolated capture process.
@@ -281,6 +304,9 @@ try {
     const original = ipcMain._invokeHandlers.get(channel);
     if (!original)
       throw new Error("Snapshot handler unavailable for demo identity.");
+    // Global Skills live outside userData; never expose that personal catalog.
+    ipcMain.removeHandler("artemis:resource-skill-list");
+    ipcMain.handle("artemis:resource-skill-list", () => []);
     ipcMain.removeHandler("artemis:project-pull-request");
     ipcMain.handle("artemis:project-pull-request", () => ({
       status: "not-found",
@@ -359,7 +385,9 @@ try {
   await capture("markdown-files");
   await dock("Terminal");
   await page.locator(".terminal-host").click();
-  await page.keyboard.type("PS1='Field Notes % '; clear; git status --short");
+  await page.keyboard.type(
+    "PS1='Field Notes % '; printf '\\033[2J\\033[3J\\033[H'; git status --short",
+  );
   await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
   await capture("terminal");
@@ -377,40 +405,88 @@ try {
   await capture("settings-general");
   // Synthetic transport responses exercise the real IM views without accounts or network calls.
   await app.evaluate(({ ipcMain }) => {
-    const members = ["Dev", "QA"].map((name, index) => ({
-      deviceId: `demo-device-${index}`,
-      name,
-      deviceName: index ? "Mac B" : "Mac A",
-      state: "online",
-      identity: {
-        channel: index ? "slack" : "feishu",
-        connectionId: index ? "demo-slack" : "demo-feishu",
-        tenantId: "demo-team",
-        appId: "demo-bot",
-        userId: `demo-member-${index}`,
+    const identity = {
+      channel: "slack",
+      connectionId: "demo-slack",
+      tenantId: "demo-team",
+      appId: "demo-app",
+      userId: "demo-owner",
+    };
+    const conversation = {
+      connectionId: "demo-slack",
+      id: "demo-channel",
+      kind: "group",
+    };
+    const members = [
+      {
+        deviceId: "demo-device",
+        name: "Research Agent",
+        deviceName: "Demo workstation",
+        state: "online",
+        identity,
       },
-    }));
+    ];
+    const roster = {
+      complete: true,
+      members: [
+        {
+          identity,
+          name: "Team owner",
+          kind: "human",
+          presence: "active",
+          presenceCheckedAt: Date.now(),
+          canAssign: true,
+        },
+        {
+          identity: { ...identity, userId: "demo-reviewer" },
+          name: "Team reviewer",
+          kind: "human",
+          presence: "away",
+          presenceCheckedAt: Date.now(),
+          canAssign: true,
+        },
+        {
+          identity: { ...identity, userId: "demo-research-bot" },
+          name: "Research Agent",
+          kind: "bot",
+          self: true,
+        },
+        {
+          identity: { ...identity, userId: "demo-review-bot" },
+          name: "Review Agent",
+          kind: "bot",
+          canAssign: true,
+          verifiedAt: Date.now(),
+        },
+      ],
+    };
     const space = {
-      id: "demo-space",
+      id: "demo-group-space",
       name: "Research team",
+      revision: "demo-revision",
       confirmed: true,
-      endpoints: members.map((m, i) => ({
-        connectionId: m.identity.connectionId,
-        id: `demo-group-${i}`,
-        kind: "group",
-      })),
+      endpoints: [conversation],
       participants: members,
-      administrators: members.map((m) => m.identity),
+      administrators: [identity],
+      nativeGroup: {
+        enabled: true,
+        enabledAt: Date.now(),
+        ownerDeviceId: "demo-device",
+        projectId: "demo-project",
+        capability: "events",
+        allowedBots: ["demo-review-bot"],
+      },
     };
     const status = {
       state: "connected",
       scopedShellSupported: true,
       scopedFileCreationSupported: true,
+      localGateway: { state: "running" },
       settings: {
         enabled: true,
-        gatewayUrl: "https://gateway.example.invalid",
-        deviceId: "demo-device-0",
-        deviceName: "Research workstation",
+        gatewayUrl: "http://127.0.0.1:8787",
+        deviceId: "demo-device",
+        deviceName: "Demo workstation",
         defaultProjectId: "demo-project",
         grants: [
           {
@@ -420,54 +496,98 @@ try {
             network: false,
             shell: false,
             tokenBudget: 100000,
-            groups: ["space:demo-space"],
+            groups: ["space:demo-group-space"],
+            security: {
+              version: 2,
+              revision: "demo-grant",
+              confirmedAt: Date.now(),
+              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+            },
             expiresAt: Date.now() + 86400000,
           },
         ],
       },
-      identities: members.map((m) => m.identity),
+      identities: [identity],
       pairingRequests: [],
       spaces: [space],
-      connections: members.map((m) => ({
-        id: m.identity.connectionId,
-        name: m.identity.channel === "slack" ? "Team Slack" : "Research Feishu",
-        channel: m.identity.channel,
-        state: "connected",
-        configuration: { transport: "websocket", domain: "feishu" },
-      })),
+      connections: [
+        {
+          id: "demo-slack",
+          name: "Research Slack",
+          channel: "slack",
+          state: "connected",
+        },
+      ],
       remoteTasks: [
         {
           threadId: "demo-group",
-          channel: "feishu",
+          parentThreadId: "demo-group-entry",
+          channel: "slack",
           kind: "group",
           connectionState: "connected",
           group: {
             spaceId: space.id,
             name: space.name,
             confirmed: true,
-            executingDeviceId: "demo-device-0",
+            native: true,
+            executingDeviceId: "demo-device",
             stale: false,
             members,
+            roster,
           },
         },
       ],
+    };
+    status.remoteTasks.push({
+      ...status.remoteTasks[0],
+      threadId: "demo-group-entry",
+      parentThreadId: undefined,
+    });
+    const diagnostics = {
+      devices: [{ id: "demo-device", name: "Demo workstation" }],
+      identities: [{ identity, deviceId: "demo-device" }],
+      groups: [
+        {
+          conversation,
+          name: "Research team",
+          platform: "slack",
+          identities: [identity],
+          lastSeenAt: Date.now(),
+        },
+      ],
+      spaces: [space],
+      deliveries: [],
     };
     ipcMain.removeHandler("artemis:im-status");
     ipcMain.handle("artemis:im-status", () => status);
     ipcMain.removeHandler("artemis:im-manage");
     ipcMain.handle("artemis:im-manage", (_event, request) => {
-      if (request.action !== "refresh")
-        throw new Error("Documentation capture permits status refresh only.");
-      return status;
+      if (request.action === "refresh") return status;
+      if (
+        request.action === "admin" &&
+        ["status", "refresh-groups"].includes(request.operation)
+      )
+        return diagnostics;
+      throw new Error(
+        "Documentation capture permits read-only status requests only.",
+      );
     });
   });
   await page.locator("#settings-tab-im-button").click();
-  await page.waitForSelector(".im-settings[data-mode=manage]");
+  await page.waitForSelector(".im-settings[data-mode=overview]");
   await capture("im-connections");
-  await page.locator("#im-nav-spaces").click();
   await page
-    .getByRole("heading", { name: "Saved collaboration spaces", exact: true })
-    .scrollIntoViewIfNeeded();
+    .locator(".im-overview-actions")
+    .getByRole("button", {
+      name: "Project and collaboration permissions",
+      exact: true,
+    })
+    .click();
+  await page.locator("#im-spaces").waitFor();
+  const groupSelect = page.locator('#im-spaces [aria-haspopup="listbox"]');
+  await groupSelect.click();
+  await page.getByRole("option", { name: /Research team/ }).click();
+  await page.locator("#im-spaces").scrollIntoViewIfNeeded();
   await capture("im-spaces");
   await page.locator(".settings-header").getByRole("button").click();
   for (const [view, name] of [
@@ -479,10 +599,7 @@ try {
     await page.waitForTimeout(600);
     await capture(name);
   }
-  await page
-    .getByText("Research team · Group collaboration", { exact: true })
-    .first()
-    .click();
+  await openDemoGroup();
   if (
     (await page
       .locator(".right-sidebar-toggle")
@@ -501,10 +618,7 @@ try {
   await page.evaluate(() => window.artemis.setTheme("dark"));
   await page.reload();
   await page.waitForSelector(".composer");
-  await page
-    .getByText("Research team · Group collaboration", { exact: true })
-    .first()
-    .click();
+  await openDemoGroup();
   await page.waitForTimeout(800);
   if (
     (await page
@@ -539,6 +653,7 @@ try {
       nodeIntegration: p.nodeIntegration,
     };
   });
+  console.log("Isolated privacy audit text:", temp);
   const report = {
     version: 1,
     capturedAt: new Date().toISOString(),
@@ -566,6 +681,19 @@ try {
   await writeFile(
     join(out, "manifest.json"),
     JSON.stringify(report, null, 2) + "\n",
+  );
+  await writeFile(
+    join(out, "environment-manifest.json"),
+    JSON.stringify(
+      {
+        ...report,
+        screenshots: screenshots.filter((shot) =>
+          shot.file.startsWith("environment-panel-"),
+        ),
+      },
+      null,
+      2,
+    ) + "\n",
   );
 } catch (e) {
   await page.screenshot({ path: join(temp, "failure.png") });
