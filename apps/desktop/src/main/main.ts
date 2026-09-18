@@ -16244,8 +16244,13 @@ function createMainWindow(): BrowserWindow {
                     view === 'conversation-timeline-rich' &&
                     viewport instanceof HTMLElement
                   ) {
-                    // Completed turns mount when scrolled into view.
+                    // Mark a user scroll so bottom-following does not undo it.
+                    viewport.dispatchEvent(new WheelEvent('wheel', {
+                      bubbles: true,
+                      deltaY: -viewport.scrollHeight,
+                    }));
                     viewport.scrollTop = 0;
+                    viewport.dispatchEvent(new Event('scroll', { bubbles: true }));
                     const disclosureDeadline = performance.now() + 1_000;
                     while (
                       !document.querySelector(
@@ -16266,6 +16271,7 @@ function createMainWindow(): BrowserWindow {
                     disclosure instanceof HTMLDetailsElement
                   ) {
                     viewport.scrollTop = viewport.scrollHeight;
+                    viewport.dispatchEvent(new Event('scroll', { bubbles: true }));
                     bottomDistanceBefore =
                       viewport.scrollHeight -
                       viewport.clientHeight -
