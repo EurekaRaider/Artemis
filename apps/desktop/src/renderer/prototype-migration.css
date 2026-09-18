@@ -765,6 +765,8 @@ textarea:focus {
   grid-template-rows: minmax(0, 1fr);
   --sidebar-motion-duration: 640ms;
   --sidebar-motion-ease: cubic-bezier(0.38, 0.08, 0.22, 1);
+  --sidebar-toggle-duration: 320ms;
+  --sidebar-toggle-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --sidebar-glass-sheen:
     linear-gradient(
       180deg,
@@ -808,6 +810,24 @@ body:has(.app-shell[data-platform="darwin"]),
 }
 .sidebar[data-state="ready"] {
   border-inline-end-width: 0.5px;
+}
+/* Keep the same content layer and transition in both directions, including
+   reversals and the handoff between the floating drawer and pinned sidebar. */
+.sidebar > [data-part="main"] {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--sidebar-expanded-width);
+  block-size: auto;
+  transition:
+    transform var(--sidebar-toggle-duration) var(--sidebar-toggle-ease),
+    opacity var(--sidebar-toggle-duration) var(--sidebar-toggle-ease),
+    inset-block-start var(--sidebar-toggle-duration) var(--sidebar-toggle-ease),
+    visibility 0s linear;
+}
+.sidebar .sidebar-top {
+  transition: padding-block-start var(--sidebar-toggle-duration)
+    var(--sidebar-toggle-ease);
 }
 .sidebar[data-state="ready"] > [data-part="main"] {
   background: color-mix(
@@ -856,13 +876,15 @@ body:has(.app-shell[data-platform="darwin"]),
 }
 /* Hover expansion reserves its full lane so the conversation never sits behind it. */
 .app-shell[data-sidebar-open="false"] {
-  transition: grid-template-columns 560ms var(--sidebar-motion-ease);
+  transition: grid-template-columns var(--sidebar-toggle-duration)
+    var(--sidebar-toggle-ease);
 }
 .app-shell[data-sidebar-open="false"][data-sidebar-peek="true"] {
   grid-template-columns: var(--sidebar-expanded-width) minmax(0, 1fr);
 }
 .app-shell[data-sidebar-open="false"] .workspace-header {
-  transition: margin-inline-start 560ms var(--sidebar-motion-ease);
+  transition: margin-inline-start var(--sidebar-toggle-duration)
+    var(--sidebar-toggle-ease);
 }
 .app-shell[data-sidebar-open="false"][data-sidebar-peek="true"]
   .workspace-header {
@@ -895,6 +917,7 @@ body:has(.app-shell[data-platform="darwin"]),
   );
   pointer-events: none;
   border-inline-end: 0;
+  transform: none;
 }
 /* Keep the hover target alive while the rail becomes inert and the drawer slides in.
    The transparent titlebar above it remains available to the workspace header. */
@@ -905,9 +928,21 @@ body:has(.app-shell[data-platform="darwin"]),
   pointer-events: auto;
   z-index: -1;
 }
+.sidebar > [data-part="rail"] {
+  display: flex;
+  position: absolute;
+  inset-block: 48px 0;
+  inset-inline-start: 0;
+  inline-size: 48px;
+  block-size: auto;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 160ms ease,
+    visibility 0s linear 160ms;
+}
 .sidebar[data-state="collapsed"] > [data-part="rail"] {
-  margin-block-start: 48px;
-  block-size: calc(100% - 48px);
   pointer-events: auto;
   opacity: 1;
   visibility: visible;
@@ -944,14 +979,10 @@ body:has(.app-shell[data-platform="darwin"]),
 }
 .sidebar[data-state="collapsed"] > [data-part="main"] {
   inset-block: 48px 0;
-  block-size: auto;
   background: var(--sidebar-floating-glass);
   backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
   backdrop-filter: url(#drawerGlass);
-  transition:
-    transform 560ms var(--sidebar-motion-ease),
-    opacity 420ms var(--sidebar-motion-ease),
-    visibility 0s linear 560ms;
+  transition-delay: 0s, 0s, 0s, var(--sidebar-toggle-duration);
 }
 .app-shell[data-platform="darwin"] .sidebar > [data-part="main"],
 .app-shell[data-platform="darwin"] .sidebar-rail {
@@ -978,21 +1009,18 @@ body:has(.app-shell[data-platform="darwin"]),
   transition-delay: 0s;
 }
 .app-shell[data-sidebar-animating="true"] {
-  transition: grid-template-columns var(--sidebar-motion-duration)
-    var(--sidebar-motion-ease);
+  transition: grid-template-columns var(--sidebar-toggle-duration)
+    var(--sidebar-toggle-ease);
 }
 .app-shell[data-sidebar-animating="true"] .workspace-header {
   transition:
-    margin-inline-start var(--sidebar-motion-duration)
-      var(--sidebar-motion-ease),
-    padding-inline-start var(--sidebar-motion-duration)
-      var(--sidebar-motion-ease);
+    margin-inline-start var(--sidebar-toggle-duration)
+      var(--sidebar-toggle-ease),
+    padding-inline-start var(--sidebar-toggle-duration)
+      var(--sidebar-toggle-ease);
 }
 .app-shell[data-sidebar-animating="true"] .sidebar {
   overflow: hidden;
-}
-.app-shell[data-sidebar-animating="true"] .sidebar > [data-part="main"] {
-  min-inline-size: var(--sidebar-expanded-width);
 }
 .app-shell[data-sidebar-animating="true"] .project-sidebar-resizer {
   visibility: hidden;
@@ -1040,6 +1068,7 @@ body:has(.app-shell[data-platform="darwin"]),
   .app-shell[data-sidebar-open="false"] .workspace-header,
   .app-shell[data-sidebar-animating="true"],
   .app-shell[data-sidebar-animating="true"] .workspace-header,
+  .sidebar .sidebar-top,
   .sidebar > :is([data-part="main"], [data-part="rail"]),
   .conversation,
   [data-artemis-component="workspace-dock"]:not([data-state="resizing"]),

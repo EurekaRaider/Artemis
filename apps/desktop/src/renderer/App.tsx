@@ -1110,7 +1110,7 @@ export function App() {
       setSidebarOpen(open);
       sidebarAnimationTimer.current = setTimeout(
         () => setSidebarAnimating(false),
-        720,
+        400,
       );
       // The rail remains available after the main navigation becomes inert.
       requestAnimationFrame(() => {
