@@ -10567,6 +10567,10 @@ kbd {
   align-content: start;
   font-size: 12.5px;
 }
+.im-screen-detail-body > * {
+  /* 表单/文案在整幅卡里限宽，避免输入框被拉满整行。 */
+  max-inline-size: 680px;
+}
 /* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致；
    折叠卡展开超高时在区内滚动（从设备编号行起），卡片边框始终封顶。 */
 .im-service-body {

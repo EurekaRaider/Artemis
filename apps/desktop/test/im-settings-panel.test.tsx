@@ -257,7 +257,7 @@ describe("production IM settings", () => {
       if (destination === "overview") {
         expect(document.querySelector(".im-overview")).toHaveFocus();
       } else {
-        expect(document.querySelector(".im-channel-detail")).toBeVisible();
+        expect(document.querySelector(".im-screen-detail")).toBeVisible();
         expect(
           screen.getByRole("button", { name: /^顺手验证/ }),
         ).toHaveAttribute("aria-expanded", "true");
@@ -862,9 +862,10 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 引导流：无连接时渠道步自动下钻（原②卡自动展开），新建入口直达。
+    // 渠道配置=点卡进入的整幅二级卡，新建入口直达（Slack 字段断言）。
+    await openChannel(user, "slack");
     await screen.findByRole("button", { name: "新建 BOT 连接" });
-    expect(document.querySelector(".im-channel-detail")).toBeTruthy();
+    expect(document.querySelector(".im-screen-detail")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     await screen.findByLabelText("Bot User OAuth Token");
     for (const [label, value] of [
@@ -878,6 +879,8 @@ describe("production IM settings", () => {
       await screen.findByText(/凭据已保存，但连接状态刷新失败/),
     ).toBeVisible();
     expect(screen.getByText("凭据已保存，请刷新确认连接状态。")).toBeVisible();
+    /* 总开关在概览服务卡上：返回后再断言无连接不可启用。 */
+    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
     expect(screen.getByRole("switch", { name: "启用 IM 连接" })).toBeDisabled();
     expect(
       screen.queryByLabelText("Bot User OAuth Token"),
@@ -891,7 +894,8 @@ describe("production IM settings", () => {
       render(<ImSettingsPanel locale="zh-CN" />);
     });
     expect(screen.getByText("连接服务")).toBeVisible();
-    fireEvent.click(platformCard("wecom"));
+    /* 暂停动作留在概览完成；旧刷新在后台悬着，不得回写任何状态。 */
+    fireEvent.click(screen.getByRole("switch", { name: "启用 IM 连接" }));
     const old = structuredClone(f.get());
     let finishRefresh!: (value: Status) => void;
     f.manage.mockImplementationOnce(
@@ -906,17 +910,15 @@ describe("production IM settings", () => {
         { ...connection, state: "error", error: "Channel offline" },
       ],
     });
-    await act(async () =>
-      fireEvent.click(screen.getByRole("switch", { name: "启用 IM 连接" })),
-    );
+    /* 进入整幅渠道卡：总开关不在屏上，旧刷新也不得把暂停态顶掉。 */
+    fireEvent.click(platformCard("wecom"));
     await act(async () => finishRefresh(old));
     expect(
       screen.getByText("Test bot", { selector: ".im-connection code" })
         .parentElement,
     ).toBeVisible();
-    expect(
-      screen.getByRole("switch", { name: "启用 IM 连接" }),
-    ).not.toBeChecked();
+    /* 整幅渠道卡打开时总开关不在屏上，用落库状态断言暂停未被回写。 */
+    expect(f.get().settings.enabled).toBe(false);
   });
   it("shows the three-step guided flow with progress, then starts and registers once", async () => {
     const f = fixture(false);
@@ -1362,7 +1364,8 @@ describe("production IM settings", () => {
       screen.getByRole("button", { name: "我已发送，刷新配对结果" }),
     );
     await user.click(await screen.findByRole("button", { name: "批准" }));
-    expect(await panelReady()).toBeVisible();
+    /* 批准后自动进入管理=整幅渠道卡保持打开。 */
+    expect(document.querySelector(".im-screen-detail")).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "批准" }),
     ).not.toBeInTheDocument();
@@ -1638,9 +1641,9 @@ describe("pairing code lifecycle", () => {
       ).toBeEnabled(),
     );
     await user.click(screen.getByRole("button", { name: "继续设置" }));
-    expect(
-      await screen.findByText("尚未保存机器人连接"),
-    ).toBeVisible();
+    /* 渠道配置=点卡进入的整幅二级卡。 */
+    await openChannel(user, "feishu");
+    expect(await screen.findByText("尚未保存机器人连接")).toBeVisible();
   });
 });
 

@@ -682,18 +682,6 @@ export function ImSettingsPanel({
     if (allDone)
       setScreen((current) => (current === "overview" ? current : "overview"));
   }, [allDone, screen]);
-  /* 两栏引导：真首跑（服务已连、尚无任何已配置渠道）自动下钻当前渠道，
-     相当于原②卡的自动展开；已有渠道配置（含半配/异常）保持列表态，
-     不与用户的返回动作打架。 */
-  const noConfiguredChannel =
-    !connections.length && !Object.keys(savedPending).length;
-  const channelPendingFirst =
-    activeScreen === "flow" &&
-    flowOpenCard === "channel" &&
-    noConfiguredChannel;
-  useEffect(() => {
-    if (channelPendingFirst) setChannelDetail(true);
-  }, [channelPendingFirst]);
   const flowDoneKey = flowSteps.map((step) => (step.done ? "1" : "0")).join("");
   const prevFlowDoneKey = useRef(flowDoneKey);
   useEffect(() => {
@@ -2292,6 +2280,27 @@ export function ImSettingsPanel({
         <strong>{label}</strong>
       </div>
     );
+    if (channelDetail) {
+      /* 二级整幅卡：渠道配置覆盖两栏区。 */
+      return (
+        <section className="im-screen-detail">
+          <div className="im-screen-detail-head">
+            <Button
+              size="compact"
+              variant="quiet"
+              onClick={() => setChannelDetail(false)}
+            >
+              {t("ImSettingsPanel.channelBack")}
+            </Button>
+            <strong>{imChannelLabel(channel, t)}</strong>
+          </div>
+          <div className="im-screen-detail-body">
+            {renderChannelBody()}
+            {renderVerifySection()}
+          </div>
+        </section>
+      );
+    }
     if (showRemote) {
       /* 二级整幅卡：手动注册（原「使用团队 Gateway」折叠体）。 */
       return (
