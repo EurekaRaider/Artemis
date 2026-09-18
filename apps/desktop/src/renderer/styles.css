@@ -884,6 +884,16 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   gap: 6px;
 }
 
+/* 侧栏 IM 图标联动连接状态：绿=有 bot 连接在线，橙=已配置但掉线。 */
+.foot-icon.im-link-ok,
+.rail-item.im-link-ok {
+  color: var(--success);
+}
+.foot-icon.im-link-down,
+.rail-item.im-link-down {
+  color: var(--warning);
+}
+
 .local-indicator {
   align-items: center;
   color: var(--muted);

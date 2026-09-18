@@ -532,7 +532,11 @@ describe("renderer layout contract", () => {
       sidebarFooterEnd,
     );
     expect(sidebarFooterSource).toContain('className="sidebar-footer-actions"');
-    expect(sidebarFooterSource).toContain('name="message"');
+    expect(sidebarFooterSource).toContain('name="mobile"');
+    // IM 图标联动连接状态：绿=有 bot 在线，橙=已配置但掉线。
+    expect(sidebarFooterSource).toContain("im-link-${imLink}");
+    expect(cssRule(".foot-icon.im-link-ok")).toContain("color: var(--success)");
+    expect(cssRule(".foot-icon.im-link-down")).toContain("color: var(--warning)");
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
     expect(settingsSource).toContain("useState<SettingsTab>(initialTab)");

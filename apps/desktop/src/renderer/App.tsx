@@ -15,6 +15,7 @@ import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
+import { useImLinkState } from "./im-link-state.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "./turn-failure.js";
 import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
@@ -1063,6 +1064,7 @@ export function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
   const [imSettingsOpen, setImSettingsOpen] = useState(false);
   const imSettingsTrigger = useRef<HTMLButtonElement>(null);
+  const imLink = useImLinkState();
   const [sidebarOpen, setSidebarOpen] = useState(
     () => window.innerWidth > 1060,
   );
@@ -5561,7 +5563,7 @@ export function App() {
             </button>
             <button
               type="button"
-              className="rail-item"
+              className={`rail-item${imLink ? ` im-link-${imLink}` : ""}`}
               aria-label={uiText(locale, "ImSettingsPanel.message191")}
               title={uiText(locale, "ImSettingsPanel.message191")}
               onClick={(event) => {
@@ -5569,7 +5571,7 @@ export function App() {
                 setImSettingsOpen(true);
               }}
             >
-              <ArtemisIcon name="message" />
+              <ArtemisIcon name="mobile" />
             </button>
             <button
               type="button"
@@ -5596,7 +5598,7 @@ export function App() {
             </span>
             <span className="sidebar-footer-actions">
               <button
-                className="activity-button foot-icon"
+                className={`activity-button foot-icon${imLink ? ` im-link-${imLink}` : ""}`}
                 type="button"
                 aria-label={uiText(locale, "ImSettingsPanel.message191")}
                 title={uiText(locale, "ImSettingsPanel.message191")}
@@ -5605,7 +5607,7 @@ export function App() {
                   setImSettingsOpen(true);
                 }}
               >
-                <ArtemisIcon name="message" />
+                <ArtemisIcon name="mobile" />
               </button>
               <button
                 className="activity-button foot-icon"
