@@ -176,21 +176,20 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     }
 
     expect(appSource).toMatch(/role=["{]alertdialog/u);
-    expect(appSource).toMatch(/aria-modal=(?:"true"|\{true\})/u);
-    expect(appSource).toContain('className="confirmation-backdrop"');
+    expect(appSource).toContain("<Dialog");
     expect(appSource).toContain(
       "className={`confirmation-dialog ${confirmation.tone}`}",
     );
+    expect(appSource).not.toContain('className="confirmation-icon"');
     expect(appSource).toContain('className="confirmation-actions"');
-
-    const backdrop = cssDeclarations(".confirmation-backdrop");
-    expect(backdrop).toContain("position: fixed");
-    expect(backdrop).toContain("inset: 0");
-    expect(backdrop).toMatch(/background:/u);
-
-    const dialog = cssDeclarations(".confirmation-dialog");
-    expect(dialog).toMatch(/border-radius:\s*(?!0(?:px)?;)/u);
-    expect(dialog).toMatch(/box-shadow:/u);
+    expect(appSource).toContain(
+      'variant={confirmation.tone === "danger" ? "danger" : "primary"}',
+    );
+    const copy = cssDeclarations(".confirmation-copy");
+    expect(copy).toContain("overflow-wrap: anywhere");
+    expect(cssDeclarations(".confirmation-copy p")).toContain(
+      "white-space: pre-line",
+    );
 
     const actions = cssDeclarations(".confirmation-actions");
     expect(actions).toContain("display: flex");

@@ -261,14 +261,13 @@ import { McpOAuthStore } from "./mcp-oauth-store.js";
 import { McpSecretStore } from "./mcp-secret-store.js";
 import { ResourceCatalogService } from "./resource-catalog.js";
 import { CodexPluginService } from "./codex-plugin-service.js";
+import { ConnectorService, loadConnectorClients } from "./connector-service.js";
+import { ConnectorVault } from "./connector-vault.js";
 import {
-  GoogleAccountService,
-  loadGoogleOAuthClient,
-} from "./google-account-service.js";
-import {
-  installedGoogleMcpServerIdsForGrant,
-  readyInstalledGoogleMcpServers,
-} from "./google-plugin-activation.js";
+  CONNECTOR_AUTH_META,
+  type ConnectorConnectInput,
+  type ConnectorCatalogEntry,
+} from "../shared/connectors.js";
 import {
   preparePackagedNodePtyRuntime,
   type PreparedNodePtyRuntime,
@@ -342,7 +341,6 @@ import {
   type HandoffWorkspaceResult,
   type InstalledSkill,
   type InstalledCodexPlugin,
-  type GoogleGrantId,
   type McpCatalogInstallRequest,
   type McpCatalogItem,
   type QueueTurnInput,
@@ -447,7 +445,7 @@ let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
 let mcpOAuthStore: McpOAuthStore | undefined;
 let mcpSecretStore: McpSecretStore | undefined;
-let googleAccountService: GoogleAccountService | undefined;
+let connectorService: ConnectorService | undefined;
 let resourceCatalogService: ResourceCatalogService | undefined;
 let codexPluginService: CodexPluginService | undefined;
 let trustedExtensionStore: TrustedExtensionStore | undefined;
@@ -1168,10 +1166,10 @@ function bundledArtifactPluginsPath(): string {
     : join(app.getAppPath(), "resources", "bundled-artifact-plugins");
 }
 
-function googleOAuthClientPath(): string {
+function connectorClientsPath(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, "resources", "google-oauth-client.json")
-    : join(app.getAppPath(), "resources", "google-oauth-client.json");
+    ? join(process.resourcesPath, "resources", "connector-clients.json")
+    : join(app.getAppPath(), "resources", "connector-clients.json");
 }
 
 function codexPrimaryRuntimePath(): string | undefined {
@@ -1565,6 +1563,10 @@ async function mcpBearerToken(
 async function mcpAuthentication(
   config: McpServerConfig,
 ): Promise<string | McpConnectionAuthentication | undefined> {
+  if (config.connector) {
+    if (!connectorService) throw new Error("Connector service is not ready.");
+    return connectorService.authentication(config);
+  }
   if (config.transport === "stdio") {
     const names = config.credentialEnvVars ?? [];
     if (names.length === 0) return undefined;
@@ -1636,6 +1638,7 @@ async function authorizeMcpServer(config: McpServerConfig): Promise<void> {
     config.id,
     (state) => provider?.matchesState(state) ?? false,
   );
+  void callback.authorizationCode.catch(() => {});
   try {
     await mcpOAuthStore.update(config.id, () => ({
       redirectUrl: callback.redirectUrl,
@@ -1666,7 +1669,7 @@ async function connectMcpServer(
   if (!mcpClientManager) {
     throw new Error("MCP service is not ready.");
   }
-  await ensureGoogleMcpReady(config);
+  await ensureConnectorReady(config);
   const status = await mcpClientManager.connect(
     config,
     await mcpAuthentication(config),
@@ -1687,60 +1690,20 @@ async function connectMcpServer(
   }
 }
 
-async function ensureGoogleMcpReady(config: McpServerConfig): Promise<void> {
-  if (!config.hostAuth) return;
-  if (!googleAccountService || !codexPluginService) {
-    throw new Error("Google account service is not ready.");
-  }
-  await codexPluginService.assertHostAuthTrusted(config);
-  await googleAccountService.accessContext(
-    config.hostAuth.grant,
-    config.hostAuth.scopes,
-  );
+async function ensureConnectorReady(config: McpServerConfig): Promise<void> {
+  if (!config.connector) return;
+  if (!connectorService) throw new Error("Connector service is not ready.");
+  await connectorService.authentication(config);
 }
 
-async function enableReadyInstalledGoogleMcpServers(
-  serverIds: string[],
-): Promise<void> {
-  if (!mcpConfigStore || !mcpClientManager) return;
-  const before = await mcpConfigStore.list();
-  const result = await readyInstalledGoogleMcpServers(
-    before,
-    serverIds,
-    ensureGoogleMcpReady,
-  );
-  for (const skipped of result.skipped) {
-    diagnosticBundleService?.record({
-      source: "main",
-      severity: "info",
-      message: `Google MCP server ${skipped.id} remained disabled after plugin installation: ${skipped.reason}`,
-    });
-  }
-  if (result.ready.length === 0) return;
-
-  const readyById = new Map(result.ready.map((config) => [config.id, config]));
-  await mcpConfigStore.replaceAll(
-    before.map((config) => readyById.get(config.id) ?? config),
-  );
-  await reconnectEnabledMcpServers(result.ready);
-}
-
-async function disableGoogleGrantConfigs(grant?: GoogleGrantId): Promise<void> {
-  if (!mcpConfigStore || !mcpClientManager) return;
-  const before = await mcpConfigStore.list();
-  const affected = before.filter(
-    (config) => config.hostAuth && (!grant || config.hostAuth.grant === grant),
-  );
-  for (const config of affected) await mcpClientManager.disconnect(config.id);
-  if (affected.length) {
-    const ids = new Set(affected.map((config) => config.id));
-    await mcpConfigStore.replaceAll(
-      before.map((config) =>
-        ids.has(config.id) ? { ...config, enabled: false } : config,
-      ),
+async function disableConnector(id: string): Promise<void> {
+  await mcpClientManager?.disconnect(id);
+  const configs = await mcpConfigStore?.list();
+  if (configs)
+    await mcpConfigStore?.replaceAll(
+      configs.map((c) => (c.id === id ? { ...c, enabled: false } : c)),
     );
-    await applyAgentRuntime();
-  }
+  await applyAgentRuntime();
 }
 
 async function resetAgentThreadsForToolChange(): Promise<void> {
@@ -4881,8 +4844,9 @@ async function handleMcpBrokerRequest(
   const mcpConfig = (await mcpConfigStore?.list())?.find(
     (config) => config.id === request.serverId,
   );
-  const googleEmail = mcpConfig?.hostAuth
-    ? (await googleAccountService?.status())?.email
+  const connectorAccount = mcpConfig?.connector
+    ? (await connectorService?.list())?.find((c) => c.id === mcpConfig.id)
+        ?.account
     : undefined;
   const stdioFullAccess =
     mcpConfig?.transport === "stdio" && Boolean(mcpConfig.fullAccess);
@@ -4898,15 +4862,15 @@ async function handleMcpBrokerRequest(
   ).slice(0, 700);
   const approvalSummary = [
     `Call ${request.serverName}: ${request.toolName}`,
-    googleEmail ? `Google account: ${googleEmail}` : undefined,
+    connectorAccount ? `Connected account: ${connectorAccount}` : undefined,
     request.destructive && argumentSummary
       ? `Target/change: ${argumentSummary}`
       : undefined,
   ]
     .filter(Boolean)
     .join("\n");
-  const networkTargets = mcpConfig?.hostAuth
-    ? ["Google APIs"]
+  const networkTargets = mcpConfig?.connector
+    ? [mcpConfig.connector.provider]
     : request.transport === "streamable-http"
       ? [request.serverName]
       : stdioAllowsNetwork
@@ -4956,7 +4920,7 @@ async function handleMcpBrokerRequest(
     fullAccess: stdioFullAccess,
     toolName: request.toolName,
     modelApproval: request.modelApproval,
-    ...(mcpConfig?.hostAuth ? { googleGrant: mcpConfig.hostAuth.grant } : {}),
+    ...(mcpConfig?.connector ? { connectorId: mcpConfig.connector.id } : {}),
   };
   if (
     shouldAutoApprove(
@@ -5292,20 +5256,13 @@ async function executeApprovedMcp(
     const config = (await mcpConfigStore?.list())?.find(
       (candidate) => candidate.id === request.serverId,
     );
+    if (!config?.enabled) throw new Error("This MCP connection is disabled.");
     let privateMetadata: Record<string, unknown> | undefined;
-    if (config?.hostAuth) {
-      if (!googleAccountService || !codexPluginService) {
-        throw new Error("Google account service is not ready.");
-      }
-      await codexPluginService.assertHostAuthTrusted(config);
-      const google = await googleAccountService.accessContext(
-        config.hostAuth.grant,
-        config.hostAuth.scopes,
-      );
-      privateMetadata = {
-        "com.artemis.google/access-token": google.accessToken,
-        "com.artemis.google/account-email": google.email,
-      };
+    if (config?.connector) {
+      if (!connectorService) throw new Error("Connector service is not ready.");
+      const context = await connectorService.context(config);
+      if (config.transport === "stdio")
+        privateMetadata = { [CONNECTOR_AUTH_META]: context };
     }
     const result = await mcpClientManager.call(
       request.serverId,
@@ -7949,7 +7906,7 @@ function registerIpc(): void {
         (server) => server.id === serverId,
       );
       if (!config) throw new Error("MCP server not found.");
-      if (enabled) await ensureGoogleMcpReady(config);
+      if (enabled) await ensureConnectorReady(config);
       return saveMcpConfiguration({ ...config, enabled: Boolean(enabled) });
     },
   );
@@ -8529,68 +8486,73 @@ function registerIpc(): void {
       );
     },
   );
-  ipcMain.handle(IPC.googleAccountStatus, async () => {
-    if (smokeMode && process.env.ARTEMIS_SMOKE_GOOGLE_AUTHORIZED === "1") {
-      return {
-        encryptionAvailable: true,
-        clientConfigured: true,
-        connected: true,
-        grants: {
-          "google-workspace": { authorized: true, scopes: [] },
-          gmail: { authorized: true, scopes: [] },
-        },
-      };
-    }
-    if (!googleAccountService)
-      throw new Error("Google account service is not ready.");
-    return googleAccountService.status();
-  });
   ipcMain.handle(
-    IPC.googleAccountAuthorizeGrant,
-    async (_event, grant: GoogleGrantId) => {
-      if (
-        !googleAccountService ||
-        !codexPluginService ||
-        !mcpConfigStore ||
-        !mcpClientManager
-      )
-        throw new Error("Google account service is not ready.");
-      const installedServerIds = (
-        await codexPluginService.listInstalled()
-      ).flatMap((plugin) => plugin.mcpServerIds);
-      const grantServerIds = installedGoogleMcpServerIdsForGrant(
-        await mcpConfigStore.list(),
-        installedServerIds,
-        grant,
+    IPC.connectorDefinitions,
+    async (): Promise<ConnectorCatalogEntry[]> => {
+      const installed = (await codexPluginService?.listInstalled()) ?? [];
+      const catalog =
+        (await codexPluginService?.listConnectorDefinitions()) ?? [];
+      const configured: ConnectorCatalogEntry[] = (
+        (await mcpConfigStore?.list()) ?? []
+      ).flatMap((config) =>
+        config.connector
+          ? [
+              {
+                ...config.connector,
+                serverId: config.id,
+                installed: true,
+                pluginId: installed.find((p) =>
+                  p.mcpServerIds.includes(config.id),
+                )?.id,
+              },
+            ]
+          : [],
       );
-      if (grantServerIds.length > 0) {
-        await resetAgentThreadsForToolChange();
-      }
-      const status = await googleAccountService.authorize(
-        grant,
-        currentLocale(),
-      );
-      if (grantServerIds.length > 0) {
-        await enableReadyInstalledGoogleMcpServers(grantServerIds);
-        await applyAgentRuntime();
-      }
-      return status;
+      return [
+        ...configured,
+        ...catalog.filter(
+          (item) => !configured.some((c) => c.serverId === item.serverId),
+        ),
+      ];
     },
   );
   ipcMain.handle(
-    IPC.googleAccountDisconnectGrant,
-    async (_event, grant: GoogleGrantId) => {
-      if (!googleAccountService)
-        throw new Error("Google account service is not ready.");
-      await disableGoogleGrantConfigs(grant);
-      return googleAccountService.disconnectGrant(grant);
-    },
+    IPC.connectorConnections,
+    () => connectorService?.list() ?? [],
   );
-  ipcMain.handle(IPC.googleAccountDisconnect, async () => {
-    if (!googleAccountService)
-      throw new Error("Google account service is not ready.");
-    await disableGoogleGrantConfigs();
-    return googleAccountService.disconnectAccount();
+  const connectConnector = async (
+    input: ConnectorConnectInput,
+    reconnect = false,
+  ) => {
+    if (!connectorService || !mcpConfigStore)
+      throw new Error("Connector service is not ready.");
+    if (!input || typeof input.serverId !== "string")
+      throw new Error("Connector input is invalid.");
+    await resetAgentThreadsForToolChange();
+    const result = reconnect
+      ? await connectorService.reconnect(input.serverId)
+      : await connectorService.connect(input);
+    const configs = await mcpConfigStore.list();
+    await mcpConfigStore.replaceAll(
+      configs.map((c) =>
+        c.id === input.serverId ? { ...c, enabled: true } : c,
+      ),
+    );
+    await applyAgentRuntime();
+    return result;
+  };
+  ipcMain.handle(IPC.connectorConnect, (_event, input: ConnectorConnectInput) =>
+    connectConnector(input),
+  );
+  ipcMain.handle(IPC.connectorReconnect, (_event, id: string) =>
+    connectConnector({ serverId: id }, true),
+  );
+  ipcMain.handle(IPC.connectorCancel, (_event, id: string) =>
+    connectorService?.cancel(id),
+  );
+  ipcMain.handle(IPC.connectorDisconnect, async (_event, id: string) => {
+    await connectorService?.disconnect(id);
+    await disableConnector(id);
   });
   ipcMain.handle(
     IPC.resourcePluginMarketplaceSelect,
@@ -8774,7 +8736,6 @@ function registerIpc(): void {
         publish(10 + percent * 0.8),
       );
       await enableManagedPluginSkills(installed.plugin.skillNames);
-      await enableReadyInstalledGoogleMcpServers(installed.plugin.mcpServerIds);
       await applyAgentRuntime();
       publish(100);
       return codexPluginMutationResult(installed.warnings);
@@ -8884,7 +8845,7 @@ function registerIpc(): void {
         for (const config of nextMcp.filter((candidate) =>
           mcpIds.has(candidate.id),
         )) {
-          await ensureGoogleMcpReady(config);
+          await ensureConnectorReady(config);
         }
       }
       await resetAgentThreadsForToolChange();
@@ -8946,11 +8907,10 @@ function registerIpc(): void {
         const after = await mcpConfigStore.list();
         await cleanupRemovedMcpAuthentication(before, after, scopedIds);
         await enableManagedPluginSkills(existing.skillNames);
-        const ownedGrant = before.find(
-          (config) => scopedIds.has(config.id) && config.hostAuth,
-        )?.hostAuth?.grant;
-        if (ownedGrant) {
-          await googleAccountService?.disconnectGrant(ownedGrant, false);
+        for (const config of before.filter(
+          (c) => scopedIds.has(c.id) && c.connector,
+        )) {
+          await connectorService?.disconnect(config.id);
         }
         await applyAgentRuntime();
         return codexPluginMutationResult(removed.warnings);
@@ -18474,11 +18434,6 @@ function createMainWindow(): BrowserWindow {
                 if (view === 'add-plugin') {
                   document.querySelector('.resource-add-button')?.click();
                   await wait(500);
-                } else if (view === 'google-account') {
-                  document
-                    .querySelector('.resource-marketplace-account-banner button')
-                    ?.click();
-                  await wait(500);
                 } else if (view === 'add-mcp') {
                   document
                     .querySelector('.resource-installed-overview .resource-icon-button')
@@ -21493,13 +21448,57 @@ app
       join(app.getPath("userData"), "mcp-secrets.json"),
       safeStorage,
     );
-    googleAccountService = new GoogleAccountService(
-      join(app.getPath("userData"), "google-account.json"),
-      safeStorage,
-      (url) => shell.openExternal(url),
-      (url, init) => net.fetch(url.toString(), init),
-      await loadGoogleOAuthClient(googleOAuthClientPath()),
-    );
+    connectorService = new ConnectorService({
+      vault: new ConnectorVault(
+        join(app.getPath("userData"), "connector-credentials-v1.json"),
+        safeStorage,
+      ),
+      clients: await loadConnectorClients(connectorClientsPath()),
+      openExternal: (url) => shell.openExternal(url),
+      fetcher: (url, init) => net.fetch(url.toString(), init),
+      configs: async () => (await mcpConfigStore?.list()) ?? [],
+      assertTrusted: async (config) => {
+        if (!codexPluginService)
+          throw new Error("Plugin service is not ready.");
+        await codexPluginService.assertConnectorTrusted(config);
+      },
+      connectMcp: async (config, authentication) => {
+        if (!mcpClientManager) throw new Error("MCP service is not ready.");
+        const status = await mcpClientManager.connect(
+          config,
+          authentication,
+          authentication?.authorizationCode
+            ? { startupTimeoutMs: 300000 }
+            : undefined,
+        );
+        if (status.state !== "connected")
+          throw new Error(
+            "Connector connection failed. Check service availability and permissions.",
+          );
+      },
+      disconnectMcp: async (id) => {
+        await mcpClientManager?.disconnect(id);
+      },
+      checkMailbox: async (config, context) => {
+        if (!mcpClientManager || config.transport !== "stdio")
+          throw new Error("Mailbox connector is unavailable.");
+        const status = await mcpClientManager.connect(config);
+        if (status.state !== "connected")
+          throw new Error("Mailbox runtime is unavailable.");
+        const result = await mcpClientManager.call(
+          config.id,
+          "mail_check_connection",
+          {},
+          config.workspacePath,
+          "execute",
+          { [CONNECTOR_AUTH_META]: context },
+        );
+        if (result.isError)
+          throw new Error(
+            "Mailbox connection failed. Check the authorization code and IMAP/SMTP settings.",
+          );
+      },
+    });
     mcpClientManager = new McpClientManager(
       process.platform,
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,

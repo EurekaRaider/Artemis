@@ -1385,7 +1385,6 @@ export function App() {
   const modelPickerRoot = useRef<HTMLDivElement>(null);
   const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
   const slashCommandMenu = useRef<HTMLDivElement>(null);
-  const confirmationCancelButton = useRef<HTMLButtonElement>(null);
   const confirmationResolver = useRef<
     ((confirmed: boolean) => void) | undefined
   >(undefined);
@@ -1719,18 +1718,6 @@ export function App() {
     setConfirmation(undefined);
     resolve?.(confirmed);
   }, []);
-
-  useEffect(() => {
-    if (!confirmation) return;
-    confirmationCancelButton.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      resolveConfirmation(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [confirmation, resolveConfirmation]);
 
   useEffect(
     () => () => {
@@ -9188,51 +9175,52 @@ export function App() {
       )}
 
       {confirmation && (
-        <div
-          className="confirmation-backdrop"
-          onMouseDown={() => resolveConfirmation(false)}
+        <Dialog
+          aria-describedby="confirmation-message"
+          aria-labelledby="confirmation-title"
+          className={`confirmation-dialog ${confirmation.tone}`}
+          label={
+            confirmation.title ??
+            (confirmation.tone === "danger"
+              ? t.confirmationDangerTitle
+              : t.confirmationTitle)
+          }
+          onOpenChange={(open) => {
+            if (!open) resolveConfirmation(false);
+          }}
+          open
+          role="alertdialog"
         >
-          <section
-            aria-describedby="confirmation-message"
-            aria-labelledby="confirmation-title"
-            aria-modal={true}
-            className={`confirmation-dialog ${confirmation.tone}`}
-            onMouseDown={(event) => event.stopPropagation()}
-            role="alertdialog"
-          >
-            <div className="confirmation-icon" aria-hidden="true">
-              !
-            </div>
-            <div className="confirmation-copy">
-              <h2 id="confirmation-title">
-                {confirmation.title ??
-                  (confirmation.tone === "danger"
-                    ? t.confirmationDangerTitle
-                    : t.confirmationTitle)}
-              </h2>
-              <p id="confirmation-message">{confirmation.message}</p>
-            </div>
-            <div className="confirmation-actions">
-              <button
-                className="secondary-button"
-                onClick={() => resolveConfirmation(false)}
-                ref={confirmationCancelButton}
-              >
-                {confirmation.cancelLabel ?? t.confirmationCancel}
-              </button>
-              <button
-                className={
-                  confirmation.tone === "danger"
-                    ? "primary-button danger"
-                    : "primary-button"
-                }
-                onClick={() => resolveConfirmation(true)}
-              >
-                {confirmation.acceptLabel ?? t.confirmationAccept}
-              </button>
-            </div>
-          </section>
-        </div>
+          <div className="confirmation-copy">
+            <h2 id="confirmation-title">
+              {confirmation.title ??
+                (confirmation.tone === "danger"
+                  ? t.confirmationDangerTitle
+                  : t.confirmationTitle)}
+            </h2>
+            <p id="confirmation-message">{confirmation.message}</p>
+          </div>
+          <div className="confirmation-actions">
+            <Button
+              className="secondary-button"
+              variant="secondary"
+              onClick={() => resolveConfirmation(false)}
+            >
+              {confirmation.cancelLabel ?? t.confirmationCancel}
+            </Button>
+            <Button
+              className={
+                confirmation.tone === "danger"
+                  ? "primary-button danger"
+                  : "primary-button"
+              }
+              variant={confirmation.tone === "danger" ? "danger" : "primary"}
+              onClick={() => resolveConfirmation(true)}
+            >
+              {confirmation.acceptLabel ?? t.confirmationAccept}
+            </Button>
+          </div>
+        </Dialog>
       )}
 
       {fileLinkContextMenu && (

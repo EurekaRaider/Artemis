@@ -1,4 +1,16 @@
 import type {
+  ConnectorDefinition,
+  ConnectorCatalogEntry,
+  ConnectorConnection,
+  ConnectorConnectInput,
+} from "./connectors.js";
+export type {
+  ConnectorDefinition,
+  ConnectorCatalogEntry,
+  ConnectorConnection,
+  ConnectorConnectInput,
+} from "./connectors.js";
+import type {
   ThreadHistoryCursor,
   ThreadHistoryPage,
 } from "./thread-history.js";
@@ -495,23 +507,7 @@ export interface TrustedExtensionStatus {
 export interface McpResourceMetadata {
   resourceKind?: "mcp" | "connector";
   connectorId?: string;
-  hostAuth?: GoogleMcpHostAuth;
-}
-
-export interface GoogleMcpHostAuth {
-  provider: "google";
-  grant: "google-workspace" | "gmail";
-  scopes: string[];
-}
-
-export type GoogleGrantId = "google-workspace" | "gmail";
-
-export interface GoogleAccountStatus {
-  encryptionAvailable: boolean;
-  clientConfigured: boolean;
-  connected: boolean;
-  email?: string;
-  grants: Record<GoogleGrantId, { authorized: boolean; scopes: string[] }>;
+  connector?: ConnectorDefinition;
 }
 
 export type McpServerConfig = (
@@ -634,6 +630,7 @@ export interface CodexPluginSkillPreview {
 }
 
 export interface CodexPluginMcpPreview {
+  connector?: ConnectorDefinition;
   name: string;
   transport: "stdio" | "streamable-http" | "unsupported";
   endpoint: string;
@@ -1126,10 +1123,12 @@ export interface ArtemisApi {
     operationId: string,
     signingKeyFingerprint: string,
   ): Promise<CodexPluginMarketplaceState>;
-  getGoogleAccountStatus(): Promise<GoogleAccountStatus>;
-  authorizeGoogleGrant(grant: GoogleGrantId): Promise<GoogleAccountStatus>;
-  disconnectGoogleGrant(grant: GoogleGrantId): Promise<GoogleAccountStatus>;
-  disconnectGoogleAccount(): Promise<GoogleAccountStatus>;
+  listConnectorDefinitions(): Promise<ConnectorCatalogEntry[]>;
+  listConnectorConnections(): Promise<ConnectorConnection[]>;
+  connectConnector(input: ConnectorConnectInput): Promise<ConnectorConnection>;
+  cancelConnectorAuthorization(serverId: string): Promise<void>;
+  reconnectConnector(serverId: string): Promise<ConnectorConnection>;
+  disconnectConnector(serverId: string): Promise<void>;
   selectCodexPluginMarketplace(
     sourceId: string,
   ): Promise<CodexPluginMarketplaceState>;
@@ -1335,10 +1334,12 @@ export const IPC = {
     "artemis:resource-plugin-marketplace-inspect-offline",
   resourcePluginMarketplaceAddOffline:
     "artemis:resource-plugin-marketplace-add-offline",
-  googleAccountStatus: "artemis:google-account-status",
-  googleAccountAuthorizeGrant: "artemis:google-account-authorize-grant",
-  googleAccountDisconnectGrant: "artemis:google-account-disconnect-grant",
-  googleAccountDisconnect: "artemis:google-account-disconnect",
+  connectorDefinitions: "artemis:connector-definitions",
+  connectorConnections: "artemis:connector-connections",
+  connectorConnect: "artemis:connector-connect",
+  connectorCancel: "artemis:connector-cancel",
+  connectorReconnect: "artemis:connector-reconnect",
+  connectorDisconnect: "artemis:connector-disconnect",
   resourcePluginMarketplaceSelect: "artemis:resource-plugin-marketplace-select",
   resourcePluginMarketplaceRefresh:
     "artemis:resource-plugin-marketplace-refresh",

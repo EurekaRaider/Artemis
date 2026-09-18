@@ -17,8 +17,9 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   constructor(
     private readonly serverId: string,
     private readonly callbackUrl: string,
-    private readonly store: McpOAuthStore,
+    private readonly store: Pick<McpOAuthStore, "get" | "update" | "delete">,
     private readonly onRedirect: (url: URL) => void | Promise<void>,
+    private readonly registration?: { clientId: string; scopes: string[] },
   ) {}
 
   get redirectUrl(): string {
@@ -28,6 +29,9 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   get clientMetadata(): OAuthClientMetadata {
     return {
       client_name: "Artemis Desktop",
+      ...(this.registration?.scopes.length
+        ? { scope: this.registration.scopes.join(" ") }
+        : {}),
       redirect_uris: [this.callbackUrl],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
@@ -44,6 +48,8 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
+    if (this.registration)
+      return { client_id: this.registration.clientId, ...this.clientMetadata };
     return (await this.store.get(this.serverId)).clientInformation;
   }
 
@@ -123,8 +129,22 @@ export interface McpOAuthCallback {
 export async function startMcpOAuthCallback(
   serverId: string,
   stateMatches: (state: string | null) => boolean,
+  fixedRedirect?: string,
 ): Promise<McpOAuthCallback> {
-  const callbackPath = `/mcp-oauth/${encodeURIComponent(serverId)}`;
+  const fixed = fixedRedirect ? new URL(fixedRedirect) : undefined;
+  if (
+    fixed &&
+    (fixed.protocol !== "http:" ||
+      !["127.0.0.1", "localhost"].includes(fixed.hostname) ||
+      !fixed.port ||
+      fixed.username ||
+      fixed.password ||
+      fixed.search ||
+      fixed.hash)
+  )
+    throw new Error("Desktop OAuth requires an exact loopback redirect.");
+  const callbackPath =
+    fixed?.pathname ?? `/mcp-oauth/${encodeURIComponent(serverId)}`;
   let resolveCode!: (code: string) => void;
   let rejectCode!: (error: Error) => void;
   let settled = false;
@@ -168,7 +188,7 @@ export async function startMcpOAuthCallback(
       finish(400, "Authorization failed.", response);
       if (!settled) {
         settled = true;
-        rejectCode(new Error(`MCP OAuth failed: ${error}`));
+        rejectCode(new Error("MCP OAuth authorization was denied"));
       }
       return;
     }
@@ -188,7 +208,7 @@ export async function startMcpOAuthCallback(
   });
   await new Promise<void>((resolvePromise, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(fixed ? Number(fixed.port) : 0, "127.0.0.1", () => {
       server.removeListener("error", reject);
       resolvePromise();
     });
@@ -207,10 +227,16 @@ export async function startMcpOAuthCallback(
   timeout.unref();
 
   return {
-    redirectUrl: `http://127.0.0.1:${address.port.toString()}${callbackPath}`,
+    redirectUrl:
+      fixed?.href ??
+      `http://127.0.0.1:${address.port.toString()}${callbackPath}`,
     authorizationCode,
     async close() {
       clearTimeout(timeout);
+      if (!settled) {
+        settled = true;
+        rejectCode(new Error("MCP OAuth authorization cancelled"));
+      }
       if (!server.listening) return;
       await new Promise<void>((resolvePromise) =>
         server.close(() => resolvePromise()),

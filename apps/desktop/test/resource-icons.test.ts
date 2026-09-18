@@ -74,6 +74,7 @@ describe("resource icons", () => {
 
   it.each([
     ["CodeGraph MCP", "codegraph"],
+    ["Context7", "file-search"],
     ["node-repl MCP", "terminal"],
     ["GitHub MCP Server", "github"],
     ["Figma", "figma"],

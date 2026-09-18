@@ -7662,59 +7662,20 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--file-text);
 }
 
-.confirmation-backdrop {
-  align-items: center;
-  backdrop-filter: blur(3px);
-  background: var(--artemis-color-overlay-scrim);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 24px;
-  position: fixed;
-  z-index: 110;
-}
-
-.confirmation-dialog {
-  background: color-mix(in srgb, var(--panel-2) 96%, var(--text));
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 28px 90px rgb(0 0 0 / 46%);
-  display: grid;
-  gap: 0 14px;
-  grid-template-columns: 34px minmax(0, 1fr);
-  max-width: 440px;
-  padding: 20px;
-  width: 100%;
-}
-
-.confirmation-icon {
-  align-items: center;
-  background: color-mix(in srgb, var(--blue) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--blue) 38%, transparent);
-  border-radius: 50%;
-  color: var(--blue);
-  display: flex;
-  font-size: 17px;
-  font-weight: 700;
-  height: 30px;
-  justify-content: center;
-  width: 30px;
-}
-
-.confirmation-dialog.danger .confirmation-icon {
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
-  color: var(--danger);
+.confirmation-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .confirmation-copy h2 {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
-  margin: 4px 0 8px;
+  margin: 0 0 12px;
 }
 
 .confirmation-copy p {
+  white-space: pre-line;
   color: var(--muted);
   line-height: 1.55;
   margin: 0;
@@ -8341,14 +8302,10 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .resource-avatar {
-  --resource-brand: var(--blue);
-
   align-items: center;
-  background: color-mix(in srgb, var(--resource-brand) 16%, var(--panel-3));
-  border: 1px solid
-    color-mix(in srgb, var(--resource-brand) 24%, var(--border-soft));
+  background: transparent;
+  border: 0;
   border-radius: 10px;
-  color: color-mix(in srgb, var(--resource-brand) 78%, var(--text));
   display: inline-flex;
   flex: 0 0 auto;
   height: 39px;
@@ -8357,30 +8314,48 @@ button.sources-panel-entry.attachment:focus-visible {
   width: 39px;
 }
 
+.resource-avatar[data-icon] {
+  --resource-tile: #edeaf6;
+  --resource-ink: var(--resource-brand, #514584);
+  background: var(--resource-tile);
+  color: var(--resource-ink);
+}
+
+.resource-avatar:where([data-kind="mcp"])[data-icon] {
+  --resource-tile: #e8f0ef;
+  --resource-ink: #285a53;
+}
+
+.resource-avatar[data-icon="terminal"],
+.resource-avatar[data-icon="github"],
+.resource-avatar[data-icon="code"] {
+  --resource-tile: #eeeef0;
+  --resource-ink: #252529;
+}
+
+.resource-avatar[data-icon="lightbulb"],
+.resource-avatar[data-icon="checklist"],
+.resource-avatar[data-icon="agents"] {
+  --resource-tile: #f6ecd8;
+  --resource-ink: #986326;
+}
+
+.resource-avatar[data-icon="file-search"],
+.resource-avatar[data-icon="document"],
+.resource-avatar[data-icon="browser"] {
+  --resource-tile: #e5edf9;
+  --resource-ink: #3463a4;
+}
+
+.resource-avatar .resource-artwork,
+.resource-avatar .resource-semantic-icon,
 .resource-avatar svg {
-  height: var(--icon-size-lg);
-  width: var(--icon-size-lg);
+  height: 25px;
+  width: 25px;
 }
 
-.resource-avatar .resource-semantic-icon {
-  height: var(--icon-size-xl);
-  width: var(--icon-size-xl);
-}
-
-.resource-avatar[data-kind="skill"],
-.resource-avatar[data-kind="skills"] {
-  --resource-brand: #8b7cff;
-}
-
-.resource-avatar[data-kind="mcp"] {
-  --resource-brand: #22b987;
-}
-
-.resource-avatar[data-kind="app"],
-.resource-avatar[data-kind="apps"],
-.resource-avatar[data-kind="connector"],
-.resource-avatar[data-kind="connectors"] {
-  --resource-brand: #f09b3d;
+.resource-avatar[data-icon] .resource-semantic-icon svg {
+  stroke-width: 2;
 }
 
 .resource-marketplace-tabs {
@@ -8575,13 +8550,13 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 0 1 300px;
 }
 
-.resource-connector-form {
+.resource-connector-settings {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(140px, 0.55fr) minmax(280px, 1fr) 120px auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.resource-connector-form > [data-artemis-component="inline-notice"] {
+.resource-connector-settings > p {
   grid-column: 1 / -1;
 }
 
@@ -8688,7 +8663,7 @@ button.sources-panel-entry.attachment:focus-visible {
     flex-basis: auto;
   }
 
-  .resource-connector-form {
+  .resource-connector-settings {
     grid-template-columns: 1fr;
   }
 
@@ -11729,6 +11704,22 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   max-inline-size: 1060px;
 }
 
+.resource-marketplace-diagnostics {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.resource-marketplace-diagnostics summary {
+  cursor: pointer;
+}
+
+.resource-marketplace-diagnostics ul {
+  max-height: 12rem;
+  overflow-y: auto;
+  padding-inline-start: 1.5rem;
+}
+
 .resource-page-header {
   margin: 0 0 18px;
   gap: 14px;
@@ -13219,4 +13210,50 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   color: var(--muted);
   font: inherit;
   cursor: pointer;
+}
+
+.resource-connector-card > [data-part="content"] {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.resource-connector-card > [data-part="content"] > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.resource-connector-card strong,
+.resource-connector-card small {
+  display: block;
+}
+.resource-connector-card small {
+  color: var(--muted);
+  margin-block-start: 4px;
+  overflow-wrap: anywhere;
+}
+.resource-connector-card p {
+  color: var(--muted);
+  margin-block: 10px;
+}
+.resource-connector-card .resource-row-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 820px) {
+  .resource-connector-card > [data-part="content"] {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.plugin-connection-dialog {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 24px;
+  border-radius: 16px;
+}
+.plugin-connection-dialog .resource-connector-card {
+  margin-top: 16px;
 }

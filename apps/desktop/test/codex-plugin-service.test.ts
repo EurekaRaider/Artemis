@@ -104,7 +104,6 @@ async function writePlugin(
       description: "A portable Codex plugin.",
       skills: "./skills/",
       ...(options.declareMcp === false ? {} : { mcpServers: "./.mcp.json" }),
-      apps: "./.app.json",
       hooks: "./hooks/hooks.json",
       interface: { displayName: "Demo Tools" },
     })}\n`,
@@ -137,7 +136,6 @@ async function writePlugin(
       },
     })}\n`,
   );
-  await writeFile(join(pluginRoot, ".app.json"), '{"apps":{}}\n');
   await writeFile(join(pluginRoot, "hooks", "hooks.json"), '{"hooks":{}}\n');
 }
 
@@ -272,7 +270,120 @@ function stableObject(value: unknown): unknown {
 }
 
 describe("CodexPluginService", () => {
-  it("pins signed marketplace trust and gates Artemis-hosted Google auth", async () => {
+  it("replaces an intact historical plugin whose rejected connection was removed from the runtime", async () => {
+    const root = await temporaryRoot(),
+      repository = join(root, "repository");
+    await writeMarketplaceRepository(repository, {
+      name: "replacement-tools",
+      displayName: "Replacement tools",
+    });
+    const pluginRoot = join(repository, "plugins", "demo-tools");
+    const oldMcp = {
+      mcpServers: {
+        google: {
+          command: "${ARTEMIS_NODE}",
+          args: ["${PLUGIN_ROOT}/mcp/server.mjs"],
+          "x-artemis": { auth: { provider: "google", grant: "gmail" } },
+        },
+      },
+    };
+    await writeFile(join(pluginRoot, ".mcp.json"), JSON.stringify(oldMcp));
+    const key = await signMarketplaceRepository(repository);
+    const cloneRepository = async (_url: string, destination: string) =>
+      cp(repository, destination, { recursive: true });
+    const first = createService(root, { cloneRepository });
+    const catalog = await first.service.addMarketplace(
+      "acme/replacement-tools",
+      undefined,
+      key.fingerprint,
+    );
+    const preview = catalog.marketplaces[0]!.marketplace.plugins[0]!;
+    expect(preview.installable).toBe(false);
+    const integrity = JSON.parse(
+      await readFile(join(repository, ".artemis", "integrity.json"), "utf8"),
+    );
+    await cp(pluginRoot, join(root, "user-data", "codex-plugins", preview.id), {
+      recursive: true,
+    });
+    await writeFile(
+      join(root, "user-data", "codex-plugins.json"),
+      JSON.stringify({
+        version: 1,
+        plugins: [
+          {
+            ...preview,
+            skills: [],
+            mcpServers: [
+              { id: "historical-google", structuralHash: "0".repeat(64) },
+            ],
+            contentHash: integrity.plugins[0].contentHash,
+            installedAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+            skillPreviews: [],
+            mcpPreviews: preview.mcpServers,
+            appPreviews: [],
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      join(root, "user-data", "mcp.json"),
+      JSON.stringify({
+        version: 3,
+        servers: [
+          {
+            id: "historical-google",
+            hostAuth: { provider: "google", grant: "gmail" },
+          },
+        ],
+      }),
+    );
+    const historicalCredentials = join(
+      root,
+      "user-data",
+      "google-account.json",
+    );
+    await writeFile(historicalCredentials, "leave-this-historical-file-alone");
+    await writeFile(
+      join(pluginRoot, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          google: {
+            command: "${ARTEMIS_NODE}",
+            args: ["${PLUGIN_ROOT}/mcp/server.mjs"],
+            "x-artemis": {
+              connector: {
+                version: 1,
+                id: "gmail",
+                provider: "google",
+                displayName: "Gmail",
+                auth: "oauth-pkce",
+                scopes: [
+                  "openid",
+                  "email",
+                  "profile",
+                  "https://www.googleapis.com/auth/gmail.modify",
+                ],
+              },
+            },
+          },
+        },
+      }),
+    );
+    await signMarketplaceRepository(repository, key.privateKey);
+    const current = createService(root, { cloneRepository });
+    await expect(current.service.update(preview.id)).resolves.toBeDefined();
+    expect(await current.mcpStore.list()).toEqual([
+      expect.objectContaining({
+        enabled: false,
+        connector: expect.objectContaining({ version: 1, id: "gmail" }),
+      }),
+    ]);
+    expect(await readFile(historicalCredentials, "utf8")).toBe(
+      "leave-this-historical-file-alone",
+    );
+  });
+  it("pins signed marketplace trust and gates connector credentials", async () => {
     const root = await temporaryRoot();
     const repository = join(root, "repository");
     await writeMarketplaceRepository(repository, {
@@ -288,9 +399,12 @@ describe("CodexPluginService", () => {
             command: "${ARTEMIS_NODE}",
             args: ["${PLUGIN_ROOT}/mcp/server.mjs"],
             "x-artemis": {
-              auth: {
+              connector: {
+                version: 1,
+                id: "gmail",
+                displayName: "Gmail",
+                auth: "oauth-pkce",
                 provider: "google",
-                grant: "gmail",
                 scopes: [
                   "openid",
                   "email",
@@ -332,13 +446,13 @@ describe("CodexPluginService", () => {
       command: process.execPath,
       enabled: false,
       env: { ELECTRON_RUN_AS_NODE: "1" },
-      hostAuth: { provider: "google", grant: "gmail" },
+      connector: { version: 1, provider: "google", id: "gmail" },
     });
     await expect(
-      service.assertHostAuthTrusted(config!),
+      service.assertConnectorTrusted(config!),
     ).resolves.toBeUndefined();
     await expect(
-      service.assertHostAuthTrusted({
+      service.assertConnectorTrusted({
         ...config!,
         env: {
           ...(config!.transport === "stdio" ? config!.env : {}),
@@ -350,11 +464,12 @@ describe("CodexPluginService", () => {
     await mcpStore.upsert({ ...config!, enabled: true });
     const mcpPath = join(repository, "plugins", "demo-tools", ".mcp.json");
     const expandedMcp = JSON.parse(await readFile(mcpPath, "utf8")) as {
-      mcpServers: { google: { "x-artemis": { auth: { scopes: string[] } } } };
+      mcpServers: {
+        google: { "x-artemis": { connector: { displayName: string } } };
+      };
     };
-    expandedMcp.mcpServers.google["x-artemis"].auth.scopes.push(
-      "https://www.googleapis.com/auth/calendar.readonly",
-    );
+    expandedMcp.mcpServers.google["x-artemis"].connector.displayName =
+      "Updated Gmail";
     await writeFile(mcpPath, `${JSON.stringify(expandedMcp)}\n`);
     await signMarketplaceRepository(repository, firstKey.privateKey);
     await service.update(plugin.id);
@@ -675,18 +790,6 @@ describe("CodexPluginService", () => {
         "base64",
       ),
     );
-    await writeFile(
-      join(source, ".app.json"),
-      JSON.stringify({
-        apps: {
-          branded: {
-            id: "connector_demo",
-            url: "https://connector.example.test/mcp",
-            auth: "none",
-          },
-        },
-      }),
-    );
     const { service } = createService(root);
 
     const preview = await service.inspectLocal(source);
@@ -696,14 +799,7 @@ describe("CodexPluginService", () => {
       shortDescription: "A polished plugin preview.",
       category: "Productivity",
       brandColor: "#4285F4",
-      apps: [
-        {
-          name: "branded",
-          connectorId: "connector_demo",
-          url: "https://connector.example.test/mcp",
-          auth: "none",
-        },
-      ],
+      apps: [],
     });
     expect(preview.iconDataUrl).toMatch(/^data:image\/png;base64,/u);
     const installed = await service.install(preview.source);
@@ -729,116 +825,72 @@ describe("CodexPluginService", () => {
 
     expect(preview.installable).toBe(false);
     expect(preview.apps).toEqual([
-      {
-        name: "gmail",
-        connectorId: "connector_gmail",
-      },
+      { name: "Update plugin and reconnect", required: true },
     ]);
     await expect(service.install(preview.source)).rejects.toThrow(
-      "requires a Connector endpoint that is unavailable: gmail",
+      /Update plugin and reconnect/,
     );
   });
 
-  it("keeps plugins that provide an importable MCP fallback for the declared App", async () => {
-    const root = await temporaryRoot();
-    const source = join(root, "source", "figma-tools");
-    await writePlugin(source);
-    await writeFile(
-      join(source, ".app.json"),
-      JSON.stringify({
-        apps: {
-          docs: { id: "connector_docs" },
-        },
-      }),
-    );
-    const { service } = createService(root);
-
-    const preview = await service.inspectLocal(source);
-
-    expect(preview.installable).toBe(true);
-    expect(preview.unsupported).not.toContain("Unavailable Connectors");
+  it("refuses legacy aliases even when another MCP server is importable", async () => {
+    for (const declaration of ["apps", "connectors"]) {
+      const root = await temporaryRoot();
+      const source = join(root, "source", "legacy-tools");
+      await writePlugin(source);
+      const path = join(source, ".codex-plugin", "plugin.json");
+      const manifest = JSON.parse(await readFile(path, "utf8"));
+      manifest[declaration] = {
+        docs: { id: "legacy", url: "https://example.test/mcp" },
+      };
+      await writeFile(path, JSON.stringify(manifest));
+      const { service, mcpStore } = createService(root);
+      const preview = await service.inspectLocal(source);
+      expect(preview.installable).toBe(false);
+      await expect(service.install(preview.source)).rejects.toThrow(
+        /Update plugin and reconnect/,
+      );
+      expect(await mcpStore.list()).toEqual([]);
+    }
   });
 
-  it("installs executable Connector declarations through the existing MCP broker", async () => {
-    const root = await temporaryRoot();
-    const source = join(root, "source", "connector-tools");
-    await writePlugin(source, { declareMcp: false });
-    const manifestPath = join(source, ".codex-plugin", "plugin.json");
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    delete manifest.apps;
-    manifest.connectors = "./.connector.json";
-    await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
-    await writeFile(
-      join(source, ".connector.json"),
-      JSON.stringify({
-        connectors: {
-          mail: {
-            id: "mail",
-            url: "https://connector.example.test/mcp",
-            auth: "oauth",
-            required: true,
-          },
-        },
-      }),
-    );
-    const { service, mcpStore } = createService(root);
-
-    const preview = await service.inspectLocal(source);
-
-    expect(preview.installable).toBe(true);
-    expect(preview.apps).toEqual([
+  it("isolates legacy auth and unsupported connector declarations from unrelated plugins", async () => {
+    for (const extension of [
+      { auth: { provider: "google", grant: "gmail" } },
+      { connector: { version: 99, provider: "google" } },
       {
-        name: "mail",
-        connectorId: "mail",
-        url: "https://connector.example.test/mcp",
-        auth: "oauth",
-        required: true,
+        connector: {
+          version: 1,
+          id: "figma",
+          provider: "figma",
+          displayName: "Figma",
+          auth: "none",
+          scopes: [],
+        },
       },
-    ]);
-    const installed = await service.install(preview.source);
-    const connector = (await mcpStore.list()).find(
-      (config) => config.resourceKind === "connector",
-    );
-    expect(connector).toMatchObject({
-      id: installed.plugin.mcpServerIds[0],
-      name: "Demo Tools: mail",
-      transport: "streamable-http",
-      enabled: false,
-      url: "https://connector.example.test/mcp",
-      auth: "oauth",
-      resourceKind: "connector",
-      connectorId: "mail",
-    });
-
-    await service.remove(installed.plugin.id);
-    expect(await mcpStore.list()).toEqual([]);
-  });
-
-  it("rejects remote Connector endpoints that do not use HTTPS", async () => {
-    const root = await temporaryRoot();
-    const source = join(root, "source", "unsafe-connector-tools");
-    await writePlugin(source, { declareMcp: false });
-    const manifestPath = join(source, ".codex-plugin", "plugin.json");
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    delete manifest.apps;
-    manifest.connectors = {
-      unsafe: {
-        url: "http://connector.example.test/mcp",
-        auth: "none",
-      },
-    };
-    await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
-    const { service } = createService(root);
-
-    await expect(service.inspectLocal(source)).rejects.toThrow(
-      "Connector URL must use HTTPS or loopback HTTP",
-    );
+    ]) {
+      const root = await temporaryRoot(),
+        source = join(root, "source", "unsupported");
+      await writePlugin(source);
+      await writeFile(
+        join(source, ".mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            bad: {
+              command: "node",
+              args: ["server.mjs"],
+              "x-artemis": extension,
+            },
+          },
+        }),
+      );
+      const { service, mcpStore } = createService(root);
+      const preview = await service.inspectLocal(source);
+      expect(preview.installable).toBe(false);
+      await expect(service.install(preview.source)).rejects.toThrow(
+        /Update plugin and reconnect/,
+      );
+      expect(await mcpStore.list()).toEqual([]);
+    }
   });
 
   it("previews and atomically installs portable Skills and disabled MCP servers", async () => {
@@ -1190,18 +1242,24 @@ describe("CodexPluginService", () => {
 
     expect(clonedUrls).toEqual(["https://github.com/openai/plugins.git"]);
     expect(marketplace.name).toBe("Codex official");
-    expect(marketplace.plugins).toHaveLength(2);
+    expect(marketplace.plugins).toHaveLength(3);
     expect(
       marketplace.plugins.some(
-        (candidate) => candidate.name === "unavailable-tools",
+        (candidate) =>
+          candidate.source.kind === "git" &&
+          candidate.source.pluginName === "unavailable-tools" &&
+          !candidate.installable,
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       marketplace.plugins.map((candidate) =>
         candidate.source.kind === "git" ? candidate.source.pluginName : "local",
       ),
     ).toEqual(expect.arrayContaining(["demo-tools", "demo-tools-alias"]));
     expect(marketplace.warnings.join("\n")).toContain("remote-only");
+    expect(marketplace.warnings.join("\n")).not.toContain(
+      "Update plugin and reconnect",
+    );
     const source = marketplace.plugins.find(
       (candidate) =>
         candidate.source.kind === "git" &&
@@ -1221,9 +1279,12 @@ describe("CodexPluginService", () => {
     expect(clonedUrls).toHaveLength(2);
     expect(
       refreshedMarketplace.plugins.some(
-        (candidate) => candidate.name === "unavailable-tools",
+        (candidate) =>
+          candidate.source.kind === "git" &&
+          candidate.source.pluginName === "unavailable-tools" &&
+          !candidate.installable,
       ),
-    ).toBe(false);
+    ).toBe(true);
     const installed = await service.install(source);
     expect(installed.plugin.source.kind).toBe("git");
   });

@@ -308,11 +308,13 @@ level and prioritizes flat Agent-team decomposition for complex or long-horizon
 tasks. Existing Pi OAuth credentials can be imported explicitly; Artemis does
 not silently copy them.
 
-Google authorization for plugin-hosted MCP runtimes is optional. A source build
-must provide `apps/desktop/resources/google-oauth-client.json` in Google's
-Desktop app client JSON format. The file is ignored by Git and must not be
-committed; without it, the rest of Artemis remains available while the Google
-account action reports that the build has no application-level OAuth client.
+Platform integrations use the versioned connector contract and a separate encrypted
+credential vault. Users install a signed plugin and select **Connect** in Resource
+Center. Publisher OAuth application registration is configured once in
+`apps/desktop/resources/connector-clients.json`; users do not create developer
+projects or enter client IDs. See [connector architecture and publisher setup](docs/connectors.md).
+Existing integrations require updated plugins and fresh authorization. Historical
+credential files are neither read nor migrated nor automatically removed.
 
 <br />
 
