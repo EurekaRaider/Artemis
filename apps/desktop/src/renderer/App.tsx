@@ -59,6 +59,8 @@ import {
 import { Dialog, LoadingState, Popover, Toast, Tooltip } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import artemisIcon from "../../build/icon.png";
+import feishuChannelIcon from "./assets/feishu-channel.png";
+import slackChannelIcon from "./assets/slack-channel.svg";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
   ApprovalCard as ApprovalPatternCard,
@@ -864,6 +866,72 @@ function visibleThreadTitle(title: string): string {
     promptWithoutSelectedSkills(title) ||
     selectedSkillNamesForPrompt(title).join(", ") ||
     title
+  );
+}
+
+/* IM 任务标题固定带「渠道 · 摘要」前缀（task-title.ts），侧栏把前缀文字
+   换成品牌图标；标题数据本身不动。 */
+const IM_TITLE_CHANNELS: Record<string, string> = {
+  Slack: "slack",
+  飞书: "feishu",
+  企业微信: "wecom",
+  Lark: "feishu",
+};
+
+function splitImChannelPrefix(
+  title: string,
+): { channel: string; rest: string } | undefined {
+  const match = new RegExp(
+    `^(${Object.keys(IM_TITLE_CHANNELS).join("|")})\\s*·\\s*`,
+    "u",
+  ).exec(title);
+  const matched = match?.[1];
+  if (!matched) return undefined;
+  return { channel: IM_TITLE_CHANNELS[matched]!, rest: title.slice(match[0].length) };
+}
+
+function ThreadChannelMark({ channel }: { channel: string }) {
+  if (channel === "feishu")
+    return (
+      <img
+        alt=""
+        aria-hidden="true"
+        className="thread-channel-logo"
+        src={feishuChannelIcon}
+      />
+    );
+  if (channel === "slack")
+    return (
+      <img
+        alt=""
+        aria-hidden="true"
+        className="thread-channel-logo"
+        src={slackChannelIcon}
+      />
+    );
+  return (
+    <ArtemisIcon
+      aria-hidden="true"
+      className="thread-channel-logo"
+      name="wecom"
+    />
+  );
+}
+
+function ThreadTitleContent({ title }: { title: string }) {
+  const visible = visibleThreadTitle(title);
+  const parsed = splitImChannelPrefix(visible);
+  const text = parsed ? parsed.rest : visible;
+  return (
+    <>
+      {parsed && <ThreadChannelMark channel={parsed.channel} />}
+      <span className="thread-title-text">
+        <span>{text}</span>
+        <span aria-hidden="true" className="thread-title-copy">
+          {text}
+        </span>
+      </span>
+    </>
   );
 }
 
@@ -6210,17 +6278,9 @@ export function App() {
                                   onPointerEnter={prepareThreadTitleScroll}
                                   title={visibleThreadTitle(thread.title)}
                                 >
-                                  <span className="thread-title-text">
-                                    <span>
-                                      {visibleThreadTitle(thread.title)}
-                                    </span>
-                                    <span
-                                      aria-hidden="true"
-                                      className="thread-title-copy"
-                                    >
-                                      {visibleThreadTitle(thread.title)}
-                                    </span>
-                                  </span>
+                                  <ThreadTitleContent
+                                    title={thread.title}
+                                  />
                                 </span>
                                 <time
                                   className="thread-time"
@@ -6468,15 +6528,7 @@ export function App() {
                         onPointerEnter={prepareThreadTitleScroll}
                         title={visibleThreadTitle(thread.title)}
                       >
-                        <span className="thread-title-text">
-                          <span>{visibleThreadTitle(thread.title)}</span>
-                          <span
-                            aria-hidden="true"
-                            className="thread-title-copy"
-                          >
-                            {visibleThreadTitle(thread.title)}
-                          </span>
-                        </span>
+                        <ThreadTitleContent title={thread.title} />
                       </span>
                       <time
                         className="thread-time"
