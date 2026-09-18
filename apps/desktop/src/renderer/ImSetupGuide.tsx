@@ -36,19 +36,21 @@ export function ImGatewayInstructions({
         <p>{t("ImSetupGuide.message3")}</p>
         <p>{t("ImSetupGuide.message26")}</p>
       </div>
-      <details>
+      <details className="im-gateway-fold">
         <summary>{t("ImSetupGuide.message4")}</summary>
-        <p>{t("ImSetupGuide.message5")}</p>
-        <div className="im-actions">
-          <Button disabled={busy} onClick={useRemote}>
-            {t("ImSetupGuide.message6")}
-          </Button>
-          <Button disabled={busy} onClick={exportPackage}>
-            {t("ImSetupGuide.message7")}
-          </Button>
+        <div className="im-gateway-fold-body">
+          <p>{t("ImSetupGuide.message5")}</p>
+          <div className="im-actions">
+            <Button disabled={busy} onClick={useRemote}>
+              {t("ImSetupGuide.message6")}
+            </Button>
+            <Button disabled={busy} onClick={exportPackage}>
+              {t("ImSetupGuide.message7")}
+            </Button>
+          </div>
+          <p>{t("ImSetupGuide.message8")}</p>
+          <pre className="im-command">node gateway.mjs</pre>
         </div>
-        <p>{t("ImSetupGuide.message8")}</p>
-        <pre className="im-command">node gateway.mjs</pre>
       </details>
     </ManagementSection>
   );

@@ -10123,19 +10123,6 @@ kbd {
 .im-header > [data-artemis-component="switch"] {
   max-width: 100%;
 }
-.im-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-inline-start: auto;
-  padding: 4px 11px;
-  border: 1px solid var(--artemis-color-border-subtle);
-  border-radius: 999px;
-  font-size: 11.5px;
-  line-height: 17.25px;
-  font-weight: 510;
-  background: var(--artemis-color-surface-sunken);
-}
 .im-dot {
   display: inline-block;
   inline-size: 8px;
@@ -10158,114 +10145,6 @@ kbd {
 .im-dot[data-state="saving"] {
   color: var(--warning);
   background: currentColor;
-}
-/* Guided 消息接入 flow: five step cards with progress in the header. */
-.im-flow {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  min-height: 0;
-  padding: 4px;
-}
-.im-flow-card {
-  /* border-radius: inherit on the head picks up 0 from its h3 wrapper. */
-  --im-flow-radius: calc(var(--artemis-radius-md, 10px) - 1px);
-  border: 0;
-  border-radius: var(--artemis-radius-md, 10px);
-  background: transparent;
-}
-.im-flow-card + .im-flow-card::before {
-  content: "";
-  display: block;
-  margin: 0 14px 10px 46px;
-  border-top: 1px solid var(--border-soft);
-}
-.im-flow-head-h {
-  margin: 0;
-  font-size: inherit;
-  font-weight: inherit;
-}
-.im-flow-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  inline-size: 100%;
-  padding: 9px 14px;
-  border: 0;
-  border-radius: var(--im-flow-radius);
-  background: transparent;
-  text-align: start;
-  font: inherit;
-  color: inherit;
-}
-/* Barely-there wash of the text color: reads as a highlight, not a gray fill. */
-.im-flow-head:hover,
-.im-flow-head:focus-visible {
-  background: color-mix(in srgb, var(--text) 3.5%, transparent);
-}
-.im-flow-card[data-open="true"] .im-flow-head {
-  border-radius: var(--im-flow-radius) var(--im-flow-radius) 0 0;
-}
-.im-flow-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 24px;
-  block-size: 24px;
-  flex: none;
-  color: light-dark(#276eaf, #7dbbfa);
-}
-.im-flow-num[data-icon="message"] {
-  color: light-dark(#187c73, #77d6c8);
-}
-.im-flow-num[data-icon="folder"] {
-  color: light-dark(#996611, #f2c363);
-}
-/* 完成状态跟随标题，不遮挡步骤图标。 */
-.im-flow-num-check {
-  display: grid;
-  place-items: center;
-  inline-size: 11px;
-  block-size: 11px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--success);
-  /* Keep the completion mark legible against the muted green badge. */
-  color: light-dark(#fff, #0a2210);
-  line-height: 0;
-}
-.im-flow-num-check svg {
-  stroke-width: 3;
-}
-.im-flow-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.im-flow-summary {
-  flex: 1;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.im-flow-caret {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  inline-size: 20px;
-  block-size: 20px;
-  color: var(--muted);
-  transform: rotate(-90deg);
-}
-.im-flow-head[aria-expanded="true"] .im-flow-caret {
-  transform: rotate(0deg);
 }
 .im-settings [data-artemis-component="checkbox"],
 .im-grant-dialog [data-artemis-component="checkbox"] {
@@ -10292,13 +10171,6 @@ kbd {
   [data-part="thumb"] {
   transform: translateX(-14px);
 }
-.im-flow-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 14px 14px;
-  border-top: 1px solid var(--border-soft);
-}
 /* 步骤卡是唯一容器：卡内管理分区去卡片壳（背景/边框/圆角/内距），
    只保留标题、描述与内容的排版结构。 */
 .im-flow-section {
@@ -10317,17 +10189,6 @@ kbd {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-/* 卡内排版规整：正文从全局 14px 收到 12.5px，指令 code 12px 等宽，
-   与分区标题（12px/650）、说明（11px）构成合理梯度。 */
-.im-flow-body p,
-.im-flow-body li,
-.im-flow-body summary {
-  font-size: 12.5px;
-  line-height: 1.65;
-}
-.im-flow-body .im-identifier {
-  font-size: 12px;
 }
 /* ④卡：三档模式与内置临时会话行。 */
 .im-mode-tiers {
@@ -10572,6 +10433,52 @@ kbd {
   color: var(--muted);
   font-size: 12.5px;
   line-height: 19px;
+}
+/* 高级/手动注册两张折叠卡：头部行=标题+右侧箭头，展开内容下拉包进卡内。 */
+.im-gateway-fold {
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+.im-gateway-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 640;
+  color: var(--text);
+}
+.im-gateway-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.im-gateway-fold > summary::after {
+  content: "";
+  flex: none;
+  margin-inline-start: auto;
+  inline-size: 7px;
+  block-size: 7px;
+  border-inline-end: 1.5px solid var(--muted);
+  border-block-end: 1.5px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 180ms ease;
+}
+.im-gateway-fold[open] > summary {
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-gateway-fold[open] > summary::after {
+  transform: rotate(45deg);
+}
+.im-gateway-fold > summary:hover {
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+}
+.im-gateway-fold-body {
+  padding: 12px 14px 14px;
+  display: grid;
+  gap: 10px;
+  font-size: 12.5px;
 }
 .im-service-body {
   padding-block-start: 12px;
@@ -11698,14 +11605,6 @@ kbd {
   max-width: 52ch;
 }
 
-.im-header-state {
-  display: flex;
-  align-items: center;
-  margin-inline-start: auto;
-  gap: 12px;
-  max-width: 100%;
-}
-
 .settings-header [data-variant="quiet"] {
   border: 1px solid transparent;
   background: transparent;
@@ -12490,16 +12389,6 @@ kbd {
   margin-top: 8px;
 }
 
-/* IM management uses a compact two-column list, with actions beside their content. */
-.im-header-state {
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.im-master-label {
-  margin-inline-start: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
 .im-dot {
   background: currentColor;
 }

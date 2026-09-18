@@ -785,14 +785,16 @@ export function ImSettingsPanel({
         </section>
         <section id="im-device" tabIndex={-1}>
           <details
+            className="im-gateway-fold"
             open={showRemote}
             onToggle={(event) => setShowRemote(event.currentTarget.open)}
           >
             <summary>{t("ImSettingsPanel.message46")}</summary>
-            <ManagementSection
-              title={t("ImSettingsPanel.message57")}
-              description={t("ImSettingsPanel.message58")}
-            >
+            <div className="im-gateway-fold-body">
+              <ManagementSection
+                title={t("ImSettingsPanel.message57")}
+                description={t("ImSettingsPanel.message58")}
+              >
               <TextField
                 label={t("ImSettingsPanel.message47")}
                 description={t("ImSettingsPanel.message48")}
@@ -846,7 +848,8 @@ export function ImSettingsPanel({
                 </Button>
               </div>
               <p>{t("ImSettingsPanel.message56")}</p>
-            </ManagementSection>
+              </ManagementSection>
+            </div>
           </details>
         </section>
       </>
