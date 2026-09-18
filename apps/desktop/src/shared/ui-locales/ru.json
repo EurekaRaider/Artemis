@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "Приложение «{{name}}» создано и подключено. Отправьте команду привязки в чат бота, чтобы завершить привязку.",
   "ImFeishuScan.message6": "Сканирование не завершено или истекло. Повторите попытку.",
   "ImFeishuScan.message9": "Отмена",
-  "ImSettingsPanel.imChannelsTitle": "Каналы IM",
+  "ImSettingsPanel.imChannelsTitle": "Настройки IM-каналов",
   "ImSettingsPanel.channelBack": "Назад",
   "ImSettingsPanel.channelBotsCount": "{{value1}} ботов",
   "ImSettingsPanel.projectsSummary": "{{value1}} проектов · общие для всех каналов",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Подсказки:",
   "ImSetupGuide.message26": "2. Настройте права доступа к проектам, чтобы боты могли ими пользоваться.",
   "ImSettingsPanel.powerStart": "Запустить",
-  "ImSettingsPanel.powerStop": "Остановить"
+  "ImSettingsPanel.powerStop": "Отключить",
+  "ImSettingsPanel.serviceReady": "Готово",
+  "ImSettingsPanel.serviceDisconnected": "Отключено"
 }

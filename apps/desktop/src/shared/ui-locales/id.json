@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "\"{{name}}\" dibuat dan tersambung. Kirim perintah pemasangan di chat bot untuk menyelesaikan pengikatan.",
   "ImFeishuScan.message6": "Pemindaian tidak selesai atau kedaluwarsa. Coba lagi.",
   "ImFeishuScan.message9": "Batal",
-  "ImSettingsPanel.imChannelsTitle": "Saluran IM",
+  "ImSettingsPanel.imChannelsTitle": "Pengaturan kanal IM",
   "ImSettingsPanel.channelBack": "Kembali",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
   "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Tips:",
   "ImSetupGuide.message26": "2. Atur izin proyek agar bot dapat mengaksesnya.",
   "ImSettingsPanel.powerStart": "Mulai",
-  "ImSettingsPanel.powerStop": "Hentikan"
+  "ImSettingsPanel.powerStop": "Putuskan",
+  "ImSettingsPanel.serviceReady": "Siap",
+  "ImSettingsPanel.serviceDisconnected": "Terputus"
 }

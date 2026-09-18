@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "تم إنشاء \"{{name}}\" وربطه. أرسل أمر الاقتران في محادثة الروبوت لإكمال الربط.",
   "ImFeishuScan.message6": "لم يكتمل المسح أو انتهت صلاحيته. حاول مرة أخرى.",
   "ImFeishuScan.message9": "إلغاء",
-  "ImSettingsPanel.imChannelsTitle": "قنوات المراسلة",
+  "ImSettingsPanel.imChannelsTitle": "إعدادات قنوات IM",
   "ImSettingsPanel.channelBack": "رجوع",
   "ImSettingsPanel.channelBotsCount": "{{value1}} روبوت",
   "ImSettingsPanel.projectsSummary": "{{value1}} مشاريع · مشتركة بين كل القنوات",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "تلميحات:",
   "ImSetupGuide.message26": "2、اضبط أذونات المشروع ليتمكن الروبوت من الوصول.",
   "ImSettingsPanel.powerStart": "تشغيل",
-  "ImSettingsPanel.powerStop": "إيقاف"
+  "ImSettingsPanel.powerStop": "قطع الاتصال",
+  "ImSettingsPanel.serviceReady": "جاهز",
+  "ImSettingsPanel.serviceDisconnected": "غير متصل"
 }

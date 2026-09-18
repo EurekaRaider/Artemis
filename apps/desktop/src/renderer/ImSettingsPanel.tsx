@@ -723,10 +723,10 @@ export function ImSettingsPanel({
       <LoadingState label={t("ImSettingsPanel.message31")} lines={3} />
     );
   const stateLabels: Record<NonNullable<ImStatus["state"]>, string> = {
-    disabled: t("AutomationPage_text.paused"),
+    disabled: t("ImSettingsPanel.serviceDisconnected"),
     connecting: t("ImNavigation.message11"),
-    connected: t("ImNavigation.message12"),
-    error: t("ImNavigation.message8"),
+    connected: t("ImSettingsPanel.serviceReady"),
+    error: t("ImSettingsPanel.serviceDisconnected"),
   };
   const enableReason = !settings.deviceId
     ? t("ImSettingsPanel.message37")
@@ -738,7 +738,7 @@ export function ImSettingsPanel({
     : !status?.settings.deviceId
       ? t("ImNavigation.message6")
       : !status.settings.enabled
-        ? t("AutomationPage_text.paused")
+        ? t("ImSettingsPanel.serviceDisconnected")
         : status?.state === "error"
           ? stateLabels.error
           : !hasBot
@@ -2411,23 +2411,27 @@ export function ImSettingsPanel({
                         })
                       }
                     >
-                      {/* 启动/停止双态=图标+文字：停止态 ▶启动，运行态 ■停止。 */}
+                      {/* 启动/断开双态=Lucide 插头图标+文字（单色描边）：断开=unplug+启动，就绪=plug+断开。 */}
                       {settings.enabled || status?.settings.enabled ? (
                         <>
                           <svg
                             aria-hidden="true"
-                            viewBox="0 0 16 16"
-                            width="12"
-                            height="12"
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                           >
-                            <rect
-                              x="4"
-                              y="4"
-                              width="8"
-                              height="8"
-                              rx="1.5"
-                              fill="currentColor"
-                            />
+                            <path d="m19 5 3-3" />
+                            <path d="m22 8-3-3" />
+                            <path d="m2 22 4-4" />
+                            <path d="m5 19 3-3" />
+                            <path d="M9 8V2" />
+                            <path d="M15 8V2" />
+                            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
                           </svg>
                           <span>{t("ImSettingsPanel.powerStop")}</span>
                         </>
@@ -2435,14 +2439,19 @@ export function ImSettingsPanel({
                         <>
                           <svg
                             aria-hidden="true"
-                            viewBox="0 0 16 16"
-                            width="12"
-                            height="12"
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                           >
-                            <path
-                              d="M5 3.2v9.6l8-4.8z"
-                              fill="currentColor"
-                            />
+                            <path d="M12 22v-5" />
+                            <path d="M9 8V2" />
+                            <path d="M15 8V2" />
+                            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
                           </svg>
                           <span>{t("ImSettingsPanel.powerStart")}</span>
                         </>
@@ -2502,9 +2511,15 @@ export function ImSettingsPanel({
             </section>
           ) : (
             <section className="im-channel-list" aria-label={t("ImSettingsPanel.imChannelsTitle")}>
-              <h3 className="im-channel-list-title">
-                {t("ImSettingsPanel.imChannelsTitle")}
-              </h3>
+              <div className="im-channel-list-head">
+                <ArtemisIcon
+                  aria-hidden="true"
+                  name="message"
+                  width={20}
+                  height={20}
+                />
+                <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
+              </div>
               {IM_CHANNELS.map((platform) =>
                 /* wecom 接入未开放：仅存量连接（或已存凭据）才显示行，
                    未配置渠道不出现；飞书/Slack 恒显示。 */

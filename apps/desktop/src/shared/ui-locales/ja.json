@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "「{{name}}」を作成して接続しました。ボットチャットでペアリングコマンドを送信してバインドを完了してください。",
   "ImFeishuScan.message6": "スキャンが完了しないか、有効期限が切れました。もう一度お試しください。",
   "ImFeishuScan.message9": "キャンセル",
-  "ImSettingsPanel.imChannelsTitle": "IM チャネル",
+  "ImSettingsPanel.imChannelsTitle": "IMチャネル設定",
   "ImSettingsPanel.channelBack": "戻る",
   "ImSettingsPanel.channelBotsCount": "{{value1}} 個のボット",
   "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "ご注意：",
   "ImSetupGuide.message26": "2、Botがアクセスできるようプロジェクト権限を設定してください。",
   "ImSettingsPanel.powerStart": "起動",
-  "ImSettingsPanel.powerStop": "停止"
+  "ImSettingsPanel.powerStop": "切断",
+  "ImSettingsPanel.serviceReady": "準備完了",
+  "ImSettingsPanel.serviceDisconnected": "切断"
 }

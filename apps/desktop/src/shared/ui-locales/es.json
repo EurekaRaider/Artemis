@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "Se creó y conectó \"{{name}}\". Envía el comando de emparejamiento en el chat del bot para terminar de vincular.",
   "ImFeishuScan.message6": "El escaneo no se completó o expiró. Inténtalo de nuevo.",
   "ImFeishuScan.message9": "Cancelar",
-  "ImSettingsPanel.imChannelsTitle": "Canales de IM",
+  "ImSettingsPanel.imChannelsTitle": "Ajustes de canales IM",
   "ImSettingsPanel.channelBack": "Volver",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
   "ImSettingsPanel.projectsSummary": "{{value1}} proyectos · compartidos por todos los canales",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Sugerencias:",
   "ImSetupGuide.message26": "2. Configura permisos de proyecto para que los bots puedan acceder.",
   "ImSettingsPanel.powerStart": "Iniciar",
-  "ImSettingsPanel.powerStop": "Detener"
+  "ImSettingsPanel.powerStop": "Desconectar",
+  "ImSettingsPanel.serviceReady": "Listo",
+  "ImSettingsPanel.serviceDisconnected": "Desconectado"
 }

@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "已建立並連線「{{name}}」，請在飛書私聊中發送配對指令完成綁定。",
   "ImFeishuScan.message6": "掃碼未完成或已過期，請重試。",
   "ImFeishuScan.message9": "取消",
-  "ImSettingsPanel.imChannelsTitle": "IM 頻道",
+  "ImSettingsPanel.imChannelsTitle": "IM渠道設定",
   "ImSettingsPanel.channelBack": "返回",
   "ImSettingsPanel.channelBotsCount": "{{value1}} 個機器人",
   "ImSettingsPanel.projectsSummary": "{{value1}} 個專案 · 所有頻道通用",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "溫馨提示：",
   "ImSetupGuide.message26": "2、設定專案權限以便Bot存取。",
   "ImSettingsPanel.powerStart": "啟動",
-  "ImSettingsPanel.powerStop": "停止"
+  "ImSettingsPanel.powerStop": "斷開",
+  "ImSettingsPanel.serviceReady": "已就緒",
+  "ImSettingsPanel.serviceDisconnected": "已斷開"
 }

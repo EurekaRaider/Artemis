@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "« {{name}} » a été créé et connecté. Envoyez la commande d’appariement dans le chat du bot pour terminer la liaison.",
   "ImFeishuScan.message6": "Le scan n'a pas abouti ou a expiré. Réessayez.",
   "ImFeishuScan.message9": "Annuler",
-  "ImSettingsPanel.imChannelsTitle": "Canaux IM",
+  "ImSettingsPanel.imChannelsTitle": "Réglages des canaux IM",
   "ImSettingsPanel.channelBack": "Retour",
   "ImSettingsPanel.channelBotsCount": "{{value1}} robots",
   "ImSettingsPanel.projectsSummary": "{{value1}} projets · partagés par tous les canaux",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Conseils :",
   "ImSetupGuide.message26": "2. Définissez les permissions de projet pour que les bots puissent y accéder.",
   "ImSettingsPanel.powerStart": "Démarrer",
-  "ImSettingsPanel.powerStop": "Arrêter"
+  "ImSettingsPanel.powerStop": "Déconnecter",
+  "ImSettingsPanel.serviceReady": "Prêt",
+  "ImSettingsPanel.serviceDisconnected": "Déconnecté"
 }

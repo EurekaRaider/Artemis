@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "\"{{name}}\" criado e conectado. Envie o comando de pareamento no chat do bot para concluir a vinculação.",
   "ImFeishuScan.message6": "A digitalização não foi concluída ou expirou. Tente novamente.",
   "ImFeishuScan.message9": "Cancelar",
-  "ImSettingsPanel.imChannelsTitle": "Canais de IM",
+  "ImSettingsPanel.imChannelsTitle": "Ajustes de canais IM",
   "ImSettingsPanel.channelBack": "Voltar",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
   "ImSettingsPanel.projectsSummary": "{{value1}} projetos · compartilhados por todos os canais",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Dicas:",
   "ImSetupGuide.message26": "2. Configure permissões de projeto para que os bots possam acessar.",
   "ImSettingsPanel.powerStart": "Iniciar",
-  "ImSettingsPanel.powerStop": "Parar"
+  "ImSettingsPanel.powerStop": "Desconectar",
+  "ImSettingsPanel.serviceReady": "Pronto",
+  "ImSettingsPanel.serviceDisconnected": "Desconectado"
 }

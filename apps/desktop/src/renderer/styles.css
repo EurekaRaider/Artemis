@@ -10405,7 +10405,7 @@ kbd {
    授权是设备级全局共用，行上不重复计数。 */
 .im-two-col {
   display: grid;
-  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 14px;
   /* 两栏边框封顶在弹窗可视高度（与弹窗底部保留边距），内容超高时在栏内滚动。 */
@@ -10437,14 +10437,6 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.im-channel-list-title {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .im-channel-row {
   display: flex;
@@ -10482,18 +10474,25 @@ kbd {
   flex-direction: column;
   min-height: 0;
 }
-.im-service-head {
+.im-service-head,
+.im-channel-list-head {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding-block-end: 10px;
+  padding-block: 12px;
   border-block-end: 1px solid var(--border-soft);
+  margin-block-end: 2px;
 }
-.im-service-head strong {
+.im-service-head strong,
+.im-channel-list-head strong {
   font-size: 14px;
   font-weight: 620;
 }
-.im-service-head svg {
+.im-channel-list-head svg {
+  color: var(--muted);
+  flex: none;
+}
+.im-service-head > svg {
   color: var(--muted);
   flex: none;
 }
@@ -10522,13 +10521,9 @@ kbd {
 .im-power-toggle[data-state="on"] {
   color: var(--text);
 }
-.im-power-toggle[data-state="on"] svg {
-  color: var(--success);
-}
-.im-power-toggle[data-state="off"]:hover,
-.im-power-toggle[data-state="off"]:hover svg {
-  color: var(--success);
-  border-color: var(--success);
+.im-power-toggle:hover {
+  color: var(--text);
+  border-color: var(--muted-2);
 }
 .im-power-toggle:disabled {
   opacity: 0.45;

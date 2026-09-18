@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "Created and connected \"{{name}}\". Send the pairing command in the bot chat to finish binding.",
   "ImFeishuScan.message6": "The scan was not completed or expired. Try again.",
   "ImFeishuScan.message9": "Cancel",
-  "ImSettingsPanel.imChannelsTitle": "IM channels",
+  "ImSettingsPanel.imChannelsTitle": "IM channel settings",
   "ImSettingsPanel.channelBack": "Back",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bots",
   "ImSettingsPanel.projectsSummary": "{{value1}} projects · shared by all channels",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Tips:",
   "ImSetupGuide.message26": "2. Set project permissions so bots can access them.",
   "ImSettingsPanel.powerStart": "Start",
-  "ImSettingsPanel.powerStop": "Stop"
+  "ImSettingsPanel.powerStop": "Disconnect",
+  "ImSettingsPanel.serviceReady": "Ready",
+  "ImSettingsPanel.serviceDisconnected": "Disconnected"
 }

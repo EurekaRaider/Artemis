@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message5": "\"{{name}}\" creato e connesso. Invia il comando di abbinamento nella chat del bot per completare il binding.",
   "ImFeishuScan.message6": "La scansione non è stata completata o è scaduta. Riprova.",
   "ImFeishuScan.message9": "Annulla",
-  "ImSettingsPanel.imChannelsTitle": "Canali IM",
+  "ImSettingsPanel.imChannelsTitle": "Impostazioni canali IM",
   "ImSettingsPanel.channelBack": "Indietro",
   "ImSettingsPanel.channelBotsCount": "{{value1}} bot",
   "ImSettingsPanel.projectsSummary": "{{value1}} progetti · condivisi da tutti i canali",
@@ -1487,5 +1487,7 @@
   "ImSetupGuide.message25": "Suggerimenti:",
   "ImSetupGuide.message26": "2. Imposta i permessi del progetto affinché i bot possano accedere.",
   "ImSettingsPanel.powerStart": "Avvia",
-  "ImSettingsPanel.powerStop": "Ferma"
+  "ImSettingsPanel.powerStop": "Disconnetti",
+  "ImSettingsPanel.serviceReady": "Pronto",
+  "ImSettingsPanel.serviceDisconnected": "Disconnesso"
 }

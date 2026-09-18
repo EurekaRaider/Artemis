@@ -922,7 +922,7 @@ describe("production IM settings", () => {
     const f = fixture(false);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    expect(await screen.findByText("IM 渠道")).toBeVisible();
+    expect(await screen.findByText("IM渠道设置")).toBeVisible();
     /* 左栏=固定标题连接服务；右栏=四张卡（渠道/群协作/授权项目）。 */
     expect(screen.getByText("连接服务")).toBeVisible();
     expect(
