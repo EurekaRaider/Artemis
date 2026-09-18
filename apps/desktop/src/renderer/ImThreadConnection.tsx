@@ -7,7 +7,6 @@ import type {
   ImStatus,
 } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { imGroupMentionTargets } from "@artemis/protocol";
 
 type ThreadConnection = {
   permissionBlock?: string;
@@ -144,70 +143,42 @@ export function ImThreadConnection({
   }[state];
   const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
   const group = status.group;
-  const members = group ? imGroupMentionTargets(group) : [];
-  const computerState =
-    !group || group.stale || !group.confirmed
-      ? "unknown"
-      : members.some((member) => member.state === "online")
-        ? "online"
-        : members.length > 0 &&
-            (!group.targetDeviceIds ||
-              group.targetDeviceIds.every((id) =>
-                members.some((member) => member.deviceId === id),
-              )) &&
-            members.every((member) => member.state === "offline")
-          ? "offline"
-          : "unknown";
-  const computerLabel =
-    computerState === "online"
-      ? uiText(locale, "ImThreadConnection.inline5")
-      : computerState === "offline"
-        ? uiText(locale, "ImThreadConnection.inline4")
-        : uiText(locale, "ImThreadConnection.inline3");
   return (
     <span className="im-thread-indicators">
-      {group && (
+      {group ? (
+        /* 群聊只保留群聊图标，颜色随 IM 连接状态变化。 */
         <span
+          aria-label={summary}
           className="im-thread-group"
+          data-state={state}
           role="img"
-          aria-label={uiText(locale, "ImThreadConnection.inline6")}
-          title={uiText(locale, "ImThreadConnection.inline6")}
+          title={summary}
         >
-          <ArtemisIcon name="agents" width={16} height={16} />
+          <ArtemisIcon name="agents" width={15} height={15} />
         </span>
-      )}
-      <span
-        aria-label={summary}
-        className="im-thread-connection"
-        data-state={state}
-        role="img"
-        title={summary}
-      >
-        <ArtemisIcon
-          name={
-            state === "error"
-              ? "alert"
-              : state === "connecting"
-                ? "clock"
-                : state === "disabled"
-                  ? "unlink"
-                  : state === "unknown"
-                    ? "info"
-                    : "message"
-          }
-          width={14}
-          height={14}
-        />
-      </span>
-      {group && !group.native && (
+      ) : (
         <span
-          className="im-thread-computers"
-          data-state={computerState}
+          aria-label={summary}
+          className="im-thread-connection"
+          data-state={state}
           role="img"
-          aria-label={computerLabel}
-          title={computerLabel}
+          title={summary}
         >
-          <ArtemisIcon name="monitor" width={14} height={14} />
+          <ArtemisIcon
+            name={
+              state === "error"
+                ? "alert"
+                : state === "connecting"
+                  ? "clock"
+                  : state === "disabled"
+                    ? "unlink"
+                    : state === "unknown"
+                      ? "info"
+                      : "message"
+            }
+            width={15}
+            height={15}
+          />
         </span>
       )}
     </span>

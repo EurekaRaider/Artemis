@@ -553,8 +553,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .im-thread-group,
-.im-thread-connection,
-.im-thread-computers {
+.im-thread-connection {
   color: var(--muted);
   display: inline-flex;
 }
@@ -566,23 +565,19 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   block-size: 15px;
 }
 
-.im-thread-connection[data-state="connected"],
-.im-thread-computers[data-state="online"] {
+.im-thread-group[data-state="connected"],
+.im-thread-connection[data-state="connected"] {
   color: var(--success);
 }
 
-.im-thread-connection[data-state="connecting"],
-.im-thread-computers[data-state="unknown"] {
+.im-thread-group[data-state="connecting"],
+.im-thread-connection[data-state="connecting"] {
   color: var(--warning);
 }
 
+.im-thread-group[data-state="error"],
 .im-thread-connection[data-state="error"] {
   color: var(--danger);
-}
-
-.im-thread-computers[data-state="offline"] {
-  color: var(--muted-2);
-  opacity: 0.38;
 }
 
 .thread-title-text {
