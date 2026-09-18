@@ -10380,7 +10380,9 @@ kbd {
   display: grid;
   grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
   gap: 14px;
-  align-items: start;
+  /* 两栏边框始终撑满面板可视高度（内容超出时自然滚动）。 */
+  align-items: stretch;
+  min-height: 100%;
 }
 .im-col-left,
 .im-col-right {
