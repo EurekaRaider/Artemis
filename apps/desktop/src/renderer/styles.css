@@ -552,7 +552,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   grid-column: 2;
 }
 
-.im-thread-group,
 .im-thread-connection,
 .im-thread-computers {
   color: var(--muted);
@@ -580,7 +579,8 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   color: var(--danger);
 }
 
-.im-thread-computers[data-state="offline"] {
+.im-thread-computers[data-state="offline"],
+.im-thread-connection[data-state="removed"] {
   color: var(--muted-2);
   opacity: 0.38;
 }

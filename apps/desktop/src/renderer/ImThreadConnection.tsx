@@ -162,16 +162,7 @@ export function ImThreadConnection({
         : uiText(locale, "ImThreadConnection.inline3");
   return (
     <span className="im-thread-indicators">
-      {group && (
-        <span
-          className="im-thread-group"
-          role="img"
-          aria-label={uiText(locale, "ImThreadConnection.inline6")}
-          title={uiText(locale, "ImThreadConnection.inline6")}
-        >
-          <ArtemisIcon name="agents" width={16} height={16} />
-        </span>
-      )}
+      {/* 图标始终表达会话类型（单聊/群聊）；连接状态只通过颜色与悬浮文案区分。 */}
       <span
         aria-label={summary}
         className="im-thread-connection"
@@ -180,17 +171,7 @@ export function ImThreadConnection({
         title={summary}
       >
         <ArtemisIcon
-          name={
-            state === "error"
-              ? "alert"
-              : state === "connecting"
-                ? "clock"
-                : state === "disabled" || state === "removed"
-                  ? "unlink"
-                  : state === "unknown"
-                    ? "info"
-                    : "message"
-          }
+          name={group ? "agents" : "message"}
           width={14}
           height={14}
         />
