@@ -1385,8 +1385,8 @@ export function ImSettingsPanel({
     </div>
   );
   /* 机器人详情（ZCode 式）：头=logo 跨两行，右侧名称+配对状态；
-  /* 机器人详情（ZCode 式）：头=logo 跨两行，右侧名称+配对状态，
-     行尾删除入口；下方为关联机器人 / 配对聊天 / 回复模式 设置卡。 */
+  /* 机器人详情（ZCode 式）：头=logo+名称+行尾删除入口（配对态只在
+     左栏导航卡展示）；下方为关联机器人 / 配对聊天 / 回复模式 设置卡。 */
   const renderBotProfile = (connection: ImConnectionStatus) => {
     const pairing = pairingView(connection);
     const state = pairing.state;
@@ -1396,14 +1396,6 @@ export function ImSettingsPanel({
           {channelLogo(channel, 28)}
           <div className="im-bot-profile-heading">
             <strong>{connection.name}</strong>
-            <p className="im-bot-profile-state">
-              <span
-                aria-hidden="true"
-                className="im-dot"
-                data-state={pairing.dot}
-              />
-              {pairing.label}
-            </p>
           </div>
           <ImConnectionRemoval
             key={`${activeSettings.deviceId}:${connection.id}`}
@@ -1419,7 +1411,7 @@ export function ImSettingsPanel({
           <InlineNotice tone="danger">{connection.error}</InlineNotice>
         )}
         {channel === "feishu" ? (
-          /* 关联机器人卡（ZCode 同款）：左侧说明，右侧配对状态；
+          /* 关联机器人卡（ZCode 同款）：左侧说明，右侧动作；
              已配对给「解除配对」（解绑账号，可重新配对），未连通保留扫码入口。 */
           <div
             className="im-bot-section"
@@ -1430,14 +1422,6 @@ export function ImSettingsPanel({
               <p>{t("ImSettingsPanel.botScanDesc")}</p>
             </div>
             <div className="im-bot-section-actions">
-              <span className="im-bot-link-state">
-                <span
-                  aria-hidden="true"
-                  className="im-dot"
-                  data-state={pairing.dot}
-                />
-                {pairing.label}
-              </span>
               {state === "connected" ? (
                 pairing.paired && (
                   <Button
