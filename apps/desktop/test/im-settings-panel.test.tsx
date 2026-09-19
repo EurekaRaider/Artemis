@@ -715,6 +715,41 @@ describe("production IM settings", () => {
     expect(screen.getByText("等待飞书扫码…")).toBeVisible();
     expect(document.querySelector(".im-scan-qr")).toBeVisible();
   });
+  it("shows a friendly error without a retry button when the scanned app is already owned", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "feishu-scan-begin")
+        return {
+          deviceCode: "dev1",
+          qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          userCode: "ABCD",
+          expiresAt: Date.now() + 600_000,
+          intervalMs: 0,
+          domain: "feishu",
+        };
+      if (input.action === "feishu-scan-poll")
+        return {
+          status: "error",
+          message: "Error invoking remote method 'artemis:im-manage': Error: This bot is already owned by another connection.",
+        };
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    /* 扫码失败文案友好化：不带 IPC 包装与英文原文。 */
+    expect(
+      await screen.findByText(/该应用已被其他机器人连接占用/),
+    ).toBeVisible();
+    expect(screen.queryByText(/already owned/i)).not.toBeInTheDocument();
+    /* bare 失败态无重试钮：卡头「扫码」钮承担重开。 */
+    expect(
+      screen.queryByRole("button", { name: "扫码并创建应用" }),
+    ).not.toBeInTheDocument();
+  });
   it("keeps the Feishu scan entry inside the credentials section of a saved bot", async () => {
     const f = fixture();
     f.set({

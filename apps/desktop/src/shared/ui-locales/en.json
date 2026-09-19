@@ -1504,6 +1504,8 @@
   "ImSettingsPanel.projectsSummary": "{{value1}} projects · shared by all channels",
   "ImFeishuScan.message10": "Scan",
   "ImFeishuScan.message11": "Scan with Feishu and confirm to create the app.",
+  "ImFeishuScan.message12": "This app is already owned by another connection. Use the existing bot, or remove the original connection first and try again.",
+  "ImFeishuScan.message13": "Couldn't create the app from the scan. Please try again later.",
   "ImSetupGuide.message25": "Tips:",
   "ImSetupGuide.message26": "2. Set project permissions so bots can access them.",
   "ImSettingsPanel.powerStart": "Start",

@@ -22,8 +22,17 @@ type ImFeishuScanPhase =
   | { stage: "done"; name?: string }
   | { stage: "failed"; message: string };
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/* 扫码链路错误统一友好化：剥离 Electron IPC 包装与 Error 前缀，
+   已知场景映射为可行动的本地化文案，其余归入通用失败文案。 */
+function friendlyScanError(error: unknown, t: ImTranslate): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const detail = raw
+    .replace(/^Error invoking remote method '[^']*':\s*/i, "")
+    .replace(/^Error:\s*/i, "")
+    .trim();
+  if (/already owned by another connection/i.test(detail))
+    return t("ImFeishuScan.message12");
+  return t("ImFeishuScan.message13");
 }
 
 export function ImFeishuScan({
@@ -92,7 +101,7 @@ export function ImFeishuScan({
         domain,
       })) as ImFeishuScanPollResult;
     } catch (error) {
-      setPhase({ stage: "failed", message: messageOf(error) });
+      setPhase({ stage: "failed", message: friendlyScanError(error, t) });
       return;
     }
     if (epoch.current !== run) return;
@@ -118,7 +127,7 @@ export function ImFeishuScan({
         savedConnectionId = saved.connectionId;
       } catch (error) {
         if (epoch.current !== run) return;
-        setPhase({ stage: "failed", message: messageOf(error) });
+        setPhase({ stage: "failed", message: friendlyScanError(error, t) });
         return;
       }
       if (epoch.current !== run) return;
@@ -134,7 +143,7 @@ export function ImFeishuScan({
       stage: "failed",
       message:
         result.status === "error"
-          ? result.message
+          ? friendlyScanError(result.message, t)
           : t("ImFeishuScan.message6"),
     });
   };
@@ -157,7 +166,7 @@ export function ImFeishuScan({
         poll(run, begin, begin.domain, begin.intervalMs);
       } catch (error) {
         if (epoch.current !== run) return;
-        setPhase({ stage: "failed", message: messageOf(error) });
+        setPhase({ stage: "failed", message: friendlyScanError(error, t) });
       }
     })();
   };
@@ -198,14 +207,16 @@ export function ImFeishuScan({
     return (
       <div className="im-scan">
         <InlineNotice tone="danger">{phase.message}</InlineNotice>
-        <Button
-          size="compact"
-          variant="quiet"
-          disabled={busy || disabled}
-          onClick={start}
-        >
-          {t("ImFeishuScan.message3")}
-        </Button>
+        {!bare && (
+          <Button
+            size="compact"
+            variant="quiet"
+            disabled={busy || disabled}
+            onClick={start}
+          >
+            {t("ImFeishuScan.message3")}
+          </Button>
+        )}
       </div>
     );
   if (phase.stage === "idle")

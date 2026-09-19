@@ -1504,6 +1504,8 @@
   "ImSettingsPanel.projectsSummary": "{{value1}} 個專案 · 所有頻道通用",
   "ImFeishuScan.message10": "掃碼",
   "ImFeishuScan.message11": "用飛書掃碼並確認創建應用。",
+  "ImFeishuScan.message12": "該應用已被其他機器人連接佔用。請直接使用已有的機器人，或先移除原連接後重試。",
+  "ImFeishuScan.message13": "掃碼創建應用未完成，請稍後重試。",
   "ImSetupGuide.message25": "溫馨提示：",
   "ImSetupGuide.message26": "2、設定專案權限以便Bot存取。",
   "ImSettingsPanel.powerStart": "啟動",

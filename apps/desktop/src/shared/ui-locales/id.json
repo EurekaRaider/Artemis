@@ -1504,6 +1504,8 @@
   "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
   "ImFeishuScan.message10": "Pindai",
   "ImFeishuScan.message11": "Pindai dengan Feishu dan konfirmasi untuk membuat aplikasi.",
+  "ImFeishuScan.message12": "Aplikasi ini sudah dimiliki oleh koneksi lain. Gunakan bot yang ada, atau hapus koneksi aslinya terlebih dahulu lalu coba lagi.",
+  "ImFeishuScan.message13": "Gagal membuat aplikasi dari pemindaian. Silakan coba lagi nanti.",
   "ImSetupGuide.message25": "Tips:",
   "ImSetupGuide.message26": "2. Atur izin proyek agar bot dapat mengaksesnya.",
   "ImSettingsPanel.powerStart": "Mulai",

@@ -1504,6 +1504,8 @@
   "ImSettingsPanel.projectsSummary": "프로젝트 {{value1}}개 · 모든 채널 공통",
   "ImFeishuScan.message10": "스캔",
   "ImFeishuScan.message11": "Feishu로 스캔하고 앱 생성을 확인합니다.",
+  "ImFeishuScan.message12": "이 앱은 다른 연결에 이미 연결되어 있습니다. 기존 봇을 사용하거나 원래 연결을 제거한 후 다시 시도하세요.",
+  "ImFeishuScan.message13": "스캔으로 앱 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
   "ImSetupGuide.message25": "참고:",
   "ImSetupGuide.message26": "2、Bot이 접근할 수 있도록 프로젝트 권한을 설정하세요.",
   "ImSettingsPanel.powerStart": "시작",

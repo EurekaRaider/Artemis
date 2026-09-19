@@ -1504,6 +1504,8 @@
   "ImSettingsPanel.projectsSummary": "{{value1}} projetos · compartilhados por todos os canais",
   "ImFeishuScan.message10": "Escanear",
   "ImFeishuScan.message11": "Escaneie com o Feishu e confirme para criar o app.",
+  "ImFeishuScan.message12": "Este app já pertence a outra conexão. Use o bot existente ou remova a conexão original antes de tentar novamente.",
+  "ImFeishuScan.message13": "Não foi possível criar o app a partir da varredura. Tente novamente mais tarde.",
   "ImSetupGuide.message25": "Dicas:",
   "ImSetupGuide.message26": "2. Configure permissões de projeto para que os bots possam acessar.",
   "ImSettingsPanel.powerStart": "Iniciar",

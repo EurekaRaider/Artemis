@@ -1504,6 +1504,8 @@
   "ImSettingsPanel.projectsSummary": "{{value1}} 个项目 · 所有渠道通用",
   "ImFeishuScan.message10": "扫码",
   "ImFeishuScan.message11": "用飞书扫码并确认创建应用。",
+  "ImFeishuScan.message12": "该应用已被其他机器人连接占用。请直接使用已有的机器人，或先移除原连接后重试。",
+  "ImFeishuScan.message13": "扫码创建应用未完成，请稍后重试。",
   "ImSetupGuide.message25": "温馨提示：",
   "ImSetupGuide.message26": "2、设置项目权限以便Bot访问。",
   "ImSettingsPanel.powerStart": "启动",
