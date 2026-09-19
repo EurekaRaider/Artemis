@@ -1494,6 +1494,8 @@
   "ImSettingsPanel.botCredDesc": "Просмотр или замена учётных данных приложения этого бота.",
   "ImSettingsPanel.botScanTitle": "Связанный бот",
   "ImSettingsPanel.botScanDesc": "Отсканируйте, чтобы получить учётные данные приложения.",
+  "ImSettingsPanel.botReplyModeTitle": "Режим ответов",
+  "ImSettingsPanel.botReplyModeDesc": "Ответы используют потоковые карты Feishu Card JSON 2.0; вызовы инструментов показываются свёрнутым итогом.",
   "ImSettingsPanel.botPairTitle": "Привязка чата",
   "ImSettingsPanel.botPairDesc": "Создайте код привязки и отправьте его боту в личном чате, чтобы завершить подключение.",
   "ImSettingsPanel.botDeleteTitle": "Удалить бота",

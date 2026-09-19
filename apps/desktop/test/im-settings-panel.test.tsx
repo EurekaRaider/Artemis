@@ -620,6 +620,7 @@ describe("production IM settings", () => {
     /* 飞书创建页=扫码优先：右栏直接出码，不再展示凭据表单。 */
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(screen.queryByLabelText("App ID")).not.toBeInTheDocument();
+    expect(screen.getByText("机器人回复模式")).toBeVisible();
     /* 扫码建连：凭据经 scan-connect 落库，接续配对码并选中新机器人。 */
     await waitFor(() =>
       expect(f.manage).toHaveBeenCalledWith(
@@ -642,6 +643,37 @@ describe("production IM settings", () => {
     await user.click(screen.getByRole("button", { name: /^接入指引/ }));
     await user.click(screen.getByText("我是个人开发者，没有企业怎么办？"));
     expect(screen.getByText(/这里的“企业”指飞书团队/)).toBeVisible();
+  });
+  it("hides the create scan card on cancel and reopens it with a fresh code", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "feishu-scan-begin")
+        return {
+          deviceCode: "dev1",
+          qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          userCode: "ABCD",
+          expiresAt: Date.now() + 600_000,
+          intervalMs: 60_000,
+          domain: "feishu",
+        };
+      if (input.action === "feishu-scan-poll")
+        return { status: "pending", intervalMs: 60_000, domain: "feishu" };
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
+    /* 取消=隐藏二维码卡体，仅剩关联机器人卡头。 */
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(document.querySelector(".im-bot-scan")).toBeNull();
+    /* 卡头「扫码」钮重新展开并出码。 */
+    await user.click(screen.getByRole("button", { name: "扫码" }));
+    expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
+    expect(document.querySelector(".im-bot-scan")).toBeVisible();
   });
   it("keeps the Feishu scan entry inside the credentials section of a saved bot", async () => {
     const f = fixture();

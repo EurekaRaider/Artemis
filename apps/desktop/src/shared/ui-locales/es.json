@@ -1494,6 +1494,8 @@
   "ImSettingsPanel.botCredDesc": "Ver o sustituir las credenciales de la app de este bot.",
   "ImSettingsPanel.botScanTitle": "Bot vinculado",
   "ImSettingsPanel.botScanDesc": "Escanea para obtener las credenciales de la app.",
+  "ImSettingsPanel.botReplyModeTitle": "Modo de respuesta",
+  "ImSettingsPanel.botReplyModeDesc": "Las respuestas usan tarjetas en streaming Card JSON 2.0 de Feishu; las llamadas a herramientas se muestran como resumen plegado.",
   "ImSettingsPanel.botPairTitle": "Vincular un chat",
   "ImSettingsPanel.botPairDesc": "Genera un código de vinculación y envíalo al bot en un chat privado para completar el enlace.",
   "ImSettingsPanel.botDeleteTitle": "Eliminar bot",

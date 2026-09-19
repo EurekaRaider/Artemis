@@ -143,6 +143,8 @@ export function ImSettingsPanel({
   const [channelDialogHeight, setChannelDialogHeight] = useState<number>();
   /* 飞书创建页的扫码轮次：头部「扫码」钮递增重挂组件以更换二维码。 */
   const [createScanEpoch, setCreateScanEpoch] = useState(0);
+  /* 创建页扫码卡体开合：取消隐藏，卡头「扫码」钮重新展开。 */
+  const [createScanOpen, setCreateScanOpen] = useState(true);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [savedMetadata, setSavedMetadata] = useState<
@@ -1502,7 +1504,8 @@ export function ImSettingsPanel({
                   <strong>{t("ImSettingsPanel.message76")}</strong>
                 </div>
                 {channel === "feishu" ? (
-                  <div className="im-bot-section" data-scan-open>
+                  <>
+                    <div className="im-bot-section" data-scan-open>
                     <div className="im-bot-section-copy">
                       <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
                       <p>{t("ImSettingsPanel.botScanDesc")}</p>
@@ -1512,7 +1515,10 @@ export function ImSettingsPanel({
                         variant="quiet"
                         size="compact"
                         disabled={busy || !activeSettings.deviceId}
-                        onClick={() => setCreateScanEpoch((value) => value + 1)}
+                        onClick={() => {
+                          setCreateScanEpoch((value) => value + 1);
+                          setCreateScanOpen(true);
+                        }}
                       >
                         <ArtemisIcon
                           aria-hidden="true"
@@ -1523,25 +1529,36 @@ export function ImSettingsPanel({
                         {t("ImFeishuScan.message10")}
                       </Button>
                     </div>
-                    <div className="im-bot-scan">
-                      <ImFeishuScan
-                        key={createScanEpoch}
-                        t={t}
-                        autoStart
-                        bare
-                        busy={busy}
-                        disabled={!activeSettings.deviceId}
-                        onConnected={(connectionId) => {
-                          connectScannedBot(connectionId, () => {
-                            if (connectionId) {
-                              setChannelPane("bot");
-                              setSelectedBotId(connectionId);
-                            }
-                          });
-                        }}
-                      />
-                    </div>
+                    {createScanOpen && (
+                      <div className="im-bot-scan">
+                        <ImFeishuScan
+                          key={createScanEpoch}
+                          t={t}
+                          autoStart
+                          bare
+                          busy={busy}
+                          disabled={!activeSettings.deviceId}
+                          onIdle={() => setCreateScanOpen(false)}
+                          onConnected={(connectionId) => {
+                            connectScannedBot(connectionId, () => {
+                              if (connectionId) {
+                                setChannelPane("bot");
+                                setSelectedBotId(connectionId);
+                              }
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
+                    {/* 回复形态说明（ZCode 同款说明卡）：飞书走流式卡片。 */}
+                    <div className="im-bot-section">
+                      <div className="im-bot-section-copy">
+                        <strong>{t("ImSettingsPanel.botReplyModeTitle")}</strong>
+                        <p>{t("ImSettingsPanel.botReplyModeDesc")}</p>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   renderBotForm(dismissBotCreate)
                 )}

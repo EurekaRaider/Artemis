@@ -1494,6 +1494,8 @@
   "ImSettingsPanel.botCredDesc": "عرض أو استبدال بيانات اعتماد التطبيق لهذا البوت.",
   "ImSettingsPanel.botScanTitle": "الروبوت المرتبط",
   "ImSettingsPanel.botScanDesc": "امسح رمز الاستجابة للحصول على بيانات اعتماد التطبيق.",
+  "ImSettingsPanel.botReplyModeTitle": "وضع الرد",
+  "ImSettingsPanel.botReplyModeDesc": "تستخدم الردود بطاقات البث Card JSON 2.0 من Feishu، وتظهر استدعاءات الأدوات كملخص مطوي.",
   "ImSettingsPanel.botPairTitle": "إقران محادثة",
   "ImSettingsPanel.botPairDesc": "أنشئ رمز إقران وأرسله إلى البوت في محادثة خاصة لإتمام الربط.",
   "ImSettingsPanel.botDeleteTitle": "حذف البوت",

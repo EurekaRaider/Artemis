@@ -33,6 +33,7 @@ export function ImFeishuScan({
   busy,
   disabled,
   onConnected,
+  onIdle,
 }: {
   t: ImTranslate;
   /** 渠道详情打开即触发扫码（ZCode 动线：点渠道 = 出二维码）。 */
@@ -43,6 +44,8 @@ export function ImFeishuScan({
   disabled: boolean;
   /** 扫码建连成功后携带新连接 id，供面板接续配对引导（ZCode 同款动线）。 */
   onConnected: (connectionId?: string) => void;
+  /** 取消扫码时通知宿主（bare 卡片体随之隐藏，可由扫码钮重开）。 */
+  onIdle?: () => void;
 }) {
   const [phase, setPhase] = useState<ImFeishuScanPhase>({ stage: "idle" });
   // Incremented to invalidate in-flight polls after cancel/unmount; timers
@@ -159,6 +162,7 @@ export function ImFeishuScan({
     epoch.current += 1;
     window.clearTimeout(timer.current);
     setPhase({ stage: "idle" });
+    onIdle?.();
   };
   const started = useRef(false);
   useEffect(() => {

@@ -1494,6 +1494,8 @@
   "ImSettingsPanel.botCredDesc": "このボットのアプリ認証情報を確認・交換します。",
   "ImSettingsPanel.botScanTitle": "連携ボット",
   "ImSettingsPanel.botScanDesc": "スキャンしてアプリ認証情報を取得します。",
+  "ImSettingsPanel.botReplyModeTitle": "ボット返信モード",
+  "ImSettingsPanel.botReplyModeDesc": "返信はFeishu Card JSON 2.0のストリーミングカードを使用し、ツール呼び出しは折りたたまれた要約のみ表示します。",
   "ImSettingsPanel.botPairTitle": "チャットをペアリング",
   "ImSettingsPanel.botPairDesc": "ペアリングコードを生成し、ボットとの個別チャットで送信して連携を完了します。",
   "ImSettingsPanel.botDeleteTitle": "ボットを削除",
