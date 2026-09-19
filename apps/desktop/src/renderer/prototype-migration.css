@@ -244,12 +244,10 @@
   block-size: 24px;
   flex: none;
 }
+/* 版本号恢复徽章胶囊（继承 .app-version 基础样式），
+   右缘与顶部折叠按钮的图标右缘对齐（同为侧栏 10px 内缩）。 */
 .sidebar .app-version {
-  padding: 0;
-  border: 0;
-  background: transparent;
   font-size: 11px;
-  color: var(--muted-2);
   white-space: nowrap;
 }
 .update-btn {
