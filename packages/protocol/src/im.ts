@@ -363,6 +363,7 @@ export const imReplySchema = z
     final: z.boolean().default(false),
     started: z.boolean().optional(),
     heartbeat: z.boolean().optional(),
+    stream: z.boolean().optional(),
     outcome: z.enum(["completed", "failed", "cancelled"]).optional(),
     status: z
       .enum([
@@ -624,7 +625,9 @@ export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delegation-cancel"), waitId: id }).strict(),
   z.object({ action: z.literal("delegation-retry"), waitId: id }).strict(),
-  z.object({ action: z.literal("delegation-continue-wait"), waitId: id }).strict(),
+  z
+    .object({ action: z.literal("delegation-continue-wait"), waitId: id })
+    .strict(),
   z
     .object({
       action: z.literal("native-cancel"),

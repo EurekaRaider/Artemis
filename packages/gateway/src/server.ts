@@ -1533,10 +1533,13 @@ export class ArtemisGateway {
               ])
             : undefined;
           const card = cardKey
-            ? this.store.get<{ messageId: string; createdAt: number }>(
-                "status-cards",
-                cardKey,
-              )
+            ? this.store.get<{
+                messageId: string;
+                createdAt: number;
+                cardId?: string;
+                sequence?: number;
+                streaming?: boolean;
+              }>("status-cards", cardKey)
             : undefined;
           let messageId: string | undefined;
           const approval = item.payload.approval;
@@ -1645,6 +1648,66 @@ export class ArtemisGateway {
                   invocationId: request.id,
                   messageId,
                 } satisfies FeishuApprovalCard);
+            }
+          } else if (cardKey && item.payload.stream && adapter.streamCard) {
+            const current =
+              card && card.createdAt > Date.now() - 13 * 86400000
+                ? card
+                : undefined;
+            let streamed:
+              | {
+                  messageId: string;
+                  createdAt: number;
+                  cardId?: string;
+                  sequence?: number;
+                  streaming?: boolean;
+                }
+              | undefined;
+            try {
+              streamed = await adapter.streamCard(
+                item.payload.conversation,
+                item.payload.text,
+                item.id,
+                current,
+              );
+            } catch (error) {
+              if (
+                error instanceof ChannelRateLimit ||
+                error instanceof ChannelUnavailable ||
+                error instanceof DeliveryUncertain
+              )
+                throw error;
+              // A confirmed streaming rejection (missing CardKit permission,
+              // unsupported card) degrades to the shared status card path.
+            }
+            if (streamed) {
+              this.store.put("status-cards", cardKey, streamed);
+              messageId = streamed.messageId;
+            } else if (adapter.statusCard) {
+              try {
+                messageId = await adapter.statusCard(
+                  item.payload.conversation,
+                  item.payload.text,
+                  item.id,
+                  current?.messageId,
+                );
+                this.store.put("status-cards", cardKey, {
+                  messageId,
+                  createdAt: current?.createdAt ?? Date.now(),
+                });
+              } catch (error) {
+                if (
+                  error instanceof ChannelRateLimit ||
+                  error instanceof ChannelUnavailable ||
+                  error instanceof DeliveryUncertain
+                )
+                  throw error;
+                messageId = await adapter.send(
+                  item.payload.conversation,
+                  item.payload.text,
+                  `${item.id}:text`,
+                );
+              }
             }
           } else if (cardKey && adapter.statusCard) {
             try {
