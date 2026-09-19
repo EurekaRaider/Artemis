@@ -26,8 +26,19 @@ describe("IM system message translations", () => {
     expect(
       imText("ja", "taskFailed", { message: "任务已取消。 {{id}} / original" }),
     ).toBe("タスクが失敗しました：任务已取消。 {{id}} / original");
-    expect(imText("ar", "task", { id: "task-12" })).toBe(
-      "المهمة \u2068task-12\u2069",
+    expect(imText("ar", "projectSelected", { name: "project-12" })).toContain(
+      "\u2068project-12\u2069",
     );
+  });
+  it("keeps Arabic command identifiers and download links directly copyable", () => {
+    expect(imText("ar", "waitInterrupted", { id: "wait-12" })).toContain(
+      "/retry wait-12",
+    );
+    expect(imText("ar", "waitContinue", { id: "wait-12" })).toContain(
+      "/wait wait-12",
+    );
+    expect(
+      imText("ar", "filePublished", { url: "https://example.test/file" }),
+    ).not.toMatch(/[\u2068\u2069]/u);
   });
 });

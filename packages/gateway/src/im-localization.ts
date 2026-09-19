@@ -43,8 +43,10 @@ export function imText(
     (match, name: string) => {
       const value = values[name];
       if (value === undefined) return match;
-      // Keep identifiers readable when mixed with right-to-left system copy.
-      return locale === "ar" ? `\u2068${value}\u2069` : String(value);
+      // Isolate display text, but keep command IDs, URLs and hashes copyable.
+      return locale === "ar" && !["id", "url", "hash"].includes(name)
+        ? `\u2068${value}\u2069`
+        : String(value);
     },
   );
 }
