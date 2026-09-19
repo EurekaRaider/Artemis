@@ -203,3 +203,46 @@ it("cancels pending authorization when its plugin dialog is closed", async () =>
   await user.click(screen.getByRole("button", { name: "Close" }));
   expect(cancel).toHaveBeenCalledWith("plugin-qq");
 });
+
+it("guides QQ setup and removes formatting spaces from a pasted authorization code", async () => {
+  const user = userEvent.setup();
+  const connect = vi.fn(async () => ({}));
+  stubWindowArtemis({
+    listConnectorDefinitions: async () => [definition],
+    listConnectorConnections: async () => [],
+    connectConnector: connect,
+  });
+  render(
+    <PluginConnectionDialog
+      locale="zh-CN"
+      plugin={installed}
+      closeLabel="关闭"
+      onClose={() => {}}
+      onChanged={async () => {}}
+    />,
+  );
+  const email = await screen.findByLabelText("邮箱");
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  expect(screen.getByText(/不要填写 QQ 登录密码/)).toBeVisible();
+  expect(screen.getByRole("link", { name: /打开 QQ 邮箱/ })).toHaveAttribute(
+    "href",
+    "https://mail.qq.com",
+  );
+  expect(screen.getByRole("link", { name: /官方设置帮助/ })).toHaveAttribute(
+    "href",
+    "https://service.mail.qq.com/detail/0/1087",
+  );
+  const submit = screen.getByRole("button", { name: "连接", exact: true });
+  expect(submit).toBeDisabled();
+  await user.type(email, "demo@qq.com");
+  await user.click(screen.getByLabelText("授权码"));
+  await user.paste("abcd efgh ijkl mnop");
+  expect(submit).toBeEnabled();
+  await user.click(submit);
+  expect(connect).toHaveBeenCalledWith({
+    serverId: "plugin-qq",
+    email: "demo@qq.com",
+    appPassword: "abcdefghijklmnop",
+  });
+  expect(screen.getByLabelText("授权码")).toHaveValue("");
+});

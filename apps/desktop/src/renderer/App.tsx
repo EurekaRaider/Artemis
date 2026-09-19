@@ -1,3 +1,5 @@
+import { CommandArtwork } from "./CommandArtwork.js";
+import { ResourceAvatar } from "./resource-icons.js";
 import { HistoryTurn } from "./HistoryTurn.js";
 import {
   mergeHistoryPage,
@@ -2860,12 +2862,36 @@ export function App() {
       `#skill-command-option-${activeSlashSuggestion}`,
     );
     if (!menu || !option) return;
+    const rows = [
+      ...menu.querySelectorAll<HTMLElement>(
+        ".slash-command-suggestion, .slash-command-heading",
+      ),
+    ];
+    // Let the final scroll position land on a whole row as well.
+    menu.style.setProperty("--slash-menu-end-padding", "6px");
+    const maximumScroll = menu.scrollHeight - menu.clientHeight;
+    const lastTopRow = rows.find((row) => row.offsetTop - 6 >= maximumScroll);
+    if (maximumScroll > 0 && lastTopRow) {
+      menu.style.setProperty(
+        "--slash-menu-end-padding",
+        `${lastTopRow.offsetTop - maximumScroll}px`,
+      );
+    }
     const optionTop = option.offsetTop;
     const optionBottom = optionTop + option.offsetHeight;
-    if (optionTop < menu.scrollTop) {
+    if (optionTop < menu.scrollTop + 6) {
       menu.scrollTop = Math.max(0, optionTop - 6);
-    } else if (optionBottom > menu.scrollTop + menu.clientHeight) {
-      menu.scrollTop = optionBottom - menu.clientHeight + 6;
+    } else if (optionBottom > menu.scrollTop + menu.clientHeight - 6) {
+      const minimumTop = optionBottom - menu.clientHeight + 6;
+      // Align a whole row at the top while keeping the selected row in view.
+      // Arbitrary pixel offsets cut through icons; nearest CSS snapping alone
+      // can instead leave the selected row clipped at the bottom.
+      const firstVisibleRow = rows.find(
+        (row) => row.offsetTop - 6 >= minimumTop,
+      );
+      menu.scrollTop = firstVisibleRow
+        ? firstVisibleRow.offsetTop - 6
+        : minimumTop;
     }
   }, [
     activeSlashSuggestion,
@@ -7234,7 +7260,7 @@ export function App() {
                                 role="option"
                                 tabIndex={-1}
                               >
-                                <span className="slash-command-icon">◎</span>
+                                <CommandArtwork command="goal" />
                                 <span>
                                   <strong>{t.goalCommand}</strong>
                                   <small>{t.goalCommandDetail}</small>
@@ -7255,17 +7281,7 @@ export function App() {
                                 role="option"
                                 tabIndex={-1}
                               >
-                                <span className="slash-command-icon">
-                                  <Icon size={18}>
-                                    <path
-                                      d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.5"
-                                    />
-                                  </Icon>
-                                </span>
+                                <CommandArtwork command="compact" />
                                 <span>
                                   <strong>{t.compactCommand}</strong>
                                   <small>{t.compactCommandDetail}</small>
@@ -7283,17 +7299,7 @@ export function App() {
                                 role="option"
                                 tabIndex={-1}
                               >
-                                <span className="slash-command-icon">
-                                  <Icon size={18}>
-                                    <path
-                                      d="M6.5 3.5h7l4 4v13h-11v-17Zm7 0v4h4M9 12h6m-6 4h6"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.5"
-                                    />
-                                  </Icon>
-                                </span>
+                                <CommandArtwork command="init" />
                                 <span>
                                   <strong>{t.initCommand}</strong>
                                   <small>{t.initCommandDetail}</small>
@@ -7327,9 +7333,7 @@ export function App() {
                                   role="option"
                                   tabIndex={-1}
                                 >
-                                  <span className="slash-command-icon">
-                                    <ModeIcon />
-                                  </span>
+                                  <CommandArtwork command={mode} />
                                   <span>
                                     <strong>{commandLabel}</strong>
                                     <small>{commandDetail}</small>
@@ -7365,17 +7369,12 @@ export function App() {
                                       role="option"
                                       tabIndex={-1}
                                     >
-                                      <span className="slash-command-icon plugin-icon">
-                                        {plugin.iconDataUrl ? (
-                                          <img
-                                            alt=""
-                                            draggable={false}
-                                            src={plugin.iconDataUrl}
-                                          />
-                                        ) : (
-                                          <ResourceIcon />
-                                        )}
-                                      </span>
+                                      <ResourceAvatar
+                                        brandColor={plugin.brandColor}
+                                        iconDataUrl={plugin.iconDataUrl}
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
                                       <span>
                                         <strong>{skill.name}</strong>
                                         <small title={skill.description}>
@@ -7404,9 +7403,10 @@ export function App() {
                                       role="option"
                                       tabIndex={-1}
                                     >
-                                      <span className="slash-command-icon">
-                                        ✦
-                                      </span>
+                                      <ResourceAvatar
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
                                       <span>
                                         <strong>{skill.name}</strong>
                                         <small>{skill.description}</small>
@@ -7934,8 +7934,14 @@ export function App() {
                                     <label className="model-picker-search">
                                       <SearchIcon />
                                       <input
-                                        aria-label={t.search}
-                                        placeholder={t.search}
+                                        aria-label={uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearch",
+                                        )}
+                                        placeholder={uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearch",
+                                        )}
                                         value={modelFilter}
                                         onChange={(event) =>
                                           setModelFilter(event.target.value)

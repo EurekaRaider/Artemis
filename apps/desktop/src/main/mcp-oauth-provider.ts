@@ -200,7 +200,7 @@ export async function startMcpOAuthCallback(
       }
       return;
     }
-    finish(200, "Authorization complete.", response);
+    finish(200, "Authorization response received.", response);
     if (!settled) {
       settled = true;
       resolveCode(code);
@@ -221,6 +221,7 @@ export async function startMcpOAuthCallback(
         rejectCode(new Error("MCP OAuth authorization timed out"));
       }
       server.close();
+      server.closeAllConnections();
     },
     5 * 60 * 1000,
   );
@@ -238,9 +239,12 @@ export async function startMcpOAuthCallback(
         rejectCode(new Error("MCP OAuth authorization cancelled"));
       }
       if (!server.listening) return;
-      await new Promise<void>((resolvePromise) =>
-        server.close(() => resolvePromise()),
-      );
+      await new Promise<void>((resolvePromise) => {
+        server.close(() => resolvePromise());
+        // Browsers can leave speculative sockets without an HTTP request.
+        // They otherwise keep close() pending and block connector completion.
+        server.closeAllConnections();
+      });
     },
   };
 }

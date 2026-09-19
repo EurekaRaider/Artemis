@@ -7,7 +7,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -50,7 +49,7 @@ import { McpServerEditor } from "./McpServerEditor.js";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   resourceIconName,
-  ResourceArtwork,
+  ResourceAvatar,
   SemanticResourceIcon,
   type ResourceIconKind,
   type ResourceIconName,
@@ -133,47 +132,6 @@ function TrashIcon() {
 
 function BackIcon() {
   return <ArtemisIcon name="chev-left" />;
-}
-
-function ResourceAvatar({
-  brandColor,
-  iconKey,
-  iconDataUrl,
-  kind,
-  name,
-}: {
-  brandColor?: string | undefined;
-  iconKey?: ResourceIconName | undefined;
-  iconDataUrl?: string | undefined;
-  kind: ResourceKind;
-  name: string;
-}) {
-  const [imageFailed, setImageFailed] = useState(false);
-  useEffect(() => setImageFailed(false), [iconDataUrl]);
-  const semanticIcon = iconKey ?? resourceIconName(name, kind);
-  const semanticVisible = !iconDataUrl || imageFailed;
-  const style = brandColor
-    ? ({ "--resource-brand": brandColor } as CSSProperties)
-    : undefined;
-  return (
-    <span
-      className="resource-avatar"
-      data-icon={semanticVisible ? semanticIcon : undefined}
-      data-kind={kind}
-      style={style}
-    >
-      {iconDataUrl && !imageFailed ? (
-        <img
-          alt=""
-          draggable={false}
-          onError={() => setImageFailed(true)}
-          src={iconDataUrl}
-        />
-      ) : (
-        <ResourceArtwork icon={semanticIcon} />
-      )}
-    </span>
-  );
 }
 
 function EmptyResource({ children }: { children: string }) {

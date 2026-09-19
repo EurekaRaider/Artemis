@@ -9801,7 +9801,7 @@ function registerIpc(): void {
       });
       const goal = store.pauseThreadGoal(command.threadId);
       emitGoalUpdated(goal, activeTurns.get(command.threadId));
-      await cancelRunningGoalContinuation(command.threadId);
+      await cancelTaskTurn(command.threadId);
       return store.getThread(command.threadId)!;
     },
   );

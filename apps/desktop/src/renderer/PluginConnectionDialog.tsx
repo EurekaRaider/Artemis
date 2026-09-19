@@ -93,7 +93,7 @@ export function PluginConnectionDialog({
       else
         await window.artemis.connectConnector({
           serverId: id,
-          email,
+          email: email.trim(),
           appPassword,
         });
       await onChanged();
@@ -137,7 +137,7 @@ export function PluginConnectionDialog({
             return (
               <ManagementCard
                 key={d.serverId}
-                className="resource-connector-card"
+                className={`resource-connector-card${d.provider === "qq" && state !== "connected" ? " resource-connector-card-setup" : ""}`}
               >
                 <div>
                   <strong>{d.displayName}</strong>
@@ -155,18 +155,43 @@ export function PluginConnectionDialog({
                   {d.provider === "figma" && <p>{copy.figma}</p>}
                   {d.provider === "qq" && state !== "connected" && (
                     <div className="resource-connector-settings">
-                      <p>{copy.qq}</p>
+                      <ol className="resource-connector-guide">
+                        {copy.qq.split("\n").map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                      <div className="resource-connector-guide-links">
+                        <a
+                          href="https://mail.qq.com"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {copy.qqOpen} ↗
+                        </a>
+                        <a
+                          href="https://service.mail.qq.com/detail/0/1087"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {copy.qqHelp} ↗
+                        </a>
+                      </div>
                       <TextField
                         label={copy.email}
                         value={email}
                         onValueChange={setEmail}
                         type="email"
+                        placeholder="123456789@qq.com"
+                        autoComplete="email"
+                        spellCheck={false}
                         disabled={!!pending}
                       />
                       <TextField
                         label={copy.code}
                         value={password}
-                        onValueChange={setPassword}
+                        onValueChange={(value) =>
+                          setPassword(value.replace(/\s/g, ""))
+                        }
                         type="password"
                         autoComplete="off"
                         disabled={!!pending}
@@ -224,7 +249,8 @@ export function PluginConnectionDialog({
                     <Button
                       disabled={
                         !!pending ||
-                        (d.provider === "qq" && (!email || !password))
+                        (d.provider === "qq" &&
+                          (!email.trim() || !password.trim()))
                       }
                       onClick={() => void run(d.serverId, "connect")}
                     >
