@@ -1385,9 +1385,9 @@ export function ImSettingsPanel({
           >
             <ArtemisIcon
               aria-hidden="true"
-              height={13}
+              height={20}
               name="bot-add"
-              width={13}
+              width={20}
             />
             <span>{t("ImSettingsPanel.message65")}</span>
           </button>
