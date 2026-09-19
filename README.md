@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="3052 passing tests" src="https://img.shields.io/badge/Tests-3052_passing-2EA44F" />
+  <img alt="Nine workspace test suites" src="https://img.shields.io/badge/Tests-9_workspaces-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -268,7 +268,7 @@ enablement and removal visible to the user.
   <tr>
     <td width="50%" valign="top">
       <p><strong>CONTROL</strong>&nbsp;&nbsp;/&nbsp;&nbsp;Unified management</p>
-      <p>Manage Plugins, Connectors, MCP and standalone Skills from separate tabs with real icons, status, enable/disable controls, updates and uninstall actions. Unavailable entries and Connectors without a usable endpoint are not offered for installation.</p>
+      <p>Browse Plugins, MCP and Skills in three tabs. Review capabilities before installing, configure connected accounts from each plugin, and confirm removals in context. Installed plugins show their connection state, updates and management actions.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>CONNECT</strong>&nbsp;&nbsp;/&nbsp;&nbsp;First-class MCP setup</p>
@@ -278,9 +278,22 @@ enablement and removal visible to the user.
 </table>
 
 <p align="center">
-  <a href="docs/images/screenshots/resources.png"><img src="docs/images/screenshots/resources.png" alt="Artemis Resource Center with Plugin, Connector, MCP and Skill tabs and four bundled document plugins" /></a>
+  <a href="docs/images/screenshots/resources.png"><img src="docs/images/screenshots/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>
 </p>
-<p align="center"><sub>Browse bundled capabilities and manage Plugins, Connectors, MCP servers and Skills from one place.</sub></p>
+<p align="center"><sub>Browse plugins, configure their connected accounts, and manage MCP servers and Skills.</sub></p>
+
+<details>
+<summary><strong>Review capabilities before installation</strong></summary>
+
+![Plugin installation confirmation showing the bundled Documents Skill](docs/images/screenshots/plugin-install.png)
+
+Installation shows the included Skills, MCP servers and Connectors and their
+default state. Skills are enabled after installation; MCP servers and Connectors
+remain disabled until their setup and authorization requirements are satisfied.
+For a service plugin, installation opens its connection dialog. Reopen it with
+**Configure** to inspect the account, connect, reconnect or disconnect.
+
+</details>
 
 <br />
 
@@ -291,7 +304,7 @@ enablement and removal visible to the user.
 #### Requirements
 
 > [!IMPORTANT]
-> **Runtime baseline** — Node.js 24+ · npm 11+ · Git · Windows 11 x64 or macOS 14+ on Apple Silicon arm64 or Intel x64
+> **Source-build baseline** — Node.js 24+ (Node 24 is used by CI) · npm 11+ · Git · Windows 11 x64 or macOS 14+ on Apple Silicon arm64 or Intel x64
 
 #### Run from source
 
@@ -309,8 +322,9 @@ tasks. Existing Pi OAuth credentials can be imported explicitly; Artemis does
 not silently copy them.
 
 Platform integrations use the versioned connector contract and a separate encrypted
-credential vault. Users install a signed plugin and select **Connect** in Resource
-Center. Publisher OAuth application registration is configured once in
+credential vault. Installing a signed service plugin opens its connection
+dialog; **Configure** reopens it from the plugin card. Publisher OAuth application
+registration is configured once in
 `apps/desktop/resources/connector-clients.json`; users do not create developer
 projects or enter client IDs. See [connector architecture and publisher setup](docs/connectors.md).
 Existing integrations require updated plugins and fresh authorization. Historical
@@ -344,7 +358,7 @@ other everyday tasks.
   menus dismiss on outside click or Escape. Project folder centers and task
   status lights share a column, and project/task labels share their text origin.
   Project action buttons use the same spacing as the Projects heading.
-  The tool Dock opens at a compact 360px default, permits resizing down to 320px,
+  The tool Dock opens at a compact 328px default, permits resizing down to 320px,
   and restores manually chosen widths; narrow windows retain the full-width overlay.
   Environment source and Agent team sections use the sunken surface color, with
   a smaller close control and equal content margins beside the open panel.
@@ -424,9 +438,11 @@ other everyday tasks.
   a single-flight trailing debounce; unchanged metadata never starts the full
   status and line-count scan;
   Compare and Review use the same base. Git mutations remain behind main-process
-  validation and are disabled while local tasks are active. Interactive tasks
-  remain intentionally Local-only, so the panel does not expose inert Worktree
-  or Remote targets.
+  validation and are disabled while local tasks are active. Project tasks start in the Local checkout. The workspace menu can hand a task
+  to a managed worktree or back to Local, subject to task and Git validation.
+  Up to 10 managed worktrees can exist across projects, including pending
+  creations. Cleanup offers idle, clean worktrees unchanged for 30 days whose
+  HEAD is confirmed on GitHub; removing them requires confirmation.
 - **Streaming timeline** — render safe Markdown, text/thinking deltas, tool
   input/output, approval cards with the model's decision, structured workflow
   choices, child-Agent status, errors and completion states in original event
@@ -458,7 +474,8 @@ other everyday tasks.
   `--token-budget`, while `/goal pause`, `/goal resume` and `/goal clear` map to
   the durable `active`, `paused`, `blocked`, `usageLimited`, `budgetLimited` and
   `complete` state machine. The composer-adjacent Goal bar exposes objective,
-  status, Token budget/progress, elapsed time and valid actions. Active Execute
+  status, Token budget/progress, elapsed time and valid actions. Pausing a Goal
+  also cancels its current task turn, including a manually started turn. Active Execute
   Goals continue only after the existing Pi turn becomes truly idle; waiting
   approvals, structured questions, user work, Plan/Review, compaction, limits,
   cancellation and terminal states retain priority and stop continuation.
@@ -507,7 +524,7 @@ beside the conversation:
 
 Its public Workspace surfaces keep launcher actions, closable tabs, file trees,
 source and Markdown editing, save/error status and the resizable Dock consistent
-across themes. The Dock starts at 62% of the available workspace, preserves the
+across themes. The Dock opens at 328px by default, preserves the
 conversation minimum, supports pointer and Arrow/Home/End resizing in both LTR
 and RTL layouts, and remembers the chosen width.
 
@@ -670,15 +687,16 @@ process.
 
 ### Models, providers and settings
 
-Settings follows the desktop's resolved locale and is divided into five focused
+Settings follows the desktop's resolved locale and is divided into six focused
 pages:
 
 | Page                      | Functions                                                                                                                                                                                                                                                                                                                    |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**               | Local profile-picture upload/removal with a bounded 256 px copy, language, theme and approval policy                                                                                                                                                                                                                         |
+| **General**               | Local profile-picture upload/removal with a bounded 256 px copy, language, theme and prevention of system sleep while Artemis is open                                                                                                                                                                                        |
 | **Providers & models**    | One focused page with **Built-in** and **Custom** tabs: default model search/selection, validated context-window limits, the Pi catalog including GLM-5.3 for Z.AI endpoints, editable OpenAI-compatible Chat Completions/Responses providers, reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
 | **Agent configuration**   | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                                                                                                                                                                      |
-| **MCP & extensions**      | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                                                                                                                                        |
+| **Message integrations**  | Local Gateway setup, Feishu / Lark and Slack bot connections, account pairing, optional delivery verification and group project grants                                                                                                                                                                                       |
+| **Execution permissions** | Execution approval policy, trusted-extension selection, content-hash trust and extension network/full-access settings; MCP servers are managed from the Resource Center                                                                                                                                                      |
 | **Updates & diagnostics** | Update state and actions, local diagnostic-bundle export and maintenance information                                                                                                                                                                                                                                         |
 
 The dialog has tab semantics, keyboard focus behavior and Escape-to-close
@@ -738,9 +756,10 @@ automatically without exposing additional Execute tools to Plan or Review.
 
 #### Resource Center and Skills
 
-The Resource Center separates Plugin, Connector, MCP and Skill catalogs, shows
-installed state, connection/tool counts and enable switches, and exposes source
-links before installation.
+The Resource Center has **Plugins**, **MCP** and **Skills** tabs. Service
+connections belong to their installed plugin and are managed through its
+**Configure** dialog. Entries expose their source, installed state and available
+management actions.
 
 - search the official MCP Registry and the Skill catalog with distinct loading,
   empty-result and error states;
@@ -809,12 +828,10 @@ confirmed operation:
 
 - self-contained Skills are copied atomically into Artemis's managed
   Skill root and enabled for new turns;
-- stdio and Streamable HTTP MCP definitions are imported **disabled**, except
-  a ready, signed Artemis-hosted Google MCP is enabled after the user confirms
-  installation and has already authorized its grant;
-- a hash-pinned plugin from a signed Git marketplace may declare scoped
-  Artemis-hosted Google authorization; unsigned, local and integrity-mismatched
-  sources cannot import that host-authenticated MCP configuration;
+- stdio and Streamable HTTP MCP definitions are imported **disabled**;
+- supported service plugins use Connector v1 and open their connection dialog
+  after installation. Credentials are available only when the plugin's signed
+  content, configuration and account authorization pass host validation;
 - literal environment values, bearer tokens and other credentials are never
   imported; environment-variable references are preserved by name only;
 - legacy Hooks, Commands, Agents, browser extensions and scheduled-task
@@ -908,7 +925,8 @@ that stays inside the same repository:
 
 Each plugin directory needs `.codex-plugin/plugin.json`; its `name` should match
 the marketplace entry and it must expose at least one valid Skill, importable
-MCP server or Connector URL. Skill packages use `SKILL.md` frontmatter. MCP
+MCP server, including a supported `connector-v1` definition. Skill packages use
+`SKILL.md` frontmatter. MCP
 commands can reference files with `${PLUGIN_ROOT}`, but credentials must be
 environment-variable references rather than committed values. Remote MCP and
 Connector endpoints must use HTTPS, except loopback HTTP during development.
@@ -923,72 +941,69 @@ including complete Skill, MCP and Connector examples, validation steps, limits
 and update behavior, is in
 [Developing a GitHub plugin marketplace](docs/features/plugin-marketplaces/README.md).
 
-An Artemis Connector is a standard Streamable HTTP MCP endpoint declared
-by a plugin in `.connector.json` or in the plugin manifest's `connectors`
-object. A minimal declaration is:
+Service plugins use the versioned **Connector v1** contract. Each declares one
+MCP server with an `x-artemis.connector` object; the MCP server is its runtime
+reference. For example, the supported Figma desktop integration declares:
 
 ```json
 {
-  "connectors": {
-    "mail": {
-      "id": "mail",
-      "name": "Mail",
-      "url": "https://connector.example.com/mcp",
-      "auth": "oauth",
-      "required": true
+  "mcpServers": {
+    "figma": {
+      "type": "http",
+      "url": "http://127.0.0.1:3845/mcp",
+      "auth": "none",
+      "x-artemis": {
+        "connector": {
+          "version": 1,
+          "id": "figma",
+          "provider": "figma",
+          "displayName": "Figma",
+          "auth": "none",
+          "scopes": [],
+          "capabilities": ["read"],
+          "requiredHostCapabilities": ["connector-v1"],
+          "setup": "desktop-mcp"
+        }
+      }
     }
   }
 }
 ```
 
-`endpoint` is accepted as an alias for `url`; `auth` may be `oauth`, `bearer`
-or `none`. Remote endpoints must use HTTPS, while HTTP is accepted only for
-loopback development endpoints. Connector credentials are never embedded in a
-plugin: OAuth clients/tokens and bearer tokens use the existing OS-encrypted MCP
-credential stores. Plugin-provided Connectors are installed disabled and must
-be explicitly enabled, preserving the existing MCP trust boundary. When the
-user enables an OAuth Connector (or OAuth HTTP MCP) and the endpoint reports
-that authorization is required, Artemis automatically opens the system
-browser and completes the loopback PKCE flow. Startup reconnection only reuses
-stored credentials and never opens an unsolicited login window; the manual
-Authorize action remains available for retry. A legacy connector declaration
-that contains only a provider-specific ID and no endpoint remains unavailable
-because there is no executable protocol target.
+The host checks the provider, transport, endpoint, declared capabilities and
+required authorization. A Connector also requires an installed plugin whose
+content and configuration match a trusted, signed marketplace snapshot.
+Legacy `.connector.json`, top-level `connectors` aliases and old authentication
+declarations are rejected. Update affected plugins and authorize them again;
+historical credential files are not imported or automatically deleted.
+Manual MCP servers retain their separate configuration and authorization path.
+See the [Connector v1 contract and publisher setup](docs/connectors.md).
 
 </details>
 
 <details>
-<summary><strong>Artemis-hosted Google authorization</strong></summary>
+<summary><strong>Connected accounts and credential isolation</strong></summary>
 
-The Artemis Plugin Shop can expose a **Google account** action for Gmail and
-Google Workspace plugins. Authorization uses a system-browser OAuth flow with
-an exact loopback callback, PKCE and state validation. Google Workspace and
-Gmail grants are kept separate; Artemis verifies the returned account and the
-complete requested scope set before saving a grant.
+- **Guided setup:** Google and Microsoft use browser authorization, GitHub uses
+  a device code, QQ Mail accepts an email address and authorization code, and
+  Figma checks its desktop MCP endpoint. Notion, Linear, Atlassian and Slack use
+  their supported official MCP authorization flows. Availability still depends
+  on publisher configuration and each service's access requirements.
+- **Visible connection state:** the plugin dialog shows its account,
+  capabilities and disconnected, connecting, connected, authorization-required
+  or unavailable state. Closing an unfinished dialog cancels its pending
+  authorization. Loading a marketplace does not start sign-in.
+- **Host-owned credentials:** connection records use OS-encrypted storage.
+  Refresh tokens stay in the host; trusted executors receive only the required
+  short-lived credential context. Gmail and Workspace have separate grants
+  while sharing one Google account identity. Exports contain declarations,
+  not credential records.
+- **Revocation and changes:** a changed connector declaration requires fresh
+  authorization. Disconnecting closes the MCP client and invalidates pending
+  refreshes. An uncertain mail-send result is not automatically retried.
 
-Refresh tokens and account records are persisted only through Electron
-`safeStorage`; the application-level OAuth client comes from the build resource
-described above and is never exposed to plugins. If operating-system encryption
-is unavailable, Google authorization and the affected plugins stay disabled.
-For each MCP call, Artemis refreshes a short-lived access token and passes only
-that token and the account email in private MCP metadata. It does not place the
-refresh token in plugin arguments or environment variables. Disconnecting a
-grant revokes it and disables MCP configurations that depend on that grant.
-
-Host-provided Google credentials are accepted only for a plugin whose content
-hash matches a signed Git marketplace snapshot and whose signing-key
-fingerprint is already trusted. A ready Google MCP is enabled automatically
-after confirmed installation. Non-destructive tools follow the normal MCP
-auto-approval path. The current Gmail and Google Workspace destructive tools
-are also auto-approved through exact grant-specific tool-name allowlists while
-retaining their destructive metadata; unknown, future, or cross-grant tool
-names do not inherit that exception. Automatic approvals execute directly
-without rendering an intermediate approval card.
-
-The automated suite covers client validation, encrypted persistence, scope and
-account mismatch rejection, token refresh, revocation, marketplace integrity,
-private metadata injection and destructive-tool approval. Real Google consent,
-provider policy and packaged GUI acceptance remain external release checks.
+Publisher client registration, service admission and real account authorization
+remain separate from local protocol and UI verification.
 
 </details>
 
@@ -1142,8 +1157,8 @@ through that platform; they do not require a shared Gateway or a cross-IM space.
 
 | Capability                     | How it works                                                                                                                                                                                                                                              |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Private bot chat**           | Pair your IM account, authorize a project and continue tasks from your bot chat. Receive results, answer questions and handle one-time approvals privately.                                                                                               |
-| **Native group collaboration** | Authorize an existing Slack channel or Feishu / Lark group for a local project. Each owner controls which members may assign work to their bot. WeCom private chat remains available; its group setup is currently hidden.                                |
+| **Private bot chat**           | Pair your own IM account and start a temporary chat or choose a local project. Owner direct chats use Execute with local desktop permissions and automatic approvals; group grants are configured separately.                                             |
+| **Native group collaboration** | Authorize an existing Slack channel or Feishu / Lark group for a local project. Each owner controls which members may assign work to their bot. WeCom remains supported by the Gateway, while its setup entry is currently hidden in desktop settings.    |
 | **Verified bot delegation**    | Discover bot identities from platform members or authenticated messages. Automatic handoff requires owner permission and a successful IM round-trip probe; otherwise use manual @ assignment.                                                             |
 | **Conversation continuity**    | Follow-up assignments to the same peer reuse the authorized conversation. Explicit new tasks and independent batch assignments can create separate sessions. Results return to the originating group and address the requester.                           |
 | **Durable waiting**            | Delegated work saves its wait state and can resume the original conversation when results arrive, including after restart and permission rechecks. You can keep chatting while it waits.                                                                  |
@@ -1152,17 +1167,22 @@ through that platform; they do not require a shared Gateway or a cross-IM space.
 
 #### Connect an IM account
 
-1. Open **Settings → Messaging** and follow the setup guide to start the
-   bundled Gateway and register this computer.
-2. Connect your platform's bot. WeCom and Feishu long connections and Slack
-   Socket Mode can receive messages without a public callback endpoint.
-3. Complete account pairing in your private bot chat and Artemis. Pairing codes
-   expire after five minutes.
-4. Choose the project, mode, allowed paths, command/network access and approval
-   policy, then enable the connection. Keep the computer awake and Artemis running.
-5. For group work, add the participating bots to the same native group/channel,
-   refresh the group and member list, and authorize the group for your project.
-   Each bot owner selects permitted senders and bot peers on their own computer.
+1. Open **Settings → Message integrations** and connect the service to start
+   the bundled Gateway and register this computer.
+2. Open **Feishu / Lark** or **Slack**, add the bot, and complete account
+   pairing. Feishu supports QR setup and manual credentials; Slack uses Socket
+   Mode. These long connections do not require a public callback endpoint.
+   Pairing codes expire after five minutes.
+3. Send a task in your paired private bot chat. Without a selected project it
+   creates a temporary conversation. Owner direct tasks use local Execute
+   permissions and automatic approvals; project grants are not a pairing step.
+   The optional verification view detects task arrival, while the owner confirms
+   that the task completed and the reply reached IM.
+4. For group work, add the participating bots to the same native group/channel.
+   Open **Group-chat project grants** and the project's authorization settings
+   to choose the project, permitted senders and peers, read/write paths,
+   command/network access and approval policy. Each owner grants access on
+   their own computer. Keep that computer awake and Artemis running.
 
 The installed desktop includes the local Gateway runtime. Standalone Gateway
 export remains available for advanced deployments. Remote Gateway access,
@@ -1181,7 +1201,7 @@ member's Artemis computer is online. Feishu / Lark member directories can be
 partial because the member API excludes bots; authenticated group messages
 supply observed bot identities. Observation alone never grants execution access.
 
-A recipient rechecks its own project and operation grants before running work.
+For group work, a recipient rechecks its own project and operation grants before running work.
 Project access covers the selected project, folder access includes its subtree,
 and file access remains limited to that file. Approvals stay with the owner;
 ordinary group chatter and copied protocol text do not authorize bot execution.
@@ -1198,11 +1218,13 @@ an acknowledgement arrives. Retry and continued waiting are explicit choices.
 
 通过**企业微信、飞书 / Lark、Slack** 的机器人单聊，把任务交给已配对的
 Artemis 电脑，在 IM 中接收进度、结果，处理澄清和本人审批。
-设置中的消息接入引导负责启动内置 Gateway、连接机器人、配对账号与授权项目。
+设置中的消息接入负责启动内置 Gateway、连接机器人与配对账号。当前桌面入口为
+飞书 / Lark 和 Slack，飞书支持扫码或手动配置。配对后的主人单聊默认使用 Execute、
+本机权限和自动审批；未选择项目时进入临时会话，不需要额外授予群聊项目权限。
 
 **群协作使用平台已有的群或频道。** 每位成员独立连接自己的机器人和 Artemis，
 机器人通过同一个 IM 群交换任务与结果，无需共用 Gateway，也无需建立跨 IM 空间。
-当前群设置支持 Slack 和飞书 / Lark；企业微信保留单聊，群协作入口暂时隐藏。
+当前群设置支持 Slack 和飞书 / Lark；企业微信仍有 Gateway 实现，桌面设置入口暂时隐藏。
 
 主人分别决定哪些成员可以派工、哪些机器人可以协作，以及可访问的项目、目录、文件、
 写入范围、命令与网络权限。自动派工还需通过真实 IM 往返验证；未验证时由人手动
@@ -1234,12 +1256,15 @@ fixtures. No personal IM account or live bot service was contacted.
 
 ![Current message integration setup](docs/images/screenshots/im-connections.png)
 
+![Slack channel settings with a synthetic paired account](docs/images/screenshots/im-channel-settings.png)
+
 ![Native group status and conversation controls](docs/images/screenshots/im-spaces.png)
 
 </details>
 
-IM is disabled by default. Remote sessions use scoped tools and native sandbox
-boundaries. Local tests cover simulated independent bots, routing, authorization,
+IM is disabled by default. Paired owner direct chats follow local desktop
+execution policy; group and delegated work use scoped remote tools and native
+sandbox boundaries. Local tests cover simulated independent bots, routing, authorization,
 continuation and cancellation; they do not establish real Slack or Feishu / Lark
 two-bot delivery. See [IM deployment and collaboration](docs/features/im-gateway/README.md)
 for setup and deployment acceptance checks.
@@ -1276,8 +1301,10 @@ loop. Raw Pi events pass through `PiAdapter` before reaching the Artemis
 protocol. Durable UI events receive authoritative IDs and sequences before
 persistence and publication; live child-Agent activity uses coalesced IPC
 batches. Model providers and the optional WeCom/Feishu/Lark/Slack gateway remain separate
-integrations. IM-originated tasks use scoped remote tools with a host file
-broker and native sandbox, never the desktop Shell fallback. Desktop Shell
+integrations. The Agent Host owns `PiAdapter`; Main receives normalized Artemis
+events and brokers tools and connectors. Paired owner direct chats use local
+Execute permissions. Group and delegated IM tasks use scoped remote tools with
+a host file broker and native sandbox, never the desktop Shell fallback. Desktop Shell
 commands support observation windows, continued execution, waiting and cancellation.
 
 | Boundary                       | Responsibility                                                                                                                                          |
@@ -1334,7 +1361,8 @@ dependency is no longer needed.
 - Executable Pi extensions require explicit project and content-hash trust,
   default to the platform-native sandbox and alone are affected by the
   extension **Full local access** setting.
-- Project-backed interactive tasks always use the project's Local checkout;
+- Project-backed interactive tasks default to Local and can explicitly hand off
+  to a managed worktree;
   Temporary chats use only their generated workspace and cannot enter
   Review, worktree or handoff flows.
 
@@ -1435,14 +1463,11 @@ state; the screenshot manifest records the capture version and source checkout.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The `npm test` pipeline for **1.6.0**, verified on September 18, 2026,
-contains **3052 passing tests** (13 skipped).
-The nine workspace Vitest suites are counted once; skipped tests and additional
-script-based verification fixtures are excluded from the passing total:
-
-| Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
-| ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     197 |      208 |       25 |        270 |             15 | 313 |             5 |        142 |    1877 |  **3052** |
+`npm test` builds the application, runs the nine workspace suites (Gateway,
+Protocol, Platform, Agent Host, Theme Contract, UI, Theme Artemis, UI Gallery and
+Desktop), and executes the repository's script-based package, boundary and
+performance checks. Test counts change with the source; the CI badge links to
+recorded runs, and the commands above verify a local checkout.
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1456,9 +1481,9 @@ Windows-native extension sandbox boundaries. IM coverage includes native group
 identity and permissions, independent bot delegation, session reuse, durable
 waits, semantic cancellation, requester routing and scoped project reads.
 
-The production dependency audit for this release reports **0 high or critical
-vulnerabilities**, with 1 moderate and 3 low findings. The configured release
-audit gate passes; these remaining findings are not counted as fixed.
+Run `npm run audit:production` for the current production dependency report.
+CI and release workflows enforce the configured high-severity audit gate;
+a historical audit result does not validate later dependency changes.
 
 Windows-native verification additionally exercises the desktop-user PTY with
 workspace/outside writes and network access, local stdio MCP inside AppContainer
@@ -1635,7 +1660,7 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
 
 | Target                | Implementation                                                      | Native acceptance                                 |
 | --------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
-| **Windows 11 x64**    | Desktop-user PTY/MCP; AppContainer extensions; native ZIP packaging | Real Windows x64 release gate required            |
+| **Windows 11 x64**    | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Real Windows x64 release gate required            |
 | **macOS 14+ arm64**   | Seatbelt, hardened runtime, DMG/ZIP and release gates               | Engineering artifact checked; public gate pending |
 | **macOS 14+ x64**     | Separate DMG/ZIP engineering artifacts                              | Static artifact check only; Intel gate pending    |
 | Windows ARM64 / Linux | Outside the initial Beta scope                                      | —                                                 |
@@ -1661,6 +1686,8 @@ The main remaining gates are:
 
 **Build and contribute**\
 [Architecture notes](docs/architecture.md) ·
+[Connectors](docs/connectors.md) ·
+[README visual provenance](docs/records/readme-visuals.md) ·
 [Security policy](SECURITY.md) · [Engineering guidance](AGENTS.md)
 
 ### Independent product boundary

@@ -1,2 +1,200 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="artemis-system-architecture-title artemis-system-architecture-desc"><title id="artemis-system-architecture-title">A local desktop, one agent loop</title><desc id="artemis-system-architecture-desc">The Renderer reaches Electron Main over typed IPC; Pi runs agent work while Main enforces policy and persists events. Independent IM peers communicate through their native platform.</desc><defs><style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1d1d1f}.title{font-size:34px;font-weight:650;letter-spacing:-.6px}.sub{font-size:17px;fill:#5a5a60}.name{font-size:21px;font-weight:600}.body{font-size:16px;fill:#5a5a60}.tag{font-size:12px;letter-spacing:1.2px;fill:#5a5a60;font-weight:600}.node{fill:#fff;stroke:#b9b9be;stroke-width:1.2}.focal{fill:#e4effb;stroke:#0071e3;stroke-width:1.5}.zone{fill:#ececee;fill-opacity:.45;stroke:#b9b9be;stroke-dasharray:5 5}.edge{fill:none;stroke:#5a5a60;stroke-width:1.6;marker-end:url(#artemis-system-architecture-arrow)}.network{stroke:#0071e3;marker-end:url(#artemis-system-architecture-blue)}.label{font-size:13px;fill:#5a5a60}.rule{stroke:#c9c9ce;stroke-width:1}</style><marker id="artemis-system-architecture-arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#5a5a60"/></marker><marker id="artemis-system-architecture-blue" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#0071e3"/></marker></defs><rect width="1280" height="760" fill="#f5f5f7"/><text x="40" y="44" class="tag">ARTEMIS  /  1.6.0</text><text x="40" y="92" class="title">A local desktop, one agent loop</text><text x="40" y="128" class="sub">Typed UI events, durable task state and explicit execution boundaries.</text><rect x="24" y="168" width="896" height="480" rx="12" class="zone"/><text x="44" y="196" class="tag">LOCAL DESKTOP  /  PROJECT DATA AND EXECUTION</text><path d="M304 276 H344" class="edge"/><path d="M624 276 H664" class="edge"/><path d="M904 276 H968" class="edge network"/><path d="M484 348 V456" class="edge"/><rect x="420.0" y="387" width="128" height="21" fill="#f5f5f7"/><text x="484" y="402" class="label" text-anchor="middle">persist / replay</text><path d="M804 348 V456" class="edge"/><rect x="747.0" y="387" width="114" height="21" fill="#f5f5f7"/><text x="804" y="402" class="label" text-anchor="middle">policy + tools</text><path d="M164 456 V388 Q164 380 172 380 H352 Q360 380 360 372 V348" class="edge network"/><rect x="40" y="208" width="264" height="140" rx="8" class="node"/><text x="60" y="244" class="name">Desktop Renderer</text><text x="60" y="276" class="body">React workspace and history</text><text x="60" y="300" class="body">Versioned Artemis protocol</text><text x="60" y="324" class="body">No Node or raw Pi events</text><rect x="344" y="208" width="280" height="140" rx="8" class="focal"/><text x="364" y="244" class="name">Electron Main</text><text x="364" y="276" class="body">Typed IPC · policy · lifecycle</text><text x="364" y="300" class="body">Projects, tasks and approvals</text><text x="364" y="324" class="body">PiAdapter normalizes events</text><rect x="664" y="208" width="240" height="140" rx="8" class="focal"/><text x="684" y="244" class="name">Pi Agent Host</text><text x="684" y="276" class="body">The only agent loop</text><text x="684" y="300" class="body">Model calls and tools</text><text x="684" y="324" class="body">Parallel child Agents</text><rect x="968" y="208" width="272" height="112" rx="8" class="node"/><text x="988" y="244" class="name">Model providers</text><text x="988" y="276" class="body">Selected per conversation</text><rect x="40" y="456" width="264" height="152" rx="8" class="node"/><text x="60" y="492" class="name">Optional IM service</text><text x="60" y="524" class="body">Private chat + native groups</text><text x="60" y="548" class="body">Local Gateway and queue</text><text x="60" y="572" class="body">Scoped remote execution</text><rect x="344" y="456" width="280" height="152" rx="8" class="node"/><text x="364" y="492" class="name">Local persistence</text><text x="364" y="524" class="body">SQLite events and wait states</text><text x="364" y="548" class="body">Pi sessions and project files</text><text x="364" y="572" class="body">OS-encrypted credentials</text><rect x="664" y="456" width="240" height="152" rx="8" class="node"/><text x="684" y="492" class="name">Execution surfaces</text><text x="684" y="524" class="body">Host tools · Shell · Terminal</text><text x="684" y="548" class="body">MCP and trusted extensions</text><text x="684" y="572" class="body">Distinct policy boundaries</text><rect x="968" y="456" width="272" height="152" rx="8" class="node"/><text x="988" y="492" class="name">Native IM platform</text><text x="988" y="524" class="body">Slack or Feishu / Lark groups</text><text x="988" y="548" class="body">WeCom private bot chat</text><text x="988" y="572" class="body">Peers connect independently</text><path d="M1104 608 V624 Q1104 632 1096 632 H180 Q164 632 164 624 V608" class="edge network" stroke-dasharray="5 4"/><path d="M40 684 H1240" class="rule"/><text x="40" y="716" class="body">History is paged for the UI; raw events and Pi session context remain available.</text><text x="40" y="744" class="label">Solid arrows: permitted flow  ·  Dashed arrows: return or optional flow  ·  Dashed boxes: local boundary</text></svg>
+<svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 1280 840"
+        role="img"
+        aria-labelledby="artemis-system-architecture-title artemis-system-architecture-desc"
+      >
+        <title id="artemis-system-architecture-title">
+          A local desktop, one agent loop
+        </title>
+        <desc id="artemis-system-architecture-desc">
+          The Renderer reaches Electron Main over typed IPC; Pi runs agent work
+          while Main enforces policy, brokers integrations and persists events.
+          Paired owner chats use local permissions; native group work retains
+          scoped execution on independently authorized computers.
+        </desc>
+        <defs>
+          <style>
+            text {
+              font-family:
+                -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              fill: #1d1d1f;
+            }
+            .title {
+              font-size: 34px;
+              font-weight: 650;
+              letter-spacing: -0.6px;
+            }
+            .sub {
+              font-size: 17px;
+              fill: #5a5a60;
+            }
+            .name {
+              font-size: 21px;
+              font-weight: 600;
+            }
+            .body {
+              font-size: 16px;
+              fill: #5a5a60;
+            }
+            .tag {
+              font-size: 12px;
+              letter-spacing: 1.2px;
+              fill: #5a5a60;
+              font-weight: 600;
+            }
+            .node {
+              fill: #fff;
+              stroke: #b9b9be;
+              stroke-width: 1.2;
+            }
+            .focal {
+              fill: #e4effb;
+              stroke: #0071e3;
+              stroke-width: 1.5;
+            }
+            .zone {
+              fill: #ececee;
+              fill-opacity: 0.45;
+              stroke: #b9b9be;
+              stroke-dasharray: 5 5;
+            }
+            .edge {
+              fill: none;
+              stroke: #5a5a60;
+              stroke-width: 1.6;
+              marker-end: url(#artemis-system-architecture-arrow);
+            }
+            .network {
+              stroke: #0071e3;
+              marker-end: url(#artemis-system-architecture-blue);
+            }
+            .label {
+              font-size: 13px;
+              fill: #5a5a60;
+            }
+            .rule {
+              stroke: #c9c9ce;
+              stroke-width: 1;
+            }
+          </style>
+          <marker
+            id="artemis-system-architecture-arrow"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0 0 8 4 0 8Z" fill="#5a5a60" />
+          </marker>
+          <marker
+            id="artemis-system-architecture-blue"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0 0 8 4 0 8Z" fill="#0071e3" />
+          </marker>
+        </defs>
+        <rect width="1280" height="840" fill="#f5f5f7" />
+        <text x="40" y="44" class="tag">ARTEMIS / 1.6.0 · CURRENT SOURCE</text>
+        <text x="40" y="92" class="title">A local desktop, one agent loop</text>
+        <text x="40" y="128" class="sub">
+          Projects, temporary chats, Goals and integrations share one controlled
+          runtime.
+        </text>
+        <rect x="24" y="168" width="896" height="504" rx="12" class="zone" />
+        <text x="44" y="196" class="tag">
+          LOCAL DESKTOP / PROJECT DATA AND EXECUTION
+        </text>
+        <path d="M304 276 H344" class="edge" />
+        <path d="M624 276 H664" class="edge" />
+        <path d="M664 312 H624" class="edge" stroke-dasharray="5 4" />
+        <path d="M344 312 H304" class="edge" stroke-dasharray="5 4" />
+        <path d="M904 276 H968" class="edge network" />
+        <path d="M484 348 V456" class="edge" />
+        <rect x="500" y="387" width="128" height="21" fill="#f5f5f7" />
+        <text x="564" y="402" class="label" text-anchor="middle">
+          persist / replay
+        </text>
+        <path
+          d="M624 336 H636 Q644 336 644 344 V416 Q644 424 652 424 H796 Q804 424 804 432 V456"
+          class="edge"
+        />
+        <rect x="692" y="387" width="112" height="24" fill="#f5f5f7" />
+        <text x="748" y="403" class="label" text-anchor="middle">
+          policy + tools
+        </text>
+        <path
+          d="M164 456 V388 Q164 380 172 380 H352 Q360 380 360 372 V348"
+          class="edge network"
+        />
+        <path
+          d="M904 500 H928 Q936 500 936 492 V400 Q936 392 944 392 H1096 Q1104 392 1104 384 V376"
+          class="edge network"
+        />
+        <path
+          d="M1104 608 V624 Q1104 632 1096 632 H172 Q164 632 164 624 V608"
+          class="edge network"
+          stroke-dasharray="5 4"
+        />
+        <rect x="40" y="208" width="264" height="140" rx="8" class="node" />
+        <text x="60" y="244" class="name">Desktop Renderer</text>
+        <text x="60" y="276" class="body">Tasks, Review and workspaces</text>
+        <text x="60" y="300" class="body">Typed, validated preload API</text>
+        <text x="60" y="324" class="body">No Node or raw Pi events</text>
+        <rect x="344" y="208" width="280" height="140" rx="8" class="focal" />
+        <text x="364" y="244" class="name">Electron Main</text>
+        <text x="364" y="276" class="body">Typed IPC + execution policy</text>
+        <text x="364" y="300" class="body">
+          Projects, worktrees + approvals
+        </text>
+        <text x="364" y="324" class="body">Goals + automation dispatch</text>
+        <rect x="664" y="208" width="240" height="140" rx="8" class="focal" />
+        <text x="684" y="244" class="name">Pi Agent Host</text>
+        <text x="684" y="276" class="body">Pi sessions + parallel Agents</text>
+        <text x="684" y="300" class="body">PiAdapter → Artemis events</text>
+        <text x="684" y="324" class="body">Context + prompt cache</text>
+        <rect x="968" y="208" width="272" height="168" rx="8" class="node" />
+        <text x="988" y="244" class="name">Models + services</text>
+        <text x="988" y="276" class="body">Per-task model selection</text>
+        <text x="988" y="308" class="body">Official service connectors</text>
+        <text x="988" y="340" class="body">Remote MCP endpoints</text>
+        <rect x="40" y="456" width="264" height="152" rx="8" class="node" />
+        <text x="60" y="492" class="name">Optional IM service</text>
+        <text x="60" y="524" class="body">Paired owner → local tools</text>
+        <text x="60" y="548" class="body">Groups → scoped tool broker</text>
+        <text x="60" y="572" class="body">Independent local Gateway</text>
+        <rect x="344" y="456" width="280" height="152" rx="8" class="node" />
+        <text x="364" y="492" class="name">Local persistence</text>
+        <text x="364" y="524" class="body">SQLite projections + Goals</text>
+        <text x="364" y="548" class="body">Pi JSONL + workspace files</text>
+        <text x="364" y="572" class="body">OS-encrypted token vault</text>
+        <rect x="664" y="456" width="240" height="152" rx="8" class="node" />
+        <text x="684" y="492" class="name">Capabilities + tools</text>
+        <text x="684" y="524" class="body">Skills · MCP · Connectors</text>
+        <text x="684" y="548" class="body">Shell / PTY · extensions</text>
+        <text x="684" y="572" class="body">Separate grants + sandboxes</text>
+        <rect x="968" y="456" width="272" height="152" rx="8" class="node" />
+        <text x="988" y="492" class="name">Native IM platform</text>
+        <text x="988" y="524" class="body">Slack or Feishu / Lark groups</text>
+        <text x="988" y="548" class="body">WeCom private bot chat</text>
+        <text x="988" y="572" class="body">Peers connect independently</text>
+        <path d="M40 700 H1240" class="rule" />
+        <text x="40" y="736" class="body">
+          Local Shell / Terminal: desktop-user permissions. MCP / extensions:
+          separate native sandboxes.
+        </text>
+        <text x="40" y="768" class="body">
+          Owner DMs: local Execute tools. Group jobs: scoped remote broker.
+          Credentials remain in the host.
+        </text>
+        <text x="40" y="812" class="label">
+          Solid: commands, tools and API calls · Dashed: normalized events or IM
+          transport · Dashed frame: local desktop
+        </text>
+      </svg>

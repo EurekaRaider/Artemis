@@ -1708,6 +1708,8 @@ async function disableConnector(id: string): Promise<void> {
 }
 
 async function resetAgentThreadsForToolChange(): Promise<void> {
+  // Additive installs skip this reset: new MCP servers stay disabled, and
+  // runtime.configure defers Skill refreshes until the current turn ends.
   if (!agentProcess) return;
   if (activeTurns.size > 0) {
     throw new Error("Stop active turns before changing Agent tools.");
@@ -8225,7 +8227,6 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      await resetAgentThreadsForToolChange();
       const installed = await resourceCatalogService.installSkill(
         resourceId,
         (percent) => publish(10 + percent * 0.7),
@@ -8267,7 +8268,6 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      await resetAgentThreadsForToolChange();
       const installed = await resourceCatalogService.installLocalSkill(
         selection.filePaths[0],
         (percent) => publish(10 + percent * 0.7),
@@ -8664,7 +8664,6 @@ function registerIpc(): void {
       const installedSkillNames: string[] = [];
       const installedPluginIds: string[] = [];
       publish(5);
-      await resetAgentThreadsForToolChange();
       try {
         for (const [index, plugin] of pending.entries()) {
           const installed = await codexPluginService.install(
@@ -8733,7 +8732,6 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      await resetAgentThreadsForToolChange();
       const installed = await codexPluginService.install(source, (percent) =>
         publish(10 + percent * 0.8),
       );

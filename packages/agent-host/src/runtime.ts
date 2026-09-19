@@ -872,6 +872,7 @@ interface HostedThread {
   contextWindow?: number;
   session: AgentSession;
   resourceLoader: DefaultResourceLoader;
+  configurationPending?: boolean;
   currentTurnId: string | undefined;
   currentMode: RunMode | undefined;
   compacting: boolean;
@@ -1583,7 +1584,8 @@ export class ArtemisAgentHost {
     if (
       providers.length === 0 &&
       this.registeredProviderIds.size === 0 &&
-      !resolvedConfiguration.selection
+      !resolvedConfiguration.selection &&
+      this.threads.size === 0
     ) {
       this.configuration = resolvedConfiguration;
       return;
@@ -1608,47 +1610,59 @@ export class ArtemisAgentHost {
       this.registeredProviderIds.add(provider.id);
     }
     const selection = resolvedConfiguration.selection;
-    if (!selection) {
-      this.configuration = resolvedConfiguration;
-      return;
-    }
-    const catalogModel = modelRuntime.getModel(
-      selection.providerId,
-      selection.modelId,
-    );
-    if (!catalogModel) {
-      throw new Error(
-        `Configured model is unavailable: ${selection.providerId}/${selection.modelId}`,
+    if (selection) {
+      const catalogModel = modelRuntime.getModel(
+        selection.providerId,
+        selection.modelId,
       );
-    }
-    if (selection.ultraMode) {
-      selection.thinkingLevel =
-        getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
+      if (!catalogModel) {
+        throw new Error(
+          `Configured model is unavailable: ${selection.providerId}/${selection.modelId}`,
+        );
+      }
+      if (selection.ultraMode) {
+        selection.thinkingLevel =
+          getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
+      }
     }
     this.configuration = resolvedConfiguration;
     this.reconcileCustomAgentChildren(resolvedConfiguration.customAgents);
     for (const hosted of this.threads.values()) {
-      if (hosted.selection) {
-        const threadModel = modelRuntime.getModel(
-          hosted.selection.providerId,
-          hosted.selection.modelId,
-        );
-        if (!threadModel) {
-          throw new Error(
-            `Thread model is unavailable: ${hosted.selection.providerId}/${hosted.selection.modelId}`,
-          );
-        }
-        await hosted.session.setModel(
-          configureModelContextWindow(threadModel, hosted.contextWindow),
-        );
-        hosted.session.setThinkingLevel(hosted.selection.thinkingLevel);
+      hosted.configurationPending = true;
+      // Preserve the current turn's model, prompt and resource snapshot.
+      // Additive installs become visible when its next prompt starts.
+      if (!hosted.currentTurnId && !hosted.compacting) {
+        await this.refreshThreadConfiguration(hosted);
       }
-      const activeToolNames = hosted.session.getActiveToolNames();
-      await hosted.resourceLoader.reload();
-      hosted.session.setActiveToolsByName(activeToolNames);
-      this.configureSessionCompaction(hosted.session);
-      this.emitContextUsage(hosted, false);
     }
+  }
+
+  private async refreshThreadConfiguration(
+    hosted: HostedThread,
+  ): Promise<void> {
+    const configuration = this.configuration;
+    if (hosted.selection) {
+      const modelRuntime = await this.getModelRuntime();
+      const threadModel = modelRuntime.getModel(
+        hosted.selection.providerId,
+        hosted.selection.modelId,
+      );
+      if (!threadModel) {
+        throw new Error(
+          `Thread model is unavailable: ${hosted.selection.providerId}/${hosted.selection.modelId}`,
+        );
+      }
+      await hosted.session.setModel(
+        configureModelContextWindow(threadModel, hosted.contextWindow),
+      );
+      hosted.session.setThinkingLevel(hosted.selection.thinkingLevel);
+    }
+    const activeToolNames = hosted.session.getActiveToolNames();
+    await hosted.resourceLoader.reload();
+    hosted.session.setActiveToolsByName(activeToolNames);
+    this.configureSessionCompaction(hosted.session);
+    this.emitContextUsage(hosted, false);
+    hosted.configurationPending = this.configuration !== configuration;
   }
 
   async setThreadModel(
@@ -6355,7 +6369,6 @@ export class ArtemisAgentHost {
     if (hosted.compacting) {
       throw new Error("Cannot start a turn while context is compacting.");
     }
-
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
     hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
@@ -6433,6 +6446,10 @@ export class ArtemisAgentHost {
     }
 
     try {
+      if (hosted.configurationPending) {
+        await this.refreshThreadConfiguration(hosted);
+        if (this.cancelledTurns.has(`${threadId}\0${turnId}`)) return;
+      }
       const preparedAttachments = await this.prepareAttachments(
         hosted,
         attachments,
