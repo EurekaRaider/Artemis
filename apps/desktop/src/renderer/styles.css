@@ -10381,6 +10381,14 @@ kbd {
   color: var(--muted);
   flex: none;
 }
+/* 回复模式值展示（固定流式卡片）：右栏卡右侧的下拉形态值。 */
+.im-reply-mode-select {
+  inline-size: 220px;
+}
+.im-reply-mode-select [data-part="trigger"] {
+  box-sizing: border-box;
+  width: 100%;
+}
 /* 服务状态胶囊（信号灯+已就绪/已断开）：居「连接服务」标题左侧。 */
 .im-service-capsule {
   display: inline-flex;

@@ -1496,6 +1496,7 @@
   "ImSettingsPanel.botScanDesc": "App-Anmeldeinformationen per Scan abrufen.",
   "ImSettingsPanel.botReplyModeTitle": "Antwortmodus",
   "ImSettingsPanel.botReplyModeDesc": "Antworten verwenden Feishu-Card-JSON-2.0-Streaming-Karten; Tool-Aufrufe erscheinen als eingeklappte Zusammenfassung.",
+  "ImSettingsPanel.botReplyModeValue": "Streaming-Karte",
   "ImSettingsPanel.botPairTitle": "Chat koppeln",
   "ImSettingsPanel.botPairDesc": "Koppelcode erzeugen und dem Bot im privaten Chat senden, um die Verknüpfung abzuschließen.",
   "ImSettingsPanel.botDeleteTitle": "Bot löschen",

@@ -1496,6 +1496,7 @@
   "ImSettingsPanel.botScanDesc": "扫码获取应用凭据。",
   "ImSettingsPanel.botReplyModeTitle": "机器人回复模式",
   "ImSettingsPanel.botReplyModeDesc": "回复使用飞书 Card JSON 2.0 流式卡片，工具调用只显示折叠摘要。",
+  "ImSettingsPanel.botReplyModeValue": "流式卡片",
   "ImSettingsPanel.botPairTitle": "配对聊天",
   "ImSettingsPanel.botPairDesc": "生成配对码，在私聊中发给机器人完成绑定。",
   "ImSettingsPanel.botDeleteTitle": "删除机器人",

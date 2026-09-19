@@ -1496,6 +1496,7 @@
   "ImSettingsPanel.botScanDesc": "Pindai untuk mendapatkan kredensial aplikasi.",
   "ImSettingsPanel.botReplyModeTitle": "Mode balasan",
   "ImSettingsPanel.botReplyModeDesc": "Balasan menggunakan kartu streaming Card JSON 2.0 Feishu; panggilan alat hanya menampilkan ringkasan terlipat.",
+  "ImSettingsPanel.botReplyModeValue": "Kartu streaming",
   "ImSettingsPanel.botPairTitle": "Pasangkan obrolan",
   "ImSettingsPanel.botPairDesc": "Buat kode pemasangan dan kirim ke bot di obrolan pribadi untuk menyelesaikan penautan.",
   "ImSettingsPanel.botDeleteTitle": "Hapus bot",

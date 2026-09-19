@@ -1496,6 +1496,7 @@
   "ImSettingsPanel.botScanDesc": "掃碼取得應用憑證。",
   "ImSettingsPanel.botReplyModeTitle": "機器人回覆模式",
   "ImSettingsPanel.botReplyModeDesc": "回覆使用飛書 Card JSON 2.0 串流卡片，工具調用只顯示摺疊摘要。",
+  "ImSettingsPanel.botReplyModeValue": "串流卡片",
   "ImSettingsPanel.botPairTitle": "配對聊天",
   "ImSettingsPanel.botPairDesc": "生成配對碼，在私聊中發給機器人完成綁定。",
   "ImSettingsPanel.botDeleteTitle": "刪除機器人",

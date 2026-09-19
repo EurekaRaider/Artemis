@@ -1496,6 +1496,7 @@
   "ImSettingsPanel.botScanDesc": "Scan to obtain the app credentials.",
   "ImSettingsPanel.botReplyModeTitle": "Reply mode",
   "ImSettingsPanel.botReplyModeDesc": "Replies use Feishu Card JSON 2.0 streaming cards; tool calls show a collapsed summary.",
+  "ImSettingsPanel.botReplyModeValue": "Streaming cards",
   "ImSettingsPanel.botPairTitle": "Pair a chat",
   "ImSettingsPanel.botPairDesc": "Generate a pairing code and send it to the bot in a private chat to finish linking.",
   "ImSettingsPanel.botDeleteTitle": "Delete bot",

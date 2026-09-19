@@ -1496,6 +1496,7 @@
   "ImSettingsPanel.botScanDesc": "ऐप क्रेडेंशियल प्राप्त करने के लिए स्कैन करें।",
   "ImSettingsPanel.botReplyModeTitle": "रिप्लाई मोड",
   "ImSettingsPanel.botReplyModeDesc": "रिप्लाई Feishu Card JSON 2.0 स्ट्रीमिंग कार्ड का उपयोग करते हैं; टूल कॉल केवल संक्षिप्त सारांश दिखाते हैं।",
+  "ImSettingsPanel.botReplyModeValue": "स्ट्रीमिंग कार्ड",
   "ImSettingsPanel.botPairTitle": "चैट जोड़ें",
   "ImSettingsPanel.botPairDesc": "पेयरिंग कोड बनाएं और लिंक पूरा करने के लिए निजी चैट में बॉट को भेजें.",
   "ImSettingsPanel.botDeleteTitle": "बॉट हटाएं",

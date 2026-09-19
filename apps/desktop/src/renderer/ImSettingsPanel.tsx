@@ -1551,11 +1551,27 @@ export function ImSettingsPanel({
                       </div>
                     )}
                   </div>
-                    {/* 回复形态说明（ZCode 同款说明卡）：飞书走流式卡片。 */}
+                    {/* 回复形态说明（ZCode 同款说明卡）：飞书固定流式卡片。 */}
                     <div className="im-bot-section">
                       <div className="im-bot-section-copy">
                         <strong>{t("ImSettingsPanel.botReplyModeTitle")}</strong>
                         <p>{t("ImSettingsPanel.botReplyModeDesc")}</p>
+                      </div>
+                      <div className="im-bot-section-actions">
+                        <Select
+                          className="im-reply-mode-select"
+                          labelVisibility="hidden"
+                          label={t("ImSettingsPanel.botReplyModeTitle")}
+                          value="streaming"
+                          disabled
+                          options={[
+                            {
+                              value: "streaming",
+                              label: t("ImSettingsPanel.botReplyModeValue"),
+                            },
+                          ]}
+                          onValueChange={() => {}}
+                        />
                       </div>
                     </div>
                   </>

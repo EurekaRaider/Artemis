@@ -620,7 +620,13 @@ describe("production IM settings", () => {
     /* 飞书创建页=扫码优先：右栏直接出码，不再展示凭据表单。 */
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(screen.queryByLabelText("App ID")).not.toBeInTheDocument();
-    expect(screen.getByText("机器人回复模式")).toBeVisible();
+    expect(
+      screen.getByText("机器人回复模式", {
+        selector: ".im-bot-section-copy strong",
+      }),
+    ).toBeVisible();
+    /* 回复模式值展示：固定流式卡片。 */
+    expect(screen.getByText("流式卡片")).toBeVisible();
     /* 扫码建连：凭据经 scan-connect 落库，接续配对码并选中新机器人。 */
     await waitFor(() =>
       expect(f.manage).toHaveBeenCalledWith(
