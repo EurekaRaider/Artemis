@@ -143,11 +143,13 @@
   flex: none;
 }
 .sidebar-nav .nav-row:hover {
-  background: var(--hover);
+  background: linear-gradient(var(--hover), var(--hover)) center / 100%
+    calc(100% - 1px) no-repeat;
   color: var(--text);
 }
 .sidebar-nav .nav-row[aria-current="page"] {
-  background: var(--selected);
+  background: linear-gradient(var(--selected), var(--selected)) center / 100%
+    calc(100% - 1px) no-repeat;
   color: var(--text);
   font-weight: 600;
 }
@@ -885,14 +887,11 @@ body:has(.app-shell[data-platform="darwin"]),
   backdrop-filter: blur(24px) saturate(1.35);
   box-shadow: none;
 }
-.sidebar .project-thread-row.selected,
+/* 导航行选中只铺背景，不加 inset 描边/高光。 */
 .sidebar-nav .nav-row[aria-current="page"] {
-  background:
-    linear-gradient(rgb(255 255 255 / 0.025), transparent), var(--selected);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  background: var(--selected);
 }
+
 .app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
   padding-block-start: 38px;
 }

@@ -343,8 +343,16 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   background: var(--hover);
 }
 
+/* 悬浮/选中背景上下各收 0.5px（合计 1px）：用背景图尺寸实现，
+   避免 content-box 裁剪与圆角/padding 相互干扰。 */
+.project-thread-row:hover {
+  background: linear-gradient(var(--hover), var(--hover)) center / 100%
+    calc(100% - 1px) no-repeat;
+}
+
 .project-thread-row.selected {
-  background: var(--selected);
+  background: linear-gradient(var(--selected), var(--selected)) center / 100%
+    calc(100% - 1px) no-repeat;
 }
 
 .project-select {
