@@ -567,8 +567,8 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   grid-column: 2;
 }
 
-.im-thread-group,
-.im-thread-connection {
+.im-thread-connection,
+.im-thread-computers {
   color: var(--muted);
   display: inline-flex;
 }
@@ -580,21 +580,23 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   block-size: 15px;
 }
 
-.im-thread-group[data-state="connected"],
 .im-thread-connection[data-state="connected"] {
   color: var(--success);
 }
 
-.im-thread-group[data-state="connecting"],
 .im-thread-connection[data-state="connecting"] {
   color: var(--warning);
 }
 
-.im-thread-group[data-state="error"],
 .im-thread-connection[data-state="error"] {
   color: var(--danger);
 }
 
+.im-thread-computers[data-state="offline"],
+.im-thread-connection[data-state="removed"] {
+  color: var(--muted-2);
+  opacity: 0.38;
+}
 .thread-title-text {
   display: block;
   overflow: hidden;
