@@ -1642,6 +1642,9 @@ describe("production IM settings", () => {
       ],
     });
     const user = userEvent.setup();
+    /* 轮询 interval 须注册在假时钟下，才能用 advanceTimers 驱动；
+       shouldAdvanceTime 让 waitFor/findBy 仍随真实时间推进。 */
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<ImSettingsPanel locale="zh-CN" />);
     // 配对请求卡片已内聚进配对码弹窗：下钻机器人所在渠道后从行内打开弹窗审批。
     await openChannel(user, "wecom");
@@ -1649,20 +1652,23 @@ describe("production IM settings", () => {
       await screen.findByRole("button", { name: "生成配对码 Test bot" }),
     );
     await screen.findByText("0123456789abcdef");
-    /* 生成新码会作废旧请求（与网关同语义）：重新注入待确认请求并经
-       「刷新配对结果」拉取。 */
-    f.set({
-      pairingRequests: [
-        {
-          id: "00000000-0000-4000-8000-000000000001",
-          identity,
-          expiresAt: Date.now() + 300000,
-        },
-      ],
-    });
-    await user.click(
-      screen.getByRole("button", { name: "我已发送，刷新配对结果" }),
-    );
+    /* 生成新码会作废旧请求（与网关同语义）：重新注入待确认请求，
+       弹窗打开期间的自动轮询负责把请求拉出来。 */
+    const surfaceRequests = async () => {
+      f.set({
+        pairingRequests: [
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            identity,
+            expiresAt: Date.now() + 300000,
+          },
+        ],
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(4200);
+      });
+    };
+    await surfaceRequests();
     await user.click(screen.getByRole("button", { name: "拒绝" }));
     await waitFor(() =>
       expect(
@@ -1670,6 +1676,8 @@ describe("production IM settings", () => {
       ).not.toBeInTheDocument(),
     );
     expect(f.get().identities).toEqual([]);
+    /* 拒绝后自动换新码（同码作废语义，mock 恒返同值）。 */
+    expect(screen.getByText("0123456789abcdef")).toBeVisible();
     f.set({
       pairingRequests: [
         {
@@ -1679,11 +1687,12 @@ describe("production IM settings", () => {
         },
       ],
     });
-    await user.click(
-      screen.getByRole("button", { name: "我已发送，刷新配对结果" }),
-    );
+    await act(async () => {
+      vi.advanceTimersByTime(4200);
+    });
     await user.click(await screen.findByRole("button", { name: "批准" }));
-    /* 批准后自动进入管理=渠道详情弹窗保持打开。 */
+    /* 批准后配对完成：配对弹窗关闭，渠道详情弹窗保持打开。 */
+    expect(document.querySelector(".im-pair-dialog")).toBeNull();
     expect(document.querySelector(".im-channel-dialog")).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "批准" }),
@@ -1789,17 +1798,18 @@ describe("pairing code lifecycle", () => {
         busy={false}
         generate={generate}
         copy={copy}
+        onPoll={() => {}}
         onClose={() => {}}
       />,
     );
     expect(screen.getByLabelText("剩余有效时间")).toHaveTextContent("5:00");
-    fireEvent.click(screen.getByRole("button", { name: "复制配对指令" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制" }));
     expect(copy).toHaveBeenLastCalledWith("/pair test-code");
     vi.setSystemTime(301001);
-    fireEvent.click(screen.getByRole("button", { name: "复制配对指令" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制" }));
     expect(copy).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "复制配对指令" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "重新生成配对码" }));
+    expect(screen.getByRole("button", { name: "复制" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
     expect(generate).toHaveBeenCalledOnce();
     ui.rerender(
       <ImPairingCode
@@ -1809,13 +1819,14 @@ describe("pairing code lifecycle", () => {
         busy={false}
         generate={generate}
         copy={copy}
+        onPoll={() => {}}
         onClose={() => {}}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "复制配对指令" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制" }));
     expect(copy).toHaveBeenLastCalledWith("pair new-code");
     await act(() => vi.advanceTimersByTimeAsync(300000));
-    expect(screen.getByRole("button", { name: "复制配对指令" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "复制" })).toBeDisabled();
   });
   it("opens group setup from the overview of a completed flow", async () => {
     const f = fixture();

@@ -640,7 +640,8 @@ export function ImSettingsPanel({
       unpair={unpairIdentity}
     />
   );
-  /* 待确认的配对请求：内聚在配对码弹窗中审批。 */
+  /* 待确认的配对请求：内聚在配对码弹窗中审批。授权=配对完成，
+     直接关弹窗；拒绝=换新码重来（旧码作废）。 */
   const pendingRequests = (
     <ImAccounts
       key={`${screen}:requests`}
@@ -649,7 +650,13 @@ export function ImSettingsPanel({
       identities={[]}
       requests={status?.pairingRequests ?? []}
       showAccounts={false}
-      resolve={resolvePairing}
+      resolve={async (requestId, approve) => {
+        const ok = await resolvePairing(requestId, approve);
+        if (!ok) return false;
+        if (approve) setPairDialogId("");
+        else void run(generatePairCode);
+        return true;
+      }}
       unpair={unpairIdentity}
     />
   );
@@ -1708,7 +1715,7 @@ export function ImSettingsPanel({
             slack={activePairingPlatform === "slack"}
             busy={busy || !activeSettings.deviceId}
             generate={() => void run(generatePairCode)}
-            onRefresh={() => void run(refresh)}
+            onPoll={() => void run(refresh)}
             returnFocusRef={pairDialogTrigger}
             onClose={() => setPairDialogId("")}
             requests={pendingRequests}

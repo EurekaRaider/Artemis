@@ -9471,6 +9471,17 @@ kbd {
 
 .automation-list,
 /* 配对码弹窗：提示信息 + 大号配对码行。 */
+.im-pair-dialog {
+  width: min(560px, 94vw);
+}
+.im-pair-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.im-pair-dialog-head h2 {
+  margin: 0;
+}
 .im-pair-dialog-body {
   display: grid;
   gap: 12px;
@@ -9478,6 +9489,13 @@ kbd {
 .im-pair-guide {
   display: grid;
   gap: 4px;
+  font-size: 12px;
+}
+/* 复制 + 重新生成成组，不与配对码行拆行。 */
+.im-pair-code-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
 }
 .im-pair-guide > p {
   margin: 0;
