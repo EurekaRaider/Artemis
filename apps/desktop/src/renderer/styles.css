@@ -10569,8 +10569,63 @@ kbd {
   /* 表单/文案在整幅卡里限宽，避免输入框被拉满整行。 */
   max-inline-size: 680px;
 }
-.im-screen-detail-body > .im-channel-md {
-  /* 渠道二级面板主从布局占满整幅，不参与表单限宽。 */
+/* 渠道二级面板弹窗（ZCode 式）：896px 对齐 ZCode 弹窗标准（max-w-4xl），
+   头部=渠道标+名+关闭，内容区超高时内部滚动。 */
+.im-channel-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(896px, 94vw);
+  max-width: calc(100vw - 32px);
+  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+  overflow: hidden;
+  padding: 0;
+  --border-soft: var(--artemis-color-border-subtle);
+}
+.im-channel-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 14px 18px 12px;
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-channel-dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-channel-dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: none;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-channel-dialog-close:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--text);
+}
+.im-channel-dialog-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 12px 18px 16px;
+  font-size: 12.5px;
+}
+.im-channel-dialog-body .im-channel-md {
+  /* 主从布局占满弹窗整幅，不参与表单限宽。 */
   max-inline-size: none;
 }
 /* 渠道二级面板（ZCode 式主从）：左 208px 导航（新建入口 + 机器人卡 +
@@ -10744,6 +10799,17 @@ kbd {
   gap: 8px;
   flex: none;
 }
+/* 关联凭据卡展开扫码（ZCode 式）：卡头行换行，二维码区占满整行。 */
+.im-bot-section[data-scan-open] {
+  flex-wrap: wrap;
+}
+.im-bot-scan {
+  flex: 1 1 100%;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
 .im-bot-join {
   display: flex;
   flex-direction: column;
@@ -10854,33 +10920,6 @@ kbd {
 .im-channel-detail-head strong {
   font-size: 13px;
   font-weight: 650;
-}
-/* ②尾「顺手验证」折叠段：与卡内容同层级，仅细分隔。 */
-.im-verify {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-soft);
-}
-.im-verify-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.im-verify-toggle:hover {
-  color: var(--accent);
-}
-.im-verify-caret {
-  font-size: 13px;
-  color: var(--muted);
 }
 .im-verify-body {
   display: flex;

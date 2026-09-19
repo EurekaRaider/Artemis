@@ -157,6 +157,15 @@ const openChannel = async (
   await panelReady();
   await user.click(platformCard(channel));
 };
+/* 渠道详情弹窗的 × 关闭钮：可访问名「关闭」会与叠开的配对弹窗重名，
+   直接按专用类定位。 */
+const closeChannelDialog = async (
+  user: ReturnType<typeof userEvent.setup>,
+) => {
+  await user.click(
+    document.querySelector(".im-channel-dialog-close") as HTMLButtonElement,
+  );
+};
 const platformState = (channel: keyof typeof platformLabels) =>
   platformCard(channel).closest("[data-connection-state]") as HTMLElement;
 /* 两栏版：群协作=IM 渠道第三卡，点击下钻群协作详情（带返回）。 */
@@ -257,8 +266,8 @@ describe("production IM settings", () => {
       if (destination === "overview") {
         expect(document.querySelector(".im-overview")).toHaveFocus();
       } else {
-        /* 验证=渠道二级面板的一页：深链落整幅卡并切到验证页。 */
-        expect(document.querySelector(".im-screen-detail")).toBeVisible();
+        /* 验证=渠道详情弹窗的一页：深链弹窗打开并切到验证页。 */
+        expect(document.querySelector(".im-channel-dialog")).toBeVisible();
         expect(
           screen.getByRole("button", { name: /^顺手验证/ }),
         ).toHaveAttribute("data-selected", "true");
@@ -412,8 +421,8 @@ describe("production IM settings", () => {
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     expect(document.querySelector("#im-test")).toHaveTextContent("/projects");
-    /* 返回列表切到 Slack：配对与验证指令整体切到 Slack 形态（无斜杠）。 */
-    await user.click(screen.getByRole("button", { name: "返回" }));
+    /* 关闭弹窗切到 Slack：配对与验证指令整体切到 Slack 形态（无斜杠）。 */
+    await closeChannelDialog(user);
     await openChannel(user, "slack");
     expect(
       screen.getByText(/在安装应用的 Slack 工作区中打开该应用的私信/),
@@ -504,7 +513,9 @@ describe("production IM settings", () => {
       f.manage.mockRejectedValueOnce(new Error("Cannot remove"));
       await user.click(screen.getByRole("button", { name: "确认移除" }));
       expect(
-        await within(screen.getByRole("dialog")).findByRole("alert"),
+        await within(
+          document.querySelector(".im-removal-dialog") as HTMLElement,
+        ).findByRole("alert"),
       ).toHaveTextContent("Cannot remove");
       expect(screen.getByRole("button", { name: "确认移除" })).toBeVisible();
       await user.click(screen.getByRole("button", { name: "确认移除" }));
@@ -609,6 +620,39 @@ describe("production IM settings", () => {
       requireConfirmation: true,
     });
   });
+  it("keeps the Feishu scan entry inside the credentials section of a saved bot", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    /* ZCode 式：关联凭据卡头的「扫码」钮展开官方注册二维码。 */
+    await screen.findByRole("button", { name: "更换凭据 飞书" });
+    f.manage.mockImplementationOnce(async (input) =>
+      input.action === "feishu-scan-begin"
+        ? {
+            deviceCode: "dev1",
+            qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+            userCode: "ABCD",
+            expiresAt: Date.now() + 600_000,
+            intervalMs: 5000,
+            domain: "feishu",
+          }
+        : structuredClone(f.get()),
+    );
+    await user.click(screen.getByRole("button", { name: "扫码" }));
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "feishu-scan-begin" }),
+    );
+    expect(await screen.findByText("等待手机确认…")).toBeVisible();
+    expect(document.querySelector(".im-scan-qr")).toBeVisible();
+    /* 再点收起：扫码区随开合移除，可随时重开。 */
+    await user.click(screen.getByRole("button", { name: "扫码" }));
+    expect(document.querySelector(".im-bot-scan")).toBeNull();
+  });
   it("separates saved credentials from an established connection in the lifecycle", async () => {
     const f = fixture();
     f.set({ localGateway: { state: "running" } });
@@ -628,8 +672,8 @@ describe("production IM settings", () => {
       "synthetic-app-secret",
     );
     await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
-    // 保存成功但连接尚未建立：返回列表，行提亮（已配置），状态仍为未配置。
-    await user.click(screen.getByRole("button", { name: "返回" }));
+    // 保存成功但连接尚未建立：关闭详情弹窗，行提亮（已配置），状态仍为未配置。
+    await closeChannelDialog(user);
     await waitFor(() =>
       expect(platformCard("feishu")).toHaveAttribute("data-configured"),
     );
@@ -869,10 +913,10 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 渠道配置=点卡进入的整幅二级卡，新建入口直达（Slack 字段断言）。
+    // 渠道配置=点卡进入的二级弹窗，新建入口直达（Slack 字段断言）。
     await openChannel(user, "slack");
     await screen.findByRole("button", { name: "新建 BOT 连接" });
-    expect(document.querySelector(".im-screen-detail")).toBeTruthy();
+    expect(document.querySelector(".im-channel-dialog")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     await screen.findByLabelText("Bot User OAuth Token");
     for (const [label, value] of [
@@ -886,8 +930,8 @@ describe("production IM settings", () => {
       await screen.findByText(/凭据已保存，但连接状态刷新失败/),
     ).toBeVisible();
     expect(screen.getByText("凭据已保存，请刷新确认连接状态。")).toBeVisible();
-    /* 总开关在概览服务卡上：返回后再断言无连接不可启用。 */
-    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
+    /* 总开关在概览服务卡上：关闭详情弹窗后断言无连接不可启用。 */
+    await closeChannelDialog(user);
     expect(screen.getByRole("switch", { name: "启用 IM 连接" })).toBeDisabled();
     expect(
       screen.queryByLabelText("Bot User OAuth Token"),
@@ -1370,8 +1414,8 @@ describe("production IM settings", () => {
       screen.getByRole("button", { name: "我已发送，刷新配对结果" }),
     );
     await user.click(await screen.findByRole("button", { name: "批准" }));
-    /* 批准后自动进入管理=整幅渠道卡保持打开。 */
-    expect(document.querySelector(".im-screen-detail")).toBeTruthy();
+    /* 批准后自动进入管理=渠道详情弹窗保持打开。 */
+    expect(document.querySelector(".im-channel-dialog")).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "批准" }),
     ).not.toBeInTheDocument();
@@ -1667,11 +1711,11 @@ it("hides WeCom group setup while retaining direct-chat setup and other platform
   expect(
     screen.getByRole("button", { name: "生成配对码 Test bot" }),
   ).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "返回" }));
+  await closeChannelDialog(user);
   await openChannel(user, "slack");
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "返回" }));
+  await closeChannelDialog(user);
   await openChannel(user, "feishu");
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();

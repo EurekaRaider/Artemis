@@ -136,6 +136,8 @@ export function ImSettingsPanel({
     "bot" | "guide" | "import" | "verify"
   >("bot");
   const [selectedBotId, setSelectedBotId] = useState("");
+  /* 关联凭据卡的飞书扫码开合（ZCode 式：卡头「扫码」钮展开二维码）。 */
+  const [credScan, setCredScan] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [savedMetadata, setSavedMetadata] = useState<
@@ -158,7 +160,6 @@ export function ImSettingsPanel({
   /* ②尾「顺手验证」折叠段：imReadVerify 恢复确认态；开合本次会话内记住
      （首绑自动展开一次，用户手动开合后不再抢开）。 */
   const [verify, setVerify] = useState<ImVerifyState>({ confirmed: false });
-  const [verifyOpen, setVerifyOpen] = useState(false);
   const verifyTouched = useRef(false);
   const [taskSeen, setTaskSeen] = useState(false);
   useEffect(() => {
@@ -338,11 +339,11 @@ export function ImSettingsPanel({
       setProjectsDetail(false);
       setChannelPane("bot");
       setSelectedBotId("");
+      setCredScan(false);
       setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
     }
     if (next === "test") {
       verifyTouched.current = true;
-      setVerifyOpen(true);
       /* 验证=渠道二级面板的一页，深链时一并下钻并切页。 */
       setChannelDetail(true);
       setGroupDetail(false);
@@ -589,9 +590,10 @@ export function ImSettingsPanel({
       );
       if (approve) {
         flowAdvanceFrom();
-        /* 首绑自动展开②尾「顺手验证」段（用户动过折叠后不再抢开）。 */
+        /* 首绑自动跳到②尾「顺手验证」页（用户动过后不再抢跳）。 */
         if (!verifyTouched.current) {
-          setVerifyOpen(true);
+          setChannelDetail(true);
+          setChannelPane("verify");
           setFocusTarget("im-verify");
         }
       }
@@ -928,12 +930,12 @@ export function ImSettingsPanel({
         setRefreshError(String(error));
       }
     });
-  /* 飞书首选扫码接入（官方应用注册流程）：仅在无机器人时出现（主从布局
-     的右栏首卡），autoStart 语义与旧折叠体一致。 */
-  const renderFeishuScan = () => (
+  /* 飞书扫码接入（官方应用注册流程）：空态首卡自动出码，机器人详情的
+     关联凭据卡由「扫码」钮手动展开。 */
+  const renderFeishuScan = (autoStart: boolean) => (
     <ImFeishuScan
       t={t}
-      autoStart={channel === "feishu" && !channelConnections.length}
+      autoStart={autoStart}
       busy={busy}
       disabled={!activeSettings.deviceId}
       /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
@@ -1022,7 +1024,8 @@ export function ImSettingsPanel({
           ? t("ImSettingsPanel.message68")
           : t("ImSettingsPanel.message67")}
       </p>
-      {channel === "feishu" && renderFeishuScan()}
+      {channel === "feishu" &&
+        renderFeishuScan(!channelConnections.length)}
     </div>
   );
   /* 机器人详情（ZCode 式）：头（logo+名称+ID+刷新）+ 状态行 +
@@ -1056,12 +1059,31 @@ export function ImSettingsPanel({
         {connection.error && (
           <InlineNotice tone="danger">{connection.error}</InlineNotice>
         )}
-        <div className="im-bot-section">
+        <div
+          className="im-bot-section"
+          data-scan-open={(channel === "feishu" && credScan) || undefined}
+        >
           <div className="im-bot-section-copy">
             <strong>{t("ImSettingsPanel.botCredTitle")}</strong>
             <p>{t("ImSettingsPanel.botCredDesc")}</p>
           </div>
           <div className="im-bot-section-actions">
+            {channel === "feishu" && (
+              <Button
+                variant="quiet"
+                size="compact"
+                disabled={busy || !activeSettings.deviceId}
+                onClick={() => setCredScan((open) => !open)}
+              >
+                <ArtemisIcon
+                  aria-hidden="true"
+                  height={13}
+                  name="qr-code"
+                  width={13}
+                />
+                {t("ImFeishuScan.message10")}
+              </Button>
+            )}
             <Button
               variant="quiet"
               size="compact"
@@ -1076,6 +1098,9 @@ export function ImSettingsPanel({
               {t("ImSettingsPanel.message70")}
             </Button>
           </div>
+          {channel === "feishu" && credScan && (
+            <div className="im-bot-scan">{renderFeishuScan(true)}</div>
+          )}
         </div>
         <div className="im-bot-section">
           <div className="im-bot-section-copy">
@@ -2279,29 +2304,7 @@ export function ImSettingsPanel({
   /**
    * ②尾「顺手验证」折叠段（可选端到端验证，不计入完成链）：开合由用户
    */
-  function renderVerifySection() {
-    return (
-      <section id="im-verify" className="im-verify" tabIndex={-1}>
-        <button
-          type="button"
-          className="im-verify-toggle"
-          aria-expanded={verifyOpen}
-          aria-controls="im-verify-body"
-          onClick={() => {
-            verifyTouched.current = true;
-            setVerifyOpen((open) => !open);
-          }}
-        >
-          <span>{verifyLabel}</span>
-          <span aria-hidden="true" className="im-verify-caret">
-            {verifyOpen ? "▾" : "▸"}
-          </span>
-        </button>
-        {verifyOpen && renderVerifyBody()}
-      </section>
-    );
-  }
-  /* 验证内容体：二级渠道面板的「验证」页与（遗留）折叠段共用。 */
+  /* 验证内容体：渠道二级面板的「验证」页。 */
   function renderVerifyBody() {
     const deviceId = status?.settings.deviceId;
     return (
@@ -2391,6 +2394,7 @@ export function ImSettingsPanel({
             setProjectsDetail(false);
             setChannelPane("bot");
             setSelectedBotId("");
+            setCredScan(false);
           }}
         >
           {channelLogo(platform, 20)}
@@ -2440,24 +2444,6 @@ export function ImSettingsPanel({
         <strong>{label}</strong>
       </div>
     );
-    if (channelDetail) {
-      /* 二级整幅卡：渠道配置覆盖两栏区。 */
-      return (
-        <section className="im-screen-detail">
-          <div className="im-screen-detail-head">
-            <Button
-              size="compact"
-              variant="quiet"
-              onClick={() => setChannelDetail(false)}
-            >
-              {t("ImSettingsPanel.channelBack")}
-            </Button>
-            <strong>{imChannelLabel(channel, t)}</strong>
-          </div>
-          <div className="im-screen-detail-body">{renderChannelBody()}</div>
-        </section>
-      );
-    }
     if (showRemote) {
       /* 二级整幅卡：手动注册（原「使用团队 Gateway」折叠体）。 */
       return (
@@ -2706,15 +2692,7 @@ export function ImSettingsPanel({
         </div>
         {/* 右栏：门（渠道）。四张卡（渠道×N、群协作、授权项目）↔ 详情下钻。 */}
         <div className="im-col-right">
-          {channelDetail ? (
-            <section className="im-channel-detail" tabIndex={-1}>
-              {detailHead(imChannelLabel(channel, t), () =>
-                setChannelDetail(false),
-              )}
-              {renderChannelBody()}
-              {renderVerifySection()}
-            </section>
-          ) : groupDetail ? (
+          {groupDetail ? (
             <section className="im-channel-detail" tabIndex={-1}>
               {detailHead(t("ImSettingsPanel.message199"), () =>
                 setGroupDetail(false),
@@ -2897,6 +2875,37 @@ export function ImSettingsPanel({
           )}
           {renderStepCards()}
         </div>
+      )}
+      {channelDetail && (
+        /* 渠道二级面板弹窗（ZCode 式）：主从布局整幅入弹，宽 896px 对齐
+           ZCode 弹窗标准；头部=渠道标+名+关闭。 */
+        <Dialog
+          className="im-channel-dialog"
+          label={imChannelLabel(channel, t)}
+          onOpenChange={(open) => {
+            if (!open) setChannelDetail(false);
+          }}
+          open
+        >
+          <header className="im-channel-dialog-head">
+            {channelLogo(channel, 22)}
+            <h2>{imChannelLabel(channel, t)}</h2>
+            <button
+              type="button"
+              className="im-channel-dialog-close"
+              aria-label={t("App_copy.renameClose")}
+              onClick={() => setChannelDetail(false)}
+            >
+              <ArtemisIcon
+                aria-hidden="true"
+                height={14}
+                name="close"
+                width={14}
+              />
+            </button>
+          </header>
+          <div className="im-channel-dialog-body">{renderChannelBody()}</div>
+        </Dialog>
       )}
     </div>
   );
