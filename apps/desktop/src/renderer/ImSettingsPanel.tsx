@@ -1099,6 +1099,24 @@ export function ImSettingsPanel({
     setFields({});
     setAdminToken("");
   };
+  /* 解绑（关联机器人卡）：停用这条应用连接（可重新扫码接入），
+     不删绑定记录；与下方「删除机器人」的彻底移除分层。 */
+  const unbindConnection = (connection: ImConnectionStatus) =>
+    run(async () => {
+      await window.artemis.manageIm({
+        action: "admin",
+        operation: "connections",
+        ...(local ? {} : { adminToken }),
+        configuration: {
+          id: connection.id,
+          name: connection.name,
+          channel,
+          enabled: false,
+        },
+      });
+      await refresh();
+      setMessage(t("ImSettingsPanel.botUnbindDone"));
+    });
   /* 删除机器人：危险卡内的垃圾桶入口，确认（与远端管理凭据）走
      ImConnectionRemoval 弹窗。 */
   const removeConnection = (connection: ImConnectionStatus) => (token: string) =>
@@ -1255,6 +1273,19 @@ export function ImSettingsPanel({
      关联凭据 / 配对聊天 / 删除机器人 三张设置卡。 */
   const renderBotProfile = (connection: ImConnectionStatus) => {
     const state = imAggregateConnectionStates([connection.state]);
+    /* 连上之后状态行按绑定态说话：绿「已配对」/ 黄「待配对」；
+       未连接仍显示连接状态本身。 */
+    const paired = (status?.identities ?? []).some(
+      (identity) => identity.connectionId === connection.id,
+    );
+    const pairingState =
+      state === "connected" ? (paired ? "connected" : "warning") : state;
+    const pairingLabel =
+      state === "connected"
+        ? paired
+          ? t("ImSettingsPanel.botPairedLabel")
+          : t("ImSettingsPanel.botUnpairedLabel")
+        : imConnectionLabel(state, t);
     return (
       <div className="im-bot-profile">
         <div className="im-bot-profile-head">
@@ -1276,55 +1307,88 @@ export function ImSettingsPanel({
           </Tooltip>
         </div>
         <p className="im-bot-profile-state">
-          <span aria-hidden="true" className="im-dot" data-state={state} />
-          {imConnectionLabel(state, t)}
+          <span aria-hidden="true" className="im-dot" data-state={pairingState} />
+          {pairingLabel}
         </p>
         {connection.error && (
           <InlineNotice tone="danger">{connection.error}</InlineNotice>
         )}
-        <div
-          className="im-bot-section"
-          data-scan-open={(channel === "feishu" && credScan) || undefined}
-        >
-          <div className="im-bot-section-copy">
-            <strong>{t("ImSettingsPanel.botCredTitle")}</strong>
-            <p>{t("ImSettingsPanel.botCredDesc")}</p>
+        {channel === "feishu" ? (
+          /* 关联机器人卡（ZCode 同款）：左侧说明，右侧连通状态；
+             已连通给「解绑」（停用应用，可重扫恢复），未连通保留扫码入口。 */
+          <div
+            className="im-bot-section"
+            data-scan-open={credScan || undefined}
+          >
+            <div className="im-bot-section-copy">
+              <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
+              <p>{t("ImSettingsPanel.botScanDesc")}</p>
+            </div>
+            <div className="im-bot-section-actions">
+              <span className="im-bot-link-state">
+                <span
+                  aria-hidden="true"
+                  className="im-dot"
+                  data-state={state}
+                />
+                {imConnectionLabel(state, t)}
+              </span>
+              {state === "connected" ? (
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  disabled={busy}
+                  label={t("ImSettingsPanel.botUnbindLabel", {
+                    value1: connection.name,
+                  })}
+                  onClick={() => unbindConnection(connection)}
+                >
+                  {t("ImSettingsPanel.botUnbindAction")}
+                </Button>
+              ) : (
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  disabled={busy || !activeSettings.deviceId}
+                  onClick={() => setCredScan((open) => !open)}
+                >
+                  <ArtemisIcon
+                    aria-hidden="true"
+                    height={13}
+                    name="qr-code"
+                    width={13}
+                  />
+                  {t("ImFeishuScan.message10")}
+                </Button>
+              )}
+            </div>
+            {credScan && (
+              <div className="im-bot-scan">{renderFeishuScan(true)}</div>
+            )}
           </div>
-          <div className="im-bot-section-actions">
-            {channel === "feishu" && (
+        ) : (
+          <div className="im-bot-section">
+            <div className="im-bot-section-copy">
+              <strong>{t("ImSettingsPanel.botCredTitle")}</strong>
+              <p>{t("ImSettingsPanel.botCredDesc")}</p>
+            </div>
+            <div className="im-bot-section-actions">
               <Button
                 variant="quiet"
                 size="compact"
-                disabled={busy || !activeSettings.deviceId}
-                onClick={() => setCredScan((open) => !open)}
+                disabled={busy}
+                label={t("ImSettingsPanel.message69", {
+                  value1: connection.name,
+                })}
+                onClick={(event) =>
+                  openBotEditor(connection, event.currentTarget)
+                }
               >
-                <ArtemisIcon
-                  aria-hidden="true"
-                  height={13}
-                  name="qr-code"
-                  width={13}
-                />
-                {t("ImFeishuScan.message10")}
+                {t("ImSettingsPanel.message70")}
               </Button>
-            )}
-            <Button
-              variant="quiet"
-              size="compact"
-              disabled={busy}
-              label={t("ImSettingsPanel.message69", {
-                value1: connection.name,
-              })}
-              onClick={(event) =>
-                openBotEditor(connection, event.currentTarget)
-              }
-            >
-              {t("ImSettingsPanel.message70")}
-            </Button>
+            </div>
           </div>
-          {channel === "feishu" && credScan && (
-            <div className="im-bot-scan">{renderFeishuScan(true)}</div>
-          )}
-        </div>
+        )}
         <div className="im-bot-section">
           <div className="im-bot-section-copy">
             <strong>{t("ImSettingsPanel.botPairTitle")}</strong>

@@ -440,42 +440,6 @@ describe("production IM settings", () => {
       expect.objectContaining({ action: "admin" }),
     );
   });
-  it("shows the Lark region before credentials in the editor and switches the pairing guide domain", async () => {
-    const f = fixture();
-    f.set({
-      localGateway: { state: "running" },
-      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
-    });
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "feishu");
-    /* 飞书新建=扫码优先；凭据表单（含应用区域）仅存于更换凭据弹窗。 */
-    await user.click(
-      await screen.findByRole("button", { name: "更换凭据 飞书" }),
-    );
-    const region = screen.getByRole("button", { name: /^应用区域/ });
-    expect(region.closest("details")).toBeNull();
-    await user.click(region);
-    await user.click(screen.getByRole("option", { name: /Lark 国际版/ }));
-    await user.type(screen.getByLabelText("App ID"), "cli_lark");
-    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
-    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
-    expect(f.manage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "admin",
-        operation: "connections",
-        configuration: expect.objectContaining({
-          domain: "lark",
-          appId: "cli_lark",
-          name: "Test bot",
-        }),
-      }),
-    );
-    /* 保存后自动弹出的配对指引跟随已存 domain（Lark 国际版）。 */
-    expect(
-      await screen.findByText(/在 Lark 国际版 中找到刚配置的机器人/),
-    ).toBeVisible();
-  });
   it.each(["wecom", "feishu", "slack"] as const)(
     "removes a $channel bot without paired accounts, supports cancellation, and clears saved credentials",
     async (channel) => {
@@ -750,17 +714,23 @@ describe("production IM settings", () => {
       screen.queryByRole("button", { name: "扫码并创建应用" }),
     ).not.toBeInTheDocument();
   });
-  it("keeps the Feishu scan entry inside the credentials section of a saved bot", async () => {
+  it("keeps the Feishu scan entry on the linked-bot card while the bot is offline", async () => {
     const f = fixture();
     f.set({
       localGateway: { state: "running" },
-      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+      connections: [
+        { ...connection, channel: "feishu", name: "飞书", state: "error" },
+      ],
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* ZCode 式：关联凭据卡头的「扫码」钮展开官方注册二维码。 */
-    await screen.findByRole("button", { name: "更换凭据 飞书" });
+    /* 关联机器人卡（ZCode 式）：离线时保留扫码入口，手动编辑器退役。 */
+    expect(screen.getByText("关联机器人")).toBeVisible();
+    expect(screen.getByText("扫码获取应用凭据。")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "更换凭据 飞书" }),
+    ).not.toBeInTheDocument();
     f.manage.mockImplementationOnce(async (input) =>
       input.action === "feishu-scan-begin"
         ? {
@@ -782,6 +752,59 @@ describe("production IM settings", () => {
     /* 再点收起：扫码区随开合移除，可随时重开。 */
     await user.click(screen.getByRole("button", { name: "扫码" }));
     expect(document.querySelector(".im-bot-scan")).toBeNull();
+  });
+  it("flags a connected bot as awaiting pairing and unbinds through the linked-bot card", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      identities: [],
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    /* 已连接未配对：状态行=警告灯+待配对。 */
+    const stateLine = document.querySelector(".im-bot-profile-state")!;
+    expect(stateLine).toHaveTextContent("待配对");
+    expect(stateLine.querySelector(".im-dot")).toHaveAttribute(
+      "data-state",
+      "warning",
+    );
+    /* 已连通的关联机器人卡给「解绑」：停用连接而非删除。 */
+    await user.click(await screen.findByRole("button", { name: "解绑 飞书" }));
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "admin",
+        operation: "connections",
+        configuration: expect.objectContaining({
+          id: "wecom-team",
+          enabled: false,
+        }),
+      }),
+    );
+    expect(
+      await screen.findByText("已解绑，重新扫码可再次接入。"),
+    ).toBeVisible();
+  });
+  it("marks a connected bot with a bound account as paired", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    /* 已配对：状态行=绿灯+已配对；关联机器人卡显示连通状态。 */
+    const stateLine = document.querySelector(".im-bot-profile-state")!;
+    expect(stateLine).toHaveTextContent("已配对");
+    expect(stateLine.querySelector(".im-dot")).toHaveAttribute(
+      "data-state",
+      "connected",
+    );
+    expect(document.querySelector(".im-bot-link-state")).toHaveTextContent(
+      "已连接",
+    );
   });
   it("opens team gateway registration and advanced deployment as dialogs", async () => {
     fixture();
@@ -1076,29 +1099,6 @@ describe("production IM settings", () => {
       "partial_error",
     );
     expect(f.get().identities).toEqual([identity]);
-  });
-  it("defaults the Feishu editor to a long connection without callback secrets", async () => {
-    const f = fixture();
-    f.set({
-      localGateway: { state: "running" },
-      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
-    });
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    /* 飞书新建=扫码优先；接入方式等表单语义由更换凭据弹窗承载。 */
-    await openChannel(user, "feishu");
-    await user.click(
-      await screen.findByRole("button", { name: "更换凭据 飞书" }),
-    );
-    expect(screen.getByLabelText("接入方式")).toHaveTextContent("长连接");
-    expect(
-      screen.queryByLabelText("Verification Token"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Encrypt Key")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "复制回调地址" }),
-    ).not.toBeInTheDocument();
   });
   it("keeps a first successful credential save distinct from a failed status refresh", async () => {
     const f = fixture();

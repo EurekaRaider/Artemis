@@ -10151,7 +10151,8 @@ kbd {
   background: currentColor;
 }
 .im-dot[data-state="connecting"],
-.im-dot[data-state="saving"] {
+.im-dot[data-state="saving"],
+.im-dot[data-state="warning"] {
   color: var(--warning);
   background: currentColor;
 }
@@ -10809,6 +10810,14 @@ kbd {
   align-items: center;
   gap: 8px;
   flex: none;
+}
+/* 关联机器人卡：卡头行内的连通状态（点+文字，同状态行节奏）。 */
+.im-bot-link-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
 }
 /* 关联凭据卡展开扫码（ZCode 式）：卡头行换行，二维码区占满整行。 */
 .im-bot-section[data-scan-open] {
