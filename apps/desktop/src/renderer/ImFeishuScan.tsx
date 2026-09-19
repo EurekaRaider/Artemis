@@ -29,6 +29,7 @@ function messageOf(error: unknown): string {
 export function ImFeishuScan({
   autoStart = false,
   bare = false,
+  refreshSignal = 0,
   t,
   busy,
   disabled,
@@ -40,6 +41,8 @@ export function ImFeishuScan({
   autoStart?: boolean;
   /** 卡片自带「扫码」触发钮的宿主用：idle 不渲染独立扫码卡。 */
   bare?: boolean;
+  /** 递增即原位更换二维码（轮询作废重开，卡片不卸载）。 */
+  refreshSignal?: number;
   busy: boolean;
   disabled: boolean;
   /** 扫码建连成功后携带新连接 id，供面板接续配对引导（ZCode 同款动线）。 */
@@ -173,6 +176,15 @@ export function ImFeishuScan({
     // 仅在挂载/解锁自动触发时执行一次；start 捕获当前闭包即可。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart]);
+  // 「扫码」钮的局部刷新：递增信号触发原位重开，旧码保留至新码就绪。
+  const lastRefresh = useRef(refreshSignal);
+  useEffect(() => {
+    if (refreshSignal !== lastRefresh.current) {
+      lastRefresh.current = refreshSignal;
+      start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
 
   if (phase.stage === "done")
     return (

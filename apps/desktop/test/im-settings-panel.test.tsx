@@ -681,6 +681,40 @@ describe("production IM settings", () => {
     expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
     expect(document.querySelector(".im-bot-scan")).toBeVisible();
   });
+  it("refreshes the create QR in place instead of remounting the scan card", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "feishu-scan-begin")
+        return {
+          deviceCode: `dev-${f.manage.mock.calls.length}`,
+          qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          userCode: "ABCD",
+          expiresAt: Date.now() + 600_000,
+          intervalMs: 60_000,
+          domain: "feishu",
+        };
+      if (input.action === "feishu-scan-poll")
+        return { status: "pending", intervalMs: 60_000, domain: "feishu" };
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
+    const begins = () =>
+      f.manage.mock.calls.filter(([a]) => a.action === "feishu-scan-begin")
+        .length;
+    const before = begins();
+    await user.click(screen.getByRole("button", { name: "扫码" }));
+    await waitFor(() => expect(begins()).toBeGreaterThan(before));
+    /* 局部刷新：扫码卡体保持挂载，仅二维码/用户码换新。 */
+    expect(document.querySelector(".im-bot-scan")).toBeVisible();
+    expect(screen.getByText("等待飞书扫码…")).toBeVisible();
+    expect(document.querySelector(".im-scan-qr")).toBeVisible();
+  });
   it("keeps the Feishu scan entry inside the credentials section of a saved bot", async () => {
     const f = fixture();
     f.set({

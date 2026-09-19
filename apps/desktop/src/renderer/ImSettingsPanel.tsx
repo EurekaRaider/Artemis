@@ -1532,7 +1532,7 @@ export function ImSettingsPanel({
                     {createScanOpen && (
                       <div className="im-bot-scan">
                         <ImFeishuScan
-                          key={createScanEpoch}
+                          refreshSignal={createScanEpoch}
                           t={t}
                           autoStart
                           bare
