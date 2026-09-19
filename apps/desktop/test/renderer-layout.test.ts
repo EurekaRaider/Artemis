@@ -2750,7 +2750,7 @@ describe("renderer layout contract", () => {
       "description={`${source.repository}${source.offline",
     );
     expect(resourceCenterSource).toContain(
-      "pluginPageText(plugin.displayName)",
+      "pluginPageText(localizedPluginText(plugin, locale).displayName)",
     );
     expect(resourceCenterSource).toContain("pluginPageText(message)");
     expect(resourceCenterSource).toContain(
