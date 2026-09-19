@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "بطاقة بث",
   "ImSettingsPanel.botPairTitle": "إقران محادثة",
   "ImSettingsPanel.botPairDesc": "أنشئ رمز إقران وأرسله إلى البوت في محادثة خاصة لإتمام الربط.",
-  "ImSettingsPanel.botDeleteTitle": "حذف البوت",
-  "ImSettingsPanel.botDeleteDesc": "يزيل هذا البوت مع بيانات الاعتماد المحفوظة وارتباطات الحساب.",
   "ImSettingsPanel.projectsSummary": "{{value1}} مشاريع · مشتركة بين كل القنوات",
   "ImFeishuScan.message10": "امسح",
   "ImFeishuScan.message11": "امسح ضوئياً باستخدام Feishu وأكد لإنشاء التطبيق.",

@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "串流卡片",
   "ImSettingsPanel.botPairTitle": "配對聊天",
   "ImSettingsPanel.botPairDesc": "生成配對碼，在私聊中發給機器人完成綁定。",
-  "ImSettingsPanel.botDeleteTitle": "刪除機器人",
-  "ImSettingsPanel.botDeleteDesc": "移除這個機器人，並刪除保存的憑據與帳號綁定。",
   "ImSettingsPanel.projectsSummary": "{{value1}} 個專案 · 所有頻道通用",
   "ImFeishuScan.message10": "掃碼",
   "ImFeishuScan.message11": "用飛書掃碼並確認創建應用。",

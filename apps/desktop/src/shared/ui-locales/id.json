@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "Kartu streaming",
   "ImSettingsPanel.botPairTitle": "Pasangkan obrolan",
   "ImSettingsPanel.botPairDesc": "Buat kode pemasangan dan kirim ke bot di obrolan pribadi untuk menyelesaikan penautan.",
-  "ImSettingsPanel.botDeleteTitle": "Hapus bot",
-  "ImSettingsPanel.botDeleteDesc": "Hapus bot ini beserta kredensial tersimpan dan tautan akunnya.",
   "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
   "ImFeishuScan.message10": "Pindai",
   "ImFeishuScan.message11": "Pindai dengan Feishu dan konfirmasi untuk membuat aplikasi.",

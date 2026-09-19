@@ -10804,6 +10804,19 @@ kbd {
   gap: 10px;
   min-width: 0;
 }
+/* 行尾删除入口：图标等级与左侧渠道 logo 一致（28px），hover 危险色。 */
+.im-bot-profile-head .im-connection-removal {
+  margin-inline-start: auto;
+  flex: none;
+}
+.im-bot-profile-head .im-connection-removal .im-icon-action {
+  inline-size: 28px;
+  block-size: 28px;
+}
+.im-bot-profile-head .im-connection-removal .im-icon-action svg {
+  width: 28px;
+  height: 28px;
+}
 /* 名称与配对状态叠放，logo 左侧跨两行（ZCode 同款头部）。 */
 .im-bot-profile-heading {
   display: flex;

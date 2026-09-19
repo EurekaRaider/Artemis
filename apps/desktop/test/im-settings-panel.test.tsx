@@ -866,16 +866,11 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
     await screen.findByText("关联机器人");
-    /* 卡序：关联机器人 → 配对聊天 → 机器人回复模式 → 删除机器人。 */
+    /* 卡序：关联机器人 → 配对聊天 → 机器人回复模式（删除入口在头部）。 */
     const titles = [
       ...document.querySelectorAll(".im-bot-section-copy strong"),
     ].map((node) => node.textContent);
-    expect(titles).toEqual([
-      "关联机器人",
-      "配对聊天",
-      "机器人回复模式",
-      "删除机器人",
-    ]);
+    expect(titles).toEqual(["关联机器人", "配对聊天", "机器人回复模式"]);
     expect(document.querySelector(".im-reply-mode-select")).toBeVisible();
   });
   it("opens team gateway registration and advanced deployment as dialogs", async () => {

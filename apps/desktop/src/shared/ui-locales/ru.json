@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "Потоковые карты",
   "ImSettingsPanel.botPairTitle": "Привязка чата",
   "ImSettingsPanel.botPairDesc": "Создайте код привязки и отправьте его боту в личном чате, чтобы завершить подключение.",
-  "ImSettingsPanel.botDeleteTitle": "Удалить бота",
-  "ImSettingsPanel.botDeleteDesc": "Удаляет этого бота вместе с сохранёнными учётными данными и привязанными аккаунтами.",
   "ImSettingsPanel.projectsSummary": "{{value1}} проектов · общие для всех каналов",
   "ImFeishuScan.message10": "Сканировать",
   "ImFeishuScan.message11": "Отсканируйте с помощью Feishu и подтвердите создание приложения.",

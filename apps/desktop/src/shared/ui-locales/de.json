@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "Streaming-Karte",
   "ImSettingsPanel.botPairTitle": "Chat koppeln",
   "ImSettingsPanel.botPairDesc": "Koppelcode erzeugen und dem Bot im privaten Chat senden, um die Verknüpfung abzuschließen.",
-  "ImSettingsPanel.botDeleteTitle": "Bot löschen",
-  "ImSettingsPanel.botDeleteDesc": "Diesen Bot samt gespeicherter Anmeldedaten und Konto-Verknüpfungen entfernen.",
   "ImSettingsPanel.projectsSummary": "{{value1}} Projekte · für alle Kanäle freigegeben",
   "ImFeishuScan.message10": "Scannen",
   "ImFeishuScan.message11": "Mit Feishu scannen und die App-Erstellung bestätigen.",

@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "Cards de streaming",
   "ImSettingsPanel.botPairTitle": "Parear um chat",
   "ImSettingsPanel.botPairDesc": "Gere um código de pareamento e envie ao bot em uma conversa privada para concluir a vinculação.",
-  "ImSettingsPanel.botDeleteTitle": "Excluir bot",
-  "ImSettingsPanel.botDeleteDesc": "Remove este bot junto com as credenciais salvas e as contas vinculadas.",
   "ImSettingsPanel.projectsSummary": "{{value1}} projetos · compartilhados por todos os canais",
   "ImFeishuScan.message10": "Escanear",
   "ImFeishuScan.message11": "Escaneie com o Feishu e confirme para criar o app.",

@@ -1385,7 +1385,8 @@ export function ImSettingsPanel({
     </div>
   );
   /* 机器人详情（ZCode 式）：头=logo 跨两行，右侧名称+配对状态；
-     下方为关联机器人 / 配对聊天 / 回复模式 / 删除机器人 设置卡。 */
+  /* 机器人详情（ZCode 式）：头=logo 跨两行，右侧名称+配对状态，
+     行尾删除入口；下方为关联机器人 / 配对聊天 / 回复模式 设置卡。 */
   const renderBotProfile = (connection: ImConnectionStatus) => {
     const pairing = pairingView(connection);
     const state = pairing.state;
@@ -1404,6 +1405,15 @@ export function ImSettingsPanel({
               {pairing.label}
             </p>
           </div>
+          <ImConnectionRemoval
+            key={`${activeSettings.deviceId}:${connection.id}`}
+            name={connection.name}
+            local={local}
+            busy={busy}
+            error={messageError ? message : undefined}
+            t={t}
+            remove={removeConnection(connection)}
+          />
         </div>
         {connection.error && (
           <InlineNotice tone="danger">{connection.error}</InlineNotice>
@@ -1511,23 +1521,6 @@ export function ImSettingsPanel({
         {connectionAccounts(connection.id)}
         {renderWebhookCallback(connection)}
         {channel === "feishu" && renderReplyModeCard()}
-        <div className="im-bot-section" data-tone="danger">
-          <div className="im-bot-section-copy">
-            <strong>{t("ImSettingsPanel.botDeleteTitle")}</strong>
-            <p>{t("ImSettingsPanel.botDeleteDesc")}</p>
-          </div>
-          <div className="im-bot-section-actions">
-            <ImConnectionRemoval
-              key={`${activeSettings.deviceId}:${connection.id}`}
-              name={connection.name}
-              local={local}
-              busy={busy}
-              error={messageError ? message : undefined}
-              t={t}
-              remove={removeConnection(connection)}
-            />
-          </div>
-        </div>
       </div>
     );
   };

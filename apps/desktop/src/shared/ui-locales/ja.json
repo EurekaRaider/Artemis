@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "ストリーミングカード",
   "ImSettingsPanel.botPairTitle": "チャットをペアリング",
   "ImSettingsPanel.botPairDesc": "ペアリングコードを生成し、ボットとの個別チャットで送信して連携を完了します。",
-  "ImSettingsPanel.botDeleteTitle": "ボットを削除",
-  "ImSettingsPanel.botDeleteDesc": "保存された認証情報とアカウント連携ごと、このボットを削除します。",
   "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通",
   "ImFeishuScan.message10": "スキャン",
   "ImFeishuScan.message11": "Feishuでスキャンし、アプリ作成を確認します。",

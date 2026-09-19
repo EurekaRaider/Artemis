@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "Cartes en streaming",
   "ImSettingsPanel.botPairTitle": "Associer une conversation",
   "ImSettingsPanel.botPairDesc": "Générez un code d'association et envoyez-le au bot en conversation privée pour finaliser la liaison.",
-  "ImSettingsPanel.botDeleteTitle": "Supprimer le bot",
-  "ImSettingsPanel.botDeleteDesc": "Supprime ce bot ainsi que ses identifiants enregistrés et ses comptes associés.",
   "ImSettingsPanel.projectsSummary": "{{value1}} projets · partagés par tous les canaux",
   "ImFeishuScan.message10": "Scanner",
   "ImFeishuScan.message11": "Scannez avec Feishu et confirmez la création de l'application.",

@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "스트리밍 카드",
   "ImSettingsPanel.botPairTitle": "채팅 페어링",
   "ImSettingsPanel.botPairDesc": "페어링 코드를 생성해 봇과의 개인 대화로 보내 연결을 완료합니다.",
-  "ImSettingsPanel.botDeleteTitle": "봇 삭제",
-  "ImSettingsPanel.botDeleteDesc": "저장된 자격 증명과 계정 연결을 포함해 이 봇을 삭제합니다.",
   "ImSettingsPanel.projectsSummary": "프로젝트 {{value1}}개 · 모든 채널 공통",
   "ImFeishuScan.message10": "스캔",
   "ImFeishuScan.message11": "Feishu로 스캔하고 앱 생성을 확인합니다.",

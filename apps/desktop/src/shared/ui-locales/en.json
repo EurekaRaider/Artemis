@@ -1496,8 +1496,6 @@
   "ImSettingsPanel.botReplyModeValue": "Streaming cards",
   "ImSettingsPanel.botPairTitle": "Pair a chat",
   "ImSettingsPanel.botPairDesc": "Generate a pairing code and send it to the bot in a private chat to finish linking.",
-  "ImSettingsPanel.botDeleteTitle": "Delete bot",
-  "ImSettingsPanel.botDeleteDesc": "Remove this bot along with its saved credentials and account bindings.",
   "ImSettingsPanel.projectsSummary": "{{value1}} projects · shared by all channels",
   "ImFeishuScan.message10": "Scan",
   "ImFeishuScan.message11": "Scan with Feishu and confirm to create the app.",
