@@ -897,9 +897,9 @@ export function ImSettingsPanel({
   ) => {
     pairDialogTrigger.current = trigger;
     setPairDialogId(connection.id);
-    if (!pairCode || pairCode.expiresAt <= Date.now()) {
-      void run(generatePairCode);
-    }
+    /* 每次点「生成配对码」都换新码（新码即作废旧码），
+       不沿用上次残留的码。 */
+    void run(generatePairCode);
   };
   /* 新建（右栏创建页）与更换凭据（弹窗）共用的保存逻辑；dismiss 收到
      保存后的连接 id，决定保存成功后回到哪个界面。 */

@@ -829,6 +829,33 @@ describe("production IM settings", () => {
       await screen.findByText("待配对", { selector: ".im-bot-profile-state" }),
     ).toBeVisible();
   });
+  it("regenerates the pairing code on every open instead of reusing a live one", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    /* 第一次生成。 */
+    await user.click(
+      await screen.findByRole("button", { name: "生成配对码 飞书" }),
+    );
+    expect(await screen.findByText("0123456789abcdef")).toBeVisible();
+    await user.click(
+      within(
+        document.querySelector(".im-pair-dialog") as HTMLElement,
+      ).getByRole("button", { name: "关闭" }),
+    );
+    /* 第二次开窗必须重新生成，而不是展示上次的有效码。 */
+    await user.click(screen.getByRole("button", { name: "生成配对码 飞书" }));
+    expect(await screen.findByText("0123456789abcdef")).toBeVisible();
+    const pairCalls = f.manage.mock.calls.filter(
+      ([input]) => (input as { action: string }).action === "pair",
+    );
+    expect(pairCalls).toHaveLength(2);
+  });
   it("shows the reply-mode card above the delete card in the bot detail", async () => {
     const f = fixture();
     f.set({
