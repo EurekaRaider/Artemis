@@ -2312,19 +2312,26 @@ export function ResourceCenter({
     >
       <ManagementHeader
         className="resource-page-header resource-management-header"
-        description={t.manageDescription}
+        description={t.marketDescription}
         leading={
-          <IconButton
-            className="resource-back-button"
-            disabled={operationPending}
-            icon={<BackIcon />}
-            label={t.backToMarketplace}
-            onClick={() => {
-              setMode("marketplace");
-              setMessage(undefined);
-            }}
-            title={t.backToMarketplace}
-          />
+          <>
+            <IconButton
+              className="resource-back-button"
+              disabled={operationPending}
+              icon={<BackIcon />}
+              label={t.backToMarketplace}
+              onClick={() => {
+                setMode("marketplace");
+                setMessage(undefined);
+              }}
+              title={t.backToMarketplace}
+            />
+            <img
+              className="resource-page-artwork"
+              src={resourceCenterIcon}
+              alt=""
+            />
+          </>
         }
         title={t.title}
       />

@@ -12455,6 +12455,12 @@ kbd {
   gap: 14px;
 }
 
+.resource-management-header [data-part="leading"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .resource-page-artwork,
 .archive-header-artwork {
   display: block;
