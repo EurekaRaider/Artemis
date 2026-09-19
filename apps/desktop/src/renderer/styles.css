@@ -10728,26 +10728,48 @@ kbd {
   background: color-mix(in srgb, var(--text) 8.5%, transparent);
   border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
-.im-bot-card-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* 机器人名单行：logo+名字+信号灯组；名字可截断，logo/信号灯恒完整。 */
+.im-bot-card-name {
+  flex: 1 1 auto;
   min-width: 0;
-}
-.im-bot-card-copy strong {
   font-size: 12.5px;
   font-weight: 590;
   color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .im-bot-card-state {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
   color: var(--muted);
+}
+/* 名字跑马灯：静态省略号，悬停溢出时匀速滚动（≈30px/s）。 */
+.im-marquee {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.im-marquee[data-playing] {
+  text-overflow: clip;
+}
+.im-marquee-track {
+  display: inline-flex;
+  gap: 24px;
+  will-change: transform;
+}
+.im-marquee[data-playing] .im-marquee-track {
+  animation: im-marquee-scroll var(--mq-dur) linear infinite;
+}
+.im-marquee-copy {
+  flex: none;
+}
+@keyframes im-marquee-scroll {
+  to {
+    transform: translateX(var(--mq-shift));
+  }
 }
 .im-bot-nav-divider {
   block-size: 1px;

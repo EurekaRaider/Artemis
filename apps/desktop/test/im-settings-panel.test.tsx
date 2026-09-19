@@ -545,7 +545,7 @@ describe("production IM settings", () => {
     });
     expect(
       await screen.findByText(connection.name, {
-        selector: ".im-bot-card-copy strong",
+        selector: ".im-marquee-copy",
       }),
     ).toBeVisible();
     expect(screen.getByText(identity.userId)).toBeVisible();
@@ -1217,7 +1217,7 @@ describe("production IM settings", () => {
     fireEvent.click(platformCard("wecom"));
     await act(async () => finishRefresh(old));
     expect(
-      screen.getByText("Test bot", { selector: ".im-bot-card-copy strong" }),
+      screen.getByText("Test bot", { selector: ".im-marquee-copy" }),
     ).toBeVisible();
     /* 整幅渠道卡打开时总开关不在屏上，用落库状态断言暂停未被回写。 */
     expect(f.get().settings.enabled).toBe(false);

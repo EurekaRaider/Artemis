@@ -1,6 +1,7 @@
 import { uiTranslator } from "../shared/ui-text.js";
 import { ImNativeGroups, imNativeGroupChoices } from "./ImNativeGroups";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { ImDataPermissions } from "./ImDataPermissions";
 import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
@@ -1565,16 +1566,16 @@ export function ImSettingsPanel({
                 }}
               >
                 {channelLogo(channel, 20)}
-                <span className="im-bot-card-copy">
-                  <strong>{connection.name}</strong>
-                  <span className="im-bot-card-state">
-                    <span
-                      aria-hidden="true"
-                      className="im-dot"
-                      data-state={pairing.dot}
-                    />
-                    {pairing.label}
-                  </span>
+                <strong className="im-bot-card-name">
+                  <ImMarqueeText text={connection.name} />
+                </strong>
+                <span className="im-bot-card-state">
+                  <span
+                    aria-hidden="true"
+                    className="im-dot"
+                    data-state={pairing.dot}
+                  />
+                  {pairing.label}
                 </span>
               </button>
             );
@@ -3132,5 +3133,58 @@ export function ImSettingsPanel({
         </Dialog>
       )}
     </div>
+  );
+}
+
+/** 机器人名跑马灯：静态省略号，悬停且溢出时双拷贝匀速滚动（≈30px/s）。 */
+function ImMarqueeText({ text }: { text: string }) {
+  const outer = useRef<HTMLSpanElement>(null);
+  const copy = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    const outerEl = outer.current;
+    const copyEl = copy.current;
+    if (!outerEl || !copyEl) return;
+    const check = () => setOverflow(copyEl.scrollWidth > outerEl.clientWidth);
+    check();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(check);
+    observer.observe(outerEl);
+    return () => observer.disconnect();
+  }, [text]);
+  /* 悬停起跑：位移一份拷贝宽度+间距，循环即无缝；速度固定 30px/s。 */
+  const distance = (copy.current?.scrollWidth ?? 0) + 24;
+  return (
+    <span
+      ref={outer}
+      className="im-marquee"
+      data-playing={playing || undefined}
+      onMouseEnter={() => {
+        if (overflow) setPlaying(true);
+      }}
+      onMouseLeave={() => setPlaying(false)}
+    >
+      <span
+        className="im-marquee-track"
+        style={
+          playing
+            ? ({
+                "--mq-shift": `${-distance}px`,
+                "--mq-dur": `${distance / 30}s`,
+              } as CSSProperties)
+            : undefined
+        }
+      >
+        <span ref={copy} className="im-marquee-copy">
+          {text}
+        </span>
+        {playing && (
+          <span className="im-marquee-copy" aria-hidden="true">
+            {text}
+          </span>
+        )}
+      </span>
+    </span>
   );
 }
