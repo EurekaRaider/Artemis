@@ -120,6 +120,14 @@ export function ImThreadConnection({
   status: ThreadConnection;
   locale: AppLocale;
 }) {
+  const channel =
+    status.channel === "slack"
+      ? "Slack"
+      : status.channel === "feishu" || status.channel === "lark"
+        ? uiText(locale, "ImNavigation.message1")
+        : status.channel === "wecom"
+          ? uiText(locale, "ImNavigation.message2")
+          : "IM";
   const state =
     status.group?.native && !status.group.confirmed
       ? "disabled"
@@ -137,6 +145,26 @@ export function ImThreadConnection({
   }[state];
   const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
   const group = status.group;
+  const members = group ? imGroupMentionTargets(group) : [];
+  const computerState =
+    !group || group.stale || !group.confirmed
+      ? "unknown"
+      : members.some((member) => member.state === "online")
+        ? "online"
+        : members.length > 0 &&
+            (!group.targetDeviceIds ||
+              group.targetDeviceIds.every((id) =>
+                members.some((member) => member.deviceId === id),
+              )) &&
+            members.every((member) => member.state === "offline")
+          ? "offline"
+          : "unknown";
+  const computerLabel =
+    computerState === "online"
+      ? uiText(locale, "ImThreadConnection.inline5")
+      : computerState === "offline"
+        ? uiText(locale, "ImThreadConnection.inline4")
+        : uiText(locale, "ImThreadConnection.inline3");
   return (
     <span className="im-thread-indicators">
       {/* 图标始终表达会话类型（单聊/群聊）；连接状态只通过颜色与悬浮文案区分。 */}
