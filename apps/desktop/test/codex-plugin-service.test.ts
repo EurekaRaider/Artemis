@@ -1829,3 +1829,48 @@ describe("CodexPluginService", () => {
     expect(await service.listInstalled()).toHaveLength(1);
   });
 });
+
+describe("plugin localization persistence", () => {
+  it("retains translations in previews, installed records, reloads and updates", async () => {
+    const root = await temporaryRoot();
+    const source = join(root, "localized-plugin");
+    await writePlugin(source, { declareMcp: false });
+    const manifestPath = join(source, ".codex-plugin", "plugin.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const localizations = {
+      en: { displayName: "Demo Tools", description: "English description" },
+      "zh-CN": {
+        displayName: "示例工具",
+        description: "中文描述",
+        shortDescription: "中文简介",
+      },
+      ja: { displayName: "サンプルツール", description: "日本語の説明" },
+    };
+    manifest.localizations = localizations;
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const { service } = createService(root);
+    const preview = await service.inspectLocal(source);
+    expect(preview.localizations).toEqual(localizations);
+    const installed = await service.install(preview.source);
+    expect(installed.plugin.localizations).toEqual(localizations);
+    const reloaded = createService(root).service;
+    expect((await reloaded.listInstalled())[0]?.localizations).toEqual(
+      localizations,
+    );
+    // Changing a returned object must not alter the service's stored translations.
+    installed.plugin.localizations!["zh-CN"]!.displayName =
+      "Changed externally";
+    expect((await service.listInstalled())[0]?.localizations).toEqual(
+      localizations,
+    );
+    manifest.localizations.ja.description = "更新した説明";
+    manifest.version = "1.0.1";
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const updated = await reloaded.update(preview.id);
+    expect(updated.plugin.localizations?.ja?.description).toBe("更新した説明");
+    expect(
+      (await createService(root).service.listInstalled())[0]?.localizations?.ja
+        ?.description,
+    ).toBe("更新した説明");
+  });
+});
