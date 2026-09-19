@@ -212,6 +212,9 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       expect(block).toContain(`width: ${size}`);
       expect(block).toContain(`height: ${size}`);
     }
+    expect(
+      findCssDeclarations(stylesSource, ".resource-avatar svg"),
+    ).toBeUndefined();
   });
 
   it("delegates Resource Center action icon sizing and flex defense to public UI", () => {
