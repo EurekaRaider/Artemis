@@ -10383,7 +10383,7 @@ kbd {
 }
 /* 回复模式值展示（固定流式卡片）：右栏卡右侧的下拉形态值。 */
 .im-reply-mode-select {
-  inline-size: 220px;
+  inline-size: 150px;
 }
 .im-reply-mode-select [data-part="trigger"] {
   box-sizing: border-box;
