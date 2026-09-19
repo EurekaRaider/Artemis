@@ -1,3 +1,5 @@
+import { imText } from "./im-localization.js";
+import type { AppLocale } from "@artemis/protocol";
 import { z } from "zod";
 import { channelConnectionSchema, type ChannelConnection } from "./channels.js";
 
@@ -9,8 +11,17 @@ const setupSchema = channelConnectionSchema.options[1].partial({
 /** Resolve real platform identities before persisting a new connection. */
 export async function resolveFeishuConnection(
   input: unknown,
+  locale: AppLocale = "zh-CN",
 ): Promise<Extract<ChannelConnection, { channel: "feishu" }>> {
   const setup = setupSchema.parse(input);
+  const platform =
+    setup.domain === "lark"
+      ? "Lark"
+      : locale === "zh-CN"
+        ? "飞书"
+        : locale === "zh-TW"
+          ? "飛書"
+          : "Feishu";
   // Keep fully specified legacy and team configurations compatible.
   if (setup.tenantId && setup.botOpenId)
     return channelConnectionSchema.options[1].parse(input);
@@ -35,8 +46,7 @@ export async function resolveFeishuConnection(
       throw new Error(hint);
     }
   }
-  const authHint =
-    "无法验证飞书应用。请从「凭证与基础信息」重新复制 App ID 和 App Secret，并检查网络。 / Could not verify Feishu app credentials. Check App ID, App Secret and network.";
+  const authHint = imText(locale, "authFailed", { platform });
   const auth = await request("auth/v3/tenant_access_token/internal", authHint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -45,10 +55,8 @@ export async function resolveFeishuConnection(
   const token = z.string().min(1).safeParse(auth.tenant_access_token);
   if (!token.success) throw new Error(authHint);
   const headers = { Authorization: `Bearer ${token.data}` };
-  const tenantHint =
-    "无法自动获取飞书企业标识。请在权限管理中开启「获取企业信息」并发布应用后重试；也可在高级设置填写真实 Tenant Key。 / Enable Get tenant information and publish, or enter the real Tenant Key in Advanced settings.";
-  const botHint =
-    "无法自动获取机器人编号。请在应用能力中添加「机器人」并发布后重试。 / Add the Bot capability and publish the app, then retry.";
+  const tenantHint = imText(locale, "tenantFailed", { platform });
+  const botHint = imText(locale, "botFailed", { platform });
   /* Scan-minted apps (PersonalAgent) cannot call the tenant query; their
      websocket subscription adopts the tenant key from its first event. */
   const websocket = setup.transport === "websocket";

@@ -1,3 +1,5 @@
+import { imText } from "./im-localization.js";
+import type { AppLocale } from "@artemis/protocol";
 import { feishuGroupEvents } from "./feishu-group-events.js";
 import { Domain, EventDispatcher, WSClient } from "@larksuiteoapi/node-sdk";
 import type { ChannelEvent } from "@artemis/protocol";
@@ -36,6 +38,7 @@ export class FeishuSocketAdapter extends FeishuAdapter {
     private readonly receiveCard?: (value: unknown) => boolean,
     private readonly receiveGroup?: (value: unknown) => void,
     private readonly onTenantResolved?: (tenantId: string) => void,
+    private readonly cardLocale?: (value: unknown) => AppLocale | undefined,
   ) {
     super(config);
   }
@@ -115,9 +118,10 @@ export class FeishuSocketAdapter extends FeishuAdapter {
           return {
             toast: {
               type: accepted ? "success" : "error",
-              content: accepted
-                ? "已提交，等待桌面确认。"
-                : "此审批无效、已处理或已过期。",
+              content: imText(
+                this.cardLocale?.({ event: input }),
+                accepted ? "approvalSubmitted" : "approvalInvalid",
+              ),
             },
           };
         } catch {
@@ -166,13 +170,18 @@ export class FeishuSocketAdapter extends FeishuAdapter {
     this.connectionError = false;
     super.stop();
   }
-  override status(): ChannelStatus {
+  override status(locale?: AppLocale): ChannelStatus {
     const lifecycle = this.socket?.getConnectionStatus().state;
     if (lifecycle === "connected") this.connectionError = false;
     const error = this.ingestionError
-      ? "Feishu event could not be saved. Check Gateway storage."
+      ? imText(locale, "eventStorage")
       : lifecycle === "failed" || this.connectionError
-        ? `无法连接 ${this.config.domain === "lark" ? "Lark（open.larksuite.com）" : "飞书（open.feishu.cn）"}。请核对应用区域与 App ID / App Secret；Lark 国际版应用需选择 Lark。区域选错时请移除连接后重新配置。确认机器人已启用，再配置长连接事件订阅。 / ${this.config.domain === "lark" ? "Lark" : "Feishu"} long connection failed. Check app region and credentials; remove and recreate the connection if the region is wrong, then enable the bot and configure long connection events.`
+        ? imText(locale, "socketFailed", {
+            platform:
+              this.config.domain === "lark"
+                ? "Lark (open.larksuite.com)"
+                : "Feishu (open.feishu.cn)",
+          })
         : undefined;
     return {
       id: this.config.id,

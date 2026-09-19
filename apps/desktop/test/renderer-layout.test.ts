@@ -1222,7 +1222,9 @@ describe("renderer layout contract", () => {
     expect(uiText("en", "App_copy.contextCompacted")).toBe(
       "Context compaction completed",
     );
-    expect(uiText("zh-CN", "App_copy.contextCompacted")).toBe("Compact 已完成");
+    expect(uiText("zh-CN", "App_copy.contextCompacted")).toBe(
+      "上下文压缩已完成",
+    );
     expect(appSource).toContain('if (kind === "compaction")');
     expect(appSource).toContain("state.contextCompactions[id]");
     expect(appSource).toContain("COMPACTION_COMPLETION_NOTICE_MILLISECONDS");
@@ -1788,9 +1790,7 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps the completed terminal transcript visible after its process exits", () => {
-    expect(terminalSource).toContain(
-      "setDetail(`Process exited ${event.exitCode}`);",
-    );
+    expect(terminalSource).toContain('setState("exited");');
     expect(terminalSource).toMatch(
       /\(state === "connecting" \|\|[\s\S]*state === "empty" \|\|[\s\S]*state === "error"\) && \(/u,
     );

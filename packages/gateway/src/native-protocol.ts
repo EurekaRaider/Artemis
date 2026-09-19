@@ -1,11 +1,15 @@
 import { z } from "zod";
-import { collaborationDependencySchema } from "@artemis/protocol";
+import {
+  appLocaleSchema,
+  collaborationDependencySchema,
+} from "@artemis/protocol";
 
 export const NATIVE_PREFIX = "ARTEMIS-IM/1:";
 const identity = z.string().min(1).max(256);
 export const nativeEnvelopeSchema = z
   .object({
     version: z.literal(1),
+    locale: appLocaleSchema.optional(),
     id: z.string().uuid(),
     platform: z.enum(["slack", "feishu", "lark", "wecom"]),
     tenant: identity,

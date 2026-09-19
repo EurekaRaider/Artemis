@@ -8,6 +8,7 @@ import { GatewayStore } from "../src/store.js";
 import { GatewayRouter, type Delivery } from "../src/router.js";
 import { saveNativeGroup } from "../src/native-groups.js";
 import {
+  decodeNativeEnvelope,
   encodeNativeEnvelope,
   type NativeEnvelope,
 } from "../src/native-protocol.js";
@@ -133,6 +134,54 @@ function delegate(
     text,
   }) as Array<{ id: string }>;
 }
+
+it("keeps v1 envelopes compatible with peers that do not advertise locale support", () => {
+  const f = pair();
+  const peer = f.a.router.native.peers(f.a.group.id)[0]!;
+  f.a.store.put("native-peers", f.a.group.id, [
+    { ...peer, localizedMessages: false },
+  ]);
+  f.request = { ...f.request, locale: "ja" };
+  delegate(f);
+  const delivery = f.a.store
+    .pending<Delivery>("outgoing")
+    .find((item) => item.payload.native?.action === "delegate")!;
+  expect(delivery.payload.native?.locale).toBe("ja");
+  expect(decodeNativeEnvelope(delivery.payload.text)).not.toHaveProperty(
+    "locale",
+  );
+});
+
+it("carries the initiating language across native delegation without translating content", () => {
+  const f = pair();
+  f.request = { ...f.request, locale: "ja" };
+  f.b.store.put("device-locales", f.b.device.id, "de");
+  const text = "原文を保持 / keep original";
+  delegate(f, text);
+  exchange(f.a, f.b);
+  const task = f.b.router.native.tasks(f.b.group.id)[0]!;
+  const request = f.b.store.get<RemoteInvocationContext>(
+    "invocations",
+    task.invocationId,
+  )!;
+  expect(request).toMatchObject({ locale: "ja", text });
+  f.b.router.native.reply(request, {
+    version: 1,
+    id: randomUUID(),
+    invocationId: request.id,
+    text: "原始结果 / original result",
+    final: true,
+    visibility: "conversation",
+    outcome: "completed",
+  });
+  const outgoing = f.b.store
+    .pending<Delivery>("outgoing")
+    .find((item) => item.payload.native?.action === "completed");
+  expect(outgoing?.payload.native).toMatchObject({
+    locale: "ja",
+    text: "原始结果 / original result",
+  });
+});
 
 it("delivers cancellation acknowledgments after the worker's data grant expires", () => {
   const f = pair();

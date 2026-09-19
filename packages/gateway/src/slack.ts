@@ -1,3 +1,4 @@
+import { imText, type ImMessageKey } from "./im-localization.js";
 import { decodeNativeEnvelope } from "./native-protocol.js";
 import { formatSlackMarkdown, slackMarkdownSections } from "./slack-format.js";
 import { createHash } from "node:crypto";
@@ -458,21 +459,21 @@ export class SlackAdapter implements ChannelAdapter {
     const frame = decodeNativeEnvelope(text);
     if (!frame || frame.recipient !== recipient)
       throw new Error("Invalid native collaboration message.");
-    const labels = {
-      hello: "协作机器人已就绪",
-      probe: "正在验证协作连接",
-      proof: "协作连接已验证",
-      delegate: "委派任务",
-      continue: "继续任务",
-      accepted: "已接收任务",
-      note: "补充任务说明",
-      progress: "任务进展",
-      heartbeat: "任务仍在执行",
-      completed: "任务已完成",
-      failed: "任务未完成",
-      rejected: "任务未接收",
-      cancel: "请求取消任务",
-      cancelled: "任务已取消",
+    const labels: Record<typeof frame.action, ImMessageKey> = {
+      hello: "nativeHello",
+      probe: "nativeProbe",
+      proof: "nativeProof",
+      delegate: "nativeDelegate",
+      continue: "nativeContinue",
+      accepted: "accepted",
+      note: "nativeNote",
+      progress: "nativeProgress",
+      heartbeat: "heartbeat",
+      completed: "nativeCompleted",
+      failed: "nativeFailed",
+      rejected: "nativeRejected",
+      cancel: "nativeCancel",
+      cancelled: "nativeCancelled",
     };
     const mention = recipient === "*" ? "" : `<@${recipient}> · `;
     const heartbeatKey = `${conversation.id}:${frame.task}`;
@@ -491,7 +492,10 @@ export class SlackAdapter implements ChannelAdapter {
         blocks: [
           {
             type: "section",
-            text: { type: "mrkdwn", text: `${mention}${labels[frame.action]}` },
+            text: {
+              type: "mrkdwn",
+              text: `${mention}${imText(frame.locale, labels[frame.action])}`,
+            },
           },
           ...slackMarkdownSections(frame.text).map((text) => ({
             type: "section",

@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { resolveFeishuConnection } from "../src/feishu-setup.js";
 import { ArtemisGateway } from "../src/server.js";
+import { APP_LOCALES } from "@artemis/protocol";
+import { imText } from "../src/im-localization.js";
 
 const setup = {
   channel: "feishu",
@@ -20,6 +22,15 @@ const callbackSetup = {
   encryptKey: "encrypt",
 };
 let gateway: ArtemisGateway | undefined;
+it.each(APP_LOCALES)(
+  "localizes credential failures in %s without echoing secrets",
+  async (locale) => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error(setup.appSecret));
+    await expect(
+      resolveFeishuConnection({ ...setup, domain: "lark" }, locale),
+    ).rejects.toThrow(imText(locale, "authFailed", { platform: "Lark" }));
+  },
+);
 afterEach(async () => {
   await gateway?.close();
   gateway = undefined;

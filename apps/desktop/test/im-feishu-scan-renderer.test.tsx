@@ -21,6 +21,27 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Feishu scan request lifecycle", () => {
+  it("updates failure copy when the desktop language changes without restarting the scan", async () => {
+    const manage = vi
+      .fn()
+      .mockRejectedValue(new Error("synthetic network failure"));
+    stubWindowArtemis({ manageIm: manage });
+    const props = {
+      autoStart: true,
+      busy: false,
+      disabled: false,
+      onConnected: vi.fn(),
+    };
+    const view = render(<ImFeishuScan {...props} t={uiTranslator("en")} />);
+    expect(
+      await screen.findByText(uiTranslator("en")("ImFeishuScan.message13")),
+    ).toBeVisible();
+    view.rerender(<ImFeishuScan {...props} t={uiTranslator("ja")} />);
+    expect(
+      screen.getByText(uiTranslator("ja")("ImFeishuScan.message13")),
+    ).toBeVisible();
+    expect(manage).toHaveBeenCalledTimes(1);
+  });
   it.each(APP_LOCALES)("names Lark in scan instructions in %s", (locale) => {
     const { container } = render(
       <ImFeishuScan

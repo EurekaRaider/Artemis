@@ -9012,6 +9012,7 @@ export function App() {
                               }
                             >
                               <TerminalPanel
+                                locale={locale}
                                 threadId={activeThread?.id}
                                 title={tab.title}
                                 emptyMessage={t.terminalLocked}

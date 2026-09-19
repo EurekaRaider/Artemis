@@ -1,7 +1,7 @@
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { useState } from "react";
 import type { AppLocale, ImStatus } from "@artemis/protocol";
-import { uiText } from "../shared/ui-text.js";
+import { uiText, type UiMessageKey } from "../shared/ui-text.js";
 
 type Wait = NonNullable<
   NonNullable<ImStatus["remoteTasks"]>[number]["delegationWaits"]
@@ -14,7 +14,9 @@ export function ImDelegationWaitStatus({
   locale: AppLocale;
 }) {
   const [pending, setPending] = useState<string>();
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<
+    { key: UiMessageKey } | { error: string }
+  >();
   return (
     <>
       {waits.map((wait) => (
@@ -67,17 +69,18 @@ export function ImDelegationWaitStatus({
                 className="im-delegation-continue"
                 onClick={async () => {
                   setPending(wait.id);
-                  setNotice("");
+                  setNotice(undefined);
                   try {
                     await window.artemis.manageIm({
                       action: "delegation-stop-wait",
                       waitId: wait.id,
                     });
-                    setNotice(uiText(locale, "ImDelegation.waitStopped"));
+                    setNotice({ key: "ImDelegation.waitStopped" });
                   } catch (error) {
-                    setNotice(
-                      error instanceof Error ? error.message : String(error),
-                    );
+                    setNotice({
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    });
                   } finally {
                     setPending(undefined);
                   }
@@ -93,16 +96,17 @@ export function ImDelegationWaitStatus({
                 className="im-delegation-continue"
                 onClick={async () => {
                   setPending(wait.id);
-                  setNotice("");
+                  setNotice(undefined);
                   try {
                     await window.artemis.manageIm({
                       action: "delegation-continue-wait",
                       waitId: wait.id,
                     });
                   } catch (error) {
-                    setNotice(
-                      error instanceof Error ? error.message : String(error),
-                    );
+                    setNotice({
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    });
                   } finally {
                     setPending(undefined);
                   }
@@ -130,7 +134,7 @@ export function ImDelegationWaitStatus({
             disabled={!!pending}
             onClick={async () => {
               setPending(wait.id);
-              setNotice("");
+              setNotice(undefined);
               try {
                 await window.artemis.manageIm({
                   action:
@@ -141,13 +145,13 @@ export function ImDelegationWaitStatus({
                 });
                 setNotice(
                   wait.state === "interrupted"
-                    ? ""
-                    : uiText(locale, "ImDelegation.cancelSent"),
+                    ? undefined
+                    : { key: "ImDelegation.cancelSent" },
                 );
               } catch (error) {
-                setNotice(
-                  error instanceof Error ? error.message : String(error),
-                );
+                setNotice({
+                  error: error instanceof Error ? error.message : String(error),
+                });
               } finally {
                 setPending(undefined);
               }
@@ -163,7 +167,7 @@ export function ImDelegationWaitStatus({
       ))}
       {notice && (
         <p className="im-delegation-notice" role="status">
-          {notice}
+          {"key" in notice ? uiText(locale, notice.key) : notice.error}
         </p>
       )}
     </>

@@ -1,3 +1,4 @@
+import type { AppLocale } from "@artemis/protocol";
 import {
   channelEventSchema,
   type ChannelEvent,
@@ -7,6 +8,7 @@ import {
 } from "@artemis/protocol";
 
 export interface FeishuApprovalCard {
+  locale?: AppLocale;
   approval: NonNullable<ImReply["approval"]>;
   identity: ImIdentity;
   conversation: ImConversation;

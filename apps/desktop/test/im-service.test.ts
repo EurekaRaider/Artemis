@@ -217,6 +217,41 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
     port,
   };
 }
+
+it("keeps task receipts in the initiating desktop language after the language changes", async () => {
+  const f = await fixture();
+  f.ops.locale = () => "ja";
+  await f.send("原始请求 / original request");
+  expect(f.starts).toContain("原始请求 / original request");
+  expect(
+    f.gateway.store
+      .pending<{ text: string }>("outgoing")
+      .some((row) => row.payload.text.startsWith("タスクを開始しました")),
+  ).toBe(true);
+  f.ops.locale = () => "de";
+  const thread = f.threads[0]!;
+  f.service.observe([
+    {
+      protocolVersion: 4,
+      seq: 1,
+      eventId: randomUUID(),
+      threadId: thread.id,
+      turnId: "turn",
+      timestamp: new Date().toISOString(),
+      payload: { type: "turn.failed", message: "original failure / 原始错误" },
+    },
+  ]);
+  await f.service.poll();
+  expect(
+    f.gateway.store
+      .pending<{ text: string }>("outgoing")
+      .some(
+        (row) =>
+          row.payload.text ===
+          "タスクが失敗しました：original failure / 原始错误",
+      ),
+  ).toBe(true);
+});
 async function groupFixture(mode: "plan" | "execute" = "plan") {
   const f = await fixture("feishu");
   const members = [];

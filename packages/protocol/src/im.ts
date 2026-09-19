@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appLocaleSchema } from "./schema.js";
 import {
   imGrantSecuritySchema,
   imDeliverySecuritySchema,
@@ -317,6 +318,8 @@ export interface ImStatus {
 }
 export const remoteInvocationSchema = z
   .object({
+    /** Desktop language captured when this request was initiated. */
+    locale: appLocaleSchema.optional(),
     nativeTaskId: id.optional(),
     sourceKind: z.enum(["direct", "tool-result", "member"]).optional(),
     version: z.literal(IM_PROTOCOL_VERSION),

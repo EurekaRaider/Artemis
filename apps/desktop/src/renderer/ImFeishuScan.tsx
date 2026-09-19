@@ -7,6 +7,7 @@ import { Button } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { InlineNotice } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation.js";
+import type { UiMessageKey } from "../shared/ui-text.js";
 
 /**
  * Feishu scan-to-register: the official OAuth app registration device flow.
@@ -19,19 +20,19 @@ type ImFeishuScanPhase =
   | { stage: "scanning"; image: string; begin: ImFeishuScanBeginResult }
   | { stage: "connecting"; image: string }
   | { stage: "done"; name?: string; domain: "feishu" | "lark" }
-  | { stage: "failed"; message: string };
+  | { stage: "failed"; message: UiMessageKey };
 
 /* 扫码链路错误统一友好化：剥离 Electron IPC 包装与 Error 前缀，
    已知场景映射为可行动的本地化文案，其余归入通用失败文案。 */
-function friendlyScanError(error: unknown, t: ImTranslate): string {
+function friendlyScanError(error: unknown): UiMessageKey {
   const raw = error instanceof Error ? error.message : String(error);
   const detail = raw
     .replace(/^Error invoking remote method '[^']*':\s*/i, "")
     .replace(/^Error:\s*/i, "")
     .trim();
   if (/already owned by another connection/i.test(detail))
-    return t("ImFeishuScan.message12");
-  return t("ImFeishuScan.message13");
+    return "ImFeishuScan.message12";
+  return "ImFeishuScan.message13";
 }
 
 export function ImFeishuScan({
@@ -95,7 +96,7 @@ export function ImFeishuScan({
   ) => {
     if (epoch.current !== run) return;
     if (Date.now() > begin.expiresAt) {
-      setPhase({ stage: "failed", message: t("ImFeishuScan.message6") });
+      setPhase({ stage: "failed", message: "ImFeishuScan.message6" });
       return;
     }
     let result: ImFeishuScanPollResult;
@@ -107,7 +108,7 @@ export function ImFeishuScan({
       })) as ImFeishuScanPollResult;
     } catch (error) {
       if (epoch.current !== run) return;
-      setPhase({ stage: "failed", message: friendlyScanError(error, t) });
+      setPhase({ stage: "failed", message: friendlyScanError(error) });
       return;
     }
     if (epoch.current !== run) return;
@@ -133,7 +134,7 @@ export function ImFeishuScan({
         savedConnectionId = saved.connectionId;
       } catch (error) {
         if (epoch.current !== run) return;
-        setPhase({ stage: "failed", message: friendlyScanError(error, t) });
+        setPhase({ stage: "failed", message: friendlyScanError(error) });
         return;
       }
       if (epoch.current !== run) return;
@@ -149,8 +150,8 @@ export function ImFeishuScan({
       stage: "failed",
       message:
         result.status === "error"
-          ? friendlyScanError(result.message, t)
-          : t("ImFeishuScan.message6"),
+          ? friendlyScanError(result.message)
+          : "ImFeishuScan.message6",
     });
   };
   const start = () => {
@@ -169,7 +170,7 @@ export function ImFeishuScan({
         poll(run, begin, begin.domain, begin.intervalMs);
       } catch (error) {
         if (epoch.current !== run) return;
-        setPhase({ stage: "failed", message: friendlyScanError(error, t) });
+        setPhase({ stage: "failed", message: friendlyScanError(error) });
       }
     })();
   };
@@ -212,7 +213,7 @@ export function ImFeishuScan({
   if (phase.stage === "failed")
     return (
       <div className="im-scan">
-        <InlineNotice tone="danger">{phase.message}</InlineNotice>
+        <InlineNotice tone="danger">{t(phase.message)}</InlineNotice>
         {!bare && (
           <Button
             size="compact"

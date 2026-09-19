@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { ImDelegationWaitStatus } from "../src/renderer/ImDelegationWaitStatus.js";
+import { uiText } from "../src/shared/ui-text.js";
 it("shows a compact waiting state, details and cancellation receipt", async () => {
   const manageIm = vi.fn().mockResolvedValue({ state: "cancel-sent" });
   stubWindowArtemis({ manageIm });
@@ -97,3 +98,38 @@ it("offers stop waiting after timeout without invoking remote cancellation", asy
     "队友任务未被取消",
   );
 });
+
+it.each(["waiting", "interrupted"] as const)(
+  "updates the %s receipt when the language changes without repeating the action",
+  async (state) => {
+    const manageIm = vi.fn(async () => ({}));
+    stubWindowArtemis({ manageIm });
+    const waits = [
+      { id: "wait", state, taskIds: ["task"], continuation: "User text" },
+    ];
+    const { rerender } = render(
+      <ImDelegationWaitStatus waits={waits} locale="zh-CN" />,
+    );
+    const key =
+      state === "waiting"
+        ? "ImDelegation.cancelSent"
+        : "ImDelegation.waitStopped";
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: uiText(
+          "zh-CN",
+          state === "waiting"
+            ? "ImDelegation.cancel"
+            : "ImDelegation.stopWaiting",
+        ),
+      }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      uiText("zh-CN", key),
+    );
+    rerender(<ImDelegationWaitStatus waits={waits} locale="ja" />);
+    expect(screen.getByRole("status")).toHaveTextContent(uiText("ja", key));
+    expect(manageIm).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("User text")).toBeInTheDocument();
+  },
+);

@@ -1,3 +1,5 @@
+import { imText } from "@artemis/gateway";
+import type { AppLocale } from "@artemis/protocol";
 import { z } from "zod";
 import QRCode from "qrcode";
 import type {
@@ -73,10 +75,17 @@ async function postRegistration(
 
 export async function beginFeishuScan(
   domain: FeishuScanDomain = "feishu",
+  locale: AppLocale = "zh-CN",
 ): Promise<ImFeishuScanBeginResult> {
-  const platform = domain === "lark" ? "Lark" : "飞书";
-  const englishPlatform = domain === "lark" ? "Lark" : "Feishu";
-  const networkHint = `无法连接${platform}应用注册服务，请检查网络。 / Could not reach the ${englishPlatform} app registration service. Check the network.`;
+  const platform =
+    domain === "lark"
+      ? "Lark"
+      : locale === "zh-CN"
+        ? "飞书"
+        : locale === "zh-TW"
+          ? "飛書"
+          : "Feishu";
+  const networkHint = imText(locale, "scanNetwork", { platform });
   let init: unknown;
   try {
     init = await postRegistration(domain, { action: "init" });
@@ -86,15 +95,15 @@ export async function beginFeishuScan(
   const methods = (init as { supported_auth_methods?: unknown })
     .supported_auth_methods;
   if (!Array.isArray(methods) || !methods.includes("client_secret"))
-    throw new Error(
-      `当前${platform}环境不支持扫码创建应用，请改用手动接入。 / This ${englishPlatform} environment does not support scan-created apps. Use manual setup.`,
-    );
+    throw new Error(imText(locale, "scanUnsupported", { platform }));
   const begin = beginResponseSchema.parse(
     await postRegistration(domain, {
       action: "begin",
       archetype: "PersonalAgent",
       auth_method: "client_secret",
       request_user_info: "open_id",
+    }).catch(() => {
+      throw new Error(networkHint);
     }),
   );
   return {

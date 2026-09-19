@@ -1,3 +1,4 @@
+import { imText } from "@artemis/gateway";
 import { ImPermissionError, imRequiresApproval } from "./im-policy.js";
 import { ThreadHistoryService } from "./thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
@@ -21211,6 +21212,7 @@ app
       app.getPath("userData"),
       safeStorage,
       {
+        locale: currentLocale,
         cancelDelegationContinuation: async (id, waitIds) => {
           const turnId = activeTurns.get(id);
           if (turnId && waitIds.includes(turnId) && !cancellingTurns.has(id))
@@ -21243,7 +21245,7 @@ app
             {
               origin: local ? "desktop" : "im",
               delegationContinuationId: continuationId,
-              displayText: "IM 委派结果已返回，结合最新要求继续处理。",
+              displayText: imText(currentLocale(), "resumeDelegation"),
             },
           );
           return true;

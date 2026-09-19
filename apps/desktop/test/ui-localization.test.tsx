@@ -26,6 +26,19 @@ const placeholders = (text: string) =>
     .sort();
 
 describe("application language packs", () => {
+  it.each(APP_LOCALES.filter((locale) => locale !== "en"))(
+    "does not leave delegation controls and receipts in English in %s",
+    (locale) => {
+      for (const key of Object.keys(UI_RESOURCES.en).filter((key) =>
+        key.startsWith("ImDelegation."),
+      ) as UiMessageKey[]) {
+        expect(uiText(locale, key), `${locale}:${key}`).not.toBe(
+          uiText("en", key),
+        );
+      }
+    },
+  );
+
   it.each(APP_LOCALES)(
     "has complete nonempty messages and unchanged placeholders in %s",
     (locale) => {

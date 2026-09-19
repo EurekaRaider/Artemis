@@ -26,6 +26,35 @@ function event(id = "message-1"): ChannelEvent {
   };
 }
 describe("Gateway routing", () => {
+  it("keeps the initiating desktop language with queued requests and replies", () => {
+    const store = new GatewayStore(":memory:", "e".repeat(32));
+    try {
+      const router = new GatewayRouter(store);
+      const device = store.register("Alice");
+      const input = event();
+      store.pair(store.pairCode(device.id), input.identity);
+      store.put("device-locales", device.id, "ja");
+      router.ingest(input);
+      router.processIncoming();
+      const request = store.pending<RemoteInvocationContext>("device")[0]!;
+      expect(request.payload).toMatchObject({ locale: "ja", text: input.text });
+      store.put("device-locales", device.id, "de");
+      const text = "用户原文 / original result / Ergebnis";
+      router.receiveReply(device.id, {
+        version: 1,
+        id: "localized-result",
+        invocationId: request.id,
+        text,
+        final: true,
+      });
+      expect(
+        store.pending<{ locale?: string; text: string }>("outgoing").at(-1)
+          ?.payload,
+      ).toMatchObject({ locale: "ja", text });
+    } finally {
+      store.close();
+    }
+  });
   it("coalesces cumulative stream updates without splitting them or delaying final status", () => {
     const store = new GatewayStore(":memory:", "e".repeat(32));
     try {

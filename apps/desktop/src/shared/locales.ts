@@ -149,6 +149,7 @@ function normalizedLocale(value: string): string {
 function chineseLocale(value: string): AppLocale | undefined {
   const normalized = value.toLowerCase();
   if (!normalized.startsWith("zh")) return undefined;
+  if (/(?:^|-)hans(?:-|$)/u.test(normalized)) return "zh-CN";
   if (
     normalized.includes("hant") ||
     /(?:^|-)(?:tw|hk|mo)(?:-|$)/u.test(normalized)

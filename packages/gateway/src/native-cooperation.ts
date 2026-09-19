@@ -1,3 +1,4 @@
+import { imText } from "./im-localization.js";
 import { collaborationCommandSchema, imIdentityKey } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 import type {
@@ -17,7 +18,13 @@ import {
   type NativeEnvelope,
 } from "./native-protocol.js";
 
-type Peer = { id: string; name: string; verifiedAt?: number };
+type Peer = {
+  id: string;
+  name: string;
+  verifiedAt?: number;
+  localizedMessages?: boolean;
+};
+const LOCALE_CAPABILITY = "Artemis locale/1";
 export type NativeTask = {
   // Local persisted metadata; v1 wire compatibility uses continue/previousTask.
   sessionId?: string;
@@ -157,11 +164,14 @@ export class NativeCooperation {
   ): NativeEnvelope {
     return {
       version: 1,
+      locale: this.router.deviceLocale(group.nativeGroup!.ownerDeviceId),
       id: randomUUID(),
       ...this.address(group),
       recipient,
       action,
-      text,
+      text: ["hello", "probe", "proof"].includes(action)
+        ? LOCALE_CAPABILITY
+        : text,
       task,
       workflow,
       issuedAt: this.now(),
@@ -174,13 +184,22 @@ export class NativeCooperation {
     envelope: NativeEnvelope,
     invocationId?: string,
   ): void {
+    // Older v1 peers reject unknown envelope fields. Advertise support in the
+    // existing handshake text and add locale only after a correlated proof.
+    const wire = { ...envelope };
+    if (
+      ["hello", "probe", "proof"].includes(envelope.action) ||
+      !this.peers(group.id).find((peer) => peer.id === envelope.recipient)
+        ?.localizedMessages
+    )
+      delete wire.locale;
     const delivery: Delivery = {
       conversation: {
         ...group.endpoints[0]!,
         spaceId: group.id,
         spaceRevision: group.revision,
       },
-      text: encodeNativeEnvelope(envelope),
+      text: encodeNativeEnvelope(wire),
       native: envelope,
       ...(invocationId ? { invocationId } : {}),
     };
@@ -442,7 +461,9 @@ export class NativeCooperation {
             probe.expiresAt <= this.now()
           )
             return false;
-          peers.find((p) => p.id === envelope.sender)!.verifiedAt = this.now();
+          const peer = peers.find((p) => p.id === envelope.sender)!;
+          peer.verifiedAt = this.now();
+          peer.localizedMessages = envelope.text === LOCALE_CAPABILITY;
           this.store.delete("native-probes", envelope.replyTo!);
         } else if (
           envelope.action === "probe" &&
@@ -515,6 +536,7 @@ export class NativeCooperation {
               envelope.task,
               envelope.workflow,
             );
+            if (envelope.locale) rejected.locale = envelope.locale;
             rejected.replyTo = envelope.id;
             rejected.sequence = 1;
             this.send(group, rejected);
@@ -533,6 +555,7 @@ export class NativeCooperation {
               envelope.task,
               envelope.workflow,
             );
+            if (envelope.locale) rejected.locale = envelope.locale;
             rejected.replyTo = envelope.id;
             rejected.sequence = 1;
             this.send(group, rejected);
@@ -559,10 +582,11 @@ export class NativeCooperation {
               group,
               envelope.sender,
               "rejected",
-              "机器人主人已禁止此成员派工。",
+              imText(envelope.locale, "peerDenied"),
               envelope.task,
               envelope.workflow,
             );
+            if (envelope.locale) rejected.locale = envelope.locale;
             rejected.replyTo = envelope.id;
             rejected.sequence = 1;
             this.send(group, rejected);
@@ -576,6 +600,10 @@ export class NativeCooperation {
           );
           const request: RemoteInvocationContext = {
             ...owner,
+            locale:
+              envelope.locale ??
+              owner.locale ??
+              this.router.deviceLocale(owner.deviceId),
             id: digest(key),
             messageId: event.messageId,
             text: envelope.dependency
@@ -617,7 +645,7 @@ export class NativeCooperation {
             group,
             task,
             "accepted",
-            "Task persisted; awaiting local execution.",
+            imText(envelope.locale, "nativeAccepted"),
           );
         } else {
           if (
@@ -724,12 +752,13 @@ export class NativeCooperation {
       task.peer,
       action,
       cancellationReceipt
-        ? "任务已取消。"
+        ? imText(task.envelope.locale, "taskCancelled")
         : Buffer.from(text).subarray(0, 12000).toString("utf8").slice(0, 8000),
       task.id,
       task.workflow,
     );
     envelope.replyTo = task.envelope.id;
+    if (task.envelope.locale) envelope.locale = task.envelope.locale;
     envelope.sequence = current.sequence + 1;
     this.store.put("native-tasks", task.id, {
       ...current,
@@ -793,7 +822,12 @@ export class NativeCooperation {
     if (!task || task.direction !== "incoming" || terminal(task.state)) return;
     const group = this.group(task.groupId);
     if (reply.heartbeat) {
-      this.respond(group, task, "heartbeat", "任务仍在执行");
+      this.respond(
+        group,
+        task,
+        "heartbeat",
+        imText(task.envelope.locale, "heartbeat"),
+      );
       return;
     }
     const final = reply.final && reply.deliveryState !== "pending";
@@ -910,6 +944,7 @@ export class NativeCooperation {
               task.id,
               task.workflow,
             );
+            if (task.envelope.locale) cancel.locale = task.envelope.locale;
             // This authenticated, ownership-checked frame contains no task data.
             // It remains deliverable when the original data grant has expired.
             this.send(group, cancel);
@@ -1008,6 +1043,7 @@ export class NativeCooperation {
             randomUUID(),
             workflow.id,
           );
+          if (request.locale) envelope.locale = request.locale;
           if (parent) {
             envelope.parentTask = parent.id;
             envelope.dependency = assignment.dependency;
@@ -1147,6 +1183,7 @@ export class NativeCooperation {
           task.id,
           task.workflow,
         );
+        if (task.envelope.locale) note.locale = task.envelope.locale;
         this.send(group, note, request.id);
         result = { state: "note-queued", taskId: task.id };
       } else if (command.action === "finish") {
@@ -1213,6 +1250,7 @@ export class NativeCooperation {
                 task.id,
                 task.workflow,
               );
+              if (task.envelope.locale) cancel.locale = task.envelope.locale;
               cancel.expiresAt = this.now() + 300000;
               this.store.put("native-revocation-cancels", cancel.id, {
                 groupId: group.id,
