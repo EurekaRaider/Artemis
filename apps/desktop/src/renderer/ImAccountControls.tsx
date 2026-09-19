@@ -25,7 +25,7 @@ export function ImPairingCode({
   busy,
   generate,
   copy,
-  onRefresh,
+  onPoll,
   guide,
   requests,
   returnFocusRef,
@@ -37,8 +37,8 @@ export function ImPairingCode({
   busy: boolean;
   generate(): void;
   copy(text: string): void;
-  /** 用户已在机器人单聊发送指令后，手动重拉配对状态。 */
-  onRefresh(): void;
+  /** 弹窗打开期间自动轮询配对状态，待确认请求自行浮现。 */
+  onPoll(): void;
   /** 弹窗内的提示信息（操作指引）。 */
   guide?: ReactNode;
   /** 待确认的配对请求卡片（批准/拒绝内聚在弹窗内）。 */
@@ -48,12 +48,18 @@ export function ImPairingCode({
   t: ImTranslate;
 }) {
   const [now, setNow] = useState(Date.now);
+  const pollRef = useRef(onPoll);
+  pollRef.current = onPoll;
   useEffect(() => {
     setNow(Date.now());
     if (!pair) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [pair]);
+  useEffect(() => {
+    const timer = window.setInterval(() => pollRef.current(), 4000);
+    return () => window.clearInterval(timer);
+  }, []);
   const seconds = pair
     ? Math.max(0, Math.ceil((pair.expiresAt - now) / 1000))
     : 0;
@@ -68,55 +74,55 @@ export function ImPairingCode({
       }}
       open
     >
-      <header>
+      <header className="im-pair-dialog-head">
         <h2>{t("ImAccountControls.message1")}</h2>
+        <button
+          type="button"
+          className="im-detail-dialog-close"
+          aria-label={t("App_copy.renameClose")}
+          onClick={onClose}
+        >
+          <ArtemisIcon aria-hidden="true" height={14} name="close" width={14} />
+        </button>
       </header>
       <div className="im-pair-dialog-body">
         {guide}
-        <span role="status">
-          {seconds
-            ? t("ImAccountControls.message3")
-            : t("ImAccountControls.message2")}
-        </span>
         <div className="im-pair-code-line">
           <span>{t("ImAccountControls.message4")}</span>
           {pair && (
             <>
               <strong className="im-pair-code-value">{pair.code}</strong>
-              {seconds > 0 && (
-                <span
-                  className="im-countdown"
-                  aria-label={t("ImAccountControls.message5")}
-                >
-                  {" "}
-                  · {Math.floor(seconds / 60)}:
-                  {String(seconds % 60).padStart(2, "0")}
-                </span>
-              )}
-              <Button
-                disabled={busy || !seconds}
-                onClick={() => {
-                  if (pair.expiresAt > Date.now()) copy(command);
-                  else setNow(Date.now());
-                }}
+              {/* 分隔点即信号灯：绿=有效，红=已过期。 */}
+              <span
+                aria-hidden="true"
+                className="im-dot"
+                data-state={seconds > 0 ? "connected" : "error"}
+              />
+              <span
+                className="im-countdown"
+                aria-label={t("ImAccountControls.message5")}
               >
-                {t("ImAccountControls.message6")}
-              </Button>
+                {Math.floor(seconds / 60)}:
+                {String(seconds % 60).padStart(2, "0")}
+              </span>
+              <span className="im-pair-code-actions">
+                <Button
+                  disabled={busy || !seconds}
+                  onClick={() => {
+                    if (pair.expiresAt > Date.now()) copy(command);
+                    else setNow(Date.now());
+                  }}
+                >
+                  {t("ImAccountControls.message6")}
+                </Button>
+              </span>
             </>
           )}
-        </div>
-        {requests}
-        <div className="im-actions">
           <Button variant="quiet" disabled={busy} onClick={generate}>
             {t("ImAccountControls.message7")}
           </Button>
-          <Button variant="quiet" disabled={busy} onClick={onRefresh}>
-            {t("ImAccountControls.message8")}
-          </Button>
-          <Button disabled={busy} onClick={onClose}>
-            {t("App_copy.renameClose")}
-          </Button>
         </div>
+        {requests}
       </div>
     </Dialog>
   );

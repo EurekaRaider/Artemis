@@ -420,15 +420,20 @@ describe("screenshot visual contracts", () => {
     });
   });
   it("keeps the IM platform chooser bordered and its secondary actions compact", () => {
-    expect(declarations(desktop, ".im-channel-tab")).toMatchObject({
-      border: "1px solid var(--border-soft)",
+    expect(declarations(desktop, ".im-channel-list")).toMatchObject({
+      border: "0",
+    });
+    expect(declarations(desktop, ".im-channel-row")).toMatchObject({
       "text-align": "start",
+      background: "color-mix(in srgb, var(--text) 4.5%, transparent)",
     });
     expect(declarations(desktop, ".im-icon-action")).toMatchObject({
       width: "28px",
       height: "28px",
     });
-    expect(declarations(desktop, ".im-block").border).toBe("0");
+    expect(declarations(desktop, ".im-bot-card").border).toBe(
+      "1px solid var(--border)",
+    );
   });
   it("renders calls as a divided group with per-call status instead of individual outlined buttons", () => {
     expect(

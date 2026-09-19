@@ -758,7 +758,7 @@
   }
 
   [data-artemis-component="switch"][data-state="checked"] [data-part="thumb"] {
-    background: var(--artemis-color-surface-base);
+    background: #fff;
     transform: translateX(
       calc(var(--artemis-space-4) + var(--artemis-space-1))
     );
@@ -3802,7 +3802,7 @@
     inline-size: 100%;
     block-size: 100%;
     overflow: hidden;
-    background: var(--artemis-color-surface-base);
+    background: var(--artemis-color-surface-raised);
   }
 
   [data-artemis-component="settings-surface"] > [data-part="header"] {
@@ -3826,7 +3826,8 @@
     min-block-size: 0;
     padding: var(--artemis-space-3) var(--artemis-space-2);
     overflow: auto;
-    background: var(--artemis-color-surface-sunken);
+
+    background: var(--artemis-color-surface-raised);
     border-inline-end: var(--artemis-border-width-default) solid
       var(--artemis-color-border-subtle);
   }

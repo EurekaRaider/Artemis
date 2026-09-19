@@ -11,8 +11,10 @@
   --migration-sky-deep: var(--artemis-color-context-1);
 }
 .app-shell {
+  /* 背板透明给 macOS vibrancy 让路；主区由 .workspace 实色兜底。 */
+  background: transparent;
   --sidebar-expanded-width: 280px;
-  --sidebar-native-tint: 84%;
+  --sidebar-native-tint: 80%;
   --sidebar-native-color: var(--artemis-color-surface-raised);
 }
 [data-artemis-theme="dark"] .app-shell {
@@ -20,8 +22,15 @@
   --sidebar-native-color: var(--artemis-color-background-sidebar);
 }
 .sidebar-top {
-  padding: 10px 10px 8px;
-  border-block-end: 1px solid var(--border-soft);
+  padding: 10px 10px 2px;
+}
+/* 深色模式对照参考稿：除项目文件夹行（维持 --muted）与分组标题外，
+   导航行与会话行整体提白；语义状态色（连接/任务状态点）不受影响。 */
+[data-artemis-theme="dark"] .sidebar-nav .nav-row,
+[data-artemis-theme="dark"] .project-thread-row,
+[data-artemis-theme="dark"] .project-thread-row .thread-time,
+[data-artemis-theme="dark"] .local-user-name {
+  color: var(--text);
 }
 .sidebar-brand {
   display: flex;
@@ -39,7 +48,7 @@
   cursor: pointer;
 }
 .brand-button strong {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
 }
 .sidebar-collapse {
@@ -51,8 +60,8 @@
 .rail-anchor {
   display: grid;
   place-items: center;
-  inline-size: 30px;
-  block-size: 30px;
+  inline-size: 32px;
+  block-size: 32px;
   border-radius: 8px;
   cursor: pointer;
   color: var(--muted);
@@ -81,12 +90,12 @@
   align-items: center;
   gap: 9px;
   inline-size: 100%;
-  block-size: 32px;
+  block-size: 34px;
   padding: 0 10px;
   border-radius: 8px;
   color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 510;
+  font-size: 13.5px;
+  font-weight: 530;
   cursor: pointer;
   text-align: start;
 }
@@ -154,9 +163,6 @@
 .project-group-row:has(:focus-visible) .project-group-select > svg {
   opacity: 1;
 }
-.project-toggle[aria-expanded="true"] svg {
-  transform: scale(0.8125);
-}
 .thread-time {
   grid-column: 3;
   grid-row: 1;
@@ -169,7 +175,10 @@
 .thread-select:has(.im-thread-indicators) .thread-time {
   grid-column: 4;
 }
-.project-thread-row > .thread-action {
+/* The action button lives inside a Tooltip anchor span; anchor the span itself
+   (only direct span child of the row) to keep the row geometry unchanged. */
+.project-thread-row > .thread-action,
+.project-thread-row > span:last-of-type {
   position: absolute;
   inset-inline-end: 7px;
   inset-block-start: 50%;
@@ -181,27 +190,30 @@
   opacity: 0;
 }
 .sidebar .sidebar-footer {
-  gap: 7px;
-  padding: 6px 10px 8px 14px;
-  block-size: 44px;
-  min-block-size: 44px;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  block-size: 56px;
+  min-block-size: 56px;
 }
 .sidebar .local-indicator {
   flex: 1;
   min-inline-size: 0;
 }
 .sidebar .sidebar-profile-avatar {
-  inline-size: 22px;
-  block-size: 22px;
+  inline-size: 40px;
+  block-size: 40px;
   flex: none;
 }
 .sidebar .app-version {
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted-2);
   white-space: nowrap;
+  /* 版本号与「Artemis」文字底边对齐（沉到行底再收起文字降部的高度差）。 */
+  align-self: flex-end;
+  margin-block-end: 5px;
 }
 .update-btn {
   inline-size: 24px;
@@ -242,11 +254,11 @@
 .rail-avatar {
   display: grid;
   place-items: center;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: 32px;
+  block-size: 32px;
   border-radius: 50%;
   background: var(--selected);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .workspace-header {
@@ -1034,13 +1046,13 @@ body:has(.app-shell[data-platform="darwin"]),
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
   z-index: 60;
 }
-.nested-project > .project-row > :is(.project-new-thread, .project-action) {
+.nested-project > .project-row :is(.project-new-thread, .project-action) {
   opacity: 0;
   pointer-events: none;
 }
 .nested-project
   > .project-row:is(:hover, :has(:focus-visible))
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 1;
   pointer-events: auto;
 }

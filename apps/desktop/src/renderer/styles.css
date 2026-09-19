@@ -102,7 +102,9 @@ body,
 }
 
 body {
-  background: var(--bg);
+  /* macOS 窗口 vibrancy 需要背景链路留透明：body 不画底，
+     主区由 .workspace 的实色兜底（非 macOS 窗口本身是不透明底色）。 */
+  background: transparent;
   color: var(--text);
   font-size: var(--artemis-typography-body-size);
   font-family: var(--ui-font);
@@ -308,10 +310,10 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .project-row {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 590;
   height: 32px;
-  line-height: 18.75px;
+  line-height: 20.25px;
   padding-inline-end: 6px;
 }
 
@@ -369,7 +371,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   padding: 6px 6px 6px 10px;
   text-align: start;
   gap: 9px;
-  font-size: 11px;
+  font-size: 13.5px;
   font-weight: 620;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -390,11 +392,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   width: 20px;
   z-index: 1;
   inset-inline-start: 8px;
-}
-
-.project-toggle:hover {
-  background: var(--panel-3);
-  color: var(--text);
 }
 
 .project-toggle:focus-visible {
@@ -532,12 +529,27 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .thread-select .thread-title {
+  align-items: center;
+  display: flex;
   flex: 1;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 400;
   grid-column: 2;
+  gap: 5px;
   min-width: 0;
-  line-height: 18px;
+  line-height: 18.75px;
+}
+
+.thread-title .thread-channel-logo {
+  flex: none;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 3px;
+}
+
+.thread-title .thread-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .thread-select:has(.im-thread-indicators) {
@@ -555,7 +567,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   grid-column: 2;
 }
 
-.im-thread-group,
 .im-thread-connection,
 .im-thread-computers {
   color: var(--muted);
@@ -564,15 +575,16 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .im-thread-indicators svg {
   flex: none;
+  /* 会话行图标比项目行（16px）小一号。 */
+  inline-size: 15px;
+  block-size: 15px;
 }
 
-.im-thread-connection[data-state="connected"],
-.im-thread-computers[data-state="online"] {
+.im-thread-connection[data-state="connected"] {
   color: var(--success);
 }
 
-.im-thread-connection[data-state="connecting"],
-.im-thread-computers[data-state="unknown"] {
+.im-thread-connection[data-state="connecting"] {
   color: var(--warning);
 }
 
@@ -580,11 +592,11 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   color: var(--danger);
 }
 
-.im-thread-computers[data-state="offline"] {
+.im-thread-computers[data-state="offline"],
+.im-thread-connection[data-state="removed"] {
   color: var(--muted-2);
   opacity: 0.38;
 }
-
 .thread-title-text {
   display: block;
   overflow: hidden;
@@ -869,17 +881,35 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   align-items: center;
 
   display: flex;
-  height: 46px;
+  height: 56px;
   justify-content: space-between;
   padding: 8px 10px 16px 14px;
   gap: 8px;
+}
+
+.sidebar-footer-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+/* 侧栏 IM 图标联动连接状态：绿=有 bot 连接在线，橙=已配置但掉线。 */
+.foot-icon.im-link-ok,
+.rail-item.im-link-ok {
+  color: var(--success);
+}
+.foot-icon.im-link-down,
+.rail-item.im-link-down {
+  color: var(--warning);
 }
 
 .local-indicator {
   align-items: center;
   color: var(--muted);
   display: flex;
-  gap: 7px;
+  flex: 1 1 auto;
+  gap: 9px;
   min-width: 0;
 }
 
@@ -890,13 +920,13 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   border-radius: 50%;
   color: var(--artemis-color-accent-primary);
   display: inline-flex;
-  flex: 0 0 22px;
-  font-size: 10px;
+  flex: 0 0 40px;
+  font-size: 15px;
   font-weight: 620;
-  height: 22px;
+  height: 40px;
   justify-content: center;
   overflow: hidden;
-  width: 22px;
+  width: 40px;
 }
 
 .sidebar-profile-avatar img,
@@ -913,8 +943,13 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11.5px;
-  font-weight: 510;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.brand-version {
+  margin-inline-start: 2px;
+  padding: 2px 6px;
 }
 
 .app-version {
@@ -7746,7 +7781,9 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .settings-panel {
-  background: var(--artemis-color-surface-base);
+  /* 整块背板：用户拍板的 #2b2b2b（深色即体系令牌 surface-raised，
+     比面板原先的 surface-base 亮一档；浅色主题下两者同为白色不受影响）。 */
+  background: var(--artemis-color-surface-raised);
   max-block-size: calc(100dvh - 52px);
   height: min(560px, 84dvh);
   max-width: calc(100vw - 32px);
@@ -7765,6 +7802,62 @@ button.sources-panel-entry.attachment:focus-visible {
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+}
+
+/* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token，
+   宽度与渠道详情弹窗同一标准（896px，对齐 ZCode max-w-4xl）。 */
+.im-settings-dialog {
+  display: flex;
+  flex-direction: column;
+  background: var(--artemis-color-surface-raised);
+  width: min(896px, 94vw);
+  /* 高度随内容收缩、上限封顶：内容不足时不留大片底部空白，超出时内部滚动。 */
+  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  padding: 0;
+  --border-soft: var(--artemis-color-border-subtle);
+  --blue: var(--artemis-color-accent-primary);
+}
+.im-settings-dialog > [data-part="content"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+/* 毛玻璃遮罩用真实 div：::backdrop 的 backdrop-filter 在真机 GPU 上静默
+   失效且大半径呈水纹劣化；div 是应用内其它玻璃层同款路径，高斯模糊真实生效。
+   div 处于 top layer 之下的 inert 区，纯做视觉层，外点关闭仍由原生 modal 命中。 */
+.im-settings-frost {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  background: var(--artemis-color-overlay-scrim);
+  backdrop-filter: blur(28px) saturate(1.05);
+}
+.im-settings-dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: 10px 14px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-settings-dialog-close:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--text);
+}
+.im-settings-dialog .im-settings {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 4px 22px 18px;
 }
 
 .settings-profile-avatar {
@@ -9405,6 +9498,24 @@ kbd {
 
 .automation-list,
 /* 配对码弹窗：提示信息 + 大号配对码行。 */
+.im-pair-dialog {
+  width: min(520px, 94vw);
+}
+.im-pair-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block-end: 8px;
+}
+.im-pair-dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .im-pair-dialog-body {
   display: grid;
   gap: 12px;
@@ -9412,6 +9523,13 @@ kbd {
 .im-pair-guide {
   display: grid;
   gap: 4px;
+  font-size: 12px;
+}
+/* 复制 + 重新生成成组，不与配对码行拆行。 */
+.im-pair-code-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
 }
 .im-pair-guide > p {
   margin: 0;
@@ -9422,17 +9540,21 @@ kbd {
   margin: 0;
   padding-inline-start: 16px;
 }
+/* 配对码行：亮底卡片聚焦视觉。 */
 .im-pair-code-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 .im-pair-code-value {
   font-family: var(--artemis-typography-mono-family);
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.04em;
   color: var(--accent);
 }
 
@@ -9638,8 +9760,7 @@ kbd {
   width: 16px;
 }
 
-.automation-time-clock,
-.im-bots > [data-artemis-component="button"] {
+.automation-time-clock {
   justify-self: start;
 }
 
@@ -9876,8 +9997,7 @@ kbd {
 }
 
 .im-actions,
-.im-identity,
-.im-block-header {
+.im-identity {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -10035,10 +10155,6 @@ kbd {
   margin-block: 8px;
 }
 
-/* Message integration content only; the shared settings window keeps its geometry. */
-#settings-tab-im {
-  min-height: 0;
-}
 .im-settings {
   --success: light-dark(#078b3c, #07c160);
   --artemis-color-switch-on: #07c160;
@@ -10072,19 +10188,6 @@ kbd {
 .im-header > [data-artemis-component="switch"] {
   max-width: 100%;
 }
-.im-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-inline-start: auto;
-  padding: 4px 11px;
-  border: 1px solid var(--artemis-color-border-subtle);
-  border-radius: 999px;
-  font-size: 11.5px;
-  line-height: 17.25px;
-  font-weight: 510;
-  background: var(--artemis-color-surface-sunken);
-}
 .im-dot {
   display: inline-block;
   inline-size: 8px;
@@ -10104,117 +10207,10 @@ kbd {
   background: currentColor;
 }
 .im-dot[data-state="connecting"],
-.im-dot[data-state="saving"] {
+.im-dot[data-state="saving"],
+.im-dot[data-state="warning"] {
   color: var(--warning);
   background: currentColor;
-}
-/* Guided 消息接入 flow: five step cards with progress in the header. */
-.im-flow {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  min-height: 0;
-  padding: 4px;
-}
-.im-flow-card {
-  /* border-radius: inherit on the head picks up 0 from its h3 wrapper. */
-  --im-flow-radius: calc(var(--artemis-radius-md, 10px) - 1px);
-  border: 0;
-  border-radius: var(--artemis-radius-md, 10px);
-  background: transparent;
-}
-.im-flow-card + .im-flow-card::before {
-  content: "";
-  display: block;
-  margin: 0 14px 10px 46px;
-  border-top: 1px solid var(--border-soft);
-}
-.im-flow-head-h {
-  margin: 0;
-  font-size: inherit;
-  font-weight: inherit;
-}
-.im-flow-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  inline-size: 100%;
-  padding: 9px 14px;
-  border: 0;
-  border-radius: var(--im-flow-radius);
-  background: transparent;
-  text-align: start;
-  font: inherit;
-  color: inherit;
-}
-/* Barely-there wash of the text color: reads as a highlight, not a gray fill. */
-.im-flow-head:hover,
-.im-flow-head:focus-visible {
-  background: color-mix(in srgb, var(--text) 3.5%, transparent);
-}
-.im-flow-card[data-open="true"] .im-flow-head {
-  border-radius: var(--im-flow-radius) var(--im-flow-radius) 0 0;
-}
-.im-flow-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 24px;
-  block-size: 24px;
-  flex: none;
-  color: light-dark(#276eaf, #7dbbfa);
-}
-.im-flow-num[data-icon="message"] {
-  color: light-dark(#187c73, #77d6c8);
-}
-.im-flow-num[data-icon="folder"] {
-  color: light-dark(#996611, #f2c363);
-}
-/* 完成状态跟随标题，不遮挡步骤图标。 */
-.im-flow-num-check {
-  display: grid;
-  place-items: center;
-  inline-size: 11px;
-  block-size: 11px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--success);
-  /* Keep the completion mark legible against the muted green badge. */
-  color: light-dark(#fff, #0a2210);
-  line-height: 0;
-}
-.im-flow-num-check svg {
-  stroke-width: 3;
-}
-.im-flow-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.im-flow-summary {
-  flex: 1;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.im-flow-caret {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  inline-size: 20px;
-  block-size: 20px;
-  color: var(--muted);
-  transform: rotate(-90deg);
-}
-.im-flow-head[aria-expanded="true"] .im-flow-caret {
-  transform: rotate(0deg);
 }
 .im-settings [data-artemis-component="checkbox"],
 .im-grant-dialog [data-artemis-component="checkbox"] {
@@ -10241,13 +10237,6 @@ kbd {
   [data-part="thumb"] {
   transform: translateX(-14px);
 }
-.im-flow-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 14px 14px;
-  border-top: 1px solid var(--border-soft);
-}
 /* 步骤卡是唯一容器：卡内管理分区去卡片壳（背景/边框/圆角/内距），
    只保留标题、描述与内容的排版结构。 */
 .im-flow-section {
@@ -10266,17 +10255,6 @@ kbd {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-/* 卡内排版规整：正文从全局 14px 收到 12.5px，指令 code 12px 等宽，
-   与分区标题（12px/650）、说明（11px）构成合理梯度。 */
-.im-flow-body p,
-.im-flow-body li,
-.im-flow-body summary {
-  font-size: 12.5px;
-  line-height: 1.65;
-}
-.im-flow-body .im-identifier {
-  font-size: 12px;
 }
 /* ④卡：三档模式与内置临时会话行。 */
 .im-mode-tiers {
@@ -10349,91 +10327,744 @@ kbd {
   font-style: normal;
   opacity: 0.85;
 }
-/* ===== 三步版（2026-09 原型迁移）：② 渠道 tab 条 / ②尾验证段 / ③尾完成仪式 ===== */
-/* 渠道 tab 吸顶：停靠线必须与滚动容器的 overflow 裁剪线重合。Chromium 的 sticky
-   参照滚动容器 content box 顶（= 裁剪线 + padding-top）；设置面板滚动容器是
-   [data-part="content"]（packages/ui，padding 18px 22px）——top: -18px 抵消这段
-   padding，否则停靠线上方留出穿透带，滚过的内容从 tab 条上方露出（原型已踩）。
-   背景必须不透明（surface-base 与面板同底），否则内容从条后透出。 */
-.im-channel-tabs {
-  position: sticky;
-  top: -18px;
-  z-index: 6;
+/* ===== 两栏布局（2026-09 定稿规划）：左=连接服务+授权项目，右=渠道列表/详情 ===== */
+/* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 状态摘要；点击下钻单渠道详情。
+   授权是设备级全局共用，行上不重复计数。 */
+/* 各屏幕共用外壳：flex 定高链的一环，撑出时由内部滚动兜底。
+   （类名为运行时拼接 im-flow im-<screen>，收敛契约按动态类登记。） */
+.im-flow {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  /* 下 margin 负值抵消 .im-flow-body 的 12px gap：条底 padding 直接贴住
-     渠道主体，避免 margin+gap+padding 三层间距叠加把内容推远 */
-  margin: 0 -14px -12px;
-  padding: 4px 14px 8px;
-  background: var(--artemis-color-surface-base);
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 4px 14px;
 }
-.im-channel-tab {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+.im-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  /* 两栏边框封顶在弹窗可视高度（与弹窗底部保留边距），内容超高时在栏内滚动。 */
+  flex: 1;
+  min-height: 0;
+}
+.im-col-left,
+.im-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-soft);
-  border-radius: var(--artemis-radius-control, 8px);
-  background: var(--artemis-color-surface-base);
+  border-radius: 12px;
+  /* 顶部留白交给首行头部自担，保证「卡顶→标题」与「标题→分隔线」等距。 */
+  padding: 0 14px 14px;
+}
+@media (max-width: 680px) {
+  .im-two-col {
+    grid-template-columns: 1fr;
+  }
+  .im-service-meta {
+    block-size: auto;
+  }
+}
+.im-channel-list {
+  border: 0;
+  background: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
   cursor: pointer;
   text-align: start;
+  color: inherit;
 }
-.im-channel-tab[aria-selected="true"] {
-  border-color: var(--artemis-color-border-strong, var(--border));
-  background: var(--selected);
+.im-channel-row:hover {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
-/* tab 仅渠道名 + 信号灯：未配置渠道名降为次要色，已配置（有连接/已存
-   凭据）提亮区分；连接状态由名称前信号灯表达（绿=正常/红=异常/黄=连接中）。 */
-.im-channel-tab strong {
-  font-size: 12.5px;
-  font-weight: 590;
-  color: var(--muted);
+.im-channel-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
-.im-channel-tab[data-configured] strong {
-  color: var(--text);
-}
-.im-channel-tab .im-dot {
+/* 飞书渠道标 = ZCode 同款彩色官方 logo（位图资产），圆角对齐图标钮。 */
+.im-channel-logo {
+  border-radius: 5px;
   flex: none;
 }
-.im-channel-tab[data-connection-state="error"] {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-soft));
+/* 左栏连接服务：固定标题（图标+名称+设备编号）+ 分隔线 + 常驻内容。 */
+.im-service-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
-/* 吸顶停靠态投影（scroll 监听加 .stuck）：与卡内滚过内容区分。 */
-.im-channel-tabs.stuck {
-  box-shadow: 0 4px 10px -6px rgba(0, 0, 0, 0.28);
+.im-service-head,
+.im-channel-list-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  /* 两栏头部等高：固定块高+垂直居中，上下留白天然对称（左栏钮 32px→各 14px）。 */
+  block-size: 60px;
+  box-sizing: border-box;
+  padding-block: 0;
+  margin-block: 0;
+  border-block-end: 1px solid var(--border-soft);
 }
-html[data-theme="dark"] .im-channel-tabs.stuck,
-:root[data-theme="dark"] .im-channel-tabs.stuck {
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.7);
+.im-service-head strong,
+.im-channel-list-head strong {
+  font-size: 15px;
+  font-weight: 640;
 }
-/* ②尾「顺手验证」折叠段：与卡内容同层级，仅细分隔。 */
-.im-verify {
+.im-channel-list-head svg {
+  color: var(--muted);
+  flex: none;
+}
+.im-service-head > svg {
+  color: var(--muted);
+  flex: none;
+}
+/* 回复模式值展示（固定流式卡片）：右栏卡右侧的下拉形态值。 */
+.im-reply-mode-select {
+  inline-size: 150px;
+}
+.im-reply-mode-select [data-part="trigger"] {
+  box-sizing: border-box;
+  width: 100%;
+}
+/* 服务状态胶囊（信号灯+已就绪/已断开）：居「连接服务」标题左侧。 */
+.im-service-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-service-state {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 启动/停止双态钮（图标+文字）：停止=描边+播放三角「启动」，运行=绿图标「停止」。 */
+.im-power-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 590;
+  line-height: 18px;
+  cursor: pointer;
+}
+.im-power-toggle svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+/* 电源状态钮：就绪=红电源+「断开」动作，断开=红斜杠+「连接」动作。 */
+.im-power-toggle[data-state="on"] {
+  color: var(--text);
+}
+.im-power-toggle[data-state="on"] svg {
+  color: var(--danger);
+}
+.im-power-toggle[data-state="off"] {
+  color: var(--muted);
+}
+.im-power-toggle[data-state="off"] svg {
+  color: var(--danger);
+}
+.im-power-toggle:hover {
+  color: var(--text);
+  border-color: var(--muted-2);
+}
+.im-power-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.im-power-toggle:focus-visible {
+  outline: 1px solid var(--muted-2);
+  outline-offset: 2px;
+}
+.im-service-device-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block: 0;
+}
+.im-service-device-line > svg {
+  color: var(--muted);
+  flex: none;
+}
+.im-device-id {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 顶部信息区：块高=右栏头部下沿到 Slack 卡底（60+153.6=213.6），
+   两张折叠卡随之与右栏第 3、4 张卡逐行对齐。 */
+.im-service-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  block-size: 153.6px;
+  padding-block-start: 22px;
+}
+/* 温馨提示卡：填满信息区剩余高度，底边与 Slack 卡底对齐。 */
+.im-tip-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+.im-tip-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 19px;
+}
+.im-tip-card-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 590;
+}
+.im-tip-card-head svg {
+  color: var(--warning);
+}
+/* 高级/手动注册两张入口卡：头部行=标题+右侧箭头，点击进入整幅二级卡。 */
+.im-gateway-fold {
+  display: block;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+.im-gateway-fold .im-gateway-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  /* 收起高度与右栏渠道卡等高（实测 66.8px 含边框）。 */
+  box-sizing: border-box;
+  min-block-size: 64.8px;
+  font-size: 14px;
+  font-weight: 590;
+  line-height: 21px;
+  color: var(--text);
+}
+.im-gateway-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.im-gateway-fold .im-gateway-fold-head::after {
+  content: "";
+  flex: none;
+  margin-inline-start: auto;
+  inline-size: 7px;
+  block-size: 7px;
+  border-inline-end: 1.5px solid var(--muted);
+  border-block-end: 1.5px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 180ms ease;
+}
+/* hover 与渠道卡同款：文字色低透明度填充+边框微亮，只在卡面呈现。 */
+.im-gateway-fold:hover {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+/* IM 二级详情弹窗共享壳：头部=标题+关闭钮（无分隔线，与内容连成一体），
+   内容区超高时内部滚动。表单类（团队 Gateway 手动注册/「高级」）560px；
+   渠道主从布局 896px 对齐 ZCode 弹窗标准（max-w-4xl）。 */
+.im-detail-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 94vw);
+  max-width: calc(100vw - 32px);
+  max-block-size: min(820px, 88dvh, calc(100dvh - 40px));
+  overflow: hidden;
+  padding: 0;
+  --border-soft: var(--artemis-color-border-subtle);
+}
+.im-detail-dialog.im-channel-dialog {
+  width: min(896px, 94vw);
+  /* 缺省高度公式：正常打开时由运行时量测注入主弹窗实际高度（主弹窗
+     高度内容驱动），保证两个面板齐平；内容超出时内部滚动。 */
+  min-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+}
+.im-detail-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 16px 18px 10px;
+}
+.im-detail-dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-detail-dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: none;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-detail-dialog-close:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--text);
+}
+.im-detail-dialog-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 12px 18px 16px;
+  font-size: 12.5px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.im-detail-dialog-body .im-channel-md {
+  /* 主从布局占满弹窗整幅，不参与表单限宽。 */
+  max-inline-size: none;
+}
+.im-channel-dialog .im-detail-dialog-body {
+  /* 渠道弹窗：单一主从区撑满 body 高度；超高时整体裁切，
+     只在右栏详情内滚动（头部与左栏导航保持固定）。 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.im-channel-dialog .im-detail-dialog-body > .im-channel-md {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.im-channel-dialog .im-bot-detail {
+  overflow-y: auto;
+  min-block-size: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.im-channel-dialog .im-bot-nav {
+  overflow-y: auto;
+  min-block-size: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+/* 渠道二级面板（ZCode 式主从）：左 300px 导航（新建入口 + 机器人卡 +
+   设置行），右栏背板卡随选中切换机器人详情 / 新建 / 指引 / 导入 / 验证，
+   纵向撑满弹窗（≈1:2 宽度比）。 */
+.im-channel-body.im-channel-md {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+@media (max-width: 720px) {
+  .im-channel-body.im-channel-md {
+    grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr);
+  }
+}
+.im-bot-nav {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-soft);
+  min-width: 0;
 }
-.im-verify-toggle {
+.im-bot-new {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  border: 0;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: transparent;
   color: var(--text);
+  font: inherit;
   font-size: 12.5px;
+  font-weight: 560;
   cursor: pointer;
+  text-align: start;
 }
-.im-verify-toggle:hover {
-  color: var(--accent);
+.im-bot-new:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
-.im-verify-caret {
-  font-size: 13px;
+.im-bot-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-card:hover,
+.im-bot-card[data-selected],
+.im-bot-new[data-selected] {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+/* 机器人名单行：logo+名字+信号灯组；名字可截断，logo/信号灯恒完整。 */
+.im-bot-card-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-card-state {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
   color: var(--muted);
+}
+/* 名字跑马灯：静态省略号，悬停溢出时匀速滚动（≈30px/s）。 */
+.im-marquee {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.im-marquee[data-playing] {
+  text-overflow: clip;
+}
+.im-marquee-track {
+  display: inline-flex;
+  gap: 24px;
+  will-change: transform;
+}
+.im-marquee[data-playing] .im-marquee-track {
+  animation: im-marquee-scroll var(--mq-dur) linear infinite;
+}
+.im-marquee-copy {
+  flex: none;
+}
+@keyframes im-marquee-scroll {
+  to {
+    transform: translateX(var(--mq-shift));
+  }
+}
+.im-bot-nav-divider {
+  block-size: 1px;
+  margin: 2px 0;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.im-bot-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 11px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-nav-row:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-bot-nav-row[data-selected] {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+.im-bot-nav-caret {
+  font-size: 13px;
+}
+/* 右栏背板卡（ZCode 式）：比弹窗背板浅一档的整幅卡片，包住详情/
+   指引/导入/验证所有右栏内容，纵向撑满。 */
+.im-bot-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+.im-bot-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-bot-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* 行尾删除入口：28px 按钮框（hover 出底色）+ 16px 图标，hover 危险色。 */
+.im-bot-profile-head .im-connection-removal {
+  margin-inline-start: auto;
+  flex: none;
+}
+.im-bot-profile-head .im-connection-removal .im-icon-action {
+  border-radius: 8px;
+}
+.im-bot-profile-head .im-connection-removal .im-icon-action:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+}
+.im-bot-profile-head .im-connection-removal .im-icon-action svg {
+  width: 16px;
+  height: 16px;
+}
+/* 名称与配对状态叠放，logo 左侧跨两行（ZCode 同款头部）。 */
+.im-bot-profile-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.im-bot-profile-head strong {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-bot-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* 背板卡上的嵌套卡：再浅一档，层次同 ZCode 截图。 */
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.im-bot-section-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.im-bot-section-copy strong {
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-section-copy p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-bot-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+/* 关联凭据卡展开扫码（ZCode 式）：卡头行换行，二维码区占满整行。 */
+.im-bot-section[data-scan-open] {
+  flex-wrap: wrap;
+}
+.im-bot-scan {
+  flex: 1 1 100%;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+/* 右栏创建页（ZCode 式：新建占据整卡）：头部=渠道标+标题，
+   表单节奏与详情卡一致。 */
+.im-bot-create {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.im-bot-create-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.im-bot-create-head strong {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+}
+.im-bot-create .im-actions {
+  margin-top: 2px;
+}
+.im-bot-join {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.im-bot-join > strong {
+  font-size: 13px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-join > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-bot-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致；
+   折叠卡展开超高时在区内滚动（从设备编号行起），卡片边框始终封顶。 */
+.im-service-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+/* 面板头部图标：与「标题+副标题」文字块等高、同色系。 */
+.im-header-mark {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--muted);
+}
+.im-header-mark svg {
+  block-size: 42px;
+  inline-size: 42px;
+}
+.im-channel-row > .im-channel-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.im-channel-row strong {
+  font-size: 14px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-channel-row-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.im-channel-row-summary .im-dot {
+  flex: none;
+}
+/* 卡尾胶囊按钮：纯视觉复件（点击=整卡行为），文字小而轻。 */
+.im-capsule-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 16px;
+  font-weight: 510;
+  color: var(--text);
+  background: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+.im-channel-row:hover > .im-capsule-btn {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-channel-row-bots {
+  color: var(--muted);
+}
+/* 渠道详情（右栏下钻）：返回行 + 原渠道主体。 */
+.im-channel-detail {
+  border: 0;
+  /* 栏容器顶部内边距归零后，详情态在此自补原有的顶部留白。 */
+  padding-block-start: 14px;
+  padding-block-end: 0;
+  padding-inline: 0;
+}
+.im-channel-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.im-channel-detail-head strong {
+  font-size: 13px;
+  font-weight: 650;
 }
 .im-verify-body {
   display: flex;
@@ -10502,42 +11133,86 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 .im-perm-guide-body p:last-child {
   margin-bottom: 6px;
 }
-/* 渠道顶部接入指引：标题条无边框；边框圆角加在展开后的内容容器上。
-   summary 选择器带 .im-settings/details 前缀，压过全局 details summary
-   的 12px 纵向内边距。 */
-.im-settings details.im-setup-guide-top > summary {
+/* 飞书扫码接入块：说明居左、操作钮居右；扫码中二维码恒为白底（对比度）。 */
+.im-scan {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-  font-size: 12px;
+  gap: 12px;
+}
+.im-scan-copy {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-inline-end: auto;
+}
+.im-scan-copy h4 {
+  margin: 0;
+  font-size: 13px;
   font-weight: 650;
   color: var(--text);
-  cursor: pointer;
-  list-style: none;
 }
-.im-setup-guide-top summary::-webkit-details-marker {
-  display: none;
+.im-scan-active {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
 }
-.im-setup-guide-top summary::after {
-  content: "▾";
-  color: var(--muted);
-  font-size: 13px;
-}
-.im-setup-guide-top:not([open]) summary::after {
-  content: "▸";
-}
-.im-setup-guide-top summary:hover {
-  color: var(--accent);
-}
-.im-setup-guide-top[open] summary {
-  margin-bottom: 4px;
-}
-/* 展开后的指引内容：圆角全边框容器。 */
-.im-setup-guide-top[open] .im-setup-guide-body {
+.im-scan-qr {
+  width: 190px;
+  height: 190px;
+  padding: 6px;
   border: 1px solid var(--border-soft);
   border-radius: var(--artemis-radius-control, 8px);
-  padding: 10px;
+  background: #fff;
+}
+/* 设备流用户码条 + 等待 spinner（ZCode 式扫码卡）。 */
+.im-scan-active .im-scan-copy {
+  gap: 10px;
+}
+.im-scan-copy p {
+  margin: 0;
+}
+.im-scan-active .im-scan-qr {
+  /* 二维码与右栏文字列（指引+用户码条+等待行，实测 103px）上下齐平。 */
+  width: 103px;
+  height: 103px;
+}
+.im-scan-code {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-scan-code code {
+  font-family: var(--artemis-typography-mono-family);
+  font-size: 15px;
+  font-weight: 640;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.im-scan-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.im-scan-spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-block-start-color: transparent;
+  border-radius: 50%;
+  animation: im-scan-spin 900ms linear infinite;
+}
+@keyframes im-scan-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .im-project-list-title {
   margin: 2px 0 6px;
@@ -10547,94 +11222,17 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   text-transform: uppercase;
   color: var(--muted-2, var(--muted));
 }
-.im-connection .im-icon-action {
-  flex: none;
-}
-.im-connection-actions {
-  display: flex;
-  flex: none;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 6px;
-  margin-inline-start: auto;
-}
-.im-connection-error {
-  flex-basis: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
 .im-icon-action:focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);
   outline-offset: 1px;
-}
-/* 行内动作组（更换凭据/刷新/配对码）推到行尾，移除按钮跟随其后；
-   hover 不上底色，仅提亮（移除按钮保持 danger 红的警示语义）。 */
-.im-connection > .im-bot-id {
-  margin-inline-end: auto;
-}
-.im-connection .im-icon-action:hover {
-  color: var(--text);
-}
-/* 从属账号子列表：整行换行、缩进对齐机器人名称。 */
-.im-connection > .im-accounts {
-  flex-basis: 100%;
-  padding-inline-start: 14px;
-  margin-block-start: 3px;
-  gap: 5px;
-}
-.im-connection > .im-accounts .im-identity {
-  padding-block: 2px;
-}
-/* 连接 ID 浮窗：bot 名称后的信息图标，点开展示完整 ID + 复制。 */
-.im-bot-id {
-  position: relative;
-  display: inline-flex;
-}
-.im-bot-id .im-icon-action:hover {
-  color: var(--text);
-}
-.im-bot-id-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: var(--surface-raised);
-  color: var(--text);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
-  white-space: nowrap;
-}
-.im-bot-id-pop code {
-  font-family: var(--artemis-typography-mono-family);
-  font-size: 11px;
-  color: var(--muted);
 }
 @media (max-width: 720px) {
   .im-mode-tiers {
     grid-template-columns: 1fr;
   }
 }
-.im-block {
-  padding-block: 12px;
-  border-block: 1px solid var(--border-soft);
-}
 .im-settings h4 {
   margin-block: 0 8px;
-}
-.im-bots {
-  display: grid;
-  gap: 12px;
-}
-.im-connection {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
 }
 .im-accounts {
   display: grid;
@@ -11443,14 +12041,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   max-width: 52ch;
 }
 
-.im-header-state {
-  display: flex;
-  align-items: center;
-  margin-inline-start: auto;
-  gap: 12px;
-  max-width: 100%;
-}
-
 .settings-header [data-variant="quiet"] {
   border: 1px solid transparent;
   background: transparent;
@@ -11842,6 +12432,7 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 
 .plugin-market-card-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -11857,6 +12448,20 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.plugin-market-card-footer > .plugin-market-source {
+  flex: 1 1 120px;
+  min-inline-size: min(120px, 100%);
+  max-inline-size: 100%;
+}
+
+.plugin-market-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
 }
 
 .plugin-market-card-footer [data-artemis-component="button"] {
@@ -12251,42 +12856,11 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   margin-top: 8px;
 }
 
-/* IM management uses a compact two-column list, with actions beside their content. */
-.im-header-state {
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.im-master-label {
-  margin-inline-start: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
 .im-dot {
   background: currentColor;
 }
 .im-dot[data-state="connected"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-success-subtle);
-}
-.im-block {
-  border: 0;
-  padding-block: 8px;
-}
-.im-bots {
-  gap: 6px;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-}
-/* 带从属账号的条目与下一条目之间拉开少量分组间隔。 */
-.im-bots .im-connection:has(> .im-accounts:not(:empty)) {
-  margin-block-end: 4px;
-}
-/* 「机器人列表」标题行：新建入口推到行尾。 */
-.im-bots .im-block-header h4 {
-  margin-inline-end: auto;
-}
-.im-bots .im-block-header .im-icon-action svg {
-  width: 20px;
-  height: 20px;
 }
 /* 凭据弹窗：表单纵向节奏与渠道内容区一致。 */
 .im-bot-dialog-body {
@@ -12380,7 +12954,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 .im-advanced-fields {
   margin-block: 4px;
 }
-.im-connection,
 .im-account-copy {
   font-size: 12px;
 }
@@ -12389,10 +12962,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
   margin: 4px 0;
 }
 /* 机器人名称：纯文本（无背板）；指令码保留背板。 */
-.im-connection code {
-  color: var(--text);
-  font-size: 12px;
-}
 .im-account-copy code {
   border: 1px solid var(--border-soft);
   border-radius: 6px;
@@ -12413,9 +12982,6 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 }
 .im-channel-body h4 {
   margin-block: 0;
-}
-.im-channel-body .im-block {
-  padding-block: 0;
 }
 .im-account-copy {
   display: flex;
@@ -12762,13 +13328,13 @@ html[data-theme="dark"] .im-channel-tabs.stuck,
 }
 .nested-project
   > .project-row:not(.active)
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 0;
   pointer-events: none;
 }
 .nested-project
   > .project-row:focus-within
-  > :is(.project-new-thread, .project-action) {
+  :is(.project-new-thread, .project-action) {
   opacity: 1;
   pointer-events: auto;
 }

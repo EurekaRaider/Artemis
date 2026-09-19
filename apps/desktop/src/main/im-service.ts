@@ -7,6 +7,11 @@ import {
 import { randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { prepareImShellRuntime } from "./im-shell-runtime.js";
+import {
+  beginFeishuScan,
+  fetchFeishuBotInfo,
+  pollFeishuScan,
+} from "./feishu-register.js";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
   IM_ADHOC_PROJECT_ID,
@@ -188,6 +193,16 @@ export class ImService {
     put: (wait) => this.put("delegation-waits", wait.id, wait),
   });
   private readonly shortWaits = new Set<string>();
+  /** Live reply streaming state per bound thread: accumulated text + 1s throttle. */
+  private readonly replyStreams = new Map<
+    string,
+    {
+      text: string;
+      turnId: string;
+      lastAt: number;
+      timer?: ReturnType<typeof setTimeout> | undefined;
+    }
+  >();
   private delegationSecurity(binding: Binding): string {
     const security = binding.security;
     return JSON.stringify([
@@ -540,6 +555,8 @@ export class ImService {
   private identities: ImIdentity[] = [];
   private pairingRequests: NonNullable<ImStatus["pairingRequests"]> = [];
   private channelStatus: unknown[] = [];
+  /** Connection ids the gateway confirmed as removed (bot deleted). */
+  private removedConnections = new Set<string>();
   private readonly legacyImports = new Map<
     string,
     {
@@ -1032,6 +1049,11 @@ export class ImService {
       );
     }) as Record<string, unknown> | undefined;
     if (connection?.state === "disabled") return "disabled";
+    if (
+      !connection &&
+      this.removedConnections.has(binding.request.conversation.connectionId)
+    )
+      return "removed";
     if (this.state !== "connected") return this.state;
     if (this.leaseUntil <= Date.now()) return "unknown";
     switch (connection?.state) {
@@ -1213,6 +1235,8 @@ export class ImService {
   }
   private async shutdown(): Promise<void> {
     this.closed = true;
+    for (const threadId of this.replyStreams.keys())
+      this.clearReplyStream(threadId);
     clearInterval(this.timer);
     for (const id of this.controllers.keys()) this.cancelOperations(id);
     while (this.polling)
@@ -1736,6 +1760,44 @@ export class ImService {
       this.legacyImports.delete(action.importId);
       return { id, requiresPairing: true, requiresProjectGrant: true };
     }
+    if (action.action === "feishu-scan-begin") return beginFeishuScan();
+    if (action.action === "feishu-scan-poll")
+      return pollFeishuScan({
+        deviceCode: action.deviceCode,
+        domain: action.domain,
+      });
+    if (action.action === "feishu-scan-connect") {
+      // 扫码凭据走与手动表单相同的连接保存通道：网关负责解析剩余平台身份
+      // （tenantId/botOpenId）；扫码会话若带回 tenant_key 则直接跳过企业解析。
+      const id = `feishu-${randomUUID()}`;
+      // 注册服务不总带应用名：用刚换到的凭据直接向飞书取机器人资料，
+      // 拿真实应用名与机器人 open id；失败不阻断建连，仅保留回落名。
+      const bot = await fetchFeishuBotInfo(
+        action.domain ?? "feishu",
+        action.appId,
+        action.appSecret,
+      ).catch(() => undefined);
+      await this.manage({
+        action: "admin",
+        operation: "connections",
+        configuration: {
+          id,
+          name: bot?.name ?? action.appName ?? `Feishu ${id.slice(7, 15)}`,
+          channel: "feishu",
+          transport: "websocket",
+          domain: action.domain ?? "feishu",
+          appId: action.appId,
+          appSecret: action.appSecret,
+          ...(action.tenantId ? { tenantId: action.tenantId } : {}),
+          ...(bot?.botOpenId ? { botOpenId: bot.botOpenId } : {}),
+          enabled: true,
+        },
+      });
+      await this.refreshConnection();
+      // The renderer chains the pairing-code dialog right after a scan, so
+      // the freshly minted connection id travels with the status.
+      return { connectionId: id, status: this.status() };
+    }
     if (action.action === "setup-local") {
       this.localSetup ??= this.setupLocalGateway().finally(() => {
         this.localSetup = undefined;
@@ -1799,6 +1861,7 @@ export class ImService {
       this.identities = [];
       this.pairingRequests = [];
       this.channelStatus = [];
+      this.removedConnections.clear();
       this.spaces = [];
       return this.status();
     }
@@ -2471,6 +2534,7 @@ export class ImService {
     }
   }
   cancelOperations(threadId: string): void {
+    this.clearReplyStream(threadId);
     for (const controller of this.controllers.get(threadId) ?? [])
       controller.abort();
   }
@@ -3180,6 +3244,7 @@ export class ImService {
     started = false,
     status?: ImReply["status"],
     approval?: ImReply["approval"],
+    stream = false,
   ): void {
     const reply: ImReply = {
       version: 1,
@@ -3195,6 +3260,7 @@ export class ImService {
       ...(outcome ? { outcome } : {}),
       ...(taskId ? { taskId } : {}),
       ...(approval ? { approval } : {}),
+      ...(stream ? { stream: true } : {}),
     };
     const binding = taskId ? this.get<Binding>("bindings", taskId) : undefined;
     if (taskId && !binding) delete reply.taskId;
@@ -4414,6 +4480,15 @@ export class ImService {
         );
       return;
     }
+    if (payload.type === "message.part.delta" && payload.partType === "text") {
+      this.observeReplyStream(
+        binding,
+        event.threadId,
+        event.turnId ?? "",
+        payload.delta ?? "",
+      );
+      return;
+    }
     if (
       payload.type === "tool.started" &&
       Date.now() - (this.get<number>("progress-time", event.threadId) ?? 0) >
@@ -4426,6 +4501,7 @@ export class ImService {
       }
     }
     if (payload.type === "turn.completed" || payload.type === "turn.failed") {
+      this.clearReplyStream(event.threadId);
       const permission = this.get<{ result: { message: string } }>(
         "permission-blocks",
         event.threadId,
@@ -4472,6 +4548,84 @@ export class ImService {
         this.hasDelegationWait(event.threadId) ? "waiting" : undefined,
       );
     }
+  }
+  /** Stream live text deltas into throttled non-final replies (1s flush). */
+  private observeReplyStream(
+    binding: Binding,
+    threadId: string,
+    turnId: string,
+    delta: string,
+  ): void {
+    if (
+      binding.request.identity.channel !== "feishu" ||
+      binding.request.conversation.kind !== "direct" ||
+      binding.request.conversation.spaceId ||
+      !binding.projectId
+    )
+      return;
+    const state = this.replyStreams.get(threadId) ?? {
+      text: "",
+      turnId,
+      lastAt: 0,
+    };
+    if (state.turnId !== turnId) {
+      if (state.timer) clearTimeout(state.timer);
+      state.text = "";
+      state.turnId = turnId;
+      state.lastAt = 0;
+    }
+    state.text = (state.text + delta).slice(-60000);
+    this.replyStreams.set(threadId, state);
+    const elapsed = Date.now() - state.lastAt;
+    if (elapsed >= 1000) {
+      this.flushReplyStream(binding, threadId);
+    } else if (!state.timer) {
+      state.timer = setTimeout(
+        () => this.flushReplyStream(binding, threadId),
+        1000 - elapsed,
+      );
+    }
+  }
+  private flushReplyStream(binding: Binding, threadId: string): void {
+    if (this.closed || !this.config.enabled) return;
+    if (
+      this.get<Binding>("bindings", threadId)?.request.id !== binding.request.id
+    ) {
+      this.clearReplyStream(threadId);
+      return;
+    }
+    const state = this.replyStreams.get(threadId);
+    if (!state) return;
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = undefined;
+    }
+    state.lastAt = Date.now();
+    if (!state.text.trim() || inspectImOutbound(state.text)) return;
+    try {
+      this.checkContext(binding);
+    } catch {
+      return;
+    }
+    this.reply(
+      binding.request,
+      state.text,
+      threadId,
+      false,
+      "conversation",
+      `${state.turnId}:stream:${Date.now()}`,
+      undefined,
+      false,
+      "running",
+      undefined,
+      true,
+    );
+  }
+  private clearReplyStream(threadId: string): void {
+    const state = this.replyStreams.get(threadId);
+    if (!state) return;
+    if (state.timer) clearTimeout(state.timer);
+    this.replyStreams.delete(threadId);
   }
   private replyApprovalResult(
     binding: Binding,
@@ -4724,6 +4878,13 @@ export class ImService {
     this.pairingRequests = z
       .array(imPairingRequestSchema)
       .parse(status.pairingRequests ?? []);
+    this.removedConnections = new Set(
+      Array.isArray(status.removedConnections)
+        ? (status.removedConnections as unknown[]).filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [],
+    );
     this.channelStatus = Array.isArray(status.connections)
       ? status.connections.map((connection: Record<string, unknown>) => ({
           ...connection,

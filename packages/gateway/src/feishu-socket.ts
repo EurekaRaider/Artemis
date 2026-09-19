@@ -35,8 +35,25 @@ export class FeishuSocketAdapter extends FeishuAdapter {
       new WSClient(options),
     private readonly receiveCard?: (value: unknown) => boolean,
     private readonly receiveGroup?: (value: unknown) => void,
+    private readonly onTenantResolved?: (tenantId: string) => void,
   ) {
     super(config);
+  }
+
+  /** Events must match the subscribed app; the tenant is adopted once. */
+  private authorized(input: {
+    app_id?: unknown;
+    tenant_key?: unknown;
+  }): boolean {
+    if (input.app_id !== this.config.appId) return false;
+    const tenant = typeof input.tenant_key === "string" ? input.tenant_key : "";
+    if (this.config.tenantId) return tenant === this.config.tenantId;
+    if (!tenant || tenant.length > 256) return false;
+    // Persist first so a storage failure can be retried. The shared config is
+    // also used by Gateway's group-lifecycle and roster validation.
+    this.onTenantResolved?.(tenant);
+    this.config.tenantId = tenant;
+    return true;
   }
 
   override start(): void {
@@ -60,12 +77,8 @@ export class FeishuSocketAdapter extends FeishuAdapter {
           async (data: unknown) => {
             if (this.socket !== socket) return;
             const input = data as Record<string, unknown>;
-            if (
-              input.app_id !== this.config.appId ||
-              input.tenant_key !== this.config.tenantId
-            )
-              return;
             try {
+              if (!this.authorized(input)) return;
               this.receiveGroup?.({
                 header: { ...input, event_type: eventType },
                 event: input,
@@ -87,12 +100,8 @@ export class FeishuSocketAdapter extends FeishuAdapter {
           tenant_key?: string;
           event_id?: string;
         };
-        if (
-          input.app_id !== this.config.appId ||
-          input.tenant_key !== this.config.tenantId
-        )
-          return;
         try {
+          if (!this.authorized(input)) return;
           const accepted = this.receiveCard?.({
             header: {
               event_type: "card.action.trigger",
@@ -126,17 +135,13 @@ export class FeishuSocketAdapter extends FeishuAdapter {
           app_id?: string;
           tenant_key?: string;
         };
-        if (
-          input.app_id !== this.config.appId ||
-          input.tenant_key !== this.config.tenantId
-        )
-          return;
-        const event = normalizeFeishu(this.config, {
-          header: { event_type: "im.message.receive_v1" },
-          event: input,
-        });
-        if (!event) return;
         try {
+          if (!this.authorized(input)) return;
+          const event = normalizeFeishu(this.config, {
+            header: { event_type: "im.message.receive_v1" },
+            event: input,
+          });
+          if (!event) return;
           this.receive(event);
           this.ingestionError = false;
         } catch {

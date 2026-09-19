@@ -6,8 +6,8 @@ import type {
   ImGroupContext,
   ImStatus,
 } from "@artemis/protocol";
-import { ArtemisIcon } from "@artemis/ui/icons";
 import { imGroupMentionTargets } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 
 type ThreadConnection = {
   permissionBlock?: string;
@@ -16,7 +16,7 @@ type ThreadConnection = {
   >[number]["delegationWaits"];
   parentThreadId?: string;
   channel?: string;
-  connectionState: ImConnectionStatus["state"] | "unknown";
+  connectionState: ImConnectionStatus["state"] | "unknown" | "removed";
   group?: ImGroupContext;
 };
 const unknownConnection: ThreadConnection = { connectionState: "unknown" };
@@ -140,6 +140,7 @@ export function ImThreadConnection({
       locale,
       "CustomAgentsSettingsSection_labels.disabledBadge",
     ),
+    removed: uiText(locale, "ImThreadConnection.removedBadge"),
     unknown: uiText(locale, "ImGroupMembers.message6"),
   }[state];
   const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
@@ -166,16 +167,7 @@ export function ImThreadConnection({
         : uiText(locale, "ImThreadConnection.inline3");
   return (
     <span className="im-thread-indicators">
-      {group && (
-        <span
-          className="im-thread-group"
-          role="img"
-          aria-label={uiText(locale, "ImThreadConnection.inline6")}
-          title={uiText(locale, "ImThreadConnection.inline6")}
-        >
-          <ArtemisIcon name="agents" width={16} height={16} />
-        </span>
-      )}
+      {/* 图标始终表达会话类型（单聊/群聊）；连接状态只通过颜色与悬浮文案区分。 */}
       <span
         aria-label={summary}
         className="im-thread-connection"
@@ -184,17 +176,7 @@ export function ImThreadConnection({
         title={summary}
       >
         <ArtemisIcon
-          name={
-            state === "error"
-              ? "alert"
-              : state === "connecting"
-                ? "clock"
-                : state === "disabled"
-                  ? "unlink"
-                  : state === "unknown"
-                    ? "info"
-                    : "message"
-          }
+          name={group ? "agents" : "message"}
           width={14}
           height={14}
         />

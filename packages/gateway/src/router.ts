@@ -37,6 +37,8 @@ export interface Delivery {
   invocationId?: string;
   taskId?: string;
   cardKey?: string;
+  /** Live streaming update for an existing status card; never a separate message. */
+  stream?: boolean;
   replyId?: string;
   fileId?: string;
   native?: NativeEnvelope;
@@ -89,8 +91,23 @@ export class GatewayRouter {
     const connection = entry
       ? this.store.unseal<{ channel: string }>(entry.sealed)
       : undefined;
-    const chunks =
-      connection?.channel === "slack"
+    if (delivery.cardKey) {
+      this.store.db
+        .prepare(
+          "UPDATE queue SET state='superseded' WHERE bucket='outgoing' AND state='pending' AND recipient=? AND json_extract(payload,'$.cardKey')=? AND json_extract(payload,'$.conversation.id')=? AND json_extract(payload,'$.conversation.kind')=? AND json_extract(payload,'$.stream')=1 AND id<>?",
+        )
+        .run(
+          delivery.conversation.connectionId,
+          delivery.cardKey,
+          delivery.conversation.id,
+          delivery.conversation.kind,
+          `${id}:0`,
+        );
+    }
+    // Stream payloads contain cumulative text for one card, not message chunks.
+    const chunks = delivery.stream
+      ? [delivery.text.slice(-30000)]
+      : connection?.channel === "slack"
         ? splitSlackMarkdown(delivery.text)
         : splitImText(delivery.text);
     chunks.forEach((text, index) =>
@@ -754,6 +771,14 @@ export class GatewayRouter {
     if (!request || request.deviceId !== deviceId)
       throw new Error("Reply does not belong to this device.");
     if (!this.isInvocationAuthorized(request)) return;
+    if (
+      reply.stream &&
+      (request.identity.channel !== "feishu" ||
+        request.conversation.kind !== "direct" ||
+        request.conversation.spaceId ||
+        request.nativeTaskId)
+    )
+      return;
     const replyKey = JSON.stringify([deviceId, reply.id]);
     this.store.transaction(() => {
       if (this.store.get("replies", replyKey)) return;
@@ -863,7 +888,24 @@ export class GatewayRouter {
             cardKey,
           });
       }
-      if (reply.visibility === "owner") {
+      if (reply.stream) {
+        if (
+          cardKey &&
+          !reply.final &&
+          !space &&
+          request.identity.channel === "feishu" &&
+          request.conversation.kind === "direct"
+        ) {
+          this.queueDelivery(`${reply.id}:stream`, {
+            conversation: request.conversation,
+            invocationId: request.id,
+            ...(reply.taskId ? { taskId: reply.taskId } : {}),
+            text: reply.text,
+            cardKey,
+            stream: true,
+          });
+        }
+      } else if (reply.visibility === "owner") {
         if (ownerRoute)
           this.queueDelivery(reply.id, {
             conversation: ownerRoute,

@@ -15830,7 +15830,7 @@ function createMainWindow(): BrowserWindow {
       ? {
           trafficLightPosition: { x: 18, y: 17 },
           vibrancy: "sidebar" as const,
-          visualEffectState: "followWindow" as const,
+          visualEffectState: "active" as const,
         }
       : {}),
     webPreferences: {
@@ -16340,13 +16340,7 @@ function createMainWindow(): BrowserWindow {
                     document.querySelector('.resource-add-button')?.click();
                     await wait(500);
                   } else if (view === 'icon-sizing-resource-manage') {
-                    document
-                      .querySelector(
-                        '.resource-installed-overview .resource-icon-button',
-                      )
-                      ?.click();
-                    await wait(500);
-                    clickByText('.resource-management-tabs button', 'MCP');
+                    document.querySelector('#resource-management-tab-mcp')?.click();
                     await wait(300);
                     // Open the official MCP discovery panel: its form search
                     // icon rides the same styles rule group as the manage
@@ -18435,20 +18429,12 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.resource-add-button')?.click();
                   await wait(500);
                 } else if (view === 'add-mcp') {
-                  document
-                    .querySelector('.resource-installed-overview .resource-icon-button')
-                    ?.click();
-                  await wait(500);
-                  clickByText('.resource-management-tabs button', 'MCP');
+                  document.querySelector('#resource-management-tab-mcp')?.click();
                   await wait(300);
                   clickByText('.resource-add-button', 'Add server');
                   await wait(500);
                 } else if (view === 'mcp-context7-install') {
-                  document
-                    .querySelector('.resource-installed-overview .resource-icon-button')
-                    ?.click();
-                  await wait(500);
-                  clickByText('.resource-management-tabs button', 'MCP');
+                  document.querySelector('#resource-management-tab-mcp')?.click();
                   await wait(300);
                   document
                     .querySelector('.resource-list-heading-actions .resource-add-button')
@@ -18480,14 +18466,12 @@ function createMainWindow(): BrowserWindow {
                   view.startsWith('mcp-search-') ||
                   view.startsWith('skill-search-')
                 ) {
-                  document
-                    .querySelector('.resource-installed-overview .resource-icon-button')
-                    ?.click();
-                  await wait(500);
-                  const tabIndex = view.startsWith('mcp-search-') ? 2 : 3;
-                  document
-                    .querySelectorAll('.resource-management-tabs button')
-                    [tabIndex]?.click();
+                  const tab = view.startsWith('mcp-search-') ? 'mcp' : 'skills';
+                  const tabButton = document.querySelector('#resource-management-tab-' + tab);
+                  if (!(tabButton instanceof HTMLButtonElement)) {
+                    throw new Error('Resource search tab did not render: ' + tab);
+                  }
+                  tabButton.click();
                   await wait(300);
                   document
                     .querySelector('.resource-list-heading-actions .resource-add-button')
@@ -18496,21 +18480,29 @@ function createMainWindow(): BrowserWindow {
                   const input = document.querySelector(
                     '.resource-discovery-panel input',
                   );
-                  if (input instanceof HTMLInputElement) {
-                    const setter = Object.getOwnPropertyDescriptor(
-                      HTMLInputElement.prototype,
-                      'value',
-                    )?.set;
-                    setter?.call(input, 'artemis-no-results-smoke');
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.form?.requestSubmit();
-                    await wait(500);
-                    const status = document.querySelector(
-                      '[data-artemis-component="loading-state"], [data-artemis-component="empty-state"]',
-                    );
-                    status?.scrollIntoView({ block: 'center' });
-                    await wait(300);
+                  if (!(input instanceof HTMLInputElement)) {
+                    throw new Error('Resource catalog search input did not render: ' + tab);
                   }
+                  const setter = Object.getOwnPropertyDescriptor(
+                    HTMLInputElement.prototype,
+                    'value',
+                  )?.set;
+                  setter?.call(input, 'artemis-no-results-smoke');
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  await wait(50);
+                  input.form?.requestSubmit();
+                  const component = view.endsWith('-loading') ? 'loading-state' : 'empty-state';
+                  const selector = '.resource-discovery-results [data-artemis-component="' + component + '"]';
+                  const deadline = Date.now() + 5_000;
+                  while (!document.querySelector(selector) && Date.now() < deadline) {
+                    await wait(50);
+                  }
+                  const status = document.querySelector(selector);
+                  if (!status) {
+                    throw new Error('Resource catalog search feedback did not render: ' + view);
+                  }
+                  status.scrollIntoView({ block: 'center' });
+                  await wait(300);
                 }
               })()
             `)

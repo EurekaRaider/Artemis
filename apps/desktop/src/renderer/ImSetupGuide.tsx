@@ -7,44 +7,16 @@ type Translate = UiTranslate;
 
 export function ImGatewayInstructions({
   t,
-  busy,
-  ready,
-  setup,
-  useRemote,
-  exportPackage,
+  onOpen,
 }: {
   t: Translate;
-  busy: boolean;
-  ready: boolean;
-  setup(): void;
-  useRemote(): void;
-  exportPackage(): void;
+  onOpen(): void;
 }) {
+  // 入口卡：点击进入整幅二级卡（不再内联折叠展开）。
   return (
-    <ManagementSection
-      className="im-flow-section"
-      title={t("ImSetupGuide.message9")}
-      description={t("ImSetupGuide.message10")}
-    >
-      <Button disabled={busy || ready} onClick={setup}>
-        {ready ? t("ImSetupGuide.message2") : t("ImSetupGuide.message1")}
-      </Button>
-      <p>{t("ImSetupGuide.message3")}</p>
-      <details>
-        <summary>{t("ImSetupGuide.message4")}</summary>
-        <p>{t("ImSetupGuide.message5")}</p>
-        <div className="im-actions">
-          <Button disabled={busy} onClick={useRemote}>
-            {t("ImSetupGuide.message6")}
-          </Button>
-          <Button disabled={busy} onClick={exportPackage}>
-            {t("ImSetupGuide.message7")}
-          </Button>
-        </div>
-        <p>{t("ImSetupGuide.message8")}</p>
-        <pre className="im-command">node gateway.mjs</pre>
-      </details>
-    </ManagementSection>
+    <button type="button" className="im-gateway-fold" onClick={onOpen}>
+      <span className="im-gateway-fold-head">{t("ImSetupGuide.message4")}</span>
+    </button>
   );
 }
 

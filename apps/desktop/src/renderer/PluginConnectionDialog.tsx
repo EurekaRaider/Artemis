@@ -8,6 +8,7 @@ import type {
   ConnectorConnection,
   ConnectorCatalogEntry,
 } from "../shared/connectors.js";
+import { localizedPluginText } from "../shared/plugin-localization.js";
 import { connectorCopy } from "../shared/connector-copy.js";
 import type { InstalledCodexPlugin } from "../shared/api.js";
 export function PluginConnectionDialog({
@@ -17,7 +18,10 @@ export function PluginConnectionDialog({
   locale,
   onChanged,
 }: {
-  plugin: Pick<InstalledCodexPlugin, "id" | "displayName" | "mcpServerIds">;
+  plugin: Pick<
+    InstalledCodexPlugin,
+    "id" | "name" | "displayName" | "localizations" | "mcpServerIds"
+  >;
   closeLabel: string;
   onClose(): void;
   locale: AppLocale;
@@ -32,6 +36,7 @@ export function PluginConnectionDialog({
   const mounted = useRef(true);
   const authorizing = useRef(new Set<string>());
   const copy = connectorCopy(locale);
+  const displayName = localizedPluginText(plugin, locale).displayName;
   const refresh = useCallback(async () => {
     const [d, c] = await Promise.all([
       window.artemis.listConnectorDefinitions(),
@@ -111,7 +116,7 @@ export function PluginConnectionDialog({
     <Dialog
       className="plugin-connection-dialog"
       open
-      label={plugin.displayName}
+      label={displayName}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
@@ -119,7 +124,7 @@ export function PluginConnectionDialog({
       <section>
         <ManagementHeader
           headingLevel={2}
-          title={plugin.displayName}
+          title={displayName}
           actions={
             <Button variant="quiet" onClick={onClose}>
               {closeLabel}
@@ -140,7 +145,9 @@ export function PluginConnectionDialog({
                 className={`resource-connector-card${d.provider === "qq" && state !== "connected" ? " resource-connector-card-setup" : ""}`}
               >
                 <div>
-                  <strong>{d.displayName}</strong>
+                  <strong>
+                    {d.id === plugin.name ? displayName : d.displayName}
+                  </strong>
                   <small role="status">
                     {copy.states[state]}
                     {connection?.account ? ` · ${connection.account}` : ""}

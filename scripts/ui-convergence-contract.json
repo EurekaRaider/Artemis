@@ -1,17 +1,6 @@
 {
   "dynamicClassConsumers": [
     {
-      "classNameSets": [["im-channel-tabs", "stuck"]],
-      "owner": "IM channel sticky tabs",
-      "reason": "The scroll listener toggles the stuck state when tabs meet their sticky edge.",
-      "sources": [
-        {
-          "path": "apps/desktop/src/renderer/ImSettingsPanel.tsx",
-          "contains": "strip.classList.toggle(\"stuck\", stuck)"
-        }
-      ]
-    },
-    {
       "classNameSets": [
         ["nested-project", "drop-before"],
         ["nested-project", "drop-after"],
@@ -141,7 +130,6 @@
         }
       ]
     },
-
     {
       "classNameSets": [
         ["child-agent-card", "suspect"],
@@ -193,17 +181,6 @@
         {
           "path": "apps/desktop/src/renderer/WorkspaceFileEditor.tsx",
           "contains": "className={`syntax-token ${token.kind}`}"
-        }
-      ]
-    },
-    {
-      "classNameSets": [["confirmation-dialog", "danger"]],
-      "owner": "Desktop confirmation dialog",
-      "reason": "The finite confirmation tone is appended to the dialog class at runtime.",
-      "sources": [
-        {
-          "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "className={`confirmation-dialog ${confirmation.tone}`}"
         }
       ]
     },
@@ -288,6 +265,22 @@
         {
           "path": "apps/desktop/src/renderer/CustomAgentsSettingsSection.tsx",
           "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["foot-icon", "im-link-ok"],
+        ["foot-icon", "im-link-down"],
+        ["rail-item", "im-link-ok"],
+        ["rail-item", "im-link-down"]
+      ],
+      "owner": "Sidebar IM link state indicator",
+      "reason": "The footer and rail IM buttons tint by live bot connection state (green online, orange offline).",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "im-link-${imLink}"
         }
       ]
     }

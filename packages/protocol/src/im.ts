@@ -309,7 +309,7 @@ export interface ImStatus {
     channel: string;
     kind: string;
     /** Effective Artemis-to-IM connection, not the user's client presence. */
-    connectionState?: ImConnectionStatus["state"] | "unknown";
+    connectionState?: ImConnectionStatus["state"] | "unknown" | "removed";
     devicePresence?: ImDevicePresence;
     group?: ImGroupContext;
   }>;
@@ -365,6 +365,7 @@ export const imReplySchema = z
     final: z.boolean().default(false),
     started: z.boolean().optional(),
     heartbeat: z.boolean().optional(),
+    stream: z.boolean().optional(),
     outcome: z.enum(["completed", "failed", "cancelled"]).optional(),
     status: z
       .enum([
@@ -744,6 +745,26 @@ export const imManagementSchema = z.discriminatedUnion("action", [
     })
     .strict(),
   z.object({ action: z.literal("setup-local") }).strict(),
+  /* Feishu scan-to-register (official OAuth app registration device flow). */
+  z.object({ action: z.literal("feishu-scan-begin") }).strict(),
+  z
+    .object({
+      action: z.literal("feishu-scan-poll"),
+      // Feishu mints long opaque device codes (observed >512 chars).
+      deviceCode: z.string().min(1).max(2048),
+      domain: z.enum(["feishu", "lark"]).default("feishu"),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("feishu-scan-connect"),
+      appId: z.string().min(1).max(256),
+      appSecret: z.string().min(1).max(1024),
+      appName: z.string().min(1).max(100).optional(),
+      domain: z.enum(["feishu", "lark"]).optional(),
+      tenantId: z.string().min(1).max(256).optional(),
+    })
+    .strict(),
   z.object({ action: z.literal("export-gateway") }).strict(),
   z
     .object({
@@ -789,6 +810,33 @@ export const imManagementSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export type ImManagement = z.infer<typeof imManagementSchema>;
+/** Session handle returned by feishu-scan-begin; poll until success or expiry. */
+export interface ImFeishuScanBeginResult {
+  deviceCode: string;
+  /** Official Feishu confirmation URL to encode as the QR image. */
+  qrUrl: string;
+  /** Locally generated PNG; keeps the QR encoder out of the renderer bundle. */
+  qrImage: string;
+  userCode: string;
+  expiresAt: number;
+  intervalMs: number;
+  domain: "feishu" | "lark";
+}
+export type ImFeishuScanPollResult =
+  | { status: "pending"; intervalMs: number; domain: "feishu" | "lark" }
+  | {
+      status: "success";
+      appId: string;
+      appSecret: string;
+      appName?: string;
+      /** Open ID of the scanning user; the natural owner identity. */
+      openId?: string;
+      tenantKey?: string;
+      domain: "feishu" | "lark";
+    }
+  | { status: "expired" }
+  | { status: "denied" }
+  | { status: "error"; message: string };
 
 export interface CollaborationArtifact {
   id: string;

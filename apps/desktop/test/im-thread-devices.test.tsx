@@ -19,14 +19,15 @@ afterEach(() => {
 
 describe("IM thread connection indicators", () => {
   it.each([
-    ["connected", "已连接", "message"],
-    ["connecting", "连接中", "clock"],
-    ["error", "连接异常", "alert"],
-    ["disabled", "已停用", "unlink"],
-    ["unknown", "状态未知", "info"],
+    ["connected", "已连接"],
+    ["connecting", "连接中"],
+    ["error", "连接异常"],
+    ["disabled", "已停用"],
+    ["removed", "机器人已移除"],
+    ["unknown", "状态未知"],
   ] as const)(
     "labels and distinguishes %s without implying client presence",
-    (connectionState, label, icon) => {
+    (connectionState, label) => {
       render(
         <ImThreadConnection
           status={{ channel: "slack", connectionState }}
@@ -37,8 +38,9 @@ describe("IM thread connection indicators", () => {
       expect(screen.queryByRole("img", { name: "群协作对话" })).toBeNull();
       expect(indicator).toHaveAccessibleName(`Slack · IM 连接：${label}`);
       expect(indicator).toHaveAttribute("data-state", connectionState);
+      // 图标固定为会话类型（无群上下文 = 单聊 message），不随状态更换。
       expect(
-        indicator.querySelector(`[data-artemis-icon="${icon}"]`),
+        indicator.querySelector('[data-artemis-icon="message"]'),
       ).toBeTruthy();
       expect(
         indicator.querySelector(
@@ -88,8 +90,8 @@ describe("IM thread connection indicators", () => {
       );
       const indicator = container.querySelector(".im-thread-computers")!;
       expect(
-        screen
-          .getByRole("img", { name: "群协作对话" })
+        container
+          .querySelector(".im-thread-connection")!
           .querySelector('[data-artemis-icon="agents"]'),
       ).toBeTruthy();
       expect(indicator).toHaveAttribute("data-state", expected);
@@ -111,9 +113,6 @@ describe("IM thread connection indicators", () => {
         />,
       );
       expect(indicator).toHaveAttribute("data-state", "unknown");
-      expect(
-        screen.getByRole("img", { name: "群协作对话" }),
-      ).toBeInTheDocument();
     },
   );
 

@@ -840,7 +840,8 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="switch"][data-state="checked"] [data-part="thumb"]',
     {
-      background: "var(--artemis-color-surface-base)",
+      /* 恒白圆钮（iOS 范式）：accent 轨道深浅主题都用白，见 ui-convergence 允许清单。 */
+      background: "#fff",
       transform:
         "translateX( calc(var(--artemis-space-4) + var(--artemis-space-1)) )",
     },

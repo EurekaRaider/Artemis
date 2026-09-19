@@ -8,7 +8,10 @@ import {
 } from "@artemis/protocol";
 import { ArtemisGateway } from "../src/server.js";
 import type { FeishuApprovalCard } from "../src/feishu-approval.js";
-import { DeliveryUncertain } from "../src/channels.js";
+import {
+  DeliveryUncertain,
+  type FeishuStreamCardState,
+} from "../src/channels.js";
 
 const instances: ArtemisGateway[] = [];
 afterEach(async () => {
@@ -18,6 +21,21 @@ async function fixture() {
   const approvalCard = vi.fn(async () => "om_card");
   const send = vi.fn(async () => "om_text");
   const statusCard = vi.fn(async () => "om_card");
+  const streamCard = vi.fn(
+    async (
+      _conversation: unknown,
+      _text: string,
+      _key: string,
+      state?: FeishuStreamCardState,
+      streaming = true,
+    ): Promise<FeishuStreamCardState> => ({
+      messageId: state?.messageId ?? "om_stream",
+      createdAt: state?.createdAt ?? Date.now(),
+      cardId: "entity",
+      sequence: (state?.sequence ?? 0) + 1,
+      streaming,
+    }),
+  );
   const typing = vi.fn(async (_message: string, active: boolean) =>
     active ? "reaction" : undefined,
   );
@@ -37,6 +55,7 @@ async function fixture() {
       approvalCard,
       send,
       statusCard,
+      streamCard,
       typing,
       attachment: vi.fn(),
     }),
@@ -140,10 +159,90 @@ async function fixture() {
     approvalCard,
     send,
     statusCard,
+    streamCard,
     typing,
   };
 }
 describe("Feishu Gateway interactions", () => {
+  it("updates and closes the existing stream card before sending the final answer", async () => {
+    const f = await fixture();
+    const unthrottle = () =>
+      f.gateway.store.delete(
+        "throttle",
+        JSON.stringify(["feishu", "direct", "chat"]),
+      );
+    f.reply({
+      visibility: "conversation",
+      started: true,
+      status: "running",
+      text: "Started",
+    });
+    await f.gateway.tick();
+    expect(f.statusCard).toHaveBeenCalledOnce();
+    unthrottle();
+    f.reply({
+      visibility: "conversation",
+      status: "running",
+      stream: true,
+      text: "Live answer",
+    });
+    await f.gateway.tick();
+    expect(f.streamCard).toHaveBeenLastCalledWith(
+      f.event.conversation,
+      "Live answer",
+      expect.any(String),
+      expect.objectContaining({ messageId: "om_card" }),
+      true,
+    );
+    unthrottle();
+    f.reply({
+      visibility: "conversation",
+      status: "completed",
+      final: true,
+      text: "Final answer",
+    });
+    await f.gateway.tick();
+    expect(f.streamCard).toHaveBeenLastCalledWith(
+      f.event.conversation,
+      expect.stringContaining("已完成"),
+      expect.any(String),
+      expect.objectContaining({ messageId: "om_card", cardId: "entity" }),
+      false,
+    );
+    expect(f.statusCard).toHaveBeenCalledOnce();
+    unthrottle();
+    await f.gateway.tick();
+    expect(f.send).toHaveBeenCalledOnce();
+    expect(f.send.mock.calls[0]?.[1]).toBe("Final answer");
+  });
+
+  it("never turns rejected or uncertain live updates into standalone partial messages", async () => {
+    const f = await fixture();
+    f.streamCard.mockRejectedValueOnce(new Error("stream unavailable"));
+    f.statusCard.mockRejectedValueOnce(new Error("card unavailable"));
+    f.reply({
+      visibility: "conversation",
+      status: "running",
+      stream: true,
+      text: "Partial answer",
+    });
+    await f.gateway.tick();
+    expect(f.send).not.toHaveBeenCalled();
+    const g = await fixture();
+    g.streamCard.mockRejectedValueOnce(new DeliveryUncertain("timeout"));
+    g.reply({
+      visibility: "conversation",
+      status: "running",
+      stream: true,
+      text: "Partial answer",
+    });
+    await g.gateway.tick();
+    await g.gateway.tick();
+    expect(g.streamCard).toHaveBeenCalledOnce();
+    expect(g.statusCard).not.toHaveBeenCalled();
+    expect(g.send).not.toHaveBeenCalled();
+  });
+
   it("authenticates issued-card callbacks and atomically persists a single decision", async () => {
     const f = await fixture();
     f.reply({ approval: f.approval });

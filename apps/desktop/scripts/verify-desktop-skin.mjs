@@ -427,7 +427,7 @@ const snapshot = () => {
         nativeSidebar && !darkTheme && !opaqueSidebar
           ? "--artemis-color-surface-raised"
           : "--artemis-color-background-sidebar",
-        opaqueSidebar ? undefined : nativeSidebar ? (darkTheme ? 12 : 84)
+        opaqueSidebar ? undefined : nativeSidebar ? (darkTheme ? 12 : 80)
           : navigationSidebar?.dataset.state === "collapsed" ? 78 : 72,
       ),
       composer: surfaceStyle(
@@ -1542,7 +1542,7 @@ async function driveElectron() {
         systemLight.snapshot.tokenCount === expectedTokenCount &&
         systemLight.snapshot.surfaces.sidebar.backgroundColor ===
           systemLight.snapshot.surfaces.sidebar.resolvedTokenColor,
-      "System light bridge or sidebar material was incomplete.",
+      `System light bridge or sidebar material was incomplete: ${JSON.stringify(systemLight)}`,
     );
     await connection.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-color-scheme", value: "dark" }],
