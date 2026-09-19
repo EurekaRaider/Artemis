@@ -9472,15 +9472,22 @@ kbd {
 .automation-list,
 /* 配对码弹窗：提示信息 + 大号配对码行。 */
 .im-pair-dialog {
-  width: min(500px, 94vw);
+  width: min(520px, 94vw);
 }
 .im-pair-dialog-head {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-block-end: 8px;
 }
 .im-pair-dialog-head h2 {
   margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .im-pair-dialog-body {
   display: grid;
@@ -9506,17 +9513,21 @@ kbd {
   margin: 0;
   padding-inline-start: 16px;
 }
+/* 配对码行：亮底卡片聚焦视觉。 */
 .im-pair-code-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 .im-pair-code-value {
   font-family: var(--artemis-typography-mono-family);
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.04em;
   color: var(--accent);
 }
 
