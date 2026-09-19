@@ -3,16 +3,38 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="0; url=/en/">
+    <noscript><meta http-equiv="refresh" content="0; url=/en/"></noscript>
     <title>Artemis</title>
     <script>
-      const locale = (navigator.language || '').toLowerCase().startsWith('zh')
-        ? "/zh-CN/"
-        : "/en/";
-      window.location.replace(locale);
+      const localeMetadata = {"en":{"name":"English","direction":"ltr","openGraph":"en_US"},"zh-CN":{"name":"简体中文","direction":"ltr","openGraph":"zh_CN"},"zh-TW":{"name":"繁體中文","direction":"ltr","openGraph":"zh_TW"},"ja":{"name":"日本語","direction":"ltr","openGraph":"ja_JP"},"ko":{"name":"한국어","direction":"ltr","openGraph":"ko_KR"},"es":{"name":"Español","direction":"ltr","openGraph":"es_ES"},"fr":{"name":"Français","direction":"ltr","openGraph":"fr_FR"},"de":{"name":"Deutsch","direction":"ltr","openGraph":"de_DE"},"pt-BR":{"name":"Português (Brasil)","direction":"ltr","openGraph":"pt_BR"},"it":{"name":"Italiano","direction":"ltr","openGraph":"it_IT"},"ru":{"name":"Русский","direction":"ltr","openGraph":"ru_RU"},"ar":{"name":"العربية","direction":"rtl","openGraph":"ar_SA"},"hi":{"name":"हिन्दी","direction":"ltr","openGraph":"hi_IN"},"id":{"name":"Bahasa Indonesia","direction":"ltr","openGraph":"id_ID"}};
+      const locales = ["en","zh-CN","zh-TW","ja","ko","es","fr","de","pt-BR","it","ru","ar","hi","id"];
+      const isLocale = function isLocale(value) {
+    return Object.hasOwn(localeMetadata, value);
+};
+      const resolveLocale = function resolveLocale(preferred) {
+    for (const value of preferred) {
+        const language = value.trim().replaceAll('_', '-').toLowerCase();
+        const exact = locales.find((locale) => locale.toLowerCase() === language);
+        if (exact)
+            return exact;
+        if (/^zh(?:-|$)/.test(language)) {
+            return /(?:^|-)(?:hant|tw|hk|mo)(?:-|$)/.test(language) ? 'zh-TW' : 'zh-CN';
+        }
+        const base = language.split('-')[0];
+        if (base === 'pt')
+            return 'pt-BR';
+        if (base === 'in')
+            return 'id';
+        if (isLocale(base))
+            return base;
+    }
+    return 'en';
+};
+      const locale = resolveLocale(navigator.languages || [navigator.language]);
+      window.location.replace("" + '/' + locale + '/');
     </script>
   </head>
   <body>
-    <p><a href="/en/">English</a> · <a href="/zh-CN/">简体中文</a></p>
+    <p><a lang="en" dir="ltr" href="/en/">English</a> · <a lang="zh-CN" dir="ltr" href="/zh-CN/">简体中文</a> · <a lang="zh-TW" dir="ltr" href="/zh-TW/">繁體中文</a> · <a lang="ja" dir="ltr" href="/ja/">日本語</a> · <a lang="ko" dir="ltr" href="/ko/">한국어</a> · <a lang="es" dir="ltr" href="/es/">Español</a> · <a lang="fr" dir="ltr" href="/fr/">Français</a> · <a lang="de" dir="ltr" href="/de/">Deutsch</a> · <a lang="pt-BR" dir="ltr" href="/pt-BR/">Português (Brasil)</a> · <a lang="it" dir="ltr" href="/it/">Italiano</a> · <a lang="ru" dir="ltr" href="/ru/">Русский</a> · <a lang="ar" dir="rtl" href="/ar/">العربية</a> · <a lang="hi" dir="ltr" href="/hi/">हिन्दी</a> · <a lang="id" dir="ltr" href="/id/">Bahasa Indonesia</a></p>
   </body>
 </html>
