@@ -17779,12 +17779,32 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view === 'message-actions-edit') {
-                  document.querySelector('.thread-select')?.click();
-                  await wait(600);
-                  document
-                    .querySelector('.user-message .message-action:nth-child(2)')
-                    ?.click();
-                  await wait(350);
+                  const waitForMessageState = async (label, predicate) => {
+                    const deadline = Date.now() + 8_000;
+                    while (Date.now() < deadline) {
+                      const result = predicate();
+                      if (result) return result;
+                      await wait(50);
+                    }
+                    throw new Error('message-actions-edit: timed out waiting for ' + label);
+                  };
+                  const thread = await waitForMessageState('thread selector', () =>
+                    document.querySelector('.thread-select'),
+                  );
+                  thread.click();
+                  const edit = await waitForMessageState('enabled edit action', () => {
+                    const button = document.querySelector(
+                      '.user-message .message-action:nth-child(2)',
+                    );
+                    return button instanceof HTMLButtonElement && !button.disabled
+                      ? button
+                      : null;
+                  });
+                  edit.click();
+                  await waitForMessageState('restored composer text', () => {
+                    const composer = document.querySelector('.composer textarea');
+                    return composer instanceof HTMLTextAreaElement && composer.value.length > 0;
+                  });
                   return;
                 }
                 if (view.startsWith('environment')) {
