@@ -1251,19 +1251,87 @@ export function ImSettingsPanel({
         </Button>
       </div>
     ) : null;
-  /* 无机器人时的右栏：空态文案 + 飞书扫码接入；新建入口在左栏顶部。 */
-  const renderJoinCard = () => (
-    <div className="im-bot-join">
-      <strong>{imChannelLabel(channel, t)}</strong>
-      <p>
-        {savedPending[channel]
-          ? t("ImSettingsPanel.message68")
-          : t("ImSettingsPanel.message67")}
-      </p>
-      {channel === "feishu" &&
-        renderFeishuScan(!channelConnections.length)}
+  /* 创建页（ZCode 式）：新建占据右栏整卡。飞书=扫码优先（关联机器人
+     卡头出码，不再展示凭据表单），保存后落回详情并选中新机器人；
+     其余渠道走凭据表单。 */
+  const renderCreatePane = () => (
+    <div className="im-bot-pane" id="im-bot-create" tabIndex={-1}>
+      <div className="im-bot-create">
+        <div className="im-bot-create-head">
+          {channelLogo(channel, 28)}
+          <strong>{t("ImSettingsPanel.message76")}</strong>
+        </div>
+        {channel === "feishu" ? (
+          <>
+            <div className="im-bot-section" data-scan-open>
+              <div className="im-bot-section-copy">
+                <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
+                <p>{t("ImSettingsPanel.botScanDesc")}</p>
+              </div>
+              <div className="im-bot-section-actions">
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  disabled={busy || !activeSettings.deviceId}
+                  onClick={() => {
+                    setCreateScanEpoch((value) => value + 1);
+                    setCreateScanOpen(true);
+                  }}
+                >
+                  <ArtemisIcon
+                    aria-hidden="true"
+                    height={13}
+                    name="qr-code"
+                    width={13}
+                  />
+                  {t("ImFeishuScan.message10")}
+                </Button>
+              </div>
+              {createScanOpen && (
+                <div className="im-bot-scan">
+                  <ImFeishuScan
+                    refreshSignal={createScanEpoch}
+                    t={t}
+                    autoStart
+                    bare
+                    busy={busy}
+                    disabled={!activeSettings.deviceId}
+                    onIdle={() => setCreateScanOpen(false)}
+                    onConnected={(connectionId) => {
+                      connectScannedBot(connectionId, () => {
+                        if (connectionId) {
+                          setChannelPane("bot");
+                          setSelectedBotId(connectionId);
+                        }
+                      });
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            {renderReplyModeCard()}
+          </>
+        ) : (
+          renderBotForm(dismissBotCreate)
+        )}
+      </div>
     </div>
   );
+  /* 已无选中机器人时的右栏：飞书直接落创建页（首个 bot 未建时右侧
+     不再是旧空态卡）；其余渠道保留空态文案卡。 */
+  const renderEmptyPane = () =>
+    channel === "feishu" ? (
+      renderCreatePane()
+    ) : (
+      <div className="im-bot-join">
+        <strong>{imChannelLabel(channel, t)}</strong>
+        <p>
+          {savedPending[channel]
+            ? t("ImSettingsPanel.message68")
+            : t("ImSettingsPanel.message67")}
+        </p>
+      </div>
+    );
   /* 已连接的机器人按绑定态标注（导航卡/状态行/关联机器人卡共用）：
      绿「已配对」/ 黄「待配对」；未连接仍显示连接状态本身。 */
   const pairingView = (connection: ImConnectionStatus) => {
@@ -1474,7 +1542,11 @@ export function ImSettingsPanel({
             type="button"
             className="im-bot-new"
             disabled={busy}
-            data-selected={channelPane === "create" || undefined}
+            data-selected={
+              (channelPane === "create" ||
+                (channel === "feishu" && !channelConnections.length)) ||
+              undefined
+            }
             aria-label={t("ImSettingsPanel.message65")}
             onClick={(event) => {
               /* ZCode 式：新建不弹独立弹窗，右栏整卡切换为创建表单。 */
@@ -1580,74 +1652,9 @@ export function ImSettingsPanel({
               {renderVerifyBody()}
             </div>
           )}
-          {channelPane === "create" && (
-            /* ZCode 式：新建占据右栏整卡。飞书=扫码优先（官方注册流程
-               直出二维码，不再展示凭据表单），保存后落回详情并选中
-               新机器人；其余渠道走凭据表单。 */
-            <div className="im-bot-pane" id="im-bot-create" tabIndex={-1}>
-              <div className="im-bot-create">
-                <div className="im-bot-create-head">
-                  {channelLogo(channel, 28)}
-                  <strong>{t("ImSettingsPanel.message76")}</strong>
-                </div>
-                {channel === "feishu" ? (
-                  <>
-                    <div className="im-bot-section" data-scan-open>
-                    <div className="im-bot-section-copy">
-                      <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
-                      <p>{t("ImSettingsPanel.botScanDesc")}</p>
-                    </div>
-                    <div className="im-bot-section-actions">
-                      <Button
-                        variant="quiet"
-                        size="compact"
-                        disabled={busy || !activeSettings.deviceId}
-                        onClick={() => {
-                          setCreateScanEpoch((value) => value + 1);
-                          setCreateScanOpen(true);
-                        }}
-                      >
-                        <ArtemisIcon
-                          aria-hidden="true"
-                          height={13}
-                          name="qr-code"
-                          width={13}
-                        />
-                        {t("ImFeishuScan.message10")}
-                      </Button>
-                    </div>
-                    {createScanOpen && (
-                      <div className="im-bot-scan">
-                        <ImFeishuScan
-                          refreshSignal={createScanEpoch}
-                          t={t}
-                          autoStart
-                          bare
-                          busy={busy}
-                          disabled={!activeSettings.deviceId}
-                          onIdle={() => setCreateScanOpen(false)}
-                          onConnected={(connectionId) => {
-                            connectScannedBot(connectionId, () => {
-                              if (connectionId) {
-                                setChannelPane("bot");
-                                setSelectedBotId(connectionId);
-                              }
-                            });
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                    {renderReplyModeCard()}
-                  </>
-                ) : (
-                  renderBotForm(dismissBotCreate)
-                )}
-              </div>
-            </div>
-          )}
+          {channelPane === "create" && renderCreatePane()}
           {channelPane === "bot" &&
-            (selected ? renderBotProfile(selected) : renderJoinCard())}
+            (selected ? renderBotProfile(selected) : renderEmptyPane())}
         </div>
         {renderBotDialog()}
         {renderPairDialog()}

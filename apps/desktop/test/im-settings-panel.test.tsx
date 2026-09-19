@@ -495,7 +495,15 @@ describe("production IM settings", () => {
         operation: "remove-connection",
         configuration: { id: selected.id },
       });
-      expect(await screen.findByText("尚未保存机器人连接")).toBeVisible();
+      /* 清空后右栏：飞书落创建页（扫码优先），其余渠道显示空态文案。 */
+      if (channel === "feishu") {
+        expect(await screen.findByText("关联机器人")).toBeVisible();
+        expect(
+          screen.queryByText("尚未保存机器人连接"),
+        ).not.toBeInTheDocument();
+      } else {
+        expect(await screen.findByText("尚未保存机器人连接")).toBeVisible();
+      }
       expect(
         screen.queryByRole("button", { name: /^更换凭据/ }),
       ).not.toBeInTheDocument();
@@ -1925,9 +1933,14 @@ describe("pairing code lifecycle", () => {
       ).toBeEnabled(),
     );
     await user.click(screen.getByRole("button", { name: "继续设置" }));
-    /* 渠道配置=点卡进入的整幅二级卡。 */
+    /* 渠道配置=点卡进入的整幅二级卡；飞书首个 bot 未建时右栏=创建页
+       （关联机器人卡+回复模式卡），不再是旧空态卡。 */
     await openChannel(user, "feishu");
-    expect(await screen.findByText("尚未保存机器人连接")).toBeVisible();
+    expect(await screen.findByText("关联机器人")).toBeVisible();
+    expect(screen.getByText("扫码获取应用凭据。")).toBeVisible();
+    expect(
+      screen.queryByText("尚未保存机器人连接"),
+    ).not.toBeInTheDocument();
   });
 });
 
