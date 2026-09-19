@@ -257,10 +257,11 @@ describe("production IM settings", () => {
       if (destination === "overview") {
         expect(document.querySelector(".im-overview")).toHaveFocus();
       } else {
+        /* 验证=渠道二级面板的一页：深链落整幅卡并切到验证页。 */
         expect(document.querySelector(".im-screen-detail")).toBeVisible();
         expect(
           screen.getByRole("button", { name: /^顺手验证/ }),
-        ).toHaveAttribute("aria-expanded", "true");
+        ).toHaveAttribute("data-selected", "true");
         expect(document.getElementById("im-verify")).toHaveFocus();
         expect(
           screen.getByRole("list", { name: "测试任务进度" }),
@@ -418,6 +419,8 @@ describe("production IM settings", () => {
       screen.getByText(/在安装应用的 Slack 工作区中打开该应用的私信/),
     ).toBeVisible();
     expect(screen.getByText("0123456789abcdef")).toBeVisible();
+    /* 验证是主从布局的一页：切页后断言指令形态。 */
+    await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     expect(document.querySelector("#im-test")).toHaveTextContent("projects");
     expect(document.querySelector("#im-test")).not.toHaveTextContent(
       "/projects",
@@ -432,7 +435,8 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 凭据表单在弹窗内：新建入口 → 应用区域选 Lark。 */
+    /* 设置链接在主从布局的「接入指引」页；凭据表单在弹窗内。 */
+    await user.click(screen.getByRole("button", { name: /^接入指引/ }));
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     const region = screen.getByRole("button", { name: /^应用区域/ });
     expect(region.closest("details")).toBeNull();
@@ -533,7 +537,8 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "wecom");
-    /* 机器人列表：每行自带移除图标（可访问名含连接名），直接定位 Second bot 行。 */
+    /* 主从布局：先选中 Second bot 卡片，右栏详情才出现它的移除入口。 */
+    await user.click(await screen.findByRole("button", { name: /^Second bot/ }));
     await user.click(
       await screen.findByRole("button", { name: "移除连接 Second bot" }),
     );
@@ -549,7 +554,9 @@ describe("production IM settings", () => {
       configuration: { id: second.id },
     });
     expect(
-      await screen.findByText(connection.name, { selector: "code" }),
+      await screen.findByText(connection.name, {
+        selector: ".im-bot-card-copy strong",
+      }),
     ).toBeVisible();
     expect(screen.getByText(identity.userId)).toBeVisible();
     expect(
@@ -914,8 +921,7 @@ describe("production IM settings", () => {
     fireEvent.click(platformCard("wecom"));
     await act(async () => finishRefresh(old));
     expect(
-      screen.getByText("Test bot", { selector: ".im-connection code" })
-        .parentElement,
+      screen.getByText("Test bot", { selector: ".im-bot-card-copy strong" }),
     ).toBeVisible();
     /* 整幅渠道卡打开时总开关不在屏上，用落库状态断言暂停未被回写。 */
     expect(f.get().settings.enabled).toBe(false);
@@ -1652,18 +1658,22 @@ it("hides WeCom group setup while retaining direct-chat setup and other platform
   const user = userEvent.setup();
   render(<ImSettingsPanel locale="zh-CN" />);
   await openChannel(user, "wecom");
+  /* 主从布局：验证页与机器人详情互斥；wecom 验证页不出现单聊授权入口。 */
   await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(
     screen.queryByRole("button", { name: /^单聊项目授权$/ }),
   ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /^Test bot/ }));
   expect(
     screen.getByRole("button", { name: "生成配对码 Test bot" }),
   ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "返回" }));
   await openChannel(user, "slack");
+  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "返回" }));
   await openChannel(user, "feishu");
+  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
   expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
 });
 

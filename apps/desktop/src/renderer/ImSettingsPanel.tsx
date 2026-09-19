@@ -131,6 +131,11 @@ export function ImSettingsPanel({
   const [projectsDetail, setProjectsDetail] = useState(initialPermissions);
   const [showRemote, setShowRemote] = useState(false);
   const [advancedDetail, setAdvancedDetail] = useState(false);
+  /* 渠道二级面板（ZCode 式主从）：右栏 = 选中机器人详情 / 指引 / 导入 / 验证。 */
+  const [channelPane, setChannelPane] = useState<
+    "bot" | "guide" | "import" | "verify"
+  >("bot");
+  const [selectedBotId, setSelectedBotId] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [savedMetadata, setSavedMetadata] = useState<
@@ -331,15 +336,18 @@ export function ImSettingsPanel({
       setChannelDetail(true);
       setGroupDetail(false);
       setProjectsDetail(false);
+      setChannelPane("bot");
+      setSelectedBotId("");
       setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
     }
     if (next === "test") {
       verifyTouched.current = true;
       setVerifyOpen(true);
-      /* 验证段挂在渠道详情尾部，深链时一并下钻。 */
+      /* 验证=渠道二级面板的一页，深链时一并下钻并切页。 */
       setChannelDetail(true);
       setGroupDetail(false);
       setProjectsDetail(false);
+      setChannelPane("verify");
     }
     setFlowCard(step);
     setFocusTarget(next === "test" ? "im-verify" : `im-${next}`);
@@ -557,6 +565,15 @@ export function ImSettingsPanel({
       active = false;
     };
   }, [groupDetail, grantDialog, local, status?.settings.deviceId]);
+  useEffect(() => {
+    /* 渠道详情主从：选中项失效（删除/切换渠道）时回落到本渠道首个机器人。 */
+    if (!channelDetail) return;
+    setSelectedBotId((previous) =>
+      previous && channelConnections.some((c) => c.id === previous)
+        ? previous
+        : (channelConnections[0]?.id ?? ""),
+    );
+  }, [channelDetail, channel, channelConnections]);
   const resolvePairing = (requestId: string, approve: boolean) =>
     run(async () => {
       await window.artemis.manageIm({
@@ -808,245 +825,431 @@ export function ImSettingsPanel({
       </>
     );
   }
+  const channelLogo = (platform: ImChannel, size: number) =>
+    platform === "feishu" ? (
+      <img
+        alt=""
+        aria-hidden="true"
+        className="im-channel-logo"
+        height={size}
+        src={feishuChannelIcon}
+        width={size}
+      />
+    ) : platform === "slack" ? (
+      <img
+        alt=""
+        aria-hidden="true"
+        className="im-channel-logo"
+        height={size}
+        src={slackChannelIcon}
+        width={size}
+      />
+    ) : (
+      <ArtemisIcon
+        aria-hidden="true"
+        name={platform}
+        width={size}
+        height={size}
+      />
+    );
+  const openBlankBotDialog = (trigger: HTMLButtonElement) => {
+    botDialogTrigger.current = trigger;
+    setFields({});
+    setAdminToken("");
+    setBotDialog({});
+  };
+  const openBotEditor = (
+    connection: ImConnectionStatus,
+    trigger: HTMLButtonElement,
+  ) => {
+    botDialogTrigger.current = trigger;
+    setFields(
+      Object.fromEntries(
+        PUBLIC_BOT_FIELDS.flatMap((key) =>
+          typeof connection.configuration?.[key] === "string"
+            ? [[key, connection.configuration[key]!]]
+            : [],
+        ),
+      ),
+    );
+    setBotDialog({ connectionId: connection.id });
+  };
+  const openBotPairing = (
+    connection: ImConnectionStatus,
+    trigger: HTMLButtonElement,
+  ) => {
+    pairDialogTrigger.current = trigger;
+    setPairDialogId(connection.id);
+    if (!pairCode || pairCode.expiresAt <= Date.now()) {
+      void run(generatePairCode);
+    }
+  };
+  /* 删除机器人：危险卡内的垃圾桶入口，确认（与远端管理凭据）走
+     ImConnectionRemoval 弹窗。 */
+  const removeConnection = (connection: ImConnectionStatus) => (token: string) =>
+    run(async () => {
+      const id = connection.id;
+      await window.artemis.manageIm({
+        action: "admin",
+        operation: "remove-connection",
+        ...(local ? {} : { adminToken: token }),
+        configuration: { id },
+      });
+      setStatus((previous) =>
+        previous
+          ? {
+              ...previous,
+              connections: (
+                previous.connections as ImConnectionStatus[]
+              ).filter((c) => c.id !== id),
+              identities: previous.identities.filter(
+                (i) => i.connectionId !== id,
+              ),
+              pairingRequests: (previous.pairingRequests ?? []).filter(
+                (r) => r.identity.connectionId !== id,
+              ),
+            }
+          : previous,
+      );
+      setSavedMetadata((previous) => ({
+        ...previous,
+        [channel]: undefined,
+      }));
+      setConnectionId("");
+      setFields({});
+      setAdminToken("");
+      setBotDialog(null);
+      setPairCode(undefined);
+      setFocusTarget("im-bot");
+      setMessage(t("ImSettingsPanel.message75"));
+      try {
+        await refresh();
+      } catch (error) {
+        setRefreshError(String(error));
+      }
+    });
+  /* 飞书首选扫码接入（官方应用注册流程）：仅在无机器人时出现（主从布局
+     的右栏首卡），autoStart 语义与旧折叠体一致。 */
+  const renderFeishuScan = () => (
+    <ImFeishuScan
+      t={t}
+      autoStart={channel === "feishu" && !channelConnections.length}
+      busy={busy}
+      disabled={!activeSettings.deviceId}
+      /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
+         并弹开配对弹窗，用户复制指令去飞书私聊发送即可。 */
+      onConnected={(connectionId) => {
+        void run(async () => {
+          await refresh();
+          if (!connectionId) return;
+          try {
+            await generatePairCode();
+            setPairDialogId(connectionId);
+          } catch {
+            // 配对码生成失败不打断：弹窗可从机器人详情随时重开。
+          }
+        });
+      }}
+    />
+  );
+  /* 平台接入指引：slack 恒为清单指引，飞书/企微走平台步骤。 */
+  const renderGuideBody = () =>
+    channel === "slack" ? (
+      <ImSlackSetup
+        t={t}
+        busy={busy}
+        copy={() =>
+          void run(async () => {
+            const { userName } = await window.artemis.getSnapshot();
+            await navigator.clipboard.writeText(slackAppManifest(userName));
+            setMessage(t("ImSettingsPanel.message60"));
+          })
+        }
+      />
+    ) : (
+      <ImPlatformSetup
+        channel={channel}
+        transport={feishuTransport}
+        domain={feishuDomain}
+        t={t}
+      />
+    );
+  const renderLegacyImport = () => (
+    <ImLegacyImport
+      key={activeSettings.deviceId}
+      local={local}
+      busy={busy}
+      ready={!!activeSettings.deviceId}
+      run={run}
+      t={t}
+      imported={async () => {
+        await refresh();
+        setMessage(t("ImSettingsPanel.message63"));
+      }}
+    />
+  );
+  /* 飞书 webhook 连接的回调地址：跟随机器人详情展示。 */
+  const renderWebhookCallback = (connection: ImConnectionStatus) =>
+    channel === "feishu" &&
+    connection.configuration?.transport === "webhook" &&
+    connection.callbackUrl ? (
+      <div className="im-actions">
+        <p className="im-identifier">
+          {t("ImSettingsPanel.message98")}
+          {connection.callbackUrl}
+        </p>
+        <Button
+          variant="quiet"
+          className="management-text-action"
+          disabled={!activeSettings.gatewayUrl}
+          onClick={() =>
+            void run(async () => {
+              await navigator.clipboard.writeText(connection.callbackUrl!);
+              setMessage(t("ImSettingsPanel.message100"));
+            })
+          }
+        >
+          {t("ImSettingsPanel.message99")}
+        </Button>
+      </div>
+    ) : null;
+  /* 无机器人时的右栏：空态文案 + 飞书扫码接入；新建入口在左栏顶部。 */
+  const renderJoinCard = () => (
+    <div className="im-bot-join">
+      <strong>{imChannelLabel(channel, t)}</strong>
+      <p>
+        {savedPending[channel]
+          ? t("ImSettingsPanel.message68")
+          : t("ImSettingsPanel.message67")}
+      </p>
+      {channel === "feishu" && renderFeishuScan()}
+    </div>
+  );
+  /* 机器人详情（ZCode 式）：头（logo+名称+ID+刷新）+ 状态行 +
+     关联凭据 / 配对聊天 / 删除机器人 三张设置卡。 */
+  const renderBotProfile = (connection: ImConnectionStatus) => {
+    const state = imAggregateConnectionStates([connection.state]);
+    return (
+      <div className="im-bot-profile">
+        <div className="im-bot-profile-head">
+          {channelLogo(channel, 28)}
+          <strong>{connection.name}</strong>
+          <ImBotIdTag id={connection.id} t={t} />
+          <Tooltip label={t("ImSettingsPanel.message72")} align="end">
+            <button
+              type="button"
+              className="im-icon-action"
+              disabled={busy || !activeSettings.deviceId}
+              aria-label={t("ImSettingsPanel.message71", {
+                value1: connection.name,
+              })}
+              onClick={() => void run(refresh)}
+            >
+              <ArtemisIcon height={13} name="refresh" width={13} />
+            </button>
+          </Tooltip>
+        </div>
+        <p className="im-bot-profile-state">
+          <span aria-hidden="true" className="im-dot" data-state={state} />
+          {imConnectionLabel(state, t)}
+        </p>
+        {connection.error && (
+          <InlineNotice tone="danger">{connection.error}</InlineNotice>
+        )}
+        <div className="im-bot-section">
+          <div className="im-bot-section-copy">
+            <strong>{t("ImSettingsPanel.botCredTitle")}</strong>
+            <p>{t("ImSettingsPanel.botCredDesc")}</p>
+          </div>
+          <div className="im-bot-section-actions">
+            <Button
+              variant="quiet"
+              size="compact"
+              disabled={busy}
+              label={t("ImSettingsPanel.message69", {
+                value1: connection.name,
+              })}
+              onClick={(event) =>
+                openBotEditor(connection, event.currentTarget)
+              }
+            >
+              {t("ImSettingsPanel.message70")}
+            </Button>
+          </div>
+        </div>
+        <div className="im-bot-section">
+          <div className="im-bot-section-copy">
+            <strong>{t("ImSettingsPanel.botPairTitle")}</strong>
+            <p>{t("ImSettingsPanel.botPairDesc")}</p>
+          </div>
+          <div className="im-bot-section-actions">
+            <Button
+              variant="quiet"
+              size="compact"
+              disabled={busy || !activeSettings.deviceId}
+              label={t("ImSettingsPanel.message73", {
+                value1: connection.name,
+              })}
+              onClick={(event) =>
+                openBotPairing(connection, event.currentTarget)
+              }
+            >
+              {t("ImSettingsPanel.message74")}
+            </Button>
+          </div>
+        </div>
+        {/* 从属账号：属于这条连接的已绑定账号，挂在配对卡下。 */}
+        {connectionAccounts(connection.id)}
+        {renderWebhookCallback(connection)}
+        <div className="im-bot-section" data-tone="danger">
+          <div className="im-bot-section-copy">
+            <strong>{t("ImSettingsPanel.botDeleteTitle")}</strong>
+            <p>{t("ImSettingsPanel.botDeleteDesc")}</p>
+          </div>
+          <div className="im-bot-section-actions">
+            <ImConnectionRemoval
+              key={`${activeSettings.deviceId}:${connection.id}`}
+              name={connection.name}
+              local={local}
+              busy={busy}
+              error={messageError ? message : undefined}
+              t={t}
+              remove={removeConnection(connection)}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
   function renderChannelBody() {
     const settings = activeSettings;
+    const selected =
+      channelConnections.find((c) => c.id === selectedBotId) ??
+      channelConnections[0];
     return (
-      <section id="im-bot" className="im-channel-body" tabIndex={-1}>
-        {/* 渠道名与连接状态已由上方 tab（信号灯 + 提亮）表达，主体直接
-            进入操作内容，不再重复标题/约束/状态行。 */}
-        {/* 飞书首选扫码接入（官方应用注册流程）；指引折叠块保持其下。 */}
-        {channel === "feishu" && (
-          <ImFeishuScan
-            t={t}
-            autoStart={channel === "feishu" && !channelConnections.length}
-            busy={busy}
-            disabled={!settings.deviceId}
-            /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
-               并弹开配对弹窗，用户复制指令去飞书私聊发送即可。 */
-            onConnected={(connectionId) => {
-              void run(async () => {
-                await refresh();
-                if (!connectionId) return;
-                try {
-                  await generatePairCode();
-                  setPairDialogId(connectionId);
-                } catch {
-                  // 配对码生成失败不打断：弹窗可从机器人行随时重开。
-                }
-              });
-            }}
-          />
-        )}
-        {/* 平台接入指引统一收进顶部折叠块：slack 恒显示，飞书/企微一致。 */}
-        <details className="im-setup-guide-top">
-          <summary>{t("ImSettingsPanel.message59")}</summary>
-          <div className="im-setup-guide-body">
-            {channel === "slack" ? (
-              <ImSlackSetup
-                t={t}
-                busy={busy}
-                copy={() =>
-                  void run(async () => {
-                    const { userName } = await window.artemis.getSnapshot();
-                    await navigator.clipboard.writeText(
-                      slackAppManifest(userName),
-                    );
-                    setMessage(t("ImSettingsPanel.message60"));
-                  })
-                }
-              />
-            ) : (
-              <ImPlatformSetup
-                channel={channel}
-                transport={feishuTransport}
-                domain={feishuDomain}
-                t={t}
-              />
-            )}
-          </div>
-        </details>
-        {!settings.deviceId && (
-          <InlineNotice tone="info">
-            <p>{t("ImSettingsPanel.message61")}</p>
-            <Button onClick={() => navigateStep("im-prepare")}>
-              {t("ImSettingsPanel.message62")}
-            </Button>
-          </InlineNotice>
-        )}
-        {channel === "feishu" && (
-          <ImLegacyImport
-            key={settings.deviceId}
-            local={local}
-            busy={busy}
-            ready={!!settings.deviceId}
-            run={run}
-            t={t}
-            imported={async () => {
-              await refresh();
-              setMessage(t("ImSettingsPanel.message63"));
-            }}
-          />
-        )}
-        <div className="im-block im-bots">
-          <div className="im-block-header">
-            <h4>{t("ImSettingsPanel.message64")}</h4>
-            {/* 标题行尾的「机器人+加号」新建入口（ui Button 契约要求
-                  可见文字，纯图标动作用原生按钮 + aria-label）。 */}
-            <Tooltip label={t("ImSettingsPanel.message65")} align="end">
+      <section
+        id="im-bot"
+        className="im-channel-body im-channel-md"
+        tabIndex={-1}
+      >
+        {/* ZCode 式主从：左栏 = 新建入口 + 机器人卡 + 设置行（指引/导入/
+            验证）；右栏随选中切换，默认落在首个机器人详情。 */}
+        <div className="im-bot-nav">
+          <button
+            type="button"
+            className="im-bot-new"
+            disabled={busy}
+            aria-label={t("ImSettingsPanel.message65")}
+            onClick={(event) => openBlankBotDialog(event.currentTarget)}
+          >
+            <ArtemisIcon
+              aria-hidden="true"
+              height={13}
+              name="bot-add"
+              width={13}
+            />
+            <span>{t("ImSettingsPanel.message65")}</span>
+          </button>
+          {channelConnections.map((connection) => {
+            const state = imAggregateConnectionStates([connection.state]);
+            return (
               <button
                 type="button"
-                className="im-icon-action"
-                disabled={busy}
-                aria-label={t("ImSettingsPanel.message65")}
-                onClick={(event) => {
-                  botDialogTrigger.current = event.currentTarget;
-                  setFields({});
-                  setAdminToken("");
-                  setBotDialog({});
+                key={connection.id}
+                className="im-bot-card"
+                data-selected={
+                  (channelPane === "bot" && selected?.id === connection.id) ||
+                  undefined
+                }
+                onClick={() => {
+                  setSelectedBotId(connection.id);
+                  setChannelPane("bot");
                 }}
               >
-                <ArtemisIcon height={13} name="bot-add" width={13} />
+                {channelLogo(channel, 20)}
+                <span className="im-bot-card-copy">
+                  <strong>{connection.name}</strong>
+                  <span className="im-bot-card-state">
+                    <span
+                      aria-hidden="true"
+                      className="im-dot"
+                      data-state={state}
+                    />
+                    {imConnectionLabel(state, t)}
+                  </span>
+                </span>
               </button>
-            </Tooltip>
-          </div>
-          {!channelConnections.length && (
-            <p>
-              {savedPending[channel]
-                ? t("ImSettingsPanel.message68")
-                : t("ImSettingsPanel.message67")}
-            </p>
+            );
+          })}
+          <div aria-hidden="true" className="im-bot-nav-divider" />
+          <button
+            type="button"
+            className="im-bot-nav-row"
+            data-selected={channelPane === "guide" || undefined}
+            onClick={() => setChannelPane("guide")}
+          >
+            <span>{t("ImSettingsPanel.message59")}</span>
+            <span aria-hidden="true" className="im-bot-nav-caret">
+              ›
+            </span>
+          </button>
+          {channel === "feishu" && (
+            <button
+              type="button"
+              className="im-bot-nav-row"
+              data-selected={channelPane === "import" || undefined}
+              onClick={() => setChannelPane("import")}
+            >
+              <span>{t("ImLegacyImport.message1")}</span>
+              <span aria-hidden="true" className="im-bot-nav-caret">
+                ›
+              </span>
+            </button>
           )}
-          {channelConnections.map((connection) => (
-            /* 机器人行：信号灯 + 名称 + 错误 + 行内动作
-                 （更换凭据 / 刷新状态 / 移除）。 */
-            <div className="im-connection" key={connection.id}>
-              <span
-                className="im-dot"
-                data-state={imAggregateConnectionStates([connection.state])}
-                aria-hidden="true"
-              />
-              <code>{connection.name}</code>
-              <ImBotIdTag id={connection.id} t={t} />
-              <div className="im-connection-actions">
-                <Tooltip label={t("ImSettingsPanel.message70")} align="end">
-                  <button
-                    type="button"
-                    className="im-icon-action"
-                    disabled={busy}
-                    aria-label={t("ImSettingsPanel.message69", {
-                      value1: connection.name,
-                    })}
-                    onClick={(event) => {
-                      botDialogTrigger.current = event.currentTarget;
-                      setFields(
-                        Object.fromEntries(
-                          PUBLIC_BOT_FIELDS.flatMap((key) =>
-                            typeof connection.configuration?.[key] === "string"
-                              ? [[key, connection.configuration[key]!]]
-                              : [],
-                          ),
-                        ),
-                      );
-                      setBotDialog({ connectionId: connection.id });
-                    }}
-                  >
-                    <ArtemisIcon height={13} name="edit" width={13} />
-                  </button>
-                </Tooltip>
-                <Tooltip label={t("ImSettingsPanel.message72")} align="end">
-                  <button
-                    type="button"
-                    className="im-icon-action"
-                    disabled={busy || !settings.deviceId}
-                    aria-label={t("ImSettingsPanel.message71", {
-                      value1: connection.name,
-                    })}
-                    onClick={() => void run(refresh)}
-                  >
-                    <ArtemisIcon height={13} name="refresh" width={13} />
-                  </button>
-                </Tooltip>
-                <Tooltip label={t("ImSettingsPanel.message74")} align="end">
-                  <button
-                    type="button"
-                    className="im-icon-action"
-                    disabled={busy || !settings.deviceId}
-                    aria-label={t("ImSettingsPanel.message73", {
-                      value1: connection.name,
-                    })}
-                    onClick={(event) => {
-                      pairDialogTrigger.current = event.currentTarget;
-                      setPairDialogId(connection.id);
-                      if (!pairCode || pairCode.expiresAt <= Date.now()) {
-                        void run(generatePairCode);
-                      }
-                    }}
-                  >
-                    <ArtemisIcon height={13} name="send" width={13} />
-                  </button>
-                </Tooltip>
-                <ImConnectionRemoval
-                  key={`${settings.deviceId}:${connection.id}`}
-                  name={connection.name}
-                  local={local}
-                  busy={busy}
-                  error={messageError ? message : undefined}
-                  t={t}
-                  remove={(token) =>
-                    run(async () => {
-                      const id = connection.id;
-                      await window.artemis.manageIm({
-                        action: "admin",
-                        operation: "remove-connection",
-                        ...(local ? {} : { adminToken: token }),
-                        configuration: { id },
-                      });
-                      setStatus((previous) =>
-                        previous
-                          ? {
-                              ...previous,
-                              connections: (
-                                previous.connections as ImConnectionStatus[]
-                              ).filter((c) => c.id !== id),
-                              identities: previous.identities.filter(
-                                (i) => i.connectionId !== id,
-                              ),
-                              pairingRequests: (
-                                previous.pairingRequests ?? []
-                              ).filter((r) => r.identity.connectionId !== id),
-                            }
-                          : previous,
-                      );
-                      setSavedMetadata((previous) => ({
-                        ...previous,
-                        [channel]: undefined,
-                      }));
-                      setConnectionId("");
-                      setFields({});
-                      setAdminToken("");
-                      setBotDialog(null);
-                      setPairCode(undefined);
-                      setFocusTarget("im-bot");
-                      setMessage(t("ImSettingsPanel.message75"));
-                      try {
-                        await refresh();
-                      } catch (error) {
-                        setRefreshError(String(error));
-                      }
-                    })
-                  }
-                />
-              </div>
-              {connection.error && (
-                <InlineNotice className="im-connection-error" tone="danger">
-                  {connection.error}
-                </InlineNotice>
-              )}
-              {/* 从属账号：属于这条连接的已绑定账号，缩进挂在行下。 */}
-              {connectionAccounts(connection.id)}
-            </div>
-          ))}
+          <button
+            type="button"
+            className="im-bot-nav-row"
+            data-selected={channelPane === "verify" || undefined}
+            onClick={() => setChannelPane("verify")}
+          >
+            <span>{verifyLabel}</span>
+            <span aria-hidden="true" className="im-bot-nav-caret">
+              ›
+            </span>
+          </button>
         </div>
+        <div className="im-bot-detail">
+          {!settings.deviceId && (
+            <InlineNotice tone="info">
+              <p>{t("ImSettingsPanel.message61")}</p>
+              <Button onClick={() => navigateStep("im-prepare")}>
+                {t("ImSettingsPanel.message62")}
+              </Button>
+            </InlineNotice>
+          )}
+          {channelPane === "guide" && (
+            <div className="im-bot-pane">{renderGuideBody()}</div>
+          )}
+          {channelPane === "import" && channel === "feishu" && (
+            <div className="im-bot-pane">{renderLegacyImport()}</div>
+          )}
+          {channelPane === "verify" && (
+            <div className="im-bot-pane" id="im-verify" tabIndex={-1}>
+              {renderVerifyBody()}
+            </div>
+          )}
+          {channelPane === "bot" &&
+            (selected ? renderBotProfile(selected) : renderJoinCard())}
+        </div>
+        {renderBotDialog()}
+        {renderPairDialog()}
+      </section>
+    );
+  }
+  function renderBotDialog() {
+    /* 新建/更换凭据弹窗：渠道字段 + 高级字段 +（远端）管理凭据。 */
+    return (
+      <>
         {botDialog && (
           <Dialog
             className="im-bot-dialog"
@@ -1153,7 +1356,7 @@ export function ImSettingsPanel({
                   disabled={
                     busy ||
                     (!local && !adminToken) ||
-                    !settings.deviceId ||
+                    !activeSettings.deviceId ||
                     (local &&
                       channel === "feishu" &&
                       feishuTransport === "webhook") ||
@@ -1269,39 +1472,18 @@ export function ImSettingsPanel({
             </div>
           </Dialog>
         )}
-        {channel === "feishu" &&
-          channelConnections.map((connection) =>
-            connection.configuration?.transport === "webhook" &&
-            connection.callbackUrl ? (
-              <div className="im-actions" key={`${connection.id}:callback`}>
-                <p className="im-identifier">
-                  {t("ImSettingsPanel.message98")}
-                  {connection.callbackUrl}
-                </p>
-                <Button
-                  variant="quiet"
-                  className="management-text-action"
-                  disabled={!settings.gatewayUrl}
-                  onClick={() =>
-                    void run(async () => {
-                      await navigator.clipboard.writeText(
-                        connection.callbackUrl!,
-                      );
-                      setMessage(t("ImSettingsPanel.message100"));
-                    })
-                  }
-                >
-                  {t("ImSettingsPanel.message99")}
-                </Button>
-              </div>
-            ) : null,
-          )}
+      </>
+    );
+  }
+  function renderPairDialog() {
+    return (
+      <>
         {pairDialogId && (
           <ImPairingCode
             t={t}
             pair={pairCode}
             slack={activePairingPlatform === "slack"}
-            busy={busy || !settings.deviceId}
+            busy={busy || !activeSettings.deviceId}
             generate={() => void run(generatePairCode)}
             onRefresh={() => void run(refresh)}
             returnFocusRef={pairDialogTrigger}
@@ -1343,7 +1525,7 @@ export function ImSettingsPanel({
             }
           />
         )}
-      </section>
+      </>
     );
   }
   function renderPermissionsBody() {
@@ -2098,7 +2280,6 @@ export function ImSettingsPanel({
    * ②尾「顺手验证」折叠段（可选端到端验证，不计入完成链）：开合由用户
    */
   function renderVerifySection() {
-    const deviceId = status?.settings.deviceId;
     return (
       <section id="im-verify" className="im-verify" tabIndex={-1}>
         <button
@@ -2116,58 +2297,60 @@ export function ImSettingsPanel({
             {verifyOpen ? "▾" : "▸"}
           </span>
         </button>
-        {verifyOpen && (
-          <div id="im-verify-body" className="im-verify-body">
-            <section id="im-test" tabIndex={-1}>
-              <ImFirstTaskInstructions
-                t={t}
-                slack={activePairingPlatform === "slack"}
-                copy={(text) => void navigator.clipboard.writeText(text)}
-              />
-            </section>
-            {/* D4 诚实版轨道：仅「桌面出现任务」由系统检测，完成与回复以用户确认为准。 */}
-            <ol
-              className="im-test-track"
-              aria-label={t("ImSettingsPanel.message174")}
-            >
-              <li data-state="guide">{t("ImSettingsPanel.message167")}</li>
-              <li data-state={taskDetected ? "done" : "pending"}>
-                {taskDetected
-                  ? t("ImSettingsPanel.message169")
-                  : t("ImSettingsPanel.message168")}
-              </li>
-              <li data-state={verify.confirmed ? "done" : "pending"}>
-                {verify.confirmed
-                  ? t("ImSettingsPanel.message171")
-                  : t("ImSettingsPanel.message170")}
-              </li>
-              <li data-state={verify.confirmed ? "done" : "pending"}>
-                {verify.confirmed
-                  ? t("ImSettingsPanel.message173")
-                  : t("ImSettingsPanel.message172")}
-              </li>
-            </ol>
-            <Checkbox
-              label={t("ImSettingsPanel.message175")}
-              checked={verify.confirmed}
-              disabled={busy || !deviceId}
-              onCheckedChange={(checked) => {
-                const next = {
-                  confirmed: checked,
-                  channel: checked ? activePairingPlatform : undefined,
-                };
-                imWriteVerify(deviceId, next);
-                setVerify(next);
-              }}
-            />
-            {channel !== "wecom" && (
-              <Button variant="quiet" onClick={() => selectView("spaces")}>
-                {t("ImSettingsPanel.message176")}
-              </Button>
-            )}
-          </div>
-        )}
+        {verifyOpen && renderVerifyBody()}
       </section>
+    );
+  }
+  /* 验证内容体：二级渠道面板的「验证」页与（遗留）折叠段共用。 */
+  function renderVerifyBody() {
+    const deviceId = status?.settings.deviceId;
+    return (
+      <div id="im-verify-body" className="im-verify-body">
+        <section id="im-test" tabIndex={-1}>
+          <ImFirstTaskInstructions
+            t={t}
+            slack={activePairingPlatform === "slack"}
+            copy={(text) => void navigator.clipboard.writeText(text)}
+          />
+        </section>
+        {/* D4 诚实版轨道：仅「桌面出现任务」由系统检测，完成与回复以用户确认为准。 */}
+        <ol className="im-test-track" aria-label={t("ImSettingsPanel.message174")}>
+          <li data-state="guide">{t("ImSettingsPanel.message167")}</li>
+          <li data-state={taskDetected ? "done" : "pending"}>
+            {taskDetected
+              ? t("ImSettingsPanel.message169")
+              : t("ImSettingsPanel.message168")}
+          </li>
+          <li data-state={verify.confirmed ? "done" : "pending"}>
+            {verify.confirmed
+              ? t("ImSettingsPanel.message171")
+              : t("ImSettingsPanel.message170")}
+          </li>
+          <li data-state={verify.confirmed ? "done" : "pending"}>
+            {verify.confirmed
+              ? t("ImSettingsPanel.message173")
+              : t("ImSettingsPanel.message172")}
+          </li>
+        </ol>
+        <Checkbox
+          label={t("ImSettingsPanel.message175")}
+          checked={verify.confirmed}
+          disabled={busy || !deviceId}
+          onCheckedChange={(checked) => {
+            const next = {
+              confirmed: checked,
+              channel: checked ? activePairingPlatform : undefined,
+            };
+            imWriteVerify(deviceId, next);
+            setVerify(next);
+          }}
+        />
+        {channel !== "wecom" && (
+          <Button variant="quiet" onClick={() => selectView("spaces")}>
+            {t("ImSettingsPanel.message176")}
+          </Button>
+        )}
+      </div>
     );
   }
 
@@ -2206,34 +2389,11 @@ export function ImSettingsPanel({
             setChannelDetail(true);
             setGroupDetail(false);
             setProjectsDetail(false);
+            setChannelPane("bot");
+            setSelectedBotId("");
           }}
         >
-          {platform === "feishu" ? (
-            <img
-              alt=""
-              aria-hidden="true"
-              className="im-channel-logo"
-              height={20}
-              src={feishuChannelIcon}
-              width={20}
-            />
-          ) : platform === "slack" ? (
-            <img
-              alt=""
-              aria-hidden="true"
-              className="im-channel-logo"
-              height={20}
-              src={slackChannelIcon}
-              width={20}
-            />
-          ) : (
-            <ArtemisIcon
-              aria-hidden="true"
-              name={platform}
-              width={20}
-              height={20}
-            />
-          )}
+          {channelLogo(platform, 20)}
           <span className="im-channel-row-copy">
             <strong>{imChannelLabel(platform, t)}</strong>
             <span className="im-channel-row-summary">
@@ -2294,10 +2454,7 @@ export function ImSettingsPanel({
             </Button>
             <strong>{imChannelLabel(channel, t)}</strong>
           </div>
-          <div className="im-screen-detail-body">
-            {renderChannelBody()}
-            {renderVerifySection()}
-          </div>
+          <div className="im-screen-detail-body">{renderChannelBody()}</div>
         </section>
       );
     }

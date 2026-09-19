@@ -9703,8 +9703,7 @@ kbd {
   width: 16px;
 }
 
-.automation-time-clock,
-.im-bots > [data-artemis-component="button"] {
+.automation-time-clock {
   justify-self: start;
 }
 
@@ -9941,8 +9940,7 @@ kbd {
 }
 
 .im-actions,
-.im-identity,
-.im-block-header {
+.im-identity {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -10571,6 +10569,204 @@ kbd {
   /* 表单/文案在整幅卡里限宽，避免输入框被拉满整行。 */
   max-inline-size: 680px;
 }
+.im-screen-detail-body > .im-channel-md {
+  /* 渠道二级面板主从布局占满整幅，不参与表单限宽。 */
+  max-inline-size: none;
+}
+/* 渠道二级面板（ZCode 式主从）：左 208px 导航（新建入口 + 机器人卡 +
+   设置行），右栏随选中切换机器人详情 / 指引 / 导入 / 验证。 */
+.im-channel-body.im-channel-md {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.im-bot-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.im-bot-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-new:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-bot-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-card:hover,
+.im-bot-card[data-selected] {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.im-bot-card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.im-bot-card-copy strong {
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-bot-card-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-bot-nav-divider {
+  block-size: 1px;
+  margin: 2px 0;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.im-bot-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-nav-row:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-bot-nav-row[data-selected] {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  color: var(--text);
+}
+.im-bot-nav-caret {
+  font-size: 12px;
+}
+.im-bot-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.im-bot-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-bot-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.im-bot-profile-head strong {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-bot-profile-head .im-icon-action {
+  margin-inline-start: auto;
+  flex: none;
+}
+.im-bot-profile-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-bot-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.im-bot-section-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.im-bot-section-copy strong {
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-section-copy p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-bot-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.im-bot-join {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.im-bot-join > strong {
+  font-size: 13px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-join > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-bot-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 /* 服务内容区：信息区+两个折叠卡 section，纵向 10px 节奏与右栏卡列一致；
    折叠卡展开超高时在区内滚动（从设备编号行起），卡片边框始终封顶。 */
 .im-service-body {
@@ -10753,43 +10949,6 @@ kbd {
 .im-perm-guide-body p:last-child {
   margin-bottom: 6px;
 }
-/* 渠道顶部接入指引：标题条无边框；边框圆角加在展开后的内容容器上。
-   summary 选择器带 .im-settings/details 前缀，压过全局 details summary
-   的 12px 纵向内边距。 */
-.im-settings details.im-setup-guide-top > summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--text);
-  cursor: pointer;
-  list-style: none;
-}
-.im-setup-guide-top summary::-webkit-details-marker {
-  display: none;
-}
-.im-setup-guide-top summary::after {
-  content: "▾";
-  color: var(--muted);
-  font-size: 13px;
-}
-.im-setup-guide-top:not([open]) summary::after {
-  content: "▸";
-}
-.im-setup-guide-top summary:hover {
-  color: var(--accent);
-}
-.im-setup-guide-top[open] summary {
-  margin-bottom: 4px;
-}
-/* 展开后的指引内容：圆角全边框容器。 */
-.im-setup-guide-top[open] .im-setup-guide-body {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--artemis-radius-control, 8px);
-  padding: 10px;
-}
 /* 飞书扫码接入块：说明居左、操作钮居右；扫码中二维码恒为白底（对比度）。 */
 .im-scan {
   display: flex;
@@ -10827,43 +10986,9 @@ kbd {
   text-transform: uppercase;
   color: var(--muted-2, var(--muted));
 }
-.im-connection .im-icon-action {
-  flex: none;
-}
-.im-connection-actions {
-  display: flex;
-  flex: none;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 6px;
-  margin-inline-start: auto;
-}
-.im-connection-error {
-  flex-basis: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
 .im-icon-action:focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);
   outline-offset: 1px;
-}
-/* 行内动作组（更换凭据/刷新/配对码）推到行尾，移除按钮跟随其后；
-   hover 不上底色，仅提亮（移除按钮保持 danger 红的警示语义）。 */
-.im-connection > .im-bot-id {
-  margin-inline-end: auto;
-}
-.im-connection .im-icon-action:hover {
-  color: var(--text);
-}
-/* 从属账号子列表：整行换行、缩进对齐机器人名称。 */
-.im-connection > .im-accounts {
-  flex-basis: 100%;
-  padding-inline-start: 14px;
-  margin-block-start: 3px;
-  gap: 5px;
-}
-.im-connection > .im-accounts .im-identity {
-  padding-block: 2px;
 }
 /* 连接 ID 浮窗：bot 名称后的信息图标，点开展示完整 ID + 复制。 */
 .im-bot-id {
@@ -10899,22 +11024,8 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
-.im-block {
-  padding-block: 12px;
-  border-block: 1px solid var(--border-soft);
-}
 .im-settings h4 {
   margin-block: 0 8px;
-}
-.im-bots {
-  display: grid;
-  gap: 12px;
-}
-.im-connection {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
 }
 .im-accounts {
   display: grid;
@@ -12513,27 +12624,6 @@ kbd {
 .im-dot[data-state="connected"] {
   box-shadow: 0 0 0 3px var(--artemis-color-status-success-subtle);
 }
-.im-block {
-  border: 0;
-  padding-block: 8px;
-}
-.im-bots {
-  gap: 6px;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-}
-/* 带从属账号的条目与下一条目之间拉开少量分组间隔。 */
-.im-bots .im-connection:has(> .im-accounts:not(:empty)) {
-  margin-block-end: 4px;
-}
-/* 「机器人列表」标题行：新建入口推到行尾。 */
-.im-bots .im-block-header h4 {
-  margin-inline-end: auto;
-}
-.im-bots .im-block-header .im-icon-action svg {
-  width: 20px;
-  height: 20px;
-}
 /* 凭据弹窗：表单纵向节奏与渠道内容区一致。 */
 .im-bot-dialog-body {
   display: grid;
@@ -12626,7 +12716,6 @@ kbd {
 .im-advanced-fields {
   margin-block: 4px;
 }
-.im-connection,
 .im-account-copy {
   font-size: 12px;
 }
@@ -12635,10 +12724,6 @@ kbd {
   margin: 4px 0;
 }
 /* 机器人名称：纯文本（无背板）；指令码保留背板。 */
-.im-connection code {
-  color: var(--text);
-  font-size: 12px;
-}
 .im-account-copy code {
   border: 1px solid var(--border-soft);
   border-radius: 6px;
@@ -12659,9 +12744,6 @@ kbd {
 }
 .im-channel-body h4 {
   margin-block: 0;
-}
-.im-channel-body .im-block {
-  padding-block: 0;
 }
 .im-account-copy {
   display: flex;

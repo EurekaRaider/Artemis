@@ -431,7 +431,9 @@ describe("screenshot visual contracts", () => {
       width: "28px",
       height: "28px",
     });
-    expect(declarations(desktop, ".im-block").border).toBe("0");
+    expect(declarations(desktop, ".im-bot-card").border).toBe(
+      "1px solid var(--border)",
+    );
   });
   it("renders calls as a divided group with per-call status instead of individual outlined buttons", () => {
     expect(
