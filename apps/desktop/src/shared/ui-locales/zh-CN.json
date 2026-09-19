@@ -1403,6 +1403,7 @@
   "ImThreadConnection.inline4": "群协作电脑：所有成员离线",
   "ImThreadConnection.inline5": "群协作电脑：有成员在线",
   "ImThreadConnection.inline6": "群协作对话",
+  "ImThreadConnection.removedBadge": "机器人已移除",
   "MessageImageAttachment.inline1": "图片不可用，点击重试",
   "ResourceCenter.inline1": "Google 未授予此插件所需的全部权限。请在授权页面允许所有请求的权限后重试。",
   "ResourceCenter.inline2": "确认添加未签名商店 {{value1}}？未签名插件不能使用 Artemis 宿主凭据。",

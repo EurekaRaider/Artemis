@@ -1403,6 +1403,7 @@
   "ImThreadConnection.inline4": "أجهزة المجموعة: جميع الأعضاء غير متصلين",
   "ImThreadConnection.inline5": "أجهزة المجموعة: يوجد أعضاء متصلون",
   "ImThreadConnection.inline6": "محادثة تعاون جماعي",
+  "ImThreadConnection.removedBadge": "تمت إزالة البوت",
   "MessageImageAttachment.inline1": "الصورة غير متاحة؛ انقر لإعادة المحاولة",
   "ResourceCenter.inline1": "لم يمنح Google جميع الصلاحيات المطلوبة لهذه الإضافة. اسمح بكل الصلاحيات المطلوبة ثم حاول مجددًا.",
   "ResourceCenter.inline2": "إضافة المتجر غير الموقع {{value1}}؟ لا تستطيع الإضافات غير الموقعة استخدام بيانات اعتماد مضيف Artemis.",

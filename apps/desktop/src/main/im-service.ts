@@ -521,6 +521,8 @@ export class ImService {
   private identities: ImIdentity[] = [];
   private pairingRequests: NonNullable<ImStatus["pairingRequests"]> = [];
   private channelStatus: unknown[] = [];
+  /** Connection ids the gateway confirmed as removed (bot deleted). */
+  private removedConnections = new Set<string>();
   private readonly legacyImports = new Map<
     string,
     {
@@ -998,6 +1000,11 @@ export class ImService {
       );
     }) as Record<string, unknown> | undefined;
     if (connection?.state === "disabled") return "disabled";
+    if (
+      !connection &&
+      this.removedConnections.has(binding.request.conversation.connectionId)
+    )
+      return "removed";
     if (this.state !== "connected") return this.state;
     if (this.leaseUntil <= Date.now()) return "unknown";
     switch (connection?.state) {
@@ -1741,6 +1748,7 @@ export class ImService {
       this.identities = [];
       this.pairingRequests = [];
       this.channelStatus = [];
+      this.removedConnections.clear();
       this.spaces = [];
       return this.status();
     }
@@ -4374,6 +4382,13 @@ export class ImService {
     this.pairingRequests = z
       .array(imPairingRequestSchema)
       .parse(status.pairingRequests ?? []);
+    this.removedConnections = new Set(
+      Array.isArray(status.removedConnections)
+        ? (status.removedConnections as unknown[]).filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [],
+    );
     this.channelStatus = Array.isArray(status.connections)
       ? status.connections.map((connection: Record<string, unknown>) => ({
           ...connection,

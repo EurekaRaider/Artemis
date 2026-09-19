@@ -15,7 +15,7 @@ type ThreadConnection = {
   >[number]["delegationWaits"];
   parentThreadId?: string;
   channel?: string;
-  connectionState: ImConnectionStatus["state"] | "unknown";
+  connectionState: ImConnectionStatus["state"] | "unknown" | "removed";
   group?: ImGroupContext;
 };
 const unknownConnection: ThreadConnection = { connectionState: "unknown" };
@@ -135,6 +135,7 @@ export function ImThreadConnection({
       locale,
       "CustomAgentsSettingsSection_labels.disabledBadge",
     ),
+    removed: uiText(locale, "ImThreadConnection.removedBadge"),
     unknown: uiText(locale, "ImGroupMembers.message6"),
   }[state];
   const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
@@ -184,7 +185,7 @@ export function ImThreadConnection({
               ? "alert"
               : state === "connecting"
                 ? "clock"
-                : state === "disabled"
+                : state === "disabled" || state === "removed"
                   ? "unlink"
                   : state === "unknown"
                     ? "info"

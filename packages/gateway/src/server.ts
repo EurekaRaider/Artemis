@@ -849,6 +849,9 @@ export class ArtemisGateway {
     if (url.pathname === "/v1/device/status" && request.method === "GET") {
       respond(response, 200, {
         securityVersion: IM_SECURITY_VERSION,
+        removedConnections: this.store
+          .list<{ id: string }>("removed-connections")
+          .map((entry) => entry.id),
         identities: this.store
           .list<{ deviceId: string; identity: ImIdentity }>("identities")
           .filter((b) => b.deviceId === deviceId)

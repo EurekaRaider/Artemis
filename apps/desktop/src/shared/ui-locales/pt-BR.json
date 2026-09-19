@@ -1403,6 +1403,7 @@
   "ImThreadConnection.inline4": "Computadores do grupo: todos os membros offline",
   "ImThreadConnection.inline5": "Computadores do grupo: há membros online",
   "ImThreadConnection.inline6": "Conversa de colaboração em grupo",
+  "ImThreadConnection.removedBadge": "Bot removido",
   "MessageImageAttachment.inline1": "Imagem indisponível; clique para tentar novamente",
   "ResourceCenter.inline1": "O Google não concedeu todas as permissões exigidas por este plugin. Permita todas as permissões solicitadas e tente novamente.",
   "ResourceCenter.inline2": "Adicionar loja não assinada {{value1}}? Plugins não assinados não podem usar as credenciais do host Artemis.",

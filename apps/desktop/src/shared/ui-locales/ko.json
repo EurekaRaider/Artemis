@@ -1403,6 +1403,7 @@
   "ImThreadConnection.inline4": "그룹 컴퓨터: 모든 구성원 오프라인",
   "ImThreadConnection.inline5": "그룹 컴퓨터: 온라인 구성원 있음",
   "ImThreadConnection.inline6": "그룹 협업 대화",
+  "ImThreadConnection.removedBadge": "봇 제거됨",
   "MessageImageAttachment.inline1": "이미지 사용 불가 · 클릭하여 재시도",
   "ResourceCenter.inline1": "Google이 이 플러그인에 필요한 모든 권한을 부여하지 않았습니다. 요청한 모든 권한을 허용한 후 다시 시도하세요.",
   "ResourceCenter.inline2": "서명되지 않은 마켓플레이스 {{value1}}을 추가할까요? 서명되지 않은 플러그인은 Artemis 호스트 자격 증명을 사용할 수 없습니다.",

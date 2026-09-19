@@ -307,7 +307,7 @@ export interface ImStatus {
     channel: string;
     kind: string;
     /** Effective Artemis-to-IM connection, not the user's client presence. */
-    connectionState?: ImConnectionStatus["state"] | "unknown";
+    connectionState?: ImConnectionStatus["state"] | "unknown" | "removed";
     devicePresence?: ImDevicePresence;
     group?: ImGroupContext;
   }>;

@@ -1403,6 +1403,7 @@
   "ImThreadConnection.inline4": "Ordinateurs du groupe : tous hors ligne",
   "ImThreadConnection.inline5": "Ordinateurs du groupe : membres en ligne",
   "ImThreadConnection.inline6": "Conversation de collaboration du groupe",
+  "ImThreadConnection.removedBadge": "Bot supprimé",
   "MessageImageAttachment.inline1": "Image indisponible ; cliquez pour réessayer",
   "ResourceCenter.inline1": "Google n’a pas accordé toutes les permissions du plugin. Autorisez toutes les permissions demandées puis réessayez.",
   "ResourceCenter.inline2": "Ajouter le catalogue non signé {{value1}} ? Les plugins non signés ne peuvent pas utiliser les identifiants de l’hôte Artemis.",
