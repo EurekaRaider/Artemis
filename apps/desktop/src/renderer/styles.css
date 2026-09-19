@@ -10530,29 +10530,30 @@ kbd {
   background: color-mix(in srgb, var(--text) 8.5%, transparent);
   border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
-/* IM 二级详情弹窗共享壳：头部=标题+关闭钮，内容区超高时内部滚动。
-   表单类（团队 Gateway 手动注册/「高级」）560px；渠道主从布局 896px
-   对齐 ZCode 弹窗标准（max-w-4xl）。 */
+/* IM 二级详情弹窗共享壳：头部=标题+关闭钮（无分隔线，与内容连成一体），
+   内容区超高时内部滚动。表单类（团队 Gateway 手动注册/「高级」）560px；
+   渠道主从布局 896px 对齐 ZCode 弹窗标准（max-w-4xl）。 */
 .im-detail-dialog {
   display: flex;
   flex-direction: column;
   width: min(560px, 94vw);
   max-width: calc(100vw - 32px);
-  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+  max-block-size: min(820px, 88dvh, calc(100dvh - 40px));
   overflow: hidden;
   padding: 0;
   --border-soft: var(--artemis-color-border-subtle);
 }
 .im-detail-dialog.im-channel-dialog {
   width: min(896px, 94vw);
+  /* 弹窗高度放大：内容不足时也保持饱满高度，右栏背板卡随之撑满。 */
+  min-block-size: min(680px, 88dvh);
 }
 .im-detail-dialog-head {
   display: flex;
   align-items: center;
   gap: 10px;
   flex: none;
-  padding: 14px 18px 12px;
-  border-block-end: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  padding: 16px 18px 10px;
 }
 .im-detail-dialog-head h2 {
   margin: 0;
@@ -10596,13 +10597,22 @@ kbd {
   /* 主从布局占满弹窗整幅，不参与表单限宽。 */
   max-inline-size: none;
 }
-/* 渠道二级面板（ZCode 式主从）：左 208px 导航（新建入口 + 机器人卡 +
-   设置行），右栏随选中切换机器人详情 / 指引 / 导入 / 验证。 */
+.im-channel-dialog .im-detail-dialog-body {
+  /* 渠道弹窗：单一主从区撑满 body 高度，右栏背板卡随之纵向填满。 */
+  display: flex;
+  flex-direction: column;
+}
+.im-channel-dialog .im-detail-dialog-body > .im-channel-md {
+  flex: 1 1 auto;
+}
+/* 渠道二级面板（ZCode 式主从）：左 264px 导航（新建入口 + 机器人卡 +
+   设置行），右栏背板卡随选中切换机器人详情 / 指引 / 导入 / 验证，
+   纵向撑满弹窗（≈3:7 宽度比）。 */
 .im-channel-body.im-channel-md {
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
+  grid-template-columns: 264px minmax(0, 1fr);
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 .im-bot-nav {
   display: flex;
@@ -10680,9 +10690,9 @@ kbd {
   justify-content: space-between;
   gap: 8px;
   inline-size: 100%;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -10695,16 +10705,23 @@ kbd {
 }
 .im-bot-nav-row[data-selected] {
   background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
   color: var(--text);
 }
 .im-bot-nav-caret {
   font-size: 12px;
 }
+/* 右栏背板卡（ZCode 式）：比弹窗背板浅一档的整幅卡片，包住详情/
+   指引/导入/验证所有右栏内容，纵向撑满。 */
 .im-bot-detail {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
 }
 .im-bot-profile {
   display: flex;
@@ -10744,6 +10761,8 @@ kbd {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
+  /* 背板卡上的嵌套卡：再浅一档，层次同 ZCode 截图。 */
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 .im-bot-section-copy {
   display: flex;
@@ -10785,6 +10804,7 @@ kbd {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 .im-bot-join > strong {
   font-size: 13px;
