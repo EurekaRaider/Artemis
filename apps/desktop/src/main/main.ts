@@ -12924,10 +12924,26 @@ async function driveSmokeFormControlsEvidence(
   )`);
 }
 
+async function ensureSmokeWindowFocus(window: BrowserWindow): Promise<void> {
+  const contents = window.webContents;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await contents.executeJavaScript("document.hasFocus()")) {
+      await contents.executeJavaScript(`new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+      return;
+    }
+    if (process.platform === "darwin") app.focus({ steal: true });
+    window.focus();
+    contents.focus();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Navigation smoke window could not acquire native focus.");
+}
+
 async function driveSmokeNavigationControlsEvidence(
   window: BrowserWindow,
   view: string | undefined,
-): Promise<void> {
+): Promise<boolean> {
   const targets = {
     "navigation-token-usage": {
       activation: "ArrowRight",
@@ -12954,7 +12970,7 @@ async function driveSmokeNavigationControlsEvidence(
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
-  if (!target) return;
+  if (!target) return false;
 
   const contents = window.webContents;
   const wait = (milliseconds: number) =>
@@ -12983,23 +12999,9 @@ async function driveSmokeNavigationControlsEvidence(
     });
   };
 
-  if (process.platform === "darwin") app.focus({ steal: true });
-  window.focus();
-  contents.focus();
   // macOS activation is asynchronous; CDP can otherwise deliver to a DOM
   // target while its native window is inactive, invalidating keyboard evidence.
-  let documentFocused = false;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    documentFocused = await evaluate<boolean>("document.hasFocus()");
-    if (documentFocused) break;
-    if (process.platform === "darwin") app.focus({ steal: true });
-    window.focus();
-    contents.focus();
-    await wait(50);
-  }
-  if (!documentFocused) {
-    throw new Error("Navigation smoke window could not acquire native focus.");
-  }
+  await ensureSmokeWindowFocus(window);
   let focused = false;
   for (let presses = 0; presses < 300; presses += 1) {
     focused = await evaluate<boolean>(
@@ -13088,6 +13090,7 @@ async function driveSmokeNavigationControlsEvidence(
       `Navigation control Space activation did not emit exactly one click for ${view}: ${JSON.stringify(interaction)}.`,
     );
   }
+  return true;
 }
 
 async function driveSmokeWorkspaceDockEvidence(
@@ -18532,12 +18535,14 @@ function createMainWindow(): BrowserWindow {
           ) {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
+          let navigationFocusEvidence = false;
           if (smokeMode) {
             await driveSmokeFormControlsEvidence(window, requestedSmokeView);
-            await driveSmokeNavigationControlsEvidence(
-              window,
-              requestedSmokeView,
-            );
+            navigationFocusEvidence =
+              await driveSmokeNavigationControlsEvidence(
+                window,
+                requestedSmokeView,
+              );
             await driveSmokeWorkspaceDockEvidence(window, requestedSmokeView);
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
@@ -18548,6 +18553,10 @@ function createMainWindow(): BrowserWindow {
             smokeScreenshot &&
             requestedSmokeView !== "user-input-transport"
           ) {
+            // Native focus can be lost after keyboard activation while another
+            // desktop app is active. Reacquire it before recording evidence;
+            // keep the actual Tab/Space result and the focus assertions intact.
+            if (navigationFocusEvidence) await ensureSmokeWindowFocus(window);
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
           }
@@ -18662,6 +18671,7 @@ function createMainWindow(): BrowserWindow {
             await new Promise((resolve) => setTimeout(resolve, 25));
           }
           if (smokeAccessibility) {
+            if (navigationFocusEvidence) await ensureSmokeWindowFocus(window);
             const result = (await window.webContents.executeJavaScript(`
               (() => {
                 const issues = [];
