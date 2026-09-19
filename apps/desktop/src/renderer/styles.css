@@ -12430,6 +12430,7 @@ kbd {
 
 .plugin-market-card-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -12445,6 +12446,20 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.plugin-market-card-footer > .plugin-market-source {
+  flex: 1 1 120px;
+  min-inline-size: min(120px, 100%);
+  max-inline-size: 100%;
+}
+
+.plugin-market-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
 }
 
 .plugin-market-card-footer [data-artemis-component="button"] {

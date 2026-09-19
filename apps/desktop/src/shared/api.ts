@@ -1,3 +1,4 @@
+import type { PluginLocalizations } from "./plugin-localization.js";
 import type {
   ConnectorDefinition,
   ConnectorCatalogEntry,
@@ -647,6 +648,7 @@ export interface CodexPluginAppPreview {
 }
 
 export interface CodexPluginPreview {
+  localizations?: PluginLocalizations;
   id: string;
   name: string;
   displayName: string;

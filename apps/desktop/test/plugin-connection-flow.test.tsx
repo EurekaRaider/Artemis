@@ -2,6 +2,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+import { APP_LOCALES } from "@artemis/protocol";
 import { ResourceCenter } from "../src/renderer/ResourceCenter.js";
 import { PluginConnectionDialog } from "../src/renderer/PluginConnectionDialog.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
@@ -245,4 +246,44 @@ it("guides QQ setup and removes formatting spaces from a pasted authorization co
     appPassword: "abcdefghijklmnop",
   });
   expect(screen.getByLabelText("授权码")).toHaveValue("");
+});
+
+it("updates an open connection dialog for every Artemis locale without reconnecting or losing input", async () => {
+  const user = userEvent.setup();
+  const listDefinitions = vi.fn(async () => [definition]);
+  const connect = vi.fn();
+  const cancel = vi.fn();
+  stubWindowArtemis({
+    listConnectorDefinitions: listDefinitions,
+    listConnectorConnections: async () => [],
+    connectConnector: connect,
+    cancelConnectorAuthorization: cancel,
+  });
+  const localized = {
+    ...installed,
+    localizations: Object.fromEntries(
+      APP_LOCALES.map((locale) => [
+        locale,
+        { displayName: `QQ ${locale}`, description: `Mail ${locale}` },
+      ]),
+    ),
+  };
+  const props = {
+    plugin: localized,
+    closeLabel: "Close",
+    onClose: () => {},
+    onChanged: async () => {},
+  };
+  const view = render(<PluginConnectionDialog {...props} locale="en" />);
+  const email = await screen.findByLabelText("Email");
+  await user.type(email, "demo@qq.com");
+  for (const locale of APP_LOCALES) {
+    view.rerender(<PluginConnectionDialog {...props} locale={locale} />);
+    expect(screen.getByRole("dialog", { name: `QQ ${locale}` })).toBeVisible();
+    expect(screen.getAllByText(`QQ ${locale}`)).toHaveLength(2);
+    expect(email).toHaveValue("demo@qq.com");
+  }
+  expect(listDefinitions).toHaveBeenCalledOnce();
+  expect(connect).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
 });

@@ -1,4 +1,8 @@
 import {
+  parsePluginLocalizations,
+  type PluginLocalizations,
+} from "../shared/plugin-localization.js";
+import {
   validateConnectorDefinition,
   assertConnectorTransport,
   type ConnectorDefinition,
@@ -119,6 +123,7 @@ interface ParsedMcpServer {
 }
 
 interface ParsedPlugin {
+  localizations?: PluginLocalizations;
   root: string;
   id: string;
   name: string;
@@ -150,6 +155,7 @@ interface StoredMcpServer {
 }
 
 interface StoredPlugin {
+  localizations?: PluginLocalizations;
   id: string;
   name: string;
   displayName: string;
@@ -1513,6 +1519,7 @@ function validateStoredPlugin(value: unknown): StoredPlugin {
   const version = text(input.version);
   const description =
     typeof input.description === "string" ? input.description : "";
+  const localizations = parsePluginLocalizations(input.localizations);
   const shortDescription = text(input.shortDescription);
   const category = text(input.category);
   const brandColor = text(input.brandColor);
@@ -1576,6 +1583,7 @@ function validateStoredPlugin(value: unknown): StoredPlugin {
     version,
     description,
     ...(shortDescription ? { shortDescription } : {}),
+    ...(localizations ? { localizations } : {}),
     ...(category ? { category } : {}),
     ...(brandColor ? { brandColor } : {}),
     ...(iconDataUrl ? { iconDataUrl } : {}),
@@ -2854,6 +2862,7 @@ export class CodexPluginService {
     if (!name || !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(name)) {
       throw new Error("Plugin manifest name is invalid.");
     }
+    const localizations = parsePluginLocalizations(manifest.localizations);
     const interfaceValue = record(manifest?.interface);
     const displayName =
       text(interfaceValue?.displayName) ??
@@ -2999,6 +3008,7 @@ export class CodexPluginService {
       version,
       description,
       ...(shortDescription ? { shortDescription } : {}),
+      ...(localizations ? { localizations } : {}),
       ...(category ? { category } : {}),
       ...(brandColor ? { brandColor } : {}),
       ...(iconDataUrl ? { iconDataUrl } : {}),
@@ -3022,6 +3032,9 @@ export class CodexPluginService {
       displayName: parsed.displayName,
       version: parsed.version,
       description: parsed.description,
+      ...(parsed.localizations
+        ? { localizations: structuredClone(parsed.localizations) }
+        : {}),
       ...(parsed.shortDescription
         ? { shortDescription: parsed.shortDescription }
         : {}),
@@ -3069,6 +3082,9 @@ export class CodexPluginService {
       displayName: plugin.displayName,
       version: plugin.version,
       description: plugin.description,
+      ...(plugin.localizations
+        ? { localizations: structuredClone(plugin.localizations) }
+        : {}),
       ...(plugin.shortDescription
         ? { shortDescription: plugin.shortDescription }
         : {}),
@@ -3374,6 +3390,9 @@ export class CodexPluginService {
       displayName: parsed.displayName,
       version: parsed.version,
       description: parsed.description,
+      ...(parsed.localizations
+        ? { localizations: structuredClone(parsed.localizations) }
+        : {}),
       ...(parsed.shortDescription
         ? { shortDescription: parsed.shortDescription }
         : {}),

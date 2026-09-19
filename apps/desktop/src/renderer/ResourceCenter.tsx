@@ -1,4 +1,8 @@
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
+import {
+  localizedPluginText,
+  localizedPluginCategory,
+} from "../shared/plugin-localization.js";
 import { bundledPluginDescription } from "../shared/bundled-plugin-copy.js";
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
@@ -865,15 +869,12 @@ export function ResourceCenter({
     if (
       !plugin.installable ||
       !(await onConfirm(details, "default", {
-        title: pluginPageText(plugin.displayName),
+        title: pluginDisplayName(plugin),
         acceptLabel: t.install,
       }))
     )
       return;
-    const operationId = beginInstallation(
-      "plugin",
-      pluginPageText(plugin.displayName),
-    );
+    const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
@@ -921,10 +922,7 @@ export function ResourceCenter({
 
   async function updatePlugin(plugin: InstalledCodexPlugin) {
     if (!(await onConfirm(t.confirmUpdatePlugin))) return;
-    const operationId = beginInstallation(
-      "plugin",
-      pluginPageText(plugin.displayName),
-    );
+    const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
@@ -1271,10 +1269,18 @@ export function ResourceCenter({
       return (
         !marketplaceFilter ||
         plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
+        pluginDisplayName(plugin).toLowerCase().includes(marketplaceFilter) ||
         plugin.name.toLowerCase().includes(marketplaceFilter) ||
+        localizedPluginText(plugin, locale)
+          .description?.toLowerCase()
+          .includes(marketplaceFilter) ||
         plugin.description.toLowerCase().includes(marketplaceFilter) ||
         pluginDescription(plugin).toLowerCase().includes(marketplaceFilter) ||
-        plugin.category?.toLowerCase().includes(marketplaceFilter)
+        plugin.category?.toLowerCase().includes(marketplaceFilter) ||
+        (plugin.category &&
+          localizedPluginCategory(plugin.category, locale)
+            .toLowerCase()
+            .includes(marketplaceFilter))
       );
     });
   const selectedMarketplacePlugins = matchingMarketplacePlugins(
@@ -1370,6 +1376,9 @@ export function ResourceCenter({
       plugin.name,
       plugin.shortDescription,
       plugin.description,
+      pluginDisplayName(plugin),
+      pluginDescription(plugin),
+      localizedPluginText(plugin, locale).description,
       pluginMarketplaceLabel(plugin),
     ),
   );
@@ -1417,7 +1426,7 @@ export function ResourceCenter({
       const visual = visualForPlugin(plugin);
       return {
         id: `plugin:${plugin.id}`,
-        name: pluginPageText(plugin.displayName),
+        name: pluginDisplayName(plugin),
         kind: "plugin" as const,
         description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
         enabled: pluginIsEnabled(plugin),
@@ -1577,13 +1586,24 @@ export function ResourceCenter({
         candidate.skillNames.includes(skill.name),
       );
       return `${t.skillConflict}: ${pluginPageText(skill.name)} · ${pluginPageText(
-        owner?.displayName ?? t.skills,
+        owner ? pluginDisplayName(owner) : t.skills,
       )}`;
     }
     return undefined;
   }
 
+  function pluginDisplayName(plugin: CodexPluginPreview): string {
+    return pluginPageText(localizedPluginText(plugin, locale).displayName);
+  }
+
   function pluginDescription(plugin: CodexPluginPreview): string {
+    const copy = localizedPluginText(plugin, locale);
+    const translated = plugin.localizations?.[locale];
+    if (translated?.shortDescription || translated?.description) {
+      return pluginPageText(
+        translated.shortDescription || translated.description!,
+      );
+    }
     if (plugin.source.kind === "bundled" || plugin.source.kind === "runtime") {
       const translated = bundledPluginDescription(
         locale,
@@ -1592,7 +1612,7 @@ export function ResourceCenter({
       if (translated) return translated;
     }
     return pluginPageText(
-      plugin.shortDescription || plugin.description || plugin.name,
+      copy.shortDescription || copy.description || plugin.name,
     );
   }
 
@@ -1627,7 +1647,7 @@ export function ResourceCenter({
       (candidate) => candidate.id === plugin.id,
     );
     const conflict = installed ? undefined : pluginSkillConflict(plugin);
-    const displayName = pluginPageText(plugin.displayName);
+    const displayName = pluginDisplayName(plugin);
     const description = pluginDescription(plugin);
     const source =
       plugin.source.kind === "bundled" || plugin.source.kind === "runtime"
@@ -1666,51 +1686,55 @@ export function ResourceCenter({
           <small className="plugin-market-source">
             {t.marketplaceSource}: {sourceLabel}
           </small>
-          {installed && installedPlugin ? (
-            <>
-              {pluginHasConnection(installedPlugin) && (
+          <div className="plugin-market-card-actions">
+            {installed && installedPlugin ? (
+              <>
+                {pluginHasConnection(installedPlugin) && (
+                  <Button
+                    variant="quiet"
+                    disabled={operationPending || busyId === plugin.id}
+                    onClick={() => setConnectionPlugin(installedPlugin)}
+                  >
+                    {t.configure}
+                  </Button>
+                )}
                 <Button
-                  variant="quiet"
+                  className="management-destructive-action"
+                  icon={<TrashIcon />}
                   disabled={operationPending || busyId === plugin.id}
-                  onClick={() => setConnectionPlugin(installedPlugin)}
+                  onClick={() =>
+                    runResourceOperation(() => removePlugin(installedPlugin))
+                  }
+                  variant="quiet"
                 >
-                  {t.configure}
+                  {t.remove}
                 </Button>
-              )}
+              </>
+            ) : (
               <Button
-                className="management-destructive-action"
-                icon={<TrashIcon />}
-                disabled={operationPending || busyId === plugin.id}
-                onClick={() =>
-                  runResourceOperation(() => removePlugin(installedPlugin))
+                className="resource-inline-action"
+                disabled={
+                  operationPending ||
+                  !plugin.installable ||
+                  Boolean(conflict) ||
+                  busyId === plugin.id ||
+                  installProgress !== undefined
                 }
-                variant="quiet"
+                onClick={() =>
+                  runResourceOperation(() => installPlugin(plugin))
+                }
+                title={
+                  diagnostic || (plugin.installable ? t.install : t.needsSetup)
+                }
               >
-                {t.remove}
+                {conflict
+                  ? t.skillConflict
+                  : plugin.installable
+                    ? t.install
+                    : t.needsSetup}
               </Button>
-            </>
-          ) : (
-            <Button
-              className="resource-inline-action"
-              disabled={
-                operationPending ||
-                !plugin.installable ||
-                Boolean(conflict) ||
-                busyId === plugin.id ||
-                installProgress !== undefined
-              }
-              onClick={() => runResourceOperation(() => installPlugin(plugin))}
-              title={
-                diagnostic || (plugin.installable ? t.install : t.needsSetup)
-              }
-            >
-              {conflict
-                ? t.skillConflict
-                : plugin.installable
-                  ? t.install
-                  : t.needsSetup}
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </ManagementCard>
     );
@@ -2096,7 +2120,9 @@ export function ResourceCenter({
                 <h2>
                   {marketplaceFilter
                     ? group.title
-                    : pluginPageText(group.title)}
+                    : pluginPageText(
+                        localizedPluginCategory(group.title, locale),
+                      )}
                 </h2>
                 <div className="plugin-market-grid">
                   {group.plugins.map((plugin) =>
@@ -2308,7 +2334,7 @@ export function ResourceCenter({
                         className="resource-icon-button"
                         disabled={operationPending || busyId === plugin.id}
                         icon={<RefreshIcon />}
-                        label={`${t.update} ${pluginPageText(plugin.displayName)}`}
+                        label={`${t.update} ${pluginDisplayName(plugin)}`}
                         onClick={() =>
                           runResourceOperation(() => updatePlugin(plugin))
                         }
@@ -2318,7 +2344,7 @@ export function ResourceCenter({
                         className="resource-icon-button management-destructive-action"
                         disabled={operationPending || busyId === plugin.id}
                         icon={<TrashIcon />}
-                        label={`${t.remove} ${pluginPageText(plugin.displayName)}`}
+                        label={`${t.remove} ${pluginDisplayName(plugin)}`}
                         onClick={() =>
                           runResourceOperation(() => removePlugin(plugin))
                         }
@@ -2363,10 +2389,10 @@ export function ResourceCenter({
                       brandColor={visual.brandColor}
                       iconDataUrl={visual.iconDataUrl}
                       kind="plugin"
-                      name={pluginPageText(plugin.displayName)}
+                      name={pluginDisplayName(plugin)}
                     />
                   }
-                  title={pluginPageText(plugin.displayName)}
+                  title={pluginDisplayName(plugin)}
                 />
               );
             })}
@@ -2632,7 +2658,7 @@ export function ResourceCenter({
                     </div>
                   }
                   className="resource-management-row"
-                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}`}
+                  description={`${owner ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}`}
                   key={server.config.id}
                   leading={
                     <ResourceAvatar
