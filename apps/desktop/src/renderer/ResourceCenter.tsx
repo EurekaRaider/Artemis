@@ -199,6 +199,9 @@ export function ResourceCenter({
   const [connectionPlugin, setConnectionPlugin] =
     useState<InstalledCodexPlugin>();
   const [managementTab, setManagementTab] = useState<ManagementTab>("plugins");
+  const [draggingMarketplaceId, setDraggingMarketplaceId] = useState<
+    string | undefined
+  >(undefined);
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
   const [managementQuery, setManagementQuery] = useState("");
   const [sourceInput, setSourceInput] = useState("");
@@ -547,20 +550,23 @@ export function ResourceCenter({
     }
   }
 
-  async function moveMarketplace(
+  async function reorderMarketplace(
     sourceId: string,
-    direction: -1 | 1,
+    destination: number,
   ): Promise<void> {
     const sourceIds = (marketplaceState?.sources ?? [])
       .filter((source) => !source.builtIn)
       .map((source) => source.id);
     const index = sourceIds.indexOf(sourceId);
-    const destination = index + direction;
-    if (index < 0 || destination < 0 || destination >= sourceIds.length) return;
-    [sourceIds[index], sourceIds[destination]] = [
-      sourceIds[destination]!,
-      sourceIds[index]!,
-    ];
+    if (
+      index < 0 ||
+      destination < 0 ||
+      destination >= sourceIds.length ||
+      index === destination
+    )
+      return;
+    const [moved] = sourceIds.splice(index, 1);
+    sourceIds.splice(destination, 0, moved!);
     setBusyId(`marketplace:${sourceId}`);
     setMessage(undefined);
     try {
@@ -1861,61 +1867,61 @@ export function ResourceCenter({
               <div className="resource-marketplace-source-list">
                 {(marketplaceState?.sources ?? [])
                   .filter((source) => !source.builtIn)
-                  .map((source, index, sources) => (
+                  .map((source, index) => (
                     <ManagementRow
                       actions={
-                        <>
-                          <IconButton
-                            disabled={
-                              operationPending ||
-                              index === 0 ||
-                              busyId === `marketplace:${source.id}`
-                            }
-                            icon={<span aria-hidden="true">↑</span>}
-                            label={`${t.moveMarketplaceUp}: ${source.displayName}`}
-                            onClick={() =>
-                              runResourceOperation(() =>
-                                moveMarketplace(source.id, -1),
-                              )
-                            }
-                            title={t.moveMarketplaceUp}
-                          />
-                          <IconButton
-                            disabled={
-                              operationPending ||
-                              index === sources.length - 1 ||
-                              busyId === `marketplace:${source.id}`
-                            }
-                            icon={<span aria-hidden="true">↓</span>}
-                            label={`${t.moveMarketplaceDown}: ${source.displayName}`}
-                            onClick={() =>
-                              runResourceOperation(() =>
-                                moveMarketplace(source.id, 1),
-                              )
-                            }
-                            title={t.moveMarketplaceDown}
-                          />
-                          <IconButton
-                            className="resource-icon-button resource-marketplace-remove-button"
-                            disabled={
-                              operationPending ||
-                              busyId === `marketplace:${source.id}`
-                            }
-                            icon={<TrashIcon />}
-                            label={`${t.removeMarketplace}: ${source.displayName}`}
-                            onClick={() =>
-                              runResourceOperation(() =>
-                                removeMarketplace(source),
-                              )
-                            }
-                            title={t.removeMarketplace}
-                            variant="danger"
-                          />
-                        </>
+                        <IconButton
+                          className="resource-icon-button resource-marketplace-remove-button"
+                          disabled={
+                            operationPending ||
+                            busyId === `marketplace:${source.id}`
+                          }
+                          icon={<TrashIcon />}
+                          label={`${t.removeMarketplace}: ${source.displayName}`}
+                          onClick={() =>
+                            runResourceOperation(() =>
+                              removeMarketplace(source),
+                            )
+                          }
+                          title={t.removeMarketplace}
+                        />
                       }
                       className="resource-marketplace-source-row"
+                      data-dragging={
+                        draggingMarketplaceId === source.id || undefined
+                      }
                       description={`${source.repository}${source.offline ? ` · ${t.offline}` : ""}`}
+                      draggable={!operationPending}
                       key={source.id}
+                      onDragEnd={() => setDraggingMarketplaceId(undefined)}
+                      onDragOver={(event) => {
+                        event.dataTransfer.dropEffect = "move";
+                        event.preventDefault();
+                      }}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", source.id);
+                        setDraggingMarketplaceId(source.id);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const draggedId =
+                          event.dataTransfer.getData("text/plain");
+                        const destination = Number(
+                          event.currentTarget.dataset.index,
+                        );
+                        setDraggingMarketplaceId(undefined);
+                        if (
+                          !draggedId ||
+                          Number.isNaN(destination) ||
+                          draggedId === source.id
+                        )
+                          return;
+                        void runResourceOperation(() =>
+                          reorderMarketplace(draggedId, destination),
+                        );
+                      }}
+                      data-index={index}
                       title={marketplaceSourceLabel(source)}
                     />
                   ))}

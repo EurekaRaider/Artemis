@@ -8843,6 +8843,34 @@ button.sources-panel-entry.attachment:focus-visible {
   gap: 7px;
 }
 
+.resource-marketplace-source-row[draggable="true"] {
+  cursor: grab;
+}
+
+.resource-marketplace-source-row[data-dragging="true"] {
+  opacity: 0.45;
+}
+
+/* 悬浮只点亮边框，不铺背景色。 */
+.resource-marketplace-source-row:hover {
+  background: var(--artemis-color-surface-base);
+  border-color: var(--artemis-color-border-strong);
+}
+
+/* 删除按钮默认静默图标，悬浮才变红。 */
+.resource-marketplace-source-row .resource-marketplace-remove-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-2);
+}
+
+.resource-marketplace-source-row
+  .resource-marketplace-remove-button:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--danger);
+}
+
 @media (max-height: 600px) {
   .composer-input {
     margin-block-start: 4px;
