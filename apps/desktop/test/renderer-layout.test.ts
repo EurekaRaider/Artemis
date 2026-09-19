@@ -2710,7 +2710,7 @@ describe("renderer layout contract", () => {
       "description={`${source.repository}${source.offline",
     );
     expect(resourceCenterSource).toContain(
-      "pluginPageText(plugin.displayName)",
+      "pluginPageText(localizedPluginText(plugin, locale).displayName)",
     );
     expect(resourceCenterSource).toContain("pluginPageText(message)");
     expect(resourceCenterSource).toContain(
@@ -2775,10 +2775,10 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain(
       'resourceIconName(skill.name, "skill")',
     );
-    expect(resourceCenterSource).toContain(
+    expect(resourceIconsSource).toContain(
       "onError={() => setImageFailed(true)}",
     );
-    expect(resourceCenterSource).toContain(
+    expect(resourceIconsSource).toContain(
       "data-icon={semanticVisible ? semanticIcon : undefined}",
     );
     expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');

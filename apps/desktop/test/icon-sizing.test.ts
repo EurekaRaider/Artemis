@@ -112,8 +112,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(names).toEqual(
       [...TIER_ORDER].map((tier) => `--icon-size-${tier}`).sort(),
     );
-    // Consolidated selectors share six declaration pairs plus the five tiers.
-    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(17);
+    // Consolidated selectors share four declaration pairs plus the five tiers.
+    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(13);
   });
 
   it("keeps tier values distinct and strictly increasing", () => {
@@ -188,8 +188,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       "lg",
       20,
     ],
-    [".resource-avatar svg", "lg", 20],
-    [".resource-avatar .resource-semantic-icon", "xl", 22],
   ];
 
   it.each(MIGRATED_RULES)(
@@ -202,6 +200,26 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       expect(block).not.toMatch(new RegExp(`(?<![a-z-])height:\\s*${oldPx}px`));
     },
   );
+
+  it("fills resource avatars with artwork and keeps semantic glyphs at 28px", () => {
+    const artwork = cssRuleBlock(
+      stylesSource,
+      ".resource-avatar .resource-artwork",
+    );
+    expect(artwork).toContain("width: 100%");
+    expect(artwork).toContain("height: 100%");
+    for (const selector of [
+      ".resource-avatar .resource-semantic-icon",
+      ".resource-avatar .resource-semantic-icon svg",
+    ]) {
+      const glyph = cssRuleBlock(stylesSource, selector);
+      expect(glyph).toContain("width: 28px");
+      expect(glyph).toContain("height: 28px");
+    }
+    expect(
+      findCssDeclarations(stylesSource, ".resource-avatar svg"),
+    ).toBeUndefined();
+  });
 
   it("delegates Resource Center action icon sizing and flex defense to public UI", () => {
     const icon = cssRuleBlock(
@@ -277,7 +295,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
 
   it("freezes the remaining ✓/✦ text dingbat inventory after icon migration", () => {
     expect(dingbats).toEqual({
-      "App.tsx": { check: 6, star: 2 },
+      "App.tsx": { check: 6, star: 1 },
       "EnvironmentPanel.tsx": { check: 1, star: 0 },
       "WorktreeManager.tsx": { check: 1, star: 0 },
     });
@@ -285,7 +303,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(10);
+    expect(total).toBe(9);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
     ).toContain('<ArtemisIcon height={16} name="skill" width={16} />');
