@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentSession,
+  DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
@@ -46,6 +47,155 @@ function provider(
 }
 
 describe("agent runtime configuration", () => {
+  it.each([
+    ["turn", true, "continue"],
+    ["turn", false, "continue"],
+    ["compaction", true, "continue"],
+    ["compaction", false, "continue"],
+    ["turn", true, "cancel"],
+    ["turn", true, "install-again"],
+  ] as const)(
+    "defers skills during %s (default model: %s, refresh action: %s)",
+    async (busy, defaultModel, refreshAction) => {
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-install-active-"),
+      );
+      cleanupPaths.push(workspacePath);
+      const agentDir = join(workspacePath, "agent");
+      const host = new ArtemisAgentHost(
+        { async request() {} },
+        { emit() {} },
+        { agentDir },
+      );
+      const selection = {
+        providerId: "local-proxy",
+        modelId: "qwen-coder",
+        thinkingLevel: "off" as const,
+      };
+      const configuration = {
+        credentials: {},
+        providers: [provider("qwen-coder", "Qwen Coder")],
+        ...(defaultModel ? { selection } : {}),
+      };
+      await host.configure(configuration);
+      await host.openThread({
+        threadId: "running-thread",
+        workspacePath,
+        target: "local",
+        selection,
+      });
+      const hosted = (
+        host as unknown as {
+          threads: Map<
+            string,
+            {
+              session: AgentSession;
+              resourceLoader: DefaultResourceLoader;
+              currentTurnId?: string;
+              compacting: boolean;
+            }
+          >;
+        }
+      ).threads.get("running-thread")!;
+      let finishTurn!: () => void;
+      const prompt = vi
+        .spyOn(hosted.session, "prompt")
+        .mockResolvedValue(undefined);
+      let running: Promise<void> | undefined;
+      if (busy === "turn") {
+        prompt.mockImplementationOnce(
+          () => new Promise<void>((resolve) => (finishTurn = resolve)),
+        );
+        running = host.prompt("running-thread", "first", "Work", "execute");
+        await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce());
+      } else {
+        hosted.compacting = true;
+      }
+      const reloadResources = hosted.resourceLoader.reload.bind(
+        hosted.resourceLoader,
+      );
+      const reload = vi.spyOn(hosted.resourceLoader, "reload");
+      const setModel = vi.spyOn(hosted.session, "setModel");
+      const tools = hosted.session.agent.state.tools;
+      const systemPrompt = hosted.session.systemPrompt;
+      let releaseRefresh: (() => void) | undefined;
+      let refreshing: Promise<void> | undefined;
+      const installSkill = async (name: string) => {
+        const skillPath = join(agentDir, "skills", name);
+        await mkdir(skillPath, { recursive: true });
+        await writeFile(
+          join(skillPath, "SKILL.md"),
+          `---\nname: ${name}\ndescription: Newly installed resource\n---\nNew skill instructions.\n`,
+        );
+      };
+      try {
+        await installSkill("new-skill");
+        await host.configure(configuration);
+        expect(reload).not.toHaveBeenCalled();
+        expect(setModel).not.toHaveBeenCalled();
+        expect(hosted.session.agent.state.tools).toBe(tools);
+        expect(hosted.session.systemPrompt).toBe(systemPrompt);
+        expect(
+          hosted.resourceLoader.getSkills().skills.map((skill) => skill.name),
+        ).not.toContain("new-skill");
+        if (running) {
+          expect(hosted.currentTurnId).toBe("first");
+          finishTurn();
+          await running;
+        }
+        hosted.compacting = false;
+        if (refreshAction === "cancel") {
+          const gate = new Promise<void>((resolve) => {
+            releaseRefresh = resolve;
+          });
+          reload.mockImplementationOnce(async () => {
+            await gate;
+            await reloadResources();
+          });
+          refreshing = host.prompt(
+            "running-thread",
+            "cancelled-refresh",
+            "Continue",
+            "execute",
+          );
+          await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
+          expect(hosted.currentTurnId).toBe("cancelled-refresh");
+          await host.cancel("running-thread");
+          releaseRefresh!();
+          await refreshing;
+          expect(prompt).toHaveBeenCalledOnce();
+          expect(hosted.currentTurnId).toBeUndefined();
+        }
+        if (refreshAction === "install-again") {
+          reload.mockImplementationOnce(async () => {
+            await reloadResources();
+            await installSkill("second-skill");
+            await host.configure(configuration);
+          });
+        }
+        await host.prompt("running-thread", "next", "Continue", "execute");
+        expect(reload).toHaveBeenCalledOnce();
+        expect(
+          hosted.resourceLoader.getSkills().skills.map((skill) => skill.name),
+        ).toContain("new-skill");
+        expect(hosted.session.systemPrompt).toContain("new-skill");
+        expect(hosted.session.model?.id).toBe("qwen-coder");
+        if (refreshAction === "install-again") {
+          expect(hosted.session.systemPrompt).not.toContain("second-skill");
+          await host.prompt("running-thread", "third", "Continue", "execute");
+          expect(hosted.session.systemPrompt).toContain("second-skill");
+        }
+      } finally {
+        finishTurn?.();
+        releaseRefresh?.();
+        await running;
+        await refreshing;
+        hosted.compacting = false;
+        host.dispose();
+      }
+    },
+  );
+
   it("does not initialize the model runtime for an empty default configuration", async () => {
     const createModelRuntime = vi
       .spyOn(ModelRuntime, "create")

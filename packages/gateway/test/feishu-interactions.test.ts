@@ -281,6 +281,7 @@ describe("Feishu Gateway interactions", () => {
       "已提交，等待桌面确认。",
       expect.any(String),
       "om_card",
+      "zh-CN",
     );
   });
   it("closes a card resolved on desktop and rejects expired or revoked approvals", async () => {
@@ -305,6 +306,7 @@ describe("Feishu Gateway interactions", () => {
       "已拒绝。",
       expect.any(String),
       "om_card",
+      "zh-CN",
     );
     const card = f.gateway.store.get<FeishuApprovalCard>(
       "approval-cards",
@@ -349,6 +351,7 @@ describe("Feishu Gateway interactions", () => {
       "已拒绝。",
       expect.any(String),
       "om_card",
+      "zh-CN",
     );
   });
   it("falls back only on confirmed card rejection and never replays an uncertain send", async () => {

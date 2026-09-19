@@ -10115,14 +10115,12 @@ kbd {
   font-size: 12.5px;
   line-height: 1.5;
 }
-.im-project:not(.im-project-builtin) > [data-artemis-component="checkbox"] {
+.im-project > [data-artemis-component="checkbox"] {
   flex: 0 1 auto;
   min-inline-size: 0;
   max-inline-size: 45%;
 }
-.im-project:not(.im-project-builtin)
-  > [data-artemis-component="checkbox"]
-  [data-part="label"] {
+.im-project > [data-artemis-component="checkbox"] [data-part="label"] {
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10131,56 +10129,12 @@ kbd {
 .im-grant-open {
   flex: none;
 }
-/* 默认项目徽章与悬停切换（替代原「默认项目」下拉）。
-   行尾按钮组的左侧用 auto margin 吸收剩余空间。 */
-.im-default-badge {
-  flex: none;
-  padding: 1px 7px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  font-size: 10.5px;
-  line-height: 15px;
-  font-weight: 520;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.im-set-default {
-  /* 占位稳定：visibility 隐藏但保留布局，悬停/聚焦行时浮现。 */
-  visibility: hidden;
-  flex: none;
-}
-.im-project:hover .im-set-default,
-.im-project:focus-within .im-set-default {
-  visibility: visible;
-}
-.im-set-default,
-.im-project .im-default-badge,
-.im-project-builtin .im-default-badge {
-  margin-inline-start: auto;
-}
-.im-set-default + .im-grant-open,
-.im-default-badge + .im-set-default {
-  margin-inline-start: 0;
-}
-.im-set-default:disabled {
-  visibility: hidden;
-}
 .im-row-summary {
   flex: 1 1 0;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.im-project-builtin {
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-}
-.im-project-builtin small {
-  flex-basis: 100%;
   font-size: 11.5px;
   color: var(--muted);
 }
@@ -10537,7 +10491,9 @@ kbd {
 }
 /* 回复模式值展示（固定流式卡片）：右栏卡右侧的下拉形态值。 */
 .im-reply-mode-select {
-  inline-size: 150px;
+  inline-size: max-content;
+  min-inline-size: 150px;
+  max-inline-size: 100%;
 }
 .im-reply-mode-select [data-part="trigger"] {
   box-sizing: border-box;
@@ -11173,62 +11129,6 @@ kbd {
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--muted);
-}
-/* ③尾完成仪式：三步全✓后的完成块（克制绿调，同已完成卡的语义色）。 */
-.im-ceremony {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
-  border-radius: var(--artemis-radius-md, 10px);
-  background: color-mix(
-    in srgb,
-    var(--success) 8%,
-    var(--artemis-color-surface-base)
-  );
-}
-.im-ceremony-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 590;
-  color: var(--success);
-}
-.im-ceremony-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-/* ===== ③卡重排：说明/提示统一子区（边框包裹、可收起）+ 项目列表分区标题 ===== */
-.im-perm-guide {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--artemis-radius-control, 8px);
-  padding: 2px 10px;
-}
-.im-perm-guide summary {
-  cursor: pointer;
-  padding: 5px 0;
-  font-size: 11.5px;
-  font-weight: 510;
-  color: var(--muted);
-}
-.im-perm-guide summary:hover {
-  color: var(--text);
-}
-.im-perm-guide[open] summary {
-  border-bottom: 1px dashed var(--border-soft);
-  margin-bottom: 8px;
-}
-.im-perm-guide-body p {
-  margin: 0 0 8px;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-.im-perm-guide-body p:last-child {
-  margin-bottom: 6px;
 }
 /* 飞书扫码接入块：说明居左、操作钮居右；扫码中二维码恒为白底（对比度）。 */
 .im-scan {

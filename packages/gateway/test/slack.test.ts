@@ -715,3 +715,48 @@ it.each(["completed", "failed", "cancelled", "progress"] as const)(
     expect(decodeNativeEnvelope(normalized!.text)).toEqual(envelope);
   },
 );
+
+it("localizes legacy-compatible handshakes without displaying protocol negotiation", async () => {
+  const { encodeNativeEnvelope, decodeNativeEnvelope } =
+    await import("../src/native-protocol.js");
+  const { imText } = await import("../src/im-localization.js");
+  const { randomUUID } = await import("node:crypto");
+  const envelope = {
+    version: 1 as const,
+    id: randomUUID(),
+    platform: "slack" as const,
+    tenant: "T1",
+    group: "C1",
+    sender: "Ubot",
+    recipient: "Upeer",
+    workflow: randomUUID(),
+    task: randomUUID(),
+    action: "probe" as const,
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+    sequence: 0,
+    text: "Artemis locale/1",
+  };
+  const wire = encodeNativeEnvelope(envelope);
+  const fetcher = api().mockResolvedValue(
+    Response.json({ ok: true, ts: "123.456" }),
+  );
+  const adapter = new SlackAdapter(config, () => {});
+  adapters.push(adapter);
+  await adapter.sendNative(
+    { connectionId: "slack", id: "C1", kind: "group" },
+    wire,
+    "probe",
+    "Upeer",
+    "ja",
+  );
+  const body = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body));
+  expect(body.blocks).toHaveLength(1);
+  expect(body.blocks[0].text.text).toBe(
+    `<@Upeer> · ${imText("ja", "nativeProbe")}`,
+  );
+  expect(JSON.stringify(body.blocks)).not.toContain("locale/1");
+  expect(decodeNativeEnvelope(body.text.replace(/^<@Upeer> /u, ""))).toEqual(
+    envelope,
+  );
+});

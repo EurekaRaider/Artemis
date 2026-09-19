@@ -1,3 +1,5 @@
+import { imText } from "./im-localization.js";
+import type { AppLocale } from "@artemis/protocol";
 import { createDecipheriv, createHash, randomUUID } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import WebSocket from "ws";
@@ -102,7 +104,7 @@ export function validateMentionUserId(value: string): string {
 }
 
 export interface ChannelAdapter {
-  status(): ChannelStatus;
+  status(locale?: AppLocale): ChannelStatus;
   start(): void;
   stop(): void;
   send(
@@ -116,6 +118,7 @@ export interface ChannelAdapter {
     text: string,
     key: string,
     recipient: string,
+    locale?: AppLocale,
   ): Promise<string | undefined>;
   publish?(
     conversation: ImConversation,
@@ -135,6 +138,7 @@ export interface ChannelAdapter {
     text: string,
     idempotencyKey: string,
     messageId?: string,
+    locale?: AppLocale,
   ): Promise<string>;
   /** Optional capability: stream live text into a Feishu CardKit card. */
   streamCard?(
@@ -149,6 +153,7 @@ export interface ChannelAdapter {
     text: string,
     idempotencyKey: string,
     approval: NonNullable<ImReply["approval"]>,
+    locale?: AppLocale,
   ): Promise<string>;
   typing?(
     messageId: string,
@@ -744,6 +749,7 @@ export class FeishuAdapter implements ChannelAdapter {
     text: string,
     key: string,
     messageId?: string,
+    locale?: AppLocale,
   ): Promise<string> {
     return this.message(
       conversation,
@@ -751,7 +757,7 @@ export class FeishuAdapter implements ChannelAdapter {
         config: { wide_screen_mode: true, update_multi: true },
         header: {
           template: "blue",
-          title: { tag: "plain_text", content: "Artemis 任务状态" },
+          title: { tag: "plain_text", content: imText(locale, "cardTitle") },
         },
         elements: [{ tag: "div", text: { tag: "plain_text", content: text } }],
       },
@@ -875,6 +881,7 @@ export class FeishuAdapter implements ChannelAdapter {
     text: string,
     key: string,
     approval: NonNullable<ImReply["approval"]>,
+    locale?: AppLocale,
   ): Promise<string> {
     if (conversation.kind !== "direct")
       throw new Error("Approval cards require a direct conversation.");
@@ -884,7 +891,10 @@ export class FeishuAdapter implements ChannelAdapter {
         config: { wide_screen_mode: true, update_multi: true },
         header: {
           template: "orange",
-          title: { tag: "plain_text", content: "Artemis · 请求批准" },
+          title: {
+            tag: "plain_text",
+            content: imText(locale, "approvalTitle"),
+          },
         },
         elements: [
           { tag: "div", text: { tag: "plain_text", content: text } },
@@ -895,7 +905,10 @@ export class FeishuAdapter implements ChannelAdapter {
               type: decision === "yes" ? "primary" : "default",
               text: {
                 tag: "plain_text",
-                content: decision === "yes" ? "仅批准一次" : "拒绝",
+                content: imText(
+                  locale,
+                  decision === "yes" ? "approveOnce" : "deny",
+                ),
               },
               value: { artemisApprovalToken: approval.token, decision },
             })),

@@ -1,3 +1,4 @@
+import { imText } from "@artemis/gateway";
 import { ImPermissionError, imRequiresApproval } from "./im-policy.js";
 import { ThreadHistoryService } from "./thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
@@ -1707,6 +1708,8 @@ async function disableConnector(id: string): Promise<void> {
 }
 
 async function resetAgentThreadsForToolChange(): Promise<void> {
+  // Additive installs skip this reset: new MCP servers stay disabled, and
+  // runtime.configure defers Skill refreshes until the current turn ends.
   if (!agentProcess) return;
   if (activeTurns.size > 0) {
     throw new Error("Stop active turns before changing Agent tools.");
@@ -8224,7 +8227,6 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      await resetAgentThreadsForToolChange();
       const installed = await resourceCatalogService.installSkill(
         resourceId,
         (percent) => publish(10 + percent * 0.7),
@@ -8266,7 +8268,6 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      await resetAgentThreadsForToolChange();
       const installed = await resourceCatalogService.installLocalSkill(
         selection.filePaths[0],
         (percent) => publish(10 + percent * 0.7),
@@ -8663,7 +8664,6 @@ function registerIpc(): void {
       const installedSkillNames: string[] = [];
       const installedPluginIds: string[] = [];
       publish(5);
-      await resetAgentThreadsForToolChange();
       try {
         for (const [index, plugin] of pending.entries()) {
           const installed = await codexPluginService.install(
@@ -8732,7 +8732,6 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      await resetAgentThreadsForToolChange();
       const installed = await codexPluginService.install(source, (percent) =>
         publish(10 + percent * 0.8),
       );
@@ -12923,10 +12922,26 @@ async function driveSmokeFormControlsEvidence(
   )`);
 }
 
+async function ensureSmokeWindowFocus(window: BrowserWindow): Promise<void> {
+  const contents = window.webContents;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await contents.executeJavaScript("document.hasFocus()")) {
+      await contents.executeJavaScript(`new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+      return;
+    }
+    if (process.platform === "darwin") app.focus({ steal: true });
+    window.focus();
+    contents.focus();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Navigation smoke window could not acquire native focus.");
+}
+
 async function driveSmokeNavigationControlsEvidence(
   window: BrowserWindow,
   view: string | undefined,
-): Promise<void> {
+): Promise<boolean> {
   const targets = {
     "navigation-token-usage": {
       activation: "ArrowRight",
@@ -12953,7 +12968,7 @@ async function driveSmokeNavigationControlsEvidence(
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
-  if (!target) return;
+  if (!target) return false;
 
   const contents = window.webContents;
   const wait = (milliseconds: number) =>
@@ -12982,23 +12997,9 @@ async function driveSmokeNavigationControlsEvidence(
     });
   };
 
-  if (process.platform === "darwin") app.focus({ steal: true });
-  window.focus();
-  contents.focus();
   // macOS activation is asynchronous; CDP can otherwise deliver to a DOM
   // target while its native window is inactive, invalidating keyboard evidence.
-  let documentFocused = false;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    documentFocused = await evaluate<boolean>("document.hasFocus()");
-    if (documentFocused) break;
-    if (process.platform === "darwin") app.focus({ steal: true });
-    window.focus();
-    contents.focus();
-    await wait(50);
-  }
-  if (!documentFocused) {
-    throw new Error("Navigation smoke window could not acquire native focus.");
-  }
+  await ensureSmokeWindowFocus(window);
   let focused = false;
   for (let presses = 0; presses < 300; presses += 1) {
     focused = await evaluate<boolean>(
@@ -13087,6 +13088,7 @@ async function driveSmokeNavigationControlsEvidence(
       `Navigation control Space activation did not emit exactly one click for ${view}: ${JSON.stringify(interaction)}.`,
     );
   }
+  return true;
 }
 
 async function driveSmokeWorkspaceDockEvidence(
@@ -17777,12 +17779,32 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view === 'message-actions-edit') {
-                  document.querySelector('.thread-select')?.click();
-                  await wait(600);
-                  document
-                    .querySelector('.user-message .message-action:nth-child(2)')
-                    ?.click();
-                  await wait(350);
+                  const waitForMessageState = async (label, predicate) => {
+                    const deadline = Date.now() + 8_000;
+                    while (Date.now() < deadline) {
+                      const result = predicate();
+                      if (result) return result;
+                      await wait(50);
+                    }
+                    throw new Error('message-actions-edit: timed out waiting for ' + label);
+                  };
+                  const thread = await waitForMessageState('thread selector', () =>
+                    document.querySelector('.thread-select'),
+                  );
+                  thread.click();
+                  const edit = await waitForMessageState('enabled edit action', () => {
+                    const button = document.querySelector(
+                      '.user-message .message-action:nth-child(2)',
+                    );
+                    return button instanceof HTMLButtonElement && !button.disabled
+                      ? button
+                      : null;
+                  });
+                  edit.click();
+                  await waitForMessageState('restored composer text', () => {
+                    const composer = document.querySelector('.composer textarea');
+                    return composer instanceof HTMLTextAreaElement && composer.value.length > 0;
+                  });
                   return;
                 }
                 if (view.startsWith('environment')) {
@@ -18531,12 +18553,14 @@ function createMainWindow(): BrowserWindow {
           ) {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
+          let navigationFocusEvidence = false;
           if (smokeMode) {
             await driveSmokeFormControlsEvidence(window, requestedSmokeView);
-            await driveSmokeNavigationControlsEvidence(
-              window,
-              requestedSmokeView,
-            );
+            navigationFocusEvidence =
+              await driveSmokeNavigationControlsEvidence(
+                window,
+                requestedSmokeView,
+              );
             await driveSmokeWorkspaceDockEvidence(window, requestedSmokeView);
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
@@ -18547,6 +18571,10 @@ function createMainWindow(): BrowserWindow {
             smokeScreenshot &&
             requestedSmokeView !== "user-input-transport"
           ) {
+            // Native focus can be lost after keyboard activation while another
+            // desktop app is active. Reacquire it before recording evidence;
+            // keep the actual Tab/Space result and the focus assertions intact.
+            if (navigationFocusEvidence) await ensureSmokeWindowFocus(window);
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
           }
@@ -18661,6 +18689,7 @@ function createMainWindow(): BrowserWindow {
             await new Promise((resolve) => setTimeout(resolve, 25));
           }
           if (smokeAccessibility) {
+            if (navigationFocusEvidence) await ensureSmokeWindowFocus(window);
             const result = (await window.webContents.executeJavaScript(`
               (() => {
                 const issues = [];
@@ -21211,6 +21240,7 @@ app
       app.getPath("userData"),
       safeStorage,
       {
+        locale: currentLocale,
         cancelDelegationContinuation: async (id, waitIds) => {
           const turnId = activeTurns.get(id);
           if (turnId && waitIds.includes(turnId) && !cancellingTurns.has(id))
@@ -21243,7 +21273,7 @@ app
             {
               origin: local ? "desktop" : "im",
               delegationContinuationId: continuationId,
-              displayText: "IM 委派结果已返回，结合最新要求继续处理。",
+              displayText: imText(currentLocale(), "resumeDelegation"),
             },
           );
           return true;

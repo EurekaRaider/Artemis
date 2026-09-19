@@ -5796,37 +5796,37 @@ export function App() {
               headingLevel={2}
               title={t.tasks}
             />
+            <nav className="sidebar-nav" aria-label={t.activityBar}>
+              {navigationItems.map(([view, label, icon]) => (
+                <button
+                  type="button"
+                  className="activity-button nav-row"
+                  key={view}
+                  data-nav-view={view}
+                  aria-label={label}
+                  title={label}
+                  aria-current={activeView === view ? "page" : undefined}
+                  onClick={() => setActiveView(view)}
+                >
+                  {icon}
+                  <span>{label}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="nav-row"
+                onClick={() => beginNewConversation()}
+              >
+                <ArtemisIcon name="edit-square" />
+                <span>{uiText(locale, "App.inline9")}</span>
+              </button>
+            </nav>
           </>
         }
         label={t.projects}
         open={sidebarOpen}
         ref={projectSidebar}
       >
-        <nav className="sidebar-nav" aria-label={t.activityBar}>
-          {navigationItems.map(([view, label, icon]) => (
-            <button
-              type="button"
-              className="activity-button nav-row"
-              key={view}
-              data-nav-view={view}
-              aria-label={label}
-              title={label}
-              aria-current={activeView === view ? "page" : undefined}
-              onClick={() => setActiveView(view)}
-            >
-              {icon}
-              <span>{label}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className="nav-row"
-            onClick={() => beginNewConversation()}
-          >
-            <ArtemisIcon name="edit-square" />
-            <span>{uiText(locale, "App.inline9")}</span>
-          </button>
-        </nav>
         <div
           aria-label={t.projects}
           className="project-tree"
@@ -9012,6 +9012,7 @@ export function App() {
                               }
                             >
                               <TerminalPanel
+                                locale={locale}
                                 threadId={activeThread?.id}
                                 title={tab.title}
                                 emptyMessage={t.terminalLocked}

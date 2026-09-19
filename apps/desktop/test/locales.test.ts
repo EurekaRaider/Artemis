@@ -43,6 +43,13 @@ describe("Artemis locales", () => {
     }
   });
 
+  it("honors an explicit Chinese script before the regional default", () => {
+    expect(matchKnownLocale("zh-Hans-TW")).toBe("zh-CN");
+    expect(matchKnownLocale("zh_Hans_HK")).toBe("zh-CN");
+    expect(matchKnownLocale("zh-Hant-CN")).toBe("zh-TW");
+    expect(resolveAppLocale("system", ["zh-Hans-MO", "en-US"])).toBe("zh-CN");
+  });
+
   it("uses the first supported system preference and falls back to English", () => {
     expect(resolveAppLocale("system", ["nl-NL", "fr-CA", "en-US"])).toBe("fr");
     expect(resolveAppLocale("system", ["not_a_locale", "uk-UA"])).toBe("en");

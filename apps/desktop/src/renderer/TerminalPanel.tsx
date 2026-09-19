@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import type { AppTheme } from "@artemis/protocol";
+import type { AppLocale, AppTheme } from "@artemis/protocol";
 import {
   TerminalHeader,
   TerminalHost,
@@ -9,6 +9,7 @@ import {
   TerminalSurface,
   TerminalViewport,
 } from "@artemis/ui/professional";
+import { uiText } from "../shared/ui-text.js";
 import "./terminal.css";
 
 interface TerminalPanelProps {
@@ -16,6 +17,7 @@ interface TerminalPanelProps {
   title: string;
   emptyMessage: string;
   theme: AppTheme;
+  locale: AppLocale;
 }
 
 type TerminalPanelState = "ready" | "connecting" | "empty" | "error" | "exited";
@@ -116,25 +118,27 @@ export function TerminalPanel({
   title,
   emptyMessage,
   theme,
+  locale,
 }: TerminalPanelProps) {
   const host = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const themeRef = useRef(theme);
-  const [detail, setDetail] = useState(emptyMessage);
+  const localeRef = useRef(locale);
+  const [detail, setDetail] = useState("");
+  const [exitCode, setExitCode] = useState(0);
   const [state, setState] = useState<TerminalPanelState>(
     threadId ? "connecting" : "empty",
   );
   themeRef.current = theme;
+  localeRef.current = locale;
 
   useEffect(() => {
     const element = host.current;
     if (!element || !threadId) {
-      setDetail(emptyMessage);
       setState("empty");
       return;
     }
 
-    setDetail(emptyMessage);
     setState("connecting");
     let disposed = false;
     let terminalId: string | undefined;
@@ -166,8 +170,10 @@ export function TerminalPanel({
     });
     const exitSubscription = window.artemis.onTerminalExit((event) => {
       if (event.terminalId === terminalId) {
-        terminal.writeln(`\r\n[process exited ${event.exitCode}]`);
-        setDetail(`Process exited ${event.exitCode}`);
+        terminal.writeln(
+          `\r\n[${uiText(localeRef.current, "TerminalPanel.processExited", { code: event.exitCode })}]`,
+        );
+        setExitCode(event.exitCode);
         setState("exited");
       }
     });
@@ -225,7 +231,7 @@ export function TerminalPanel({
         void window.artemis.closeTerminal(terminalId);
       }
     };
-  }, [emptyMessage, threadId]);
+  }, [threadId]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -258,6 +264,13 @@ export function TerminalPanel({
     };
   }, [theme]);
 
+  const displayDetail =
+    state === "connecting" || state === "empty"
+      ? emptyMessage
+      : state === "exited"
+        ? uiText(locale, "TerminalPanel.processExited", { code: exitCode })
+        : detail;
+
   return (
     <TerminalSurface
       busy={state === "connecting"}
@@ -267,13 +280,13 @@ export function TerminalPanel({
     >
       <TerminalHeader
         className="terminal-header"
-        detail={detail}
+        detail={displayDetail}
         heading={title}
       />
       <TerminalViewport className="terminal-body">
         <TerminalHost className="terminal-host" ref={host} />
         {(state === "connecting" || state === "empty" || state === "error") && (
-          <TerminalState state={state}>{detail}</TerminalState>
+          <TerminalState state={state}>{displayDetail}</TerminalState>
         )}
       </TerminalViewport>
     </TerminalSurface>

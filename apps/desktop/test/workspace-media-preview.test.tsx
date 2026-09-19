@@ -54,7 +54,7 @@ describe("workspace media preview", () => {
     ).not.toBeInTheDocument();
     expect(document.querySelector(".workspace-panel-toolbar")).toBeNull();
     fireEvent.error(screen.getByRole("img", { name: "image.svg" }));
-    expect(screen.getByText("Image failed")).toBeInTheDocument();
+    expect(await screen.findByText("Image failed")).toBeInTheDocument();
   });
 
   it("routes a PDF selected in the file tree to the browser without text reading", async () => {

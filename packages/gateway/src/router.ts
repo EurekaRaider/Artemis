@@ -1,3 +1,5 @@
+import { imText } from "./im-localization.js";
+import type { AppLocale } from "@artemis/protocol";
 import { splitSlackMarkdown } from "./slack-format.js";
 import { NativeCooperation } from "./native-cooperation.js";
 import { NATIVE_PREFIX, type NativeEnvelope } from "./native-protocol.js";
@@ -25,6 +27,7 @@ import type { FeishuTyping } from "./feishu-typing.js";
 import type { FeishuApprovalCard } from "./feishu-approval.js";
 
 export interface Delivery {
+  locale?: AppLocale;
   security?: {
     deviceId: string;
     projectId: string;
@@ -51,6 +54,9 @@ interface IdentityBinding {
 }
 
 export class GatewayRouter {
+  deviceLocale(deviceId: string): AppLocale {
+    return this.store.get<AppLocale>("device-locales", deviceId) ?? "zh-CN";
+  }
   readonly native: NativeCooperation;
   constructor(
     readonly store: GatewayStore,
@@ -78,10 +84,16 @@ export class GatewayRouter {
     return digest(`${event.identity.connectionId}\0${event.messageId}`);
   }
   queueDelivery(id: string, delivery: Delivery): void {
-    if (delivery.invocationId) {
+    const invocationId = delivery.invocationId;
+    if (invocationId) {
+      const request = this.store.get<RemoteInvocationContext>(
+        "invocations",
+        invocationId,
+      );
+      if (request?.locale) delivery = { ...delivery, locale: request.locale };
       const security = this.store.get<NonNullable<Delivery["security"]>>(
         "invocation-security",
-        delivery.invocationId,
+        invocationId,
       );
       if (security) delivery = { ...delivery, security };
     }
@@ -140,13 +152,12 @@ export class GatewayRouter {
         const space = request.conversation.spaceId
           ? this.findSpace(request.conversation)
           : undefined;
-        const text =
-          "排队请求已超过截止时间，未启动任务。需要继续时请重新发送。";
+        const text = imText(request.locale, "queueExpired");
         if (space && space.revision === request.conversation.spaceRevision)
           this.broadcast(
             space,
             `expired:${String(row.id)}`,
-            `[${this.participantName(space, request.deviceId)} 的 Agent]\n${text}`,
+            `[${imText(request.locale, "agent", { name: this.participantName(space, request.deviceId) })}]\n${text}`,
             undefined,
             request.id,
           );
@@ -175,8 +186,9 @@ export class GatewayRouter {
               event.conversation,
               this.now(),
             );
+            let pairedDevice = pending?.deviceId;
             if (!pending) {
-              this.store.pair(
+              pairedDevice = this.store.pair(
                 event.text.split(/\s+/u)[1]!,
                 event.identity,
                 this.now(),
@@ -189,9 +201,10 @@ export class GatewayRouter {
             }
             this.queueDelivery(`${item.id}:paired`, {
               conversation: event.conversation,
-              text: pending
-                ? "配对请求已发送，请回到 Artemis 的消息接入设置批准。"
-                : "配对成功。发送 /projects 选择项目，/help 查看操作。",
+              text: imText(
+                pairedDevice ? this.deviceLocale(pairedDevice) : undefined,
+                pending ? "pairRequested" : "paired",
+              ),
             });
             this.store.mark("incoming", item.id, "done");
           });
@@ -224,7 +237,10 @@ export class GatewayRouter {
           ) {
             this.queueDelivery(`${item.id}:assignment-denied`, {
               conversation: event.conversation,
-              text: "机器人主人已禁止你的账号在本群派工，请联系主人调整成员权限。",
+              text: imText(
+                owner ? this.deviceLocale(owner.deviceId) : undefined,
+                "memberDenied",
+              ),
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -240,7 +256,7 @@ export class GatewayRouter {
             if (event.conversation.kind === "direct")
               this.queueDelivery(`${item.id}:unpaired`, {
                 conversation: event.conversation,
-                text: "请先在 Artemis 的 IM 连接设置生成配对码，然后发送 /pair 配对码。",
+                text: imText(undefined, "pairRequired"),
               });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -301,7 +317,10 @@ export class GatewayRouter {
           if (event.conversation.kind === "group" && !space) {
             this.queueDelivery(`${item.id}:group-setup`, {
               conversation: event.conversation,
-              text: "已发现这个群。请回到 Artemis → 消息接入 → 群聊，刷新群列表并确认项目与分享范围。启用后请重新发送任务；当前消息不会执行。",
+              text: imText(
+                this.deviceLocale(binding.deviceId),
+                "groupDiscovered",
+              ),
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -318,7 +337,10 @@ export class GatewayRouter {
           ) {
             this.queueDelivery(`${item.id}:group-denied`, {
               conversation: event.conversation,
-              text: "你尚未获准向此机器人派工。请让机器人主人在 Artemis 的群聊设置中授权你的账号。当前不会启动任务。",
+              text: imText(
+                this.deviceLocale(binding.deviceId),
+                "memberNotAuthorized",
+              ),
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -337,7 +359,10 @@ export class GatewayRouter {
           ) {
             this.queueDelivery(`${item.id}:owner-command`, {
               conversation: event.conversation,
-              text: "群成员可以提交、查询或停止自己的任务；切换项目和审批仅供机器人主人使用。",
+              text: imText(
+                this.deviceLocale(binding.deviceId),
+                "ownerCommands",
+              ),
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -382,6 +407,9 @@ export class GatewayRouter {
             version: 1,
             id: item.id,
             deviceId: peerReply ? parent.deviceId : binding.deviceId,
+            locale: peerReply
+              ? (parent.locale ?? this.deviceLocale(parent.deviceId))
+              : this.deviceLocale(binding.deviceId),
             identity: peerReply
               ? parent.identity
               : (owner?.identity ?? event.identity),
@@ -411,7 +439,12 @@ export class GatewayRouter {
             this.queueDelivery(`${item.id}:offline`, {
               conversation,
               invocationId: request.id,
-              text: `目标 Artemis 当前离线或已暂停，请求已排队。请在电脑上打开 Artemis 并启用 IM 连接；恢复后会重新检查授权，请求在 ${Math.max(1, Math.ceil((request.expiresAt - this.now()) / 60000))} 分钟后失效。`,
+              text: imText(request.locale, "offline", {
+                minutes: Math.max(
+                  1,
+                  Math.ceil((request.expiresAt - this.now()) / 60000),
+                ),
+              }),
             });
           if (space && !event.text.startsWith("/"))
             this.broadcast(
@@ -445,7 +478,12 @@ export class GatewayRouter {
       return false;
     this.queueDelivery(`${eventId}:manual`, {
       conversation: event.conversation,
-      text: "此群仅支持人工派工。请在同一 IM 群里 @ 目标机器人；跨群空间与共享网关派工已退役。",
+      text: imText(
+        _space?.nativeGroup
+          ? this.deviceLocale(_space.nativeGroup.ownerDeviceId)
+          : undefined,
+        "manualOnly",
+      ),
     });
     return true;
   }
@@ -874,20 +912,12 @@ export class GatewayRouter {
           ? (request.originator ?? request.identity)
           : undefined;
       if (cardKey && (reply.final || mention)) {
-        const labels = {
-          queued: "排队中",
-          running: "正在执行",
-          waiting: "等待处理",
-          completed: "已完成",
-          failed: "失败",
-          cancelled: "已停止",
-        };
-        const text = `任务 ${reply.taskId}\n${labels[reply.status!]}`;
+        const text = `${imText(request.locale, "task", { id: reply.taskId! })}\n${imText(request.locale, reply.status!)}`;
         if (space)
           this.broadcast(
             space,
             `${reply.id}:status`,
-            `[${this.participantName(space, deviceId)} 的 Agent]\n${text}`,
+            `[${imText(request.locale, "agent", { name: this.participantName(space, deviceId) })}]\n${text}`,
             undefined,
             request.id,
             reply.taskId,
@@ -931,13 +961,13 @@ export class GatewayRouter {
         else
           this.queueDelivery(reply.id, {
             conversation: request.conversation,
-            text: "等待主人在 Artemis 桌面处理确认。",
+            text: imText(request.locale, "ownerDesktop"),
           });
       } else if (space) {
         this.broadcast(
           space,
           reply.id,
-          `[${this.participantName(space, deviceId)} 的 Agent]\n${reply.text}`,
+          `[${imText(request.locale, "agent", { name: this.participantName(space, deviceId) })}]\n${reply.text}`,
           undefined,
           request.id,
           reply.taskId,
@@ -1056,6 +1086,7 @@ export class GatewayRouter {
       version: 1,
       id,
       deviceId,
+      locale: this.deviceLocale(deviceId),
       identity: participant.identity,
       conversation: { ...endpoint, spaceId, spaceRevision: space.revision },
       messageId: id,
@@ -1102,6 +1133,7 @@ export class GatewayRouter {
       version: 1,
       id,
       deviceId,
+      locale: this.deviceLocale(deviceId),
       identity: original.identity,
       conversation: original.conversation,
       messageId: id,

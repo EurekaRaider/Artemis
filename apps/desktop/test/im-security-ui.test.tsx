@@ -49,10 +49,10 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
   render(<Editor />);
   expect(value!.security).toBeUndefined();
   await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
-  expect(screen.queryByRole("checkbox", { name: "可处理 .env" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "可读取 .env" })).toBeNull();
   // 默认整个项目可读：读框默认全选，写框可独立显式选择。
   const read = screen.getByRole("checkbox", {
-    name: "可处理 src",
+    name: "可读取 src",
   }) as HTMLInputElement;
   expect(read.checked).toBe(true);
   const write = screen.getByRole("checkbox", {
@@ -78,7 +78,7 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
       }) as HTMLInputElement
     ).disabled,
   ).toBe(true);
-  await user.click(screen.getByRole("checkbox", { name: "可处理 docs" }));
+  await user.click(screen.getByRole("checkbox", { name: "可读取 docs" }));
   expect(value!.security!.scopes[0]!.readPaths).toEqual(["docs"]);
   expect(screen.getByText(/撤销项目授权/)).toBeVisible();
   await user.click(screen.getByRole("checkbox", { name: /我确认当前会话/ }));
@@ -188,16 +188,16 @@ it("exposes disclosure state and preserves inherited permissions with keyboard c
     disclosure,
   );
   const inherited = screen.getByRole("checkbox", {
-    name: "可处理 src/index.ts",
+    name: "可读取 src/index.ts",
   }) as HTMLInputElement;
   expect(inherited.checked).toBe(true);
   expect(inherited.disabled).toBe(true);
   await user.keyboard(" ");
   expect(
-    screen.queryByRole("checkbox", { name: "可处理 src/index.ts" }),
+    screen.queryByRole("checkbox", { name: "可读取 src/index.ts" }),
   ).toBeNull();
   const read = screen.getByRole("checkbox", {
-    name: "可处理 src",
+    name: "可读取 src",
   }) as HTMLInputElement;
   read.focus();
   await user.keyboard(" ");

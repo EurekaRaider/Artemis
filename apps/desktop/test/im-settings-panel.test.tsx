@@ -11,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  APP_LOCALES,
   imSettingsSchema,
   type ImStatus,
   type ImConnectionStatus,
@@ -49,6 +50,29 @@ type Status = ImStatus & {
   spaces?: unknown[];
 };
 const t = uiTranslator("zh-CN");
+it.each(APP_LOCALES)(
+  "opens authorized Feishu bot details without invalid accessible labels in %s",
+  async (locale) => {
+    fixture();
+    const { container } = render(<ImSettingsPanel locale={locale} />);
+    const button = await waitFor(() => {
+      const found = [
+        ...container.querySelectorAll<HTMLButtonElement>(".im-channel-row"),
+      ].find((element) => element.textContent?.includes("Lark"));
+      expect(found).toBeDefined();
+      return found!;
+    });
+    fireEvent.click(button);
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: uiTranslator(locale)("ImSettingsPanel.botUnbindLabel", {
+          value1: connection.name,
+        }),
+      }),
+    ).toBeVisible();
+  },
+);
 function fixture(ready = true) {
   let current: Status = {
     settings: imSettingsSchema.parse(

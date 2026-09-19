@@ -78,13 +78,13 @@ export function ImLegacyImport({
                 onValueChange={setImportId}
               />
               <TextField
-                label="Tenant Key"
+                label={t("ImLegacyImport.tenantKey")}
                 value={tenantId}
                 onValueChange={setTenantId}
                 disabled={busy}
               />
               <TextField
-                label="Bot Open ID"
+                label={t("ImLegacyImport.botOpenId")}
                 value={botOpenId}
                 onValueChange={setBotOpenId}
                 disabled={busy}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { TerminalPanel } from "../src/renderer/TerminalPanel.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
@@ -9,6 +9,7 @@ const terminals = vi.hoisted(
     [] as Array<{
       options: Record<string, any>;
       write: ReturnType<typeof vi.fn>;
+      writeln: ReturnType<typeof vi.fn>;
       dispose: ReturnType<typeof vi.fn>;
     }>,
 );
@@ -68,6 +69,7 @@ it("uses a complete light palette with contrast protection and preserves the liv
     onTerminalExit: vi.fn(() => () => {}),
   });
   const props = {
+    locale: "en" as const,
     threadId: "task",
     title: "Terminal",
     emptyMessage: "No terminal",
@@ -107,6 +109,79 @@ it("uses a complete light palette with contrast protection and preserves the liv
   expect(terminal.options.theme.background).toBe("#ffffff");
   expect(open).toHaveBeenCalledTimes(1);
   expect(terminal.dispose).not.toHaveBeenCalled();
+  view.unmount();
+  expect(close).toHaveBeenCalledExactlyOnceWith("terminal");
+});
+
+it("updates exit messages in the current language without restarting the terminal", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const open = vi.fn(async () => ({
+    terminalId: "terminal",
+    shell: "zsh",
+    sandboxImplementation: "desktop-user",
+  }));
+  const close = vi.fn(async () => {});
+  let exit: (event: { terminalId: string; exitCode: number }) => void;
+  stubWindowArtemis({
+    openTerminal: open,
+    closeTerminal: close,
+    resizeTerminal: vi.fn(async () => {}),
+    onTerminalData: vi.fn(() => () => {}),
+    onTerminalExit: vi.fn((listener) => {
+      exit = listener;
+      return () => {};
+    }),
+  });
+  const view = render(
+    <TerminalPanel
+      threadId="task"
+      theme="light"
+      locale="en"
+      title="Terminal"
+      emptyMessage="No terminal"
+    />,
+  );
+  await act(async () => {});
+  const terminal = terminals[0]!;
+  view.rerender(
+    <TerminalPanel
+      threadId="task"
+      theme="light"
+      locale="zh-CN"
+      title="终端"
+      emptyMessage="终端不可用"
+    />,
+  );
+  await act(async () => {});
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(close).not.toHaveBeenCalled();
+  expect(terminal.dispose).not.toHaveBeenCalled();
+  act(() => exit({ terminalId: "terminal", exitCode: 7 }));
+  expect(terminal.writeln).toHaveBeenCalledWith("\r\n[进程已退出，退出码：7]");
+  expect(screen.getByText("进程已退出，退出码：7")).toBeTruthy();
+  view.rerender(
+    <TerminalPanel
+      threadId="task"
+      theme="light"
+      locale="de"
+      title="Terminal"
+      emptyMessage="Kein Terminal"
+    />,
+  );
+  expect(screen.getByText("Prozess mit Code 7 beendet")).toBeTruthy();
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(terminal.writeln).toHaveBeenCalledTimes(1);
   view.unmount();
   expect(close).toHaveBeenCalledExactlyOnceWith("terminal");
 });

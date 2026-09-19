@@ -133,6 +133,52 @@ async function fixture(
   };
 }
 describe("Gateway lifecycle and delivery authorization", () => {
+  it("sends locale metadata only to desktops that opt in through the locale header", async () => {
+    const f = await fixture();
+    f.receive(f.input);
+    const read = async (headers: Record<string, string>) =>
+      (await (await fetch(`${f.url}/v1/device/inbox`, { headers })).json())
+        .requests;
+    const legacy = await read(f.headers);
+    expect(legacy).toHaveLength(1);
+    expect(legacy[0]).not.toHaveProperty("locale");
+    const localized = await read({ ...f.headers, "x-artemis-locale": "ja" });
+    // Existing queued work keeps the language captured at creation.
+    expect(localized[0]).toHaveProperty("locale", "zh-CN");
+  });
+
+  it("accepts locale changes only from the authenticated device session", async () => {
+    const f = await fixture();
+    const poll = (headers: Record<string, string>) =>
+      fetch(`${f.url}/v1/device/inbox`, { headers });
+    expect(
+      (await poll({ ...f.headers, "x-artemis-locale": "ja" })).status,
+    ).toBe(200);
+    expect(f.gateway.store.get("device-locales", f.device.id)).toBe("ja");
+    expect(
+      (
+        await poll({
+          ...f.headers,
+          authorization: "Bearer invalid",
+          "x-artemis-locale": "de",
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await poll({
+          ...f.headers,
+          "x-artemis-session": randomUUID(),
+          "x-artemis-locale": "de",
+        })
+      ).status,
+    ).toBe(409);
+    expect(f.gateway.store.get("device-locales", f.device.id)).toBe("ja");
+    await poll({ ...f.headers, "x-artemis-locale": "invalid" });
+    expect(f.gateway.store.get("device-locales", f.device.id)).toBe("ja");
+    await poll({ ...f.headers, "x-artemis-locale": "de" });
+    expect(f.gateway.store.get("device-locales", f.device.id)).toBe("de");
+  });
   it("passes actionable group status mentions to the adapter as a new message", async () => {
     const f = await fixture(true);
     const conversation = {

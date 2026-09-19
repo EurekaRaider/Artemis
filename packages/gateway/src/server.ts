@@ -1,7 +1,10 @@
+import { imText } from "./im-localization.js";
+import type { AppLocale } from "@artemis/protocol";
 import { normalizeFeishuGroupEvent } from "./feishu-group-events.js";
 import { saveNativeGroup, retireLegacySpaces } from "./native-groups.js";
 import {
   IM_SECURITY_VERSION,
+  appLocaleSchema,
   imDeliverySecuritySchema,
   imReplySchema,
   isImOwnerDirectRequest,
@@ -205,6 +208,21 @@ export class ArtemisGateway {
       }
     });
   }
+  private approvalLocale(
+    connectionId: string,
+    value: unknown,
+  ): AppLocale | undefined {
+    const token = (
+      value as {
+        event?: { action?: { value?: { artemisApprovalToken?: unknown } } };
+      }
+    )?.event?.action?.value?.artemisApprovalToken;
+    if (typeof token !== "string") return undefined;
+    return this.store.get<FeishuApprovalCard>(
+      "approval-cards",
+      `${connectionId}:${token}`,
+    )?.locale;
+  }
   private receiveFeishuCard(connectionId: string, value: unknown): boolean {
     const raw = value as {
       event?: { action?: { value?: { artemisApprovalToken?: string } } };
@@ -302,6 +320,7 @@ export class ArtemisGateway {
                 },
                 (value) => this.receiveFeishuGroup(config, value),
                 (tenantId) => this.persistTenantId(config.id, tenantId),
+                (value) => this.approvalLocale(config.id, value),
               )
             : new FeishuAdapter(config));
     this.adapters.set(config.id, adapter);
@@ -436,9 +455,10 @@ export class ArtemisGateway {
         respond(response, 200, {
           toast: {
             type: accepted ? "success" : "error",
-            content: accepted
-              ? "已提交，请在任务中查看处理结果。"
-              : "确认无效、已处理或已过期，请在本人单聊或桌面处理。",
+            content: imText(
+              this.approvalLocale(config.id, event),
+              accepted ? "approvalSubmitted" : "approvalInvalid",
+            ),
           },
         });
         return;
@@ -451,6 +471,17 @@ export class ArtemisGateway {
       return;
     }
     const token = request.headers.authorization?.replace(/^Bearer /u, "") ?? "";
+    const parsedLocale = appLocaleSchema.safeParse(
+      request.headers["x-artemis-locale"],
+    );
+    const locale = parsedLocale.success ? parsedLocale.data : "zh-CN";
+    const clientInvocation = (invocation: RemoteInvocationContext) => {
+      if (parsedLocale.success) return invocation;
+      // Locale is opt-in: legacy desktops use a strict v1 request schema.
+      const compatible = { ...invocation };
+      delete compatible.locale;
+      return compatible;
+    };
     if (url.pathname.startsWith("/v1/admin/")) {
       if (!sameSecret(token, this.options.adminToken)) {
         respond(response, 401, { error: "Invalid administrator credential." });
@@ -463,7 +494,9 @@ export class ArtemisGateway {
           .object({ name: z.string().min(1).max(100) })
           .strict()
           .parse(body);
-        respond(response, 201, this.store.register(input.name));
+        const device = this.store.register(input.name);
+        this.store.put("device-locales", device.id, locale);
+        respond(response, 201, device);
         return;
       }
       if (
@@ -491,9 +524,7 @@ export class ArtemisGateway {
           .strict()
           .parse(body);
         if (!this.store.get("connections", id))
-          throw new Error(
-            "机器人连接不存在。 / Bot connection does not exist.",
-          );
+          throw new Error(imText(locale, "connectionMissing"));
         this.store.transaction(() => {
           for (const namespace of ["native-groups", "spaces"]) {
             for (const space of this.store.list<CollaborationSpace>(
@@ -558,13 +589,11 @@ export class ArtemisGateway {
             ? await resolveSlackConnection(body)
             : body?.channel === "feishu"
               ? channelConnectionSchema.parse(
-                  await resolveFeishuConnection(body),
+                  await resolveFeishuConnection(body, locale),
                 )
               : channelConnectionSchema.parse(body);
         if (this.store.get("removed-connections", config.id))
-          throw new Error(
-            "此连接 ID 已移除，请使用新的连接 ID。 / This connection ID was removed. Use a new connection ID.",
-          );
+          throw new Error(imText(locale, "connectionRemoved"));
         const previous = this.store.get<{ sealed: string }>(
           "connections",
           config.id,
@@ -583,9 +612,7 @@ export class ArtemisGateway {
               config.channel === "feishu" &&
               (current.domain ?? "feishu") !== (config.domain ?? "feishu"))
           )
-            throw new Error(
-              "连接 ID 已绑定到指定平台、企业和机器人。更换机器人请使用新的连接 ID，避免历史消息被送到另一个账号。",
-            );
+            throw new Error(imText(locale, "connectionIdentity"));
         }
         const conflicts = this.store
           .list<{ sealed: string }>("connections")
@@ -615,7 +642,7 @@ export class ArtemisGateway {
         url.pathname === "/v1/admin/remove-space-member"
       ) {
         respond(response, 410, {
-          error: "跨 IM 协作空间已退役。请在本机启用原生 IM 群。",
+          error: imText(locale, "manualOnly"),
         });
         return;
       }
@@ -706,7 +733,7 @@ export class ArtemisGateway {
       }
       if (url.pathname === "/v1/admin/status" && request.method === "GET") {
         respond(response, 200, {
-          connections: [...this.adapters.values()].map((a) => a.status()),
+          connections: [...this.adapters.values()].map((a) => a.status(locale)),
           spaces: this.store
             .list<CollaborationSpace>("native-groups")
             .map((space) => ({
@@ -755,7 +782,7 @@ export class ArtemisGateway {
               .map((item) => ({
                 connectionId: item.connectionId,
                 kind: "typing",
-                error: item.error,
+                error: imText(locale, "typingRetry"),
               })),
             ...this.store
               .list<FeishuApprovalCard>("approval-cards")
@@ -763,7 +790,7 @@ export class ArtemisGateway {
               .map((item) => ({
                 connectionId: item.identity.connectionId,
                 kind: "approval",
-                error: "审批卡片更新待重试，请检查消息更新权限和网络。",
+                error: imText(locale, "cardRetry"),
               })),
           ],
         });
@@ -826,6 +853,8 @@ export class ArtemisGateway {
         grants: [],
       });
     const leaseUntil = Date.now() + 45000;
+    if (parsedLocale.success)
+      this.store.put("device-locales", deviceId, locale);
     this.store.put("device-leases", deviceId, {
       sessionId,
       expiresAt: leaseUntil,
@@ -861,7 +890,7 @@ export class ArtemisGateway {
           .map((b) => b.identity),
         pairingRequests: this.store.pairingRequests(deviceId),
         connections: [...this.adapters.values()].map((a) => {
-          const status = a.status();
+          const status = a.status(locale);
           const stored = this.store.get<{ sealed: string }>(
             "connections",
             status.id,
@@ -984,11 +1013,12 @@ export class ArtemisGateway {
           this.store.mark("device", item.id, "expired");
           this.router.queueDelivery(`expired:${item.id}`, {
             conversation: item.payload.conversation,
-            text: "任务已过期或授权已撤销，未向桌面执行器投递。",
+            locale: item.payload.locale ?? locale,
+            text: imText(item.payload.locale ?? locale, "deliveryExpired"),
           });
           return false;
         })
-        .map((item) => item.payload);
+        .map((item) => clientInvocation(item.payload));
       respond(response, 200, { requests });
       return;
     }
@@ -1089,7 +1119,9 @@ export class ArtemisGateway {
         response,
         200,
         this.store.transaction(() =>
-          this.router.groupConversationContext(deviceId, input.spaceId),
+          clientInvocation(
+            this.router.groupConversationContext(deviceId, input.spaceId),
+          ),
         ),
       );
       return;
@@ -1233,9 +1265,8 @@ export class ArtemisGateway {
         );
         this.router.queueDelivery(`pairing:${pending.id}:resolved`, {
           conversation: pending.conversation,
-          text: input.approve
-            ? "配对成功。发送 /projects 选择项目，/help 查看操作。"
-            : "配对请求已拒绝。如需重新配对，请在 Artemis 生成新的配对码。",
+          locale,
+          text: imText(locale, input.approve ? "paired" : "pairDenied"),
         });
       });
       respond(response, 200, { resolved: true });
@@ -1558,6 +1589,7 @@ export class ArtemisGateway {
               item.payload.text,
               item.id,
               item.payload.native.recipient,
+              item.payload.native.locale,
             );
           } else if (item.payload.fileId) {
             const file = this.store.get<{ sealed?: string }>(
@@ -1628,6 +1660,7 @@ export class ArtemisGateway {
                   item.payload.text,
                   item.id,
                   approval,
+                  item.payload.locale,
                 );
                 interactive = true;
               } catch (error) {
@@ -1639,7 +1672,7 @@ export class ArtemisGateway {
                   throw error;
                 messageId = await adapter.send(
                   item.payload.conversation,
-                  `按钮卡片不可用，请使用下方文字指令。\n${item.payload.text}`,
+                  `${imText(item.payload.locale, "cardFallback")}\n${item.payload.text}`,
                   `${item.id}:text`,
                 );
               }
@@ -1648,6 +1681,9 @@ export class ArtemisGateway {
               if (interactive && messageId)
                 this.store.put("approval-cards", approvalKey, {
                   approval,
+                  ...(item.payload.locale
+                    ? { locale: item.payload.locale }
+                    : {}),
                   identity: request.identity,
                   conversation: item.payload.conversation,
                   invocationId: request.id,
@@ -1692,6 +1728,7 @@ export class ArtemisGateway {
                   item.payload.text,
                   item.id,
                   current?.messageId,
+                  item.payload.locale,
                 );
                 this.store.put("status-cards", cardKey, {
                   messageId,
@@ -1723,6 +1760,7 @@ export class ArtemisGateway {
                 item.payload.text,
                 item.id,
                 current?.messageId,
+                item.payload.locale,
               );
               this.store.put("status-cards", cardKey, {
                 messageId,
@@ -2012,20 +2050,21 @@ export class ArtemisGateway {
       if (!adapter?.statusCard || adapter.status().state !== "connected")
         continue;
       const text = revoked
-        ? "授权已撤销，请在桌面查看。"
+        ? imText(card.locale, "approvalRevoked")
         : card.approval.resolved === "approved"
-          ? "已批准一次。"
+          ? imText(card.locale, "approved")
           : card.approval.resolved === "denied"
-            ? "已拒绝。"
+            ? imText(card.locale, "denied")
             : expired
-              ? "审批已过期，请在桌面查看。"
-              : "已提交，等待桌面确认。";
+              ? imText(card.locale, "approvalExpired")
+              : imText(card.locale, "approvalSubmitted");
       try {
         await adapter.statusCard(
           card.conversation,
           text,
           `${key}:closed`,
           card.messageId,
+          card.locale,
         );
         const current = this.store.get<FeishuApprovalCard>(
           "approval-cards",
@@ -2085,7 +2124,7 @@ export class ArtemisGateway {
           ...(this.store.get<FeishuTyping>("feishu-typing", key) ?? activity),
           ...(stopping ? { active: false } : {}),
           retryAt: Date.now() + 30000,
-          error: "Typing 更新失败，请检查消息表情权限和网络。",
+          error: "typing-update-failed",
         });
       }
     }

@@ -1,4 +1,6 @@
-// Capture the real desktop with isolated demonstration data; no provider turn is sent.
+// Capture the built desktop with isolated demonstration data; no provider turn is sent.
+// Run after npm run build with Node 24 and ARTEMIS_PLAYWRIGHT_MODULE pointing to
+// an available Playwright module: node docs/scripts/capture-readme.mjs [output-dir].
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
@@ -223,6 +225,9 @@ const app = await _electron.launch({
 const page = await app.firstWindow();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
+page.on("console", (message) => {
+  if (message.type() === "error") errors.push(message.text());
+});
 const screenshots = [];
 let viewport;
 async function capture(name, { keepEnvironment = false } = {}) {
@@ -235,6 +240,8 @@ async function capture(name, { keepEnvironment = false } = {}) {
   await page.mouse.move(300, 20);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(350);
+  assert.equal(await page.title(), "Artemis");
+  assert.equal(await page.locator("vite-error-overlay").count(), 0);
   const visibleText = await page.locator("body").innerText();
   const localName = userInfo().username.toLowerCase();
   if (localName !== "artemis") {
@@ -281,10 +288,9 @@ async function openDemoGroup() {
     .click();
   await page.locator("#settings-tab-im-button").click();
   await page
-    .locator(".im-overview-actions")
+    .locator(".im-channel-list")
     .getByRole("button", {
-      name: "Project and collaboration permissions",
-      exact: true,
+      name: /Group-chat project grants/,
     })
     .click();
   await page.locator('#im-spaces [aria-haspopup="listbox"]').click();
@@ -577,10 +583,17 @@ try {
   await page.waitForSelector(".im-settings[data-mode=overview]");
   await capture("im-connections");
   await page
-    .locator(".im-overview-actions")
+    .locator(".im-channel-list")
+    .getByRole("button", { name: /Slack/ })
+    .click();
+  await page.locator(".im-channel-dialog").waitFor();
+  await capture("im-channel-settings");
+  await page.keyboard.press("Escape");
+  await page.locator(".im-channel-dialog").waitFor({ state: "detached" });
+  await page
+    .locator(".im-channel-list")
     .getByRole("button", {
-      name: "Project and collaboration permissions",
-      exact: true,
+      name: /Group-chat project grants/,
     })
     .click();
   await page.locator("#im-spaces").waitFor();
@@ -598,6 +611,19 @@ try {
     await page.locator(`.sidebar-nav [data-nav-view="${view}"]`).click();
     await page.waitForTimeout(600);
     await capture(name);
+    if (view === "resources") {
+      await page
+        .locator(".plugin-market-card")
+        .filter({ hasText: "Documents" })
+        .getByRole("button", { name: "Install", exact: true })
+        .click();
+      await page.locator(".plugin-install-dialog").waitFor();
+      await capture("plugin-install");
+      await page
+        .locator(".plugin-install-dialog")
+        .getByRole("button", { name: "Cancel", exact: true })
+        .click();
+    }
   }
   await openDemoGroup();
   if (
@@ -665,6 +691,19 @@ try {
     }).trim(),
     sourceState:
       "Local working tree, including in-progress changes present at capture time.",
+    buildArtifacts: await Promise.all(
+      [
+        "apps/desktop/dist-electron/main.js",
+        "apps/desktop/dist-electron/preload.cjs",
+        "apps/desktop/dist-renderer/index.html",
+      ].map(async (file) => ({
+        file,
+        sha256: createHash("sha256")
+          .update(await readFile(join(root, file)))
+          .digest("hex"),
+      })),
+    ),
+    automation: "Playwright Electron; Browser plugin not available.",
     platform: "macOS " + process.arch,
     renderer: "Production Electron build",
     viewport,

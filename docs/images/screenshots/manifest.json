@@ -1,9 +1,24 @@
 {
   "version": 1,
-  "capturedAt": "2026-09-18T05:14:55.366Z",
+  "capturedAt": "2026-09-19T13:51:48.054Z",
   "appVersion": "1.6.0",
-  "sourceHead": "0d81aab6f5e1a3691f764491adb208aa2c070f90",
+  "sourceHead": "458101125146fc1d9ebecbc56158413aa22b2b8b",
   "sourceState": "Local working tree, including in-progress changes present at capture time.",
+  "buildArtifacts": [
+    {
+      "file": "apps/desktop/dist-electron/main.js",
+      "sha256": "5bc43bfc28234080785e1c9ef5a22f0a8465d4dd753d347aaf716dbe547fb6b8"
+    },
+    {
+      "file": "apps/desktop/dist-electron/preload.cjs",
+      "sha256": "18ea2ac7d1388021df9a9ef6ef0e4d337f1839a95d4ac2a97e5835daee8bbfa6"
+    },
+    {
+      "file": "apps/desktop/dist-renderer/index.html",
+      "sha256": "6863ec93cff3f16cb9d8ddf3735f07737836f70a088575acffb6f0b7714b94bc"
+    }
+  ],
+  "automation": "Playwright Electron; Browser plugin not available.",
   "platform": "macOS arm64",
   "renderer": "Production Electron build",
   "viewport": {
@@ -14,12 +29,7 @@
   "privacy": {
     "displayName": "Artemis",
     "visiblePersonalNames": false,
-    "visibleHomePaths": false,
-    "review": {
-      "reviewedAt": "2026-09-18",
-      "method": "Every final image inspected at original resolution; visible DOM text checked for personal username and home/temp paths.",
-      "result": "No personal identity, account, credential, real project path or global Skills catalog visible."
-    }
+    "visibleHomePaths": false
   },
   "security": {
     "sandbox": true,
@@ -32,120 +42,134 @@
       "file": "workspace-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 127299,
-      "sha256": "ce2a20723529525590456740d14a6689d11218785267b8cd8f3dfa5b6adce0f7"
+      "bytes": 132026,
+      "sha256": "4dfad3f16ee0e99a9bcfb46be8089f805f92ab2148b9d96f3732c248ee3a6c06"
     },
     {
       "file": "environment-panel-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 155505,
-      "sha256": "28d2ca05ff3d5bdee7cd0a1a3394eb0806450b43c0c92ccc4f7b531c02faf514"
+      "bytes": 159175,
+      "sha256": "f06142d374f7be123e76858eed22074ea13b032b8e2cd51338b284e1f7baf477"
     },
     {
       "file": "workspace-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 119369,
-      "sha256": "8c66bbb97607d69f5b6ca6b4cc055ec9a23d0f8892512a4c058514f8e6c8fde8"
+      "bytes": 121857,
+      "sha256": "4be89bf9b9ce0a3c0eb25b366d4cfb240f499df1da14ca63fc9facb6b74285b8"
     },
     {
       "file": "environment-panel-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 143500,
-      "sha256": "aef4b7bc2ec76aef8219bfbd6315b58940d72afe8949feb93e58bc76bd298e7d"
+      "bytes": 144986,
+      "sha256": "f54734c4b21ff3e3b9ae2bba2e184533c54ed56d32aed123098dae95727cdad2"
     },
     {
       "file": "git-review.png",
       "width": 1440,
       "height": 850,
-      "bytes": 188741,
-      "sha256": "f540c9ddac13dc3e345760e6b35a229b60d4e7a06293c6cca80d9cbe4d2bbdea"
+      "bytes": 192656,
+      "sha256": "ce2bbc7a13c2ce41254638aa3b3396a4eb4883212ecbfbd111f1037dcdd45729"
     },
     {
       "file": "markdown-files.png",
       "width": 1440,
       "height": 850,
-      "bytes": 188799,
-      "sha256": "0cd871b5484cf9b9063683956595d4eb4e8445727463aefab8a373e15f58ecd1"
+      "bytes": 192496,
+      "sha256": "eb06c45b7e2ef038dabf33c6da3046c09969270ed9f5ea363c81e4d321634536"
     },
     {
       "file": "terminal.png",
       "width": 1440,
       "height": 850,
-      "bytes": 137419,
-      "sha256": "b40618f7f8ae6e28c1d6e2447021dd56813bec77837feb8c067071e5ac6b77a8"
+      "bytes": 140861,
+      "sha256": "400f603ac3d34de8c1d3f61d2ad5a6f138a2dcfa252253f63e2f91c66d6f7265"
     },
     {
       "file": "agent-team.png",
       "width": 1440,
       "height": 850,
-      "bytes": 148803,
-      "sha256": "7a43b1f5d33ecbf44b493f904fb77e7399daba1683ee29c865270d2b9264c67d"
+      "bytes": 152185,
+      "sha256": "0c8a8cea971c6096e7af8e270dcf3bcf8e10a6ec5d72a27963b22acfcfbdc18d"
     },
     {
       "file": "settings-general.png",
       "width": 1440,
       "height": 850,
-      "bytes": 180454,
-      "sha256": "65c9df582ecfa276c2f12833e2a8b603506f0d99df3ffcef66bea6c6bdbe60e4"
+      "bytes": 185498,
+      "sha256": "2c8b8f6c0fbdd385e1c1b411d329c85dcc20a170ec6e6719288604641ad12b2e"
     },
     {
       "file": "im-connections.png",
       "width": 1440,
       "height": 850,
-      "bytes": 167600,
-      "sha256": "4c2b1b010090f5cb9138c514d0f457d4dd263528180329a62e9f997200c00bbe"
+      "bytes": 210075,
+      "sha256": "b07f1ff4b21b03d631b6a242ffbb1c49244effba5640ea121e2b94bccae97eb1"
+    },
+    {
+      "file": "im-channel-settings.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 139927,
+      "sha256": "51c04fbf8ec1dcba0487a21298897274ac7042e43ab4eb1018cbe043a0654dd3"
     },
     {
       "file": "im-spaces.png",
       "width": 1440,
       "height": 850,
-      "bytes": 173860,
-      "sha256": "f20c70fc6550bd5ed6168c0b0c746d64db7f5098a133908d3090c1012fa824d4"
+      "bytes": 210643,
+      "sha256": "2531db05a0e67c46cca0efc4db79cc1e87827b331e6729535551607f77302563"
     },
     {
       "file": "resources.png",
       "width": 1440,
       "height": 850,
-      "bytes": 130262,
-      "sha256": "12a08a23b1c46d67d5236c05f5c417e8b8a02bdbe354acdf5162661d2f606931"
+      "bytes": 131587,
+      "sha256": "25cd222fa3d067fb2d3b02234be7b8629315f8941fdb645b03e2ed095e9577ae"
+    },
+    {
+      "file": "plugin-install.png",
+      "width": 1440,
+      "height": 850,
+      "bytes": 180782,
+      "sha256": "8265ed337ff456bdd80fcd7f06bc8b3038d76181bf5dc05057f1377d4dcac494"
     },
     {
       "file": "token-usage.png",
       "width": 1440,
       "height": 850,
-      "bytes": 104492,
-      "sha256": "bd1bf7cce4507ee0a22b053d8b7ff7dbea23eaea78b1c150440c69fd3a4dda28"
+      "bytes": 109774,
+      "sha256": "7c4677866d9f8afe401dbffc202947995b8bb2fd976f6a7606be7e576a08044f"
     },
     {
       "file": "automations.png",
       "width": 1440,
       "height": 850,
-      "bytes": 108983,
-      "sha256": "e35dc786d61ca099fdcfe026679b66190097ea48a2e7d701a47b86165c5f444c"
+      "bytes": 113247,
+      "sha256": "1ab46ed8b7c6887c7bd7c85114b7b8cac4c6542ed84af312d8eb6aaada80f771"
     },
     {
       "file": "im-group-chat.png",
       "width": 1440,
       "height": 850,
-      "bytes": 128477,
-      "sha256": "040d287615e441d333b52b5ec4530d9a74ecc14e997c5a63556f322b070b07dc"
+      "bytes": 130991,
+      "sha256": "f36f3e2f389011993c98343bd15dfad5dcab58d71f1d7d24270d589267dddf12"
     },
     {
       "file": "im-group-chat-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 119475,
-      "sha256": "0f300d62cf033ada376ff6720018e30f3624a027a0092de495431efe27759eaa"
+      "bytes": 120267,
+      "sha256": "953c7378c96575d59910ccaa5c2566570eed514110879951fe98ac19363c6809"
     },
     {
       "file": "workspace-zh-CN.png",
       "width": 1440,
       "height": 850,
-      "bytes": 121219,
-      "sha256": "99f1224451f9779ff3302d81716384b69714d2c91cac4ea7dc0a0efb2eac5bc3"
+      "bytes": 123470,
+      "sha256": "4441330cb363368abcff7af534e0655717287754aedf2322dea6424373dbf661"
     }
   ]
 }

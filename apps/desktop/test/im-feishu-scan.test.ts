@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImFeishuScanPollResult } from "@artemis/protocol";
+import { APP_LOCALES } from "@artemis/protocol";
+import { imText } from "@artemis/gateway";
 import {
   beginFeishuScan,
   fetchFeishuBotInfo,
@@ -29,6 +31,26 @@ function stubFetch(responses: Record<string, unknown>) {
 }
 
 describe("feishu scan-to-register", () => {
+  it.each(APP_LOCALES)(
+    "localizes setup and network failures in %s",
+    async (locale) => {
+      stubFetch({ init: { supported_auth_methods: [] } });
+      await expect(beginFeishuScan("lark", locale)).rejects.toThrow(
+        imText(locale, "scanUnsupported", { platform: "Lark" }),
+      );
+      stubFetch({ init: 503 });
+      await expect(beginFeishuScan("lark", locale)).rejects.toThrow(
+        imText(locale, "scanNetwork", { platform: "Lark" }),
+      );
+      stubFetch({
+        init: { supported_auth_methods: ["client_secret"] },
+        begin: 503,
+      });
+      await expect(beginFeishuScan("lark", locale)).rejects.toThrow(
+        imText(locale, "scanNetwork", { platform: "Lark" }),
+      );
+    },
+  );
   beforeEach(() => {
     vi.unstubAllGlobals();
   });

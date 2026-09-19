@@ -1,3 +1,4 @@
+import { imText, type ImMessageKey } from "@artemis/gateway";
 import { formatImTaskTitle, type ImTaskTitleContext } from "./task-title.js";
 import {
   ImDelegationWaits,
@@ -94,6 +95,7 @@ import {
 } from "./im-sandbox.js";
 
 export interface ImTaskOperations {
+  locale?(): import("@artemis/protocol").AppLocale;
   classifyControlIntent?(id: string, text: string): Promise<ImControlIntent>;
   resumeDelegation?(
     id: string,
@@ -311,14 +313,23 @@ export class ImService {
     };
   }
   private interruptionReason(wait: DelegationWait): string {
+    const request = this.get<Binding>("bindings", wait.threadId)?.request;
+    const states: Record<string, ImMessageKey> = {
+      cancelled: "nativeCancelled",
+      failed: "failed",
+      rejected: "rejected",
+    };
     return wait.results
-      .filter((t) =>
-        ["cancelled", "failed", "rejected", "timeout"].includes(t.state),
+      .filter((task) =>
+        ["cancelled", "failed", "rejected", "timeout"].includes(task.state),
       )
-      .map((t) =>
-        t.state === "timeout"
-          ? "等待已超时，队友状态未知，无法确认是否仍在执行。"
-          : `队友任务${({ cancelled: "已取消", failed: "失败", rejected: "被拒绝" } as Record<string, string>)[t.state]}${t.result ? `：${t.result.slice(0, 1000)}` : "。"}`,
+      .map((task) =>
+        task.state === "timeout"
+          ? this.text("waitTimeout", request)
+          : this.text("peerResult", request, {
+              state: this.text(states[task.state]!, request),
+              result: task.result ? `: ${task.result.slice(0, 1000)}` : "",
+            }),
       )
       .join("\n");
   }
@@ -350,7 +361,7 @@ export class ImService {
     if (binding && !binding.localExecution)
       this.reply(
         binding.request,
-        `${reason}\n已结束本次任务，不会自动重派。可在 Artemis 选择，或发送 /retry ${wait.id} 重新委派${wait.results.some((t) => t.state === "timeout") ? `，/wait ${wait.id} 继续等待` : ""}。`,
+        `${reason}\n${this.text("waitInterrupted", binding.request, { id: wait.id })}${wait.results.some((task) => task.state === "timeout") ? "\n" + this.text("waitContinue", binding.request, { id: wait.id }) : ""}`,
         wait.threadId,
         true,
         "conversation",
@@ -634,7 +645,7 @@ export class ImService {
         this.put("receipts", receipt.request.id, receipt);
         this.reply(
           receipt.request,
-          "桌面在任务投递过程中中断。为避免重复外部操作，没有自动重放；请先 /status 核对任务，再明确继续。",
+          this.text("deliveryInterrupted", receipt.request),
           receipt.threadId,
           true,
           "conversation",
@@ -968,8 +979,10 @@ export class ImService {
       this.reply(
         binding.request,
         result.native
-          ? "文件已进入当前 IM 的发送队列；平台接收状态请查看群对话。"
-          : `文件已发布：${assertImGatewayUrl(this.config.gatewayUrl).origin}${result.path}`,
+          ? this.text("fileQueuedStatus", binding.request)
+          : this.text("filePublished", binding.request, {
+              url: `${assertImGatewayUrl(this.config.gatewayUrl).origin}${result.path}`,
+            }),
         binding.threadId,
         false,
         "conversation",
@@ -1534,6 +1547,7 @@ export class ImService {
         "X-Artemis-Device": this.config.deviceId,
         "X-Artemis-Security-Version": String(IM_SECURITY_VERSION),
         "X-Artemis-Session": this.sessionId,
+        "X-Artemis-Locale": this.ops.locale?.() ?? "zh-CN",
         "Content-Type": "application/json",
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -1778,7 +1792,7 @@ export class ImService {
       return { id, requiresPairing: true, requiresProjectGrant: false };
     }
     if (action.action === "feishu-scan-begin")
-      return beginFeishuScan(action.domain);
+      return beginFeishuScan(action.domain, this.ops.locale?.() ?? "zh-CN");
     if (action.action === "feishu-scan-poll")
       return pollFeishuScan({
         deviceCode: action.deviceCode,
@@ -2184,6 +2198,7 @@ export class ImService {
       const id = randomUUID();
       const request = {
         ...binding.request,
+        locale: this.ops.locale?.() ?? "zh-CN",
         id: action.messageId,
         messageId: action.messageId,
         text: action.text,
@@ -2422,6 +2437,10 @@ export class ImService {
       binding = { ...this.get<Binding>("bindings", threadId)!, request };
     }
     this.checkContext(binding);
+    binding = {
+      ...binding,
+      request: { ...binding.request, locale: this.ops.locale?.() ?? "zh-CN" },
+    };
     this.put("bindings", threadId, binding);
     if (!binding.privateLocal) this.put("subscriptions", threadId, true);
     this.put("local-turns", turnId, threadId);
@@ -3226,6 +3245,17 @@ export class ImService {
       await rm(probe, { recursive: true, force: true });
     }
   }
+  private text(
+    key: ImMessageKey,
+    request?: RemoteInvocationContext,
+    values: Record<string, string | number> = {},
+  ): string {
+    return imText(
+      request?.locale ?? this.ops.locale?.() ?? "zh-CN",
+      key,
+      values,
+    );
+  }
   private conversationKey(request: RemoteInvocationContext): string {
     return JSON.stringify([
       imIdentityKey(request.identity),
@@ -3267,8 +3297,7 @@ export class ImService {
       try {
         this.checkContext(binding);
       } catch {
-        reply.text =
-          "此任务的数据或分享范围已失效，请在桌面确认后开启新的受限任务。";
+        reply.text = this.text("scopeExpired", request);
         delete reply.taskId;
         delete reply.approval;
         delete reply.started;
@@ -3284,7 +3313,7 @@ export class ImService {
           this.put("outbox", `${reply.id}:held`, {
             ...reply,
             id: `${reply.id}:held`,
-            text: "结果已保留在 Artemis 桌面等待审阅，尚未发送。",
+            text: this.text("heldResult", request),
             deliveryState: "pending",
             status: "waiting",
             approval: undefined,
@@ -3294,7 +3323,7 @@ export class ImService {
       }
       // Owner direct chats return results using their paired identity.
     } else if (inspectImOutbound(reply.text))
-      reply.text = "请求未完成，请在 Artemis 桌面查看详情。";
+      reply.text = this.text("failedDesktop", request);
     if (
       binding?.parentThreadId &&
       !binding.privateLocal &&
@@ -3315,6 +3344,7 @@ export class ImService {
   }
   async accept(input: unknown): Promise<void> {
     const request = remoteInvocationSchema.parse(input);
+    request.locale ??= this.ops.locale?.() ?? "zh-CN";
     if (request.deviceId !== this.config.deviceId)
       throw new Error("Request targets another device.");
     if (!this.get("receipts", request.id))
@@ -3340,7 +3370,7 @@ export class ImService {
         this.put("receipts", request.id, receipt);
         this.reply(
           request,
-          "请求已过期，请重新发送。",
+          this.text("requestExpired", request),
           undefined,
           true,
           "conversation",
@@ -3376,12 +3406,18 @@ export class ImService {
       }
     });
   }
-  private taskState(thread: Thread): string {
-    if (this.hasPermissionBlock(thread.id)) return "等待权限处理";
-    if (thread.status === "running") return "正在执行";
-    if (thread.status === "waiting-approval") return "等待确认";
-    if (this.hasDelegationWait(thread.id)) return "等待委派结果";
-    if (thread.status === "failed") return "失败";
+  private taskState(
+    thread: Thread,
+    request = this.get<Binding>("bindings", thread.id)?.request,
+  ): string {
+    if (this.hasPermissionBlock(thread.id))
+      return this.text("permission", request);
+    if (thread.status === "running") return this.text("running", request);
+    if (thread.status === "waiting-approval")
+      return this.text("waiting", request);
+    if (this.hasDelegationWait(thread.id))
+      return this.text("delegation", request);
+    if (thread.status === "failed") return this.text("failed", request);
     const payload = this.ops
       .events(thread.id)
       .filter(
@@ -3398,14 +3434,14 @@ export class ImService {
         JSON.stringify([thread.id, latestTurn]),
       )
     )
-      return "委派已中断，本次任务已结束";
+      return this.text("interrupted", request);
     return payload?.type === "turn.completed"
       ? payload.reason === "cancelled"
-        ? "已停止"
-        : "完成"
+        ? this.text("cancelled", request)
+        : this.text("completed", request)
       : payload?.type === "turn.failed"
-        ? "失败"
-        : "空闲";
+        ? this.text("failed", request)
+        : this.text("idle", request);
   }
   private accessibleThread(
     request: RemoteInvocationContext,
@@ -3414,12 +3450,12 @@ export class ImService {
   ): Thread {
     const thread = this.ops.thread(id);
     if (!thread || thread.archived || thread.target !== "local")
-      throw new Error("任务不可访问。");
+      throw new Error(this.text("threadAccessDenied", request));
     const binding = this.get<Binding>("bindings", id);
     if (thread.projectId) {
       requireImGrant(this.config, request, thread.projectId);
     } else if (!isImOwnerDirectRequest(request)) {
-      throw new Error("任务不可访问。");
+      throw new Error(this.text("threadAccessDenied", request));
     }
     const groupEntry = request.conversation.spaceId
       ? this.get<GroupEntry>(
@@ -3439,9 +3475,9 @@ export class ImService {
         imConversationKey(binding.request.conversation) !==
           imConversationKey(request.conversation))
     )
-      throw new Error("任务属于其他身份或会话。");
+      throw new Error(this.text("threadIdentityMismatch", request));
     if (!binding && (!explicit || request.conversation.kind !== "direct"))
-      throw new Error("请在本人单聊使用 /continue 任务编号 明确选择桌面任务。");
+      throw new Error(this.text("continueExplicit", request));
     return thread;
   }
   /** Task control returns no project content and survives data-grant revocation. */
@@ -3470,7 +3506,7 @@ export class ImService {
             binding.request.originator ?? binding.request.identity,
           )) !== imIdentityKey(request.originator))
     )
-      throw new Error("只能查询或停止自己在此会话中的任务。");
+      throw new Error(this.text("selfTasksOnly", request));
     return thread;
   }
   private async dispatch(receipt: Receipt): Promise<void> {
@@ -3516,7 +3552,7 @@ export class ImService {
         if (failed?.status === "rejected") throw failed.reason;
         this.reply(
           request,
-          "任务已取消。",
+          this.text("taskCancelled", request),
           undefined,
           true,
           "conversation",
@@ -3526,7 +3562,7 @@ export class ImService {
       } else
         this.reply(
           request,
-          "分派已取消，未启动本地任务。",
+          this.text("beforeStartCancelled", request),
           undefined,
           true,
           "conversation",
@@ -3542,7 +3578,7 @@ export class ImService {
         (i) => imIdentityKey(i) === imIdentityKey(request.identity),
       )
     )
-      throw new Error("请先完成本人 IM 身份配对。");
+      throw new Error(this.text("identityUnpaired", request));
     const key = this.conversationKey(request),
       selection =
         this.get<{ projectId?: string; threadId?: string }>(
@@ -3576,14 +3612,12 @@ export class ImService {
       );
     };
     if (command === "help") {
-      complete(
-        "/projects 查看可用项目\n/project 项目编号 切换项目\n/new 任务内容 新建任务\n/tasks 查看任务\n/continue 任务编号 选择并订阅任务\n/status [任务编号] 查看状态\n/stop [任务编号] 停止任务\n/retry 等待编号 确认重新委派\n/stopwait 等待编号 停止本地等待（不取消队友任务）\n/wait 等待编号 继续等待状态未知的委派\n/approve 确认码 yes|no 处理审批\n/answer 确认码 [问题编号] 答案 回答澄清\n/publish [任务编号] 相对路径 发布选定文件（15 分钟链接）\n/unsubscribe 停止当前会话回传\n单聊（含临时任务）默认使用 Execute 和本地 Artemis 权限。群聊仅处理授权账号的 @ 派工；引用机器人消息并 @ 可继续对应任务。需要交接时，请在同一 IM 群中手动 @ 下一只机器人并附上摘要。群对话显示此机器人参与的消息和任务。",
-      );
+      complete(this.text("help", request));
       return;
     }
     if (command === "retry" || command === "wait" || command === "stopwait") {
       const wait = this.get<DelegationWait>("delegation-waits", argument);
-      if (!wait) throw new Error("请提供提示中的等待编号。");
+      if (!wait) throw new Error(this.text("waitIdRequired", request));
       if (command === "stopwait")
         this.controllableThread(request, wait.threadId);
       else this.accessibleThread(request, wait.threadId, true);
@@ -3598,10 +3632,10 @@ export class ImService {
       });
       complete(
         command === "stopwait"
-          ? "已停止本地等待，迟到结果不会自动恢复此任务；队友任务未被取消。"
+          ? this.text("waitStopped", request)
           : command === "retry"
-            ? "已确认重新委派，将在任务空闲后执行。"
-            : "已继续等待，尚未重新委派。",
+            ? this.text("retryQueued", request)
+            : this.text("waitResumed", request),
         command === "stopwait" ? undefined : wait.threadId,
       );
       return;
@@ -3612,21 +3646,21 @@ export class ImService {
         projects.length
           ? projects.map((p) => `${p.name} · ${p.id}`).join("\n")
           : isImOwnerDirectRequest(request)
-            ? "尚未添加项目。可直接发消息发起临时任务，默认使用 Execute 和本地 Artemis 权限；也可先在 Artemis 打开项目。"
-            : "尚未授权任何项目，请在 Artemis 的群聊项目授权中设置。",
+            ? this.text("noProjects", request)
+            : this.text("noGrantedProjects", request),
       );
       return;
     }
     if (command === "project") {
       const project = projects.find((p) => p.id === argument);
-      if (!project) throw new Error("请使用 /projects 中的完整项目编号。");
+      if (!project) throw new Error(this.text("projectIdRequired", request));
       this.put("selections", key, { projectId: project.id });
-      complete(`当前项目：${project.name}`);
+      complete(this.text("projectSelected", request, { name: project.name }));
       return;
     }
     if (command === "approve" || command === "answer") {
       if (request.conversation.kind !== "direct")
-        throw new Error("审批和澄清请在本人单聊或桌面处理。");
+        throw new Error(this.text("ownerApprovalOnly", request));
       const [token, ...parts] = argument.split(/\s+/u);
       const action = this.get<PendingAction>("actions", token ?? "");
       if (
@@ -3634,19 +3668,19 @@ export class ImService {
         action.identity !== imIdentityKey(request.identity) ||
         action.expiresAt <= Date.now()
       )
-        throw new Error("确认码无效、已处理或已过期。");
+        throw new Error(this.text("approvalCodeInvalid", request));
       const binding = this.get<Binding>("bindings", action.threadId);
       if (
         !binding ||
         action.revision !== binding.security?.revision ||
         !this.ops.thread(action.threadId)
       )
-        throw new Error("审批任务已失效。");
+        throw new Error(this.text("approvalTaskExpired", request));
       this.grant(binding);
       const p = action.payload;
       if (command === "approve" && p.type === "approval.requested") {
         if (!["yes", "no"].includes(parts.join(" ")))
-          throw new Error("使用 /approve 确认码 yes 或 no。");
+          throw new Error(this.text("approveUsage", request));
         await this.ops.approve({
           approvalId: p.approvalId,
           nonce: p.nonce,
@@ -3665,7 +3699,7 @@ export class ImService {
         if (p.kind === "multi-question") {
           const questionId = parts.shift();
           if (!p.questions.some((q) => q.questionId === questionId))
-            throw new Error("请指定机器人给出的问题编号。");
+            throw new Error(this.text("questionIdRequired", request));
           this.ops.answer({
             kind: "multi-question",
             requestId: p.requestId,
@@ -3681,29 +3715,26 @@ export class ImService {
           });
           this.remove("actions", action.token);
         }
-      } else throw new Error("确认码与操作类型不符。");
-      complete("已提交，桌面与 IM 共用一次性确认状态。", action.threadId);
+      } else throw new Error(this.text("confirmationMismatch", request));
+      complete(this.text("approvalShared", request), action.threadId);
       return;
     }
     if (command === "publish") {
       if (this.usesLocalGateway() && request.conversation.kind !== "group")
-        throw new Error(
-          "文件下载链接需要可访问的 HTTPS Gateway。请在设置中连接团队服务或部署独立运行包后再发布。",
-        );
+        throw new Error(this.text("publishHttps", request));
       if (request.originator)
         throw new Error("Only the owner can publish a file.");
       const parts = argument.split(/\s+/u);
       const hasId = !!this.ops.thread(parts[0] ?? "");
       const id = hasId ? parts.shift() : (selection.threadId ?? request.taskId);
       if (!id || !parts.length)
-        throw new Error(
-          "使用 /publish [任务编号] 项目内相对路径。链接 15 分钟内有效，对此会话的所有成员可见。",
-        );
+        throw new Error(this.text("publishUsage", request));
       const thread = this.accessibleThread(request, id);
       const project = projects.find((p) => p.id === thread.projectId);
       if (!project) throw new Error("Project is not authorized.");
       const binding = this.get<Binding>("bindings", thread.id);
-      if (!binding) throw new Error("请先选择受限任务。");
+      if (!binding)
+        throw new Error(this.text("restrictedTaskRequired", request));
       const grant = this.checkContext(binding);
       const path = parts.join(" ");
       const bytes = isImOwnerDirectRequest(request)
@@ -3729,7 +3760,7 @@ export class ImService {
       const text = bytes.toString("utf8");
       const reason =
         text.includes("\u0000") || !Buffer.from(text).equals(bytes)
-          ? "此文件不能作为纯文本检查，请在桌面审阅。"
+          ? this.text("binaryFileReview", request)
           : inspectImOutbound(text);
       if (binding.security && reason) {
         this.holdOutbound(
@@ -3739,7 +3770,7 @@ export class ImService {
           reason,
           `artifact:${request.id}`,
         );
-        complete("文件已保留在桌面等待审阅，尚未上传。", thread.id);
+        complete(this.text("fileReview", request), thread.id);
         return;
       }
       const artifact = await (
@@ -3749,8 +3780,11 @@ export class ImService {
         this.recordNativeFile(binding, request.id, basename(path));
       complete(
         artifact.native
-          ? `${basename(path)} 已进入当前 IM 的发送队列。SHA-256: ${artifact.sha256}`
-          : `${basename(path)}\n${assertImGatewayUrl(this.config.gatewayUrl).origin}${artifact.path}\nSHA-256: ${artifact.sha256}\n链接 15 分钟后失效，请勿转发到授权范围外。`,
+          ? this.text("fileQueued", request, {
+              name: basename(path),
+              hash: artifact.sha256,
+            })
+          : `${basename(path)}\n${assertImGatewayUrl(this.config.gatewayUrl).origin}${artifact.path}\nSHA-256: ${artifact.sha256}\n${this.text("linkExpiry", request)}`,
         thread.id,
       );
       return;
@@ -3777,8 +3811,8 @@ export class ImService {
       complete(
         tasks
           .slice(0, 30)
-          .map((t) => `${t.title} · ${this.taskState(t)}\n${t.id}`)
-          .join("\n") || "暂无可访问任务。",
+          .map((t) => `${t.title} · ${this.taskState(t, request)}\n${t.id}`)
+          .join("\n") || this.text("noTasks", request),
       );
       return;
     }
@@ -3787,7 +3821,7 @@ export class ImService {
       this.put("selections", key, {
         ...(selection.projectId ? { projectId: selection.projectId } : {}),
       });
-      complete("已停止当前任务向此会话回传。");
+      complete(this.text("unsubscribed", request));
       return;
     }
     let threadId =
@@ -3897,8 +3931,8 @@ export class ImService {
       if (!controlThreadId) {
         complete(
           command === "stop"
-            ? "当前没有可取消的任务。"
-            : "当前没有可查询的任务。",
+            ? this.text("noActiveCancel", request)
+            : this.text("noActiveQuery", request),
         );
         return;
       }
@@ -3928,37 +3962,56 @@ export class ImService {
           )
           .map((task) => {
             const observed = this.observedDelegation(task);
-            const labels: Record<string, string> = {
-              unknown: "状态未知",
-              running: "执行中",
-              accepted: "已接受",
-              sent: "已发送",
-              completed: "已完成",
-              cancelled: "已取消",
-              failed: "失败",
-              rejected: "已拒绝",
-              blocked: "等待处理",
+            const labels: Record<string, ImMessageKey> = {
+              unknown: "unknown",
+              running: "running",
+              accepted: "accepted",
+              sent: "sent",
+              completed: "completed",
+              cancelled: "nativeCancelled",
+              failed: "failed",
+              rejected: "rejected",
+              blocked: "blocked",
             };
-            return `\n委派 ${task.id} · ${labels[observed.state] ?? observed.state} · 最后心跳：${task.heartbeatAt ? new Date(task.heartbeatAt).toISOString() : "尚未收到"}`;
+            return (
+              "\n" +
+              this.text("delegationStatus", request, {
+                id: task.id,
+                state: labels[observed.state]
+                  ? this.text(labels[observed.state]!, request)
+                  : observed.state,
+                time: task.heartbeatAt
+                  ? new Date(task.heartbeatAt).toISOString()
+                  : this.text("notReceived", request),
+              })
+            );
           })
           .join("");
       }
       complete(
-        `任务 ${thread.id} · ${command === "stop" ? "本地任务已停止" : this.ops.thread(thread.id) ? this.taskState(this.ops.thread(thread.id)!) : "已删除"}${delegationStatus}`,
+        this.text("taskStatus", request, {
+          id: thread.id,
+          state:
+            command === "stop"
+              ? this.text("localStopped", request)
+              : this.ops.thread(thread.id)
+                ? this.taskState(this.ops.thread(thread.id)!, request)
+                : this.text("deleted", request),
+        }) + delegationStatus,
       );
       return;
     }
     if (command === "continue") {
-      if (!threadId) throw new Error("请指定完整任务编号。");
+      if (!threadId) throw new Error(this.text("taskIdRequired", request));
       const thread = this.accessibleThread(request, threadId, true);
       if (this.starts.has(thread.id))
-        throw new Error("任务正在启动，请稍后再从 IM 继续。");
+        throw new Error(this.text("taskStarting", request));
       if (!this.hasBinding(thread.id)) {
-        if (busy(thread)) throw new Error("请等待桌面任务结束后再接管到 IM。");
+        if (busy(thread)) throw new Error(this.text("desktopBusy", request));
         await this.ops.close(thread.id);
         const current = this.ops.thread(thread.id);
         if (!current || busy(current) || this.starts.has(thread.id))
-          throw new Error("请等待桌面任务结束后再接管到 IM。");
+          throw new Error(this.text("desktopBusy", request));
       }
       const prior = this.get<Binding>("bindings", thread.id);
       if (isImOwnerDirectRequest(request)) {
@@ -3974,7 +4027,10 @@ export class ImService {
           projectId: thread.projectId ?? undefined,
           threadId: thread.id,
         });
-        complete(`已选择 ${thread.title}。新的进展回传到本会话。`, thread.id);
+        complete(
+          this.text("selected", request, { name: thread.title }),
+          thread.id,
+        );
         return;
       }
       let next = thread;
@@ -3996,7 +4052,7 @@ export class ImService {
           id,
           thread.projectId!,
           requireImGrant(this.config, request, thread.projectId!).mode,
-          `IM 交接 · ${thread.id.slice(0, 8)}`,
+          this.text("taskHandoff", request, { id: thread.id.slice(0, 8) }),
         );
         this.put("handoff-source", id, thread.id);
       } else this.put("bindings", next.id, { ...prior, request, security });
@@ -4006,13 +4062,13 @@ export class ImService {
         threadId: next.id,
       });
       complete(
-        `已选择 ${next.title}。新的进展回传到本会话。${next.id !== thread.id ? "原任务历史保留在桌面；仅导入你明确选择的交接文字。" : ""}`,
+        `${this.text("selected", request, { name: next.title })}${next.id !== thread.id ? "\n" + this.text("handoffHistory", request) : ""}`,
         next.id,
       );
       return;
     }
     if (command && command !== "new")
-      throw new Error("未知指令，发送 /help 查看操作。");
+      throw new Error(this.text("unknownCommand", request));
     if (command === "new") threadId = undefined;
     else if (
       threadId &&
@@ -4056,7 +4112,7 @@ export class ImService {
     if (existing) {
       const previous = this.get<Binding>("bindings", existing.id);
       if (!previous)
-        throw new Error("会话关联不可用，请明确选择要继续的任务。");
+        throw new Error(this.text("selectionUnavailable", request));
       // Validate this new message against current permissions. An expired
       // previous message must not expire the conversation itself.
       this.checkContext({ ...previous, request });
@@ -4083,9 +4139,7 @@ export class ImService {
     // Paired owners can execute temporary tasks without choosing a project.
     const adhoc = !projectId && isImOwnerDirectRequest(request);
     if (!projectId && !adhoc)
-      throw new Error(
-        "请先 /projects 查看项目，然后 /project 项目编号 明确选择。",
-      );
+      throw new Error(this.text("projectRequired", request));
     const grant = requireImGrant(this.config, request, projectId ?? "");
     const localTurnActive = () => {
       if (!existing) return false;
@@ -4097,10 +4151,7 @@ export class ImService {
     };
     if (localTurnActive()) {
       if (!this.get("queued-notices", request.id)) {
-        this.reply(
-          request,
-          "任务正在执行或启动，当前请求已排队；空闲后会重新检查授权。",
-        );
+        this.reply(request, this.text("queuedRequest", request));
         this.put("queued-notices", request.id, true);
       }
       return;
@@ -4113,7 +4164,7 @@ export class ImService {
           ? `[协作成员 ${request.originator.channel}:${request.originator.userId}]\n${request.text}`
           : request.text;
     if (!text.trim() && !request.attachments.length)
-      throw new Error("任务内容不能为空。");
+      throw new Error(this.text("emptyTask", request));
     const attachments = await this.attachments(request); // Validation completes before any task is started.
     if (existing) this.accessibleThread(request, existing.id);
     if (localTurnActive()) return;
@@ -4167,7 +4218,7 @@ export class ImService {
         grant.mode,
         formatImTaskTitle(
           request.identity.channel,
-          displayText.slice(0, 60) || "IM 附件任务",
+          displayText.slice(0, 60) || this.text("attachmentTask", request),
         ),
       );
       titleContext = {
@@ -4176,7 +4227,7 @@ export class ImService {
       };
     }
     if (!this.ops.thread(thread.id))
-      throw new Error("任务已删除，请重新发送消息新建任务。");
+      throw new Error(this.text("taskDeleted", request));
     this.put("subscriptions", thread.id, true);
     if (request.collaboration)
       this.put("assignments", request.collaboration.taskId, thread.id);
@@ -4210,7 +4261,11 @@ export class ImService {
     if (binding.parentThreadId && !wasBusy)
       this.ops.groupActivity?.(binding.parentThreadId, thread.id, "assigned");
     complete(
-      `${wasBusy ? "已追加到任务队列" : adhoc ? "已启动临时任务" : "已启动任务"}：${thread.id}`,
+      this.text(
+        wasBusy ? "appended" : adhoc ? "startedAdhoc" : "started",
+        request,
+        { id: thread.id },
+      ),
       thread.id,
       !wasBusy,
     );
@@ -4228,14 +4283,14 @@ export class ImService {
           `/v1/device/attachment?invocationId=${encodeURIComponent(request.id)}&index=${index}`,
         );
         if (Number(response.headers.get("content-length")) > 10 * 1024 * 1024)
-          throw new Error("附件超过 10 MiB。");
+          throw new Error(this.text("attachmentTooLarge", request));
         const chunks: Uint8Array[] = [];
         let size = 0;
         for await (const chunk of response.body!) {
           size += chunk.length;
           total += chunk.length;
           if (size > 10 * 1024 * 1024 || total > 20 * 1024 * 1024)
-            throw new Error("附件超出大小限制。");
+            throw new Error(this.text("attachmentSizeLimit", request));
           chunks.push(chunk);
         }
         const bytes = Buffer.concat(chunks);
@@ -4252,7 +4307,7 @@ export class ImService {
           name === "." ||
           name === ".."
         )
-          throw new Error("附件名称无效。");
+          throw new Error(this.text("attachmentInvalidName", request));
         if (request.attachments[index]!.kind === "image") {
           const extension = bytes
             .subarray(0, 8)
@@ -4387,13 +4442,13 @@ export class ImService {
             ? payload.questions
                 .map(
                   (q) =>
-                    `${q.questionId}: ${q.question}\n${q.options.map((o) => o.label).join(" / ")}\n/answer ${action.token} ${q.questionId} 答案`,
+                    `${q.questionId}: ${q.question}\n${q.options.map((o) => o.label).join(" / ")}\n/answer ${action.token} ${q.questionId} ${this.text("answerPlaceholder", binding.request)}`,
                 )
                 .join("\n")
-            : `${payload.question}\n${payload.options.map((o) => o.label).join(" / ")}\n/answer ${action.token} 答案`;
+            : `${payload.question}\n${payload.options.map((o) => o.label).join(" / ")}\n/answer ${action.token} ${this.text("answerPlaceholder", binding.request)}`;
       this.reply(
         binding.request,
-        `任务 ${event.threadId}\n${detail}`,
+        `${this.text("task", binding.request, { id: event.threadId })}\n${detail}`,
         event.threadId,
         false,
         "owner",
@@ -4407,7 +4462,7 @@ export class ImService {
       );
       this.reply(
         binding.request,
-        `任务 ${event.threadId}\n等待该 Agent 的主人确认。下一步：请该 Agent 的主人在 Artemis 或机器人私聊中处理确认，处理后任务会继续。`,
+        `${this.text("task", binding.request, { id: event.threadId })}\n${this.text("ownerConfirmation", binding.request)}`,
         event.threadId,
         false,
         "conversation",
@@ -4469,7 +4524,7 @@ export class ImService {
       )
         this.reply(
           binding.request,
-          `任务 ${event.threadId}\n确认已处理，正在继续任务。`,
+          `${this.text("task", binding.request, { id: event.threadId })}\n${this.text("approvalContinue", binding.request)}`,
           event.threadId,
           false,
           "conversation",
@@ -4522,14 +4577,16 @@ export class ImService {
       }
       const finalText =
         payload.type === "turn.failed"
-          ? `任务失败：${payload.message}`
+          ? this.text("taskFailed", binding.request, {
+              message: payload.message,
+            })
           : payload.reason === "cancelled"
-            ? "任务已停止。"
+            ? this.text("taskStopped", binding.request)
             : this.finalText(
                 event.threadId,
                 event.turnId,
                 payload.finalPartId,
-              ) || "任务已完成，请在 Artemis 查看成果。";
+              ) || this.text("taskComplete", binding.request);
       this.reply(
         binding.request,
         finalText,
@@ -4635,7 +4692,7 @@ export class ImService {
   ): void {
     this.reply(
       binding.request,
-      `任务 ${action.threadId}\n${approved ? "已批准一次。" : "已拒绝。"}`,
+      `${this.text("task", binding.request, { id: action.threadId })}\n${this.text(approved ? "approved" : "denied", binding.request)}`,
       action.threadId,
       false,
       "owner",
@@ -4747,7 +4804,7 @@ export class ImService {
           id,
           invocationId: binding.request.id,
           taskId: binding.threadId,
-          text: "任务仍在执行",
+          text: this.text("heartbeat", binding.request),
           final: false,
           heartbeat: true,
           visibility: "conversation",
