@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "अनुमति दें",
   "ImSettingsPanel.botCredTitle": "जुड़े क्रेडेंशियल",
   "ImSettingsPanel.botCredDesc": "इस बॉट के ऐप क्रेडेंशियल देखें या बदलें.",
+  "ImSettingsPanel.botScanTitle": "लिंक्ड बॉट",
+  "ImSettingsPanel.botScanDesc": "ऐप क्रेडेंशियल प्राप्त करने के लिए स्कैन करें।",
   "ImSettingsPanel.botPairTitle": "चैट जोड़ें",
   "ImSettingsPanel.botPairDesc": "पेयरिंग कोड बनाएं और लिंक पूरा करने के लिए निजी चैट में बॉट को भेजें.",
   "ImSettingsPanel.botDeleteTitle": "बॉट हटाएं",

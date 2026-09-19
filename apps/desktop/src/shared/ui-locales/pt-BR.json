@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "Autorizar",
   "ImSettingsPanel.botCredTitle": "Credenciais vinculadas",
   "ImSettingsPanel.botCredDesc": "Veja ou substitua as credenciais do app deste bot.",
+  "ImSettingsPanel.botScanTitle": "Bot vinculado",
+  "ImSettingsPanel.botScanDesc": "Escaneie para obter as credenciais do app.",
   "ImSettingsPanel.botPairTitle": "Parear um chat",
   "ImSettingsPanel.botPairDesc": "Gere um código de pareamento e envie ao bot em uma conversa privada para concluir a vinculação.",
   "ImSettingsPanel.botDeleteTitle": "Excluir bot",

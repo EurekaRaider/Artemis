@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "권한",
   "ImSettingsPanel.botCredTitle": "연결된 자격 증명",
   "ImSettingsPanel.botCredDesc": "이 봇의 앱 자격 증명을 확인하거나 교체합니다.",
+  "ImSettingsPanel.botScanTitle": "연결 봇",
+  "ImSettingsPanel.botScanDesc": "스캔하여 앱 자격 증명을 가져옵니다.",
   "ImSettingsPanel.botPairTitle": "채팅 페어링",
   "ImSettingsPanel.botPairDesc": "페어링 코드를 생성해 봇과의 개인 대화로 보내 연결을 완료합니다.",
   "ImSettingsPanel.botDeleteTitle": "봇 삭제",

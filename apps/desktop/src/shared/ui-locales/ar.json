@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "منح",
   "ImSettingsPanel.botCredTitle": "بيانات الاعتماد المرتبطة",
   "ImSettingsPanel.botCredDesc": "عرض أو استبدال بيانات اعتماد التطبيق لهذا البوت.",
+  "ImSettingsPanel.botScanTitle": "الروبوت المرتبط",
+  "ImSettingsPanel.botScanDesc": "امسح رمز الاستجابة للحصول على بيانات اعتماد التطبيق.",
   "ImSettingsPanel.botPairTitle": "إقران محادثة",
   "ImSettingsPanel.botPairDesc": "أنشئ رمز إقران وأرسله إلى البوت في محادثة خاصة لإتمام الربط.",
   "ImSettingsPanel.botDeleteTitle": "حذف البوت",

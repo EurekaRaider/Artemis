@@ -1139,9 +1139,12 @@ export function ImSettingsPanel({
         setRefreshError(String(error));
       }
     });
-  /* 飞书扫码接入（官方应用注册流程）：空态首卡自动出码，机器人详情的
-     关联凭据卡由「扫码」钮手动展开。 */
-  const renderFeishuScan = (autoStart: boolean) => (
+  /* 飞书扫码接入（官方应用注册流程）：空态首卡自动出码，创建页与
+     关联凭据卡共用；onScanConnected 在共享接续（刷新+配对）前执行。 */
+  const renderFeishuScan = (
+    autoStart: boolean,
+    onScanConnected?: (connectionId?: string) => void,
+  ) => (
     <ImFeishuScan
       t={t}
       autoStart={autoStart}
@@ -1150,6 +1153,7 @@ export function ImSettingsPanel({
       /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
          并弹开配对弹窗，用户复制指令去飞书私聊发送即可。 */
       onConnected={(connectionId) => {
+        onScanConnected?.(connectionId);
         void run(async () => {
           await refresh();
           if (!connectionId) return;
@@ -1480,15 +1484,33 @@ export function ImSettingsPanel({
             </div>
           )}
           {channelPane === "create" && (
-            /* ZCode 式：新建占据右栏整卡（不再弹独立弹窗），保存后落回
-               机器人详情并选中新机器人。 */
+            /* ZCode 式：新建占据右栏整卡。飞书=扫码优先（官方注册流程
+               直出二维码，不再展示凭据表单），保存后落回详情并选中
+               新机器人；其余渠道走凭据表单。 */
             <div className="im-bot-pane" id="im-bot-create" tabIndex={-1}>
               <div className="im-bot-create">
                 <div className="im-bot-create-head">
                   {channelLogo(channel, 28)}
                   <strong>{t("ImSettingsPanel.message76")}</strong>
                 </div>
-                {renderBotForm(dismissBotCreate)}
+                {channel === "feishu" ? (
+                  <div className="im-bot-section" data-scan-open>
+                    <div className="im-bot-section-copy">
+                      <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
+                      <p>{t("ImSettingsPanel.botScanDesc")}</p>
+                    </div>
+                    <div className="im-bot-scan">
+                      {renderFeishuScan(true, (connectionId) => {
+                        if (connectionId) {
+                          setChannelPane("bot");
+                          setSelectedBotId(connectionId);
+                        }
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  renderBotForm(dismissBotCreate)
+                )}
               </div>
             </div>
           )}

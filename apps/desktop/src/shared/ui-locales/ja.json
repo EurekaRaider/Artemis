@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "許可",
   "ImSettingsPanel.botCredTitle": "関連認証情報",
   "ImSettingsPanel.botCredDesc": "このボットのアプリ認証情報を確認・交換します。",
+  "ImSettingsPanel.botScanTitle": "連携ボット",
+  "ImSettingsPanel.botScanDesc": "スキャンしてアプリ認証情報を取得します。",
   "ImSettingsPanel.botPairTitle": "チャットをペアリング",
   "ImSettingsPanel.botPairDesc": "ペアリングコードを生成し、ボットとの個別チャットで送信して連携を完了します。",
   "ImSettingsPanel.botDeleteTitle": "ボットを削除",

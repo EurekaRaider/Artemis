@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "Дать доступ",
   "ImSettingsPanel.botCredTitle": "Связанные учётные данные",
   "ImSettingsPanel.botCredDesc": "Просмотр или замена учётных данных приложения этого бота.",
+  "ImSettingsPanel.botScanTitle": "Связанный бот",
+  "ImSettingsPanel.botScanDesc": "Отсканируйте, чтобы получить учётные данные приложения.",
   "ImSettingsPanel.botPairTitle": "Привязка чата",
   "ImSettingsPanel.botPairDesc": "Создайте код привязки и отправьте его боту в личном чате, чтобы завершить подключение.",
   "ImSettingsPanel.botDeleteTitle": "Удалить бота",

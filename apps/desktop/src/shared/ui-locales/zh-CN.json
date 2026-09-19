@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "去授权",
   "ImSettingsPanel.botCredTitle": "关联凭据",
   "ImSettingsPanel.botCredDesc": "查看或更换这个机器人的应用凭据。",
+  "ImSettingsPanel.botScanTitle": "关联机器人",
+  "ImSettingsPanel.botScanDesc": "扫码获取应用凭据。",
   "ImSettingsPanel.botPairTitle": "配对聊天",
   "ImSettingsPanel.botPairDesc": "生成配对码，在私聊中发给机器人完成绑定。",
   "ImSettingsPanel.botDeleteTitle": "删除机器人",

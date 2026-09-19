@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "Freigeben",
   "ImSettingsPanel.botCredTitle": "Verknüpfte Anmeldedaten",
   "ImSettingsPanel.botCredDesc": "App-Anmeldedaten dieses Bots ansehen oder ersetzen.",
+  "ImSettingsPanel.botScanTitle": "Verknüpfter Bot",
+  "ImSettingsPanel.botScanDesc": "App-Anmeldeinformationen per Scan abrufen.",
   "ImSettingsPanel.botPairTitle": "Chat koppeln",
   "ImSettingsPanel.botPairDesc": "Koppelcode erzeugen und dem Bot im privaten Chat senden, um die Verknüpfung abzuschließen.",
   "ImSettingsPanel.botDeleteTitle": "Bot löschen",

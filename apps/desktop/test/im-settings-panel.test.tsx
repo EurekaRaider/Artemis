@@ -440,14 +440,19 @@ describe("production IM settings", () => {
       expect.objectContaining({ action: "admin" }),
     );
   });
-  it("shows the Lark region before credentials and switches the setup links and saved domain", async () => {
+  it("shows the Lark region before credentials in the editor and switches the pairing guide domain", async () => {
     const f = fixture();
-    f.set({ localGateway: { state: "running" } });
+    f.set({
+      localGateway: { state: "running" },
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 凭据表单在右栏创建页：选 Lark 后域随表单保存。 */
-    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    /* 飞书新建=扫码优先；凭据表单（含应用区域）仅存于更换凭据弹窗。 */
+    await user.click(
+      await screen.findByRole("button", { name: "更换凭据 飞书" }),
+    );
     const region = screen.getByRole("button", { name: /^应用区域/ });
     expect(region.closest("details")).toBeNull();
     await user.click(region);
@@ -461,8 +466,8 @@ describe("production IM settings", () => {
         operation: "connections",
         configuration: expect.objectContaining({
           domain: "lark",
-          id: expect.stringMatching(/^feishu-/),
-          name: "Lark",
+          appId: "cli_lark",
+          name: "Test bot",
         }),
       }),
     );
@@ -576,52 +581,67 @@ describe("production IM settings", () => {
       screen.queryByLabelText("移除连接的管理凭据"),
     ).not.toBeInTheDocument();
   });
-  it("connects a new Feishu bot from two credentials with generated metadata and actionable personal setup help", async () => {
+  it("creates a Feishu bot from the scan-first create pane and lands on its profile", async () => {
     const f = fixture();
     f.set({ localGateway: { state: "running" } });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
     await openChannel(user, "feishu");
-    /* 指引与创建表单同在右栏（互斥页）：先在「接入指引」页验个人开发者
-       出路，再切到创建页填凭据。 */
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "feishu-scan-begin")
+        return {
+          deviceCode: "dev1",
+          qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          userCode: "ABCD",
+          expiresAt: Date.now() + 600_000,
+          intervalMs: 0,
+          domain: "feishu",
+        };
+      if (input.action === "feishu-scan-poll")
+        return {
+          status: "success",
+          appId: "cli_example",
+          appSecret: "synthetic-secret",
+          appName: "My bot",
+          domain: "feishu",
+        };
+      if (input.action === "feishu-scan-connect") {
+        f.set({
+          connections: [
+            { ...connection, channel: "feishu", id: "feishu-scan-1", name: "My bot" },
+          ],
+        });
+        return { connectionId: "feishu-scan-1" };
+      }
+      return original(input);
+    });
+    /* 飞书创建页=扫码优先：右栏直接出码，不再展示凭据表单。 */
+    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    expect(screen.queryByLabelText("App ID")).not.toBeInTheDocument();
+    /* 扫码建连：凭据经 scan-connect 落库，接续配对码并选中新机器人。 */
+    await waitFor(() =>
+      expect(f.manage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "feishu-scan-connect",
+          appId: "cli_example",
+          appSecret: "synthetic-secret",
+          domain: "feishu",
+        }),
+      ),
+    );
+    expect(f.manage).toHaveBeenCalledWith({ action: "pair", requireConfirmation: true });
+    expect(
+      await screen.findByText("My bot", {
+        selector: ".im-bot-profile-head strong",
+      }),
+    ).toBeVisible();
+    expect(document.querySelector(".im-bot-create")).toBeNull();
+    /* 指引页折叠块仍在（与创建页互斥，切换后可见）。 */
     await user.click(screen.getByRole("button", { name: /^接入指引/ }));
     await user.click(screen.getByText("我是个人开发者，没有企业怎么办？"));
     expect(screen.getByText(/这里的“企业”指飞书团队/)).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
-    expect(
-      screen.getByText("高级设置（通常无需修改）").closest("details"),
-    ).not.toHaveAttribute("open");
-    expect(
-      screen.getByLabelText("Tenant Key（可留空，自动获取）"),
-    ).not.toBeVisible();
-    await user.type(screen.getByLabelText("App ID"), "cli_example");
-    await user.type(
-      screen.getByLabelText("App Secret"),
-      "synthetic-app-secret",
-    );
-    const save = screen.getByRole("button", { name: "保存并连接机器人" });
-    expect(save).toBeEnabled();
-    await user.click(save);
-    expect(f.manage).toHaveBeenCalledWith({
-      action: "admin",
-      operation: "connections",
-      configuration: {
-        channel: "feishu",
-        enabled: true,
-        transport: "websocket",
-        domain: "feishu",
-        appId: "cli_example",
-        appSecret: "synthetic-app-secret",
-        id: expect.stringMatching(/^feishu-/),
-        name: "飞书",
-      },
-    });
-    expect(screen.queryByLabelText("App Secret")).not.toBeInTheDocument();
-    expect(f.manage).toHaveBeenCalledWith({
-      action: "pair",
-      requireConfirmation: true,
-    });
   });
   it("keeps the Feishu scan entry inside the credentials section of a saved bot", async () => {
     const f = fixture();
@@ -703,48 +723,52 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    /* 两栏：初始态在列表行断言（未配置不亮灯）；操作进详情。 */
-    expect(platformState("feishu")).toHaveAttribute(
+    /* 两栏：初始态在列表行断言（未配置不亮灯）；操作进详情。
+       （Slack 走凭据表单创建；飞书新建为扫码流，另测。） */
+    expect(platformState("slack")).toHaveAttribute(
       "data-connection-state",
       "unconfigured",
     );
-    await openChannel(user, "feishu");
+    await openChannel(user, "slack");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
-    await user.type(screen.getByLabelText("App ID"), "cli_example");
     await user.type(
-      screen.getByLabelText("App Secret"),
-      "synthetic-app-secret",
+      screen.getByLabelText("Bot User OAuth Token"),
+      "xoxb-example",
+    );
+    await user.type(
+      screen.getByLabelText("App-Level Token"),
+      "xapp-example",
     );
     await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
     // 保存成功但连接尚未建立：关闭详情弹窗，行提亮（已配置），状态仍为未配置。
     await closeChannelDialog(user);
     await waitFor(() =>
-      expect(platformCard("feishu")).toHaveAttribute("data-configured"),
+      expect(platformCard("slack")).toHaveAttribute("data-configured"),
     );
     f.set({
-      connections: [{ ...connection, channel: "feishu", state: "connecting" }],
+      connections: [{ ...connection, channel: "slack", state: "connecting" }],
     });
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
     });
     await waitFor(() =>
-      expect(platformState("feishu")).toHaveAttribute(
+      expect(platformState("slack")).toHaveAttribute(
         "data-connection-state",
         "connecting",
       ),
     );
     f.set({
-      connections: [{ ...connection, channel: "feishu", state: "connected" }],
+      connections: [{ ...connection, channel: "slack", state: "connected" }],
     });
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
     });
     await waitFor(() => {
-      expect(platformState("feishu")).toHaveAttribute(
+      expect(platformState("slack")).toHaveAttribute(
         "data-connection-state",
         "connected",
       );
-      expect(platformState("feishu").querySelector(".im-dot")).toHaveAttribute(
+      expect(platformState("slack").querySelector(".im-dot")).toHaveAttribute(
         "data-state",
         "connected",
       );
@@ -931,13 +955,20 @@ describe("production IM settings", () => {
     );
     expect(f.get().identities).toEqual([identity]);
   });
-  it("defaults a new Feishu bot to a long connection without callback secrets", async () => {
-    fixture();
+  it("defaults the Feishu editor to a long connection without callback secrets", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
+    /* 飞书新建=扫码优先；接入方式等表单语义由更换凭据弹窗承载。 */
     await openChannel(user, "feishu");
-    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    await user.click(
+      await screen.findByRole("button", { name: "更换凭据 飞书" }),
+    );
     expect(screen.getByLabelText("接入方式")).toHaveTextContent("长连接");
     expect(
       screen.queryByLabelText("Verification Token"),

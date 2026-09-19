@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "Beri izin",
   "ImSettingsPanel.botCredTitle": "Kredensial tertaut",
   "ImSettingsPanel.botCredDesc": "Lihat atau ganti kredensial aplikasi bot ini.",
+  "ImSettingsPanel.botScanTitle": "Bot tertaut",
+  "ImSettingsPanel.botScanDesc": "Pindai untuk mendapatkan kredensial aplikasi.",
   "ImSettingsPanel.botPairTitle": "Pasangkan obrolan",
   "ImSettingsPanel.botPairDesc": "Buat kode pemasangan dan kirim ke bot di obrolan pribadi untuk menyelesaikan penautan.",
   "ImSettingsPanel.botDeleteTitle": "Hapus bot",

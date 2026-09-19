@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "前往授權",
   "ImSettingsPanel.botCredTitle": "關聯憑據",
   "ImSettingsPanel.botCredDesc": "查看或更換這個機器人的應用憑據。",
+  "ImSettingsPanel.botScanTitle": "關聯機器人",
+  "ImSettingsPanel.botScanDesc": "掃碼取得應用憑證。",
   "ImSettingsPanel.botPairTitle": "配對聊天",
   "ImSettingsPanel.botPairDesc": "生成配對碼，在私聊中發給機器人完成綁定。",
   "ImSettingsPanel.botDeleteTitle": "刪除機器人",

@@ -1492,6 +1492,8 @@
   "ImSettingsPanel.goGrant": "Autoriser",
   "ImSettingsPanel.botCredTitle": "Identifiants associés",
   "ImSettingsPanel.botCredDesc": "Consultez ou remplacez les identifiants d'application de ce bot.",
+  "ImSettingsPanel.botScanTitle": "Bot associé",
+  "ImSettingsPanel.botScanDesc": "Scannez pour obtenir les identifiants de l'application.",
   "ImSettingsPanel.botPairTitle": "Associer une conversation",
   "ImSettingsPanel.botPairDesc": "Générez un code d'association et envoyez-le au bot en conversation privée pour finaliser la liaison.",
   "ImSettingsPanel.botDeleteTitle": "Supprimer le bot",
