@@ -1107,7 +1107,7 @@ export function ImSettingsPanel({
     setFields({});
     setAdminToken("");
   };
-  /* 解除配对（关联机器人卡）：解绑这条连接的全部绑定账号，连接
+  /* 解除授权（关联机器人卡）：解绑这条连接的全部绑定账号，连接
      本身不受影响，可用配对码重新绑定；与「删除机器人」分层。 */
   const unpairConnection = (connection: ImConnectionStatus) =>
     run(async () => {
@@ -1341,7 +1341,7 @@ export function ImSettingsPanel({
       </div>
     );
   /* 已连接的机器人按绑定态标注（导航卡/状态行/关联机器人卡共用）：
-     绿「已配对」/ 黄「待配对」；未连接仍显示连接状态本身。 */
+     绿「已授权」/ 黄「待授权」；未连接仍显示连接状态本身。 */
   const pairingView = (connection: ImConnectionStatus) => {
     const state = imAggregateConnectionStates([connection.state]);
     const paired = (status?.identities ?? []).some(
@@ -1413,7 +1413,7 @@ export function ImSettingsPanel({
         )}
         {channel === "feishu" ? (
           /* 关联机器人卡（ZCode 同款）：左侧说明，右侧动作；
-             已配对给「解除配对」（解绑账号，可重新配对），未连通保留扫码入口。 */
+             已授权给「解除授权」（解绑账号，可重新配对），未连通保留扫码入口。 */
           <div
             className="im-bot-section"
             data-scan-open={credScan || undefined}

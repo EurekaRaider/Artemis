@@ -771,9 +771,9 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 已连接未配对：左栏导航卡=警告灯+待配对（详情头部不再重复展示）。 */
+    /* 已连接未配对：左栏导航卡=警告灯+待授权（详情头部不再重复展示）。 */
     const navCard = document.querySelector(".im-bot-card")!;
-    expect(navCard).toHaveTextContent("待配对");
+    expect(navCard).toHaveTextContent("待授权");
     expect(navCard.querySelector(".im-dot")).toHaveAttribute(
       "data-state",
       "warning",
@@ -782,9 +782,9 @@ describe("production IM settings", () => {
       document.querySelector(".im-bot-profile-state"),
     ).toBeNull();
     expect(document.querySelector(".im-bot-link-state")).toBeNull();
-    /* 未配对没有「解除配对」可点，绑定入口在配对聊天卡。 */
+    /* 未配对没有「解除授权」可点，绑定入口在配对聊天卡。 */
     expect(
-      screen.queryByRole("button", { name: "解除配对 飞书" }),
+      screen.queryByRole("button", { name: "解除授权 飞书" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "生成配对码 飞书" })).toBeVisible();
   });
@@ -797,15 +797,15 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 已配对：左栏导航卡=绿灯+已配对。 */
+    /* 已授权：左栏导航卡=绿灯+已授权。 */
     const navCard = document.querySelector(".im-bot-card")!;
-    expect(navCard).toHaveTextContent("已配对");
+    expect(navCard).toHaveTextContent("已授权");
     expect(navCard.querySelector(".im-dot")).toHaveAttribute(
       "data-state",
       "connected",
     );
-    /* 解除配对：解绑这条连接的绑定账号，连接保留。 */
-    await user.click(await screen.findByRole("button", { name: "解除配对 飞书" }));
+    /* 解除授权：解绑这条连接的绑定账号，连接保留。 */
+    await user.click(await screen.findByRole("button", { name: "解除授权 飞书" }));
     expect(f.manage).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "unpair",
@@ -813,9 +813,9 @@ describe("production IM settings", () => {
       }),
     );
     expect(await screen.findByText("账号已解除绑定。")).toBeVisible();
-    /* 解绑后随刷新回到待配对（导航卡）。 */
+    /* 解绑后随刷新回到待授权（导航卡）。 */
     const navCardAfter = document.querySelector(".im-bot-card")!;
-    expect(navCardAfter).toHaveTextContent("待配对");
+    expect(navCardAfter).toHaveTextContent("待授权");
   });
   it("regenerates the pairing code on every open instead of reusing a live one", async () => {
     const f = fixture();
