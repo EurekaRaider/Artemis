@@ -37,6 +37,8 @@ export interface Delivery {
   invocationId?: string;
   taskId?: string;
   cardKey?: string;
+  /** Live streaming update for an existing status card; never a separate message. */
+  stream?: boolean;
   replyId?: string;
   fileId?: string;
   native?: NativeEnvelope;
@@ -863,7 +865,24 @@ export class GatewayRouter {
             cardKey,
           });
       }
-      if (reply.visibility === "owner") {
+      if (
+        cardKey &&
+        reply.stream &&
+        !reply.final &&
+        !space &&
+        request.identity.channel === "feishu"
+      ) {
+        // Streaming progress renders as live card updates. It never produces
+        // separate text messages and stays quiet inside group spaces.
+        this.queueDelivery(`${reply.id}:stream`, {
+          conversation: request.conversation,
+          invocationId: request.id,
+          ...(reply.taskId ? { taskId: reply.taskId } : {}),
+          text: reply.text,
+          cardKey,
+          stream: true,
+        });
+      } else if (reply.visibility === "owner") {
         if (ownerRoute)
           this.queueDelivery(reply.id, {
             conversation: ownerRoute,

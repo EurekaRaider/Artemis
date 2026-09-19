@@ -309,7 +309,7 @@ export interface ImStatus {
     channel: string;
     kind: string;
     /** Effective Artemis-to-IM connection, not the user's client presence. */
-    connectionState?: ImConnectionStatus["state"] | "unknown";
+    connectionState?: ImConnectionStatus["state"] | "unknown" | "removed";
     devicePresence?: ImDevicePresence;
     group?: ImGroupContext;
   }>;
@@ -365,6 +365,7 @@ export const imReplySchema = z
     final: z.boolean().default(false),
     started: z.boolean().optional(),
     heartbeat: z.boolean().optional(),
+    stream: z.boolean().optional(),
     outcome: z.enum(["completed", "failed", "cancelled"]).optional(),
     status: z
       .enum([

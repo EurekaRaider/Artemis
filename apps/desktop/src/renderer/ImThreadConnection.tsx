@@ -6,8 +6,8 @@ import type {
   ImGroupContext,
   ImStatus,
 } from "@artemis/protocol";
+import { imGroupMentionTargets } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { Tooltip } from "@artemis/ui/feedback";
 
 type ThreadConnection = {
   permissionBlock?: string;
@@ -16,7 +16,7 @@ type ThreadConnection = {
   >[number]["delegationWaits"];
   parentThreadId?: string;
   channel?: string;
-  connectionState: ImConnectionStatus["state"] | "unknown";
+  connectionState: ImConnectionStatus["state"] | "unknown" | "removed";
   group?: ImGroupContext;
 };
 const unknownConnection: ThreadConnection = { connectionState: "unknown" };
@@ -120,58 +120,78 @@ export function ImThreadConnection({
   status: ThreadConnection;
   locale: AppLocale;
 }) {
+  const channel =
+    status.channel === "slack"
+      ? "Slack"
+      : status.channel === "feishu" || status.channel === "lark"
+        ? uiText(locale, "ImNavigation.message1")
+        : status.channel === "wecom"
+          ? uiText(locale, "ImNavigation.message2")
+          : "IM";
   const state =
     status.group?.native && !status.group.confirmed
       ? "disabled"
       : status.connectionState;
-  /* 首个图标悬浮气泡：对话类型 · 在线/离线。 */
-  const summary = `${uiText(
-    locale,
-    status.group ? "ImThreadConnection.inline8" : "ImThreadConnection.inline7",
-  )}·${uiText(
-    locale,
-    state === "connected"
-      ? "ImThreadConnection.inline9"
-      : "ImThreadConnection.inline10",
-  )}`;
+  const label = {
+    connected: uiText(locale, "ImNavigation.message12"),
+    connecting: uiText(locale, "ImNavigation.message11"),
+    error: uiText(locale, "ImThreadConnection.inline1"),
+    disabled: uiText(
+      locale,
+      "CustomAgentsSettingsSection_labels.disabledBadge",
+    ),
+    removed: uiText(locale, "ImThreadConnection.removedBadge"),
+    unknown: uiText(locale, "ImGroupMembers.message6"),
+  }[state];
+  const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
   const group = status.group;
+  const members = group ? imGroupMentionTargets(group) : [];
+  const computerState =
+    !group || group.stale || !group.confirmed
+      ? "unknown"
+      : members.some((member) => member.state === "online")
+        ? "online"
+        : members.length > 0 &&
+            (!group.targetDeviceIds ||
+              group.targetDeviceIds.every((id) =>
+                members.some((member) => member.deviceId === id),
+              )) &&
+            members.every((member) => member.state === "offline")
+          ? "offline"
+          : "unknown";
+  const computerLabel =
+    computerState === "online"
+      ? uiText(locale, "ImThreadConnection.inline5")
+      : computerState === "offline"
+        ? uiText(locale, "ImThreadConnection.inline4")
+        : uiText(locale, "ImThreadConnection.inline3");
   return (
     <span className="im-thread-indicators">
-      <Tooltip label={summary}>
-        {group ? (
-          <span
-            aria-label={summary}
-            className="im-thread-group"
-            data-state={state}
-            role="img"
-          >
-            <ArtemisIcon name="agents" width={15} height={15} />
-          </span>
-        ) : (
-          <span
-            aria-label={summary}
-            className="im-thread-connection"
-            data-state={state}
-            role="img"
-          >
-            <ArtemisIcon
-              name={
-                state === "error"
-                  ? "alert"
-                  : state === "connecting"
-                    ? "clock"
-                    : state === "disabled"
-                      ? "unlink"
-                      : state === "unknown"
-                        ? "info"
-                        : "message"
-              }
-              width={15}
-              height={15}
-            />
-          </span>
-        )}
-      </Tooltip>
+      {/* 图标始终表达会话类型（单聊/群聊）；连接状态只通过颜色与悬浮文案区分。 */}
+      <span
+        aria-label={summary}
+        className="im-thread-connection"
+        data-state={state}
+        role="img"
+        title={summary}
+      >
+        <ArtemisIcon
+          name={group ? "agents" : "message"}
+          width={14}
+          height={14}
+        />
+      </span>
+      {group && !group.native && (
+        <span
+          className="im-thread-computers"
+          data-state={computerState}
+          role="img"
+          aria-label={computerLabel}
+          title={computerLabel}
+        >
+          <ArtemisIcon name="monitor" width={14} height={14} />
+        </span>
+      )}
     </span>
   );
 }

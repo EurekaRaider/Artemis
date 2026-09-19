@@ -19,14 +19,15 @@ afterEach(() => {
 
 describe("IM thread connection indicators", () => {
   it.each([
-    ["connected", "已连接", "message"],
-    ["connecting", "连接中", "clock"],
-    ["error", "连接异常", "alert"],
-    ["disabled", "已停用", "unlink"],
-    ["unknown", "状态未知", "info"],
+    ["connected", "已连接"],
+    ["connecting", "连接中"],
+    ["error", "连接异常"],
+    ["disabled", "已停用"],
+    ["removed", "机器人已移除"],
+    ["unknown", "状态未知"],
   ] as const)(
     "labels and distinguishes %s without implying client presence",
-    (connectionState, label, icon) => {
+    (connectionState, label) => {
       render(
         <ImThreadConnection
           status={{ channel: "slack", connectionState }}
@@ -35,12 +36,11 @@ describe("IM thread connection indicators", () => {
       );
       const indicator = screen.getByRole("img");
       expect(screen.queryByRole("img", { name: "群协作对话" })).toBeNull();
-      expect(indicator).toHaveAccessibleName(
-        connectionState === "connected" ? "单聊·在线" : "单聊·离线",
-      );
+      expect(indicator).toHaveAccessibleName(`Slack · IM 连接：${label}`);
       expect(indicator).toHaveAttribute("data-state", connectionState);
+      // 图标固定为会话类型（无群上下文 = 单聊 message），不随状态更换。
       expect(
-        indicator.querySelector(`[data-artemis-icon="${icon}"]`),
+        indicator.querySelector('[data-artemis-icon="message"]'),
       ).toBeTruthy();
       expect(
         indicator.querySelector(
@@ -50,82 +50,117 @@ describe("IM thread connection indicators", () => {
     },
   );
 
-  it("renders a single group icon tinted by the IM connection state", () => {
-    const group: ImGroupContext = {
-      spaceId: "team",
-      name: "Team",
-      confirmed: true,
-      executingDeviceId: "0",
-      stale: false,
-      members: [
-        {
-          deviceId: "0",
-          name: "Member 0",
+  it.each([
+    [["offline", "online"], false, "online"],
+    [["online", "offline"], false, "online"],
+    [["online", "unknown"], false, "online"],
+    [["offline", "offline"], false, "offline"],
+    [["offline", "unknown"], false, "unknown"],
+    [["offline", "unavailable"], false, "unknown"],
+    [["online", "online"], true, "unknown"],
+    [[], false, "unknown"],
+  ] as const)(
+    "aggregates group computers %j (stale=%s) as %s",
+    (states, stale, expected) => {
+      const group: ImGroupContext = {
+        spaceId: "team",
+        name: "Team",
+        confirmed: true,
+        executingDeviceId: "0",
+        stale,
+        members: states.map((state, index) => ({
+          deviceId: String(index),
+          name: `Member ${index}`,
           deviceName: "Computer",
-          state: "online",
+          state,
           identity: {
             channel: "slack",
             connectionId: "w",
             tenantId: "t",
             appId: "a",
-            userId: "0",
+            userId: String(index),
           },
-        },
-      ],
+        })),
+      };
+      const { container, rerender } = render(
+        <ImThreadConnection
+          status={{ channel: "slack", connectionState: "connected", group }}
+          locale="zh-CN"
+        />,
+      );
+      const indicator = container.querySelector(".im-thread-computers")!;
+      expect(
+        container
+          .querySelector(".im-thread-connection")!
+          .querySelector('[data-artemis-icon="agents"]'),
+      ).toBeTruthy();
+      expect(indicator).toHaveAttribute("data-state", expected);
+      expect(
+        indicator.querySelector('[data-artemis-icon="monitor"]'),
+      ).toBeTruthy();
+      if (expected === "offline")
+        expect(indicator).toHaveAccessibleName("群协作电脑：所有成员离线");
+      if (expected === "online")
+        expect(indicator).toHaveAccessibleName("群协作电脑：有成员在线");
+      rerender(
+        <ImThreadConnection
+          status={{
+            channel: "slack",
+            connectionState: "error",
+            group: { ...group, stale: true },
+          }}
+          locale="zh-CN"
+        />,
+      );
+      expect(indicator).toHaveAttribute("data-state", "unknown");
+    },
+  );
+
+  it("aggregates only the current conversation's members and treats missing targets as unknown", () => {
+    const member = (deviceId: string, state: "online" | "offline") => ({
+      deviceId,
+      name: deviceId,
+      deviceName: "Computer",
+      state,
+      identity: {
+        channel: "slack" as const,
+        connectionId: "w",
+        tenantId: "t",
+        appId: "a",
+        userId: deviceId,
+      },
+    });
+    const group: ImGroupContext = {
+      spaceId: "team",
+      name: "Team",
+      confirmed: true,
+      executingDeviceId: "local",
+      stale: false,
+      members: [member("local", "online"), member("target", "offline")],
+      targetDeviceIds: ["target"],
     };
     const { container, rerender } = render(
       <ImThreadConnection
-        status={{ channel: "slack", connectionState: "connected", group }}
+        status={{ connectionState: "connected", group }}
         locale="zh-CN"
       />,
     );
-    // 群聊只保留群聊图标：连接图标与设备图标不再出现。
-    expect(
-      container.querySelectorAll(".im-thread-indicators [role='img']"),
-    ).toHaveLength(1);
-    const indicator = container.querySelector(".im-thread-group")!;
-    expect(indicator).toHaveAttribute("data-state", "connected");
-    expect(indicator).toHaveAccessibleName("群聊·在线");
-    expect(
-      indicator.querySelector('[data-artemis-icon="agents"]'),
-    ).toBeTruthy();
-    expect(container.querySelector(".im-thread-connection")).toBeNull();
-    expect(container.querySelector(".im-thread-computers")).toBeNull();
+    expect(container.querySelector(".im-thread-computers")).toHaveAttribute(
+      "data-state",
+      "offline",
+    );
     rerender(
       <ImThreadConnection
         status={{
-          channel: "slack",
-          connectionState: "error",
-          group: { ...group, stale: true },
+          connectionState: "connected",
+          group: { ...group, targetDeviceIds: ["target", "missing"] },
         }}
         locale="zh-CN"
       />,
     );
-    expect(container.querySelector(".im-thread-group")).toHaveAttribute(
+    expect(container.querySelector(".im-thread-computers")).toHaveAttribute(
       "data-state",
-      "error",
-    );
-  });
-
-  it("marks unconfirmed native groups as disabled on the single group icon", () => {
-    const group: ImGroupContext = {
-      spaceId: "team",
-      name: "Team",
-      confirmed: false,
-      executingDeviceId: "0",
-      stale: false,
-      native: true,
-      members: [],
-    };
-    const { container } = render(
-      <ImThreadConnection
-        status={{ channel: "slack", connectionState: "connected", group }}
-        locale="zh-CN"
-      />,
-    );
-    expect(container.querySelector(".im-thread-group")).toHaveAttribute(
-      "data-state",
-      "disabled",
+      "unknown",
     );
   });
 

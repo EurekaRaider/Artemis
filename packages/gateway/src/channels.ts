@@ -136,6 +136,13 @@ export interface ChannelAdapter {
     idempotencyKey: string,
     messageId?: string,
   ): Promise<string>;
+  /** Optional capability: stream live text into a Feishu CardKit card. */
+  streamCard?(
+    conversation: ImConversation,
+    text: string,
+    idempotencyKey: string,
+    state?: FeishuStreamCardState,
+  ): Promise<FeishuStreamCardState>;
   approvalCard?(
     conversation: ImConversation,
     text: string,
@@ -152,6 +159,15 @@ export interface ChannelAdapter {
     index: number,
   ): Promise<{ data: Buffer; mimeType: string; name: string }>;
 }
+/** Persisted streaming-card state so updates resume after gateway restarts. */
+export interface FeishuStreamCardState {
+  messageId: string;
+  createdAt: number;
+  cardId?: string;
+  sequence?: number;
+  streaming?: boolean;
+}
+
 export class ChannelRateLimit extends Error {
   constructor(readonly seconds: number) {
     super("Channel rate limit reached.");
@@ -742,6 +758,102 @@ export class FeishuAdapter implements ChannelAdapter {
       key,
       messageId,
     );
+  }
+  /**
+   * Streaming reply card (Feishu CardKit). Creates a Card JSON 2.0 message with
+   * streaming_mode enabled, converts its message_id to a card entity, and then
+   * pushes typewriter-style text updates with a monotonic sequence. Errors map
+   * to the shared channel failure classes so the server can apply its
+   * fallback ladder (status card -> plain text).
+   */
+  async streamCard(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    state?: FeishuStreamCardState,
+  ): Promise<FeishuStreamCardState> {
+    const elementId = "reply_text";
+    const content = text.slice(-30000);
+    if (state?.cardId && state.streaming !== false) {
+      const sequence = (state.sequence ?? 0) + 1;
+      const body = await this.cardkitRequest(
+        `cards/${encodeURIComponent(state.cardId)}/elements/${elementId}/content`,
+        "PUT",
+        { content, sequence },
+      );
+      return { ...state, sequence };
+    }
+    const card = {
+      schema: "2.0",
+      config: { streaming_mode: true, update_multi: true },
+      body: {
+        elements: [{ tag: "markdown", element_id: elementId, content }],
+      },
+    };
+    const messageId = await this.message(
+      conversation,
+      card,
+      "interactive",
+      key,
+    );
+    const converted = await this.cardkitRequest("cards/id_convert", "POST", {
+      message_id: messageId,
+    });
+    const cardId = string(record(record(converted.data)).card_id);
+    if (!cardId)
+      throw new Error("Feishu did not return a streaming card entity id.");
+    return {
+      messageId,
+      createdAt: Date.now(),
+      cardId,
+      sequence: 0,
+      streaming: true,
+    };
+  }
+  /** Shared CardKit REST plumbing with the same failure mapping as message(). */
+  private async cardkitRequest(
+    path: string,
+    method: "POST" | "PUT",
+    payload: unknown,
+  ): Promise<Record<string, unknown>> {
+    const token = await this.accessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.apiOrigin}/open-apis/cardkit/v1/${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new DeliveryUncertain(
+        "Feishu streaming update could not be confirmed.",
+      );
+    }
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 30,
+      );
+    if (response.status >= 500)
+      throw new DeliveryUncertain(
+        "Feishu streaming server failed before confirming the update.",
+      );
+    let body: Record<string, any>;
+    try {
+      body = record(await response.json());
+    } catch {
+      throw new DeliveryUncertain("Feishu streaming response was incomplete.");
+    }
+    if (body.code === 230020 || body.code === 99991400)
+      throw new ChannelRateLimit(30);
+    if (body.code !== 0)
+      throw new Error(
+        `Feishu rejected the streaming update (${Number(body.code)}).`,
+      );
+    return body;
   }
   async approvalCard(
     conversation: ImConversation,

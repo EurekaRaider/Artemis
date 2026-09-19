@@ -193,6 +193,16 @@ export class ImService {
     put: (wait) => this.put("delegation-waits", wait.id, wait),
   });
   private readonly shortWaits = new Set<string>();
+  /** Live reply streaming state per bound thread: accumulated text + 1s throttle. */
+  private readonly replyStreams = new Map<
+    string,
+    {
+      text: string;
+      turnId: string;
+      lastAt: number;
+      timer?: ReturnType<typeof setTimeout> | undefined;
+    }
+  >();
   private delegationSecurity(binding: Binding): string {
     const security = binding.security;
     return JSON.stringify([
@@ -545,6 +555,8 @@ export class ImService {
   private identities: ImIdentity[] = [];
   private pairingRequests: NonNullable<ImStatus["pairingRequests"]> = [];
   private channelStatus: unknown[] = [];
+  /** Connection ids the gateway confirmed as removed (bot deleted). */
+  private removedConnections = new Set<string>();
   private readonly legacyImports = new Map<
     string,
     {
@@ -1037,6 +1049,11 @@ export class ImService {
       );
     }) as Record<string, unknown> | undefined;
     if (connection?.state === "disabled") return "disabled";
+    if (
+      !connection &&
+      this.removedConnections.has(binding.request.conversation.connectionId)
+    )
+      return "removed";
     if (this.state !== "connected") return this.state;
     if (this.leaseUntil <= Date.now()) return "unknown";
     switch (connection?.state) {
@@ -1842,6 +1859,7 @@ export class ImService {
       this.identities = [];
       this.pairingRequests = [];
       this.channelStatus = [];
+      this.removedConnections.clear();
       this.spaces = [];
       return this.status();
     }
@@ -3223,6 +3241,7 @@ export class ImService {
     started = false,
     status?: ImReply["status"],
     approval?: ImReply["approval"],
+    stream = false,
   ): void {
     const reply: ImReply = {
       version: 1,
@@ -3238,6 +3257,7 @@ export class ImService {
       ...(outcome ? { outcome } : {}),
       ...(taskId ? { taskId } : {}),
       ...(approval ? { approval } : {}),
+      ...(stream ? { stream: true } : {}),
     };
     const binding = taskId ? this.get<Binding>("bindings", taskId) : undefined;
     if (taskId && !binding) delete reply.taskId;
@@ -4457,6 +4477,15 @@ export class ImService {
         );
       return;
     }
+    if (payload.type === "message.part.delta" && payload.partType === "text") {
+      this.observeReplyStream(
+        binding,
+        event.threadId,
+        event.turnId ?? "",
+        payload.delta ?? "",
+      );
+      return;
+    }
     if (
       payload.type === "tool.started" &&
       Date.now() - (this.get<number>("progress-time", event.threadId) ?? 0) >
@@ -4469,6 +4498,8 @@ export class ImService {
       }
     }
     if (payload.type === "turn.completed" || payload.type === "turn.failed") {
+      // 两侧语义都保留：新码流式清理（对方）+ 授权拦截优先应答（本分支）。
+      this.clearReplyStream(event.threadId);
       const permission = this.get<{ result: { message: string } }>(
         "permission-blocks",
         event.threadId,
@@ -4515,6 +4546,70 @@ export class ImService {
         this.hasDelegationWait(event.threadId) ? "waiting" : undefined,
       );
     }
+  }
+  /** Stream live text deltas into throttled non-final replies (1s flush). */
+  private observeReplyStream(
+    binding: Binding,
+    threadId: string,
+    turnId: string,
+    delta: string,
+  ): void {
+    const state = this.replyStreams.get(threadId) ?? {
+      text: "",
+      turnId,
+      lastAt: 0,
+    };
+    if (state.turnId !== turnId) {
+      if (state.timer) clearTimeout(state.timer);
+      state.text = "";
+      state.turnId = turnId;
+      state.lastAt = 0;
+    }
+    state.text = (state.text + delta).slice(-60000);
+    const elapsed = Date.now() - state.lastAt;
+    if (elapsed >= 1000) {
+      this.flushReplyStream(binding, threadId);
+    } else if (!state.timer) {
+      state.timer = setTimeout(
+        () => this.flushReplyStream(binding, threadId),
+        1000 - elapsed,
+      );
+    }
+    this.replyStreams.set(threadId, state);
+  }
+  private flushReplyStream(binding: Binding, threadId: string): void {
+    const state = this.replyStreams.get(threadId);
+    if (!state) return;
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = undefined;
+    }
+    state.lastAt = Date.now();
+    if (!state.text.trim()) return;
+    try {
+      this.checkContext(binding);
+    } catch {
+      return;
+    }
+    this.reply(
+      binding.request,
+      state.text,
+      threadId,
+      false,
+      "conversation",
+      `${state.turnId}:stream:${Date.now()}`,
+      undefined,
+      false,
+      "running",
+      undefined,
+      true,
+    );
+  }
+  private clearReplyStream(threadId: string): void {
+    const state = this.replyStreams.get(threadId);
+    if (!state) return;
+    if (state.timer) clearTimeout(state.timer);
+    this.replyStreams.delete(threadId);
   }
   private replyApprovalResult(
     binding: Binding,
@@ -4767,6 +4862,13 @@ export class ImService {
     this.pairingRequests = z
       .array(imPairingRequestSchema)
       .parse(status.pairingRequests ?? []);
+    this.removedConnections = new Set(
+      Array.isArray(status.removedConnections)
+        ? (status.removedConnections as unknown[]).filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [],
+    );
     this.channelStatus = Array.isArray(status.connections)
       ? status.connections.map((connection: Record<string, unknown>) => ({
           ...connection,
