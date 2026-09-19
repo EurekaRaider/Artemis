@@ -119,12 +119,12 @@ POST https://accounts.feishu.cn/oauth/v1/app/registration   （Lark: accounts.la
 
 ### 6.2 真机实证（2026-09-17 全链通过）
 
-| 环节 | 证据 |
-|---|---|
-| 扫码签发 | ZCode 配置出现 `cli_a95a…` 应用（凭据密文入库，90 字符） |
-| 启用 | config `enabled: true`（ZCode 扫码后仍留一步启用开关） |
-| 长连接 | ZCode 进程实挂 open.feishu.cn CDN 段 TLS（lsof 183.194.209.42:443 ≈ 解析 183.194.209.46 同段） |
-| 收消息/绑定 | 「消息绑定」成功 = `im.message.receive_v1` 已预置并工作 |
+| 环节        | 证据                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| 扫码签发    | ZCode 配置出现 `cli_a95a…` 应用（凭据密文入库，90 字符）                                       |
+| 启用        | config `enabled: true`（ZCode 扫码后仍留一步启用开关）                                         |
+| 长连接      | ZCode 进程实挂 open.feishu.cn CDN 段 TLS（lsof 183.194.209.42:443 ≈ 解析 183.194.209.46 同段） |
+| 收消息/绑定 | 「消息绑定」成功 = `im.message.receive_v1` 已预置并工作                                        |
 
 **结论：PersonalAgent 扫码应用零控制台可用**——机器人能力、事件订阅、免发布全预置。用户全程未访问飞书开放平台后台。
 
@@ -141,11 +141,11 @@ POST https://accounts.feishu.cn/oauth/v1/app/registration   （Lark: accounts.la
 
 ### 7.1 三支柱对比：飞书扫码模式为什么成立
 
-| 支柱 | 飞书 | Slack |
-|---|---|---|
-| 客户端直连**创建应用** | `oauth/v1/app/registration`（官方端点，实测可用） | 不存在。`apps.manifest.create` 需 `sconf-` 应用配置令牌，而该令牌**只能人在 api.slack.com/apps 手动生成一次，无任何 API 引导** |
+| 支柱                                 | 飞书                                                  | Slack                                                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 客户端直连**创建应用**               | `oauth/v1/app/registration`（官方端点，实测可用）     | 不存在。`apps.manifest.create` 需 `sconf-` 应用配置令牌，而该令牌**只能人在 api.slack.com/apps 手动生成一次，无任何 API 引导**                                        |
 | 凭据**直达客户端**、客户端自挂长连接 | Device Grant 直接回 client_id/secret；WSClient 长连接 | 分布式安装走授权码流，token 落在**发布者的 HTTPS 回调服务器**（`oauth.v2.access` 交换需 client_secret）；`http://localhost` 回调只对本人 dev app 可用，分布式安装不收 |
-| 模板**预置能力**、免发布 | PersonalAgent archetype（已实证） | 无对应概念；且 **Socket Mode 官方主要面向内部/单工作区应用**——分布式多租户场景每个安装需自己的 socket，官方主推 webhook（公网 HTTPS 回调，本地桌面不可达） |
+| 模板**预置能力**、免发布             | PersonalAgent archetype（已实证）                     | 无对应概念；且 **Socket Mode 官方主要面向内部/单工作区应用**——分布式多租户场景每个安装需自己的 socket，官方主推 webhook（公网 HTTPS 回调，本地桌面不可达）            |
 
 旁证：ZCode 的渠道列表干脆没有 Slack（拆包零 slack 字符串，只有微信 iLink / 飞书 / Lark / Telegram）——Slack 的自助接入摩擦是行业公认的。
 

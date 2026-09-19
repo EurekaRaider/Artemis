@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
 import type {
   ImFeishuScanBeginResult,
   ImFeishuScanPollResult,
@@ -101,6 +100,7 @@ export function ImFeishuScan({
         domain,
       })) as ImFeishuScanPollResult;
     } catch (error) {
+      if (epoch.current !== run) return;
       setPhase({ stage: "failed", message: friendlyScanError(error, t) });
       return;
     }
@@ -148,6 +148,7 @@ export function ImFeishuScan({
     });
   };
   const start = () => {
+    if (busy || disabled) return;
     epoch.current += 1;
     window.clearTimeout(timer.current);
     const run = epoch.current;
@@ -157,12 +158,7 @@ export function ImFeishuScan({
           action: "feishu-scan-begin",
         })) as ImFeishuScanBeginResult;
         if (epoch.current !== run) return;
-        const image = await QRCode.toDataURL(begin.qrUrl, {
-          width: 176,
-          margin: 1,
-        });
-        if (epoch.current !== run) return;
-        setPhase({ stage: "scanning", image, begin });
+        setPhase({ stage: "scanning", image: begin.qrImage, begin });
         poll(run, begin, begin.domain, begin.intervalMs);
       } catch (error) {
         if (epoch.current !== run) return;
@@ -178,13 +174,13 @@ export function ImFeishuScan({
   };
   const started = useRef(false);
   useEffect(() => {
-    if (autoStart && !started.current) {
+    if (autoStart && !busy && !disabled && !started.current) {
       started.current = true;
       start();
     }
     // 仅在挂载/解锁自动触发时执行一次；start 捕获当前闭包即可。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
+  }, [autoStart, busy, disabled]);
   // 「扫码」钮的局部刷新：递增信号触发原位重开，旧码保留至新码就绪。
   const lastRefresh = useRef(refreshSignal);
   useEffect(() => {
@@ -219,27 +215,31 @@ export function ImFeishuScan({
         )}
       </div>
     );
-  if (phase.stage === "idle")
-    {
-      if (bare) return null;
-      return (
-        <div className="im-scan">
-          <div className="im-scan-copy">
-            <h4>{t("ImFeishuScan.message1")}</h4>
-            <p className="im-fine">{t("ImFeishuScan.message2")}</p>
-          </div>
-          <Button
-            size="compact"
-            variant="secondary"
-            disabled={busy || disabled}
-            onClick={start}
-          >
-            <ArtemisIcon aria-hidden="true" height={14} name="qr-code" width={14} />
-            {t("ImFeishuScan.message10")}
-          </Button>
+  if (phase.stage === "idle") {
+    if (bare) return null;
+    return (
+      <div className="im-scan">
+        <div className="im-scan-copy">
+          <h4>{t("ImFeishuScan.message1")}</h4>
+          <p className="im-fine">{t("ImFeishuScan.message2")}</p>
         </div>
-      );
-    }
+        <Button
+          size="compact"
+          variant="secondary"
+          disabled={busy || disabled}
+          onClick={start}
+        >
+          <ArtemisIcon
+            aria-hidden="true"
+            height={14}
+            name="qr-code"
+            width={14}
+          />
+          {t("ImFeishuScan.message10")}
+        </Button>
+      </div>
+    );
+  }
   const image = phase.image;
   return (
     <div className="im-scan im-scan-active">

@@ -17,7 +17,8 @@ function stubFetch(responses: Record<string, unknown>) {
       );
       calls.push({ url: String(url), body });
       const action = body.action ?? "";
-      if (!(action in responses)) throw new Error(`unexpected action ${action}`);
+      if (!(action in responses))
+        throw new Error(`unexpected action ${action}`);
       const response = responses[action];
       if (typeof response === "number")
         return { ok: false, status: response, json: async () => ({}) };
@@ -62,6 +63,7 @@ describe("feishu scan-to-register", () => {
       domain: "feishu",
     });
     expect(result.expiresAt).toBeGreaterThanOrEqual(before + 600_000);
+    expect(result.qrImage).toMatch(/^data:image\/png;base64,/);
   });
 
   it("rejects environments without client_secret registration", async () => {
@@ -141,7 +143,11 @@ describe("feishu scan-to-register", () => {
       deviceCode: "dev1",
       domain: "feishu",
     });
-    expect(result).toEqual({ status: "pending", intervalMs: 0, domain: "lark" });
+    expect(result).toEqual({
+      status: "pending",
+      intervalMs: 0,
+      domain: "lark",
+    });
     expect(calls[0]!.url).toBe(
       "https://accounts.feishu.cn/oauth/v1/app/registration",
     );
@@ -158,6 +164,24 @@ describe("feishu scan-to-register", () => {
     expect(calls[1]!.url).toBe(
       "https://accounts.larksuite.com/oauth/v1/app/registration",
     );
+  });
+
+  it("keeps credentials returned with a Lark brand confirmation", async () => {
+    stubFetch({
+      poll: {
+        client_id: "cli_lark",
+        client_secret: "synthetic",
+        user_info: { tenant_brand: "lark" },
+      },
+    });
+    await expect(
+      pollFeishuScan({ deviceCode: "dev1", domain: "feishu" }),
+    ).resolves.toMatchObject({
+      status: "success",
+      appId: "cli_lark",
+      appSecret: "synthetic",
+      domain: "lark",
+    });
   });
 
   it("keeps polling through transient network failures", async () => {
@@ -194,9 +218,9 @@ describe("feishu scan-to-register", () => {
             json: async () => ({ code: 0, tenant_access_token: "t-1" }),
           };
         }
-        expect(
-          (init?.headers as Record<string, string>).Authorization,
-        ).toBe("Bearer t-1");
+        expect((init?.headers as Record<string, string>).Authorization).toBe(
+          "Bearer t-1",
+        );
         return {
           ok: true,
           json: async () => ({

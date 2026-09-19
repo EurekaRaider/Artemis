@@ -3826,7 +3826,7 @@
     min-block-size: 0;
     padding: var(--artemis-space-3) var(--artemis-space-2);
     overflow: auto;
-    
+
     background: var(--artemis-color-surface-raised);
     border-inline-end: var(--artemis-border-width-default) solid
       var(--artemis-color-border-subtle);

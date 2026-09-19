@@ -186,7 +186,10 @@ describe("Resource Center catalog feedback", () => {
                 name: "Synthetic marketplace",
                 marketplaceName: "source-a",
                 url: "https://github.com/synthetic-owner/source-a.git",
-                warnings: [],
+                warnings: Array.from(
+                  { length: 150 },
+                  (_, index) => `Synthetic marketplace warning ${index + 1}`,
+                ),
                 plugins: [
                   {
                     id: "synthetic-warning-plugin",
@@ -271,6 +274,18 @@ describe("Resource Center catalog feedback", () => {
       }),
     ).toBeInTheDocument();
     expectLinkedTabPanels(".resource-scope-tabs");
+    const diagnostics = screen
+      .getByText("View details (150)")
+      .closest("details");
+    expect(diagnostics).not.toBeNull();
+    expect(diagnostics).not.toHaveAttribute("open");
+    expect(
+      screen.getByText("Synthetic marketplace warning 150"),
+    ).not.toBeVisible();
+    await userEvent.click(screen.getByText("View details (150)"));
+    expect(diagnostics).toHaveAttribute("open");
+    expect(screen.getByText("Synthetic marketplace warning 150")).toBeVisible();
+    await userEvent.click(screen.getByText("View details (150)"));
     expect(
       screen.getByText("Synthetic manifest has no version."),
     ).toBeVisible();

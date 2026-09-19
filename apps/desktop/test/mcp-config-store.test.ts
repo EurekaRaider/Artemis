@@ -69,15 +69,23 @@ describe("McpConfigStore", () => {
       name: "Mail",
       transport: "streamable-http",
       enabled: false,
-      url: "https://connector.example.test/mcp",
+      url: "https://mcp.notion.com/mcp",
       auth: "oauth",
       resourceKind: "connector",
-      connectorId: "mail",
+      connectorId: "notion",
+      connector: {
+        version: 1,
+        id: "notion",
+        provider: "notion",
+        displayName: "Notion",
+        auth: "mcp-oauth",
+        scopes: [],
+      },
     });
 
     expect(saved).toMatchObject({
       resourceKind: "connector",
-      connectorId: "mail",
+      connectorId: "notion",
     });
     expect(await store.list()).toEqual([saved]);
   });
@@ -94,7 +102,7 @@ describe("McpConfigStore", () => {
         resourceKind: "connector",
         connectorId: "INVALID CONNECTOR",
       }),
-    ).toThrow("Connector ID is invalid");
+    ).toThrow(/Update this plugin/);
   });
 
   it("preserves explicit stdio network access and defaults missing access off", () => {

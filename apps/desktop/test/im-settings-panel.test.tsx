@@ -75,6 +75,18 @@ function fixture(ready = true) {
         localGateway: { state: "running" },
       };
     }
+    if (input.action === "feishu-scan-begin")
+      return {
+        deviceCode: "synthetic-device",
+        qrUrl: "https://accounts.feishu.cn/confirm",
+        qrImage: "data:image/png;base64,c3ludGhldGlj",
+        userCode: "ABCD",
+        expiresAt: Date.now() + 600_000,
+        intervalMs: 60_000,
+        domain: "feishu",
+      };
+    if (input.action === "feishu-scan-poll")
+      return { status: "pending", intervalMs: 60_000, domain: "feishu" };
     if (input.action === "pair")
       return { code: "0123456789abcdef", expiresIn: 300 };
     if (input.action === "unpair") current = { ...current, identities: [] };
@@ -159,9 +171,7 @@ const openChannel = async (
 };
 /* 渠道详情弹窗的 × 关闭钮：可访问名「关闭」会与叠开的配对弹窗重名，
    直接按专用类定位。 */
-const closeChannelDialog = async (
-  user: ReturnType<typeof userEvent.setup>,
-) => {
+const closeChannelDialog = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(
     document.querySelector(
       ".im-channel-dialog .im-detail-dialog-close",
@@ -528,7 +538,9 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "wecom");
     /* 主从布局：先选中 Second bot 卡片，右栏详情才出现它的移除入口。 */
-    await user.click(await screen.findByRole("button", { name: /^Second bot/ }));
+    await user.click(
+      await screen.findByRole("button", { name: /^Second bot/ }),
+    );
     await user.click(
       await screen.findByRole("button", { name: "移除连接 Second bot" }),
     );
@@ -553,6 +565,52 @@ describe("production IM settings", () => {
       screen.queryByLabelText("移除连接的管理凭据"),
     ).not.toBeInTheDocument();
   });
+  it("keeps manual Feishu setup available for a team gateway", async () => {
+    const f = fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    expect(
+      f.manage.mock.calls.some(
+        ([input]) => input.action === "feishu-scan-begin",
+      ),
+    ).toBe(false);
+    await user.type(screen.getByLabelText("App ID"), "cli_manual");
+    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
+    await user.type(
+      screen.getByLabelText("机器人配置的管理凭据"),
+      "synthetic-admin",
+    );
+    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "admin",
+        operation: "connections",
+        adminToken: "synthetic-admin",
+        configuration: expect.objectContaining({
+          appId: "cli_manual",
+          appSecret: "synthetic-secret",
+          transport: "websocket",
+        }),
+      }),
+    );
+  });
+  it("offers a manual fallback when local Feishu scan setup fails", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "feishu-scan-begin")
+        throw new Error("Registration unavailable");
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
+    expect(await screen.findByLabelText("App ID")).toBeVisible();
+    expect(screen.getByLabelText("App Secret")).toBeVisible();
+  });
   it("creates a Feishu bot from the scan-first create pane and lands on its profile", async () => {
     const f = fixture();
     f.set({ localGateway: { state: "running" } });
@@ -566,6 +624,7 @@ describe("production IM settings", () => {
         return {
           deviceCode: "dev1",
           qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          qrImage: "data:image/png;base64,c3ludGhldGlj",
           userCode: "ABCD",
           expiresAt: Date.now() + 600_000,
           intervalMs: 0,
@@ -582,7 +641,12 @@ describe("production IM settings", () => {
       if (input.action === "feishu-scan-connect") {
         f.set({
           connections: [
-            { ...connection, channel: "feishu", id: "feishu-scan-1", name: "My bot" },
+            {
+              ...connection,
+              channel: "feishu",
+              id: "feishu-scan-1",
+              name: "My bot",
+            },
           ],
         });
         return { connectionId: "feishu-scan-1" };
@@ -610,7 +674,10 @@ describe("production IM settings", () => {
         }),
       ),
     );
-    expect(f.manage).toHaveBeenCalledWith({ action: "pair", requireConfirmation: true });
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "pair",
+      requireConfirmation: true,
+    });
     expect(
       await screen.findByText("My bot", {
         selector: ".im-bot-profile-head strong",
@@ -631,6 +698,7 @@ describe("production IM settings", () => {
         return {
           deviceCode: "dev1",
           qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          qrImage: "data:image/png;base64,c3ludGhldGlj",
           userCode: "ABCD",
           expiresAt: Date.now() + 600_000,
           intervalMs: 60_000,
@@ -662,6 +730,7 @@ describe("production IM settings", () => {
         return {
           deviceCode: `dev-${f.manage.mock.calls.length}`,
           qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          qrImage: "data:image/png;base64,c3ludGhldGlj",
           userCode: "ABCD",
           expiresAt: Date.now() + 600_000,
           intervalMs: 60_000,
@@ -696,6 +765,7 @@ describe("production IM settings", () => {
         return {
           deviceCode: "dev1",
           qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+          qrImage: "data:image/png;base64,c3ludGhldGlj",
           userCode: "ABCD",
           expiresAt: Date.now() + 600_000,
           intervalMs: 0,
@@ -704,7 +774,8 @@ describe("production IM settings", () => {
       if (input.action === "feishu-scan-poll")
         return {
           status: "error",
-          message: "Error invoking remote method 'artemis:im-manage': Error: This bot is already owned by another connection.",
+          message:
+            "Error invoking remote method 'artemis:im-manage': Error: This bot is already owned by another connection.",
         };
       return original(input);
     });
@@ -733,17 +804,16 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 关联机器人卡（ZCode 式）：离线时保留扫码入口，手动编辑器退役。 */
+    /* 离线时保留扫码及现有应用的凭据修复入口。 */
     expect(screen.getByText("关联机器人")).toBeVisible();
     expect(screen.getByText("扫码获取应用凭据。")).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "更换凭据 飞书" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "更换凭据 飞书" })).toBeVisible();
     f.manage.mockImplementationOnce(async (input) =>
       input.action === "feishu-scan-begin"
         ? {
             deviceCode: "dev1",
             qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+            qrImage: "data:image/png;base64,c3ludGhldGlj",
             userCode: "ABCD",
             expiresAt: Date.now() + 600_000,
             intervalMs: 5000,
@@ -778,15 +848,15 @@ describe("production IM settings", () => {
       "data-state",
       "warning",
     );
-    expect(
-      document.querySelector(".im-bot-profile-state"),
-    ).toBeNull();
+    expect(document.querySelector(".im-bot-profile-state")).toBeNull();
     expect(document.querySelector(".im-bot-link-state")).toBeNull();
     /* 未配对没有「解除授权」可点，绑定入口在配对聊天卡。 */
     expect(
       screen.queryByRole("button", { name: "解除授权 飞书" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "生成配对码 飞书" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "生成配对码 飞书" }),
+    ).toBeVisible();
   });
   it("marks a paired bot in the nav and unpairs through the linked-bot card", async () => {
     const f = fixture();
@@ -805,7 +875,9 @@ describe("production IM settings", () => {
       "connected",
     );
     /* 解除授权：解绑这条连接的绑定账号，连接保留。 */
-    await user.click(await screen.findByRole("button", { name: "解除授权 飞书" }));
+    await user.click(
+      await screen.findByRole("button", { name: "解除授权 飞书" }),
+    );
     expect(f.manage).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "unpair",
@@ -920,10 +992,7 @@ describe("production IM settings", () => {
       screen.getByLabelText("Bot User OAuth Token"),
       "xoxb-example",
     );
-    await user.type(
-      screen.getByLabelText("App-Level Token"),
-      "xapp-example",
-    );
+    await user.type(screen.getByLabelText("App-Level Token"), "xapp-example");
     await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
     // 保存成功但连接尚未建立：关闭详情弹窗，行提亮（已配置），状态仍为未配置。
     await closeChannelDialog(user);
@@ -1280,9 +1349,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     // 完成态直接进入概览：左栏两卡全绿、总开关新家（D1）、不重跑流程。
-    expect(
-      await screen.findByText(/2 个项目 · 所有渠道通用/),
-    ).toBeVisible();
+    expect(await screen.findByText(/2 个项目 · 所有渠道通用/)).toBeVisible();
     expect(screen.getAllByRole("switch")).toHaveLength(1);
     // 概览分区可展开编辑，配置不被清除；授权设置在行右侧按钮的聚焦弹窗里。
     await openCard(user, /^单聊项目授权/);
@@ -1725,6 +1792,26 @@ describe("production IM settings", () => {
 });
 
 describe("pairing code lifecycle", () => {
+  it("allows retrying when the initial pairing-code request failed", () => {
+    const generate = vi.fn();
+    render(
+      <ImPairingCode
+        t={t}
+        pair={undefined}
+        slack={false}
+        busy={false}
+        generate={generate}
+        copy={() => {}}
+        onPoll={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
+    expect(generate).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "复制" }),
+    ).not.toBeInTheDocument();
+  });
   it("renders real member/group diagnostics and loads an existing space without its server revision", async () => {
     const editSpace = vi.fn();
     const space = {
@@ -1949,19 +2036,14 @@ describe("pairing code lifecycle", () => {
     expect(screen.getByRole("button", { name: "继续设置" })).toBeVisible();
     // 继续设置回到引导流：无已配置渠道自动下钻，空态文案在渠道详情内。
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "继续设置" }),
-      ).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "继续设置" })).toBeEnabled(),
     );
     await user.click(screen.getByRole("button", { name: "继续设置" }));
-    /* 渠道配置=点卡进入的整幅二级卡；飞书首个 bot 未建时右栏=创建页
-       （关联机器人卡+回复模式卡），不再是旧空态卡。 */
+    // A team gateway keeps the manual creation form after losing its connection.
     await openChannel(user, "feishu");
-    expect(await screen.findByText("关联机器人")).toBeVisible();
-    expect(screen.getByText("扫码获取应用凭据。")).toBeVisible();
-    expect(
-      screen.queryByText("尚未保存机器人连接"),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("App ID")).toBeVisible();
+    expect(screen.getByLabelText("机器人配置的管理凭据")).toBeVisible();
+    expect(screen.queryByText("尚未保存机器人连接")).not.toBeInTheDocument();
   });
 });
 

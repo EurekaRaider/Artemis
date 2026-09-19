@@ -130,7 +130,6 @@
         }
       ]
     },
-
     {
       "classNameSets": [
         ["child-agent-card", "suspect"],
@@ -182,17 +181,6 @@
         {
           "path": "apps/desktop/src/renderer/WorkspaceFileEditor.tsx",
           "contains": "className={`syntax-token ${token.kind}`}"
-        }
-      ]
-    },
-    {
-      "classNameSets": [["confirmation-dialog", "danger"]],
-      "owner": "Desktop confirmation dialog",
-      "reason": "The finite confirmation tone is appended to the dialog class at runtime.",
-      "sources": [
-        {
-          "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "className={`confirmation-dialog ${confirmation.tone}`}"
         }
       ]
     },
@@ -297,7 +285,6 @@
       ]
     }
   ],
-
   "rawComponentOverrides": [
     {
       "atRules": [],

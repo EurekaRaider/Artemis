@@ -70,6 +70,7 @@ export interface McpConnection {
 }
 
 export interface McpConnectionAuthentication {
+  fetch?: typeof fetch;
   bearerToken?: string;
   headers?: Record<string, string>;
   oauthProvider?: OAuthClientProvider;
@@ -1267,6 +1268,7 @@ export class McpClientManager {
             : undefined);
         const createTransport = () =>
           new StreamableHTTPClientTransport(new URL(config.url), {
+            ...(authentication?.fetch ? { fetch: authentication.fetch } : {}),
             ...(requestHeaders
               ? {
                   requestInit: {

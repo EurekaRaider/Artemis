@@ -5,7 +5,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "PDF",
-    "shortDescription": "Basic text PDF reading and writing without Codex runtime.",
+    "shortDescription": "Basic text PDF reading and writing.",
     "category": "Productivity",
     "brandColor": "#DC2626",
     "logo": "./assets/icon.png"

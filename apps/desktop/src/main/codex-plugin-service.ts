@@ -1,4 +1,9 @@
 import {
+  validateConnectorDefinition,
+  assertConnectorTransport,
+  type ConnectorDefinition,
+} from "../shared/connectors.js";
+import {
   createHash,
   createPublicKey,
   randomUUID,
@@ -39,7 +44,6 @@ import type {
   CodexPluginSource,
   InstalledCodexPlugin,
   McpServerConfig,
-  GoogleMcpHostAuth,
 } from "../shared/api.js";
 import { McpConfigStore, validateMcpServerConfig } from "./mcp-config-store.js";
 import { parseSkillFrontmatter } from "./resource-catalog.js";
@@ -111,7 +115,7 @@ interface ParsedMcpServer {
   envVars?: string[];
   url?: string;
   auth?: "none" | "bearer" | "oauth";
-  hostAuth?: GoogleMcpHostAuth;
+  connector?: ConnectorDefinition;
 }
 
 interface ParsedPlugin {
@@ -320,8 +324,8 @@ function mcpStructuralHash(config: McpServerConfig): string {
       command: config.command,
       args: config.args,
       workspacePath: config.workspacePath,
-      hostAuth: config.hostAuth,
-      ...(config.hostAuth ? { env: config.env, envVars: config.envVars } : {}),
+      connector: config.connector,
+      ...(config.connector ? { env: config.env, envVars: config.envVars } : {}),
       resourceKind: config.resourceKind,
       connectorId: config.connectorId,
     });
@@ -333,6 +337,8 @@ function mcpStructuralHash(config: McpServerConfig): string {
     url: config.url,
     resourceKind: config.resourceKind,
     connectorId: config.connectorId,
+    connector: config.connector,
+    auth: config.auth,
   });
 }
 
@@ -420,105 +426,19 @@ async function readPluginIcon(
   }
 }
 
-function connectorEndpoint(input: unknown): string | undefined {
-  const value = text(input);
-  if (!value) return undefined;
-  if (value.length > 2_000) {
-    throw new Error("Connector URL is too long.");
-  }
-  const url = new URL(value);
-  const loopback =
-    url.hostname === "127.0.0.1" ||
-    url.hostname === "localhost" ||
-    url.hostname === "::1" ||
-    url.hostname === "[::1]";
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
-    throw new Error("Connector URL must use HTTPS or loopback HTTP.");
-  }
-  return url.href;
-}
-
-async function parsePluginConnectors(
+async function rejectedLegacyConnectors(
   root: string,
-  declaration: unknown,
+  manifest: Record<string, unknown>,
 ): Promise<CodexPluginPreview["apps"]> {
-  const inputs: unknown[] = [];
-  const declarations = manifestPaths(declaration);
-  if (declarations.length) {
-    for (const pathInput of declarations) {
-      inputs.push(
-        await readJson(
-          declaredPath(root, pathInput, "Connector"),
-          MAX_MANIFEST_BYTES,
-        ),
-      );
-    }
-  } else if (record(declaration)) {
-    inputs.push(declaration);
-  } else if (await exists(join(root, ".connector.json"))) {
-    inputs.push(
-      await readJson(join(root, ".connector.json"), MAX_MANIFEST_BYTES),
-    );
-  } else if (await exists(join(root, ".app.json"))) {
-    inputs.push(await readJson(join(root, ".app.json"), MAX_MANIFEST_BYTES));
+  if (
+    manifest.connectors !== undefined ||
+    manifest.apps !== undefined ||
+    (await exists(join(root, ".connector.json"))) ||
+    (await exists(join(root, ".app.json")))
+  ) {
+    return [{ name: "Update plugin and reconnect", required: true }];
   }
-  const connectors = new Map<
-    string,
-    {
-      name: string;
-      connectorId?: string;
-      required?: boolean;
-      url?: string;
-      auth?: "none" | "bearer" | "oauth";
-    }
-  >();
-  for (const input of inputs) {
-    const inputRecord = record(input);
-    const definitions =
-      record(inputRecord?.connectors) ??
-      record(inputRecord?.apps) ??
-      inputRecord;
-    if (!definitions) continue;
-    for (const [rawName, rawDefinition] of Object.entries(definitions)) {
-      const name = rawName.trim();
-      if (
-        !name ||
-        name.length > 120 ||
-        !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(name)
-      ) {
-        continue;
-      }
-      const definition = record(rawDefinition);
-      const connectorId = text(definition?.id);
-      const required = definition?.required === true;
-      const url = connectorEndpoint(definition?.url ?? definition?.endpoint);
-      const authInput = text(definition?.auth);
-      if (
-        authInput !== undefined &&
-        authInput !== "none" &&
-        authInput !== "bearer" &&
-        authInput !== "oauth"
-      ) {
-        throw new Error(`Connector authentication mode is invalid: ${name}.`);
-      }
-      const auth = url
-        ? ((authInput ?? "oauth") as "none" | "bearer" | "oauth")
-        : undefined;
-      connectors.set(name, {
-        name,
-        ...(connectorId && connectorId.length <= 200 ? { connectorId } : {}),
-        ...(required ? { required: true } : {}),
-        ...(url ? { url } : {}),
-        ...(auth ? { auth } : {}),
-      });
-      if (connectors.size > 100) {
-        throw new Error("Plugin declares too many Connectors.");
-      }
-    }
-  }
-  return [...connectors.values()].sort((left, right) =>
-    left.name.localeCompare(right.name),
-  );
+  return [];
 }
 
 function unavailableConnectorNames(
@@ -931,35 +851,6 @@ function hasCredentialArgument(args: string[]): boolean {
   );
 }
 
-function parseGoogleHostAuth(
-  server: Record<string, unknown>,
-  name: string,
-  warnings: string[],
-): GoogleMcpHostAuth | undefined {
-  const declaration = record(record(server["x-artemis"])?.auth);
-  if (!declaration) return undefined;
-  const provider = text(declaration.provider);
-  const grant = text(declaration.grant);
-  const scopes = [...new Set(strings(declaration.scopes))];
-  if (
-    provider !== "google" ||
-    (grant !== "google-workspace" && grant !== "gmail") ||
-    scopes.length === 0 ||
-    scopes.length > 20 ||
-    scopes.some(
-      (scope) =>
-        !["openid", "email", "profile"].includes(scope) &&
-        !scope.startsWith("https://www.googleapis.com/auth/"),
-    )
-  ) {
-    warnings.push(
-      `MCP server "${name}" has an invalid Artemis host authentication declaration.`,
-    );
-    return undefined;
-  }
-  return { provider: "google", grant, scopes };
-}
-
 function parseMcpServer(
   name: string,
   input: unknown,
@@ -975,6 +866,29 @@ function parseMcpServer(
       requiresSetup: true,
     };
   }
+  const extension = record(server["x-artemis"]);
+  if (extension?.auth !== undefined)
+    return {
+      name,
+      transport: "unsupported",
+      endpoint: "Update plugin and reconnect",
+      importable: false,
+      requiresSetup: true,
+    };
+  let connector: ConnectorDefinition | undefined;
+  if (extension?.connector !== undefined) {
+    try {
+      connector = validateConnectorDefinition(extension.connector);
+    } catch {
+      return {
+        name,
+        transport: "unsupported",
+        endpoint: "Unsupported connector declaration",
+        importable: false,
+        requiresSetup: true,
+      };
+    }
+  }
   const command = text(server.command);
   const type = text(server.type)?.toLowerCase();
   if (command || type === "stdio" || type === "local") {
@@ -983,6 +897,17 @@ function parseMcpServer(
         name,
         transport: "unsupported",
         endpoint: "Missing stdio command",
+        importable: false,
+        requiresSetup: true,
+      };
+    }
+    try {
+      if (connector) assertConnectorTransport(connector, "stdio");
+    } catch {
+      return {
+        name,
+        transport: "unsupported",
+        endpoint: "Unsupported connector declaration",
         importable: false,
         requiresSetup: true,
       };
@@ -1000,7 +925,7 @@ function parseMcpServer(
       args.some((value) => hasUnresolvedVariable(removePluginRoot(value)));
     const environment = record(server.env) ?? {};
     const credentialArgument = hasCredentialArgument(args);
-    const hostAuth = parseGoogleHostAuth(server, name, warnings);
+
     const envVars = new Set(strings(server.env_vars ?? server.envVars));
     const omittedKeys: string[] = [];
     for (const [key, value] of Object.entries(environment)) {
@@ -1043,7 +968,7 @@ function parseMcpServer(
       command,
       args,
       envVars: [...envVars],
-      ...(hostAuth ? { hostAuth, requiresSetup: true } : {}),
+      ...(connector ? { connector, requiresSetup: true } : {}),
     };
   }
 
@@ -1057,6 +982,18 @@ function parseMcpServer(
         name,
         transport: "unsupported",
         endpoint: "Invalid URL",
+        importable: false,
+        requiresSetup: true,
+      };
+    }
+    try {
+      if (connector)
+        assertConnectorTransport(connector, "streamable-http", url.href);
+    } catch {
+      return {
+        name,
+        transport: "unsupported",
+        endpoint: "Unsupported connector declaration",
         importable: false,
         requiresSetup: true,
       };
@@ -1120,6 +1057,7 @@ function parseMcpServer(
       requiresSetup: auth === "bearer" || unsupportedHeaders.length > 0,
       url: url.href,
       auth,
+      ...(connector ? { connector } : {}),
     };
   }
 
@@ -1140,6 +1078,7 @@ function mcpServerMap(value: unknown): Record<string, unknown> {
 function previewMcp(server: ParsedMcpServer): CodexPluginMcpPreview {
   return {
     name: server.name,
+    ...(server.connector ? { connector: server.connector } : {}),
     transport: server.transport,
     endpoint: server.endpoint,
     importable: server.importable,
@@ -1628,35 +1567,8 @@ function validateStoredPlugin(value: unknown): StoredPlugin {
         return { id: serverId, structuralHash };
       })
     : [];
-  const appPreviews = Array.isArray(input.appPreviews)
-    ? input.appPreviews.flatMap((entry) => {
-        const app = record(entry);
-        const appName = text(app?.name);
-        const connectorId = text(app?.connectorId);
-        const required = app?.required === true;
-        const url = connectorEndpoint(app?.url);
-        const authInput = text(app?.auth);
-        const auth: "none" | "bearer" | "oauth" | undefined =
-          url &&
-          (authInput === "none" ||
-            authInput === "bearer" ||
-            authInput === "oauth")
-            ? authInput
-            : undefined;
-        if (!appName || appName.length > 120) return [];
-        return [
-          {
-            name: appName,
-            ...(connectorId && connectorId.length <= 200
-              ? { connectorId }
-              : {}),
-            ...(required ? { required: true } : {}),
-            ...(url ? { url } : {}),
-            ...(auth ? { auth } : {}),
-          },
-        ];
-      })
-    : [];
+  const appPreviews: CodexPluginPreview["apps"] = [];
+
   return {
     id,
     name,
@@ -1704,6 +1616,15 @@ export class CodexPluginService {
     const plugins = (await this.loadStore()).plugins.map((plugin) =>
       this.installedPlugin(plugin),
     );
+    const configuredIds = new Set(
+      (await this.options.mcpStore.list()).map((config) => config.id),
+    );
+    for (const plugin of plugins) {
+      if (plugin.mcpServerIds.some((id) => !configuredIds.has(id)))
+        plugin.warnings.push(
+          "Update plugin and reconnect. Its previous connection cannot execute.",
+        );
+    }
     const bundledMarketplace = plugins.some(
       (plugin) =>
         plugin.source.kind === "bundled" || plugin.source.kind === "runtime",
@@ -2227,8 +2148,29 @@ export class CodexPluginService {
     return plugin ? this.installedPlugin(plugin) : undefined;
   }
 
-  async assertHostAuthTrusted(config: McpServerConfig): Promise<void> {
-    if (!config.hostAuth) return;
+  async listConnectorDefinitions() {
+    const state = await this.listMarketplaces();
+    const installed = await this.listInstalled();
+    return state.marketplaces.flatMap(({ marketplace }) =>
+      marketplace.plugins.flatMap((plugin) =>
+        plugin.mcpServers.flatMap((server) =>
+          server.connector
+            ? [
+                {
+                  ...server.connector,
+                  serverId: mcpConfigId(plugin.id, server.name),
+                  pluginId: plugin.id,
+                  installed: installed.some((p) => p.id === plugin.id),
+                },
+              ]
+            : [],
+        ),
+      ),
+    );
+  }
+
+  async assertConnectorTrusted(config: McpServerConfig): Promise<void> {
+    if (!config.connector) return;
     const store = await this.loadStore();
     const owner = store.plugins.find((plugin) =>
       plugin.mcpServers.some((server) => server.id === config.id),
@@ -2256,7 +2198,7 @@ export class CodexPluginService {
     );
     if (collectedHash(installedFiles) !== owner.contentHash) {
       throw new Error(
-        "Installed plugin contents changed. Reinstall it before authorizing Google.",
+        "Installed plugin contents changed. Update the plugin and reconnect.",
       );
     }
     const url = normalizeMarketplaceUrl(owner.source.marketplaceUrl);
@@ -2767,6 +2709,14 @@ export class CodexPluginService {
           ),
         );
         if (!preview.installable) {
+          if (
+            preview.apps.some(
+              (app) => app.name === "Update plugin and reconnect",
+            )
+          ) {
+            plugins.push(preview);
+            continue;
+          }
           if (options?.strict) {
             throw new Error(
               `${entryName} must contain an installable Skill, MCP server, or Connector URL.`,
@@ -2933,8 +2883,7 @@ export class CodexPluginService {
     if (!manifest?.version)
       warnings.push("Plugin manifest has no version; 0.0.0 was used.");
     const unsupported: string[] = [];
-    const connectorDeclaration = manifest?.connectors ?? manifest?.apps;
-    const apps = await parsePluginConnectors(root, connectorDeclaration);
+    const apps = await rejectedLegacyConnectors(root, manifest);
     const iconDataUrl = await readPluginIcon(
       root,
       interfaceValue?.logo ?? interfaceValue?.composerIcon,
@@ -3023,6 +2972,15 @@ export class CodexPluginService {
         mcpServers.push(parseMcpServer(serverName, definition, warnings));
       }
     }
+    if (
+      mcpServers.some((server) =>
+        [
+          "Update plugin and reconnect",
+          "Unsupported connector declaration",
+        ].includes(server.endpoint),
+      )
+    )
+      apps.push({ name: "Update plugin and reconnect", required: true });
     if (unavailableConnectorNames(apps, mcpServers).length) {
       unsupported.push("Unavailable Connectors");
     }
@@ -3142,10 +3100,13 @@ export class CodexPluginService {
     parsed: ParsedPlugin,
     pluginDirectory: string,
   ): Promise<McpServerConfig[]> {
-    const hostAuthTrusted = await this.hostAuthTrusted(parsed);
+    const connectorTrusted = await this.connectorTrusted(parsed);
     const mcpServers = parsed.mcpServers.flatMap((server) => {
       if (!server.importable || server.transport === "unsupported") return [];
-      if (server.hostAuth && !hostAuthTrusted) return [];
+      if (server.connector && !connectorTrusted)
+        throw new Error(
+          "Connector requires a trusted signed marketplace plugin.",
+        );
       const id = mcpConfigId(parsed.id, server.name);
       if (server.transport === "stdio") {
         const usesArtemisNode = server.command === "${ARTEMIS_NODE}";
@@ -3167,7 +3128,13 @@ export class CodexPluginService {
             envVars: server.envVars ?? [],
             workspacePath: join(this.options.mcpWorkspaceRoot, id),
             allowNetwork: true,
-            ...(server.hostAuth ? { hostAuth: server.hostAuth } : {}),
+            ...(server.connector
+              ? {
+                  connector: server.connector,
+                  resourceKind: "connector" as const,
+                  connectorId: server.connector.id,
+                }
+              : {}),
           }),
         ];
       }
@@ -3179,34 +3146,21 @@ export class CodexPluginService {
           enabled: false,
           url: server.url!,
           auth: server.auth ?? "none",
+          ...(server.connector
+            ? {
+                connector: server.connector,
+                resourceKind: "connector" as const,
+                connectorId: server.connector.id,
+              }
+            : {}),
         }),
       ];
     });
-    const connectors = parsed.apps.flatMap((connector) => {
-      if (!connector.url) return [];
-      const id = mcpConfigId(parsed.id, `connector:${connector.name}`);
-      const connectorId = safeSlug(
-        connector.connectorId ?? connector.name,
-        "connector",
-      ).slice(0, 120);
-      return [
-        validateMcpServerConfig({
-          id,
-          name: `${parsed.displayName}: ${connector.name}`.slice(0, 100),
-          transport: "streamable-http",
-          enabled: false,
-          url: connector.url,
-          auth: connector.auth ?? "oauth",
-          resourceKind: "connector",
-          connectorId,
-        }),
-      ];
-    });
-    return [...mcpServers, ...connectors];
+    return mcpServers;
   }
 
-  private async hostAuthTrusted(parsed: ParsedPlugin): Promise<boolean> {
-    if (!parsed.mcpServers.some((server) => server.hostAuth)) return true;
+  private async connectorTrusted(parsed: ParsedPlugin): Promise<boolean> {
+    if (!parsed.mcpServers.some((server) => server.connector)) return true;
     if (parsed.source.kind !== "git" || !parsed.contentHash) return false;
     const url = normalizeMarketplaceUrl(parsed.source.marketplaceUrl);
     const source = (await this.loadMarketplaceStore()).sources.find(
@@ -3230,20 +3184,23 @@ export class CodexPluginService {
     current: McpServerConfig | undefined,
   ): McpServerConfig {
     if (!current || current.transport !== next.transport) return next;
+    if (JSON.stringify(next.connector) !== JSON.stringify(current.connector))
+      return next;
     if (next.transport === "stdio" && current.transport === "stdio") {
       const scopesExpanded = Boolean(
-        next.hostAuth &&
-        (!current.hostAuth ||
-          next.hostAuth.grant !== current.hostAuth.grant ||
-          next.hostAuth.scopes.some(
-            (scope) => !current.hostAuth?.scopes.includes(scope),
+        next.connector &&
+        (!current.connector ||
+          JSON.stringify(next.connector) !==
+            JSON.stringify(current.connector) ||
+          next.connector.scopes.some(
+            (scope) => !current.connector?.scopes.includes(scope),
           )),
       );
       return {
         ...next,
         enabled: scopesExpanded ? false : current.enabled,
-        env: structuredClone(next.hostAuth ? next.env : current.env),
-        envVars: [...(next.hostAuth ? next.envVars : current.envVars)],
+        env: structuredClone(next.connector ? next.env : current.env),
+        envVars: [...(next.connector ? next.envVars : current.envVars)],
       };
     }
     if (
@@ -3512,9 +3469,40 @@ export class CodexPluginService {
     }
     for (const server of plugin.mcpServers) {
       const current = currentMcp.find((config) => config.id === server.id);
-      if (!current)
+      if (!current) {
+        // The old declaration is inspected only to confirm rejection. Its
+        // connection and credentials are never restored or translated.
+        const previous = await this.parsePlugin(
+          pluginDirectory,
+          plugin.source,
+          false,
+        );
+        if (
+          previous.apps.some(
+            (app) => app.name === "Update plugin and reconnect",
+          )
+        )
+          continue;
         throw new Error(`Plugin MCP server is missing: ${server.id}`);
-      if (mcpStructuralHash(current) !== server.structuralHash) {
+      }
+      // Before versioned Connectors, ordinary HTTP MCP hashes omitted auth.
+      // Match that exact legacy shape without weakening Connector trust checks.
+      const matchesLegacyHttp =
+        current.transport === "streamable-http" &&
+        !current.connector &&
+        current.resourceKind !== "connector" &&
+        stableHash({
+          id: current.id,
+          name: current.name,
+          transport: current.transport,
+          url: current.url,
+          resourceKind: current.resourceKind,
+          connectorId: current.connectorId,
+        }) === server.structuralHash;
+      if (
+        mcpStructuralHash(current) !== server.structuralHash &&
+        !matchesLegacyHttp
+      ) {
         throw new Error(
           `Plugin MCP server was structurally modified: ${server.id}`,
         );

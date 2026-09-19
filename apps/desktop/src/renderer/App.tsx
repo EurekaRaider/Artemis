@@ -1,3 +1,5 @@
+import { CommandArtwork } from "./CommandArtwork.js";
+import { ResourceAvatar } from "./resource-icons.js";
 import { HistoryTurn } from "./HistoryTurn.js";
 import {
   mergeHistoryPage,
@@ -56,7 +58,13 @@ import {
   TurnChangeSummary,
   TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
-import { Dialog, LoadingState, Popover, Toast, Tooltip } from "@artemis/ui/feedback";
+import {
+  Dialog,
+  LoadingState,
+  Popover,
+  Toast,
+  Tooltip,
+} from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import artemisIcon from "../../build/icon.png";
 import feishuChannelIcon from "./assets/feishu-channel.png";
@@ -887,7 +895,10 @@ function splitImChannelPrefix(
   ).exec(title);
   const matched = match?.[1];
   if (!matched) return undefined;
-  return { channel: IM_TITLE_CHANNELS[matched]!, rest: title.slice(match[0].length) };
+  return {
+    channel: IM_TITLE_CHANNELS[matched]!,
+    rest: title.slice(match[0].length),
+  };
 }
 
 function ThreadChannelMark({
@@ -945,9 +956,7 @@ function ThreadTitleContent({
   const text = parsed ? parsed.rest : visible;
   return (
     <>
-      {parsed && (
-        <ThreadChannelMark channel={parsed.channel} locale={locale} />
-      )}
+      {parsed && <ThreadChannelMark channel={parsed.channel} locale={locale} />}
       <span className="thread-title-text">
         <span>{text}</span>
         <span aria-hidden="true" className="thread-title-copy">
@@ -1485,7 +1494,6 @@ export function App() {
   const modelPickerRoot = useRef<HTMLDivElement>(null);
   const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
   const slashCommandMenu = useRef<HTMLDivElement>(null);
-  const confirmationCancelButton = useRef<HTMLButtonElement>(null);
   const confirmationResolver = useRef<
     ((confirmed: boolean) => void) | undefined
   >(undefined);
@@ -1819,18 +1827,6 @@ export function App() {
     setConfirmation(undefined);
     resolve?.(confirmed);
   }, []);
-
-  useEffect(() => {
-    if (!confirmation) return;
-    confirmationCancelButton.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      resolveConfirmation(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [confirmation, resolveConfirmation]);
 
   useEffect(
     () => () => {
@@ -2973,12 +2969,36 @@ export function App() {
       `#skill-command-option-${activeSlashSuggestion}`,
     );
     if (!menu || !option) return;
+    const rows = [
+      ...menu.querySelectorAll<HTMLElement>(
+        ".slash-command-suggestion, .slash-command-heading",
+      ),
+    ];
+    // Let the final scroll position land on a whole row as well.
+    menu.style.setProperty("--slash-menu-end-padding", "6px");
+    const maximumScroll = menu.scrollHeight - menu.clientHeight;
+    const lastTopRow = rows.find((row) => row.offsetTop - 6 >= maximumScroll);
+    if (maximumScroll > 0 && lastTopRow) {
+      menu.style.setProperty(
+        "--slash-menu-end-padding",
+        `${lastTopRow.offsetTop - maximumScroll}px`,
+      );
+    }
     const optionTop = option.offsetTop;
     const optionBottom = optionTop + option.offsetHeight;
-    if (optionTop < menu.scrollTop) {
+    if (optionTop < menu.scrollTop + 6) {
       menu.scrollTop = Math.max(0, optionTop - 6);
-    } else if (optionBottom > menu.scrollTop + menu.clientHeight) {
-      menu.scrollTop = optionBottom - menu.clientHeight + 6;
+    } else if (optionBottom > menu.scrollTop + menu.clientHeight - 6) {
+      const minimumTop = optionBottom - menu.clientHeight + 6;
+      // Align a whole row at the top while keeping the selected row in view.
+      // Arbitrary pixel offsets cut through icons; nearest CSS snapping alone
+      // can instead leave the selected row clipped at the bottom.
+      const firstVisibleRow = rows.find(
+        (row) => row.offsetTop - 6 >= minimumTop,
+      );
+      menu.scrollTop = firstVisibleRow
+        ? firstVisibleRow.offsetTop - 6
+        : minimumTop;
     }
   }, [
     activeSlashSuggestion,
@@ -5709,7 +5729,9 @@ export function App() {
                 type="button"
                 aria-label={t.settings}
                 title={t.settings}
-                onClick={(event) => openSettings("general", event.currentTarget)}
+                onClick={(event) =>
+                  openSettings("general", event.currentTarget)
+                }
               >
                 <SettingsIcon />
               </button>
@@ -7367,7 +7389,7 @@ export function App() {
                                 role="option"
                                 tabIndex={-1}
                               >
-                                <span className="slash-command-icon">◎</span>
+                                <CommandArtwork command="goal" />
                                 <span>
                                   <strong>{t.goalCommand}</strong>
                                   <small>{t.goalCommandDetail}</small>
@@ -7388,17 +7410,7 @@ export function App() {
                                 role="option"
                                 tabIndex={-1}
                               >
-                                <span className="slash-command-icon">
-                                  <Icon size={18}>
-                                    <path
-                                      d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.5"
-                                    />
-                                  </Icon>
-                                </span>
+                                <CommandArtwork command="compact" />
                                 <span>
                                   <strong>{t.compactCommand}</strong>
                                   <small>{t.compactCommandDetail}</small>
@@ -7416,17 +7428,7 @@ export function App() {
                                 role="option"
                                 tabIndex={-1}
                               >
-                                <span className="slash-command-icon">
-                                  <Icon size={18}>
-                                    <path
-                                      d="M6.5 3.5h7l4 4v13h-11v-17Zm7 0v4h4M9 12h6m-6 4h6"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.5"
-                                    />
-                                  </Icon>
-                                </span>
+                                <CommandArtwork command="init" />
                                 <span>
                                   <strong>{t.initCommand}</strong>
                                   <small>{t.initCommandDetail}</small>
@@ -7460,9 +7462,7 @@ export function App() {
                                   role="option"
                                   tabIndex={-1}
                                 >
-                                  <span className="slash-command-icon">
-                                    <ModeIcon />
-                                  </span>
+                                  <CommandArtwork command={mode} />
                                   <span>
                                     <strong>{commandLabel}</strong>
                                     <small>{commandDetail}</small>
@@ -7498,17 +7498,12 @@ export function App() {
                                       role="option"
                                       tabIndex={-1}
                                     >
-                                      <span className="slash-command-icon plugin-icon">
-                                        {plugin.iconDataUrl ? (
-                                          <img
-                                            alt=""
-                                            draggable={false}
-                                            src={plugin.iconDataUrl}
-                                          />
-                                        ) : (
-                                          <ResourceIcon />
-                                        )}
-                                      </span>
+                                      <ResourceAvatar
+                                        brandColor={plugin.brandColor}
+                                        iconDataUrl={plugin.iconDataUrl}
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
                                       <span>
                                         <strong>{skill.name}</strong>
                                         <small title={skill.description}>
@@ -7537,9 +7532,10 @@ export function App() {
                                       role="option"
                                       tabIndex={-1}
                                     >
-                                      <span className="slash-command-icon">
-                                        ✦
-                                      </span>
+                                      <ResourceAvatar
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
                                       <span>
                                         <strong>{skill.name}</strong>
                                         <small>{skill.description}</small>
@@ -8067,8 +8063,14 @@ export function App() {
                                     <label className="model-picker-search">
                                       <SearchIcon />
                                       <input
-                                        aria-label={t.search}
-                                        placeholder={t.search}
+                                        aria-label={uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearch",
+                                        )}
+                                        placeholder={uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearch",
+                                        )}
                                         value={modelFilter}
                                         onChange={(event) =>
                                           setModelFilter(event.target.value)
@@ -9324,63 +9326,74 @@ export function App() {
           >
             <ArtemisIcon height={15} name="close" width={15} />
           </button>
-          <ImSettingsPanel
-            locale={locale}
-            onOpenThread={async (threadId) => {
-              await openAutomationThread(threadId);
-              setImSettingsOpen(false);
-              window.requestAnimationFrame(() => promptInput.current?.focus());
-            }}
-          />
+          <Suspense
+            fallback={
+              <LoadingState
+                label={uiText(locale, "ImSettingsPanel.message31")}
+              />
+            }
+          >
+            <ImSettingsPanel
+              locale={locale}
+              onOpenThread={async (threadId) => {
+                await openAutomationThread(threadId);
+                setImSettingsOpen(false);
+                window.requestAnimationFrame(() =>
+                  promptInput.current?.focus(),
+                );
+              }}
+            />
+          </Suspense>
         </Dialog>
       )}
 
       {confirmation && (
-        <div
-          className="confirmation-backdrop"
-          onMouseDown={() => resolveConfirmation(false)}
+        <Dialog
+          aria-describedby="confirmation-message"
+          aria-labelledby="confirmation-title"
+          className={`confirmation-dialog ${confirmation.tone}`}
+          label={
+            confirmation.title ??
+            (confirmation.tone === "danger"
+              ? t.confirmationDangerTitle
+              : t.confirmationTitle)
+          }
+          onOpenChange={(open) => {
+            if (!open) resolveConfirmation(false);
+          }}
+          open
+          role="alertdialog"
         >
-          <section
-            aria-describedby="confirmation-message"
-            aria-labelledby="confirmation-title"
-            aria-modal={true}
-            className={`confirmation-dialog ${confirmation.tone}`}
-            onMouseDown={(event) => event.stopPropagation()}
-            role="alertdialog"
-          >
-            <div className="confirmation-icon" aria-hidden="true">
-              !
-            </div>
-            <div className="confirmation-copy">
-              <h2 id="confirmation-title">
-                {confirmation.title ??
-                  (confirmation.tone === "danger"
-                    ? t.confirmationDangerTitle
-                    : t.confirmationTitle)}
-              </h2>
-              <p id="confirmation-message">{confirmation.message}</p>
-            </div>
-            <div className="confirmation-actions">
-              <button
-                className="secondary-button"
-                onClick={() => resolveConfirmation(false)}
-                ref={confirmationCancelButton}
-              >
-                {confirmation.cancelLabel ?? t.confirmationCancel}
-              </button>
-              <button
-                className={
-                  confirmation.tone === "danger"
-                    ? "primary-button danger"
-                    : "primary-button"
-                }
-                onClick={() => resolveConfirmation(true)}
-              >
-                {confirmation.acceptLabel ?? t.confirmationAccept}
-              </button>
-            </div>
-          </section>
-        </div>
+          <div className="confirmation-copy">
+            <h2 id="confirmation-title">
+              {confirmation.title ??
+                (confirmation.tone === "danger"
+                  ? t.confirmationDangerTitle
+                  : t.confirmationTitle)}
+            </h2>
+            <p id="confirmation-message">{confirmation.message}</p>
+          </div>
+          <div className="confirmation-actions">
+            <Button
+              className="secondary-button"
+              variant="secondary"
+              onClick={() => resolveConfirmation(false)}
+            >
+              {confirmation.cancelLabel ?? t.confirmationCancel}
+            </Button>
+            <Button
+              className={
+                confirmation.tone === "danger"
+                  ? "primary-button danger"
+                  : "primary-button"
+              }
+              variant={confirmation.tone === "danger" ? "danger" : "primary"}
+              onClick={() => resolveConfirmation(true)}
+            >
+              {confirmation.acceptLabel ?? t.confirmationAccept}
+            </Button>
+          </div>
+        </Dialog>
       )}
 
       {fileLinkContextMenu && (
