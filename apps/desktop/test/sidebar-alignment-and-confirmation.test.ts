@@ -87,11 +87,12 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     expect(cssDeclarations(".project-thread-row")).toContain("margin-left: 0");
     expect(cssDeclarations(".project-thread-row")).toContain("padding-left: 0");
 
+    // 悬浮/选中背景以背景图形式实现（高度收 1px），颜色仍取自同一变量。
     expect(cssDeclarations(".project-thread-row:hover")).toContain(
-      "background: var(--hover)",
+      "linear-gradient(var(--hover), var(--hover))",
     );
     expect(cssDeclarations(".project-thread-row.selected")).toContain(
-      "background: var(--selected)",
+      "linear-gradient(var(--selected), var(--selected))",
     );
   });
 
