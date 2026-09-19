@@ -18484,10 +18484,10 @@ function createMainWindow(): BrowserWindow {
                     .querySelector('.resource-installed-overview .resource-icon-button')
                     ?.click();
                   await wait(500);
-                  const tabIndex = view.startsWith('mcp-search-') ? 2 : 3;
-                  document
-                    .querySelectorAll('.resource-management-tabs button')
-                    [tabIndex]?.click();
+                  const tabId = view.startsWith('mcp-search-')
+                    ? '#resource-management-tab-mcp'
+                    : '#resource-management-tab-skills';
+                  document.querySelector(tabId)?.click();
                   await wait(300);
                   document
                     .querySelector('.resource-list-heading-actions .resource-add-button')
