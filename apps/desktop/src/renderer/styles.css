@@ -343,8 +343,16 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   background: var(--hover);
 }
 
+/* 悬浮/选中背景上下各收 0.5px（合计 1px）：用背景图尺寸实现，
+   避免 content-box 裁剪与圆角/padding 相互干扰。 */
+.project-thread-row:hover {
+  background: linear-gradient(var(--hover), var(--hover)) center / 100%
+    calc(100% - 1px) no-repeat;
+}
+
 .project-thread-row.selected {
-  background: var(--selected);
+  background: linear-gradient(var(--selected), var(--selected)) center / 100%
+    calc(100% - 1px) no-repeat;
 }
 
 .project-select {
@@ -8843,6 +8851,34 @@ button.sources-panel-entry.attachment:focus-visible {
   gap: 7px;
 }
 
+.resource-marketplace-source-row[draggable="true"] {
+  cursor: grab;
+}
+
+.resource-marketplace-source-row[data-dragging="true"] {
+  opacity: 0.45;
+}
+
+/* 悬浮只点亮边框，不铺背景色。 */
+.resource-marketplace-source-row:hover {
+  background: var(--artemis-color-surface-base);
+  border-color: var(--artemis-color-border-strong);
+}
+
+/* 删除按钮默认静默图标，悬浮才变红。 */
+.resource-marketplace-source-row .resource-marketplace-remove-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-2);
+}
+
+.resource-marketplace-source-row
+  .resource-marketplace-remove-button:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--danger);
+}
+
 @media (max-height: 600px) {
   .composer-input {
     margin-block-start: 4px;
@@ -12319,6 +12355,12 @@ kbd {
   gap: 14px;
 }
 
+.resource-management-header [data-part="leading"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .resource-page-artwork,
 .archive-header-artwork {
   display: block;
@@ -12392,16 +12434,36 @@ kbd {
 
 .plugin-market-card-heading {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 40%);
-  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 9px;
 }
 
+.plugin-market-card-titles {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+/* 图标与文字块（标题顶 → 徽章底）精确平齐：行高只由文字决定，
+   头像通过 stretch 撑满该行，内容绝对定位填充，避免图片固有尺寸参与行高计算。 */
 .plugin-market-card-heading .resource-avatar {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  border-radius: 9px;
+  align-self: stretch;
+  position: relative;
+  width: 38px;
+  min-width: 38px;
+  height: auto;
+  border-radius: 10px;
+}
+
+.plugin-market-card-heading .resource-avatar img,
+.plugin-market-card-heading .resource-avatar svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .plugin-market-card-heading strong {
@@ -12442,17 +12504,16 @@ kbd {
   white-space: nowrap;
 }
 
+/* 名称下方的来源市场徽章，与 .plugin-market-source 同一视觉语言。 */
 .plugin-market-card-source {
-  display: grid;
-  gap: 2px;
-  min-inline-size: 0;
+  display: inline-flex;
+  max-inline-size: 100%;
   font-size: 10px;
-  line-height: 1.4;
+  line-height: 1.6;
   color: var(--artemis-color-text-tertiary);
-  text-align: end;
-}
-
-.plugin-market-card-source span {
+  border: 1px solid var(--artemis-color-border-subtle);
+  border-radius: 999px;
+  padding: 0 7px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
