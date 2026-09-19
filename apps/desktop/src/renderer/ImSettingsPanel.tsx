@@ -1309,8 +1309,8 @@ export function ImSettingsPanel({
       </div>
     </div>
   );
-  /* 机器人详情（ZCode 式）：头（logo+名称+ID+刷新）+ 状态行 +
-     关联机器人 / 配对聊天 / 回复模式 / 删除机器人 设置卡。 */
+  /* 机器人详情（ZCode 式）：头=logo 跨两行，右侧名称+配对状态；
+     下方为关联机器人 / 配对聊天 / 回复模式 / 删除机器人 设置卡。 */
   const renderBotProfile = (connection: ImConnectionStatus) => {
     const pairing = pairingView(connection);
     const state = pairing.state;
@@ -1318,26 +1318,18 @@ export function ImSettingsPanel({
       <div className="im-bot-profile">
         <div className="im-bot-profile-head">
           {channelLogo(channel, 28)}
-          <strong>{connection.name}</strong>
-          <ImBotIdTag id={connection.id} t={t} />
-          <Tooltip label={t("ImSettingsPanel.message72")} align="end">
-            <button
-              type="button"
-              className="im-icon-action"
-              disabled={busy || !activeSettings.deviceId}
-              aria-label={t("ImSettingsPanel.message71", {
-                value1: connection.name,
-              })}
-              onClick={() => void run(refresh)}
-            >
-              <ArtemisIcon height={13} name="refresh" width={13} />
-            </button>
-          </Tooltip>
+          <div className="im-bot-profile-heading">
+            <strong>{connection.name}</strong>
+            <p className="im-bot-profile-state">
+              <span
+                aria-hidden="true"
+                className="im-dot"
+                data-state={pairing.dot}
+              />
+              {pairing.label}
+            </p>
+          </div>
         </div>
-        <p className="im-bot-profile-state">
-          <span aria-hidden="true" className="im-dot" data-state={pairing.dot} />
-          {pairing.label}
-        </p>
         {connection.error && (
           <InlineNotice tone="danger">{connection.error}</InlineNotice>
         )}
@@ -3149,56 +3141,5 @@ export function ImSettingsPanel({
         </Dialog>
       )}
     </div>
-  );
-}
-
-/** 连接 ID 浮窗触发器：点击浮窗展示完整 ID + 复制，点外部/Esc 关闭。 */
-function ImBotIdTag({ id, t }: { id: string; t: ImTranslate }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    function onDown(event: MouseEvent) {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  return (
-    <span className="im-bot-id" ref={root}>
-      <Tooltip label={t("ImSettingsPanel.message202")} align="end">
-        <button
-          type="button"
-          className="im-icon-action im-bot-id-btn"
-          aria-expanded={open}
-          aria-label={t("ImSettingsPanel.message202")}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <ArtemisIcon height={12} name="info" width={12} />
-        </button>
-      </Tooltip>
-      {open && (
-        <span className="im-bot-id-pop">
-          <code>{id}</code>
-          <Tooltip label={t("ImSettingsPanel.message204")} align="end">
-            <button
-              type="button"
-              className="im-icon-action im-bot-id-btn"
-              aria-label={t("ImSettingsPanel.message204")}
-              onClick={() => void navigator.clipboard.writeText(id)}
-            >
-              <ArtemisIcon height={12} name="copy" width={12} />
-            </button>
-          </Tooltip>
-        </span>
-      )}
-    </span>
   );
 }

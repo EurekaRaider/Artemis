@@ -10757,6 +10757,14 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+}
+/* 名称与配对状态叠放，logo 左侧跨两行（ZCode 同款头部）。 */
+.im-bot-profile-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 .im-bot-profile-head strong {
   font-size: 15px;
@@ -10766,15 +10774,11 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.im-bot-profile-head .im-icon-action {
-  margin-inline-start: auto;
-  flex: none;
-}
 .im-bot-profile-state {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: -4px 0 0;
+  margin: 0;
   font-size: 12px;
   color: var(--muted);
 }
@@ -11118,35 +11122,6 @@ kbd {
 .im-icon-action:focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);
   outline-offset: 1px;
-}
-/* 连接 ID 浮窗：bot 名称后的信息图标，点开展示完整 ID + 复制。 */
-.im-bot-id {
-  position: relative;
-  display: inline-flex;
-}
-.im-bot-id .im-icon-action:hover {
-  color: var(--text);
-}
-.im-bot-id-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: var(--surface-raised);
-  color: var(--text);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
-  white-space: nowrap;
-}
-.im-bot-id-pop code {
-  font-family: var(--artemis-typography-mono-family);
-  font-size: 11px;
-  color: var(--muted);
 }
 @media (max-width: 720px) {
   .im-mode-tiers {
