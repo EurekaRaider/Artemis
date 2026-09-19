@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { ArtemisIcon, type ArtemisIconName } from "@artemis/ui/icons";
+import { pluginBrandIcon } from "./plugin-brand-icons.js";
 
 export type ResourceIconKind =
   | "plugin"
@@ -548,17 +549,23 @@ export function ResourceAvatar({
   iconDataUrl,
   kind,
   name,
+  pluginName,
 }: {
   brandColor?: string | undefined;
   iconKey?: ResourceIconName | undefined;
   iconDataUrl?: string | undefined;
   kind: ResourceIconKind;
   name: string;
+  pluginName?: string | undefined;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [iconDataUrl]);
   const semanticIcon = iconKey ?? resourceIconName(name, kind);
-  const semanticVisible = !iconDataUrl || imageFailed;
+  const bundledIcon = pluginBrandIcon(
+    pluginName ?? (kind === "plugin" || kind === "plugins" ? name : ""),
+  );
+  const imageSource = (!imageFailed && iconDataUrl) || bundledIcon;
+  const semanticVisible = !imageSource;
   const style = brandColor
     ? ({ "--resource-brand": brandColor } as CSSProperties)
     : undefined;
@@ -569,12 +576,12 @@ export function ResourceAvatar({
       data-kind={kind}
       style={style}
     >
-      {iconDataUrl && !imageFailed ? (
+      {imageSource ? (
         <img
           alt=""
           draggable={false}
           onError={() => setImageFailed(true)}
-          src={iconDataUrl}
+          src={imageSource}
         />
       ) : (
         <ResourceArtwork icon={semanticIcon} />

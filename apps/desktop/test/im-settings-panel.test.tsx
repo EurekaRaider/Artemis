@@ -25,22 +25,23 @@ import { imConnectionHealth } from "../src/renderer/ImNavigation.js";
 import { ImDiagnostics } from "../src/renderer/ImDiagnostics.js";
 
 const identity = {
-  channel: "wecom" as const,
-  connectionId: "wecom-team",
+  channel: "feishu" as const,
+  connectionId: "feishu-team",
   tenantId: "test-corp",
   appId: "test-bot",
   userId: "test-user",
 };
 const connection: ImConnectionStatus = {
-  id: "wecom-team",
+  id: "feishu-team",
   name: "Test bot",
-  channel: "wecom",
+  channel: "feishu",
   state: "connected",
   configuration: {
-    id: "wecom-team",
+    id: "feishu-team",
     name: "Test bot",
     tenantId: "test-corp",
     botId: "test-bot",
+    appId: "test-app",
   },
 };
 type Status = ImStatus & {
@@ -83,7 +84,7 @@ function fixture(ready = true) {
         userCode: "ABCD",
         expiresAt: Date.now() + 600_000,
         intervalMs: 60_000,
-        domain: "feishu",
+        domain: input.domain ?? "feishu",
       };
     if (input.action === "feishu-scan-poll")
       return { status: "pending", intervalMs: 60_000, domain: "feishu" };
@@ -161,6 +162,13 @@ const platformCard = (channel: keyof typeof platformLabels) =>
   );
 /* 面板加载完成信号：左栏固定标题「连接服务」出现（不再折叠、非按钮）。 */
 const panelReady = () => screen.findByText("连接服务");
+it("removes direct-chat grants and keeps the group authorization entry", async () => {
+  fixture();
+  render(<ImSettingsPanel locale="zh-CN" />);
+  await panelReady();
+  expect(screen.queryByRole("button", { name: /单聊项目授权/ })).toBeNull();
+  expect(screen.getByRole("button", { name: /群聊项目授权/ })).toBeVisible();
+});
 /* 渠道行下钻：先等面板加载完（原 openCard 的 findByRole 等待语义）。 */
 const openChannel = async (
   user: ReturnType<typeof userEvent.setup>,
@@ -234,62 +242,6 @@ describe("production IM settings", () => {
     expect(manifest.settings.socket_mode_enabled).toBe(true);
   });
 
-  it.each(["overview", "verify"])(
-    "navigates from the completion action to %s",
-    async (destination) => {
-      const f = fixture();
-      f.set({
-        settings: {
-          ...f.get().settings,
-          grants: [
-            {
-              projectId: "test-project",
-              tokenBudget: 100000,
-              approval: "ask",
-              mode: "plan",
-              network: false,
-              shell: false,
-              groups: [],
-              expiresAt: Date.now() + 60000,
-              security: {
-                version: 2,
-                revision: "confirmed",
-                confirmedAt: 1,
-                scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
-              },
-            },
-          ],
-        },
-      });
-      const user = userEvent.setup();
-      render(<ImSettingsPanel locale="zh-CN" />);
-      await waitFor(() =>
-        expect(document.querySelector(".im-overview")).toBeInTheDocument(),
-      );
-      await openCard(user, /^单聊项目授权/);
-      await user.click(
-        screen.getByRole("button", {
-          name:
-            destination === "overview"
-              ? "查看连接概览"
-              : "发测试消息验证（可选）",
-        }),
-      );
-      if (destination === "overview") {
-        expect(document.querySelector(".im-overview")).toHaveFocus();
-      } else {
-        /* 验证=渠道详情弹窗的一页：深链弹窗打开并切到验证页。 */
-        expect(document.querySelector(".im-channel-dialog")).toBeVisible();
-        expect(
-          screen.getByRole("button", { name: /^顺手验证/ }),
-        ).toHaveAttribute("data-selected", "true");
-        expect(document.getElementById("im-verify")).toHaveFocus();
-        expect(
-          screen.getByRole("list", { name: "测试任务进度" }),
-        ).toBeVisible();
-      }
-    },
-  );
   it.each(["slack", "feishu"] as const)(
     "refreshes %s connection signals after disconnect, failure, and recovery",
     async (channel) => {
@@ -332,16 +284,16 @@ describe("production IM settings", () => {
     const f = fixture();
     render(<ImSettingsPanel locale="zh-CN" />);
     await act(async () => {});
-    fireEvent.click(platformCard("wecom"));
+    fireEvent.click(platformCard("feishu"));
     fireEvent.click(screen.getByRole("button", { name: /^更换凭据/ }));
-    fireEvent.change(screen.getByLabelText("Bot Secret"), {
+    fireEvent.change(screen.getByLabelText("App Secret"), {
       target: { value: "unsaved-secret" },
     });
     f.set({ connections: [{ ...connection, state: "error" }] });
     await act(() => vi.advanceTimersByTimeAsync(2000));
     f.set({ connections: [connection] });
     await act(() => vi.advanceTimersByTimeAsync(2000));
-    expect(screen.getByLabelText("Bot Secret")).toHaveValue("unsaved-secret");
+    expect(screen.getByLabelText("App Secret")).toHaveValue("unsaved-secret");
   });
   it("loads native groups on entry and preserves their entry across settings reopen", async () => {
     const f = fixture();
@@ -450,7 +402,7 @@ describe("production IM settings", () => {
       expect.objectContaining({ action: "admin" }),
     );
   });
-  it.each(["wecom", "feishu", "slack"] as const)(
+  it.each(["feishu", "slack"] as const)(
     "removes a $channel bot without paired accounts, supports cancellation, and clears saved credentials",
     async (channel) => {
       const f = fixture();
@@ -536,7 +488,7 @@ describe("production IM settings", () => {
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     /* 主从布局：先选中 Second bot 卡片，右栏详情才出现它的移除入口。 */
     await user.click(
       await screen.findByRole("button", { name: /^Second bot/ }),
@@ -567,6 +519,7 @@ describe("production IM settings", () => {
   });
   it("keeps manual Feishu setup available for a team gateway", async () => {
     const f = fixture();
+    f.set({ connections: [], identities: [] });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
@@ -597,6 +550,7 @@ describe("production IM settings", () => {
   });
   it("offers a manual fallback when local Feishu scan setup fails", async () => {
     const f = fixture();
+    f.set({ connections: [], identities: [] });
     f.set({ localGateway: { state: "running" } });
     const original = f.manage.getMockImplementation()!;
     f.manage.mockImplementation(async (input) => {
@@ -610,6 +564,118 @@ describe("production IM settings", () => {
     await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
     expect(await screen.findByLabelText("App ID")).toBeVisible();
     expect(screen.getByLabelText("App Secret")).toBeVisible();
+  });
+  it("switches new bot scans to Lark and retains Lark for manual credentials", async () => {
+    const f = fixture();
+    f.set({ connections: [], identities: [] });
+    f.set({ localGateway: { state: "running" } });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Lark 国际版" }));
+    expect(await screen.findByText("等待Lark扫码…")).toBeVisible();
+    expect(f.manage).toHaveBeenLastCalledWith({
+      action: "feishu-scan-begin",
+      domain: "lark",
+    });
+    expect(screen.queryByText("等待飞书扫码…")).not.toBeInTheDocument();
+    expect(screen.getByText("用Lark扫码并确认创建应用。")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
+    expect(
+      screen.getByRole("button", { name: /^应用区域 Lark/ }),
+    ).toHaveTextContent("Lark 国际版");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Lark 国际版" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: "扫码" }));
+    expect(await screen.findByText("等待Lark扫码…")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
+    await user.type(screen.getByLabelText("App ID"), "cli_lark");
+    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
+    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "admin",
+        operation: "connections",
+        configuration: expect.objectContaining({
+          domain: "lark",
+          appId: "cli_lark",
+        }),
+      }),
+    );
+  });
+  it("ignores an old Feishu poll after switching the new bot platform to Lark", async () => {
+    const f = fixture();
+    f.set({ connections: [], identities: [] });
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    let finishFeishu: (result: unknown) => void = () => {};
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "feishu-scan-begin")
+        return { ...((await original(input)) as object), intervalMs: 0 };
+      if (input.action === "feishu-scan-poll") {
+        if (input.domain === "feishu")
+          return new Promise((resolve) => {
+            finishFeishu = resolve;
+          });
+        return { status: "pending", intervalMs: 60000, domain: "lark" };
+      }
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await waitFor(() =>
+      expect(f.manage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "feishu-scan-poll",
+          domain: "feishu",
+        }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Lark 国际版" }));
+    expect(await screen.findByText("等待Lark扫码…")).toBeVisible();
+    await act(async () =>
+      finishFeishu({
+        status: "success",
+        appId: "cli_stale",
+        appSecret: "synthetic",
+        domain: "feishu",
+      }),
+    );
+    expect(f.manage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: "feishu-scan-connect" }),
+    );
+    expect(screen.getByText("等待Lark扫码…")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "飞书国内版" }));
+    expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
+  });
+  it("uses the saved Lark region when scanning from an offline bot profile", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      connections: [
+        {
+          ...connection,
+          channel: "feishu",
+          name: "Lark bot",
+          state: "error",
+          configuration: { domain: "lark" },
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await user.click(screen.getByRole("button", { name: "扫码" }));
+    expect(await screen.findByText("等待Lark扫码…")).toBeVisible();
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "feishu-scan-begin",
+      domain: "lark",
+    });
   });
   it("creates a Feishu bot from the scan-first create pane and lands on its profile", async () => {
     const f = fixture();
@@ -881,10 +947,10 @@ describe("production IM settings", () => {
     expect(f.manage).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "unpair",
-        identity: expect.objectContaining({ connectionId: "wecom-team" }),
+        identity: expect.objectContaining({ connectionId: "feishu-team" }),
       }),
     );
-    expect(await screen.findByText("账号已解除绑定。")).toBeVisible();
+    await waitFor(() => expect(f.get().identities).toEqual([]));
     /* 解绑后随刷新回到待授权（导航卡）。 */
     const navCardAfter = document.querySelector(".im-bot-card")!;
     expect(navCardAfter).toHaveTextContent("待授权");
@@ -963,7 +1029,7 @@ describe("production IM settings", () => {
     fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     /* ZCode 式：创建表单占据右栏整卡，不再弹独立弹窗；取消回到详情。 */
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(
@@ -1119,9 +1185,6 @@ describe("production IM settings", () => {
     expect(
       screen.queryByRole("button", { name: /本地项目/ }),
     ).not.toBeInTheDocument();
-    /* 单聊项目授权已移至右栏第四卡：返回列表后下钻。 */
-    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
-    await user.click(screen.getByRole("button", { name: /^单聊项目授权/ }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "授权配置" }));
     const dialog = screen.getByRole("dialog", {
@@ -1187,9 +1250,9 @@ describe("production IM settings", () => {
     expect(
       document.querySelector(".im-service-head .im-power-toggle"),
     ).toHaveAttribute("role", "switch");
-    /* 两栏：wecom 存量连接在渠道列表可见（未配置渠道不出现）。 */
-    expect(platformCard("wecom")).toBeVisible();
-    await openChannel(user, "wecom");
+    /* 已保存的飞书连接仍可进入凭据管理。 */
+    expect(platformCard("feishu")).toBeVisible();
+    await openChannel(user, "feishu");
     const change = screen.getByRole("button", { name: /^更换凭据/ });
     const bot = document.getElementById("im-bot")!;
     expect(
@@ -1218,7 +1281,7 @@ describe("production IM settings", () => {
       state: "partial_error",
     });
     /* 两栏：部分失败明细由渠道行信号灯表达（partial_error）。 */
-    expect(platformState("wecom")).toHaveAttribute(
+    expect(platformState("feishu")).toHaveAttribute(
       "data-connection-state",
       "partial_error",
     );
@@ -1283,7 +1346,7 @@ describe("production IM settings", () => {
       ],
     });
     /* 进入整幅渠道卡：总开关不在屏上，旧刷新也不得把暂停态顶掉。 */
-    fireEvent.click(platformCard("wecom"));
+    fireEvent.click(platformCard("feishu"));
     await act(async () => finishRefresh(old));
     expect(
       screen.getByText("Test bot", { selector: ".im-marquee-copy" }),
@@ -1291,7 +1354,7 @@ describe("production IM settings", () => {
     /* 整幅渠道卡打开时总开关不在屏上，用落库状态断言暂停未被回写。 */
     expect(f.get().settings.enabled).toBe(false);
   });
-  it("shows the three-step guided flow with progress, then starts and registers once", async () => {
+  it("shows service and channel setup with progress, then starts and registers once", async () => {
     const f = fixture(false);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
@@ -1299,8 +1362,8 @@ describe("production IM settings", () => {
     /* 左栏=固定标题连接服务；右栏=四张卡（渠道/群协作/单聊项目授权）。 */
     expect(screen.getByText("连接服务")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /^单聊项目授权/ }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /^单聊项目授权/ }),
+    ).not.toBeInTheDocument();
     // D1：未注册设备的首次流程不出现总开关。
     expect(screen.queryByRole("switch", { name: "启用 IM 连接" })).toBeNull();
     // 渠道列表常显（品牌图标+名称+信号灯）；①一键启动后进入渠道编辑。
@@ -1320,49 +1383,13 @@ describe("production IM settings", () => {
       screen.queryByLabelText("机器人配置的管理凭据"),
     ).not.toBeInTheDocument();
   });
-  it("opens the overview directly from completed data without rerunning the flow", async () => {
+  it("opens the overview after pairing without any project grants", async () => {
     const f = fixture();
-    imWriteVerify("test-device", { confirmed: true, channel: "wecom" });
-    f.set({
-      settings: {
-        ...f.get().settings,
-        grants: [
-          {
-            projectId: "test-project",
-            tokenBudget: 100000,
-            approval: "ask",
-            mode: "plan",
-            network: false,
-            shell: false,
-            groups: [],
-            expiresAt: Date.now() + 60000,
-            security: {
-              version: 2,
-              revision: "confirmed",
-              confirmedAt: 1,
-              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
-            },
-          },
-        ],
-      },
-    });
-    const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    // 完成态直接进入概览：左栏两卡全绿、总开关新家（D1）、不重跑流程。
-    expect(await screen.findByText(/2 个项目 · 所有渠道通用/)).toBeVisible();
-    expect(screen.getAllByRole("switch")).toHaveLength(1);
-    // 概览分区可展开编辑，配置不被清除；授权设置在行右侧按钮的聚焦弹窗里。
-    await openCard(user, /^单聊项目授权/);
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    expect(
-      screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
-    ).toBeVisible();
-    // 临时会话计入④摘要（列表态已断言）；默认项目以临时会话行的徽章呈现。
-    expect(
-      document.querySelector(".im-project-builtin .im-default-badge"),
-    ).toBeVisible();
+    await panelReady();
+    expect(document.querySelector(".im-overview")).toBeVisible();
+    expect(f.get().settings.grants).toEqual([]);
     expect(f.save).not.toHaveBeenCalled();
-    expect(f.get().identities).toEqual([identity]);
   });
   it("keeps the service block always expanded and drills cards with the keyboard", async () => {
     fixture();
@@ -1375,13 +1402,13 @@ describe("production IM settings", () => {
     ).not.toBeInTheDocument();
     expect(document.getElementById("im-prepare")).toBeVisible();
     /* 卡片行可键盘下钻。 */
-    const projects = screen.getByRole("button", { name: /^单聊项目授权/ });
+    const projects = screen.getByRole("button", { name: /^群聊项目授权/ });
     projects.focus();
     await user.keyboard("{Enter}");
     expect(
       screen.getByRole("button", { name: "返回", exact: true }),
     ).toBeVisible();
-    expect(document.getElementById("im-permissions")).toBeVisible();
+    expect(document.getElementById("im-spaces")).toBeVisible();
   });
   it("replaces credentials using public identifiers, never fills secrets, and cancels locally", async () => {
     const f = fixture();
@@ -1390,31 +1417,31 @@ describe("production IM settings", () => {
         {
           ...connection,
           configuration: Object.assign({}, connection.configuration, {
-            secret: "must-never-be-refilled",
+            appSecret: "must-never-be-refilled",
           }),
         },
       ],
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
-    expect(screen.getByLabelText("连接 ID")).toHaveValue("wecom-team");
-    expect(screen.getByLabelText("Bot ID")).toHaveValue("test-bot");
-    expect(screen.getByLabelText("Bot Secret")).toHaveValue("");
-    await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
+    expect(screen.getByLabelText("连接 ID")).toHaveValue("feishu-team");
+    expect(screen.getByLabelText("App ID")).toHaveValue("test-app");
+    expect(screen.getByLabelText("App Secret")).toHaveValue("");
+    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
     await user.click(screen.getByRole("button", { name: "取消" }));
     await user.click(screen.getByRole("button", { name: /^更换凭据/ }));
-    expect(screen.getByLabelText("Bot Secret")).toHaveValue("");
+    expect(screen.getByLabelText("App Secret")).toHaveValue("");
     expect(f.manage).not.toHaveBeenCalled();
   });
   it("clears administrator credentials on a failed save and does not generate a pairing code", async () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
-    await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
+    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
     await user.type(
       screen.getByLabelText("机器人配置的管理凭据"),
       "a".repeat(32),
@@ -1431,9 +1458,9 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     await user.click(await screen.findByRole("button", { name: /^更换凭据/ }));
-    await user.type(screen.getByLabelText("Bot Secret"), "synthetic-secret");
+    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
     await user.type(
       screen.getByLabelText("机器人配置的管理凭据"),
       "a".repeat(32),
@@ -1447,223 +1474,8 @@ describe("production IM settings", () => {
     expect(
       await screen.findByText(/凭据已保存，但配对码生成失败/),
     ).toBeVisible();
-    expect(screen.queryByLabelText("Bot Secret")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("App Secret")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^更换凭据/ })).toBeVisible();
-  });
-  it("saves a project grant immediately from the row and keeps it when pausing from the header", async () => {
-    const f = fixture();
-    f.set({ settings: { ...f.get().settings, enabled: true } });
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    await openCard(user, /^单聊项目授权/);
-    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    // 勾选即时生效：已启用的服务一次保存授权；首个项目自动成为默认并带徽章。
-    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(1));
-    expect(f.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        enabled: true,
-        defaultProjectId: "test-project",
-        grants: [expect.objectContaining({ mode: "plan", approval: "ask" })],
-      }),
-    );
-    expect(f.get().settings).toMatchObject({
-      enabled: true,
-      grants: [{ mode: "plan" }],
-    });
-    expect(f.get().settings.grants[0]!.security!.confirmedAt).toBe(0);
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    expect(
-      screen.getByRole("checkbox", { name: /我确认当前会话/ }),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "关闭", exact: true }));
-    await waitFor(() =>
-      expect(
-        document.querySelector(
-          ".im-project:not(.im-project-builtin) .im-default-badge",
-        ),
-      ).not.toBeNull(),
-    );
-    expect(
-      document.querySelector(".im-project-builtin .im-default-badge"),
-    ).toBeNull();
-    // 顶部暂停保留已保存的授权草稿不再丢失。
-    await user.click(screen.getByRole("switch", { name: "启用 IM 连接" }));
-    expect(f.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        enabled: false,
-        grants: [expect.objectContaining({ mode: "plan" })],
-      }),
-    );
-    expect(
-      screen.getByRole("checkbox", { name: "Test project.Plan" }),
-    ).toBeChecked();
-  });
-  it("does not enable when the immediate row save fails", async () => {
-    const f = fixture();
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    await openCard(user, /^单聊项目授权/);
-    f.save.mockRejectedValueOnce(new Error("Grant rejected"));
-    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    expect(await screen.findByText("Grant rejected")).toBeVisible();
-    expect(f.save).toHaveBeenCalledTimes(1);
-    expect(f.save.mock.calls[0]![0]).toMatchObject({ enabled: false });
-    expect(f.get().settings.enabled).toBe(false);
-  });
-  it("reports saved-but-not-enabled and retries only the enable phase", async () => {
-    const f = fixture();
-    const original = f.save.getMockImplementation()!;
-    f.save.mockImplementation(async (settings: ImSettings) => {
-      if (settings.enabled) throw new Error("Gateway enable rejected");
-      return original(settings);
-    });
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    await openCard(user, /^单聊项目授权/);
-    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    // 勾选即时保存：保存成功但启用失败 → 提示与重试入口出现在④卡。
-    expect(await screen.findByText(/授权已保存，连接未启用/)).toBeVisible();
-    expect(f.get().settings).toMatchObject({
-      enabled: false,
-      grants: [{ mode: "plan" }],
-    });
-    const savedGrants = f.get().settings.grants;
-    f.save.mockImplementation(original);
-    await user.click(screen.getByRole("button", { name: "重试启用" }));
-    expect(f.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({ enabled: true }),
-    );
-    expect(f.save.mock.lastCall[0].grants).toEqual(savedGrants);
-    expect(f.get().settings.enabled).toBe(true);
-    expect(f.get().settings.grants).toHaveLength(1);
-    expect(screen.queryByText(/授权已保存，连接未启用/)).toBeNull();
-  });
-  it("shows the built-in ad-hoc conversations row outside project grants", async () => {
-    const f = fixture();
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    await openCard(user, /^单聊项目授权/);
-    const builtin = screen.getByRole("checkbox", {
-      name: "临时会话（内置，始终可用）",
-    }) as HTMLInputElement;
-    expect(builtin).toBeChecked();
-    expect(builtin).toBeDisabled();
-    /* 说明与提示统一子区（边框包裹、默认收起）：展开后可见临时会话说明。 */
-    await user.click(screen.getByText("说明与提示"));
-    expect(screen.getByText(/不绑定项目的会话/)).toBeVisible();
-    expect(f.get().settings.grants).toEqual([]);
-  });
-  it("supports explicitly confirmed whole-project writes including future files", async () => {
-    const f = fixture();
-    const original = f.manage.getMockImplementation()!;
-    f.manage.mockImplementation(async (input) => {
-      if (input.action === "scope-entries")
-        return [
-          { path: "src", directory: true, protected: false },
-          { path: "docs", directory: true, protected: false },
-        ];
-      return original(input);
-    });
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    await openCard(user, /^单聊项目授权/);
-    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    // 授权设置收进行右侧按钮的聚焦弹窗。
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    // 未确认的 Plan 授权直接展示范围确认入口。
-    expect(
-      screen.getByText("默认范围：可读整个项目，不可写任何文件。"),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "选择目录或文件" }),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "自定义范围 ▸" }));
-    expect(
-      screen.getByRole("button", { name: "选择目录或文件" }),
-    ).toBeVisible();
-    // Execute：范围树强制展开；未选可写范围时「确认设置」禁用并提示。
-    await user.click(screen.getByRole("radio", { name: /Execute/ }));
-
-    const confirm = screen.getByRole("button", { name: "确认设置" });
-    expect(confirm).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
-    await user.click(screen.getByRole("button", { name: "整个项目可修改" }));
-    expect(confirm).toBeEnabled();
-    await user.click(screen.getByRole("checkbox", { name: "允许沙箱命令" }));
-    await user.click(confirm);
-    // 勾选已即时保存过一次（plan）；确认再走两阶段（execute+启用）。
-    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(3));
-    expect(f.get().settings.grants[0]).toMatchObject({
-      mode: "execute",
-      shell: true,
-      network: false,
-    });
-    expect(f.get().settings.grants[0]!.security!.scopes[0]!.writeMode).toBe(
-      "project",
-    );
-    // 确认后弹窗关闭；④详情仍在（卡片无需重新下钻），行内摘要更新。
-    await waitFor(() =>
-      expect(document.querySelector(".im-row-summary")?.textContent).toContain(
-        "整个项目可修改",
-      ),
-    );
-    // 切回 Plan：命令与网络同步关闭，控件收起。
-    await user.click(await screen.findByRole("button", { name: "授权配置" }));
-    await user.click(screen.getByRole("radio", { name: /Plan · 只读分析/ }));
-    expect(screen.queryByRole("checkbox", { name: "允许沙箱命令" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "确认设置" }));
-    // 已启用的服务确认即单阶段保存（总计 4 次）。
-    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(4));
-    expect(f.get().settings.grants[0]).toMatchObject({
-      mode: "plan",
-      shell: false,
-      network: false,
-    });
-  });
-  it("applies grant settings from the focused dialog and reverts on close", async () => {
-    const f = fixture();
-    const user = userEvent.setup();
-    render(<ImSettingsPanel locale="zh-CN" />);
-    await panelReady();
-    await openCard(user, /^单聊项目授权/);
-    await user.click(screen.getByRole("checkbox", { name: "Test project" }));
-    // 勾选即时生效（两阶段：保存 + 启用）。
-    await waitFor(() => expect(f.save).toHaveBeenCalledTimes(2));
-    expect(f.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({ enabled: true }),
-    );
-    // 授权后的项目行带模式后缀。
-    expect(
-      await screen.findByRole("checkbox", { name: "Test project.Plan" }),
-    ).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    // 关闭放弃未确认的改动：模式回退为已保存的 Plan。
-    await user.click(screen.getByRole("radio", { name: /Review · 只读审查/ }));
-    await user.click(screen.getByRole("button", { name: "关闭" }));
-    expect(
-      screen.getByRole("checkbox", { name: "Test project.Plan" }),
-    ).toBeChecked();
-    expect(f.save).toHaveBeenCalledTimes(2);
-    // 「确认设置」直接保存并启用，并关闭弹窗。
-    await user.click(screen.getByRole("button", { name: "授权配置" }));
-    await user.click(screen.getByRole("radio", { name: /Review · 只读审查/ }));
-    await user.click(screen.getByRole("button", { name: "确认设置" }));
-    await waitFor(() =>
-      expect(f.save).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          enabled: true,
-          grants: [expect.objectContaining({ mode: "review" })],
-        }),
-      ),
-    );
-    expect(
-      screen.queryByRole("button", { name: "确认设置" }),
-    ).not.toBeInTheDocument();
   });
   it("can pause a degraded active connection while blocking a new enable without a bot", async () => {
     const f = fixture();
@@ -1697,7 +1509,7 @@ describe("production IM settings", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<ImSettingsPanel locale="zh-CN" />);
     // 配对请求卡片已内聚进配对码弹窗：下钻机器人所在渠道后从行内打开弹窗审批。
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     await user.click(
       await screen.findByRole("button", { name: "生成配对码 Test bot" }),
     );
@@ -1753,7 +1565,7 @@ describe("production IM settings", () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     const trigger = await screen.findByRole("button", { name: "解除绑定" });
     await user.click(trigger);
     expect(screen.getByRole("button", { name: "确认解除" })).toHaveFocus();
@@ -1819,7 +1631,7 @@ describe("pairing code lifecycle", () => {
       name: "Test space",
       revision: "server-revision",
       endpoints: [
-        { connectionId: "wecom-team", id: "test-group", kind: "group" },
+        { connectionId: "feishu-team", id: "test-group", kind: "group" },
       ],
       participants: [
         { deviceId: "test-device", identity, name: "Test member" },
@@ -1843,9 +1655,9 @@ describe("pairing code lifecycle", () => {
       />,
     );
     expect(
-      screen.getByText("test-user · 企业微信 · test-device"),
+      screen.getByText("test-user · 飞书 / Lark · test-device"),
     ).toBeVisible();
-    expect(screen.getByText("wecom-team · test-group")).toBeVisible();
+    expect(screen.getByText("feishu-team · test-group")).toBeVisible();
     expect(screen.getByText("待处理 · 2")).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "编辑空间：Test space" }),
@@ -1966,7 +1778,7 @@ describe("pairing code lifecycle", () => {
           },
         ],
       },
-      remoteTasks: [{ threadId: "task-1", channel: "wecom", kind: "task" }],
+      remoteTasks: [{ threadId: "task-1", channel: "feishu", kind: "task" }],
     });
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
@@ -1977,7 +1789,7 @@ describe("pairing code lifecycle", () => {
     expect(
       screen.queryByRole("button", { name: "单聊项目授权" }),
     ).not.toBeInTheDocument();
-    await openChannel(user, "wecom");
+    await openChannel(user, "feishu");
     await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
     const track = screen.getByRole("list", { name: "测试任务进度" });
     /* 真实信号推进：仅「桌面出现任务」由系统检测置 done；后续两段等用户确认。 */
@@ -1990,12 +1802,12 @@ describe("pairing code lifecycle", () => {
       screen.getByRole("checkbox", { name: /我已在手机上收到/ }),
     );
     /* 确认（诚实版）：折叠标签带渠道归属，完成链进度不变。 */
-    expect(screen.getByText("顺手验证：已验证 · 企业微信")).toBeVisible();
+    expect(screen.getByText("顺手验证：已验证 · 飞书 / Lark")).toBeVisible();
     expect(screen.queryByText("设置进度 3/3")).toBeNull();
   });
   it("notifies once when a completed flow step regresses after a connection is removed", async () => {
     const f = fixture();
-    imWriteVerify("test-device", { confirmed: true, channel: "wecom" });
+    imWriteVerify("test-device", { confirmed: true, channel: "feishu" });
     f.set({
       settings: {
         ...f.get().settings,
@@ -2047,29 +1859,43 @@ describe("pairing code lifecycle", () => {
   });
 });
 
-it("hides WeCom group setup while retaining direct-chat setup and other platform entries", async () => {
-  fixture();
-  const user = userEvent.setup();
-  render(<ImSettingsPanel locale="zh-CN" />);
-  await openChannel(user, "wecom");
-  /* 主从布局：验证页与机器人详情互斥；wecom 验证页不出现单聊授权入口。 */
-  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
-  expect(
-    screen.queryByRole("button", { name: /^单聊项目授权$/ }),
-  ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /^Test bot/ }));
-  expect(
-    screen.getByRole("button", { name: "生成配对码 Test bot" }),
-  ).toBeVisible();
-  await closeChannelDialog(user);
-  await openChannel(user, "slack");
-  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
-  expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
-  await closeChannelDialog(user);
-  await openChannel(user, "feishu");
-  await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
-  expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
-});
+it.each([false, true])(
+  "hides the WeCom entry even with a saved connection: %s",
+  async (saved) => {
+    const f = fixture();
+    const legacyIdentity = {
+      ...identity,
+      channel: "wecom" as const,
+      connectionId: "wecom-legacy",
+    };
+    const legacyConnection = {
+      ...connection,
+      channel: "wecom" as const,
+      id: "wecom-legacy",
+    };
+    f.set({
+      identities: saved ? [legacyIdentity] : [],
+      connections: saved ? [legacyConnection] : [],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await panelReady();
+    expect(screen.queryByRole("button", { name: /企业微信/ })).toBeNull();
+    expect(platformCard("slack")).toBeVisible();
+    expect(platformCard("feishu")).toBeVisible();
+    await openChannel(user, "slack");
+    await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
+    expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
+    await closeChannelDialog(user);
+    await openChannel(user, "feishu");
+    await user.click(screen.getByRole("button", { name: /^顺手验证/ }));
+    expect(screen.getByRole("button", { name: /设置群协作/ })).toBeVisible();
+    expect(f.get().connections).toEqual(saved ? [legacyConnection] : []);
+    expect(f.manage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ operation: "remove-connection" }),
+    );
+  },
+);
 
 describe("single project authorization editor", () => {
   function groupFixture(enabled: boolean, observedOwner = true) {
@@ -2185,7 +2011,7 @@ describe("single project authorization editor", () => {
     return { ...f, owner };
   }
   async function openGroupEditor(user: ReturnType<typeof userEvent.setup>) {
-    /* initialPermissions 渲染时授权详情直接打开：等数据到位后点授权配置。 */
+    /* 旧权限深链进入群聊设置，授权弹窗只列出群聊。 */
     await screen.findByRole("button", { name: "授权配置" });
     await user.click(screen.getByRole("button", { name: "授权配置" }));
     const dialog = screen.getByRole("dialog", {
@@ -2197,7 +2023,7 @@ describe("single project authorization editor", () => {
     );
     return dialog;
   }
-  it("removes member details and leaves only the project entry for enabled and paused groups", async () => {
+  it("keeps group permissions available through the legacy permissions deep link", async () => {
     groupFixture(true);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" initialPermissions />);
@@ -2210,9 +2036,6 @@ describe("single project authorization editor", () => {
     await user.click(screen.getByRole("button", { name: /^群聊项目授权/ }));
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
-    /* 单聊项目授权=第四卡：返回列表后下钻再断言授权配置。 */
-    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
-    await user.click(screen.getByRole("button", { name: /^单聊项目授权/ }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
     expect(
       screen.queryByRole("group", { name: "数据与分享范围" }),

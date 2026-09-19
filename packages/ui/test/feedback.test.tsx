@@ -81,6 +81,37 @@ describe("Feedback component contracts", () => {
 });
 
 describe("Feedback overlays", () => {
+  it.each([true, false])(
+    "keeps parent dialogs open when a nested dialog handles Escape (enabled: %s)",
+    (closeOnEscape) => {
+      const parentChange = vi.fn();
+      const childChange = vi.fn();
+      render(
+        <Dialog label="Settings" onOpenChange={parentChange} open>
+          <Dialog
+            closeOnEscape={closeOnEscape}
+            label="Channel details"
+            onOpenChange={childChange}
+            open
+          >
+            Channel configuration
+          </Dialog>
+        </Dialog>,
+      );
+      fireEvent(
+        screen.getByRole("dialog", { name: "Channel details" }),
+        new Event("cancel", { bubbles: false, cancelable: true }),
+      );
+      expect(childChange).toHaveBeenCalledTimes(closeOnEscape ? 1 : 0);
+      expect(parentChange).not.toHaveBeenCalled();
+      fireEvent(
+        screen.getByRole("dialog", { name: "Settings" }),
+        new Event("cancel", { bubbles: false, cancelable: true }),
+      );
+      expect(parentChange).toHaveBeenCalledExactlyOnceWith(false);
+    },
+  );
+
   it("opens a controlled native dialog, closes from Escape, and restores focus", async () => {
     const user = userEvent.setup();
     function Example() {

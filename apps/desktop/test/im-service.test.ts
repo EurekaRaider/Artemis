@@ -364,6 +364,46 @@ async function groupFixture(mode: "plan" | "execute" = "plan") {
   return { ...f, members, source, space, send };
 }
 describe("IM desktop and Gateway loop", () => {
+  it.each(["wecom", "feishu", "slack"] as const)(
+    "runs paired %s project and temporary chats with local Execute permissions and no grants",
+    async (channel) => {
+      const f = await fixture(channel);
+      await f.service.save({ ...f.service.status().settings, grants: [] });
+      await f.send("/projects");
+      expect(
+        f.gateway.store
+          .pending<{ text: string }>("outgoing")
+          .some((d) => d.payload.text.includes("Project · project")),
+      ).toBe(true);
+      await f.send("/new update my project");
+      expect(f.threads[0]).toMatchObject({
+        projectId: "project",
+        mode: "execute",
+      });
+      expect(f.service.profile(f.threads[0]!.id)).toBeUndefined();
+      expect(f.starts[0]).not.toContain("IM provenance");
+      expect(() =>
+        f.service.authorizeThread(f.threads[0]!.id, "execute"),
+      ).not.toThrow();
+      await f.send("/stop");
+      await f.service.save({
+        ...f.service.status().settings,
+        defaultProjectId: IM_ADHOC_PROJECT_ID,
+      });
+      // Clear the previously selected project to exercise the temporary default.
+      const db = new DatabaseSync(join(f.root, "im.sqlite"));
+      db.prepare("DELETE FROM im_state WHERE namespace='selections'").run();
+      db.close();
+      await f.send("/new complete a temporary task");
+      const temporary = f.threads.at(-1)!;
+      expect(temporary).toMatchObject({ projectId: null, mode: "execute" });
+      expect(f.service.profile(temporary.id)).toBeUndefined();
+      expect(f.starts.at(-1)).not.toContain("advisory only");
+      expect(() =>
+        f.service.authorizeThread(temporary.id, "execute"),
+      ).not.toThrow();
+    },
+  );
   it.runIf(process.platform === "darwin")(
     "rejects an Execute grant when sandbox preflight fails",
     async () => {
@@ -381,6 +421,7 @@ describe("IM desktop and Gateway loop", () => {
             ...grant,
             mode: "execute",
             shell: true,
+            groups: ["space:group"],
           })),
         }),
       ).rejects.toThrow("原生沙箱验证失败");
@@ -643,7 +684,7 @@ describe("IM desktop and Gateway loop", () => {
     await bob.service.poll();
     expect(bob.starts).toHaveLength(0);
   });
-  it("keeps the restricted profile after disabling IM and across restart", async () => {
+  it("keeps identity and service checks for local-access chats across restart", async () => {
     const f = await fixture();
     await f.send("/new remote task");
     await f.send("/stop");
@@ -652,14 +693,16 @@ describe("IM desktop and Gateway loop", () => {
     await expect(
       f.service.prepareLocalTurn(id, "desktop-turn"),
     ).rejects.toThrow();
-    expect(f.service.profile(id)?.security?.version).toBe(2);
+    expect(f.service.hasBinding(id)).toBe(true);
+    expect(f.service.profile(id)).toBeUndefined();
     await f.service.close();
     const restored = new ImService(f.root, f.secure, f.ops);
     cleanups.push(() => restored.close());
-    expect(restored.profile(id)?.security?.version).toBe(2);
+    expect(restored.hasBinding(id)).toBe(true);
+    expect(restored.profile(id)).toBeUndefined();
     await expect(restored.prepareLocalTurn(id, "next-turn")).rejects.toThrow();
   });
-  it("keeps desktop turns within the same data scope and prevents switching active turns", async () => {
+  it("gives desktop continuations local tools and prevents switching active turns", async () => {
     const f = await fixture();
     await f.send("/new active remote task");
     const id = f.threads[0]!.id;
@@ -668,24 +711,12 @@ describe("IM desktop and Gateway loop", () => {
     ).rejects.toThrow(/active turn/);
     await f.send("/stop");
     await f.service.prepareLocalTurn(id, "desktop-turn");
-    expect(f.service.profile(id)?.security?.audience).toBe("owner");
-    await expect(
-      f.service.operate(
-        id,
-        { action: "read", path: "private.txt" },
-        "plan",
-        "read",
-        "desktop-turn",
-      ),
-    ).resolves.toMatchObject({
-      state: "operation-denied",
-      code: "scope-denied",
-      parkPermission: false,
-    });
+    expect(f.service.profile(id)).toBeUndefined();
+    expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
     const release = f.service.reserveStart(id, "plan", false);
     try {
       await f.send(`/continue ${id}`);
-      expect(f.service.profile(id)).toBeDefined();
+      expect(f.service.hasBinding(id)).toBe(true);
       expect(() => f.service.reserveStart(id, "plan")).toThrow(/starting/);
     } finally {
       release();
@@ -834,7 +865,7 @@ describe("IM desktop and Gateway loop", () => {
         channel,
         initialTitle: `${platform} · analyze`,
       });
-      expect(start.mock.calls[0]?.[1]).toContain("IM provenance");
+      expect(start.mock.calls[0]?.[1]).toBe("analyze");
       await f.send("/new analyze", "first");
       expect(start).toHaveBeenCalledTimes(1);
       f.threads[0]!.status = "idle";
@@ -851,8 +882,9 @@ describe("IM desktop and Gateway loop", () => {
     f.ops.create = async (...args) => {
       expect(
         f.service.profile(args[0]),
-        "remote profile must precede eager Pi session creation",
-      ).toMatchObject({ network: false, shell: false });
+        "owner direct chats use the ordinary local Pi session",
+      ).toBeUndefined();
+      expect(f.service.hasBinding(args[0])).toBe(true);
       return create(...args);
     };
     await f.send("/new analyze", "same");
@@ -1035,7 +1067,7 @@ describe("IM desktop and Gateway loop", () => {
       reopened.status().settings.grants[0]!.security!.confirmedAt,
     ).toBeGreaterThan(0);
   });
-  it("starts zero-grant owner chats as plan-only ad-hoc tasks and keeps them scoped", async () => {
+  it("starts zero-grant temporary chats in Execute with ordinary local tools", async () => {
     const f = await fixture();
     await f.service.save({
       ...f.service.status().settings,
@@ -1046,35 +1078,30 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(1);
     expect(f.threads[0]).toMatchObject({
       projectId: null,
-      mode: "plan",
+      mode: "execute",
       title: "企业微信 · quick advice",
     });
     const deliveries = () =>
       f.gateway.store.pending<{ text: string }>("outgoing");
-    expect(deliveries().at(-1)!.payload.text).toContain(
-      "已启动临时任务（仅咨询分析，不访问项目文件）",
-    );
+    expect(deliveries().at(-1)!.payload.text).toContain("已启动临时任务");
     // Follow-ups continue the same temporary conversation.
     await f.send("more context");
     expect(f.threads).toHaveLength(1);
     expect(f.queued).toHaveLength(1);
-    expect(f.queued[0]).toContain("[IM ad-hoc plan task");
-    // Execute never leaves the built-in ad-hoc grant.
+    expect(f.queued[0]).toBe("more context");
+    // Temporary chats use the same Execute mode and tools as local tasks.
     expect(() =>
       f.service.authorizeThread(f.threads[0]!.id, "execute"),
-    ).toThrow("Remote Execute is not authorized for this project.");
-    expect(f.service.profile(f.threads[0]!.id)).toMatchObject({
-      network: false,
-      shell: false,
-    });
+    ).not.toThrow();
+    expect(f.service.profile(f.threads[0]!.id)).toBeUndefined();
     // /tasks lists the ad-hoc task for its owner chat.
     await f.send("/tasks");
     expect(deliveries().at(-1)!.payload.text).toContain(
       "企业微信 · quick advice",
     );
-    // /projects explains the ad-hoc path instead of dead-ending.
+    // All local projects are available even with no grants.
     await f.send("/projects");
-    expect(deliveries().at(-1)!.payload.text).toContain("临时任务");
+    expect(deliveries().at(-1)!.payload.text).toContain("Project · project");
   });
   it("defaults plain owner messages to the ad-hoc chat while groups still pick explicitly", async () => {
     const f = await fixture();
@@ -1094,7 +1121,7 @@ describe("IM desktop and Gateway loop", () => {
     // 初始未设置默认项目：普通消息落临时会话，不卡在引导。
     await f.send("/new ambiguous");
     expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "plan" });
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "execute" });
     // 群聊没有临时会话语义：未配置空间时走群引导，不会静默落临时任务。
     f.gateway.router.ingest({
       version: 1 as const,
@@ -1136,7 +1163,7 @@ describe("IM desktop and Gateway loop", () => {
     // 哨兵默认：即使多个项目已授权，普通消息仍进临时会话。
     await f.send("/new sentinel default");
     expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "plan" });
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "execute" });
     // /project 显式选择后，普通消息回到所选项目。
     await f.send("/project project");
     await f.send("project follow-up");
@@ -1164,7 +1191,7 @@ describe("IM desktop and Gateway loop", () => {
       expect(() => f.service.deleteThread(f.threads[0]!.id)).toThrow(
         "Delete the task before removing its IM state",
       );
-      expect(f.service.profile(f.threads[0]!.id)).toBeDefined();
+      expect(f.service.hasBinding(f.threads[0]!.id)).toBe(true);
       await f.send("/stop");
       const deletedId = f.threads.shift()!.id;
       f.service.deleteThread(deletedId);
@@ -1191,7 +1218,7 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/stop");
     const deletedId = f.threads.shift()!.id;
     // Simulate deletion by the previous version, which did not notify ImService.
-    expect(f.service.profile(deletedId)).toBeDefined();
+    expect(f.service.hasBinding(deletedId)).toBe(true);
     await f.send("replacement task");
     expect(f.threads).toHaveLength(1);
     expect(f.threads[0]!.id).not.toBe(deletedId);
@@ -1237,7 +1264,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toEqual([]);
     expect(f.starts).toHaveLength(1);
   });
-  it.each(["archived", "revoked"])(
+  it.each(["archived", "unpaired"])(
     "does not turn an %s selection into permission to create a different task",
     async (state) => {
       const f = await fixture();
@@ -1245,12 +1272,7 @@ describe("IM desktop and Gateway loop", () => {
       await f.send("/stop");
       if (state === "archived") f.threads[0]!.archived = true;
       else {
-        f.threads.shift();
-        await f.service.save({
-          ...f.service.status().settings,
-          defaultProjectId: "",
-          grants: [],
-        });
+        await f.service.manage({ action: "unpair", identity: f.identity });
       }
       await f.send("follow-up");
       expect(f.starts).toHaveLength(1);
@@ -1385,7 +1407,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(outbound).toContain("Public final");
     expect(outbound).not.toContain("PRIVATE");
   });
-  async function pendingReply() {
+  async function directReply() {
     const f = await fixture();
     await f.send("/new analyze");
     const secret = "Authorization: Bearer " + "q".repeat(32);
@@ -1417,81 +1439,15 @@ describe("IM desktop and Gateway loop", () => {
     const items = (await f.service.manage({
       action: "outbound-list",
     })) as ImOutboundCandidate[];
-    expect(items).toHaveLength(1);
-    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+    expect(items).toHaveLength(0);
+    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).toContain(
       secret,
     );
-    return { ...f, item: items[0]!, secret };
+    return { ...f, secret };
   }
-  it("holds a credential result locally and approves the exact candidate only once without rerunning", async () => {
-    const f = await pendingReply();
-    const preview = await f.service.manage({
-      action: "outbound-preview",
-      id: f.item.id,
-    });
-    expect(JSON.stringify(preview)).toContain(f.secret);
-    await expect(
-      f.service.manage({
-        action: "outbound-resolve",
-        id: f.item.id,
-        contentHash: "changed",
-        approve: true,
-      }),
-    ).rejects.toThrow();
-    const approval = {
-      action: "outbound-resolve" as const,
-      id: f.item.id,
-      contentHash: f.item.contentHash,
-      approve: true,
-      text: "Reviewed safe result",
-    };
-    await f.service.manage(approval);
-    await f.service.poll();
-    await f.service.poll();
-    await expect(f.service.manage(approval)).rejects.toThrow();
-    expect(
-      f.gateway.store
-        .pending<{ text: string }>("outgoing")
-        .filter((x) => x.payload.text === "Reviewed safe result"),
-    ).toHaveLength(1);
-    expect(f.starts).toHaveLength(1);
-    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
-      f.secret,
-    );
-  });
-  it("retries an approved frozen reply after restart without duplicate delivery", async () => {
-    const f = await pendingReply();
-    await f.service.manage({
-      action: "outbound-resolve",
-      id: f.item.id,
-      contentHash: f.item.contentHash,
-      approve: true,
-      text: "ONCE_AFTER_RESTART",
-    });
-    const originalFetch = globalThis.fetch;
-    let lost = false;
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (...args) => {
-        const response = await originalFetch(...args);
-        if (!lost && String(args[0]).endsWith("/v1/device/reply")) {
-          lost = true;
-          throw new Error("Acknowledgement lost");
-        }
-        return response;
-      });
-    await f.service.poll();
-    fetchSpy.mockRestore();
-    await f.service.close();
-    const restored = new ImService(f.root, f.secure, f.ops);
-    cleanups.push(() => restored.close());
-    await restored.poll();
-    await restored.poll();
-    expect(
-      f.gateway.store
-        .pending<{ text: string }>("outgoing")
-        .filter((x) => x.payload.text === "ONCE_AFTER_RESTART"),
-    ).toHaveLength(1);
+  it("returns owner-requested results directly without group outbound review", async () => {
+    const f = await directReply();
+    expect(f.service.profile(f.threads[0]!.id)).toBeUndefined();
     expect(f.starts).toHaveLength(1);
   });
   it("renewed legacy roster consent cannot restore retired routing", async () => {
@@ -1523,57 +1479,11 @@ describe("IM desktop and Gateway loop", () => {
       expect(member.threads).toHaveLength(0);
     }
   });
-  it("invalidates pending deliveries when a scope changes but keeps the conversation", async () => {
-    const f = await pendingReply();
-    const oldId = f.threads[0]!.id;
-    await f.service.save({
-      ...f.service.status().settings,
-      grants: f.service.status().settings.grants.map((g) => ({
-        ...g,
-        security: {
-          ...g.security!,
-          scopes: [
-            { audience: "owner", readPaths: ["README.md"], writePaths: [] },
-          ],
-        },
-      })),
-    });
-    await expect(
-      f.service.manage({
-        action: "outbound-resolve",
-        id: f.item.id,
-        contentHash: f.item.contentHash,
-        approve: true,
-      }),
-    ).rejects.toThrow();
-    expect(() =>
-      f.service.authorizeOperation(
-        oldId,
-        { action: "read", path: "README.md" },
-        "plan",
-      ),
-    ).not.toThrow();
-    expect(() =>
-      f.service.authorizeOperation(
-        oldId,
-        { action: "read", path: "private.txt" },
-        "plan",
-      ),
-    ).toThrow();
-    await f.send("Continue after scope change");
-    expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]!.id).toBe(oldId);
-    expect(f.starts.at(-1)).toContain("Continue after scope change");
-    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
-      f.secret,
-    );
-  });
   it("reuses a conversation after renewal and applies expanded permissions", async () => {
     const f = await fixture("slack");
     await f.send("Initial task");
     const id = f.threads[0]!.id;
-    const read = { action: "read" as const, path: "new.txt" };
-    expect(() => f.service.authorizeOperation(id, read, "plan")).toThrow();
+    expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
     const previousRevision =
       f.service.status().settings.grants[0]!.security!.revision;
     await f.service.save({
@@ -1594,7 +1504,9 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.service.status().settings.grants[0]!.security!.revision).not.toBe(
       previousRevision,
     );
-    expect(() => f.service.authorizeOperation(id, read, "plan")).not.toThrow();
+    expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
+    expect(f.threads[0]!.status).toBe("running");
+    await f.send("/stop");
     await f.send(`/continue ${id}`);
     await f.send("Continue with current permissions");
     expect(f.threads.map((t) => t.id)).toEqual([id]);
@@ -1620,6 +1532,51 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("Next message after expiry");
     expect(f.threads.map((t) => t.id)).toEqual([id]);
     expect(f.starts.at(-1)).toContain("Next message after expiry");
+  });
+  it("migrates saved direct-chat scopes without losing the task and keeps running past the message deadline", async () => {
+    const f = await fixture();
+    await f.send("First task");
+    const id = f.threads[0]!.id;
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const row = db
+        .prepare(
+          "SELECT value FROM im_state WHERE namespace='bindings' AND id=?",
+        )
+        .get(id)!;
+      const binding = JSON.parse(String(row.value));
+      binding.security = {
+        version: 2,
+        projectId: "project",
+        revision: "legacy",
+        audience: "owner",
+        identityKey: "legacy",
+        source: "owner",
+        messageId: "old",
+      };
+      binding.request.expiresAt = 1;
+      db.prepare(
+        "UPDATE im_state SET value=? WHERE namespace='bindings' AND id=?",
+      ).run(JSON.stringify(binding), id);
+      expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
+      expect(f.service.profile(id)).toBeUndefined();
+      expect(
+        JSON.parse(
+          String(
+            db
+              .prepare(
+                "SELECT value FROM im_state WHERE namespace='bindings' AND id=?",
+              )
+              .get(id)!.value,
+          ),
+        ).security,
+      ).toBeUndefined();
+    } finally {
+      db.close();
+    }
+    await f.send("Follow-up");
+    expect(f.threads.map((t) => t.id)).toEqual([id]);
+    expect(f.queued.at(-1)).toBe("Follow-up");
   });
   it("preserves v2 grants while leaving a paused configuration for rollback", async () => {
     const f = await fixture();
@@ -1651,7 +1608,7 @@ describe("IM desktop and Gateway loop", () => {
       database.close();
     }
   });
-  it("retains legacy settings but blocks new work until the one-time scope confirmation", async () => {
+  it("retains legacy settings without requiring direct-chat scope confirmation", async () => {
     const f = await fixture();
     await f.service.save({
       ...f.service.status().settings,
@@ -1663,13 +1620,11 @@ describe("IM desktop and Gateway loop", () => {
       ],
     });
     await f.send("Do work despite missing confirmation");
-    expect(f.starts).toHaveLength(0);
+    expect(f.starts).toHaveLength(1);
     expect(f.service.status().identities).toHaveLength(1);
-    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).toContain(
-      "确认",
-    );
+    expect(f.service.profile(f.threads[0]!.id)).toBeUndefined();
   });
-  it("hands off a private task into an independent restricted task without its history", async () => {
+  it("continues a local task in the same owner chat with its existing history", async () => {
     const f = await fixture();
     const original = await f.ops.create(
       "private-task",
@@ -1679,60 +1634,67 @@ describe("IM desktop and Gateway loop", () => {
     );
     await f.send(`/continue ${original.id}`);
     const shared = f.threads.at(-1)!;
-    expect(shared.id).not.toBe(original.id);
+    expect(shared.id).toBe(original.id);
     expect(f.service.profile(original.id)).toBeUndefined();
-    expect(f.service.profile(shared.id)?.security?.audience).toBe("owner");
+    expect(f.service.profile(shared.id)).toBeUndefined();
     expect(f.starts).toHaveLength(0);
-    await f.service.manage({
-      action: "handoff",
-      threadId: shared.id,
-      text: "Owner selected summary",
-    });
+    await f.send("Owner selected summary");
     expect(f.starts).toHaveLength(1);
     expect(f.starts[0]).toContain("Owner selected summary");
   });
-  it("binds approval commands to the owner, task and nonce, then invalidates duplicates", async () => {
-    const f = await fixture();
-    await f.send("/new analyze");
-    const threadId = f.threads[0]!.id;
-    const event: AgentEvent = {
-      protocolVersion: 4,
-      eventId: randomUUID(),
-      threadId,
-      turnId: "turn",
-      seq: 1,
-      timestamp: new Date().toISOString(),
-      payload: {
-        type: "approval.requested",
+  it.each([false, true])(
+    "binds approval commands to the owner, task and nonce (temporary: %s)",
+    async (temporary) => {
+      const f = await fixture();
+      if (temporary)
+        await f.service.save({
+          ...f.service.status().settings,
+          defaultProjectId: "",
+          grants: [],
+        });
+      await f.send("/new analyze");
+      const threadId = f.threads[0]!.id;
+      const event: AgentEvent = {
+        protocolVersion: 4,
+        eventId: randomUUID(),
+        threadId,
+        turnId: "turn",
+        seq: 1,
+        timestamp: new Date().toISOString(),
+        payload: {
+          type: "approval.requested",
+          approvalId: "operation",
+          nonce: randomUUID(),
+          summary: "Write the selected project file",
+          paths: ["result.txt"],
+          network: [],
+          risk: "medium",
+          allowedScopes: ["once"],
+        },
+      };
+      f.service.observe([event]);
+      await f.service.poll();
+      const delivery = f.gateway.store
+        .pending<{ text: string }>("outgoing")
+        .map((r) => r.payload.text)
+        .find((text) => text.includes("/approve"))!;
+      const code = /\/approve ([\w-]+)/u.exec(delivery)![1]!;
+      await f.send(`/approve ${code} yes`, undefined, "bob");
+      expect(f.approvals).toHaveLength(0);
+      await f.send(`/approve ${code} yes`);
+      await f.send(`/approve ${code} yes`);
+      expect(f.approvals).toHaveLength(1);
+      expect(f.approvals[0]).toMatchObject({
         approvalId: "operation",
-        nonce: randomUUID(),
-        summary: "Write the selected project file",
-        paths: ["result.txt"],
-        network: [],
-        risk: "medium",
-        allowedScopes: ["once"],
-      },
-    };
-    f.service.observe([event]);
-    await f.service.poll();
-    const delivery = f.gateway.store
-      .pending<{ text: string }>("outgoing")
-      .map((r) => r.payload.text)
-      .find((text) => text.includes("/approve"))!;
-    const code = /\/approve ([\w-]+)/u.exec(delivery)![1]!;
-    await f.send(`/approve ${code} yes`, undefined, "bob");
-    expect(f.approvals).toHaveLength(0);
-    await f.send(`/approve ${code} yes`);
-    await f.send(`/approve ${code} yes`);
-    expect(f.approvals).toHaveLength(1);
-    expect(f.approvals[0]).toMatchObject({
-      approvalId: "operation",
-      nonce:
-        event.payload.type === "approval.requested" ? event.payload.nonce : "",
-      approved: true,
-      scope: "once",
-    });
-  });
+        nonce:
+          event.payload.type === "approval.requested"
+            ? event.payload.nonce
+            : "",
+        approved: true,
+        scope: "once",
+      });
+    },
+  );
   it("keeps a multi-question request waiting until every desktop or IM answer is resolved", async () => {
     const f = await fixture();
     await f.send("/new clarify");

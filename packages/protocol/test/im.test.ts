@@ -32,6 +32,42 @@ const settings = imSettingsSchema.parse({
   grants: [{ projectId: "project", expiresAt: 2000 }],
 });
 describe("IM trust boundary", () => {
+  it("gives owner direct messages local execution without a project grant", () => {
+    expect(
+      requireImGrant({ ...settings, grants: [] }, request, "private", 1000),
+    ).toMatchObject({
+      projectId: "private",
+      mode: "execute",
+      approval: "automatic",
+      network: true,
+      shell: true,
+    });
+    expect(() =>
+      requireImGrant(
+        { ...settings, grants: [] },
+        {
+          ...request,
+          conversation: { ...request.conversation, kind: "group" },
+        },
+        "private",
+        1000,
+      ),
+    ).toThrow();
+    for (const patch of [
+      { originator: { ...identity, userId: "member" } },
+      { sourceKind: "tool-result" as const },
+      { nativeTaskId: "assignment" },
+      { conversation: { ...request.conversation, spaceId: "group" } },
+    ])
+      expect(() =>
+        requireImGrant(
+          { ...settings, grants: [] },
+          { ...request, ...patch },
+          "private",
+          1000,
+        ),
+      ).toThrow();
+  });
   it("does not impose a default cumulative token budget and accepts legacy grants", () => {
     expect(settings.grants[0]?.tokenBudget).toBeUndefined();
     expect(
@@ -49,9 +85,9 @@ describe("IM trust boundary", () => {
       imIdentityKey({ ...identity, connectionId: "other" }),
     );
   });
-  it("requires an enabled, unexpired grant for the authenticated destination", () => {
+  it("requires an enabled, unexpired request for the authenticated destination", () => {
     expect(requireImGrant(settings, request, "project", 1000).mode).toBe(
-      "plan",
+      "execute",
     );
     expect(() => requireImGrant(settings, request, "project", 2000)).toThrow();
     expect(() =>
@@ -65,7 +101,9 @@ describe("IM trust boundary", () => {
         1000,
       ),
     ).toThrow();
-    expect(() => requireImGrant(settings, request, "private", 1000)).toThrow();
+    expect(requireImGrant(settings, request, "private", 1000).mode).toBe(
+      "execute",
+    );
   });
   it("does not let a direct-message grant authorize group work", () => {
     expect(() =>

@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { APP_LOCALES } from "@artemis/protocol";
@@ -143,17 +149,41 @@ it("opens only the newly installed plugin connection, then reopens it from that 
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("tab", { name: "Connectors" })).toBeNull();
   await user.click(await screen.findByRole("button", { name: "Install" }));
+  const confirmation = await screen.findByRole("alertdialog", {
+    name: "Install QQ Mail",
+  });
+  expect(install).not.toHaveBeenCalled();
+  expect(connect).not.toHaveBeenCalled();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(within(confirmation).getByText("Connectors")).toBeVisible();
+  expect(within(confirmation).queryByText("MCP", { exact: true })).toBeNull();
+  expect(confirmation).not.toHaveTextContent("${ARTEMIS_NODE}");
+  expect(confirmation).not.toHaveTextContent("Unsupported");
+  await user.click(
+    within(confirmation).getByRole("button", { name: "Cancel" }),
+  );
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(install).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "Install", exact: true }),
+  );
+  fireEvent(
+    screen.getByRole("alertdialog"),
+    new Event("cancel", { bubbles: false, cancelable: true }),
+  );
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(install).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "Install", exact: true }),
+  );
+  await user.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Install plugin",
+    }),
+  );
   const dialog = await screen.findByRole("dialog", { name: "QQ Mail" });
   expect(install).toHaveBeenCalledOnce();
-  expect(confirm).toHaveBeenCalledWith(expect.any(String), "default", {
-    title: "QQ Mail",
-    acceptLabel: "Install",
-  });
-  const confirmation = String(confirm.mock.calls[0]?.[0]);
-  expect(confirmation).not.toContain("${ARTEMIS_NODE}");
-  expect(confirmation).not.toContain("MCP: 1");
-  expect(confirmation).not.toContain("Unsupported: —");
-  expect(confirmation).toContain("Connectors: 1");
+  expect(install).toHaveBeenCalledWith(plugin.source, expect.any(String));
   expect(within(dialog).queryByText("Other Gmail")).toBeNull();
   expect(within(dialog).getByLabelText("Email")).toBeVisible();
   expect(connect).not.toHaveBeenCalled();
@@ -163,6 +193,61 @@ it("opens only the newly installed plugin connection, then reopens it from that 
     screen.getAllByRole("button", { name: "Configure", exact: true })[0]!,
   );
   expect(await screen.findByRole("dialog", { name: "QQ Mail" })).toBeVisible();
+});
+
+it("keeps account actions scoped to the shown connector and refreshes their actual state", async () => {
+  const user = userEvent.setup();
+  const github: ConnectorCatalogEntry = {
+    ...definition,
+    id: "github",
+    displayName: "GitHub",
+    provider: "github",
+    auth: "device-code",
+    capabilities: ["read", "write"],
+  };
+  let connected = true;
+  const reconnect = vi.fn(async () => {});
+  const disconnect = vi.fn(async () => {
+    connected = false;
+  });
+  const changed = vi.fn(async () => {});
+  stubWindowArtemis({
+    listConnectorDefinitions: async () => [github],
+    listConnectorConnections: async () => [
+      {
+        id: definition.serverId,
+        definition: github,
+        state: connected ? "connected" : "disconnected",
+        account: connected ? "artemis@example.com" : undefined,
+      },
+    ],
+    reconnectConnector: reconnect,
+    disconnectConnector: disconnect,
+  });
+  render(
+    <PluginConnectionDialog
+      locale="en"
+      plugin={{ ...installed, name: "github", displayName: "GitHub" }}
+      closeLabel="Close"
+      onClose={() => {}}
+      onChanged={changed}
+    />,
+  );
+  expect(await screen.findByText("artemis@example.com")).toBeVisible();
+  expect(screen.getAllByText("GitHub")).toHaveLength(1);
+  expect(screen.getByText("Read · Write")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Reconnect" }));
+  await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+  expect(reconnect).toHaveBeenCalledWith(definition.serverId);
+  await user.click(await screen.findByRole("button", { name: "Disconnect" }));
+  expect(disconnect).toHaveBeenCalledWith(definition.serverId);
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent("Disconnected"),
+  );
+  expect(screen.queryByText("artemis@example.com")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Connect", exact: true }),
+  ).toBeEnabled();
 });
 
 it("cancels pending authorization when its plugin dialog is closed", async () => {
@@ -280,7 +365,7 @@ it("updates an open connection dialog for every Artemis locale without reconnect
   for (const locale of APP_LOCALES) {
     view.rerender(<PluginConnectionDialog {...props} locale={locale} />);
     expect(screen.getByRole("dialog", { name: `QQ ${locale}` })).toBeVisible();
-    expect(screen.getAllByText(`QQ ${locale}`)).toHaveLength(2);
+    expect(screen.getAllByText(`QQ ${locale}`)).toHaveLength(1);
     expect(email).toHaveValue("demo@qq.com");
   }
   expect(listDefinitions).toHaveBeenCalledOnce();

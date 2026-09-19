@@ -42,16 +42,12 @@ function status(patch: Record<string, unknown> = {}) {
   } as never;
 }
 
-describe("im flow derive (three-step chain)", () => {
-  it("marks all three steps done for a fully configured device", () => {
+describe("im flow derive (paired direct-chat setup)", () => {
+  it("marks both steps done for a fully configured device", () => {
     const steps = imFlowSteps(status());
-    expect(steps.map((step) => step.id)).toEqual([
-      "service",
-      "channel",
-      "projects",
-    ]);
+    expect(steps.map((step) => step.id)).toEqual(["service", "channel"]);
     expect(steps.every((step) => step.done)).toBe(true);
-    expect(imFlowProgress(steps)).toBe(3);
+    expect(imFlowProgress(steps)).toBe(2);
     expect(imFirstPendingStep(steps)).toBeUndefined();
   });
   it("derives each step only from its real store signal", () => {
@@ -62,7 +58,7 @@ describe("im flow derive (three-step chain)", () => {
         connections: [{ ...connected, state: "connecting" }],
       }),
     );
-    expect(steps.map((step) => step.done)).toEqual([false, false, false]);
+    expect(steps.map((step) => step.done)).toEqual([false, false]);
     expect(imFlowProgress(steps)).toBe(0);
     expect(imFirstPendingStep(steps)).toBe("service");
   });
@@ -71,63 +67,27 @@ describe("im flow derive (three-step chain)", () => {
     const crossChannel = imFlowSteps(
       status({ identities: [{ channel: "feishu" }] }),
     );
-    expect(crossChannel.map((step) => step.done)).toEqual([true, false, true]);
+    expect(crossChannel.map((step) => step.done)).toEqual([true, false]);
     /* 同渠道成立。 */
     const sameChannel = imFlowSteps(status());
     expect(sameChannel[1]!.done).toBe(true);
   });
   it("falls back level by level when a connection is deleted", () => {
     const steps = imFlowSteps(status({ connections: [], identities: [] }));
-    expect(steps.map((step) => step.done)).toEqual([true, false, true]);
+    expect(steps.map((step) => step.done)).toEqual([true, false]);
     expect(imFirstPendingStep(steps)).toBe("channel");
   });
   it("keeps the optional verify out of the completion chain", () => {
     /* 验证是②尾可选段：确认与否都不改变完成链（D4 诚实版）。 */
     const confirmed = imFlowSteps(status());
-    expect(imFlowProgress(confirmed)).toBe(3);
+    expect(imFlowProgress(confirmed)).toBe(2);
   });
-  it("accepts default reads but does not finish project setup for missing or expired scopes", () => {
-    expect(
-      imFlowSteps(
-        status({
-          grants: [
-            {
-              projectId: "p",
-              expiresAt: Date.now() + 60000,
-              security: {
-                confirmedAt: 0,
-                scopes: [
-                  {
-                    audience: "owner",
-                    confirmedAt: 0,
-                    readPaths: [],
-                    writePaths: [],
-                  },
-                ],
-              },
-            },
-          ],
-        }),
-      )[2]!.done,
-    ).toBe(true);
-    expect(
-      imFlowSteps(
-        status({ grants: [{ projectId: "p", expiresAt: Date.now() + 60000 }] }),
-      )[2]!.done,
-    ).toBe(false);
-    expect(
-      imFlowSteps(
-        status({
-          grants: [
-            {
-              projectId: "p",
-              expiresAt: 1,
-              security: { confirmedAt: 1, scopes: [{ audience: "owner" }] },
-            },
-          ],
-        }),
-      )[2]!.done,
-    ).toBe(false);
+  it("completes setup without project grants, including expired legacy grants", () => {
+    for (const grants of [[], [{ projectId: "p", expiresAt: 1 }]]) {
+      const steps = imFlowSteps(status({ grants }));
+      expect(imFlowProgress(steps)).toBe(2);
+      expect(imFirstPendingStep(steps)).toBeUndefined();
+    }
   });
   it("persists the optional verify per device with its channel", () => {
     expect(imReadVerify().confirmed).toBe(false);

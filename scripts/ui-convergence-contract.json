@@ -267,22 +267,6 @@
           "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
         }
       ]
-    },
-    {
-      "classNameSets": [
-        ["foot-icon", "im-link-ok"],
-        ["foot-icon", "im-link-down"],
-        ["rail-item", "im-link-ok"],
-        ["rail-item", "im-link-down"]
-      ],
-      "owner": "Sidebar IM link state indicator",
-      "reason": "The footer and rail IM buttons tint by live bot connection state (green online, orange offline).",
-      "sources": [
-        {
-          "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "im-link-${imLink}"
-        }
-      ]
     }
   ],
   "rawComponentOverrides": [
@@ -450,15 +434,6 @@
     },
     {
       "atRules": [],
-      "selector": ".settings-header [data-artemis-component=\"button\"]",
-      "property": "padding",
-      "value": "4px 10px",
-      "important": false,
-      "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "The settings close action uses the v69 28px toolbar control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
-    },
-    {
-      "atRules": [],
       "selector": ".settings-section [data-artemis-component=\"button\"]",
       "property": "padding",
       "value": "5px 10px",
@@ -528,6 +503,15 @@
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
       "reason": "Catalogue card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".plugin-market-card-actions[data-installed=\"true\"] [data-artemis-component=\"button\"]:focus-visible",
+      "property": "z-index",
+      "value": "1",
+      "important": false,
+      "owner": "September 19 approved plugin card layout",
+      "reason": "Keep keyboard focus visible above the adjacent button's shared border. Reference: design-qa.md."
     },
     {
       "atRules": [],

@@ -18,7 +18,7 @@ type ImFeishuScanPhase =
   | { stage: "idle" }
   | { stage: "scanning"; image: string; begin: ImFeishuScanBeginResult }
   | { stage: "connecting"; image: string }
-  | { stage: "done"; name?: string }
+  | { stage: "done"; name?: string; domain: "feishu" | "lark" }
   | { stage: "failed"; message: string };
 
 /* 扫码链路错误统一友好化：剥离 Electron IPC 包装与 Error 前缀，
@@ -38,6 +38,7 @@ export function ImFeishuScan({
   autoStart = false,
   bare = false,
   refreshSignal = 0,
+  domain = "feishu",
   t,
   busy,
   disabled,
@@ -51,6 +52,7 @@ export function ImFeishuScan({
   bare?: boolean;
   /** 递增即原位更换二维码（轮询作废重开，卡片不卸载）。 */
   refreshSignal?: number;
+  domain?: ImFeishuScanBeginResult["domain"];
   busy: boolean;
   disabled: boolean;
   /** 扫码建连成功后携带新连接 id，供面板接续配对引导（ZCode 同款动线）。 */
@@ -59,6 +61,10 @@ export function ImFeishuScan({
   onIdle?: () => void;
 }) {
   const [phase, setPhase] = useState<ImFeishuScanPhase>({ stage: "idle" });
+  const platform =
+    (phase.stage === "done" ? phase.domain : domain) === "lark"
+      ? "Lark"
+      : t("ImSettingsPanel.message90");
   // Incremented to invalidate in-flight polls after cancel/unmount; timers
   // from a stale epoch are ignored instead of unmounted mid-request.
   const epoch = useRef(0);
@@ -131,11 +137,11 @@ export function ImFeishuScan({
         return;
       }
       if (epoch.current !== run) return;
-      setPhase(
-        result.appName
-          ? { stage: "done", name: result.appName }
-          : { stage: "done" },
-      );
+      setPhase({
+        stage: "done",
+        ...(result.appName ? { name: result.appName } : {}),
+        domain: result.domain,
+      });
       onConnected(savedConnectionId);
       return;
     }
@@ -156,6 +162,7 @@ export function ImFeishuScan({
       try {
         const begin = (await window.artemis.manageIm({
           action: "feishu-scan-begin",
+          domain,
         })) as ImFeishuScanBeginResult;
         if (epoch.current !== run) return;
         setPhase({ stage: "scanning", image: begin.qrImage, begin });
@@ -195,7 +202,10 @@ export function ImFeishuScan({
     return (
       <div className="im-scan">
         <InlineNotice tone="success">
-          {t("ImFeishuScan.message5", { name: phase.name ?? "Feishu" })}
+          {t("ImFeishuScan.message5", {
+            name: phase.name ?? platform,
+            platform,
+          })}
         </InlineNotice>
       </div>
     );
@@ -221,7 +231,7 @@ export function ImFeishuScan({
       <div className="im-scan">
         <div className="im-scan-copy">
           <h4>{t("ImFeishuScan.message1")}</h4>
-          <p className="im-fine">{t("ImFeishuScan.message2")}</p>
+          <p className="im-fine">{t("ImFeishuScan.message2", { platform })}</p>
         </div>
         <Button
           size="compact"
@@ -251,7 +261,7 @@ export function ImFeishuScan({
         />
       ) : null}
       <div className="im-scan-copy">
-        <p>{t("ImFeishuScan.message11")}</p>
+        <p>{t("ImFeishuScan.message11", { platform })}</p>
         {phase.stage === "scanning" && phase.begin.userCode ? (
           <div className="im-scan-code">
             <code>{phase.begin.userCode}</code>
@@ -259,7 +269,7 @@ export function ImFeishuScan({
         ) : null}
         <p className="im-scan-wait">
           <span aria-hidden="true" className="im-scan-spinner" />
-          {t("ImFeishuScan.message4")}
+          {t("ImFeishuScan.message4", { platform })}
           <Button
             size="compact"
             variant="quiet"

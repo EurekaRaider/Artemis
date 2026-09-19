@@ -3,6 +3,8 @@ import { uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
 import { CustomAgentsSettingsSection } from "./CustomAgentsSettingsSection.js";
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -63,6 +65,7 @@ interface SettingsPanelProps {
   /** Project list for scoped custom sub-agent definitions (D#152). */
   projects?: ReadonlyArray<{ id: string; name: string }> | undefined;
   onClose(): void;
+  onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
   returnFocusRef?: RefObject<HTMLElement | null> | undefined;
   onSettingsChange(
     settings: SettingsSnapshot,
@@ -71,6 +74,11 @@ interface SettingsPanelProps {
 }
 
 const labels = UI_COPY.SettingsPanel_labels;
+const ImSettingsPanel = lazy(() =>
+  import("./ImSettingsPanel.js").then((module) => ({
+    default: module.ImSettingsPanel,
+  })),
+);
 
 const DEFAULT_PROVIDER_CONTEXT_WINDOW = 1_000_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 128_000;
@@ -80,7 +88,7 @@ type ProviderThinkingLevel = NonNullable<
 >;
 
 type SettingsTab =
-  "general" | "providers" | "agents" | "capabilities" | "maintenance";
+  "general" | "providers" | "agents" | "im" | "capabilities" | "maintenance";
 
 function modelKey(providerId: string, modelId: string): string {
   return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
@@ -160,6 +168,7 @@ export function SettingsPanel({
   locale,
   projects = [],
   onClose,
+  onOpenThread,
   onSettingsChange,
   returnFocusRef,
 }: SettingsPanelProps) {
@@ -732,6 +741,7 @@ export function SettingsPanel({
     general: t.tabGeneral,
     providers: t.tabProviders,
     agents: t.tabAgents,
+    im: uiText(locale, "ImSettingsPanel.message191"),
     capabilities: t.tabCapabilities,
     maintenance: t.tabMaintenance,
   };
@@ -740,6 +750,7 @@ export function SettingsPanel({
     <>
       <Dialog
         className="settings-panel"
+        data-tab={activeTab}
         label={t.title}
         onOpenChange={(open) => {
           if (!open) onClose();
@@ -752,9 +763,14 @@ export function SettingsPanel({
           header={
             <PanelHeader
               actions={
-                <Button onClick={onClose} size="compact" variant="quiet">
-                  {t.close}
-                </Button>
+                <IconButton
+                  icon={<ArtemisIcon name="close" />}
+                  label={t.close}
+                  onClick={onClose}
+                  size="compact"
+                  title={t.close}
+                  variant="quiet"
+                />
               }
               className="settings-header"
               headingLevel={2}
@@ -792,6 +808,13 @@ export function SettingsPanel({
                     value: "agents",
                   },
                   {
+                    id: "settings-tab-im-button",
+                    icon: <ArtemisIcon name="mobile" />,
+                    label: activeTabLabel.im,
+                    panelId: "settings-tab-im",
+                    value: "im",
+                  },
+                  {
                     id: "settings-tab-capabilities-button",
                     icon: <ArtemisIcon name="approval" />,
                     label: t.tabCapabilities,
@@ -820,6 +843,7 @@ export function SettingsPanel({
                 "general",
                 "providers",
                 "agents",
+                "im",
                 "capabilities",
                 "maintenance",
               ] as const
@@ -1765,6 +1789,21 @@ export function SettingsPanel({
                     </SettingsRow>
                   </ManagementSection>
                 </>
+              )}
+
+              {activeTab === "im" && (
+                <Suspense
+                  fallback={
+                    <LoadingState
+                      label={uiText(locale, "ImSettingsPanel.message31")}
+                    />
+                  }
+                >
+                  <ImSettingsPanel
+                    locale={locale}
+                    onOpenThread={onOpenThread}
+                  />
+                </Suspense>
               )}
 
               {activeTab === "maintenance" && (

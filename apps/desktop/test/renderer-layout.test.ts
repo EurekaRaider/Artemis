@@ -492,6 +492,7 @@ describe("renderer layout contract", () => {
     expect(sidebar).toContain('className="activity-button foot-icon"');
     expect(sidebar).toContain('openSettings("general", event.currentTarget)');
     expect(sidebar).toContain("<SettingsIcon />");
+    expect(sidebar).not.toContain('name="mobile"');
     expect(sidebar).not.toContain("t.commandMenu");
     expect(appSource).not.toContain("commandMenuOpen");
     expect(appSource).not.toContain('className="command-backdrop"');
@@ -513,8 +514,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("toggleTerminalPanel();");
   });
 
-  it("shows the current version beside the sidebar brand and opens update settings", () => {
-    // 版本号挂在品牌行（Artemis 右侧），账号行让位给 IM/设置图标。
+  it("shows the current version beside the username and opens update settings", () => {
     const sidebarBrandStart = appSource.indexOf(
       '<div className="sidebar-brand">',
     );
@@ -529,19 +529,7 @@ describe("renderer layout contract", () => {
 
     expect(sidebarBrandStart).toBeGreaterThan(-1);
     expect(sidebarBrandEnd).toBeGreaterThan(sidebarBrandStart);
-    expect(sidebarBrandSource).toContain(
-      'className="app-version brand-version"',
-    );
-    expect(sidebarBrandSource).toContain(
-      "runtimeSettings?.update.currentVersion",
-    );
-    expect(sidebarBrandSource).toContain(
-      'openSettings("maintenance", event.currentTarget)',
-    );
-    expect(sidebarBrandSource).toContain(
-      "v{runtimeSettings.update.currentVersion}",
-    );
-    // 账号行：头像+名称居左，IM/设置图标成组靠右。
+    expect(sidebarBrandSource).not.toContain("app-version");
     const sidebarFooterStart = appSource.indexOf(
       '<div className="sidebar-footer">',
     );
@@ -550,13 +538,17 @@ describe("renderer layout contract", () => {
       sidebarFooterStart,
       sidebarFooterEnd,
     );
-    expect(sidebarFooterSource).toContain('className="sidebar-footer-actions"');
-    expect(sidebarFooterSource).toContain('name="mobile"');
-    // IM 图标联动连接状态：绿=有 bot 在线，橙=已配置但掉线。
-    expect(sidebarFooterSource).toContain("im-link-${imLink}");
-    expect(cssRule(".foot-icon.im-link-ok")).toContain("color: var(--success)");
-    expect(cssRule(".foot-icon.im-link-down")).toContain(
-      "color: var(--warning)",
+    expect(sidebarFooterSource).toContain("<SettingsIcon />");
+    expect(sidebarFooterSource).not.toContain('name="mobile"');
+    expect(sidebarFooterSource).toContain('className="app-version"');
+    expect(sidebarFooterSource).toContain(
+      "runtimeSettings?.update.currentVersion",
+    );
+    expect(sidebarFooterSource).toContain(
+      'openSettings("maintenance", event.currentTarget)',
+    );
+    expect(sidebarFooterSource).toContain(
+      "v{runtimeSettings.update.currentVersion}",
     );
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
@@ -564,7 +556,7 @@ describe("renderer layout contract", () => {
     expect(cssRule(".app-version")).toMatch(/\bfont-size:\s*10\.5px/u);
     expect(cssRule(".app-version")).toMatch(/\bcolor:\s*var\(--muted-2\)/u);
     expect(cssRule(".app-version")).toMatch(/\bbackground:\s*transparent/u);
-    expect(cssRule(".sidebar-footer")).toContain("padding: 8px 10px 16px 14px");
+    expect(cssRule(".sidebar-footer")).toContain("padding: 12px 10px 4px 14px");
   });
 
   it("keeps archived conversations out of the task sidebar and opens them from a library", () => {

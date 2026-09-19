@@ -71,6 +71,31 @@ describe("feishu scan-to-register", () => {
     await expect(beginFeishuScan()).rejects.toThrow("扫码创建应用");
   });
 
+  it("starts Lark registration on the Lark host and keeps its polling domain", async () => {
+    const calls = stubFetch({
+      init: { supported_auth_methods: ["client_secret"] },
+      begin: {
+        device_code: "lark-device",
+        verification_uri_complete: "https://accounts.larksuite.com/confirm",
+        user_code: "LARK",
+      },
+      poll: { client_id: "cli_lark", client_secret: "synthetic" },
+    });
+    const begin = await beginFeishuScan("lark");
+    expect(begin).toMatchObject({
+      deviceCode: "lark-device",
+      qrUrl: "https://accounts.larksuite.com/confirm",
+      domain: "lark",
+    });
+    await expect(pollFeishuScan(begin)).resolves.toMatchObject({
+      status: "success",
+      domain: "lark",
+    });
+    expect(calls.map(({ url }) => url)).toEqual(
+      Array(3).fill("https://accounts.larksuite.com/oauth/v1/app/registration"),
+    );
+  });
+
   it("maps poll outcomes through the device-flow states", async () => {
     const cases: Array<{
       response: Record<string, unknown>;

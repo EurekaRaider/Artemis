@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
-import { Button } from "@artemis/ui/actions";
+import { Button, IconButton } from "@artemis/ui/actions";
 import { TextField } from "@artemis/ui/forms";
 import { Dialog, EmptyState, InlineNotice } from "@artemis/ui/feedback";
-import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
+import { ManagementHeader } from "@artemis/ui/management";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import type {
   ConnectorConnection,
   ConnectorCatalogEntry,
@@ -11,6 +12,8 @@ import type {
 import { localizedPluginText } from "../shared/plugin-localization.js";
 import { connectorCopy } from "../shared/connector-copy.js";
 import type { InstalledCodexPlugin } from "../shared/api.js";
+import { uiText } from "../shared/ui-text.js";
+import { ResourceAvatar } from "./resource-icons.js";
 export function PluginConnectionDialog({
   plugin,
   closeLabel,
@@ -20,7 +23,13 @@ export function PluginConnectionDialog({
 }: {
   plugin: Pick<
     InstalledCodexPlugin,
-    "id" | "name" | "displayName" | "localizations" | "mcpServerIds"
+    | "id"
+    | "name"
+    | "displayName"
+    | "localizations"
+    | "mcpServerIds"
+    | "iconDataUrl"
+    | "brandColor"
   >;
   closeLabel: string;
   onClose(): void;
@@ -123,12 +132,28 @@ export function PluginConnectionDialog({
     >
       <section>
         <ManagementHeader
+          className="plugin-dialog-header"
           headingLevel={2}
           title={displayName}
+          description={uiText(
+            locale,
+            "ResourceCenter_labels.connectionManagement",
+          )}
+          leading={
+            <ResourceAvatar
+              kind="plugin"
+              name={plugin.name}
+              iconDataUrl={plugin.iconDataUrl}
+              brandColor={plugin.brandColor}
+            />
+          }
           actions={
-            <Button variant="quiet" onClick={onClose}>
-              {closeLabel}
-            </Button>
+            <IconButton
+              icon={<ArtemisIcon name="close" />}
+              label={closeLabel}
+              variant="quiet"
+              onClick={onClose}
+            />
           }
         />
         <div className="resource-management-list">
@@ -140,24 +165,41 @@ export function PluginConnectionDialog({
               pending === d.serverId || connection?.state === "connecting";
             const state = connection?.state ?? "disconnected";
             return (
-              <ManagementCard
-                key={d.serverId}
-                className={`resource-connector-card${d.provider === "qq" && state !== "connected" ? " resource-connector-card-setup" : ""}`}
-              >
+              <section key={d.serverId} className="plugin-connection-entry">
                 <div>
-                  <strong>
-                    {d.id === plugin.name ? displayName : d.displayName}
-                  </strong>
-                  <small role="status">
-                    {copy.states[state]}
-                    {connection?.account ? ` · ${connection.account}` : ""}
-                  </small>
+                  <div className="plugin-connection-account-heading">
+                    <span>
+                      {definitions.length > 1
+                        ? d.displayName
+                        : uiText(
+                            locale,
+                            "ResourceCenter_labels.currentAccount",
+                          )}
+                    </span>
+                    <span
+                      className="plugin-connection-state"
+                      data-state={state}
+                      role="status"
+                    >
+                      {copy.states[state]}
+                    </span>
+                  </div>
+                  {connection?.account && (
+                    <p className="plugin-connection-account">
+                      {connection.account}
+                    </p>
+                  )}
                   {d.capabilities?.length ? (
-                    <small>
-                      {d.capabilities
-                        .map((capability) => copy.capabilities[capability])
-                        .join(" · ")}
-                    </small>
+                    <div className="plugin-connection-capabilities">
+                      <span>
+                        {uiText(locale, "ResourceCenter_labels.capabilities")}
+                      </span>
+                      <p>
+                        {d.capabilities
+                          .map((capability) => copy.capabilities[capability])
+                          .join(" · ")}
+                      </p>
+                    </div>
                   ) : null}
                   {d.provider === "figma" && <p>{copy.figma}</p>}
                   {d.provider === "qq" && state !== "connected" && (
@@ -225,7 +267,7 @@ export function PluginConnectionDialog({
                     </InlineNotice>
                   )}
                 </div>
-                <div className="resource-row-actions">
+                <div className="plugin-dialog-footer plugin-connection-actions">
                   {busy ? (
                     <Button
                       onClick={() =>
@@ -239,17 +281,21 @@ export function PluginConnectionDialog({
                   ) : state === "connected" ? (
                     <>
                       <Button
+                        className="plugin-dialog-disconnect"
+                        icon={<ArtemisIcon name="unlink" />}
+                        disabled={!!pending}
+                        variant="quiet"
+                        onClick={() => void run(d.serverId, "disconnect")}
+                      >
+                        {copy.disconnect}
+                      </Button>
+                      <Button
+                        className="plugin-dialog-reconnect"
+                        icon={<ArtemisIcon name="refresh" />}
                         disabled={!!pending}
                         onClick={() => void run(d.serverId, "reconnect")}
                       >
                         {copy.reconnect}
-                      </Button>
-                      <Button
-                        disabled={!!pending}
-                        variant="danger"
-                        onClick={() => void run(d.serverId, "disconnect")}
-                      >
-                        {copy.disconnect}
                       </Button>
                     </>
                   ) : (
@@ -265,7 +311,7 @@ export function PluginConnectionDialog({
                     </Button>
                   )}
                 </div>
-              </ManagementCard>
+              </section>
             );
           })}
         </div>

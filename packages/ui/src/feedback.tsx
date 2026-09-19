@@ -814,6 +814,7 @@ export function Dialog({
       data-state="visible"
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         if (closeOnEscape) onOpenChange(false);
       }}
       onClick={(event) => {

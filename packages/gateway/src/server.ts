@@ -4,6 +4,7 @@ import {
   IM_SECURITY_VERSION,
   imDeliverySecuritySchema,
   imReplySchema,
+  isImOwnerDirectRequest,
 } from "@artemis/protocol";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import {
@@ -372,9 +373,10 @@ export class ArtemisGateway {
         !sameSecret(capability ?? "", artifact.token) ||
         !invocation ||
         !this.identityStillBound(invocation) ||
-        !this.router.securityAllowed(
-          this.store.get("invocation-security", invocation.id),
-        )
+        (!isImOwnerDirectRequest(invocation) &&
+          !this.router.securityAllowed(
+            this.store.get("invocation-security", invocation.id),
+          ))
       ) {
         respond(response, 404, {
           error: "Artifact is unavailable or expired.",
@@ -1095,7 +1097,7 @@ export class ArtemisGateway {
     if (url.pathname === "/v1/device/artifacts") {
       const input = z
         .object({
-          security: imDeliverySecuritySchema,
+          security: imDeliverySecuritySchema.optional(),
           invocationId: z.string().min(1),
           name: z
             .string()

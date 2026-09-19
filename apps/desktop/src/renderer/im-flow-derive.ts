@@ -6,14 +6,10 @@ export type ImFlowStatus = ImStatus & {
   spaces?: unknown[];
 };
 
-/**
- * Guided-flow completion chain, three steps total (2026-09 三步版原型迁移):
- * ① connect the service, ② onboard one channel end-to-end (a connected bot
- * AND a paired account on the same channel — the pairing predicate), ③ allow
- * at least one project. The optional end-to-end verify at the tail of ② and
- * the separate group-collaboration flow never enter the chain.
+/** Connecting the service and pairing an account completes direct-chat setup.
+ * Group project permissions belong to their separate authorization flow.
  */
-export const IM_FLOW_STEP_IDS = ["service", "channel", "projects"] as const;
+export const IM_FLOW_STEP_IDS = ["service", "channel"] as const;
 export type ImFlowStepId = (typeof IM_FLOW_STEP_IDS)[number];
 
 export interface ImFlowStep {
@@ -36,18 +32,6 @@ export function imFlowSteps(status: ImFlowStatus | undefined): ImFlowStep[] {
   return [
     { id: "service", done: !!settings?.deviceId },
     { id: "channel", done: channelDone },
-    {
-      id: "projects",
-      done: !!settings?.grants?.some(
-        (grant) =>
-          grant.expiresAt > Date.now() &&
-          !!grant.security?.scopes.some(
-            (scope) =>
-              scope.audience === "owner" ||
-              grant.groups.includes(scope.audience),
-          ),
-      ),
-    },
   ];
 }
 

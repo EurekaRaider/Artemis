@@ -1,12 +1,13 @@
 import { UI_COPY } from "../shared/ui-copy.js";
 import { useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
-import { Button, Icon, IconButton } from "@artemis/ui/actions";
+import { Button, IconButton } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
 import { EmptyState } from "@artemis/ui/feedback";
 import { SearchField } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
+import archiveHeaderIcon from "./assets/archive-header-icon.png";
 
 import {
   promptWithoutSelectedSkills,
@@ -84,9 +85,11 @@ export function ArchivePage({
           className="archive-header"
           description={t.archiveDescription}
           leading={
-            <Icon className="archive-header-icon">
-              <ArtemisIcon name="archive" />
-            </Icon>
+            <img
+              className="archive-header-artwork"
+              src={archiveHeaderIcon}
+              alt=""
+            />
           }
           title={t.archiveTitle}
         />

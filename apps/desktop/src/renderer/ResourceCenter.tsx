@@ -1,4 +1,8 @@
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
+import { PluginInstallDialog } from "./PluginInstallDialog.js";
+import { PluginUninstallDialog } from "./PluginUninstallDialog.js";
+import { ResourceRemovalDialog } from "./ResourceRemovalDialog.js";
+import resourceCenterIcon from "./assets/resource-center-icon.png";
 import {
   localizedPluginText,
   localizedPluginCategory,
@@ -80,6 +84,10 @@ type ManagementTab = "plugins" | "mcp" | "skills";
 type CatalogSearchTab = Extract<ManagementTab, "mcp" | "skills">;
 type CatalogSearchPhase = "idle" | "searching" | "complete";
 type ResourceKind = ResourceIconKind;
+
+type ResourceRemovalDraft =
+  | { kind: "mcp"; server: McpServerStatus }
+  | { kind: "skill"; skill: InstalledSkill };
 
 let installedSkillsCache: InstalledSkill[] | undefined;
 let installedPluginsCache: InstalledCodexPlugin[] | undefined;
@@ -202,6 +210,12 @@ export function ResourceCenter({
     Record<CatalogSearchTab, CatalogSearchPhase>
   >({ mcp: "idle", skills: "idle" });
   const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
+  const [pluginInstallDraft, setPluginInstallDraft] =
+    useState<CodexPluginPreview>();
+  const [pluginUninstallDraft, setPluginUninstallDraft] =
+    useState<InstalledCodexPlugin>();
+  const [resourceRemovalDraft, setResourceRemovalDraft] =
+    useState<ResourceRemovalDraft>();
   const [mcpServers, setMcpServers] = useState(settings?.mcpServers ?? []);
   const [skillResults, setSkillResults] = useState<SkillCatalogItem[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
@@ -742,11 +756,7 @@ export function ResourceCenter({
     }
   }
 
-  async function removeMcp(
-    serverId: string,
-    confirmation: string = t.confirmRemoveMcp,
-  ) {
-    if (!(await onConfirm(confirmation, "danger"))) return;
+  async function removeMcp(serverId: string) {
     setBusyId(serverId);
     setMessage(undefined);
     try {
@@ -778,7 +788,6 @@ export function ResourceCenter({
   }
 
   async function removeSkill(skill: InstalledSkill) {
-    if (!(await onConfirm(t.confirmRemoveSkill, "danger"))) return;
     setBusyId(skill.id);
     setMessage(undefined);
     try {
@@ -848,32 +857,7 @@ export function ResourceCenter({
       setMessage(conflict);
       return;
     }
-    const importableMcp = plugin.mcpServers.filter(
-      (server) => server.importable,
-    );
-    const connectors = importableMcp.filter((server) => server.connector);
-    const standaloneMcp = importableMcp.filter((server) => !server.connector);
-    const details = [
-      t.confirmPlugin,
-      ...(plugin.skills.length
-        ? [`${t.skillsCount}: ${plugin.skills.length}`]
-        : []),
-      ...(standaloneMcp.length
-        ? [`${t.mcpCount}: ${standaloneMcp.length}`]
-        : []),
-      ...(connectors.length ? [`${t.appsCount}: ${connectors.length}`] : []),
-      ...(plugin.unsupported.length
-        ? [`${t.unsupported}: ${plugin.unsupported.join(", ")}`]
-        : []),
-    ].join("\n\n");
-    if (
-      !plugin.installable ||
-      !(await onConfirm(details, "default", {
-        title: pluginDisplayName(plugin),
-        acceptLabel: t.install,
-      }))
-    )
-      return;
+    if (!plugin.installable) return;
     const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
     setBusyId(plugin.id);
     setMessage(undefined);
@@ -969,7 +953,6 @@ export function ResourceCenter({
   }
 
   async function removePlugin(plugin: InstalledCodexPlugin) {
-    if (!(await onConfirm(t.confirmRemovePlugin, "danger"))) return;
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
@@ -1199,6 +1182,7 @@ export function ResourceCenter({
     return {
       brandColor: bundled?.brandColor ?? plugin.brandColor,
       iconDataUrl: bundled?.iconDataUrl ?? plugin.iconDataUrl,
+      pluginName: plugin.name,
     };
   }
 
@@ -1212,6 +1196,7 @@ export function ResourceCenter({
     return {
       brandColor: visual?.brandColor,
       iconDataUrl: visual?.iconDataUrl,
+      pluginName: visual?.pluginName,
       iconKey: resourceIconName(skill.name, "skill"),
     };
   }
@@ -1230,6 +1215,7 @@ export function ResourceCenter({
     return {
       brandColor: visual?.brandColor,
       iconDataUrl: visual?.iconDataUrl,
+      pluginName: visual?.pluginName,
       iconKey: resourceIconName(
         server.config.name || server.config.id,
         server.config.resourceKind === "connector" ? "connectors" : "mcp",
@@ -1411,6 +1397,7 @@ export function ResourceCenter({
     name: string;
     kind: "plugin" | "skill" | "mcp" | "connectors";
     iconDataUrl?: string | undefined;
+    pluginName?: string | undefined;
     brandColor?: string | undefined;
     iconKey?: ResourceIconName | undefined;
     description: string;
@@ -1624,6 +1611,49 @@ export function ResourceCenter({
     );
   }
 
+  function renderPluginUninstall() {
+    return pluginUninstallDraft ? (
+      <PluginUninstallDialog
+        plugin={pluginUninstallDraft}
+        displayName={pluginDisplayName(pluginUninstallDraft)}
+        locale={locale}
+        onCancel={() => setPluginUninstallDraft(undefined)}
+        onUninstall={() => {
+          setPluginUninstallDraft(undefined);
+          runResourceOperation(() => removePlugin(pluginUninstallDraft));
+        }}
+      />
+    ) : null;
+  }
+
+  function renderResourceRemoval() {
+    if (!resourceRemovalDraft) return null;
+    const draft = resourceRemovalDraft;
+    const name =
+      draft.kind === "mcp" ? draft.server.config.name : draft.skill.name;
+    const visual =
+      draft.kind === "mcp"
+        ? visualForMcp(draft.server)
+        : visualForSkill(draft.skill);
+    return (
+      <ResourceRemovalDialog
+        avatar={<ResourceAvatar {...visual} kind={draft.kind} name={name} />}
+        kind={draft.kind}
+        name={name}
+        locale={locale}
+        onCancel={() => setResourceRemovalDraft(undefined)}
+        onRemove={() => {
+          setResourceRemovalDraft(undefined);
+          runResourceOperation(() =>
+            draft.kind === "mcp"
+              ? removeMcp(draft.server.config.id)
+              : removeSkill(draft.skill),
+          );
+        }}
+      />
+    );
+  }
+
   function renderPluginConnection() {
     return connectionPlugin ? (
       <PluginConnectionDialog
@@ -1670,9 +1700,16 @@ export function ResourceCenter({
             brandColor={plugin.brandColor}
             iconDataUrl={plugin.iconDataUrl}
             kind="plugin"
-            name={displayName}
+            name={plugin.name}
           />
-          <strong>{displayName}</strong>
+          <strong title={displayName}>{displayName}</strong>
+          <small
+            className="plugin-market-card-source"
+            title={`${t.marketplaceSource}: ${sourceLabel}`}
+          >
+            <span>{t.marketplaceSource}</span>
+            <span>{sourceLabel}</span>
+          </small>
         </div>
         <div className="plugin-market-copy">
           <small>{description}</small>
@@ -1683,15 +1720,17 @@ export function ResourceCenter({
           )}
         </div>
         <div className="plugin-market-card-footer">
-          <small className="plugin-market-source">
-            {t.marketplaceSource}: {sourceLabel}
-          </small>
-          <div className="plugin-market-card-actions">
+          <div
+            className="plugin-market-card-actions"
+            data-installed={installed && Boolean(installedPlugin)}
+          >
             {installed && installedPlugin ? (
               <>
                 {pluginHasConnection(installedPlugin) && (
                   <Button
-                    variant="quiet"
+                    className="plugin-market-configure-action"
+                    icon={<GearIcon />}
+                    variant="secondary"
                     disabled={operationPending || busyId === plugin.id}
                     onClick={() => setConnectionPlugin(installedPlugin)}
                   >
@@ -1699,13 +1738,11 @@ export function ResourceCenter({
                   </Button>
                 )}
                 <Button
-                  className="management-destructive-action"
+                  className="management-destructive-action plugin-market-remove-action"
                   icon={<TrashIcon />}
                   disabled={operationPending || busyId === plugin.id}
-                  onClick={() =>
-                    runResourceOperation(() => removePlugin(installedPlugin))
-                  }
-                  variant="quiet"
+                  onClick={() => setPluginUninstallDraft(installedPlugin)}
+                  variant="secondary"
                 >
                   {t.remove}
                 </Button>
@@ -1720,9 +1757,7 @@ export function ResourceCenter({
                   busyId === plugin.id ||
                   installProgress !== undefined
                 }
-                onClick={() =>
-                  runResourceOperation(() => installPlugin(plugin))
-                }
+                onClick={() => setPluginInstallDraft(plugin)}
                 title={
                   diagnostic || (plugin.installable ? t.install : t.needsSetup)
                 }
@@ -1983,9 +2018,11 @@ export function ResourceCenter({
       >
         <ManagementHeader
           leading={
-            <span className="secondary-page-icon">
-              <ArtemisIcon name="resource" width={19} height={19} />
-            </span>
+            <img
+              className="resource-page-artwork"
+              src={resourceCenterIcon}
+              alt=""
+            />
           }
           className="resource-page-header"
           description={t.marketDescription}
@@ -2019,18 +2056,28 @@ export function ResourceCenter({
             </div>
           }
         />
-        <Tabs
-          className="resource-category-tabs"
-          disabled={operationPending}
-          label={t.manage}
-          onValueChange={(tab) => openManagement(tab)}
-          options={managementTabOptions.map((option) => ({
-            ...option,
-            label: t[option.value],
-          }))}
-          size="compact"
-          value="plugins"
-        />
+        <div className="resource-marketplace-toolbar">
+          <Tabs
+            className="resource-category-tabs"
+            disabled={operationPending}
+            label={t.manage}
+            onValueChange={(tab) => openManagement(tab)}
+            options={managementTabOptions.map((option) => ({
+              ...option,
+              label: t[option.value],
+            }))}
+            size="compact"
+            value="plugins"
+          />
+          <SearchField
+            className="resource-search-field resource-market-search"
+            disabled={operationPending}
+            label={t.searchPlugins}
+            onValueChange={setMarketplaceQuery}
+            placeholder={t.searchPlugins}
+            value={marketplaceQuery}
+          />
+        </div>
         {managementTabOptions
           .filter((option) => option.value !== "plugins")
           .map((option) => (
@@ -2048,15 +2095,6 @@ export function ResourceCenter({
           id="resource-management-panel-plugins"
           aria-labelledby="resource-management-tab-plugins"
         >
-          <SearchField
-            className="resource-search-field resource-market-search"
-            disabled={operationPending}
-            label={t.searchPlugins}
-            onValueChange={setMarketplaceQuery}
-            placeholder={t.searchPlugins}
-            value={marketplaceQuery}
-          />
-
           {renderProgressAndMessage()}
 
           <MarketplaceTabs
@@ -2161,6 +2199,7 @@ export function ResourceCenter({
                       brandColor={item.brandColor}
                       iconKey={item.iconKey}
                       iconDataUrl={item.iconDataUrl}
+                      pluginName={item.pluginName}
                       kind={item.kind}
                       name={item.name}
                     />
@@ -2210,6 +2249,19 @@ export function ResourceCenter({
             </div>
           </ManagementSection>
         </div>
+        {pluginInstallDraft && (
+          <PluginInstallDialog
+            plugin={pluginInstallDraft}
+            displayName={pluginDisplayName(pluginInstallDraft)}
+            locale={locale}
+            onCancel={() => setPluginInstallDraft(undefined)}
+            onInstall={() => {
+              setPluginInstallDraft(undefined);
+              runResourceOperation(() => installPlugin(pluginInstallDraft));
+            }}
+          />
+        )}
+        {renderPluginUninstall()}
         {renderPluginConnection()}
       </ResourceSurface>
     );
@@ -2345,9 +2397,7 @@ export function ResourceCenter({
                         disabled={operationPending || busyId === plugin.id}
                         icon={<TrashIcon />}
                         label={`${t.remove} ${pluginDisplayName(plugin)}`}
-                        onClick={() =>
-                          runResourceOperation(() => removePlugin(plugin))
-                        }
+                        onClick={() => setPluginUninstallDraft(plugin)}
                         title={t.remove}
                         variant="quiet"
                       />
@@ -2389,7 +2439,7 @@ export function ResourceCenter({
                       brandColor={visual.brandColor}
                       iconDataUrl={visual.iconDataUrl}
                       kind="plugin"
-                      name={pluginDisplayName(plugin)}
+                      name={plugin.name}
                     />
                   }
                   title={pluginDisplayName(plugin)}
@@ -2616,25 +2666,23 @@ export function ResourceCenter({
                         title={t.addMcp}
                       />
                       <IconButton
-                        className="resource-icon-button"
+                        className="resource-icon-button resource-remove-button"
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
                           managedMcpIds.has(server.config.id)
                         }
                         icon={<TrashIcon />}
-                        label={`${t.remove} ${displayName}`}
+                        label={`${t.removeMcpAction} ${displayName}`}
                         onClick={() =>
-                          runResourceOperation(() =>
-                            removeMcp(server.config.id),
-                          )
+                          setResourceRemovalDraft({ kind: "mcp", server })
                         }
                         title={
                           managedMcpIds.has(server.config.id)
                             ? t.managedByPlugin
-                            : t.remove
+                            : t.removeMcpAction
                         }
-                        variant="danger"
+                        variant="quiet"
                       />
                       <Switch
                         checked={server.state === "connected"}
@@ -2665,6 +2713,7 @@ export function ResourceCenter({
                       brandColor={visual.brandColor}
                       iconDataUrl={visual.iconDataUrl}
                       iconKey={visual.iconKey}
+                      pluginName={visual.pluginName}
                       kind="mcp"
                       name={displayName}
                     />
@@ -2780,15 +2829,15 @@ export function ResourceCenter({
                   actions={
                     <div className="resource-row-actions">
                       <IconButton
-                        className="resource-icon-button"
+                        className="resource-icon-button resource-remove-button"
                         disabled={operationPending || busyId === skill.id}
                         icon={<TrashIcon />}
                         label={`${t.remove} ${skill.name}`}
                         onClick={() =>
-                          runResourceOperation(() => removeSkill(skill))
+                          setResourceRemovalDraft({ kind: "skill", skill })
                         }
                         title={t.remove}
-                        variant="danger"
+                        variant="quiet"
                       />
                       <Switch
                         checked={skill.enabled}
@@ -2813,6 +2862,7 @@ export function ResourceCenter({
                       brandColor={visual.brandColor}
                       iconDataUrl={visual.iconDataUrl}
                       iconKey={visual.iconKey}
+                      pluginName={visual.pluginName}
                       kind="skill"
                       name={skill.name}
                     />
@@ -2828,7 +2878,9 @@ export function ResourceCenter({
         </ManagementSection>
       )}
 
+      {renderPluginUninstall()}
       {renderPluginConnection()}
+      {renderResourceRemoval()}
 
       {mcpInstallDraft && (
         <Dialog

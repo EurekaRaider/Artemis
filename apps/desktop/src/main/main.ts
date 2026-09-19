@@ -4011,7 +4011,7 @@ async function handleBrokerRequest(
   if (!agentProcess || !store) {
     return;
   }
-  if (imService?.profile(request.threadId)) {
+  if (imService?.hasBinding(request.threadId)) {
     try {
       imService.authorizeThread(request.threadId, request.mode);
       if (
@@ -4021,6 +4021,7 @@ async function handleBrokerRequest(
       )
         throw new Error("Remote operation requires the current active turn.");
       if (
+        imService.profile(request.threadId) &&
         request.kind !== "remote.operation" &&
         request.kind !== "user.input" &&
         request.kind !== "attachment.read"
@@ -5589,7 +5590,7 @@ async function startTaskTurn(
   const release = imService?.reserveStart(
     input.threadId,
     input.mode,
-    options.origin === undefined ? undefined : options.origin === "im",
+    options.origin === "desktop" ? false : undefined,
   );
   try {
     return await startTaskTurnUnchecked(input, options);
@@ -5932,7 +5933,7 @@ async function startTaskTurnUnchecked(
     text: requestText,
     mode: input.mode,
     source,
-    remote: !!imService?.profile(thread.id),
+    remote: !!imService?.hasBinding(thread.id),
     ...(goalCreationAuthorized ? { goalCreationAuthorized } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(thread.goal ? { goal: thread.goal } : {}),
@@ -6079,11 +6080,11 @@ async function resumeInterruptedTurns(): Promise<void> {
     )
       continue;
     try {
-      if (checkpoint.remote && !imService?.profile(threadId))
+      if (checkpoint.remote && !imService?.hasBinding(threadId))
         throw new Error(
           "Remote execution context is unavailable for recovery.",
         );
-      if (imService?.profile(threadId))
+      if (imService?.hasBinding(threadId))
         imService.authorizeThread(threadId, checkpoint.mode);
       const context = await resolveThreadWorkspace(thread);
       await openAgentThread(thread, context.workspacePath);

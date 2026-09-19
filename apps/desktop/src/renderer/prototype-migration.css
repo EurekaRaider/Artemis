@@ -28,8 +28,7 @@
    导航行与会话行整体提白；语义状态色（连接/任务状态点）不受影响。 */
 [data-artemis-theme="dark"] .sidebar-nav .nav-row,
 [data-artemis-theme="dark"] .project-thread-row,
-[data-artemis-theme="dark"] .project-thread-row .thread-time,
-[data-artemis-theme="dark"] .local-user-name {
+[data-artemis-theme="dark"] .project-thread-row .thread-time {
   color: var(--text);
 }
 .sidebar-brand {
@@ -80,8 +79,47 @@
   background: var(--hover);
   color: var(--text);
 }
+.sidebar > [data-part="main"] > [data-part="content"] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  will-change: scroll-position;
+  -webkit-app-region: no-drag;
+}
+.sidebar > [data-part="main"] > [data-part="content"]::-webkit-scrollbar {
+  width: 12px;
+}
+.sidebar > [data-part="main"] > [data-part="content"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar > [data-part="main"] > [data-part="content"]::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  background-clip: padding-box;
+}
+.sidebar
+  > [data-part="main"]
+  > [data-part="content"]::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--text) 24%, transparent);
+}
+.sidebar
+  > [data-part="main"]
+  > [data-part="content"]::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in srgb, var(--text) 34%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar > [data-part="main"] > [data-part="content"] {
+    scroll-behavior: auto;
+  }
+}
 .sidebar-nav {
   display: flex;
+  flex: none;
+  margin: 0 10px 2px;
   flex-direction: column;
   gap: 1px;
 }
@@ -191,7 +229,7 @@
 }
 .sidebar .sidebar-footer {
   gap: 8px;
-  padding: 8px 10px 8px 14px;
+  padding: 12px 10px 4px 14px;
   block-size: 56px;
   min-block-size: 56px;
 }
@@ -200,8 +238,8 @@
   min-inline-size: 0;
 }
 .sidebar .sidebar-profile-avatar {
-  inline-size: 40px;
-  block-size: 40px;
+  inline-size: 24px;
+  block-size: 24px;
   flex: none;
 }
 .sidebar .app-version {
@@ -211,9 +249,6 @@
   font-size: 11px;
   color: var(--muted-2);
   white-space: nowrap;
-  /* 版本号与「Artemis」文字底边对齐（沉到行底再收起文字降部的高度差）。 */
-  align-self: flex-end;
-  margin-block-end: 5px;
 }
 .update-btn {
   inline-size: 24px;

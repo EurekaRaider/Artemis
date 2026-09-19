@@ -3,21 +3,21 @@ import { ImNativeGroups, imNativeGroupChoices } from "./ImNativeGroups";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { ImDataPermissions } from "./ImDataPermissions";
+import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
 import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
 import {
   executionGrantSchema,
-  IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
   imScopeConfirmation,
+  type ExecutionGrant,
+  type CollaborationSpace,
   imIdentityKey,
   type AppLocale,
-  type ExecutionGrant,
   type ImConnectionStatus,
   type ImIdentity,
   type ImSettings,
   type ImStatus,
-  type CollaborationSpace,
   type Project,
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
@@ -28,12 +28,12 @@ import {
   Tooltip,
 } from "@artemis/ui/feedback";
 import { Checkbox, Select, TextField } from "@artemis/ui/forms";
+import { SegmentedControl } from "@artemis/ui/navigation";
 import { ManagementSection } from "@artemis/ui/management";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
 
 import { ImSlackSetup, slackAppManifest } from "./ImSlackSetup";
-import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
 import {
   imFirstPendingStep,
   imFlowProgress,
@@ -65,7 +65,6 @@ import { ImPlatformSetup } from "./ImPlatformSetup";
 import feishuChannelIcon from "./assets/feishu-channel.png";
 import slackChannelIcon from "./assets/slack-channel.svg";
 import groupChannelIcon from "./assets/im-group-icon.svg";
-import projectsChannelIcon from "./assets/im-projects-icon.svg";
 import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
@@ -127,9 +126,7 @@ export function ImSettingsPanel({
   /* 两栏布局：右栏渠道列表 ↔ 单渠道详情（下钻）。 */
   const [channelDetail, setChannelDetail] = useState(false);
   /* 右栏第三卡：群协作详情（与渠道详情互斥）。 */
-  const [groupDetail, setGroupDetail] = useState(false);
-  /* 右栏第四卡：授权项目详情（与渠道/群详情互斥）。 */
-  const [projectsDetail, setProjectsDetail] = useState(initialPermissions);
+  const [groupDetail, setGroupDetail] = useState(initialPermissions);
   const [showRemote, setShowRemote] = useState(false);
   const [advancedDetail, setAdvancedDetail] = useState(false);
   /* 渠道二级面板（ZCode 式主从）：右栏 = 选中机器人详情 / 新建表单 /
@@ -159,7 +156,7 @@ export function ImSettingsPanel({
   const [customScopeOpen, setCustomScopeOpen] = useState<
     Record<string, boolean>
   >({});
-  const [grantAudience, setGrantAudience] = useState("owner");
+  const [grantAudience, setGrantAudience] = useState("");
   const [nativeScopeDraft, setNativeScopeDraft] =
     useState<NonNullable<ExecutionGrant["security"]>>();
   const [grantDialog, setGrantDialog] = useState<string | null>(null);
@@ -199,8 +196,9 @@ export function ImSettingsPanel({
           setName(current.settings.deviceName);
           setProjects(snapshot.projects);
           /* 手动注册入口卡不再自动顶开整屏详情，用户点击时才进入。 */
-          const connections = (current.connections ??
-            []) as ImConnectionStatus[];
+          const connections = (
+            (current.connections ?? []) as ImConnectionStatus[]
+          ).filter((c) => c.channel !== "wecom");
           const connected =
             connections.find((c) => c.state === "connected") ?? connections[0];
           if (connected?.channel) {
@@ -303,12 +301,11 @@ export function ImSettingsPanel({
     setFields({});
     setAdminToken("");
     setBotDialog(null);
-    if (next === "group" || next === "spaces") {
+    if (next === "group" || next === "spaces" || next === "permissions") {
       /* 群协作=右栏第三卡详情；深链统一落到该入口。 */
       setFlowCard(null);
       setChannelDetail(false);
       setGroupDetail(true);
-      setProjectsDetail(false);
       setFocusTarget("im-spaces");
       return;
     }
@@ -323,28 +320,13 @@ export function ImSettingsPanel({
       setFocusTarget("im-guide");
       return;
     }
-    /* 三步版：原 account（配对）并入 channel 卡；test 定位到②尾验证段。 */
-    const step =
-      next === "gateway"
-        ? "service"
-        : next === "permissions"
-          ? "projects"
-          : "channel";
+    /* 配对并入渠道卡；验证定位到渠道详情的验证页。 */
+    const step = next === "gateway" ? "service" : "channel";
 
-    if (next === "permissions") {
-      /* 授权项目=右栏第四卡详情；深链统一落到该入口。 */
-      setFlowCard(null);
-      setChannelDetail(false);
-      setGroupDetail(false);
-      setProjectsDetail(true);
-      setFocusTarget("im-permissions");
-      return;
-    }
     if (IM_CHANNELS.includes(next as ImChannel)) {
       setChannel(next as ImChannel);
       setChannelDetail(true);
       setGroupDetail(false);
-      setProjectsDetail(false);
       setChannelPane("bot");
       setSelectedBotId("");
       setCredScan(false);
@@ -355,7 +337,6 @@ export function ImSettingsPanel({
       /* 验证=渠道二级面板的一页，深链时一并下钻并切页。 */
       setChannelDetail(true);
       setGroupDetail(false);
-      setProjectsDetail(false);
       setChannelPane("verify");
     }
     setFlowCard(step);
@@ -546,7 +527,8 @@ export function ImSettingsPanel({
     : undefined;
   const feishuTransport =
     fields.transport ?? dialogMetadata?.transport ?? "websocket";
-  const feishuDomain = fields.domain ?? dialogMetadata?.domain ?? "feishu";
+  const feishuDomain =
+    (fields.domain ?? dialogMetadata?.domain) === "lark" ? "lark" : "feishu";
   /* 配对说明跟随已保存连接的应用区域，不受弹窗表单中间态影响。 */
   const savedFeishuDomain =
     selectedConnection?.configuration?.domain ?? savedMetadata[channel]?.domain;
@@ -709,7 +691,7 @@ export function ImSettingsPanel({
   const flowDone = imFlowProgress(flowSteps);
   const flowTotal = flowSteps.length;
   const allDone = flowDone === flowTotal;
-  const flowOpenCard = flowCard ?? imFirstPendingStep(flowSteps) ?? "projects";
+  const flowOpenCard = flowCard ?? imFirstPendingStep(flowSteps) ?? "channel";
   const activeScreen = screen ?? (allDone ? "overview" : "flow");
   const taskDetected = taskSeen || !!status?.remoteTasks?.length;
   /* 验证折叠标签三态：已验证 · 渠道 / 验证进行中 / 初始（可选提示）。 */
@@ -725,7 +707,7 @@ export function ImSettingsPanel({
     : taskDetected
       ? t("ImSettingsPanel.message28")
       : t("ImSettingsPanel.message27");
-  /* 完成即概览：三步全部完成时粘性落在概览（群协作屏除外）；回退时停留概览并提示。 */
+  /* 完成即概览：接入和配对全部完成时粘性落在概览（群协作屏除外）；回退时停留概览并提示。 */
   useEffect(() => {
     if (allDone)
       setScreen((current) => (current === "overview" ? current : "overview"));
@@ -734,7 +716,6 @@ export function ImSettingsPanel({
   const prevFlowDoneKey = useRef(flowDoneKey);
   useEffect(() => {
     setVerify(imReadVerify(status?.settings.deviceId));
-    setProjectsDetail(initialPermissions);
   }, [status?.settings.deviceId]);
   useEffect(() => {
     const unsubscribe = window.artemis.onImTaskCreated?.(() =>
@@ -772,7 +753,7 @@ export function ImSettingsPanel({
     const gatewayReady = status?.localGateway?.state === "running";
     return (
       <>
-        {/* 顶部信息区：定高，与右栏「飞书+Slack」卡带等高对齐。 */}
+        {/* 顶部信息区随提示内容自适应高度。 */}
         <div className="im-service-meta">
           {settings.deviceId && (
             <p
@@ -1097,7 +1078,11 @@ export function ImSettingsPanel({
       setChannelPane("bot");
     }
     setBotDialog(null);
-    setFields({});
+    setFields(
+      channel === "feishu" && !botDialog?.connectionId && !savedId
+        ? { domain: feishuDomain }
+        : {},
+    );
     setAdminToken("");
   };
   const dismissBotCreate = (savedId: string) => {
@@ -1187,9 +1172,12 @@ export function ImSettingsPanel({
      关联凭据卡共用；onScanConnected 在共享接续（刷新+配对）前执行。 */
   const renderFeishuScan = (
     autoStart: boolean,
+    domain: "feishu" | "lark",
     onScanConnected?: (connectionId?: string) => void,
   ) => (
     <ImFeishuScan
+      key={domain}
+      domain={domain}
       t={t}
       autoStart={autoStart}
       busy={busy}
@@ -1272,6 +1260,20 @@ export function ImSettingsPanel({
         </div>
         {channel === "feishu" && local ? (
           <>
+            <SegmentedControl
+              label={t("ImSettingsPanel.message78")}
+              size="compact"
+              value={feishuDomain}
+              disabled={busy}
+              options={[
+                { value: "feishu", label: t("ImSettingsPanel.message22") },
+                { value: "lark", label: t("ImSettingsPanel.message23") },
+              ]}
+              onValueChange={(domain) => {
+                setFields((previous) => ({ ...previous, domain }));
+                setCreateScanOpen(true);
+              }}
+            />
             <div className="im-bot-section" data-scan-open>
               <div className="im-bot-section-copy">
                 <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
@@ -1299,6 +1301,8 @@ export function ImSettingsPanel({
               {createScanOpen && (
                 <div className="im-bot-scan">
                   <ImFeishuScan
+                    key={feishuDomain}
+                    domain={feishuDomain}
                     refreshSignal={createScanEpoch}
                     t={t}
                     autoStart
@@ -1325,7 +1329,7 @@ export function ImSettingsPanel({
               onClick={(event) => {
                 botDialogTrigger.current = event.currentTarget;
                 setCreateScanOpen(false);
-                setFields({});
+                setFields({ domain: feishuDomain });
                 setBotDialog({});
               }}
             >
@@ -1375,11 +1379,16 @@ export function ImSettingsPanel({
   };
   /* 回复形态说明（ZCode 同款说明卡）：飞书固定流式卡片；
      创建页与机器人详情（删除卡上方）共用。 */
-  const renderReplyModeCard = () => (
+  const renderReplyModeCard = (domain = feishuDomain) => (
     <div className="im-bot-section">
       <div className="im-bot-section-copy">
         <strong>{t("ImSettingsPanel.botReplyModeTitle")}</strong>
-        <p>{t("ImSettingsPanel.botReplyModeDesc")}</p>
+        <p>
+          {t("ImSettingsPanel.botReplyModeDesc", {
+            platform:
+              domain === "lark" ? "Lark" : t("ImSettingsPanel.message90"),
+          })}
+        </p>
       </div>
       <div className="im-bot-section-actions">
         <Select
@@ -1402,6 +1411,8 @@ export function ImSettingsPanel({
   /* 机器人详情（ZCode 式）：头=logo+名称+行尾删除入口（配对态只在
      左栏导航卡展示）；下方为关联机器人 / 配对聊天 / 回复模式 设置卡。 */
   const renderBotProfile = (connection: ImConnectionStatus) => {
+    const domain =
+      connection.configuration?.domain === "lark" ? "lark" : "feishu";
     const pairing = pairingView(connection);
     const state = pairing.state;
     return (
@@ -1481,7 +1492,9 @@ export function ImSettingsPanel({
               ) : null}
             </div>
             {credScan && (
-              <div className="im-bot-scan">{renderFeishuScan(true)}</div>
+              <div className="im-bot-scan">
+                {renderFeishuScan(true, domain)}
+              </div>
             )}
           </div>
         ) : (
@@ -1531,7 +1544,7 @@ export function ImSettingsPanel({
         {/* 从属账号：属于这条连接的已绑定账号，挂在配对卡下。 */}
         {connectionAccounts(connection.id)}
         {renderWebhookCallback(connection)}
-        {channel === "feishu" && renderReplyModeCard()}
+        {channel === "feishu" && renderReplyModeCard(domain)}
       </div>
     );
   };
@@ -1772,19 +1785,17 @@ export function ImSettingsPanel({
           t,
         )
       : [];
-    /* 默认项目落点：未设置或哨兵 = 临时会话。 */
-    const adhocDefault =
-      !settings.defaultProjectId ||
-      settings.defaultProjectId === IM_ADHOC_PROJECT_ID;
-    /* 按项目摘要（替代原底部「确认摘要」行）：范围 + 异常状态。 */
     const rowSummary = (grant: ExecutionGrant) => {
-      const write =
-        grant.security?.scopes.find((s) => s.audience === "owner")
-          ?.writePaths ?? [];
+      const groupScopes =
+        grant.security?.scopes.filter((scope) =>
+          grant.groups.includes(scope.audience),
+        ) ?? [];
+      const selectedScope =
+        groupScopes.find((scope) => scope.audience === grantAudience) ??
+        groupScopes[0];
+      const write = selectedScope?.writePaths ?? [];
       const scope =
-        grant.mode === "execute" &&
-        grant.security?.scopes.find((s) => s.audience === "owner")
-          ?.writeMode === "project"
+        grant.mode === "execute" && selectedScope?.writeMode === "project"
           ? t("ImDataPermissions.message14")
           : grant.mode === "execute" && write.length
             ? t("ImSettingsPanel.writePaths", {
@@ -1794,19 +1805,15 @@ export function ImSettingsPanel({
               })
             : t("ImSettingsPanel.message109");
       const state =
-        !grant.security?.scopes.length ||
-        grant.security.scopes.some(
-          (scope) => !imScopeConfirmation(grant.security, scope),
-        )
+        !groupScopes.length ||
+        groupScopes.some((scope) => !imScopeConfirmation(grant.security, scope))
           ? t("ImSettingsPanel.message112")
           : grant.expiresAt <= Date.now()
             ? t("ImSettingsPanel.message111")
             : "";
       return state ? `${scope} · ${state}` : scope;
     };
-    /* 行内操作（勾选/撤销/设默认）与弹窗「确认设置」共用：next = 要保存的设置；
-       advance=false 供行内增量操作不触发流程自动前进。
-       返回 false = 保存本身失败（弹窗保持打开）；启用失败已保存，返回 true。 */
+    // 保存失败时保持弹窗打开；启用失败时保留已保存的群聊授权并显示重试入口。
     const performSaveAndEnable = async (
       next: ImSettings = settings,
       advance = true,
@@ -1826,20 +1833,13 @@ export function ImSettingsPanel({
       setSettings(outcome.status.settings);
       if (outcome.phase === "saved-enable-failed") {
         setEnableFailedError(outcome.error);
-        // 授权已保存但启用失败：钉住④卡，保证提示与重试入口不被自动前进收起。
-        setFlowCard("projects");
+        // 授权已保存但启用失败：留在群聊设置，保留提示与重试入口。
+        setGroupDetail(true);
         return true;
       }
       setMessage(t("ImSettingsPanel.message113"));
       if (advance) flowAdvanceFrom();
       return true;
-    };
-    /* 行内即时生效：更新草稿并立即保存启用；钉住④卡防止自动跟随在
-       完成瞬间把正在操作的卡片收起（显式完成动作才交回自动跟随）。 */
-    const applyNow = (next: ImSettings) => {
-      setSettings(next);
-      setFlowCard("projects");
-      void run(() => performSaveAndEnable(next, false));
     };
     const closeGrantDialog = (projectId: string) => {
       // 关闭 = 放弃弹窗内未确认的改动，该项目的授权回退到已保存状态。
@@ -1862,46 +1862,6 @@ export function ImSettingsPanel({
     };
     return (
       <section id="im-permissions" tabIndex={-1}>
-        {/* 说明与提示统一子区：边框包裹、可展开收起（默认收起）——
-            正文区只留操作对象（内置临时会话行 + 项目列表）。 */}
-        <details className="im-perm-guide">
-          <summary>{t("ImSettingsPanel.message114")}</summary>
-          <div className="im-perm-guide-body">
-            <p>{t("ImSettingsPanel.message115")}</p>
-            <p>{t("ImSettingsPanel.message116")}</p>
-            <p>{t("ImSettingsPanel.message117")}</p>
-            {!projects.length && <p>{t("ImSettingsPanel.message118")}</p>}
-          </div>
-        </details>
-        {/* W4：临时会话是内置授权目标——已配对即可收发消息并获得指引，也可发起
-            plan 档临时任务（无项目工作区，不碰项目文件）；不占项目授权，不可取消。 */}
-        <div className="im-project im-project-builtin">
-          <Checkbox
-            label={t("ImSettingsPanel.message119")}
-            defaultChecked
-            disabled
-          />
-          {adhocDefault && (
-            <span
-              className="im-default-badge"
-              aria-label={t("ImSettingsPanel.message121")}
-            >
-              {t("ImSettingsPanel.message120")}
-            </span>
-          )}
-          {!adhocDefault && (
-            <Button
-              className="im-set-default"
-              size="compact"
-              variant="quiet"
-              title={t("ImSettingsPanel.message123")}
-              disabled={busy}
-              onClick={() => applyNow({ ...settings, defaultProjectId: "" })}
-            >
-              {t("ImSettingsPanel.message122")}
-            </Button>
-          )}
-        </div>
         <h4 className="im-project-list-title">
           {t("ImSettingsPanel.message124")}
         </h4>
@@ -1945,91 +1905,37 @@ export function ImSettingsPanel({
 
           return (
             <div className="im-project" key={project.id}>
-              <Checkbox
-                /* 已授权的项目在名称后带模式后缀（如 Test project.Plan）。 */
-                label={
-                  grant
-                    ? `${project.name}.${grant.mode
-                        .charAt(0)
-                        .toUpperCase()}${grant.mode.slice(1)}`
-                    : project.name
-                }
-                checked={!!grant}
-                disabled={busy}
-                onCheckedChange={(checked) =>
-                  applyNow({
-                    ...settings,
-                    grants: checked
-                      ? [
-                          ...settings.grants,
-                          executionGrantSchema.parse({
-                            projectId: project.id,
-                            expiresAt: Date.now() + 30 * 86400000,
-                            // 默认授权：整个项目可读、不可写任何文件（主人单聊）。
-                            security: {
-                              version: IM_SECURITY_VERSION,
-                              revision: "draft",
-                              confirmedAt: 0,
-                              scopes: [
-                                {
-                                  audience: "owner",
-                                  readPaths: [],
-                                  writePaths: [],
-                                },
-                              ],
-                            },
-                          }),
-                        ]
-                      : settings.grants.filter(
-                          (g) => g.projectId !== project.id,
-                        ),
-                    defaultProjectId:
-                      !checked && settings.defaultProjectId === project.id
-                        ? ""
-                        : checked && !settings.grants.length
-                          ? project.id
-                          : settings.defaultProjectId,
-                  })
-                }
-              />
-              {grant && (
+              <span className="im-project-name">{project.name}</span>
+              {grant && grant.groups.length > 0 && (
                 <span className="im-row-summary">{rowSummary(grant)}</span>
-              )}
-              {settings.defaultProjectId === project.id && (
-                <span
-                  className="im-default-badge"
-                  aria-label={t("ImSettingsPanel.message121")}
-                >
-                  {t("ImSettingsPanel.message120")}
-                </span>
-              )}
-              {grant && settings.defaultProjectId !== project.id && (
-                <Button
-                  className="im-set-default"
-                  size="compact"
-                  variant="quiet"
-                  title={t("ImSettingsPanel.message128")}
-                  disabled={busy}
-                  onClick={() =>
-                    applyNow({
-                      ...settings,
-                      defaultProjectId: project.id,
-                    })
-                  }
-                >
-                  {t("ImSettingsPanel.message122")}
-                </Button>
               )}
               <Button
                 className="im-grant-open"
                 size="compact"
                 variant="quiet"
                 title={t("ImSettingsPanel.message130")}
-                disabled={busy}
+                disabled={busy || !audiences.length}
                 onClick={(event) => {
                   grantDialogAnchor.current = event.currentTarget;
-                  setGrantAudience("owner");
-                  setNativeScopeDraft(undefined);
+                  const audience = audiences[0]!.value;
+                  setGrantAudience(audience);
+                  const scope = grant?.security?.scopes.find(
+                    (scope) => scope.audience === audience,
+                  );
+                  setNativeScopeDraft({
+                    version: IM_SECURITY_VERSION,
+                    revision: "draft",
+                    confirmedAt: 0,
+                    scopes: [
+                      {
+                        ...scope,
+                        audience: "owner",
+                        readPaths: scope?.readPaths ?? [],
+                        writePaths: scope?.writePaths ?? [],
+                        confirmedAt: 0,
+                      },
+                    ],
+                  });
                   if (!grant)
                     setSettings({
                       ...settings,
@@ -2087,13 +1993,7 @@ export function ImSettingsPanel({
                       label={t("ImDataPermissions.message8")}
                       value={grantAudience}
                       disabled={busy}
-                      options={[
-                        {
-                          value: "owner",
-                          label: t("ImDataPermissions.message9"),
-                        },
-                        ...audiences,
-                      ]}
+                      options={audiences}
                       onValueChange={(audience) => {
                         setGrantAudience(audience);
                         setCustomScopeOpen((current) => ({
@@ -2604,7 +2504,6 @@ export function ImSettingsPanel({
             flowSelectChannel(platform);
             setChannelDetail(true);
             setGroupDetail(false);
-            setProjectsDetail(false);
             setChannelPane("bot");
             setSelectedBotId("");
             setCredScan(false);
@@ -2782,7 +2681,7 @@ export function ImSettingsPanel({
             <div className="im-service-body">{renderGatewayBody()}</div>
           </section>
         </div>
-        {/* 右栏：门（渠道）。四张卡（渠道×N、群协作、授权项目）↔ 详情下钻。 */}
+        {/* 右栏：门（渠道）。渠道与群聊授权卡片↔ 详情下钻。 */}
         <div className="im-col-right">
           {groupDetail ? (
             <section className="im-channel-detail" tabIndex={-1}>
@@ -2790,37 +2689,7 @@ export function ImSettingsPanel({
                 setGroupDetail(false),
               )}
               {renderSpacesBody()}
-            </section>
-          ) : projectsDetail ? (
-            <section className="im-channel-detail" tabIndex={-1}>
-              {detailHead(t("ImSettingsPanel.message189"), () =>
-                setProjectsDetail(false),
-              )}
-              {renderPermissionsBody()}
-              {allDone && (
-                <div className="im-ceremony">
-                  <p className="im-ceremony-title">
-                    {t("ImSettingsPanel.message184")}
-                  </p>
-                  <div className="im-ceremony-actions">
-                    <Button onClick={() => selectView("overview")}>
-                      {t("ImSettingsPanel.message185")}
-                    </Button>
-                    <Button variant="quiet" onClick={() => selectView("test")}>
-                      {t("ImSettingsPanel.message186")}
-                    </Button>
-                    {channel !== "wecom" && (
-                      <Button
-                        variant="quiet"
-                        onClick={() => selectView("spaces")}
-                      >
-                        {t("ImSettingsPanel.message176")}
-                      </Button>
-                    )}
-                  </div>
-                  <p className="im-fine">{t("ImSettingsPanel.message188")}</p>
-                </div>
-              )}
+              {local && renderPermissionsBody()}
             </section>
           ) : (
             <section
@@ -2836,57 +2705,16 @@ export function ImSettingsPanel({
                 />
                 <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
               </div>
-              {IM_CHANNELS.map((platform) =>
-                /* wecom 接入未开放：仅存量连接（或已存凭据）才显示行，
-                   未配置渠道不出现；飞书/Slack 恒显示。 */
-                platform === "wecom" &&
-                !connections.some((c) => c.channel === "wecom") &&
-                !savedPending.wecom
-                  ? null
-                  : channelRow(platform),
+              {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
+                channelRow,
               )}
-              {/* 第三卡：授权项目（设备级，对所有渠道生效）。 */}
-              <button
-                type="button"
-                className="im-channel-row"
-                data-configured={
-                  (settings.grants.length > 0 || undefined) as
-                    boolean | undefined
-                }
-                onClick={() => {
-                  setChannelDetail(false);
-                  setGroupDetail(false);
-                  setProjectsDetail(true);
-                }}
-              >
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  className="im-channel-logo"
-                  height={20}
-                  src={projectsChannelIcon}
-                  width={20}
-                />
-                <span className="im-channel-row-copy">
-                  <strong>{t("ImSettingsPanel.message189")}</strong>
-                  <span className="im-channel-row-summary">
-                    {t("ImSettingsPanel.projectsSummary", {
-                      value1: settings.grants.length + 1,
-                    })}
-                  </span>
-                </span>
-                <span aria-hidden="true" className="im-capsule-btn">
-                  {t("ImSettingsPanel.goGrant")}
-                </span>
-              </button>
-              {/* 第四卡：群协作（对所有渠道生效，独立于单渠道接入）。 */}
+              {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
               <button
                 type="button"
                 className="im-channel-row"
                 onClick={() => {
                   setChannelDetail(false);
                   setGroupDetail(true);
-                  setProjectsDetail(false);
                 }}
               >
                 <img

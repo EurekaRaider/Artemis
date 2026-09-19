@@ -177,17 +177,32 @@ describe("Gateway lifecycle and delivery authorization", () => {
     expect(f.sent.at(-1)).toContain("请补充目标分支。");
     expect(f.mentions.at(-1)).toBe("dispatcher");
   });
-  it("requires security capability and drops queued output after grant revocation", async () => {
+  it("requires group security capability and drops queued output after grant revocation", async () => {
     const f = await fixture();
     const oldHeaders = { ...f.headers, "x-artemis-security-version": "1" };
     expect(
       (await fetch(`${f.url}/v1/device/inbox`, { headers: oldHeaders })).ok,
     ).toBe(false);
+    const conversation = {
+      ...f.input.conversation,
+      kind: "group" as const,
+      id: "room",
+    };
+    f.gateway.router.ingest({ ...f.input, conversation });
+    f.gateway.router.processIncoming();
+    const group = saveNativeGroup(f.gateway.store, {
+      conversation,
+      owner: f.input.identity,
+      deviceId: f.device.id,
+      name: "Room",
+      projectId: "project",
+      enabled: true,
+    });
     const security = {
       version: 2,
       projectId: "project",
       revision: "revision",
-      audience: "owner",
+      audience: `space:${group.id}`,
     };
     const setPolicy = async (grants: unknown[]) => {
       const response = await fetch(`${f.url}/v1/device/security`, {
@@ -200,7 +215,12 @@ describe("Gateway lifecycle and delivery authorization", () => {
     await setPolicy([
       { ...security, expiresAt: Date.now() + 60000, version: undefined },
     ]);
-    f.gateway.router.ingest(f.input);
+    f.gateway.router.ingest({
+      ...f.input,
+      conversation,
+      messageId: "group-work",
+      timestamp: Date.now(),
+    });
     f.gateway.router.processIncoming();
     const invocation =
       f.gateway.store.list<RemoteInvocationContext>("invocations")[0]!;

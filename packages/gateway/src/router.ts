@@ -6,6 +6,7 @@ import {
   channelEventSchema,
   imConversationKey,
   imIdentityKey,
+  isImOwnerDirectRequest,
   imReplySchema,
   type ImSecurityContext,
   remoteInvocationSchema,
@@ -487,6 +488,7 @@ export class GatewayRouter {
   ): boolean {
     if (
       !control &&
+      !isImOwnerDirectRequest(request) &&
       (
         this.store.get<Array<NonNullable<Delivery["security"]>>>(
           "invocation-dependencies",
@@ -508,7 +510,8 @@ export class GatewayRouter {
       )?.deviceId !== request.deviceId
     )
       return false;
-    if (request.conversation.kind === "direct") return !request.originator;
+    if (request.conversation.kind === "direct")
+      return isImOwnerDirectRequest(request);
     const space = this.findSpace(request.conversation);
     if (
       !space ||
@@ -611,6 +614,16 @@ export class GatewayRouter {
     invocationId: string,
     security: ImReply["security"],
   ): void {
+    const direct = this.store.get<RemoteInvocationContext>(
+      "invocations",
+      invocationId,
+    );
+    if (
+      direct?.deviceId === deviceId &&
+      isImOwnerDirectRequest(direct) &&
+      this.isInvocationAuthorized(direct)
+    )
+      return;
     if (!security || !this.securityAllowed({ ...security, deviceId }))
       throw new Error(
         "Shared operation requires a current data grant. Upgrade and confirm IM permissions.",
@@ -702,6 +715,7 @@ export class GatewayRouter {
       if (stamp && !this.securityAllowed(stamp)) return false;
       if (
         this.store.get("device-security", request.deviceId) &&
+        !isImOwnerDirectRequest(request) &&
         delivery.taskId &&
         !delivery.security
       )

@@ -1103,7 +1103,7 @@ export const UI_COPY = {
     inputCancelled: uiText(locale, "App_copy.inputCancelled"),
   })),
   ResourceCenter_labels: makeUiCopy((locale) => ({
-    title: uiText(locale, "App_copy.resourceCenter"),
+    title: uiText(locale, "ResourceCenter_labels.title"),
     marketDescription: uiText(
       locale,
       "ResourceCenter_labels.marketDescription",
@@ -1257,6 +1257,7 @@ export const UI_COPY = {
     installing: uiText(locale, "ResourceCenter_labels.installing"),
     update: uiText(locale, "ResourceCenter_labels.update"),
     remove: uiText(locale, "McpServerEditor_labels.uninstall"),
+    removeMcpAction: uiText(locale, "ResourceCenter_labels.removeMcpAction"),
     enabled: uiText(locale, "AutomationPage_text.enabled"),
     disabled: uiText(
       locale,

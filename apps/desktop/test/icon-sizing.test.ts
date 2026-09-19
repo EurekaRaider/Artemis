@@ -112,8 +112,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(names).toEqual(
       [...TIER_ORDER].map((tier) => `--icon-size-${tier}`).sort(),
     );
-    // Environment selectors share four declaration pairs plus the five tiers.
-    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(13);
+    // Environment selectors use four pairs; catalogue actions add one reference.
+    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(14);
   });
 
   it("keeps tier values distinct and strictly increasing", () => {
@@ -263,7 +263,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     ],
     [".workspace-tab-menu svg", 17],
     [".sources-panel-icon svg", 16],
-    [".archive-header-icon svg", 19],
     ['.archive-empty [data-part="icon"] svg', 23],
   ];
 

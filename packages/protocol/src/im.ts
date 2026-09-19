@@ -563,6 +563,21 @@ export function assertImGatewayUrl(value: string): URL {
   return url;
 }
 
+/** Only the paired owner's own DM uses the desktop's local permissions. */
+export function isImOwnerDirectRequest(
+  request: RemoteInvocationContext,
+): boolean {
+  return (
+    request.conversation.kind === "direct" &&
+    !request.conversation.spaceId &&
+    !request.conversation.spaceRevision &&
+    !request.originator &&
+    !request.collaboration &&
+    !request.nativeTaskId &&
+    (!request.sourceKind || request.sourceKind === "direct")
+  );
+}
+
 export function requireImGrant(
   settings: ImSettings,
   request: RemoteInvocationContext,
@@ -577,6 +592,16 @@ export function requireImGrant(
     throw new Error(
       "Remote request is disabled, expired or addressed to another device.",
     );
+  if (isImOwnerDirectRequest(request))
+    return {
+      projectId,
+      approval: "automatic",
+      mode: "execute",
+      network: true,
+      shell: true,
+      groups: [],
+      expiresAt: request.expiresAt,
+    };
   const grant = settings.grants.find(
     (item) => item.projectId === projectId && item.expiresAt > now,
   );
@@ -746,7 +771,12 @@ export const imManagementSchema = z.discriminatedUnion("action", [
     .strict(),
   z.object({ action: z.literal("setup-local") }).strict(),
   /* Feishu scan-to-register (official OAuth app registration device flow). */
-  z.object({ action: z.literal("feishu-scan-begin") }).strict(),
+  z
+    .object({
+      action: z.literal("feishu-scan-begin"),
+      domain: z.enum(["feishu", "lark"]).optional(),
+    })
+    .strict(),
   z
     .object({
       action: z.literal("feishu-scan-poll"),
