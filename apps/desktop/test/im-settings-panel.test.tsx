@@ -753,7 +753,7 @@ describe("production IM settings", () => {
     await user.click(screen.getByRole("button", { name: "扫码" }));
     expect(document.querySelector(".im-bot-scan")).toBeNull();
   });
-  it("flags a connected bot as awaiting pairing and unbinds through the linked-bot card", async () => {
+  it("flags a connected bot as awaiting pairing across nav, status line and linked-bot card", async () => {
     const f = fixture();
     f.set({
       localGateway: { state: "running" },
@@ -770,23 +770,23 @@ describe("production IM settings", () => {
       "data-state",
       "warning",
     );
-    /* 已连通的关联机器人卡给「解绑」：停用连接而非删除。 */
-    await user.click(await screen.findByRole("button", { name: "解绑 飞书" }));
-    expect(f.manage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "admin",
-        operation: "connections",
-        configuration: expect.objectContaining({
-          id: "wecom-team",
-          enabled: false,
-        }),
-      }),
+    /* 导航卡与关联机器人卡的信号灯同节奏。 */
+    const navCard = document.querySelector(".im-bot-card")!;
+    expect(navCard).toHaveTextContent("待配对");
+    expect(navCard.querySelector(".im-dot")).toHaveAttribute(
+      "data-state",
+      "warning",
     );
+    expect(document.querySelector(".im-bot-link-state")).toHaveTextContent(
+      "待配对",
+    );
+    /* 未配对没有「解除配对」可点，绑定入口在配对聊天卡。 */
     expect(
-      await screen.findByText("已解绑，重新扫码可再次接入。"),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "解除配对 飞书" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "生成配对码 飞书" })).toBeVisible();
   });
-  it("marks a connected bot with a bound account as paired", async () => {
+  it("marks a paired bot everywhere and unpairs through the linked-bot card", async () => {
     const f = fixture();
     f.set({
       localGateway: { state: "running" },
@@ -795,16 +795,53 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 已配对：状态行=绿灯+已配对；关联机器人卡显示连通状态。 */
+    /* 已配对：状态行=绿灯+已配对；导航卡与关联机器人卡同节奏。 */
     const stateLine = document.querySelector(".im-bot-profile-state")!;
     expect(stateLine).toHaveTextContent("已配对");
     expect(stateLine.querySelector(".im-dot")).toHaveAttribute(
       "data-state",
       "connected",
     );
+    const navCard = document.querySelector(".im-bot-card")!;
+    expect(navCard).toHaveTextContent("已配对");
     expect(document.querySelector(".im-bot-link-state")).toHaveTextContent(
-      "已连接",
+      "已配对",
     );
+    /* 解除配对：解绑这条连接的绑定账号，连接保留。 */
+    await user.click(await screen.findByRole("button", { name: "解除配对 飞书" }));
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "unpair",
+        identity: expect.objectContaining({ connectionId: "wecom-team" }),
+      }),
+    );
+    expect(await screen.findByText("账号已解除绑定。")).toBeVisible();
+    /* 解绑后随刷新回到待配对。 */
+    expect(
+      await screen.findByText("待配对", { selector: ".im-bot-profile-state" }),
+    ).toBeVisible();
+  });
+  it("shows the reply-mode card above the delete card in the bot detail", async () => {
+    const f = fixture();
+    f.set({
+      localGateway: { state: "running" },
+      connections: [{ ...connection, channel: "feishu", name: "飞书" }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "feishu");
+    await screen.findByText("关联机器人");
+    /* 卡序：关联机器人 → 配对聊天 → 机器人回复模式 → 删除机器人。 */
+    const titles = [
+      ...document.querySelectorAll(".im-bot-section-copy strong"),
+    ].map((node) => node.textContent);
+    expect(titles).toEqual([
+      "关联机器人",
+      "配对聊天",
+      "机器人回复模式",
+      "删除机器人",
+    ]);
+    expect(document.querySelector(".im-reply-mode-select")).toBeVisible();
   });
   it("opens team gateway registration and advanced deployment as dialogs", async () => {
     fixture();

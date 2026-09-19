@@ -1498,7 +1498,6 @@
   "ImSettingsPanel.botUnpairedLabel": "Association en attente",
   "ImSettingsPanel.botUnbindLabel": "Dissocier {{value1}}",
   "ImSettingsPanel.botUnbindAction": "Dissocier",
-  "ImSettingsPanel.botUnbindDone": "Dissocié. Scanne à nouveau pour le reconnecter.",
   "ImSettingsPanel.botReplyModeTitle": "Mode de réponse",
   "ImSettingsPanel.botReplyModeDesc": "Les réponses utilisent les cartes en streaming Card JSON 2.0 de Feishu ; les appels d'outils n'affichent qu'un résumé replié.",
   "ImSettingsPanel.botReplyModeValue": "Cartes en streaming",

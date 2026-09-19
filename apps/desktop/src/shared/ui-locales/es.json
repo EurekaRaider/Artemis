@@ -1498,7 +1498,6 @@
   "ImSettingsPanel.botUnpairedLabel": "Pendiente de emparejar",
   "ImSettingsPanel.botUnbindLabel": "Desvincular {{value1}}",
   "ImSettingsPanel.botUnbindAction": "Desvincular",
-  "ImSettingsPanel.botUnbindDone": "Desvinculado. Escanea de nuevo para volver a conectarlo.",
   "ImSettingsPanel.botReplyModeTitle": "Modo de respuesta",
   "ImSettingsPanel.botReplyModeDesc": "Las respuestas usan tarjetas en streaming Card JSON 2.0 de Feishu; las llamadas a herramientas se muestran como resumen plegado.",
   "ImSettingsPanel.botReplyModeValue": "Tarjetas en streaming",

@@ -1099,23 +1099,18 @@ export function ImSettingsPanel({
     setFields({});
     setAdminToken("");
   };
-  /* 解绑（关联机器人卡）：停用这条应用连接（可重新扫码接入），
-     不删绑定记录；与下方「删除机器人」的彻底移除分层。 */
-  const unbindConnection = (connection: ImConnectionStatus) =>
+  /* 解除配对（关联机器人卡）：解绑这条连接的全部绑定账号，连接
+     本身不受影响，可用配对码重新绑定；与「删除机器人」分层。 */
+  const unpairConnection = (connection: ImConnectionStatus) =>
     run(async () => {
-      await window.artemis.manageIm({
-        action: "admin",
-        operation: "connections",
-        ...(local ? {} : { adminToken }),
-        configuration: {
-          id: connection.id,
-          name: connection.name,
-          channel,
-          enabled: false,
-        },
-      });
+      const bound = (status?.identities ?? []).filter(
+        (identity) => identity.connectionId === connection.id,
+      );
+      for (const identity of bound) {
+        await window.artemis.manageIm({ action: "unpair", identity });
+      }
       await refresh();
-      setMessage(t("ImSettingsPanel.botUnbindDone"));
+      setMessage(t("ImSettingsPanel.message26"));
     });
   /* 删除机器人：危险卡内的垃圾桶入口，确认（与远端管理凭据）走
      ImConnectionRemoval 弹窗。 */
@@ -1269,23 +1264,56 @@ export function ImSettingsPanel({
         renderFeishuScan(!channelConnections.length)}
     </div>
   );
-  /* 机器人详情（ZCode 式）：头（logo+名称+ID+刷新）+ 状态行 +
-     关联凭据 / 配对聊天 / 删除机器人 三张设置卡。 */
-  const renderBotProfile = (connection: ImConnectionStatus) => {
+  /* 已连接的机器人按绑定态标注（导航卡/状态行/关联机器人卡共用）：
+     绿「已配对」/ 黄「待配对」；未连接仍显示连接状态本身。 */
+  const pairingView = (connection: ImConnectionStatus) => {
     const state = imAggregateConnectionStates([connection.state]);
-    /* 连上之后状态行按绑定态说话：绿「已配对」/ 黄「待配对」；
-       未连接仍显示连接状态本身。 */
     const paired = (status?.identities ?? []).some(
       (identity) => identity.connectionId === connection.id,
     );
-    const pairingState =
-      state === "connected" ? (paired ? "connected" : "warning") : state;
-    const pairingLabel =
-      state === "connected"
-        ? paired
-          ? t("ImSettingsPanel.botPairedLabel")
-          : t("ImSettingsPanel.botUnpairedLabel")
-        : imConnectionLabel(state, t);
+    return {
+      state,
+      paired,
+      dot: state === "connected" ? (paired ? "connected" : "warning") : state,
+      label:
+        state === "connected"
+          ? paired
+            ? t("ImSettingsPanel.botPairedLabel")
+            : t("ImSettingsPanel.botUnpairedLabel")
+          : imConnectionLabel(state, t),
+    } as const;
+  };
+  /* 回复形态说明（ZCode 同款说明卡）：飞书固定流式卡片；
+     创建页与机器人详情（删除卡上方）共用。 */
+  const renderReplyModeCard = () => (
+    <div className="im-bot-section">
+      <div className="im-bot-section-copy">
+        <strong>{t("ImSettingsPanel.botReplyModeTitle")}</strong>
+        <p>{t("ImSettingsPanel.botReplyModeDesc")}</p>
+      </div>
+      <div className="im-bot-section-actions">
+        <Select
+          className="im-reply-mode-select"
+          labelVisibility="hidden"
+          label={t("ImSettingsPanel.botReplyModeTitle")}
+          value="streaming"
+          disabled
+          options={[
+            {
+              value: "streaming",
+              label: t("ImSettingsPanel.botReplyModeValue"),
+            },
+          ]}
+          onValueChange={() => {}}
+        />
+      </div>
+    </div>
+  );
+  /* 机器人详情（ZCode 式）：头（logo+名称+ID+刷新）+ 状态行 +
+     关联机器人 / 配对聊天 / 回复模式 / 删除机器人 设置卡。 */
+  const renderBotProfile = (connection: ImConnectionStatus) => {
+    const pairing = pairingView(connection);
+    const state = pairing.state;
     return (
       <div className="im-bot-profile">
         <div className="im-bot-profile-head">
@@ -1307,15 +1335,15 @@ export function ImSettingsPanel({
           </Tooltip>
         </div>
         <p className="im-bot-profile-state">
-          <span aria-hidden="true" className="im-dot" data-state={pairingState} />
-          {pairingLabel}
+          <span aria-hidden="true" className="im-dot" data-state={pairing.dot} />
+          {pairing.label}
         </p>
         {connection.error && (
           <InlineNotice tone="danger">{connection.error}</InlineNotice>
         )}
         {channel === "feishu" ? (
-          /* 关联机器人卡（ZCode 同款）：左侧说明，右侧连通状态；
-             已连通给「解绑」（停用应用，可重扫恢复），未连通保留扫码入口。 */
+          /* 关联机器人卡（ZCode 同款）：左侧说明，右侧配对状态；
+             已配对给「解除配对」（解绑账号，可重新配对），未连通保留扫码入口。 */
           <div
             className="im-bot-section"
             data-scan-open={credScan || undefined}
@@ -1329,22 +1357,24 @@ export function ImSettingsPanel({
                 <span
                   aria-hidden="true"
                   className="im-dot"
-                  data-state={state}
+                  data-state={pairing.dot}
                 />
-                {imConnectionLabel(state, t)}
+                {pairing.label}
               </span>
               {state === "connected" ? (
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  disabled={busy}
-                  label={t("ImSettingsPanel.botUnbindLabel", {
-                    value1: connection.name,
-                  })}
-                  onClick={() => unbindConnection(connection)}
-                >
-                  {t("ImSettingsPanel.botUnbindAction")}
-                </Button>
+                pairing.paired && (
+                  <Button
+                    variant="quiet"
+                    size="compact"
+                    disabled={busy}
+                    label={t("ImSettingsPanel.botUnbindLabel", {
+                      value1: connection.name,
+                    })}
+                    onClick={() => unpairConnection(connection)}
+                  >
+                    {t("ImSettingsPanel.botUnbindAction")}
+                  </Button>
+                )
               ) : (
                 <Button
                   variant="quiet"
@@ -1413,6 +1443,7 @@ export function ImSettingsPanel({
         {/* 从属账号：属于这条连接的已绑定账号，挂在配对卡下。 */}
         {connectionAccounts(connection.id)}
         {renderWebhookCallback(connection)}
+        {channel === "feishu" && renderReplyModeCard()}
         <div className="im-bot-section" data-tone="danger">
           <div className="im-bot-section-copy">
             <strong>{t("ImSettingsPanel.botDeleteTitle")}</strong>
@@ -1470,7 +1501,7 @@ export function ImSettingsPanel({
             <span>{t("ImSettingsPanel.message65")}</span>
           </button>
           {channelConnections.map((connection) => {
-            const state = imAggregateConnectionStates([connection.state]);
+            const pairing = pairingView(connection);
             return (
               <button
                 type="button"
@@ -1492,9 +1523,9 @@ export function ImSettingsPanel({
                     <span
                       aria-hidden="true"
                       className="im-dot"
-                      data-state={state}
+                      data-state={pairing.dot}
                     />
-                    {imConnectionLabel(state, t)}
+                    {pairing.label}
                   </span>
                 </span>
               </button>
@@ -1615,29 +1646,7 @@ export function ImSettingsPanel({
                       </div>
                     )}
                   </div>
-                    {/* 回复形态说明（ZCode 同款说明卡）：飞书固定流式卡片。 */}
-                    <div className="im-bot-section">
-                      <div className="im-bot-section-copy">
-                        <strong>{t("ImSettingsPanel.botReplyModeTitle")}</strong>
-                        <p>{t("ImSettingsPanel.botReplyModeDesc")}</p>
-                      </div>
-                      <div className="im-bot-section-actions">
-                        <Select
-                          className="im-reply-mode-select"
-                          labelVisibility="hidden"
-                          label={t("ImSettingsPanel.botReplyModeTitle")}
-                          value="streaming"
-                          disabled
-                          options={[
-                            {
-                              value: "streaming",
-                              label: t("ImSettingsPanel.botReplyModeValue"),
-                            },
-                          ]}
-                          onValueChange={() => {}}
-                        />
-                      </div>
-                    </div>
+                    {renderReplyModeCard()}
                   </>
                 ) : (
                   renderBotForm(dismissBotCreate)
