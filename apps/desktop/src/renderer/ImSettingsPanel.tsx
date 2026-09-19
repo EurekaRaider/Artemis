@@ -365,7 +365,11 @@ export function ImSettingsPanel({
               ? "test"
               : channel;
     selectView(next);
-    if (id === "im-device") setShowRemote(true);
+    if (id === "im-device") {
+      /* 手动注册改为弹窗：入口卡留在下层，焦点交给弹窗自管。 */
+      setShowRemote(true);
+      return;
+    }
     setFocusTarget(id);
   }
   /* ②卡内切换平台：留在引导流里，只重置该渠道的编辑态。 */
@@ -2444,141 +2448,6 @@ export function ImSettingsPanel({
         <strong>{label}</strong>
       </div>
     );
-    if (showRemote) {
-      /* 二级整幅卡：手动注册（原「使用团队 Gateway」折叠体）。 */
-      return (
-        <section className="im-screen-detail" id="im-device" tabIndex={-1}>
-          <div className="im-screen-detail-head">
-            <Button
-              size="compact"
-              variant="quiet"
-              onClick={() => setShowRemote(false)}
-            >
-              {t("ImSettingsPanel.channelBack")}
-            </Button>
-            <strong>{t("ImSettingsPanel.message46")}</strong>
-          </div>
-          <div className="im-screen-detail-body">
-            <ManagementSection
-              title={t("ImSettingsPanel.message57")}
-              description={t("ImSettingsPanel.message58")}
-            >
-              <TextField
-                label={t("ImSettingsPanel.message47")}
-                description={t("ImSettingsPanel.message48")}
-                type="url"
-                value={url}
-                onValueChange={setUrl}
-                placeholder="https://artemis.example.com"
-                disabled={busy || settings.enabled}
-              />
-              <TextField
-                label={t("ImSettingsPanel.message49")}
-                description={t("ImSettingsPanel.message50")}
-                value={name}
-                onValueChange={setName}
-                disabled={busy}
-              />
-              <TextField
-                label={t("ImSettingsPanel.message51")}
-                type="password"
-                value={adminToken}
-                onValueChange={setAdminToken}
-                autoComplete="off"
-                disabled={busy}
-                description={t("ImSettingsPanel.message52")}
-              />
-              <div className="im-actions">
-                <Button
-                  disabled={busy || settings.enabled || !url || !adminToken}
-                  onClick={() =>
-                    void run(async () => {
-                      const token = adminToken;
-                      setAdminToken("");
-                      await window.artemis.manageIm({
-                        action: "register",
-                        gatewayUrl: url,
-                        name,
-                        adminToken: token,
-                      });
-                      setPairCode(undefined);
-                      const current = await window.artemis.getImStatus();
-                      setStatus(current);
-                      setSettings(current.settings);
-                      setMessage(t("ImSettingsPanel.message54"));
-                    })
-                  }
-                >
-                  {t("ImSettingsPanel.message53")}
-                </Button>
-                <Button disabled={busy} onClick={() => void run(refresh)}>
-                  {t("ImSettingsPanel.message55")}
-                </Button>
-              </div>
-              <p>{t("ImSettingsPanel.message56")}</p>
-            </ManagementSection>
-          </div>
-        </section>
-      );
-    }
-    if (advancedDetail) {
-      /* 二级整幅卡：覆盖两栏区，头部=返回+tab标题，内容=原「高级」折叠体。 */
-      return (
-        <section className="im-screen-detail">
-          <div className="im-screen-detail-head">
-            <Button
-              size="compact"
-              variant="quiet"
-              onClick={() => setAdvancedDetail(false)}
-            >
-              {t("ImSettingsPanel.channelBack")}
-            </Button>
-            <strong>{t("ImSetupGuide.message4")}</strong>
-          </div>
-          <div className="im-screen-detail-body">
-            <p>{t("ImSetupGuide.message5")}</p>
-            <div className="im-actions">
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  setAdvancedDetail(false);
-                  setShowRemote(true);
-                  window.setTimeout(
-                    () =>
-                      document
-                        .getElementById("im-device")
-                        ?.scrollIntoView({ block: "start" }),
-                    0,
-                  );
-                }}
-              >
-                {t("ImSetupGuide.message6")}
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    const path = await window.artemis.manageIm({
-                      action: "export-gateway",
-                    });
-                    if (path)
-                      setMessage(
-                        t("ImSettingsPanel.message43", {
-                          value1: String(path),
-                        }),
-                      );
-                  })
-                }
-              >
-                {t("ImSetupGuide.message7")}
-              </Button>
-            </div>
-            <p>{t("ImSetupGuide.message8")}</p>
-            <pre className="im-command">node gateway.mjs</pre>
-          </div>
-        </section>
-      );
-    }
     return (
       <div className="im-two-col">
         {/* 左栏：这台电脑是谁（服务）。固定标题+内容，不再折叠。 */}
@@ -2880,19 +2749,19 @@ export function ImSettingsPanel({
         /* 渠道二级面板弹窗（ZCode 式）：主从布局整幅入弹，宽 896px 对齐
            ZCode 弹窗标准；头部=渠道标+名+关闭。 */
         <Dialog
-          className="im-channel-dialog"
+          className="im-detail-dialog im-channel-dialog"
           label={imChannelLabel(channel, t)}
           onOpenChange={(open) => {
             if (!open) setChannelDetail(false);
           }}
           open
         >
-          <header className="im-channel-dialog-head">
+          <header className="im-detail-dialog-head">
             {channelLogo(channel, 22)}
             <h2>{imChannelLabel(channel, t)}</h2>
             <button
               type="button"
-              className="im-channel-dialog-close"
+              className="im-detail-dialog-close"
               aria-label={t("App_copy.renameClose")}
               onClick={() => setChannelDetail(false)}
             >
@@ -2904,7 +2773,157 @@ export function ImSettingsPanel({
               />
             </button>
           </header>
-          <div className="im-channel-dialog-body">{renderChannelBody()}</div>
+          <div className="im-detail-dialog-body">{renderChannelBody()}</div>
+        </Dialog>
+      )}
+      {showRemote && (
+        /* 团队 Gateway 手动注册：与渠道弹窗同壳（560px 表单宽）。 */
+        <Dialog
+          className="im-detail-dialog im-remote-dialog"
+          label={t("ImSettingsPanel.message46")}
+          onOpenChange={(open) => {
+            if (!open) setShowRemote(false);
+          }}
+          open
+        >
+          <header className="im-detail-dialog-head">
+            <h2>{t("ImSettingsPanel.message46")}</h2>
+            <button
+              type="button"
+              className="im-detail-dialog-close"
+              aria-label={t("App_copy.renameClose")}
+              onClick={() => setShowRemote(false)}
+            >
+              <ArtemisIcon
+                aria-hidden="true"
+                height={14}
+                name="close"
+                width={14}
+              />
+            </button>
+          </header>
+          <div className="im-detail-dialog-body">
+            <ManagementSection
+              title={t("ImSettingsPanel.message57")}
+              description={t("ImSettingsPanel.message58")}
+            >
+              <TextField
+                label={t("ImSettingsPanel.message47")}
+                description={t("ImSettingsPanel.message48")}
+                type="url"
+                value={url}
+                onValueChange={setUrl}
+                placeholder="https://artemis.example.com"
+                disabled={busy || settings.enabled}
+              />
+              <TextField
+                label={t("ImSettingsPanel.message49")}
+                description={t("ImSettingsPanel.message50")}
+                value={name}
+                onValueChange={setName}
+                disabled={busy}
+              />
+              <TextField
+                label={t("ImSettingsPanel.message51")}
+                type="password"
+                value={adminToken}
+                onValueChange={setAdminToken}
+                autoComplete="off"
+                disabled={busy}
+                description={t("ImSettingsPanel.message52")}
+              />
+              <div className="im-actions">
+                <Button
+                  disabled={busy || settings.enabled || !url || !adminToken}
+                  onClick={() =>
+                    void run(async () => {
+                      const token = adminToken;
+                      setAdminToken("");
+                      await window.artemis.manageIm({
+                        action: "register",
+                        gatewayUrl: url,
+                        name,
+                        adminToken: token,
+                      });
+                      setPairCode(undefined);
+                      const current = await window.artemis.getImStatus();
+                      setStatus(current);
+                      setSettings(current.settings);
+                      setMessage(t("ImSettingsPanel.message54"));
+                    })
+                  }
+                >
+                  {t("ImSettingsPanel.message53")}
+                </Button>
+                <Button disabled={busy} onClick={() => void run(refresh)}>
+                  {t("ImSettingsPanel.message55")}
+                </Button>
+              </div>
+              <p>{t("ImSettingsPanel.message56")}</p>
+            </ManagementSection>
+          </div>
+        </Dialog>
+      )}
+      {advancedDetail && (
+        /* 「高级」：自托管 Gateway 说明与导出/本地命令，同壳弹窗。 */
+        <Dialog
+          className="im-detail-dialog im-advanced-dialog"
+          label={t("ImSetupGuide.message4")}
+          onOpenChange={(open) => {
+            if (!open) setAdvancedDetail(false);
+          }}
+          open
+        >
+          <header className="im-detail-dialog-head">
+            <h2>{t("ImSetupGuide.message4")}</h2>
+            <button
+              type="button"
+              className="im-detail-dialog-close"
+              aria-label={t("App_copy.renameClose")}
+              onClick={() => setAdvancedDetail(false)}
+            >
+              <ArtemisIcon
+                aria-hidden="true"
+                height={14}
+                name="close"
+                width={14}
+              />
+            </button>
+          </header>
+          <div className="im-detail-dialog-body">
+            <p>{t("ImSetupGuide.message5")}</p>
+            <div className="im-actions">
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  setAdvancedDetail(false);
+                  setShowRemote(true);
+                }}
+              >
+                {t("ImSetupGuide.message6")}
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const path = await window.artemis.manageIm({
+                      action: "export-gateway",
+                    });
+                    if (path)
+                      setMessage(
+                        t("ImSettingsPanel.message43", {
+                          value1: String(path),
+                        }),
+                      );
+                  })
+                }
+              >
+                {t("ImSetupGuide.message7")}
+              </Button>
+            </div>
+            <p>{t("ImSetupGuide.message8")}</p>
+            <pre className="im-command">node gateway.mjs</pre>
+          </div>
         </Dialog>
       )}
     </div>

@@ -163,7 +163,9 @@ const closeChannelDialog = async (
   user: ReturnType<typeof userEvent.setup>,
 ) => {
   await user.click(
-    document.querySelector(".im-channel-dialog-close") as HTMLButtonElement,
+    document.querySelector(
+      ".im-channel-dialog .im-detail-dialog-close",
+    ) as HTMLButtonElement,
   );
 };
 const platformState = (channel: keyof typeof platformLabels) =>
@@ -652,6 +654,32 @@ describe("production IM settings", () => {
     /* 再点收起：扫码区随开合移除，可随时重开。 */
     await user.click(screen.getByRole("button", { name: "扫码" }));
     expect(document.querySelector(".im-bot-scan")).toBeNull();
+  });
+  it("opens team gateway registration and advanced deployment as dialogs", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await panelReady();
+    /* 使用团队 Gateway（手动注册）：入口卡下钻弹窗，× 关闭。 */
+    await user.click(
+      screen.getByRole("button", { name: "使用团队 Gateway（手动注册）" }),
+    );
+    expect(document.querySelector(".im-remote-dialog")).toBeVisible();
+    expect(await screen.findByLabelText("Gateway 地址")).toBeVisible();
+    await user.click(
+      document.querySelector(
+        ".im-remote-dialog .im-detail-dialog-close",
+      ) as HTMLButtonElement,
+    );
+    expect(document.querySelector(".im-remote-dialog")).toBeNull();
+    /* 高级：说明+导出/命令；弹窗内「使用团队 Gateway」替换为注册弹窗。 */
+    await user.click(
+      screen.getByRole("button", { name: /高级：使用团队服务或独立部署/ }),
+    );
+    expect(document.querySelector(".im-advanced-dialog")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "使用团队 Gateway" }));
+    expect(document.querySelector(".im-advanced-dialog")).toBeNull();
+    expect(document.querySelector(".im-remote-dialog")).toBeVisible();
   });
   it("separates saved credentials from an established connection in the lifecycle", async () => {
     const f = fixture();
