@@ -10545,8 +10545,9 @@ kbd {
 }
 .im-detail-dialog.im-channel-dialog {
   width: min(896px, 94vw);
-  /* 弹窗高度放大：内容不足时也保持饱满高度，右栏背板卡随之撑满。 */
-  min-block-size: min(680px, 88dvh);
+  /* 高度与「消息接入」主弹窗同一公式：视觉齐平，内容超出时内部滚动。 */
+  min-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
 }
 .im-detail-dialog-head {
   display: flex;
@@ -10605,12 +10606,12 @@ kbd {
 .im-channel-dialog .im-detail-dialog-body > .im-channel-md {
   flex: 1 1 auto;
 }
-/* 渠道二级面板（ZCode 式主从）：左 264px 导航（新建入口 + 机器人卡 +
-   设置行），右栏背板卡随选中切换机器人详情 / 指引 / 导入 / 验证，
-   纵向撑满弹窗（≈3:7 宽度比）。 */
+/* 渠道二级面板（ZCode 式主从）：左 300px 导航（新建入口 + 机器人卡 +
+   设置行），右栏背板卡随选中切换机器人详情 / 新建 / 指引 / 导入 / 验证，
+   纵向撑满弹窗（≈1:2 宽度比）。 */
 .im-channel-body.im-channel-md {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -10654,7 +10655,8 @@ kbd {
   text-align: start;
 }
 .im-bot-card:hover,
-.im-bot-card[data-selected] {
+.im-bot-card[data-selected],
+.im-bot-new[data-selected] {
   background: color-mix(in srgb, var(--text) 8.5%, transparent);
   border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
@@ -10690,13 +10692,13 @@ kbd {
   justify-content: space-between;
   gap: 8px;
   inline-size: 100%;
-  padding: 8px 14px;
+  padding: 11px 16px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13.5px;
   cursor: pointer;
   text-align: start;
 }
@@ -10709,7 +10711,7 @@ kbd {
   color: var(--text);
 }
 .im-bot-nav-caret {
-  font-size: 12px;
+  font-size: 13px;
 }
 /* 右栏背板卡（ZCode 式）：比弹窗背板浅一档的整幅卡片，包住详情/
    指引/导入/验证所有右栏内容，纵向撑满。 */
@@ -10796,6 +10798,26 @@ kbd {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+/* 右栏创建页（ZCode 式：新建占据整卡）：头部=渠道标+标题，
+   表单节奏与详情卡一致。 */
+.im-bot-create {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.im-bot-create-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.im-bot-create-head strong {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+}
+.im-bot-create .im-actions {
+  margin-top: 2px;
 }
 .im-bot-join {
   display: flex;

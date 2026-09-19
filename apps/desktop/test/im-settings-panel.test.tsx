@@ -446,16 +446,12 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    /* 设置链接在主从布局的「接入指引」页；凭据表单在弹窗内。 */
-    await user.click(screen.getByRole("button", { name: /^接入指引/ }));
+    /* 凭据表单在右栏创建页：选 Lark 后域随表单保存。 */
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     const region = screen.getByRole("button", { name: /^应用区域/ });
     expect(region.closest("details")).toBeNull();
     await user.click(region);
     await user.click(screen.getByRole("option", { name: /Lark 国际版/ }));
-    expect(
-      screen.getByRole("link", { name: "打开 Lark 开发者后台" }),
-    ).toHaveAttribute("href", "https://open.larksuite.com/app");
     await user.type(screen.getByLabelText("App ID"), "cli_lark");
     await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
     await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
@@ -470,6 +466,10 @@ describe("production IM settings", () => {
         }),
       }),
     );
+    /* 保存后自动弹出的配对指引跟随已存 domain（Lark 国际版）。 */
+    expect(
+      await screen.findByText(/在 Lark 国际版 中找到刚配置的机器人/),
+    ).toBeVisible();
   });
   it.each(["wecom", "feishu", "slack"] as const)(
     "removes a $channel bot without paired accounts, supports cancellation, and clears saved credentials",
@@ -583,6 +583,11 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
     await openChannel(user, "feishu");
+    /* 指引与创建表单同在右栏（互斥页）：先在「接入指引」页验个人开发者
+       出路，再切到创建页填凭据。 */
+    await user.click(screen.getByRole("button", { name: /^接入指引/ }));
+    await user.click(screen.getByText("我是个人开发者，没有企业怎么办？"));
+    expect(screen.getByText(/这里的“企业”指飞书团队/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
     expect(
       screen.getByText("高级设置（通常无需修改）").closest("details"),
@@ -590,10 +595,6 @@ describe("production IM settings", () => {
     expect(
       screen.getByLabelText("Tenant Key（可留空，自动获取）"),
     ).not.toBeVisible();
-    /* 指引统一收进「接入指引」折叠块：先展开外层，再点内层折叠。 */
-    await user.click(screen.getByText("接入指引"));
-    await user.click(screen.getByText("我是个人开发者，没有企业怎么办？"));
-    expect(screen.getByText(/这里的“企业”指飞书团队/)).toBeVisible();
     await user.type(screen.getByLabelText("App ID"), "cli_example");
     await user.type(
       screen.getByLabelText("App Secret"),
@@ -680,6 +681,21 @@ describe("production IM settings", () => {
     await user.click(screen.getByRole("button", { name: "使用团队 Gateway" }));
     expect(document.querySelector(".im-advanced-dialog")).toBeNull();
     expect(document.querySelector(".im-remote-dialog")).toBeVisible();
+  });
+  it("replaces the right detail card with the create form instead of a dialog", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "wecom");
+    /* ZCode 式：创建表单占据右栏整卡，不再弹独立弹窗；取消回到详情。 */
+    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
+    expect(
+      document.querySelector(".im-channel-dialog .im-bot-create"),
+    ).toBeVisible();
+    expect(document.querySelector(".im-bot-dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(document.querySelector(".im-bot-create")).toBeNull();
+    expect(document.querySelector(".im-bot-profile")).toBeVisible();
   });
   it("separates saved credentials from an established connection in the lifecycle", async () => {
     const f = fixture();

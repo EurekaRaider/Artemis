@@ -131,9 +131,10 @@ export function ImSettingsPanel({
   const [projectsDetail, setProjectsDetail] = useState(initialPermissions);
   const [showRemote, setShowRemote] = useState(false);
   const [advancedDetail, setAdvancedDetail] = useState(false);
-  /* 渠道二级面板（ZCode 式主从）：右栏 = 选中机器人详情 / 指引 / 导入 / 验证。 */
+  /* 渠道二级面板（ZCode 式主从）：右栏 = 选中机器人详情 / 新建表单 /
+     指引 / 导入 / 验证。 */
   const [channelPane, setChannelPane] = useState<
-    "bot" | "guide" | "import" | "verify"
+    "bot" | "create" | "guide" | "import" | "verify"
   >("bot");
   const [selectedBotId, setSelectedBotId] = useState("");
   /* 关联凭据卡的飞书扫码开合（ZCode 式：卡头「扫码」钮展开二维码）。 */
@@ -858,12 +859,6 @@ export function ImSettingsPanel({
         height={size}
       />
     );
-  const openBlankBotDialog = (trigger: HTMLButtonElement) => {
-    botDialogTrigger.current = trigger;
-    setFields({});
-    setAdminToken("");
-    setBotDialog({});
-  };
   const openBotEditor = (
     connection: ImConnectionStatus,
     trigger: HTMLButtonElement,
@@ -889,6 +884,204 @@ export function ImSettingsPanel({
     if (!pairCode || pairCode.expiresAt <= Date.now()) {
       void run(generatePairCode);
     }
+  };
+  /* 新建（右栏创建页）与更换凭据（弹窗）共用的保存逻辑；dismiss 收到
+     保存后的连接 id，决定保存成功后回到哪个界面。 */
+  const saveBotForm = (dismiss: (savedId: string) => void) => {
+    setSavingChannel(channel);
+    void run(async () => {
+      const token = adminToken;
+      setAdminToken("");
+      const savedId =
+        fields.id?.trim() ||
+        dialogMetadata?.id ||
+        `${channel}-${crypto.randomUUID()}`;
+      const savedName =
+        fields.name?.trim() ||
+        dialogMetadata?.name ||
+        (channel === "feishu"
+          ? feishuDomain === "lark"
+            ? "Lark"
+            : t("ImSettingsPanel.message90")
+          : imChannelLabel(channel, t));
+      await window.artemis.manageIm({
+        action: "admin",
+        operation: "connections",
+        ...(local ? {} : { adminToken: token }),
+        configuration: {
+          channel,
+          enabled: true,
+          ...(channel === "feishu"
+            ? {
+                transport: feishuTransport,
+                domain: feishuDomain,
+              }
+            : {}),
+          ...Object.fromEntries(
+            fieldNames
+              .filter(
+                (key) =>
+                  !optionalFields.includes(key) || !!fields[key]?.trim(),
+              )
+              .map((key) => [key, fields[key]?.trim() ?? ""]),
+          ),
+          id: savedId,
+          name: savedName,
+        },
+      });
+      setConnectionId(savedId);
+      setSavedMetadata((previous) => ({
+        ...previous,
+        [channel]: {
+          ...Object.fromEntries(
+            PUBLIC_BOT_FIELDS.flatMap((key) =>
+              fields[key] ? [[key, fields[key]!.trim()]] : [],
+            ),
+          ),
+          id: savedId,
+          name: savedName,
+          ...(channel === "feishu"
+            ? {
+                transport: feishuTransport,
+                domain: feishuDomain,
+              }
+            : {}),
+        },
+      }));
+      setFields({});
+      dismiss(savedId);
+      setSavedPending((previous) => ({
+        ...previous,
+        [channel]: true,
+      }));
+      setMessage(t("ImSettingsPanel.message91"));
+      try {
+        await refresh();
+      } catch (error) {
+        setMessage(
+          t("ImSettingsPanel.message92", {
+            value1: String(error),
+          }),
+        );
+        return;
+      }
+      try {
+        await generatePairCode();
+        pairDialogTrigger.current = botDialogTrigger.current;
+        setPairDialogId(savedId);
+        setMessage(t("ImSettingsPanel.message93"));
+      } catch (error) {
+        setMessage(
+          t("ImSettingsPanel.message94", {
+            value1: String(error),
+          }),
+        );
+      }
+    }).finally(() => setSavingChannel(null));
+  };
+  /* 表单体：渠道字段 + 高级字段 +（远端）管理凭据；cancel 决定放弃时
+     回到哪个界面。 */
+  const renderBotForm = (cancel: (savedId: string) => void) => (
+    <>
+      {channel === "feishu" && (
+        <Select
+          labelVisibility="visible"
+          label={t("ImSettingsPanel.message78")}
+          description={t("ImSettingsPanel.message79")}
+          value={feishuDomain}
+          options={[
+            {
+              value: "feishu",
+              label: t("ImSettingsPanel.message80"),
+            },
+            {
+              value: "lark",
+              label: t("ImSettingsPanel.message81"),
+            },
+          ]}
+          disabled={busy}
+          onValueChange={(domain) =>
+            setFields((previous) => ({ ...previous, domain }))
+          }
+        />
+      )}
+      {requiredFields.map(renderBotField)}
+      <details className="im-advanced-fields">
+        <summary>{t("ImSettingsPanel.message82")}</summary>
+        <div className="im-field-stack">
+          {channel === "feishu" && (
+            <Select
+              labelVisibility="visible"
+              label={t("ImSettingsPanel.message83")}
+              value={feishuTransport}
+              options={[
+                {
+                  value: "websocket",
+                  label: t("ImSettingsPanel.message84"),
+                },
+                {
+                  value: "webhook",
+                  label: t("ImSettingsPanel.message85"),
+                },
+              ]}
+              disabled={busy}
+              onValueChange={(transport) =>
+                setFields((previous) => ({
+                  ...previous,
+                  transport,
+                }))
+              }
+            />
+          )}
+          {optionalFields.map(renderBotField)}
+        </div>
+      </details>
+      {!local && (
+        <TextField
+          label={t("ImSettingsPanel.message86")}
+          type="password"
+          value={adminToken}
+          onValueChange={setAdminToken}
+          autoComplete="off"
+          disabled={busy}
+          description={t("ImSettingsPanel.message87")}
+        />
+      )}
+      {channel === "feishu" && feishuTransport === "webhook" && local && (
+        <InlineNotice tone="info">{t("ImSettingsPanel.message88")}</InlineNotice>
+      )}
+      <div className="im-actions">
+        <Button
+          disabled={
+            busy ||
+            (!local && !adminToken) ||
+            !activeSettings.deviceId ||
+            (local &&
+              channel === "feishu" &&
+              feishuTransport === "webhook") ||
+            !requiredFields.every((key) => fields[key]?.trim())
+          }
+          onClick={() => saveBotForm(cancel)}
+        >
+          {t("ImSettingsPanel.message89")}
+        </Button>
+        <Button disabled={busy} onClick={() => cancel("")}>
+          {t("App_copy.renameCancel")}
+        </Button>
+      </div>
+    </>
+  );
+  const dismissBotDialog = () => {
+    setBotDialog(null);
+    setFields({});
+    setAdminToken("");
+  };
+  const dismissBotCreate = (savedId: string) => {
+    /* 创建页保存后：回到机器人详情并选中新机器人（ZCode 同款动线）。 */
+    setChannelPane("bot");
+    setSelectedBotId(savedId);
+    setFields({});
+    setAdminToken("");
   };
   /* 删除机器人：危险卡内的垃圾桶入口，确认（与远端管理凭据）走
      ImConnectionRemoval 弹窗。 */
@@ -1168,8 +1361,15 @@ export function ImSettingsPanel({
             type="button"
             className="im-bot-new"
             disabled={busy}
+            data-selected={channelPane === "create" || undefined}
             aria-label={t("ImSettingsPanel.message65")}
-            onClick={(event) => openBlankBotDialog(event.currentTarget)}
+            onClick={(event) => {
+              /* ZCode 式：新建不弹独立弹窗，右栏整卡切换为创建表单。 */
+              botDialogTrigger.current = event.currentTarget;
+              setFields({});
+              setAdminToken("");
+              setChannelPane("create");
+            }}
           >
             <ArtemisIcon
               aria-hidden="true"
@@ -1267,6 +1467,19 @@ export function ImSettingsPanel({
               {renderVerifyBody()}
             </div>
           )}
+          {channelPane === "create" && (
+            /* ZCode 式：新建占据右栏整卡（不再弹独立弹窗），保存后落回
+               机器人详情并选中新机器人。 */
+            <div className="im-bot-pane" id="im-bot-create" tabIndex={-1}>
+              <div className="im-bot-create">
+                <div className="im-bot-create-head">
+                  {channelLogo(channel, 28)}
+                  <strong>{t("ImSettingsPanel.message76")}</strong>
+                </div>
+                {renderBotForm(dismissBotCreate)}
+              </div>
+            </div>
+          )}
           {channelPane === "bot" &&
             (selected ? renderBotProfile(selected) : renderJoinCard())}
         </div>
@@ -1276,7 +1489,7 @@ export function ImSettingsPanel({
     );
   }
   function renderBotDialog() {
-    /* 新建/更换凭据弹窗：渠道字段 + 高级字段 +（远端）管理凭据。 */
+    /* 更换凭据弹窗（新建已改右栏创建页）：与创建页共用同一表单体。 */
     return (
       <>
         {botDialog && (
@@ -1291,11 +1504,7 @@ export function ImSettingsPanel({
             }
             returnFocusRef={botDialogTrigger}
             onOpenChange={(open) => {
-              if (!open) {
-                setBotDialog(null);
-                setFields({});
-                setAdminToken("");
-              }
+              if (!open) dismissBotDialog();
             }}
             open
           >
@@ -1309,195 +1518,7 @@ export function ImSettingsPanel({
               </h2>
             </header>
             <div className="im-bot-dialog-body">
-              {channel === "feishu" && (
-                <Select
-                  labelVisibility="visible"
-                  label={t("ImSettingsPanel.message78")}
-                  description={t("ImSettingsPanel.message79")}
-                  value={feishuDomain}
-                  options={[
-                    {
-                      value: "feishu",
-                      label: t("ImSettingsPanel.message80"),
-                    },
-                    {
-                      value: "lark",
-                      label: t("ImSettingsPanel.message81"),
-                    },
-                  ]}
-                  disabled={busy}
-                  onValueChange={(domain) =>
-                    setFields((previous) => ({ ...previous, domain }))
-                  }
-                />
-              )}
-              {requiredFields.map(renderBotField)}
-              <details className="im-advanced-fields">
-                <summary>{t("ImSettingsPanel.message82")}</summary>
-                <div className="im-field-stack">
-                  {channel === "feishu" && (
-                    <Select
-                      labelVisibility="visible"
-                      label={t("ImSettingsPanel.message83")}
-                      value={feishuTransport}
-                      options={[
-                        {
-                          value: "websocket",
-                          label: t("ImSettingsPanel.message84"),
-                        },
-                        {
-                          value: "webhook",
-                          label: t("ImSettingsPanel.message85"),
-                        },
-                      ]}
-                      disabled={busy}
-                      onValueChange={(transport) =>
-                        setFields((previous) => ({
-                          ...previous,
-                          transport,
-                        }))
-                      }
-                    />
-                  )}
-                  {optionalFields.map(renderBotField)}
-                </div>
-              </details>
-              {!local && (
-                <TextField
-                  label={t("ImSettingsPanel.message86")}
-                  type="password"
-                  value={adminToken}
-                  onValueChange={setAdminToken}
-                  autoComplete="off"
-                  disabled={busy}
-                  description={t("ImSettingsPanel.message87")}
-                />
-              )}
-              {channel === "feishu" &&
-                feishuTransport === "webhook" &&
-                local && (
-                  <InlineNotice tone="info">
-                    {t("ImSettingsPanel.message88")}
-                  </InlineNotice>
-                )}
-              <div className="im-actions">
-                <Button
-                  disabled={
-                    busy ||
-                    (!local && !adminToken) ||
-                    !activeSettings.deviceId ||
-                    (local &&
-                      channel === "feishu" &&
-                      feishuTransport === "webhook") ||
-                    !requiredFields.every((key) => fields[key]?.trim())
-                  }
-                  onClick={() => {
-                    setSavingChannel(channel);
-                    void run(async () => {
-                      const token = adminToken;
-                      setAdminToken("");
-                      const savedId =
-                        fields.id?.trim() ||
-                        dialogMetadata?.id ||
-                        `${channel}-${crypto.randomUUID()}`;
-                      const savedName =
-                        fields.name?.trim() ||
-                        dialogMetadata?.name ||
-                        (channel === "feishu"
-                          ? feishuDomain === "lark"
-                            ? "Lark"
-                            : t("ImSettingsPanel.message90")
-                          : imChannelLabel(channel, t));
-                      await window.artemis.manageIm({
-                        action: "admin",
-                        operation: "connections",
-                        ...(local ? {} : { adminToken: token }),
-                        configuration: {
-                          channel,
-                          enabled: true,
-                          ...(channel === "feishu"
-                            ? {
-                                transport: feishuTransport,
-                                domain: feishuDomain,
-                              }
-                            : {}),
-                          ...Object.fromEntries(
-                            fieldNames
-                              .filter(
-                                (key) =>
-                                  !optionalFields.includes(key) ||
-                                  !!fields[key]?.trim(),
-                              )
-                              .map((key) => [key, fields[key]?.trim() ?? ""]),
-                          ),
-                          id: savedId,
-                          name: savedName,
-                        },
-                      });
-                      setConnectionId(savedId);
-                      setSavedMetadata((previous) => ({
-                        ...previous,
-                        [channel]: {
-                          ...Object.fromEntries(
-                            PUBLIC_BOT_FIELDS.flatMap((key) =>
-                              fields[key] ? [[key, fields[key]!.trim()]] : [],
-                            ),
-                          ),
-                          id: savedId,
-                          name: savedName,
-                          ...(channel === "feishu"
-                            ? {
-                                transport: feishuTransport,
-                                domain: feishuDomain,
-                              }
-                            : {}),
-                        },
-                      }));
-                      setFields({});
-                      setBotDialog(null);
-                      setSavedPending((previous) => ({
-                        ...previous,
-                        [channel]: true,
-                      }));
-                      setMessage(t("ImSettingsPanel.message91"));
-                      try {
-                        await refresh();
-                      } catch (error) {
-                        setMessage(
-                          t("ImSettingsPanel.message92", {
-                            value1: String(error),
-                          }),
-                        );
-                        return;
-                      }
-                      try {
-                        await generatePairCode();
-                        pairDialogTrigger.current = botDialogTrigger.current;
-                        setPairDialogId(savedId);
-                        setMessage(t("ImSettingsPanel.message93"));
-                      } catch (error) {
-                        setMessage(
-                          t("ImSettingsPanel.message94", {
-                            value1: String(error),
-                          }),
-                        );
-                      }
-                    }).finally(() => setSavingChannel(null));
-                  }}
-                >
-                  {t("ImSettingsPanel.message89")}
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() => {
-                    setBotDialog(null);
-                    setFields({});
-                    setAdminToken("");
-                  }}
-                >
-                  {t("App_copy.renameCancel")}
-                </Button>
-              </div>
+              {renderBotForm(dismissBotDialog)}
             </div>
           </Dialog>
         )}
