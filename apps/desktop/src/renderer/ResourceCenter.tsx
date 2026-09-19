@@ -202,6 +202,9 @@ export function ResourceCenter({
   const [draggingMarketplaceId, setDraggingMarketplaceId] = useState<
     string | undefined
   >(undefined);
+  const [addPluginReturnMode, setAddPluginReturnMode] = useState<
+    "marketplace" | "manage"
+  >("marketplace");
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
   const [managementQuery, setManagementQuery] = useState("");
   const [sourceInput, setSourceInput] = useState("");
@@ -1797,13 +1800,25 @@ export function ResourceCenter({
               className="resource-back-button"
               disabled={operationPending}
               icon={<BackIcon />}
-              label={t.backToPlugins}
+              label={
+                addPluginReturnMode === "marketplace"
+                  ? t.backToMarketplace
+                  : t.backToPlugins
+              }
               onClick={() => {
-                setMode("manage");
-                setManagementTab("plugins");
+                if (addPluginReturnMode === "marketplace") {
+                  setMode("marketplace");
+                } else {
+                  setMode("manage");
+                  setManagementTab("plugins");
+                }
                 setMessage(undefined);
               }}
-              title={t.backToPlugins}
+              title={
+                addPluginReturnMode === "marketplace"
+                  ? t.backToMarketplace
+                  : t.backToPlugins
+              }
             />
           }
           title={t.addPlugin}
@@ -2056,7 +2071,10 @@ export function ResourceCenter({
                 className="resource-add-button"
                 disabled={operationPending}
                 icon={<PlusIcon />}
-                onClick={() => setMode("add-plugin")}
+                onClick={() => {
+                  setAddPluginReturnMode("marketplace");
+                  setMode("add-plugin");
+                }}
               >
                 {t.add}
               </Button>
@@ -2362,7 +2380,10 @@ export function ResourceCenter({
               className="resource-add-button subtle"
               disabled={operationPending}
               icon={<PlusIcon />}
-              onClick={() => setMode("add-plugin")}
+              onClick={() => {
+                setAddPluginReturnMode("manage");
+                setMode("add-plugin");
+              }}
             >
               {t.addPlugin}
             </Button>
