@@ -1,0 +1,792 @@
+{
+  "version": 1,
+  "appVersion": "1.6.0",
+  "sourceRepository": "EurekaRaider/Artemis",
+  "sourceHead": "458101125146fc1d9ebecbc56158413aa22b2b8b",
+  "sourceState": "Current local production Electron build; the desktop checkout contained in-progress changes.",
+  "viewport": {
+    "width": 1440,
+    "height": 850
+  },
+  "data": "Isolated synthetic projects, translated conversations, disabled automations and synthetic IM status. No personal profile, real IM account or provider request was used.",
+  "build": {
+    "mainSha256": "5bc43bfc28234080785e1c9ef5a22f0a8465d4dd753d347aaf716dbe547fb6b8",
+    "rendererIndexSha256": "6863ec93cff3f16cb9d8ddf3735f07737836f70a088575acffb6f0b7714b94bc"
+  },
+  "locales": {
+    "en": {
+      "capturedAt": "2026-09-19T13:49:13.897Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 108801,
+          "sha256": "f314683250a4f7e8dc135f4e81d4dce8d10c394a27318a1cbcc34a68d2cd3f94"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 168192,
+          "sha256": "eeecf24541c03a80c6371c3e794db6fcd48c11e3add44488f280d99424a3a36e"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 142904,
+          "sha256": "85546e1cf5d926477ee872f746eed2a5663255bd8d4fd4d7d17df0b1633a3640"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 117019,
+          "sha256": "f7d4a5e2f0c327efb543336e71486e7aae1b2747f28f7b2ae83dc0246faa40e5"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 128998,
+          "sha256": "30271ad52c8014a106b4426beaee5c5bc1f149e030299d7711b23ec6c8304f23"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 177352,
+          "sha256": "0ba89baf79eb0a12c8f9bf31266b345d4b8e066f6663f0eba935a61aa20d20b2"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 131315,
+          "sha256": "28a050cafec04c8d937b28fcc3170d64f413c478fe7a1440f2fbabf5a7281661"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 109415,
+          "sha256": "cfb2a93673e50888196fa44fff42d2842e8c0fed718fd5ff906437bdeb5aa740"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 109336,
+          "sha256": "2dcdf40b306d4b5121728198fa42cbb964b798d11532f5eb2cd2a36df0a0613d"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 121819,
+          "sha256": "06d281628ae3ce812f324978fa4c20873e5fbb6c4f6c1990611d6fa9d094198f"
+        }
+      ]
+    },
+    "zh-CN": {
+      "capturedAt": "2026-09-19T13:49:59.280Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 114760,
+          "sha256": "98654c4973d2f301f61dc7aeaeec418b89d5345cfdf240c6b6220af05752b163"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 173138,
+          "sha256": "d00ff5d160ce8202c3632cec9a54512f78ea98ca1c1adbb3f75fc5234deac657"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 152151,
+          "sha256": "bf9231f4e77b058b0292fba8a6fa9bbb2e5a4d5bfcdd75950a4e530b71c1049c"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 123550,
+          "sha256": "8addb9864cce97b49cf74377ffd54185b542392a90d840a12ffa7b7d1685501b"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 134387,
+          "sha256": "a5faad37f49e9b710bb789caeda06d478ec650b54efe2509805668c7ccb199bd"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 168190,
+          "sha256": "bbf4c5ac505ae400f2638274fe7d81d77158c57b239f8dc35a2529d1f2d8efe6"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 139202,
+          "sha256": "7d5e954276d8759982fd3316867d4a6c58461332c058d669c272dde7ab7d85cb"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 110514,
+          "sha256": "1db00754976f02a827b49f1faa1d1bc5094d3b1add45b1d6fc41de8d929192f5"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 113815,
+          "sha256": "6a2d7e50de94c0d747b2eda0d20b564400c5fe243528b8cace306c6fe88f630f"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 125371,
+          "sha256": "5dd871d8a428a1322464a787cf055a05e9a460d71b8895bd447e918030a12ec9"
+        }
+      ]
+    },
+    "zh-TW": {
+      "capturedAt": "2026-09-19T13:50:53.231Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 117880,
+          "sha256": "da5b66bde36bca5a7c8ad76a79c3b4167d585477ce2b2bf4c9ea98015adea021"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 176256,
+          "sha256": "3cfde880b47faa8d1b6495bacd8ca1ef56daf4600375a082f5b7d31e62e2bd5f"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 155741,
+          "sha256": "66a51db4994c6ebe76743e507eeae5660cd15b2ae6f332bc8f4178351e1a0bbb"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 126578,
+          "sha256": "c911a45c135a9d7138b25e740e31815af91c4a0e836b2409213d398fcfc5212d"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 137818,
+          "sha256": "4451629289687079f617a74ec374d2b107f6451cb56b2160d5fd696fe46a6f30"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 172308,
+          "sha256": "50eae929487552cc38d41ffe9890ee757e7bac6d36073b25e484bfe5ea77b668"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 142351,
+          "sha256": "fddc94b8c371ec04c24653bd38dd7ad7255f781437db68d2a48009c7b91e8df8"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 113261,
+          "sha256": "f36d90f7269b73d457acfa8412deba34750cc6d736038c932ef27a1ef9ebe824"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 119079,
+          "sha256": "49a983105fde24153b866f9c59b41aed88d54b28520ceed40d6090bab9646fc9"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 128991,
+          "sha256": "6994ff08d785300aac91eba4cf8d2516eeff58b1a44b606e4243cd58a6c76b06"
+        }
+      ]
+    },
+    "ja": {
+      "capturedAt": "2026-09-19T13:51:08.416Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 129850,
+          "sha256": "5e066cdd55712a9ced56ff321c81f9b1a4272f5bbab7dc4359c4b77045664b34"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 187870,
+          "sha256": "04938aba24bcbcb37f527ff2056ecc59f4d04fc5543b5e91794914e894bb0c92"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 172950,
+          "sha256": "38aecd2516897b03a14177b6b18ddb1be2eddd72d4050e7f72fec1e47f887e1d"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 137781,
+          "sha256": "a483909a35bdd6d8d8ee2b0c3165af56215c5a2bf9669ea479da03099002e614"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 149737,
+          "sha256": "5f961b2339f804ee4977b5005a8f0346e65dd7cdfe3eda70d4c3a4ed1a79ebab"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 194553,
+          "sha256": "2ea9ed840754086f759704b1ea1dd72c677db1b6fafada46b6c82206c9d7aa3f"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 161330,
+          "sha256": "43c5cfe67c10daf485e52e8697c01b3978d1b27a211b7a4b1f7a8d0e9c449b5e"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 115467,
+          "sha256": "cddbc513fa2f3abe8d961b4dfda4c11915838474a88b19da4ef78c10559728ed"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 136985,
+          "sha256": "2c48837d26e5653bf528c7f432567af618af3169c0a78497102d329b60c5828a"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 141273,
+          "sha256": "2ac19678be95f28cec29bad6eb657f81adbb3ff588c1d71a3badc4294644acf5"
+        }
+      ]
+    },
+    "ko": {
+      "capturedAt": "2026-09-19T13:51:23.596Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 98656,
+          "sha256": "5f7b7bf08c67d4dfc2026a0825ebdc0b08e5badcee84671362fff606b0172f2a"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 159990,
+          "sha256": "08d06bda0b8de56326aa15c6f2f27e1c77ec6ae36314eed5df9f1d97948e58ee"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 129549,
+          "sha256": "54a1a7ec193028c2c88d92c516afbb89080598c79d4fe22a3344572c7e03d1d1"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 107336,
+          "sha256": "5efe4e2ba4776fe79dfd2b5c17ee09524506b523baa9746017fbbd570e001184"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 113745,
+          "sha256": "6ee3a9b959df84000e332e8e4a8d08adae43ec162fce02ba73ee37b235383427"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 164129,
+          "sha256": "51f33fb4d5d1bc9d116a6a2a1b179919fb4186ccf00924c7e77bb8016b9a7d94"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 125680,
+          "sha256": "804ce8e454c88e370bb2cf44cf3b1159c360b06da363d0c51222d72a9b7694f4"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 90627,
+          "sha256": "e8c09a1532f0e70b6e465445c6de927d83d24dff4bc3b5a885f71bb48e169aef"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 98371,
+          "sha256": "cabc8e80c451810a0b7bae1555c4b430db199c0829aabf94d896072b14b960f7"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 107208,
+          "sha256": "363312c7d13a59be62c39298bc50a03f5c43d65c9ca8b4390f6cc2d4ed9f1a66"
+        }
+      ]
+    },
+    "es": {
+      "capturedAt": "2026-09-19T13:51:38.929Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 122199,
+          "sha256": "9d710e3d1aab2c96e5acd5c4ab0a43d5b998713e498eede3685b11bbbdb8c26b"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 183631,
+          "sha256": "c11b3297cdef16c6e48b73d243f63d0bfeeaad7fe848a52ad3ad3fc837293a9f"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 161774,
+          "sha256": "74f989974927dc46fb184c1b424dc22931e17b0cdbf02871a37cbfee8f55bc88"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 130779,
+          "sha256": "cc6f4820cb00af81aadd5bcb59695d5d1883fc32b2230df92d6c6e99b8860db2"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 144531,
+          "sha256": "8dce0f55a6f1a2b780b636359f898892718c636ece74b142b6931578cb831aa5"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 195257,
+          "sha256": "a7ff8b55b05d60295fe9465fe506d4937c2a1b1db1a2fc47bbec7830c2e44a53"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 144513,
+          "sha256": "6d3d6010302b8fd92ed8c043660bb8dd1085c362ed3cadcb7056044e8c09f2a6"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 116613,
+          "sha256": "5245ff435e246b18c6531b57e3fec353953661711c0d620b25b314b7aef892fe"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 126314,
+          "sha256": "7efbc6da47c28e47db457367a502f00f5feb12dc8bfea3e0e5ab248a57ef9947"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 136543,
+          "sha256": "495dd5d56b152bf62386791ffcd491cc1f96bb529c0c818f06b1efabec5b855c"
+        }
+      ]
+    },
+    "fr": {
+      "capturedAt": "2026-09-19T13:51:54.181Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 116682,
+          "sha256": "6e2f800f347456c2d88d37c21570f0066cc00cb9b94bbfb43a7ac0ed6b0f5619"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 178069,
+          "sha256": "ed7e91eb2efc439529f6d77c2c3e9099e48f102bea04d49574ea1a219c044811"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 154117,
+          "sha256": "3917de1eb1fbbd4757517616a9a6bc299c7342b405991a63f7efe28f8198f85a"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 125619,
+          "sha256": "83c4c964df5c5175d216aaedc54df6769a719165534c119a015d7ce458f22e16"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 138651,
+          "sha256": "68c116d2565c9936182bfeedd5d5a8eed52577b2daf9898adbfb46b2fbac5ff2"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 197050,
+          "sha256": "7a0d107a62921dabd8f7392471c822bf39f8319c15ab9638171e63cd0838c572"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 140640,
+          "sha256": "7ee57eb5de09b6ed70c3af2ccb88e20478fb0b7f47264f0f30356a3aa4d8a119"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 114214,
+          "sha256": "0c50835baf454c9592685c9b928114740c99b83ce10d238979847fdbf6b9f2b5"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 128344,
+          "sha256": "7d06e9c0f9ecaad8e210fc2be96d4ed312df4194c8b4cdb4e23429c20e7148cd"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 133097,
+          "sha256": "4ba4f2d6768352dab3952808a46754df74f61c05c4a083ac254011960d548115"
+        }
+      ]
+    },
+    "de": {
+      "capturedAt": "2026-09-19T13:52:09.513Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 115252,
+          "sha256": "bf59572342ed7a05f39aa70f7cababe265b61832ac46807adf49e9c7edd12c0f"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 176088,
+          "sha256": "b272f6e8b1dd452f2ac985664253ff0270383df0403182b8ea8bcc95ef673e57"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 150430,
+          "sha256": "1dd694ec75be314d370f648b3fef2569bfde1e73580c29abecee05a8989a117c"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 123462,
+          "sha256": "8c3ff8bc53e40a0a9bb4b92deabe8ac2c38c10ebef026ad305fae7bc7c09aaca"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 137719,
+          "sha256": "004a3e71795b8d12c6f8034146fb7b82cec06c22ea63a1c5598a5b03c22ac792"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 193405,
+          "sha256": "3ac9660b5db11520e38836d555707d2b49ceb9c179f28e9ca7256f16251d32ea"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 144172,
+          "sha256": "be41775bada804d08bded32cf2d973b42be74c7761cc608dfb8a37a148c6004b"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 114198,
+          "sha256": "38d9a1a72af98eb32e229b76d31f705fb670fe023ab2cd18133aaae904e81c62"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 124653,
+          "sha256": "e31cdd47e0c24c26149026d167cbda193b1f5c2b9cfd3fcc67c4144fa4fe2461"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 129765,
+          "sha256": "5f8e020ba9172ddb552593bdecac6a77ef833075b14a6a0ca0f2060acd4daeb5"
+        }
+      ]
+    },
+    "pt-BR": {
+      "capturedAt": "2026-09-19T13:52:24.681Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 115281,
+          "sha256": "e4e20b15903386cb02f04277583573e76fe860a447f404c3d86cc424374346f4"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 176390,
+          "sha256": "3574f697a944f245652d2992f6dd33c8b75bf8cdd19769ffc3ecd05d9b72b34a"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 152518,
+          "sha256": "4e731dd164ead2786c3879d344245a9c2374fcc1dc5a874c85feb4f651e377aa"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 123357,
+          "sha256": "bd9704db34148d18d4e4818cf1c837ab4f7af81e372385f4ec6a156b72b90cd9"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 135249,
+          "sha256": "ddabc3656a052837c39bae5020f2b7db00efd9b2c1c21024b729ed6cbaa92945"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 190776,
+          "sha256": "85377052ee9d3d709147e36404c39cdee00ad9fd7ffe49a46cb597772d6c6479"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 142108,
+          "sha256": "4a47da9221e8295dcd444d9edd310ed62289e2115944c8bc95610e174184c0fd"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 110892,
+          "sha256": "6f16f7d867c59a9f279857da5442f03d0df4697df7e9be6b1112e4ac7495c13b"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 120322,
+          "sha256": "a6ced5601d6d30a126c79502f27b4917726e700e2cfc36284d62c84592cd24d5"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 127503,
+          "sha256": "4affcfd91091ae6e49ec4bf1572bd47676bd93c8a536e7723b8ed70f11139e60"
+        }
+      ]
+    },
+    "it": {
+      "capturedAt": "2026-09-19T13:52:39.832Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 112544,
+          "sha256": "471461d78df44c359775c4dfda8d9aaea3c84c89709fed577ca533a3295fd2ac"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 175500,
+          "sha256": "b16d823baf1376a283d647f0bd5d89e9529432301948d046c7bd5d7ae51ba2b6"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 146169,
+          "sha256": "f7b62a45f489b1159a556fb4466cd3bf87306a39810630c5527c942ca7e91f0c"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 120671,
+          "sha256": "616c26d0ee2ef2ff6f6ef646f95256cc12aea97308f1cf60a8e999d1e78a2fab"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 133465,
+          "sha256": "67e62c9591f166639f9517dd8ca2782fe747ca77c18d740f846d80d6a0b1d1df"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 188888,
+          "sha256": "a0c6dc336aa7a6951a544439ae5fc2a2cf6ecb0975967134a8ea929977b5f2e0"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 134573,
+          "sha256": "97391beab0a17e966c1bcfb16525bc24e5bbe59b7c1cd0b68fbc134a4f31e575"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 109747,
+          "sha256": "da13b8ea8931826e21b4d88ba665fe1869690f80992bdf391cb2527788ae58dc"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 118894,
+          "sha256": "49e438828cd0da7ef7661f2a194ce3686c0d3a1807694fa29f015afd8820c954"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 129042,
+          "sha256": "a4e07b3944783bfdc9fb64edde46e80136e79caf024c41d91542c4e4c50db352"
+        }
+      ]
+    },
+    "ru": {
+      "capturedAt": "2026-09-19T13:52:55.017Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 114111,
+          "sha256": "fbd3570eabe79d959d0362b18df8008e2387af718289266738ae5f0694312c37"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 176537,
+          "sha256": "02a2cb4dabfdcf9a215af63829368f0c9a906d32e4fd90c6e4e09ae1a2299303"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 150556,
+          "sha256": "edd43d55fe469da4626746064bde4ca0887d9dd5c5472309b997985089f7079e"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 122393,
+          "sha256": "98baa079567d5dd6aed8352c5e71ce6656d4092d0a5992ec9e103554fa1fc623"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 137604,
+          "sha256": "899b7222ce3bca3008c6e715cc92b8d4c18593ca70ef568f21a53f0f5bef8b96"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 192666,
+          "sha256": "28bd279440a1e6bac43816c426251808be93ccf5b294f6aae826cd7683c71bee"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 141854,
+          "sha256": "5b9498ebd26ad5822803b14b6add8854bdcd1ce574dca87f1ac00bdba78bb59c"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 108190,
+          "sha256": "a4022f4c89fd363654876c512cccb3b7035dbe469e76e21696f337281431de6e"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 121517,
+          "sha256": "98ab4d306b98805c19da7c436c2ebb53a1525c22857c156b388e82180cdecebc"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 127313,
+          "sha256": "d9bf4ec36a9b8640fba75108e88244e554f65f2a25be4e3eaec54d4f592bc601"
+        }
+      ]
+    },
+    "ar": {
+      "capturedAt": "2026-09-19T13:53:11.029Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 100392,
+          "sha256": "d5785705fd4516fe1de96daa14385115b85f1396e66643c96c804ff45a13fcb8"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 161999,
+          "sha256": "7f0c4575f8ee12db93e53a5426be191903513e6d3793e13d7fdf5dfb1461981e"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 131485,
+          "sha256": "a3da0bfead7364369c03e3b83d7ec303b9d337dcccf924ece6f019f353b3940f"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 108106,
+          "sha256": "8592af936f729f8cffb1a23c898855637a355b9d8c2667ba76f0210ff2374728"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 115447,
+          "sha256": "9b4516f6a25f7068d1a5e95278a2d7daf3fb0890b13f57045108f16cdf425511"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 164375,
+          "sha256": "aea35076c594d479f79ed9e0cd3df876b95c1fc77505e992e364009c81789acf"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 128358,
+          "sha256": "2c7d9693336142bb9941459d3118340ee703838d3c40393cb2813ea37851ac75"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 102084,
+          "sha256": "dea106a72d63185f91599ecd274cbba65f46612b05244ca52feafae5d9ed6ed5"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 101671,
+          "sha256": "7c6fe05d126e48f029a444169c0dece886f964201bb6151c917025c7baf6c285"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 108165,
+          "sha256": "fe153c0faa4a01878273c76c1ac18b48f4ca5f9abd4220f364f3d0af0c6c270a"
+        }
+      ]
+    },
+    "hi": {
+      "capturedAt": "2026-09-19T13:53:26.279Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 102080,
+          "sha256": "384eebea435ede8f68f95c44d8ce899b39e1ae7fb223c395285df377a793505d"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 163102,
+          "sha256": "e503c1844342c8ad821a25b2dc699d1be4d20a429af2502ac75e0cfe418e14b3"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 135470,
+          "sha256": "edb07ae7623f3e63852348ac53ee90f7d91847ec70fdb8cb8a0e92c342dded78"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 110352,
+          "sha256": "909a25a091eb1863757ad0f2b82ba95ae1648f8e73d1fc1e0e62d93466805fc7"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 119333,
+          "sha256": "e138e9b7bb303d8d86c87cf1a3fbe9485ffdb45ba7c0725868621b8924efdafe"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 162456,
+          "sha256": "9eedb461909c8ef15cfcf04186c922e74b5ccf19a5308abdf3ad35feeda4900f"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 135987,
+          "sha256": "dcbf9b9db98163cd3be30e1e0ee3173bbeff84a915cdeb92f7d98ebc89ed1dd8"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 96756,
+          "sha256": "576881c4bd2df93637aca154cb0f154278744faadc2a506731f4f158a68dadf7"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 106279,
+          "sha256": "6382ff3fe5d34effc94d5608dfdcec4b71b95e7194142837e1d324e125289221"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 109363,
+          "sha256": "f9c663eb789237ffc04a5efd4ca88b32304ed6e5cd4452175ae3dec92fb48fd2"
+        }
+      ]
+    },
+    "id": {
+      "capturedAt": "2026-09-19T13:53:41.549Z",
+      "images": [
+        {
+          "file": "workspace-light.png",
+          "bytes": 109284,
+          "sha256": "ef7fd9939d4485ad6ffa3668bfaa4ee3b34e4f6b40a62cb6f7f663124e27bc2f"
+        },
+        {
+          "file": "git-review.png",
+          "bytes": 174343,
+          "sha256": "9164ad17d3ed8326547fac62320ba1349b8de2e2db48f9821e6ccd79538c6aeb"
+        },
+        {
+          "file": "markdown-files.png",
+          "bytes": 142104,
+          "sha256": "4b35eebf44f37a4093194d5e2fe479754d030128f3fafb51e083df07ece7c233"
+        },
+        {
+          "file": "terminal.png",
+          "bytes": 118071,
+          "sha256": "80ca0b047f860de2c7d25ecc290c5b67a4914c110d2175b9955cf4d0235640bf"
+        },
+        {
+          "file": "agent-team.png",
+          "bytes": 127164,
+          "sha256": "41c9940b0dcf3f2b18123f24c96ef386160487a3438ffc9dc90e2ee7a8b6d01e"
+        },
+        {
+          "file": "settings-general.png",
+          "bytes": 179871,
+          "sha256": "33339eef8516f5cf0c938dd11626b86ec371167256b146623af580a969668077"
+        },
+        {
+          "file": "resources.png",
+          "bytes": 139613,
+          "sha256": "ede843b796aad897f0656d6b5974a3b9dc38b069fd0ba877b30ad9806ee38bb4"
+        },
+        {
+          "file": "token-usage.png",
+          "bytes": 107703,
+          "sha256": "20cb802d57ddded4e999b93160175511ceca6cce8fb435c8a2d577b72ac147d2"
+        },
+        {
+          "file": "automations.png",
+          "bytes": 121746,
+          "sha256": "1054e6898462794b775940da6610e2c2639469c0dd058579d093d199608c1e38"
+        },
+        {
+          "file": "im-group-chat.png",
+          "bytes": 121491,
+          "sha256": "3b1666671c821d3ce5dcef05b0286b52a692184aba8be40f1838a7481cce1adf"
+        }
+      ]
+    }
+  },
+  "privacy": {
+    "displayName": "Artemis",
+    "visibleDomText": "Checked all 140 captures for personal names and home or temporary paths."
+  }
+}
