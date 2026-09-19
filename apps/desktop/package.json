@@ -107,7 +107,12 @@
     "extraResources": [
       {
         "from": "resources",
-        "to": "resources"
+        "to": "resources",
+        "filter": [
+          "**/*",
+          "!*oauth-client.json",
+          "!connector-clients.example.json"
+        ]
       }
     ],
     "directories": {

@@ -1652,26 +1652,16 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("uses the native Settings top layer and keeps legacy workspace overlays ordered", () => {
-    const confirmationBackdrop = cssRule(".confirmation-backdrop");
-    const environmentPopover = cssRule(".environment-popover");
-    const projectSidebarResizer = publicUiCssRule(
-      '[data-artemis-component="application-shell-resizer"]',
-    );
-    const confirmationZIndex = Number(
-      confirmationBackdrop.match(/\bz-index:\s*(\d+)/u)?.[1],
-    );
-    const environmentZIndex = Number(
-      environmentPopover.match(/\bz-index:\s*(\d+)/u)?.[1],
-    );
-    const resizerZIndex = Number(
-      projectSidebarResizer.match(/\bz-index:\s*(\d+)/u)?.[1],
-    );
-
+  it("uses native dialogs for Settings and confirmations above workspace overlays", () => {
     expect(settingsSource).toContain("<Dialog");
+    expect(appSource).toMatch(
+      /<Dialog[\s\S]*?className=\{`confirmation-dialog/u,
+    );
     expect(cssRule(".settings-panel")).not.toMatch(/\bz-index:/u);
-    expect(confirmationZIndex).toBeGreaterThan(environmentZIndex);
-    expect(confirmationZIndex).toBeGreaterThan(resizerZIndex);
+    expect(stylesSource).not.toContain(".confirmation-backdrop");
+    expect(publicUiCssRule('[data-artemis-component="dialog"]')).toContain(
+      "max-block-size:",
+    );
   });
 
   it("loads task history lazily and batches live renderer updates", () => {
@@ -2447,97 +2437,6 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("<Tabs");
   });
 
-  it("scopes app-owned Google authorization to the Artemis Plugin Shop tab", () => {
-    expect(resourceCenterSource).toContain(
-      'selectedMarketplaceSource?.marketplaceName === "artemis-plugin-shop"',
-    );
-    expect(resourceCenterSource).toContain(
-      "{isArtemisPluginShop && !marketplaceFilter && (",
-    );
-    expect(resourceCenterSource).toContain(
-      'className="resource-runtime-banner resource-marketplace-account-banner"',
-    );
-    expect(resourceCenterSource).not.toContain("Import client JSON");
-    expect(resourceCenterSource).not.toContain("导入客户端 JSON");
-    expect(resourceCenterSource).not.toContain("importGoogleOAuthClient");
-    expect(resourceCenterSource).toContain(
-      "googleAccount?.grants[grant].authorized ? (",
-    );
-    expect(uiText("zh-CN", "ResourceCenter.inline14")).toBe("已授权");
-    expect(uiText("en", "ResourceCenter.inline14")).toBe("Authorized");
-    expect(resourceCenterSource).not.toContain("Workspace 本地边界");
-    expect(resourceCenterSource).not.toContain("Local Workspace boundary");
-    expect(resourceCenterSource).not.toContain("saveGoogleBoundary");
-    expect(resourceCenterSource).not.toContain("setGoogleWorkspaceBoundary");
-    expect(uiText("zh-CN", "ResourceCenter.inline5")).toContain(
-      "此版本的 Artemis 未包含应用级 Google OAuth 客户端",
-    );
-    expect(uiText("en", "ResourceCenter.inline5")).toContain(
-      "This Artemis build does not include its application-level Google OAuth client.",
-    );
-    expect(uiText("zh-CN", "ResourceCenter.inline1")).toBe(
-      "Google 未授予此插件所需的全部权限。请在授权页面允许所有请求的权限后重试。",
-    );
-    expect(uiText("en", "ResourceCenter.inline1")).toBe(
-      "Google did not grant all permissions required by this plugin. Allow every requested permission and try again.",
-    );
-    expect(mainProcessSource).toContain(
-      "await loadGoogleOAuthClient(googleOAuthClientPath())",
-    );
-    expect(apiSource).not.toContain("googleAccountImportClient");
-    expect(apiSource).not.toContain("GoogleOAuthClientImportResult");
-    expect(apiSource).not.toContain("GoogleWorkspaceBoundaryInput");
-    expect(apiSource).not.toContain("googleAccountBoundarySet");
-    expect(preloadSource).not.toContain("setGoogleWorkspaceBoundary");
-    expect(mainProcessSource).not.toContain('"com.artemis.google/config"');
-  });
-
-  it("refreshes renderer MCP state after Google grant authorization", () => {
-    const authorizeStart = resourceCenterSource.indexOf(
-      "async function authorizeGoogleGrant",
-    );
-    const authorizeEnd = resourceCenterSource.indexOf(
-      "async function disconnectGoogleGrant",
-      authorizeStart,
-    );
-    const authorize = resourceCenterSource.slice(authorizeStart, authorizeEnd);
-    const grant = authorize.indexOf("window.artemis.authorizeGoogleGrant");
-    const settings = authorize.indexOf("window.artemis.getSettings");
-
-    expect(grant).toBeGreaterThan(-1);
-    expect(settings).toBeGreaterThan(grant);
-    expect(authorize).toContain("setMcpServers(next.mcpServers)");
-    expect(authorize).toContain("onSettingsChange(next)");
-  });
-
-  it("refreshes renderer MCP state after disconnecting Google grants", () => {
-    const grantStart = resourceCenterSource.indexOf(
-      "async function disconnectGoogleGrant",
-    );
-    const accountStart = resourceCenterSource.indexOf(
-      "async function disconnectGoogleAccount",
-      grantStart,
-    );
-    const accountEnd = resourceCenterSource.indexOf(
-      "async function removeMarketplace",
-      accountStart,
-    );
-    const grantDisconnect = resourceCenterSource.slice(
-      grantStart,
-      accountStart,
-    );
-    const accountDisconnect = resourceCenterSource.slice(
-      accountStart,
-      accountEnd,
-    );
-
-    for (const disconnect of [grantDisconnect, accountDisconnect]) {
-      expect(disconnect).toContain("window.artemis.getSettings");
-      expect(disconnect).toContain("setMcpServers(next.mcpServers)");
-      expect(disconnect).toContain("onSettingsChange(next)");
-    }
-  });
-
   it("renders disconnected MCP servers with their switches off", () => {
     const mcpStart = resourceCenterSource.indexOf('managementTab === "mcp" &&');
     const mcpEnd = resourceCenterSource.indexOf(
@@ -2614,7 +2513,9 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).not.toContain("confirmResourceAction");
     expect(resourceCenterSource).toContain("await onConfirm(");
     expect(appSource).toContain('role="alertdialog"');
-    expect(appSource).toContain('className="confirmation-backdrop"');
+    expect(appSource).toContain(
+      "className={`confirmation-dialog ${confirmation.tone}`}",
+    );
     expect(mainProcessSource).toContain("restoreResourceDialogFocus");
     expect(mainProcessSource).toMatch(
       /selection = await dialog\.showOpenDialog[\s\S]*?restoreResourceDialogFocus\(/u,
@@ -2816,11 +2717,13 @@ describe("renderer layout contract", () => {
     );
     expect(resourceCenterSource).toContain("managedSkillNames.has(skill.name)");
     expect(resourceCenterSource).toContain(
-      '["plugins", "connectors", "mcp", "skills"] as const',
+      '["plugins", "mcp", "skills"] as const',
     );
     expect(resourceCenterSource).not.toContain('managementTab === "apps"');
-    expect(resourceCenterSource).toContain('managementTab === "connectors" &&');
-    expect(resourceCenterSource).toContain('resourceKind: "connector"');
+    expect(resourceCenterSource).not.toContain(
+      'managementTab === "connectors"',
+    );
+    expect(resourceCenterSource).toContain("<PluginConnectionDialog");
     expect(resourceCenterSource).toContain("authorizeMcpServer(serverId)");
     const labelsStart = resourceCenterSource.indexOf("const labels =");
     const labelsEnd = resourceCenterSource.indexOf(

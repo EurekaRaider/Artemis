@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createConnection } from "node:net";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +44,37 @@ async function createStore(): Promise<{
 }
 
 describe("MCP OAuth", () => {
+  it("closes after authorization even when the browser leaves a speculative connection open", async () => {
+    const callback = await startMcpOAuthCallback("preconnect", () => true);
+    const socket = createConnection(
+      Number(new URL(callback.redirectUrl).port),
+      "127.0.0.1",
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        socket.once("connect", resolve);
+        socket.once("error", reject);
+      });
+      const response = await fetch(
+        `${callback.redirectUrl}?code=test&state=test`,
+      );
+      await response.text();
+      await expect(callback.authorizationCode).resolves.toBe("test");
+      const closed = callback.close();
+      await expect(
+        Promise.race([
+          closed.then(() => "closed"),
+          new Promise<string>((resolve) =>
+            setTimeout(() => resolve("stuck"), 300),
+          ),
+        ]),
+      ).resolves.toBe("closed");
+    } finally {
+      socket.destroy();
+      await callback.close();
+    }
+  });
+
   it("encrypts and restores client registration, tokens, and the PKCE verifier", async () => {
     const { filePath, store } = await createStore();
     const provider = new SecureMcpOAuthProvider(

@@ -1,3 +1,4 @@
+import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { bundledPluginDescription } from "../shared/bundled-plugin-copy.js";
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
@@ -6,7 +7,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -35,8 +35,6 @@ import type {
   CodexPluginMarketplaceState,
   CodexPluginMutationResult,
   CodexPluginPreview,
-  GoogleAccountStatus,
-  GoogleGrantId,
   InstalledCodexPlugin,
   InstalledSkill,
   McpCatalogInstallOption,
@@ -51,6 +49,7 @@ import { McpServerEditor } from "./McpServerEditor.js";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   resourceIconName,
+  ResourceAvatar,
   SemanticResourceIcon,
   type ResourceIconKind,
   type ResourceIconName,
@@ -59,7 +58,11 @@ import {
 interface ResourceCenterProps {
   locale: AppLocale;
   settings?: SettingsSnapshot;
-  onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
+  onConfirm(
+    message: string,
+    tone?: "default" | "danger",
+    options?: { title?: string; acceptLabel?: string },
+  ): Promise<boolean>;
   onSettingsChange(settings: SettingsSnapshot): void;
 }
 
@@ -69,7 +72,7 @@ interface McpInstallDraft {
   values: Record<string, string>;
 }
 
-type ManagementTab = "plugins" | "connectors" | "mcp" | "skills";
+type ManagementTab = "plugins" | "mcp" | "skills";
 type CatalogSearchTab = Extract<ManagementTab, "mcp" | "skills">;
 type CatalogSearchPhase = "idle" | "searching" | "complete";
 type ResourceKind = ResourceIconKind;
@@ -85,19 +88,6 @@ function pluginPageText(value: string): string {
     .replace(/\b(?:OpenAI\s+Codex|OpenAI|Codex|ChatGPT)\b/giu, "Artemis")
     .replace(/\s{2,}/gu, " ")
     .trim();
-}
-
-function googleAuthorizationErrorText(
-  error: unknown,
-  locale: AppLocale,
-): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (
-    message.includes("Google did not grant all scopes required by this plugin.")
-  ) {
-    return uiText(locale, "ResourceCenter.inline1");
-  }
-  return message;
 }
 
 async function loadInstalledSkills(): Promise<InstalledSkill[]> {
@@ -142,47 +132,6 @@ function TrashIcon() {
 
 function BackIcon() {
   return <ArtemisIcon name="chev-left" />;
-}
-
-function ResourceAvatar({
-  brandColor,
-  iconKey,
-  iconDataUrl,
-  kind,
-  name,
-}: {
-  brandColor?: string | undefined;
-  iconKey?: ResourceIconName | undefined;
-  iconDataUrl?: string | undefined;
-  kind: ResourceKind;
-  name: string;
-}) {
-  const [imageFailed, setImageFailed] = useState(false);
-  useEffect(() => setImageFailed(false), [iconDataUrl]);
-  const semanticIcon = iconKey ?? resourceIconName(name, kind);
-  const semanticVisible = !iconDataUrl || imageFailed;
-  const style = brandColor
-    ? ({ "--resource-brand": brandColor } as CSSProperties)
-    : undefined;
-  return (
-    <span
-      className="resource-avatar"
-      data-icon={semanticVisible ? semanticIcon : undefined}
-      data-kind={kind}
-      style={style}
-    >
-      {iconDataUrl && !imageFailed ? (
-        <img
-          alt=""
-          draggable={false}
-          onError={() => setImageFailed(true)}
-          src={iconDataUrl}
-        />
-      ) : (
-        <SemanticResourceIcon icon={semanticIcon} />
-      )}
-    </span>
-  );
 }
 
 function EmptyResource({ children }: { children: string }) {
@@ -233,21 +182,16 @@ export function ResourceCenter({
   onSettingsChange,
 }: ResourceCenterProps) {
   const [mode, setMode] = useState<
-    "marketplace" | "manage" | "add-plugin" | "mcp-editor" | "google-account"
+    "marketplace" | "manage" | "add-plugin" | "mcp-editor"
   >("marketplace");
+  const [connectionPlugin, setConnectionPlugin] =
+    useState<InstalledCodexPlugin>();
   const [managementTab, setManagementTab] = useState<ManagementTab>("plugins");
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
   const [managementQuery, setManagementQuery] = useState("");
   const [sourceInput, setSourceInput] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [connectorPanelOpen, setConnectorPanelOpen] = useState(false);
   const [editingMcpServer, setEditingMcpServer] = useState<McpServerStatus>();
-  const [connectorName, setConnectorName] = useState("");
-  const [connectorUrl, setConnectorUrl] = useState("");
-  const [connectorAuth, setConnectorAuth] = useState<
-    "none" | "bearer" | "oauth"
-  >("oauth");
-  const [connectorBearer, setConnectorBearer] = useState("");
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [mcpResults, setMcpResults] = useState<McpCatalogItem[]>([]);
   const [catalogSearchPhase, setCatalogSearchPhase] = useState<
@@ -275,7 +219,6 @@ export function ResourceCenter({
   const [operationPending, setOperationPending] = useState(false);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
-  const [googleAccount, setGoogleAccount] = useState<GoogleAccountStatus>();
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const operationPendingRef = useRef(false);
   const t = labels[locale];
@@ -438,11 +381,7 @@ export function ResourceCenter({
     const error = next.errors.find(
       (candidate) => candidate.sourceId === next.selectedView,
     )?.message;
-    const warnings = next.marketplaces.find(
-      (entry) => entry.sourceId === next.selectedView,
-    )?.marketplace.warnings;
-    const messages = [error, ...(warnings ?? [])].filter(Boolean);
-    setMessage(messages.length ? messages.join("\n") : undefined);
+    setMessage(error);
   }
 
   async function refreshSelectedMarketplace(): Promise<void> {
@@ -565,73 +504,6 @@ export function ResourceCenter({
     } finally {
       setSearching(false);
       setInstallProgress(undefined);
-    }
-  }
-
-  async function openGoogleAccount(): Promise<void> {
-    setMode("google-account");
-    setMessage(undefined);
-    try {
-      const status = await window.artemis.getGoogleAccountStatus();
-      setGoogleAccount(status);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function authorizeGoogleGrant(grant: GoogleGrantId): Promise<void> {
-    if (googleAccount?.clientConfigured === false) {
-      setMessage(uiText(locale, "ResourceCenter.inline5"));
-      return;
-    }
-    setBusyId(`google:${grant}`);
-    setMessage(undefined);
-    try {
-      setGoogleAccount(await window.artemis.authorizeGoogleGrant(grant));
-      const next = await window.artemis.getSettings();
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-    } catch (error) {
-      setMessage(googleAuthorizationErrorText(error, locale));
-    } finally {
-      setBusyId(undefined);
-    }
-  }
-
-  async function disconnectGoogleGrant(grant: GoogleGrantId): Promise<void> {
-    if (!(await onConfirm(`Disconnect the ${grant} Google grant?`, "danger")))
-      return;
-    setBusyId(`google:${grant}`);
-    try {
-      setGoogleAccount(await window.artemis.disconnectGoogleGrant(grant));
-      const next = await window.artemis.getSettings();
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
-  }
-
-  async function disconnectGoogleAccount(): Promise<void> {
-    if (
-      !(await onConfirm(
-        "Disconnect the Google account and revoke all grants?",
-        "danger",
-      ))
-    )
-      return;
-    setBusyId("google-disconnect");
-    try {
-      setGoogleAccount(await window.artemis.disconnectGoogleAccount());
-      const next = await window.artemis.getSettings();
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -852,58 +724,7 @@ export function ResourceCenter({
     }
   }
 
-  async function saveConnector() {
-    const name = connectorName.trim();
-    const url = connectorUrl.trim();
-    const bearerToken = connectorBearer.trim();
-    if (!name || !url || (connectorAuth === "bearer" && !bearerToken)) {
-      return;
-    }
-    const connectorId =
-      name
-        .toLowerCase()
-        .replace(/[^a-z0-9._-]+/gu, "-")
-        .replace(/^[^a-z0-9]+|[^a-z0-9]+$/gu, "")
-        .slice(0, 48) || "connector";
-    const occupiedIds = new Set(mcpServers.map((server) => server.config.id));
-    let serverId = `connector-${connectorId}`.slice(0, 64);
-    for (let suffix = 2; occupiedIds.has(serverId); suffix += 1) {
-      const suffixText = `-${suffix}`;
-      serverId = `${`connector-${connectorId}`.slice(0, 64 - suffixText.length)}${suffixText}`;
-    }
-    const config: McpServerConfig = {
-      id: serverId,
-      name,
-      transport: "streamable-http",
-      enabled: true,
-      url,
-      auth: connectorAuth,
-      resourceKind: "connector",
-      connectorId,
-    };
-    setBusyId("connector:new");
-    setMessage(undefined);
-    try {
-      const next = await window.artemis.saveMcpServer(
-        config,
-        connectorAuth === "bearer" ? bearerToken : undefined,
-      );
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-      setConnectorPanelOpen(false);
-      setConnectorName("");
-      setConnectorUrl("");
-      setConnectorAuth("oauth");
-      setConnectorBearer("");
-      setMessage(t.installedNow);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
-  }
-
-  async function authorizeConnector(serverId: string) {
+  async function authorizeAdvancedMcp(serverId: string) {
     setBusyId(serverId);
     setMessage(undefined);
     try {
@@ -1026,32 +847,29 @@ export function ResourceCenter({
     const importableMcp = plugin.mcpServers.filter(
       (server) => server.importable,
     );
-    const connectors = plugin.apps.filter((connector) => connector.url);
+    const connectors = importableMcp.filter((server) => server.connector);
+    const standaloneMcp = importableMcp.filter((server) => !server.connector);
     const details = [
       t.confirmPlugin,
-      "",
-      `${t.skillsCount}: ${plugin.skills.length}`,
-      ...plugin.skills
-        .slice(0, 5)
-        .map((skill) => `• ${pluginPageText(skill.name)}`),
-      `${t.mcpCount}: ${importableMcp.length}`,
-      ...importableMcp
-        .slice(0, 5)
-        .map(
-          (server) => `• ${pluginPageText(server.name)}: ${server.endpoint}`,
-        ),
-      `${t.appsCount}: ${connectors.length}`,
-      ...connectors
-        .slice(0, 5)
-        .map(
-          (connector) =>
-            `• ${pluginPageText(connector.name)}: ${connector.url}`,
-        ),
-      `${t.unsupported}: ${plugin.unsupported.join(", ") || "—"}`,
-    ]
-      .join("\n")
-      .slice(0, 1_000);
-    if (!plugin.installable || !(await onConfirm(details))) return;
+      ...(plugin.skills.length
+        ? [`${t.skillsCount}: ${plugin.skills.length}`]
+        : []),
+      ...(standaloneMcp.length
+        ? [`${t.mcpCount}: ${standaloneMcp.length}`]
+        : []),
+      ...(connectors.length ? [`${t.appsCount}: ${connectors.length}`] : []),
+      ...(plugin.unsupported.length
+        ? [`${t.unsupported}: ${plugin.unsupported.join(", ")}`]
+        : []),
+    ].join("\n\n");
+    if (
+      !plugin.installable ||
+      !(await onConfirm(details, "default", {
+        title: pluginPageText(plugin.displayName),
+        acceptLabel: t.install,
+      }))
+    )
+      return;
     const operationId = beginInstallation(
       "plugin",
       pluginPageText(plugin.displayName),
@@ -1059,9 +877,21 @@ export function ResourceCenter({
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
-      applyPluginMutation(
-        await window.artemis.installCodexPlugin(plugin.source, operationId),
+      const result = await window.artemis.installCodexPlugin(
+        plugin.source,
+        operationId,
       );
+      applyPluginMutation(result);
+      const installed = result.plugins.find((entry) => entry.id === plugin.id);
+      if (
+        installed &&
+        result.settings.mcpServers.some(
+          (server) =>
+            server.config.connector &&
+            installed.mcpServerIds.includes(server.config.id),
+        )
+      )
+        setConnectionPlugin(installed);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1098,9 +928,22 @@ export function ResourceCenter({
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
-      applyPluginMutation(
-        await window.artemis.updateCodexPlugin(plugin.id, operationId),
+      const result = await window.artemis.updateCodexPlugin(
+        plugin.id,
+        operationId,
       );
+      applyPluginMutation(result);
+      const updated = result.plugins.find((entry) => entry.id === plugin.id);
+      if (
+        updated &&
+        result.settings.mcpServers.some(
+          (server) =>
+            server.config.connector &&
+            !server.config.enabled &&
+            updated.mcpServerIds.includes(server.config.id),
+        )
+      )
+        setConnectionPlugin(updated);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1227,11 +1070,9 @@ export function ResourceCenter({
     setMessage(undefined);
   }
 
-  function closeMcpEditor(server = editingMcpServer) {
+  function closeMcpEditor() {
     setMode("manage");
-    setManagementTab(
-      server?.config.resourceKind === "connector" ? "connectors" : "mcp",
-    );
+    setManagementTab("mcp");
     setEditingMcpServer(undefined);
   }
 
@@ -1248,7 +1089,6 @@ export function ResourceCenter({
     setManagementQuery("");
     setCatalogQuery("");
     setDiscoveryOpen(false);
-    setConnectorPanelOpen(false);
     setMessage(undefined);
   }
 
@@ -1393,7 +1233,7 @@ export function ResourceCenter({
       brandColor: visual?.brandColor,
       iconDataUrl: visual?.iconDataUrl,
       iconKey: resourceIconName(
-        `${server.config.id} ${server.config.name}`,
+        server.config.name || server.config.id,
         server.config.resourceKind === "connector" ? "connectors" : "mcp",
       ),
     };
@@ -1407,11 +1247,6 @@ export function ResourceCenter({
   }
 
   const selectedMarketplaceView = marketplaceState?.selectedView ?? "bundled";
-  const selectedMarketplaceSource = marketplaceSourceById.get(
-    selectedMarketplaceView,
-  );
-  const isArtemisPluginShop =
-    selectedMarketplaceSource?.marketplaceName === "artemis-plugin-shop";
   const marketplaceTabOptions = [
     ...(marketplaceState?.sources ?? []).map((source) => ({
       id: `resource-marketplace-tab-${encodeURIComponent(source.id)}`,
@@ -1546,16 +1381,6 @@ export function ResourceCenter({
         extension.state,
       ),
   );
-  const visibleConnectors = mcpServers
-    .filter((server) => server.config.resourceKind === "connector")
-    .filter((server) =>
-      matchesManagement(
-        server.config.name,
-        server.config.connectorId,
-        server.config.transport,
-        server.state,
-      ),
-    );
   const visibleMcp = mcpServers
     .filter((server) => server.config.resourceKind !== "connector")
     .filter((server) =>
@@ -1596,8 +1421,11 @@ export function ResourceCenter({
         kind: "plugin" as const,
         description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
         enabled: pluginIsEnabled(plugin),
-        disabled: !plugin.installable,
-        configure: () => openManagement("plugins"),
+        disabled: !plugin.installable && !pluginIsEnabled(plugin),
+        configure: () =>
+          pluginHasConnection(plugin)
+            ? setConnectionPlugin(plugin)
+            : openManagement("plugins"),
         toggle: (enabled: boolean) => setPluginEnabled(plugin, enabled),
         ...visual,
       };
@@ -1683,6 +1511,10 @@ export function ResourceCenter({
   );
 
   function renderProgressAndMessage() {
+    const warnings =
+      marketplaceState?.marketplaces.find(
+        (entry) => entry.sourceId === marketplaceState.selectedView,
+      )?.marketplace.warnings ?? [];
     return (
       <>
         {installProgress && (
@@ -1707,6 +1539,22 @@ export function ResourceCenter({
         )}
         {message && (
           <InlineNotice tone="info">{pluginPageText(message)}</InlineNotice>
+        )}
+        {mode === "marketplace" && warnings.length > 0 && (
+          <details
+            className="resource-marketplace-diagnostics"
+            key={marketplaceState?.selectedView}
+          >
+            <summary>
+              {uiText(locale, "EnvironmentPullRequestError_labels.details")} (
+              {warnings.length})
+            </summary>
+            <ul>
+              {warnings.map((warning, index) => (
+                <li key={index}>{pluginPageText(warning)}</li>
+              ))}
+            </ul>
+          </details>
         )}
       </>
     );
@@ -1746,6 +1594,31 @@ export function ResourceCenter({
     return pluginPageText(
       plugin.shortDescription || plugin.description || plugin.name,
     );
+  }
+
+  function pluginHasConnection(plugin: InstalledCodexPlugin): boolean {
+    return mcpServers.some(
+      (server) =>
+        server.config.connector &&
+        plugin.mcpServerIds.includes(server.config.id),
+    );
+  }
+
+  function renderPluginConnection() {
+    return connectionPlugin ? (
+      <PluginConnectionDialog
+        key={connectionPlugin.id}
+        plugin={connectionPlugin}
+        locale={locale}
+        closeLabel={uiText(locale, "App_copy.renameClose")}
+        onClose={() => setConnectionPlugin(undefined)}
+        onChanged={async () => {
+          const next = await window.artemis.getSettings();
+          setMcpServers(next.mcpServers);
+          onSettingsChange(next);
+        }}
+      />
+    ) : null;
   }
 
   function renderPluginCard(plugin: CodexPluginPreview, sourceId?: string) {
@@ -1794,17 +1667,28 @@ export function ResourceCenter({
             {t.marketplaceSource}: {sourceLabel}
           </small>
           {installed && installedPlugin ? (
-            <Button
-              className="management-destructive-action"
-              icon={<TrashIcon />}
-              disabled={operationPending || busyId === plugin.id}
-              onClick={() =>
-                runResourceOperation(() => removePlugin(installedPlugin))
-              }
-              variant="quiet"
-            >
-              {t.remove}
-            </Button>
+            <>
+              {pluginHasConnection(installedPlugin) && (
+                <Button
+                  variant="quiet"
+                  disabled={operationPending || busyId === plugin.id}
+                  onClick={() => setConnectionPlugin(installedPlugin)}
+                >
+                  {t.configure}
+                </Button>
+              )}
+              <Button
+                className="management-destructive-action"
+                icon={<TrashIcon />}
+                disabled={operationPending || busyId === plugin.id}
+                onClick={() =>
+                  runResourceOperation(() => removePlugin(installedPlugin))
+                }
+                variant="quiet"
+              >
+                {t.remove}
+              </Button>
+            </>
           ) : (
             <Button
               className="resource-inline-action"
@@ -2041,105 +1925,22 @@ export function ResourceCenter({
     );
   }
 
-  if (mode === "google-account") {
-    return (
-      <ResourceSurface
-        busy={operationPending || Boolean(busyId)}
-        className="resource-page resource-standalone-page"
-        label={uiText(locale, "ResourceCenter.inline12")}
-      >
-        <ManagementHeader
-          className="resource-page-header resource-management-header"
-          description={uiText(locale, "ResourceCenter.inline11")}
-          leading={
-            <IconButton
-              className="resource-back-button"
-              disabled={operationPending}
-              icon={<BackIcon />}
-              label={t.backToMarketplace}
-              onClick={() => setMode("marketplace")}
-            />
-          }
-          title={uiText(locale, "ResourceCenter.inline12")}
-        />
-
-        {renderProgressAndMessage()}
-        <section className="resource-add-plugin-options">
-          {(["google-workspace", "gmail"] as const).map((grant) => (
-            <ManagementCard className="resource-add-plugin-card" key={grant}>
-              <div>
-                <strong>
-                  {grant === "gmail" ? "Gmail" : "Google Workspace"}
-                </strong>
-                <small>
-                  {googleAccount?.encryptionAvailable === false
-                    ? uiText(locale, "ResourceCenter.inline15")
-                    : googleAccount?.grants[grant].authorized
-                      ? uiText(locale, "ResourceCenter.inline14")
-                      : uiText(locale, "ResourceCenter.inline13")}
-                </small>
-              </div>
-              {googleAccount?.grants[grant].authorized ? (
-                <Button
-                  disabled={operationPending || busyId === `google:${grant}`}
-                  onClick={() =>
-                    runResourceOperation(() => disconnectGoogleGrant(grant))
-                  }
-                  variant="danger"
-                >
-                  {uiText(locale, "ResourceCenter.inline17")}
-                </Button>
-              ) : (
-                <Button
-                  disabled={
-                    operationPending ||
-                    !googleAccount ||
-                    googleAccount.encryptionAvailable === false ||
-                    busyId === `google:${grant}`
-                  }
-                  onClick={() =>
-                    runResourceOperation(() => authorizeGoogleGrant(grant))
-                  }
-                >
-                  {uiText(locale, "ResourceCenter.inline16")}
-                </Button>
-              )}
-            </ManagementCard>
-          ))}
-
-          {googleAccount?.connected && (
-            <Button
-              disabled={operationPending || busyId === "google-disconnect"}
-              onClick={() => runResourceOperation(disconnectGoogleAccount)}
-              variant="danger"
-            >
-              {uiText(locale, "ResourceCenter.inline18")}
-            </Button>
-          )}
-        </section>
-      </ResourceSurface>
-    );
-  }
-
   const managementCounts: Record<ManagementTab, number> = {
     plugins:
       installedPlugins.length + (settings?.trustedExtensions.length ?? 0),
-    connectors: mcpServers.filter(
-      (server) => server.config.resourceKind === "connector",
-    ).length,
     mcp: mcpServers.filter(
       (server) => server.config.resourceKind !== "connector",
     ).length,
     skills: standaloneSkills.length,
   };
-  const managementTabOptions = (
-    ["plugins", "connectors", "mcp", "skills"] as const
-  ).map((tab) => ({
-    id: `resource-management-tab-${tab}`,
-    label: `${t[tab]} ${managementCounts[tab]}`,
-    panelId: `resource-management-panel-${tab}`,
-    value: tab,
-  }));
+  const managementTabOptions = (["plugins", "mcp", "skills"] as const).map(
+    (tab) => ({
+      id: `resource-management-tab-${tab}`,
+      label: `${t[tab]} ${managementCounts[tab]}`,
+      panelId: `resource-management-panel-${tab}`,
+      value: tab,
+    }),
+  );
   const activeManagementTabOption = managementTabOptions.find(
     (option) => option.value === managementTab,
   )!;
@@ -2244,21 +2045,6 @@ export function ResourceCenter({
             size="compact"
             value={activeMarketplaceTabOption.value}
           />
-
-          {isArtemisPluginShop && !marketplaceFilter && (
-            <ManagementCard className="resource-runtime-banner resource-marketplace-account-banner">
-              <div>
-                <strong>{uiText(locale, "ResourceCenter.inline19")}</strong>
-                <small>{uiText(locale, "ResourceCenter.inline20")}</small>
-              </div>
-              <Button
-                disabled={operationPending}
-                onClick={() => runResourceOperation(openGoogleAccount)}
-              >
-                {uiText(locale, "ResourceCenter.inline21")}
-              </Button>
-            </ManagementCard>
-          )}
 
           <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
 
@@ -2398,6 +2184,7 @@ export function ResourceCenter({
             </div>
           </ManagementSection>
         </div>
+        {renderPluginConnection()}
       </ResourceSurface>
     );
   }
@@ -2405,11 +2192,9 @@ export function ResourceCenter({
   const managementSearchLabel =
     managementTab === "plugins"
       ? t.searchPlugins
-      : managementTab === "connectors"
-        ? `${t.searchInstalled} · ${t.connectors}`
-        : managementTab === "mcp"
-          ? `${t.searchInstalled} · ${t.mcp}`
-          : `${t.searchInstalled} · ${t.skills}`;
+      : managementTab === "mcp"
+        ? `${t.searchInstalled} · ${t.mcp}`
+        : `${t.searchInstalled} · ${t.skills}`;
 
   return (
     <ResourceSurface
@@ -2510,6 +2295,15 @@ export function ResourceCenter({
                 <ManagementRow
                   actions={
                     <div className="resource-row-actions">
+                      {pluginHasConnection(plugin) && (
+                        <Button
+                          variant="quiet"
+                          disabled={operationPending || busyId === plugin.id}
+                          onClick={() => setConnectionPlugin(plugin)}
+                        >
+                          {t.configure}
+                        </Button>
+                      )}
                       <IconButton
                         className="resource-icon-button"
                         disabled={operationPending || busyId === plugin.id}
@@ -2537,7 +2331,7 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === plugin.id ||
-                          !plugin.installable
+                          (!plugin.installable && !pluginIsEnabled(plugin))
                         }
                         label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
                         labelVisibility="hidden"
@@ -2666,194 +2460,6 @@ export function ResourceCenter({
               visibleExtensions.length === 0 && (
                 <EmptyResource>{t.noPlugins}</EmptyResource>
               )}
-          </div>
-        </ManagementSection>
-      )}
-
-      {managementTab === "connectors" && (
-        <ManagementSection
-          actions={
-            <Button
-              className="resource-add-button subtle"
-              disabled={operationPending}
-              icon={<PlusIcon />}
-              onClick={() => setConnectorPanelOpen((current) => !current)}
-            >
-              {t.addConnector}
-            </Button>
-          }
-          className="resource-management-section"
-          id={activeManagementTabOption.panelId}
-          labelledBy={activeManagementTabOption.id}
-          role="tabpanel"
-          title={t.connectors}
-        >
-          {connectorPanelOpen && (
-            <ManagementCard className="resource-connector-card">
-              <form
-                className="resource-connector-form"
-                onSubmit={(event) => runResourceSubmit(event, saveConnector)}
-              >
-                <InlineNotice tone="info">{t.connectorHelp}</InlineNotice>
-                <TextField
-                  autoFocus
-                  disabled={operationPending}
-                  label={t.connectorName}
-                  labelVisibility="hidden"
-                  onValueChange={setConnectorName}
-                  placeholder={t.connectorName}
-                  value={connectorName}
-                />
-                <TextField
-                  disabled={operationPending}
-                  label={t.connectorUrl}
-                  labelVisibility="hidden"
-                  onValueChange={setConnectorUrl}
-                  placeholder={t.connectorUrl}
-                  type="url"
-                  value={connectorUrl}
-                />
-                <Select
-                  disabled={operationPending}
-                  label={t.connectorAuth}
-                  onValueChange={setConnectorAuth}
-                  options={[
-                    { label: "OAuth", value: "oauth" },
-                    { label: "Bearer", value: "bearer" },
-                    {
-                      label: uiText(locale, "McpServerEditor_labels.authNone"),
-                      value: "none",
-                    },
-                  ]}
-                  value={connectorAuth}
-                />
-                {connectorAuth === "bearer" && (
-                  <TextField
-                    autoComplete="off"
-                    disabled={operationPending}
-                    label={t.connectorBearer}
-                    labelVisibility="hidden"
-                    onValueChange={setConnectorBearer}
-                    placeholder={t.connectorBearer}
-                    type="password"
-                    value={connectorBearer}
-                  />
-                )}
-                <Button
-                  disabled={
-                    operationPending ||
-                    busyId === "connector:new" ||
-                    !connectorName.trim() ||
-                    !connectorUrl.trim() ||
-                    (connectorAuth === "bearer" && !connectorBearer.trim())
-                  }
-                  type="submit"
-                  variant="primary"
-                >
-                  {t.saveConnector}
-                </Button>
-              </form>
-            </ManagementCard>
-          )}
-          <div className="resource-management-list">
-            {visibleConnectors.map((server) => {
-              const owner = owningPluginForMcp(server);
-              const displayName = owner
-                ? pluginPageText(server.config.name)
-                : server.config.name;
-              const visual = visualForMcp(server);
-              const canAuthorize =
-                server.config.transport === "streamable-http" &&
-                server.config.auth === "oauth" &&
-                server.config.enabled &&
-                server.state !== "connected";
-              return (
-                <ManagementRow
-                  actions={
-                    <div className="resource-row-actions">
-                      <IconButton
-                        className="resource-icon-button"
-                        disabled={operationPending}
-                        icon={<GearIcon />}
-                        label={`${t.configure} ${displayName}`}
-                        onClick={() => openMcpEditor(server)}
-                        title={t.configure}
-                      />
-                      {canAuthorize && (
-                        <Button
-                          className="resource-inline-action"
-                          disabled={
-                            operationPending || busyId === server.config.id
-                          }
-                          onClick={() =>
-                            runResourceOperation(() =>
-                              authorizeConnector(server.config.id),
-                            )
-                          }
-                        >
-                          {t.authorize}
-                        </Button>
-                      )}
-                      <IconButton
-                        className="resource-icon-button"
-                        disabled={
-                          operationPending ||
-                          busyId === server.config.id ||
-                          managedMcpIds.has(server.config.id)
-                        }
-                        icon={<TrashIcon />}
-                        label={`${t.remove} ${displayName}`}
-                        onClick={() =>
-                          runResourceOperation(() =>
-                            removeMcp(
-                              server.config.id,
-                              t.confirmRemoveConnector,
-                            ),
-                          )
-                        }
-                        title={
-                          managedMcpIds.has(server.config.id)
-                            ? t.managedByPlugin
-                            : t.remove
-                        }
-                        variant="danger"
-                      />
-                      <Switch
-                        checked={server.config.enabled}
-                        className="resource-switch"
-                        disabled={
-                          operationPending || busyId === server.config.id
-                        }
-                        label={server.config.enabled ? t.enabled : t.disabled}
-                        labelVisibility="hidden"
-                        onCheckedChange={(enabled) =>
-                          runResourceOperation(() =>
-                            setMcpEnabled(server.config.id, enabled),
-                          )
-                        }
-                        title={server.config.enabled ? t.enabled : t.disabled}
-                      />
-                    </div>
-                  }
-                  className="resource-management-row"
-                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}`}
-                  key={server.config.id}
-                  leading={
-                    <ResourceAvatar
-                      brandColor={visual.brandColor}
-                      iconDataUrl={visual.iconDataUrl}
-                      iconKey={visual.iconKey}
-                      kind="connectors"
-                      name={displayName}
-                    />
-                  }
-                  title={displayName}
-                />
-              );
-            })}
-            {visibleConnectors.length === 0 && (
-              <EmptyResource>{t.noConnectors}</EmptyResource>
-            )}
           </div>
         </ManagementSection>
       )}
@@ -3195,6 +2801,8 @@ export function ResourceCenter({
           </div>
         </ManagementSection>
       )}
+
+      {renderPluginConnection()}
 
       {mcpInstallDraft && (
         <Dialog

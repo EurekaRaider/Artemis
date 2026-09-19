@@ -1,40 +1,40 @@
-# Approval and choice card QA — 2026-09-12
+# Slash command glass QA
 
-Reference: the user-approved light/dark mock attached in this task. Implementation uses the existing Artemis components and theme tokens, with synthetic reference content rendered in native Electron.
+final result: passed
 
-## Visual comparison
+## Scope and visual reference
 
-- Palm icon replaces the shield; no circular warning surround.
-- Waiting and resolved states have visible 7 px semantic status dots in both themes.
-- Expanded approval separates the title, command surface, model explanation, recommendation, and compact actions.
-- Collapsed approval preserves its operation title and command, with status and disclosure affordance at the right.
-- Action buttons use 28 px height and 12 px text; Always allow has no dropdown arrow.
-- Unsupported Always allow is absent, along with its scope hint. The scope remains the same operation within the project; this visual change does not broaden authorization.
-- Choice rows share a flat bordered list with separators. Radio indicators are vertically centered against the full label/description row; measured deviation is at most 0.51 px.
-- Single and multi-question cards use the same typography, palm, status treatment, radio geometry, and submit control. Inactive questions no longer reserve blank vertical space.
-- Both 640 px and 300 px container widths were rendered. Commands wrap and controls remain inside the cards. Narrow approvals move the recommendation onto its own line so the three actions can remain together.
+Only the slash-command popover material and its active/hover states changed in this iteration. Existing application typography, icons, geometry and command behavior are retained.
 
-Intentional product details beyond the sketch: countdown, custom-answer option, and multi-question progress/navigation are retained. The existing theme palette and font are used, rather than treating the generated mock as exact font/color specifications. This is a component fidelity check, not a claim of pixel identity with a generated bitmap or a packaged release.
+- Source: `/Users/williamji/.codex/generated_images/01a0b7a7-6deb-7d40-a7ba-f78a178100ba/exec-816902b6-e5aa-485d-af90-1bc70cd25c71.png` (1786 × 880 image).
+- Implementation: `/private/tmp/glass-dark-1420.png` (menu with surrounding shadow, 1940 × 668 pixels).
+- Additional state: `/private/tmp/glass-light-980.png`.
+- Electron viewports: 1420 × 920 and 980 × 920 CSS pixels; device scale factor 2.
+- State: Chinese locale, slash menu open, /goal selected, scroll at top.
+- Comparison: source and implementation displayed together. Compare menu proportions and materials rather than whole image bounds: the reference includes the composer, while implementation capture focuses on the menu. No pixel-exact equivalence is claimed for the generated reference.
 
-## Evidence
+## Fidelity review
 
-- `artifacts/approval-polish/light-components.png`, `dark-components.png`: real source components in Electron.
-- `artifacts/approval-polish/light-multi.png`, `dark-multi.png`: multi-question layout.
-- `artifacts/approval-polish/light-narrow.png`, `dark-narrow.png`: 300 px containers.
-- `artifacts/approval-polish/light-restricted.png`, `dark-restricted.png`: once-only approval.
-- `artifacts/approval-polish/geometry-report.json`: status dots, radio alignment, button sizes, retained collapsed content, widths, and hidden unsupported action.
-- Reproduce component checks with `env -u ELECTRON_RUN_AS_NODE node_modules/.bin/electron apps/desktop/scripts/verify-approval-polish.cjs`.
+- Typography/content: existing font, Chinese descriptions, six command labels and hierarchy preserved; readable in both themes.
+- Layout: existing row heights, spacing and menu size preserved. No horizontal overflow at either tested width.
+- Color/material: translucent neutral panel with real 24px backdrop blur, edge highlights, floating shadow and translucent selected row. Light theme uses existing theme tokens.
+- Assets: existing six colored vector icons reused; no raster replacements or additional imagery.
+- Focused inspection: menu edges, selected row and small description text were directly inspected in the full-resolution menu capture.
+
+## Comparison history
+
+1. Initial glass capture exposed an opaque scrollbar track interrupting the right rounded glass edge (P2).
+2. Applied transparent scrollbar track and thin thumb, rebuilt and recaptured both themes. The right edge is now continuous; no remaining actionable P0/P1/P2 findings.
 
 ## Validation
 
-Desktop typecheck, production build, UI convergence including negative fixtures, and 29 targeted adapter, choice interaction, and shutdown tests passed. The production build retains the existing large-chunk warning.
+- Native Electron renderer through Playwright, isolated temporary profile.
+- Each theme: 70 ArrowDown/ArrowUp steps, wheel scrolling and Enter selection passed; selected rows and top visible icons stayed visible.
+- No renderer page errors observed. Computed backdrop filter verified; no horizontal menu overflow.
+- Vite production renderer build, Prettier and git diff whitespace checks passed.
+- OS reduced-transparency preference uses an opaque panel fallback; this media preference was not manually tested.
 
-The database-closed exception was addressed by ignoring late task-view IPC during shutdown and closing the store after windows close. Native shutdown verification completed without the reported exception.
+## Limits / follow-up polish
 
-Final built-production native interaction run passed: 4 cases, 159 assertions, 15 screenshots, covering both themes, mouse selection plus submission, keyboard navigation, IME custom answers, duplicate resolution rejection, legacy single-question input, 200% zoom, timeout, and cancellation. Report: `artifacts/approval-polish/interaction-report.json`.
-
-Result: the reported visual defects and unsupported-action visibility are resolved in the inspected states; no blocking finding remains in this local verification scope.
-
-## Follow-up: compact single-line options
-
-Ordinary options now keep label, recommendation, and description on one line in both single and multi-question menus. Only the custom “Other” row retains two lines. Long descriptions use ellipsis with the full text available on hover; long labels have the same overflow protection. Native light/dark and narrow-container geometry checks were rerun after the change. This follow-up changes presentation only; the prior interaction suite covers the unchanged selection/submission logic.
+- P3: generated mock has more diffuse, irregular reflections; implementation uses deterministic CSS lighting and actual underlying content for blur.
+- Verified in local macOS Electron only; no packaged installation or Windows acceptance in this change.

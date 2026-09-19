@@ -24,3 +24,5 @@ Thumbs.db
 apps/desktop/resources/google-oauth-client.json
 /smoke-*.png
 /MGSuite-slides-read-bug-report.md
+
+apps/desktop/resources/connector-clients.json

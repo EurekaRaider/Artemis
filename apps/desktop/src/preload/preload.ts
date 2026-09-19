@@ -374,13 +374,13 @@ const api: ArtemisApi = {
       operationId,
       signingKeyFingerprint,
     ),
-  getGoogleAccountStatus: () => ipcRenderer.invoke(IPC.googleAccountStatus),
-  authorizeGoogleGrant: (grant) =>
-    ipcRenderer.invoke(IPC.googleAccountAuthorizeGrant, grant),
-  disconnectGoogleGrant: (grant) =>
-    ipcRenderer.invoke(IPC.googleAccountDisconnectGrant, grant),
-  disconnectGoogleAccount: () =>
-    ipcRenderer.invoke(IPC.googleAccountDisconnect),
+  listConnectorDefinitions: () => ipcRenderer.invoke(IPC.connectorDefinitions),
+  listConnectorConnections: () => ipcRenderer.invoke(IPC.connectorConnections),
+  connectConnector: (input) => ipcRenderer.invoke(IPC.connectorConnect, input),
+  cancelConnectorAuthorization: (id) =>
+    ipcRenderer.invoke(IPC.connectorCancel, id),
+  reconnectConnector: (id) => ipcRenderer.invoke(IPC.connectorReconnect, id),
+  disconnectConnector: (id) => ipcRenderer.invoke(IPC.connectorDisconnect, id),
   selectCodexPluginMarketplace: (sourceId) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceSelect, sourceId),
   refreshCodexPluginMarketplace: (sourceId, operationId) =>
