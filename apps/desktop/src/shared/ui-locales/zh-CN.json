@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message1": "扫码接入",
   "ImFeishuScan.message2": "用飞书扫描二维码并在手机上确认，自动创建应用并保存凭据。",
   "ImFeishuScan.message3": "扫码并创建应用",
-  "ImFeishuScan.message4": "等待手机确认…",
+  "ImFeishuScan.message4": "等待飞书扫码…",
   "ImFeishuScan.message5": "已创建并连接「{{name}}」，请在飞书私聊中发送配对指令完成绑定。",
   "ImFeishuScan.message6": "扫码未完成或已过期，请重试。",
   "ImFeishuScan.message9": "取消",

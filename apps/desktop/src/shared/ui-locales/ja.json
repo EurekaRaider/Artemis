@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message1": "QRコードで接続",
   "ImFeishuScan.message2": "FeishuでQRコードをスキャンし、スマホで確認すると、アプリが自動的に作成され資格情報が保存されます。",
   "ImFeishuScan.message3": "スキャンしてアプリを作成",
-  "ImFeishuScan.message4": "スマホでの確認を待っています…",
+  "ImFeishuScan.message4": "Feishuスキャンを待っています…",
   "ImFeishuScan.message5": "「{{name}}」を作成して接続しました。ボットチャットでペアリングコマンドを送信してバインドを完了してください。",
   "ImFeishuScan.message6": "スキャンが完了しないか、有効期限が切れました。もう一度お試しください。",
   "ImFeishuScan.message9": "キャンセル",

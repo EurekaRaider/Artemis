@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message1": "掃碼接入",
   "ImFeishuScan.message2": "用飛書掃描QR Code並在手機上確認，自動建立應用程式並保存憑證。",
   "ImFeishuScan.message3": "掃碼並建立應用",
-  "ImFeishuScan.message4": "等待手機確認…",
+  "ImFeishuScan.message4": "等待飛書掃碼…",
   "ImFeishuScan.message5": "已建立並連線「{{name}}」，請在飛書私聊中發送配對指令完成綁定。",
   "ImFeishuScan.message6": "掃碼未完成或已過期，請重試。",
   "ImFeishuScan.message9": "取消",

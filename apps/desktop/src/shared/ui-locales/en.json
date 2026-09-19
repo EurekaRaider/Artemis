@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message1": "Scan to connect",
   "ImFeishuScan.message2": "Scan the QR code with Feishu and confirm on your phone; the app is created and its credentials saved automatically.",
   "ImFeishuScan.message3": "Scan and create app",
-  "ImFeishuScan.message4": "Waiting for confirmation on your phone…",
+  "ImFeishuScan.message4": "Waiting for Feishu scan…",
   "ImFeishuScan.message5": "Created and connected \"{{name}}\". Send the pairing command in the bot chat to finish binding.",
   "ImFeishuScan.message6": "The scan was not completed or expired. Try again.",
   "ImFeishuScan.message9": "Cancel",

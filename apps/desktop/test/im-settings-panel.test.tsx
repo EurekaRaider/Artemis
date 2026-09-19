@@ -670,7 +670,7 @@ describe("production IM settings", () => {
     expect(f.manage).toHaveBeenCalledWith(
       expect.objectContaining({ action: "feishu-scan-begin" }),
     );
-    expect(await screen.findByText("等待手机确认…")).toBeVisible();
+    expect(await screen.findByText("等待飞书扫码…")).toBeVisible();
     expect(document.querySelector(".im-scan-qr")).toBeVisible();
     /* 再点收起：扫码区随开合移除，可随时重开。 */
     await user.click(screen.getByRole("button", { name: "扫码" }));

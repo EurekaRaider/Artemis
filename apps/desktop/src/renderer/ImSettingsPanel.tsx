@@ -141,6 +141,8 @@ export function ImSettingsPanel({
   const [credScan, setCredScan] = useState(false);
   /* 渠道弹窗高度跟随「消息接入」主弹窗实际渲染高度（打开时量测注入）。 */
   const [channelDialogHeight, setChannelDialogHeight] = useState<number>();
+  /* 飞书创建页的扫码轮次：头部「扫码」钮递增重挂组件以更换二维码。 */
+  const [createScanEpoch, setCreateScanEpoch] = useState(0);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [savedMetadata, setSavedMetadata] = useState<
@@ -1139,6 +1141,24 @@ export function ImSettingsPanel({
         setRefreshError(String(error));
       }
     });
+  /* 扫码建连后的共享接续（ZCode 动线）：刷新出连接、生成配对码并弹开
+     配对弹窗；before 在接续前执行（创建页用它切回详情选中新机器人）。 */
+  const connectScannedBot = (
+    connectionId: string | undefined,
+    before?: () => void,
+  ) => {
+    before?.();
+    void run(async () => {
+      await refresh();
+      if (!connectionId) return;
+      try {
+        await generatePairCode();
+        setPairDialogId(connectionId);
+      } catch {
+        // 配对码生成失败不打断：弹窗可从机器人详情随时重开。
+      }
+    });
+  };
   /* 飞书扫码接入（官方应用注册流程）：空态首卡自动出码，创建页与
      关联凭据卡共用；onScanConnected 在共享接续（刷新+配对）前执行。 */
   const renderFeishuScan = (
@@ -1150,20 +1170,8 @@ export function ImSettingsPanel({
       autoStart={autoStart}
       busy={busy}
       disabled={!activeSettings.deviceId}
-      /* ZCode 动线：扫码建连后直接接续绑定——刷新出连接、生成配对码
-         并弹开配对弹窗，用户复制指令去飞书私聊发送即可。 */
       onConnected={(connectionId) => {
-        onScanConnected?.(connectionId);
-        void run(async () => {
-          await refresh();
-          if (!connectionId) return;
-          try {
-            await generatePairCode();
-            setPairDialogId(connectionId);
-          } catch {
-            // 配对码生成失败不打断：弹窗可从机器人详情随时重开。
-          }
-        });
+        connectScannedBot(connectionId, () => onScanConnected?.(connectionId));
       }}
     />
   );
@@ -1499,13 +1507,39 @@ export function ImSettingsPanel({
                       <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
                       <p>{t("ImSettingsPanel.botScanDesc")}</p>
                     </div>
+                    <div className="im-bot-section-actions">
+                      <Button
+                        variant="quiet"
+                        size="compact"
+                        disabled={busy || !activeSettings.deviceId}
+                        onClick={() => setCreateScanEpoch((value) => value + 1)}
+                      >
+                        <ArtemisIcon
+                          aria-hidden="true"
+                          height={13}
+                          name="qr-code"
+                          width={13}
+                        />
+                        {t("ImFeishuScan.message10")}
+                      </Button>
+                    </div>
                     <div className="im-bot-scan">
-                      {renderFeishuScan(true, (connectionId) => {
-                        if (connectionId) {
-                          setChannelPane("bot");
-                          setSelectedBotId(connectionId);
-                        }
-                      })}
+                      <ImFeishuScan
+                        key={createScanEpoch}
+                        t={t}
+                        autoStart
+                        bare
+                        busy={busy}
+                        disabled={!activeSettings.deviceId}
+                        onConnected={(connectionId) => {
+                          connectScannedBot(connectionId, () => {
+                            if (connectionId) {
+                              setChannelPane("bot");
+                              setSelectedBotId(connectionId);
+                            }
+                          });
+                        }}
+                      />
                     </div>
                   </div>
                 ) : (

@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message1": "QR 코드로 연결",
   "ImFeishuScan.message2": "Feishu로 QR 코드를 스캔하고 휴대폰에서 확인하면 앱이 자동으로 생성되고 자격 증명이 저장됩니다.",
   "ImFeishuScan.message3": "스캔 후 앱 만들기",
-  "ImFeishuScan.message4": "휴대폰에서 확인을 기다리는 중…",
+  "ImFeishuScan.message4": "Feishu 스캔 대기 중…",
   "ImFeishuScan.message5": "\"{{name}}\"을(를) 만들어 연결했습니다. 봇 채팅에서 페어링 명령을 보내 바인딩을 완료하세요.",
   "ImFeishuScan.message6": "스캔이 완료되지 않았거나 만료되었습니다. 다시 시도하세요.",
   "ImFeishuScan.message9": "취소",

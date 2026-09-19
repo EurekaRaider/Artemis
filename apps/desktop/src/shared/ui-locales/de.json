@@ -1479,7 +1479,7 @@
   "ImFeishuScan.message1": "Per Scan verbinden",
   "ImFeishuScan.message2": "Scannen Sie den QR-Code mit Feishu und bestätigen Sie auf dem Telefon; die App wird erstellt und die Anmeldedaten automatisch gespeichert.",
   "ImFeishuScan.message3": "Scannen und App erstellen",
-  "ImFeishuScan.message4": "Warte auf Bestätigung auf dem Telefon…",
+  "ImFeishuScan.message4": "Warte auf Feishu-Scan…",
   "ImFeishuScan.message5": "„{{name}}“ wurde erstellt und verbunden. Senden Sie den Kopplungsbefehl im Bot-Chat, um die Bindung abzuschließen.",
   "ImFeishuScan.message6": "Der Scan wurde nicht abgeschlossen oder ist abgelaufen. Bitte erneut versuchen.",
   "ImFeishuScan.message9": "Abbrechen",

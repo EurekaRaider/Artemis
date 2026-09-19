@@ -10799,7 +10799,7 @@ kbd {
   padding: 12px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--text) 3%, transparent);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 /* 右栏创建页（ZCode 式：新建占据整卡）：头部=渠道标+标题，
    表单节奏与详情卡一致。 */
@@ -11020,6 +11020,7 @@ kbd {
 }
 .im-scan-active {
   align-items: flex-start;
+  gap: 20px;
 }
 .im-scan-qr {
   width: 190px;
@@ -11032,6 +11033,14 @@ kbd {
 /* 设备流用户码条 + 等待 spinner（ZCode 式扫码卡）。 */
 .im-scan-active .im-scan-copy {
   gap: 10px;
+}
+.im-scan-copy p {
+  margin: 0;
+}
+.im-scan-active .im-scan-qr {
+  /* 二维码与右栏文字列（指引+用户码条+等待行，实测 103px）上下齐平。 */
+  width: 103px;
+  height: 103px;
 }
 .im-scan-code {
   display: inline-flex;
@@ -11047,9 +11056,6 @@ kbd {
   font-weight: 640;
   letter-spacing: 0.08em;
   color: var(--text);
-}
-.im-scan-cancel {
-  align-self: flex-start;
 }
 .im-scan-wait {
   display: flex;

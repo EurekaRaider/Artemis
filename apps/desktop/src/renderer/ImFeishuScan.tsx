@@ -28,6 +28,7 @@ function messageOf(error: unknown): string {
 
 export function ImFeishuScan({
   autoStart = false,
+  bare = false,
   t,
   busy,
   disabled,
@@ -36,6 +37,8 @@ export function ImFeishuScan({
   t: ImTranslate;
   /** 渠道详情打开即触发扫码（ZCode 动线：点渠道 = 出二维码）。 */
   autoStart?: boolean;
+  /** 卡片自带「扫码」触发钮的宿主用：idle 不渲染独立扫码卡。 */
+  bare?: boolean;
   busy: boolean;
   disabled: boolean;
   /** 扫码建连成功后携带新连接 id，供面板接续配对引导（ZCode 同款动线）。 */
@@ -190,23 +193,26 @@ export function ImFeishuScan({
       </div>
     );
   if (phase.stage === "idle")
-    return (
-      <div className="im-scan">
-        <div className="im-scan-copy">
-          <h4>{t("ImFeishuScan.message1")}</h4>
-          <p className="im-fine">{t("ImFeishuScan.message2")}</p>
+    {
+      if (bare) return null;
+      return (
+        <div className="im-scan">
+          <div className="im-scan-copy">
+            <h4>{t("ImFeishuScan.message1")}</h4>
+            <p className="im-fine">{t("ImFeishuScan.message2")}</p>
+          </div>
+          <Button
+            size="compact"
+            variant="secondary"
+            disabled={busy || disabled}
+            onClick={start}
+          >
+            <ArtemisIcon aria-hidden="true" height={14} name="qr-code" width={14} />
+            {t("ImFeishuScan.message10")}
+          </Button>
         </div>
-        <Button
-          size="compact"
-          variant="secondary"
-          disabled={busy || disabled}
-          onClick={start}
-        >
-          <ArtemisIcon aria-hidden="true" height={14} name="qr-code" width={14} />
-          {t("ImFeishuScan.message10")}
-        </Button>
-      </div>
-    );
+      );
+    }
   const image = phase.image;
   return (
     <div className="im-scan im-scan-active">
@@ -219,7 +225,7 @@ export function ImFeishuScan({
       ) : null}
       <div className="im-scan-copy">
         <p>{t("ImFeishuScan.message11")}</p>
-        {phase.begin.userCode ? (
+        {phase.stage === "scanning" && phase.begin.userCode ? (
           <div className="im-scan-code">
             <code>{phase.begin.userCode}</code>
           </div>
@@ -227,15 +233,15 @@ export function ImFeishuScan({
         <p className="im-scan-wait">
           <span aria-hidden="true" className="im-scan-spinner" />
           {t("ImFeishuScan.message4")}
+          <Button
+            size="compact"
+            variant="quiet"
+            className="im-scan-cancel"
+            onClick={cancel}
+          >
+            {t("ImFeishuScan.message9")}
+          </Button>
         </p>
-        <Button
-          size="compact"
-          variant="quiet"
-          className="im-scan-cancel"
-          onClick={cancel}
-        >
-          {t("ImFeishuScan.message9")}
-        </Button>
       </div>
     </div>
   );
