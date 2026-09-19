@@ -10420,12 +10420,12 @@ kbd {
   inline-size: 16px;
   block-size: 16px;
 }
-/* 电源状态钮（正向态）：就绪=绿图标+「连接」，断开=红图标+「断开」。 */
+/* 电源状态钮：就绪=红电源+「断开」动作，断开=红斜杠+「连接」动作。 */
 .im-power-toggle[data-state="on"] {
   color: var(--text);
 }
 .im-power-toggle[data-state="on"] svg {
-  color: var(--success);
+  color: var(--danger);
 }
 .im-power-toggle[data-state="off"] {
   color: var(--muted);

@@ -2561,6 +2561,13 @@ export function ImSettingsPanel({
         <div className="im-col-left">
           <section className="im-service-block" id="im-gateway" tabIndex={-1}>
             <div className="im-service-head">
+              <ArtemisIcon
+                aria-hidden="true"
+                name="connector"
+                width={24}
+                height={24}
+              />
+              <strong>{t("ImSettingsPanel.message180")}</strong>
               {(activeScreen === "overview" ||
                 (activeScreen === "flow" && !!status?.settings.deviceId)) && (
                 <span
@@ -2577,13 +2584,6 @@ export function ImSettingsPanel({
                     : t("ImSettingsPanel.serviceDisconnected")}
                 </span>
               )}
-              <ArtemisIcon
-                aria-hidden="true"
-                name="connector"
-                width={24}
-                height={24}
-              />
-              <strong>{t("ImSettingsPanel.message180")}</strong>
               <div
                 className="im-service-state"
                 title={t("ImSettingsPanel.message196")}
