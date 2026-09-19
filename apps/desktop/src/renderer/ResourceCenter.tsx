@@ -1702,14 +1702,15 @@ export function ResourceCenter({
             kind="plugin"
             name={plugin.name}
           />
-          <strong title={displayName}>{displayName}</strong>
-          <small
-            className="plugin-market-card-source"
-            title={`${t.marketplaceSource}: ${sourceLabel}`}
-          >
-            <span>{t.marketplaceSource}</span>
-            <span>{sourceLabel}</span>
-          </small>
+          <div className="plugin-market-card-titles">
+            <strong title={displayName}>{displayName}</strong>
+            <small
+              className="plugin-market-card-source"
+              title={`${t.marketplaceSource}: ${sourceLabel}`}
+            >
+              {t.marketplaceSource}: {sourceLabel}
+            </small>
+          </div>
         </div>
         <div className="plugin-market-copy">
           <small>{description}</small>
