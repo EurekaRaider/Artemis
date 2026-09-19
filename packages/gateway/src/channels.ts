@@ -118,6 +118,7 @@ export interface ChannelAdapter {
     text: string,
     key: string,
     recipient: string,
+    locale?: AppLocale,
   ): Promise<string | undefined>;
   publish?(
     conversation: ImConversation,

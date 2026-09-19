@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import {
   channelEventSchema,
+  type AppLocale,
   type ChannelEvent,
   type ImConversation,
   type ImGroupRoster,
@@ -453,6 +454,7 @@ export class SlackAdapter implements ChannelAdapter {
     text: string,
     key: string,
     recipient: string,
+    locale?: AppLocale,
   ) {
     if (!/^[a-zA-Z0-9_-]+$/u.test(recipient) && recipient !== "*")
       throw new Error("Invalid native bot identity.");
@@ -494,10 +496,14 @@ export class SlackAdapter implements ChannelAdapter {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `${mention}${imText(frame.locale, labels[frame.action])}`,
+              text: `${mention}${imText(locale ?? frame.locale, labels[frame.action])}`,
             },
           },
-          ...slackMarkdownSections(frame.text).map((text) => ({
+          ...slackMarkdownSections(
+            ["hello", "probe", "proof"].includes(frame.action)
+              ? ""
+              : frame.text,
+          ).map((text) => ({
             type: "section",
             text: { type: "mrkdwn", text, verbatim: true },
           })),

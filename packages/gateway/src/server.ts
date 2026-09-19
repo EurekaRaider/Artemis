@@ -1589,6 +1589,7 @@ export class ArtemisGateway {
               item.payload.text,
               item.id,
               item.payload.native.recipient,
+              item.payload.native.locale,
             );
           } else if (item.payload.fileId) {
             const file = this.store.get<{ sealed?: string }>(
