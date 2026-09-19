@@ -410,6 +410,7 @@ export function ImSettingsPanel({
     }
   }
   async function generatePairCode() {
+    setPairCode(undefined);
     const started = Date.now();
     const result = (await window.artemis.manageIm({
       action: "pair",
@@ -529,8 +530,9 @@ export function ImSettingsPanel({
   }
   const channelConnections = connections.filter((c) => c.channel === channel);
   const selectedConnection =
-    channelConnections.find((c) => c.id === connectionId) ??
-    channelConnections[0];
+    channelConnections.find(
+      (c) => c.id === (pairDialogId || selectedBotId || connectionId),
+    ) ?? channelConnections[0];
   /* 弹窗编辑目标连接的公开配置；新建时回退到刚保存未刷新的元数据。 */
   const dialogConnection = botDialog?.connectionId
     ? channelConnections.find((c) => c.id === botDialog.connectionId)
@@ -541,9 +543,7 @@ export function ImSettingsPanel({
         id: dialogConnection.id,
         name: dialogConnection.name,
       }
-    : botDialog
-      ? savedMetadata[channel]
-      : undefined;
+    : undefined;
   const feishuTransport =
     fields.transport ?? dialogMetadata?.transport ?? "websocket";
   const feishuDomain = fields.domain ?? dialogMetadata?.domain ?? "feishu";
@@ -836,10 +836,7 @@ export function ImSettingsPanel({
           </aside>
         </div>
         <section id="im-prepare" tabIndex={-1}>
-          <ImGatewayInstructions
-            t={t}
-            onOpen={() => setAdvancedDetail(true)}
-          />
+          <ImGatewayInstructions t={t} onOpen={() => setAdvancedDetail(true)} />
         </section>
         <section id="im-device" tabIndex={-1}>
           {/* 入口卡：点击进入整幅二级卡（与「高级」同模式）。 */}
@@ -944,8 +941,7 @@ export function ImSettingsPanel({
           ...Object.fromEntries(
             fieldNames
               .filter(
-                (key) =>
-                  !optionalFields.includes(key) || !!fields[key]?.trim(),
+                (key) => !optionalFields.includes(key) || !!fields[key]?.trim(),
               )
               .map((key) => [key, fields[key]?.trim() ?? ""]),
           ),
@@ -1072,7 +1068,9 @@ export function ImSettingsPanel({
         />
       )}
       {channel === "feishu" && feishuTransport === "webhook" && local && (
-        <InlineNotice tone="info">{t("ImSettingsPanel.message88")}</InlineNotice>
+        <InlineNotice tone="info">
+          {t("ImSettingsPanel.message88")}
+        </InlineNotice>
       )}
       <div className="im-actions">
         <Button
@@ -1080,9 +1078,7 @@ export function ImSettingsPanel({
             busy ||
             (!local && !adminToken) ||
             !activeSettings.deviceId ||
-            (local &&
-              channel === "feishu" &&
-              feishuTransport === "webhook") ||
+            (local && channel === "feishu" && feishuTransport === "webhook") ||
             !requiredFields.every((key) => fields[key]?.trim())
           }
           onClick={() => saveBotForm(cancel)}
@@ -1095,7 +1091,11 @@ export function ImSettingsPanel({
       </div>
     </>
   );
-  const dismissBotDialog = () => {
+  const dismissBotDialog = (savedId?: string) => {
+    if (savedId) {
+      setSelectedBotId(savedId);
+      setChannelPane("bot");
+    }
     setBotDialog(null);
     setFields({});
     setAdminToken("");
@@ -1122,48 +1122,49 @@ export function ImSettingsPanel({
     });
   /* 删除机器人：危险卡内的垃圾桶入口，确认（与远端管理凭据）走
      ImConnectionRemoval 弹窗。 */
-  const removeConnection = (connection: ImConnectionStatus) => (token: string) =>
-    run(async () => {
-      const id = connection.id;
-      await window.artemis.manageIm({
-        action: "admin",
-        operation: "remove-connection",
-        ...(local ? {} : { adminToken: token }),
-        configuration: { id },
+  const removeConnection =
+    (connection: ImConnectionStatus) => (token: string) =>
+      run(async () => {
+        const id = connection.id;
+        await window.artemis.manageIm({
+          action: "admin",
+          operation: "remove-connection",
+          ...(local ? {} : { adminToken: token }),
+          configuration: { id },
+        });
+        setStatus((previous) =>
+          previous
+            ? {
+                ...previous,
+                connections: (
+                  previous.connections as ImConnectionStatus[]
+                ).filter((c) => c.id !== id),
+                identities: previous.identities.filter(
+                  (i) => i.connectionId !== id,
+                ),
+                pairingRequests: (previous.pairingRequests ?? []).filter(
+                  (r) => r.identity.connectionId !== id,
+                ),
+              }
+            : previous,
+        );
+        setSavedMetadata((previous) => ({
+          ...previous,
+          [channel]: undefined,
+        }));
+        setConnectionId("");
+        setFields({});
+        setAdminToken("");
+        setBotDialog(null);
+        setPairCode(undefined);
+        setFocusTarget("im-bot");
+        setMessage(t("ImSettingsPanel.message75"));
+        try {
+          await refresh();
+        } catch (error) {
+          setRefreshError(String(error));
+        }
       });
-      setStatus((previous) =>
-        previous
-          ? {
-              ...previous,
-              connections: (
-                previous.connections as ImConnectionStatus[]
-              ).filter((c) => c.id !== id),
-              identities: previous.identities.filter(
-                (i) => i.connectionId !== id,
-              ),
-              pairingRequests: (previous.pairingRequests ?? []).filter(
-                (r) => r.identity.connectionId !== id,
-              ),
-            }
-          : previous,
-      );
-      setSavedMetadata((previous) => ({
-        ...previous,
-        [channel]: undefined,
-      }));
-      setConnectionId("");
-      setFields({});
-      setAdminToken("");
-      setBotDialog(null);
-      setPairCode(undefined);
-      setFocusTarget("im-bot");
-      setMessage(t("ImSettingsPanel.message75"));
-      try {
-        await refresh();
-      } catch (error) {
-        setRefreshError(String(error));
-      }
-    });
   /* 扫码建连后的共享接续（ZCode 动线）：刷新出连接、生成配对码并弹开
      配对弹窗；before 在接续前执行（创建页用它切回详情选中新机器人）。 */
   const connectScannedBot = (
@@ -1269,7 +1270,7 @@ export function ImSettingsPanel({
           {channelLogo(channel, 28)}
           <strong>{t("ImSettingsPanel.message76")}</strong>
         </div>
-        {channel === "feishu" ? (
+        {channel === "feishu" && local ? (
           <>
             <div className="im-bot-section" data-scan-open>
               <div className="im-bot-section-copy">
@@ -1317,6 +1318,19 @@ export function ImSettingsPanel({
                 </div>
               )}
             </div>
+            <Button
+              variant="quiet"
+              size="compact"
+              disabled={busy}
+              onClick={(event) => {
+                botDialogTrigger.current = event.currentTarget;
+                setCreateScanOpen(false);
+                setFields({});
+                setBotDialog({});
+              }}
+            >
+              {t("ImSettingsPanel.manualCredentials")}
+            </Button>
             {renderReplyModeCard()}
           </>
         ) : (
@@ -1385,7 +1399,6 @@ export function ImSettingsPanel({
       </div>
     </div>
   );
-  /* 机器人详情（ZCode 式）：头=logo 跨两行，右侧名称+配对状态；
   /* 机器人详情（ZCode 式）：头=logo+名称+行尾删除入口（配对态只在
      左栏导航卡展示）；下方为关联机器人 / 配对聊天 / 回复模式 设置卡。 */
   const renderBotProfile = (connection: ImConnectionStatus) => {
@@ -1423,6 +1436,19 @@ export function ImSettingsPanel({
               <p>{t("ImSettingsPanel.botScanDesc")}</p>
             </div>
             <div className="im-bot-section-actions">
+              <Button
+                variant="quiet"
+                size="compact"
+                disabled={busy}
+                label={t("ImSettingsPanel.message69", {
+                  value1: connection.name,
+                })}
+                onClick={(event) =>
+                  openBotEditor(connection, event.currentTarget)
+                }
+              >
+                {t("ImSettingsPanel.message70")}
+              </Button>
               {state === "connected" ? (
                 pairing.paired && (
                   <Button
@@ -1437,7 +1463,7 @@ export function ImSettingsPanel({
                     {t("ImSettingsPanel.botUnbindAction")}
                   </Button>
                 )
-              ) : (
+              ) : local ? (
                 <Button
                   variant="quiet"
                   size="compact"
@@ -1452,7 +1478,7 @@ export function ImSettingsPanel({
                   />
                   {t("ImFeishuScan.message10")}
                 </Button>
-              )}
+              ) : null}
             </div>
             {credScan && (
               <div className="im-bot-scan">{renderFeishuScan(true)}</div>
@@ -1528,8 +1554,8 @@ export function ImSettingsPanel({
             className="im-bot-new"
             disabled={busy}
             data-selected={
-              (channelPane === "create" ||
-                (channel === "feishu" && !channelConnections.length)) ||
+              channelPane === "create" ||
+              (channel === "feishu" && !channelConnections.length) ||
               undefined
             }
             aria-label={t("ImSettingsPanel.message65")}
@@ -2500,7 +2526,10 @@ export function ImSettingsPanel({
           />
         </section>
         {/* D4 诚实版轨道：仅「桌面出现任务」由系统检测，完成与回复以用户确认为准。 */}
-        <ol className="im-test-track" aria-label={t("ImSettingsPanel.message174")}>
+        <ol
+          className="im-test-track"
+          aria-label={t("ImSettingsPanel.message174")}
+        >
           <li data-state="guide">{t("ImSettingsPanel.message167")}</li>
           <li data-state={taskDetected ? "done" : "pending"}>
             {taskDetected
@@ -2617,10 +2646,7 @@ export function ImSettingsPanel({
         </button>
       );
     };
-    const detailHead = (
-      label: string,
-      onBack: () => void,
-    ) => (
+    const detailHead = (label: string, onBack: () => void) => (
       <div className="im-channel-detail-head">
         <Button size="compact" variant="quiet" onClick={onBack}>
           {t("ImSettingsPanel.channelBack")}
@@ -2672,16 +2698,16 @@ export function ImSettingsPanel({
                     <button
                       type="button"
                       role="switch"
-                      aria-checked={status?.settings.enabled ?? settings.enabled}
+                      aria-checked={
+                        status?.settings.enabled ?? settings.enabled
+                      }
                       aria-label={t("ImSettingsPanel.message194")}
                       title={
                         (status?.settings.enabled ?? settings.enabled)
                           ? t("ImSettingsPanel.message195")
                           : t("ImSettingsPanel.message194")
                       }
-                      disabled={
-                        busy || (!settings.enabled && !!enableReason)
-                      }
+                      disabled={busy || (!settings.enabled && !!enableReason)}
                       className="im-power-toggle"
                       data-state={
                         (status?.settings.enabled ?? settings.enabled)
@@ -2784,7 +2810,10 @@ export function ImSettingsPanel({
                       {t("ImSettingsPanel.message186")}
                     </Button>
                     {channel !== "wecom" && (
-                      <Button variant="quiet" onClick={() => selectView("spaces")}>
+                      <Button
+                        variant="quiet"
+                        onClick={() => selectView("spaces")}
+                      >
                         {t("ImSettingsPanel.message176")}
                       </Button>
                     )}
@@ -2794,7 +2823,10 @@ export function ImSettingsPanel({
               )}
             </section>
           ) : (
-            <section className="im-channel-list" aria-label={t("ImSettingsPanel.imChannelsTitle")}>
+            <section
+              className="im-channel-list"
+              aria-label={t("ImSettingsPanel.imChannelsTitle")}
+            >
               <div className="im-channel-list-head">
                 <ArtemisIcon
                   aria-hidden="true"
@@ -2818,7 +2850,8 @@ export function ImSettingsPanel({
                 type="button"
                 className="im-channel-row"
                 data-configured={
-                  (settings.grants.length > 0 || undefined) as boolean | undefined
+                  (settings.grants.length > 0 || undefined) as
+                    boolean | undefined
                 }
                 onClick={() => {
                   setChannelDetail(false);
@@ -2951,9 +2984,9 @@ export function ImSettingsPanel({
           style={
             channelDialogHeight
               ? {
-                  blockSize: `${channelDialogHeight}px`,
-                  minBlockSize: `${channelDialogHeight}px`,
-                  maxBlockSize: `${channelDialogHeight}px`,
+                  blockSize: `min(${channelDialogHeight}px, 88dvh, calc(100dvh - 52px))`,
+                  minBlockSize: `min(${channelDialogHeight}px, 88dvh, calc(100dvh - 52px))`,
+                  maxBlockSize: `min(${channelDialogHeight}px, 88dvh, calc(100dvh - 52px))`,
                 }
               : undefined
           }

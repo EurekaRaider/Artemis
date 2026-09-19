@@ -56,7 +56,13 @@ import {
   TurnChangeSummary,
   TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
-import { Dialog, LoadingState, Popover, Toast, Tooltip } from "@artemis/ui/feedback";
+import {
+  Dialog,
+  LoadingState,
+  Popover,
+  Toast,
+  Tooltip,
+} from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import artemisIcon from "../../build/icon.png";
 import feishuChannelIcon from "./assets/feishu-channel.png";
@@ -887,7 +893,10 @@ function splitImChannelPrefix(
   ).exec(title);
   const matched = match?.[1];
   if (!matched) return undefined;
-  return { channel: IM_TITLE_CHANNELS[matched]!, rest: title.slice(match[0].length) };
+  return {
+    channel: IM_TITLE_CHANNELS[matched]!,
+    rest: title.slice(match[0].length),
+  };
 }
 
 function ThreadChannelMark({
@@ -945,9 +954,7 @@ function ThreadTitleContent({
   const text = parsed ? parsed.rest : visible;
   return (
     <>
-      {parsed && (
-        <ThreadChannelMark channel={parsed.channel} locale={locale} />
-      )}
+      {parsed && <ThreadChannelMark channel={parsed.channel} locale={locale} />}
       <span className="thread-title-text">
         <span>{text}</span>
         <span aria-hidden="true" className="thread-title-copy">
@@ -5709,7 +5716,9 @@ export function App() {
                 type="button"
                 aria-label={t.settings}
                 title={t.settings}
-                onClick={(event) => openSettings("general", event.currentTarget)}
+                onClick={(event) =>
+                  openSettings("general", event.currentTarget)
+                }
               >
                 <SettingsIcon />
               </button>
@@ -9324,14 +9333,24 @@ export function App() {
           >
             <ArtemisIcon height={15} name="close" width={15} />
           </button>
-          <ImSettingsPanel
-            locale={locale}
-            onOpenThread={async (threadId) => {
-              await openAutomationThread(threadId);
-              setImSettingsOpen(false);
-              window.requestAnimationFrame(() => promptInput.current?.focus());
-            }}
-          />
+          <Suspense
+            fallback={
+              <LoadingState
+                label={uiText(locale, "ImSettingsPanel.message31")}
+              />
+            }
+          >
+            <ImSettingsPanel
+              locale={locale}
+              onOpenThread={async (threadId) => {
+                await openAutomationThread(threadId);
+                setImSettingsOpen(false);
+                window.requestAnimationFrame(() =>
+                  promptInput.current?.focus(),
+                );
+              }}
+            />
+          </Suspense>
         </Dialog>
       )}
 

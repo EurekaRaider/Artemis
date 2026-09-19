@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "Putuskan",
   "ImSettingsPanel.serviceReady": "Siap",
   "ImSettingsPanel.serviceDisconnected": "Terputus",
-  "ImSettingsPanel.powerConnected": "Terhubung"
+  "ImSettingsPanel.powerConnected": "Terhubung",
+  "ImSettingsPanel.manualCredentials": "Masukkan kredensial secara manual"
 }

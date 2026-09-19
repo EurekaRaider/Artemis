@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "切断",
   "ImSettingsPanel.serviceReady": "準備完了",
   "ImSettingsPanel.serviceDisconnected": "切断",
-  "ImSettingsPanel.powerConnected": "接続中"
+  "ImSettingsPanel.powerConnected": "接続中",
+  "ImSettingsPanel.manualCredentials": "認証情報を手動で入力"
 }

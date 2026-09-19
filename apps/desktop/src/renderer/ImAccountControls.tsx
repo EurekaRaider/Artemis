@@ -115,12 +115,12 @@ export function ImPairingCode({
                 >
                   {t("ImAccountControls.message6")}
                 </Button>
-                <Button variant="quiet" disabled={busy} onClick={generate}>
-                  {t("ImAccountControls.message7")}
-                </Button>
               </span>
             </>
           )}
+          <Button variant="quiet" disabled={busy} onClick={generate}>
+            {t("ImAccountControls.message7")}
+          </Button>
         </div>
         {requests}
       </div>

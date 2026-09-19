@@ -127,9 +127,7 @@ export function ImThreadConnection({
   /* 首个图标悬浮气泡：对话类型 · 在线/离线。 */
   const summary = `${uiText(
     locale,
-    status.group
-      ? "ImThreadConnection.inline8"
-      : "ImThreadConnection.inline7",
+    status.group ? "ImThreadConnection.inline8" : "ImThreadConnection.inline7",
   )}·${uiText(
     locale,
     state === "connected"

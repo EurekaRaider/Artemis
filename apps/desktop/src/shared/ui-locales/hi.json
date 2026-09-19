@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "डिस्कनेक्ट करें",
   "ImSettingsPanel.serviceReady": "तैयार",
   "ImSettingsPanel.serviceDisconnected": "डिस्कनेक्टेड",
-  "ImSettingsPanel.powerConnected": "कनेक्टेड"
+  "ImSettingsPanel.powerConnected": "कनेक्टेड",
+  "ImSettingsPanel.manualCredentials": "क्रेडेंशियल मैन्युअल रूप से दर्ज करें"
 }

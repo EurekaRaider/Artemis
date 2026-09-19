@@ -814,6 +814,8 @@ export interface ImFeishuScanBeginResult {
   deviceCode: string;
   /** Official Feishu confirmation URL to encode as the QR image. */
   qrUrl: string;
+  /** Locally generated PNG; keeps the QR encoder out of the renderer bundle. */
+  qrImage: string;
   userCode: string;
   expiresAt: number;
   intervalMs: number;

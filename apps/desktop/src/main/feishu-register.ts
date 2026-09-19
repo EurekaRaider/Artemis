@@ -1,4 +1,5 @@
 import { z } from "zod";
+import QRCode from "qrcode";
 import type {
   ImFeishuScanBeginResult,
   ImFeishuScanPollResult,
@@ -96,6 +97,10 @@ export async function beginFeishuScan(): Promise<ImFeishuScanBeginResult> {
   return {
     deviceCode: begin.device_code,
     qrUrl: begin.verification_uri_complete,
+    qrImage: await QRCode.toDataURL(begin.verification_uri_complete, {
+      width: 176,
+      margin: 1,
+    }),
     userCode: begin.user_code ?? "",
     expiresAt: Date.now() + (begin.expire_in ?? 600) * 1000,
     intervalMs: (begin.interval ?? 5) * 1000,
@@ -124,10 +129,6 @@ export async function pollFeishuScan(input: {
     result.user_info?.tenant_brand === "feishu"
       ? result.user_info.tenant_brand
       : undefined;
-  // A Lark identity may confirm a session that began on the Feishu host;
-  // subsequent polls (and the resulting connection domain) follow the brand.
-  if (brand === "lark" && input.domain !== "lark")
-    return { status: "pending", intervalMs: 0, domain: "lark" };
   if (result.client_id && result.client_secret) {
     const appName = (result.app_name ?? result.client_name)?.trim();
     return {
@@ -135,13 +136,19 @@ export async function pollFeishuScan(input: {
       appId: result.client_id,
       appSecret: result.client_secret,
       ...(appName ? { appName: appName.slice(0, 100) } : {}),
-      ...(result.user_info?.open_id ? { openId: result.user_info.open_id } : {}),
+      ...(result.user_info?.open_id
+        ? { openId: result.user_info.open_id }
+        : {}),
       ...(result.user_info?.tenant_key
         ? { tenantKey: result.user_info.tenant_key }
         : {}),
       domain: brand ?? input.domain,
     };
   }
+  // Redirect only pending registrations; a successful response may already
+  // contain the credentials and must not be consumed a second time.
+  if (brand === "lark" && input.domain !== "lark")
+    return { status: "pending", intervalMs: 0, domain: "lark" };
   if (!result.error || result.error === "authorization_pending")
     return {
       status: "pending",
@@ -191,8 +198,7 @@ export async function fetchFeishuBotInfo(
       signal: AbortSignal.timeout(5000),
     })
   ).json()) as { code?: number; bot?: { app_name?: string; open_id?: string } };
-  if (info.code !== 0)
-    throw new Error(`bot info failed (code ${info.code}).`);
+  if (info.code !== 0) throw new Error(`bot info failed (code ${info.code}).`);
   const name = info.bot?.app_name?.trim();
   const botOpenId = info.bot?.open_id;
   return {

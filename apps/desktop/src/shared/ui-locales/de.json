@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "Trennen",
   "ImSettingsPanel.serviceReady": "Bereit",
   "ImSettingsPanel.serviceDisconnected": "Getrennt",
-  "ImSettingsPanel.powerConnected": "Verbunden"
+  "ImSettingsPanel.powerConnected": "Verbunden",
+  "ImSettingsPanel.manualCredentials": "Zugangsdaten manuell eingeben"
 }

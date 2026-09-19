@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { normalizeFeishuGroupEvent } from "../src/feishu-group-events.js";
+import { EventDispatcher, type WSClient } from "@larksuiteoapi/node-sdk";
 import {
-  EventDispatcher,
-  type WSClient,
-} from "@larksuiteoapi/node-sdk";
-import { channelConnectionSchema, type ChannelConnection } from "../src/channels.js";
+  channelConnectionSchema,
+  type ChannelConnection,
+} from "../src/channels.js";
 import { FeishuSocketAdapter } from "../src/feishu-socket.js";
 import { resolveFeishuConnection } from "../src/feishu-setup.js";
 
@@ -28,12 +29,75 @@ const scanConnection = {
 } as const;
 
 describe("scan-to-register tenant policy", () => {
+  it("uses the persisted tenant for group lifecycle events and retries a failed pin", async () => {
+    let dispatcher: EventDispatcher;
+    const config = { ...scanConnection } as Extract<
+      ChannelConnection,
+      { channel: "feishu" }
+    >;
+    const normalized = vi.fn();
+    const persist = vi.fn().mockImplementationOnce(() => {
+      throw new Error("storage unavailable");
+    });
+    const adapter = new FeishuSocketAdapter(
+      config,
+      vi.fn(),
+      () =>
+        ({
+          start: async (params: { eventDispatcher: EventDispatcher }) => {
+            dispatcher = params.eventDispatcher;
+          },
+          close: vi.fn(),
+          getConnectionStatus: () => ({
+            state: "connected",
+            reconnect_attempts: 0,
+          }),
+        }) as Pick<WSClient, "start" | "close" | "getConnectionStatus">,
+      undefined,
+      (value) => normalized(normalizeFeishuGroupEvent(config, value)),
+      persist,
+    );
+    adapter.start();
+    const push = (app_id: string, tenant_key: string) =>
+      dispatcher!.invoke(
+        {
+          schema: "2.0",
+          header: {
+            app_id,
+            tenant_key,
+            event_id: "group-event",
+            event_type: "im.chat.disbanded_v1",
+            create_time: String(Date.now()),
+          },
+          event: { chat_id: "chat" },
+        },
+        { needCheck: false },
+      );
+    await push("wrong-app", "adopted");
+    await push("app", "");
+    expect(persist).not.toHaveBeenCalled();
+    await expect(push("app", "adopted")).rejects.toThrow();
+    expect(normalized).not.toHaveBeenCalled();
+    expect(adapter.status().state).toBe("error");
+    await push("app", "adopted");
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(normalized).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: "chat", unavailable: "dissolved" }),
+    );
+    expect(adapter.status().state).toBe("connected");
+    await push("app", "intruder");
+    expect(normalized).toHaveBeenCalledTimes(1);
+    adapter.stop();
+  });
   it("accepts an empty tenant id only for feishu websocket connections", () => {
-    expect(
-      channelConnectionSchema.parse(scanConnection),
-    ).toMatchObject({ tenantId: "" });
+    expect(channelConnectionSchema.parse(scanConnection)).toMatchObject({
+      tenantId: "",
+    });
     expect(() =>
-      channelConnectionSchema.parse({ ...scanConnection, transport: "webhook" }),
+      channelConnectionSchema.parse({
+        ...scanConnection,
+        transport: "webhook",
+      }),
     ).toThrow();
     expect(() =>
       channelConnectionSchema.parse({
@@ -76,12 +140,11 @@ describe("scan-to-register tenant policy", () => {
       throw new Error(`unexpected fetch ${String(url)}`);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const connection =
-      await resolveFeishuConnection({
-        ...scanConnection,
-        tenantId: undefined,
-        botOpenId: undefined,
-      });
+    const connection = await resolveFeishuConnection({
+      ...scanConnection,
+      tenantId: undefined,
+      botOpenId: undefined,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const call of fetchMock.mock.calls)
       expect(String(call[0])).not.toContain("tenant/v2/tenant/query");
@@ -109,7 +172,10 @@ describe("scan-to-register tenant policy", () => {
             dispatcher = params.eventDispatcher;
           },
           close: vi.fn(),
-          getConnectionStatus: () => ({ state: "connected", reconnect_attempts: 0 }),
+          getConnectionStatus: () => ({
+            state: "connected",
+            reconnect_attempts: 0,
+          }),
         }) as Pick<WSClient, "start" | "close" | "getConnectionStatus">,
       undefined,
       undefined,

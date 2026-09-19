@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "Отключить",
   "ImSettingsPanel.serviceReady": "Готово",
   "ImSettingsPanel.serviceDisconnected": "Отключено",
-  "ImSettingsPanel.powerConnected": "Подключено"
+  "ImSettingsPanel.powerConnected": "Подключено",
+  "ImSettingsPanel.manualCredentials": "Ввести учетные данные вручную"
 }

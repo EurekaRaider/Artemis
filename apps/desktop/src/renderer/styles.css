@@ -10683,6 +10683,11 @@ kbd {
   gap: 12px;
   align-items: stretch;
 }
+@media (max-width: 720px) {
+  .im-channel-body.im-channel-md {
+    grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr);
+  }
+}
 .im-bot-nav {
   display: flex;
   flex-direction: column;
@@ -10858,6 +10863,7 @@ kbd {
 }
 .im-bot-section {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -10885,6 +10891,7 @@ kbd {
 }
 .im-bot-section-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   flex: none;
@@ -11106,6 +11113,8 @@ kbd {
   gap: 12px;
 }
 .im-scan-copy {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -11118,6 +11127,7 @@ kbd {
   color: var(--text);
 }
 .im-scan-active {
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 20px;
 }

@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "Disconnect",
   "ImSettingsPanel.serviceReady": "Ready",
   "ImSettingsPanel.serviceDisconnected": "Disconnected",
-  "ImSettingsPanel.powerConnected": "Connected"
+  "ImSettingsPanel.powerConnected": "Connected",
+  "ImSettingsPanel.manualCredentials": "Enter credentials manually"
 }

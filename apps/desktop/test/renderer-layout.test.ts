@@ -529,7 +529,9 @@ describe("renderer layout contract", () => {
 
     expect(sidebarBrandStart).toBeGreaterThan(-1);
     expect(sidebarBrandEnd).toBeGreaterThan(sidebarBrandStart);
-    expect(sidebarBrandSource).toContain('className="app-version brand-version"');
+    expect(sidebarBrandSource).toContain(
+      'className="app-version brand-version"',
+    );
     expect(sidebarBrandSource).toContain(
       "runtimeSettings?.update.currentVersion",
     );
@@ -553,7 +555,9 @@ describe("renderer layout contract", () => {
     // IM 图标联动连接状态：绿=有 bot 在线，橙=已配置但掉线。
     expect(sidebarFooterSource).toContain("im-link-${imLink}");
     expect(cssRule(".foot-icon.im-link-ok")).toContain("color: var(--success)");
-    expect(cssRule(".foot-icon.im-link-down")).toContain("color: var(--warning)");
+    expect(cssRule(".foot-icon.im-link-down")).toContain(
+      "color: var(--warning)",
+    );
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
     expect(settingsSource).toContain("useState<SettingsTab>(initialTab)");

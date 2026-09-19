@@ -102,7 +102,9 @@ it("does not save an empty identity or mistake the enterprise display number for
   fetch.mockResolvedValueOnce(
     Response.json({ code: 0, data: { tenant: { display_id: "F123" } } }),
   );
-  await expect(resolveFeishuConnection(callbackSetup)).rejects.toThrow("获取企业信息");
+  await expect(resolveFeishuConnection(callbackSetup)).rejects.toThrow(
+    "获取企业信息",
+  );
 });
 it("authenticates setup, encrypts the resolved connection and rejects changing its tenant", async () => {
   const fetchSpy = platform();

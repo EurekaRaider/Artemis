@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "断开",
   "ImSettingsPanel.serviceReady": "已就绪",
   "ImSettingsPanel.serviceDisconnected": "已断开",
-  "ImSettingsPanel.powerConnected": "连接"
+  "ImSettingsPanel.powerConnected": "连接",
+  "ImSettingsPanel.manualCredentials": "手动填写凭据"
 }

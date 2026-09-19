@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "斷開",
   "ImSettingsPanel.serviceReady": "已就緒",
   "ImSettingsPanel.serviceDisconnected": "已斷開",
-  "ImSettingsPanel.powerConnected": "連線"
+  "ImSettingsPanel.powerConnected": "連線",
+  "ImSettingsPanel.manualCredentials": "手動填寫憑證"
 }

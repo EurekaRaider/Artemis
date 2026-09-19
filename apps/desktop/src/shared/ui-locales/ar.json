@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "قطع الاتصال",
   "ImSettingsPanel.serviceReady": "جاهز",
   "ImSettingsPanel.serviceDisconnected": "غير متصل",
-  "ImSettingsPanel.powerConnected": "متصل"
+  "ImSettingsPanel.powerConnected": "متصل",
+  "ImSettingsPanel.manualCredentials": "إدخال بيانات الاعتماد يدويًا"
 }

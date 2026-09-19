@@ -23,7 +23,9 @@ export function useImLinkState(): ImLinkState | null {
         if (mounted)
           setLink(
             connections.length
-              ? connections.some((connection) => connection.state === "connected")
+              ? connections.some(
+                  (connection) => connection.state === "connected",
+                )
                 ? "ok"
                 : "down"
               : null,

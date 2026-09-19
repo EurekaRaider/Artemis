@@ -1507,5 +1507,6 @@
   "ImSettingsPanel.powerStop": "끊기",
   "ImSettingsPanel.serviceReady": "준비됨",
   "ImSettingsPanel.serviceDisconnected": "연결 끊김",
-  "ImSettingsPanel.powerConnected": "연결됨"
+  "ImSettingsPanel.powerConnected": "연결됨",
+  "ImSettingsPanel.manualCredentials": "인증 정보 직접 입력"
 }
