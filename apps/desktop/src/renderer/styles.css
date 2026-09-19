@@ -7796,12 +7796,13 @@ button.sources-panel-entry.attachment:focus-visible {
   min-width: 0;
 }
 
-/* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token。 */
+/* 消息接入独立弹窗（侧栏底部 IM 图标弹出）：背板与设置面板同 token，
+   宽度与渠道详情弹窗同一标准（896px，对齐 ZCode max-w-4xl）。 */
 .im-settings-dialog {
   display: flex;
   flex-direction: column;
   background: var(--artemis-color-surface-raised);
-  width: min(960px, 94vw);
+  width: min(896px, 94vw);
   /* 高度随内容收缩、上限封顶：内容不足时不留大片底部空白，超出时内部滚动。 */
   max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
   max-width: calc(100vw - 32px);

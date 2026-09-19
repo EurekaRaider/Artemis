@@ -669,9 +669,9 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   connector: (
     <>
-      <path d="M8 8.5h8v7H8z" opacity="0.45" />
-      <path d="M12 3.5v5M12 15.5v5M3.5 12h4.5M16 12h4.5" />
-      <circle cx="12" cy="12" r="1.5" />
+      <path d="M9.5 7H7a5 5 0 000 10h2.5" />
+      <path d="M14.5 7H17a5 5 0 010 10h-2.5" />
+      <path d="M8 12h8" />
     </>
   ),
   database: (
