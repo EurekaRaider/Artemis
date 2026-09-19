@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "저장된 자격 증명과 계정 연결을 포함해 이 봇을 삭제합니다.",
   "ImSettingsPanel.projectsSummary": "프로젝트 {{value1}}개 · 모든 채널 공통",
   "ImFeishuScan.message10": "스캔",
+  "ImFeishuScan.message11": "Feishu로 스캔하고 앱 생성을 확인합니다.",
   "ImSetupGuide.message25": "참고:",
   "ImSetupGuide.message26": "2、Bot이 접근할 수 있도록 프로젝트 권한을 설정하세요.",
   "ImSettingsPanel.powerStart": "시작",

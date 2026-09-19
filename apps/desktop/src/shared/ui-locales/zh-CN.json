@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "移除这个机器人，并删除保存的凭据与账号绑定。",
   "ImSettingsPanel.projectsSummary": "{{value1}} 个项目 · 所有渠道通用",
   "ImFeishuScan.message10": "扫码",
+  "ImFeishuScan.message11": "用飞书扫码并确认创建应用。",
   "ImSetupGuide.message25": "温馨提示：",
   "ImSetupGuide.message26": "2、设置项目权限以便Bot访问。",
   "ImSettingsPanel.powerStart": "启动",

@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "सहेजे गए क्रेडेंशियल और खाता बाइंडिंग सहित इस बॉट को हटाता है.",
   "ImSettingsPanel.projectsSummary": "{{value1}} प्रोजेक्ट · सभी चैनलों के लिए साझ़ा",
   "ImFeishuScan.message10": "स्कैन करें",
+  "ImFeishuScan.message11": "Feishu से स्कैन करें और ऐप बनाने की पुष्टि करें।",
   "ImSetupGuide.message25": "सुझाव:",
   "ImSetupGuide.message26": "2、बॉट के ऐक्सेस के लिए प्रोजेक्ट अनुमतियाँ सेट करें।",
   "ImSettingsPanel.powerStart": "शुरू करें",

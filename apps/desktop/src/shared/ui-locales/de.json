@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "Diesen Bot samt gespeicherter Anmeldedaten und Konto-Verknüpfungen entfernen.",
   "ImSettingsPanel.projectsSummary": "{{value1}} Projekte · für alle Kanäle freigegeben",
   "ImFeishuScan.message10": "Scannen",
+  "ImFeishuScan.message11": "Mit Feishu scannen und die App-Erstellung bestätigen.",
   "ImSetupGuide.message25": "Hinweise:",
   "ImSetupGuide.message26": "2. Lege Projektberechtigungen fest, damit Bots zugreifen können.",
   "ImSettingsPanel.powerStart": "Starten",

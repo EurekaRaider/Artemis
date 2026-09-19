@@ -218,8 +218,22 @@ export function ImFeishuScan({
         />
       ) : null}
       <div className="im-scan-copy">
-        <p>{t("ImFeishuScan.message4")}</p>
-        <Button size="compact" variant="quiet" onClick={cancel}>
+        <p>{t("ImFeishuScan.message11")}</p>
+        {phase.begin.userCode ? (
+          <div className="im-scan-code">
+            <code>{phase.begin.userCode}</code>
+          </div>
+        ) : null}
+        <p className="im-scan-wait">
+          <span aria-hidden="true" className="im-scan-spinner" />
+          {t("ImFeishuScan.message4")}
+        </p>
+        <Button
+          size="compact"
+          variant="quiet"
+          className="im-scan-cancel"
+          onClick={cancel}
+        >
           {t("ImFeishuScan.message9")}
         </Button>
       </div>

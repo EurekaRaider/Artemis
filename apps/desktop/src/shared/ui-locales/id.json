@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "Hapus bot ini beserta kredensial tersimpan dan tautan akunnya.",
   "ImSettingsPanel.projectsSummary": "{{value1}} proyek · dibagikan ke semua saluran",
   "ImFeishuScan.message10": "Pindai",
+  "ImFeishuScan.message11": "Pindai dengan Feishu dan konfirmasi untuk membuat aplikasi.",
   "ImSetupGuide.message25": "Tips:",
   "ImSetupGuide.message26": "2. Atur izin proyek agar bot dapat mengaksesnya.",
   "ImSettingsPanel.powerStart": "Mulai",

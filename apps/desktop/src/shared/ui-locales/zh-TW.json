@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "移除這個機器人，並刪除保存的憑據與帳號綁定。",
   "ImSettingsPanel.projectsSummary": "{{value1}} 個專案 · 所有頻道通用",
   "ImFeishuScan.message10": "掃碼",
+  "ImFeishuScan.message11": "用飛書掃碼並確認創建應用。",
   "ImSetupGuide.message25": "溫馨提示：",
   "ImSetupGuide.message26": "2、設定專案權限以便Bot存取。",
   "ImSettingsPanel.powerStart": "啟動",

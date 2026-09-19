@@ -11022,12 +11022,55 @@ kbd {
   align-items: flex-start;
 }
 .im-scan-qr {
-  width: 132px;
-  height: 132px;
+  width: 190px;
+  height: 190px;
   padding: 6px;
   border: 1px solid var(--border-soft);
   border-radius: var(--artemis-radius-control, 8px);
   background: #fff;
+}
+/* 设备流用户码条 + 等待 spinner（ZCode 式扫码卡）。 */
+.im-scan-active .im-scan-copy {
+  gap: 10px;
+}
+.im-scan-code {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-scan-code code {
+  font-family: var(--artemis-typography-mono-family);
+  font-size: 15px;
+  font-weight: 640;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.im-scan-cancel {
+  align-self: flex-start;
+}
+.im-scan-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.im-scan-spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-block-start-color: transparent;
+  border-radius: 50%;
+  animation: im-scan-spin 900ms linear infinite;
+}
+@keyframes im-scan-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .im-project-list-title {
   margin: 2px 0 6px;

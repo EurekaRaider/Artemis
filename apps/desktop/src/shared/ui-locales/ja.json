@@ -1500,6 +1500,7 @@
   "ImSettingsPanel.botDeleteDesc": "保存された認証情報とアカウント連携ごと、このボットを削除します。",
   "ImSettingsPanel.projectsSummary": "{{value1}} 件のプロジェクト · すべてのチャネルで共通",
   "ImFeishuScan.message10": "スキャン",
+  "ImFeishuScan.message11": "Feishuでスキャンし、アプリ作成を確認します。",
   "ImSetupGuide.message25": "ご注意：",
   "ImSetupGuide.message26": "2、Botがアクセスできるようプロジェクト権限を設定してください。",
   "ImSettingsPanel.powerStart": "起動",
