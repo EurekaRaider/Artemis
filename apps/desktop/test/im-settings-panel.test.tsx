@@ -941,6 +941,21 @@ describe("production IM settings", () => {
       ),
     ).toBe(false);
   });
+  it("shows the service state capsule beside the service title", async () => {
+    const f = fixture();
+    f.set({
+      settings: { ...f.get().settings, deviceId: "test-device" },
+      connections: [{ ...connection }],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await panelReady();
+    const capsule = () => document.querySelector(".im-service-capsule");
+    expect(capsule()).toHaveTextContent("已断开");
+    /* 连接后胶囊翻转为已就绪（断开按钮态）。 */
+    await user.click(screen.getByRole("switch", { name: "启用 IM 连接" }));
+    expect(capsule()).toHaveTextContent("已就绪");
+  });
   it("keeps the compact header, step summaries and the credential action in flow order", async () => {
     fixture();
     const user = userEvent.setup();

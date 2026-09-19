@@ -2469,6 +2469,7 @@ export function ImSettingsPanel({
 
   function renderStepCards() {
     const settings = activeSettings;
+    const serviceEnabled = status?.settings.enabled ?? settings.enabled;
     /* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 一行状态；已配置（有连接或
        已存凭据）渠道名提亮。授权是设备级全局共用，行上不重复计数。 */
     const channelRow = (platform: ImChannel) => {
@@ -2560,6 +2561,22 @@ export function ImSettingsPanel({
         <div className="im-col-left">
           <section className="im-service-block" id="im-gateway" tabIndex={-1}>
             <div className="im-service-head">
+              {(activeScreen === "overview" ||
+                (activeScreen === "flow" && !!status?.settings.deviceId)) && (
+                <span
+                  className="im-service-capsule"
+                  data-state={serviceEnabled ? "connected" : "error"}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="im-dot"
+                    data-state={serviceEnabled ? "connected" : "error"}
+                  />
+                  {serviceEnabled
+                    ? t("ImSettingsPanel.serviceReady")
+                    : t("ImSettingsPanel.serviceDisconnected")}
+                </span>
+              )}
               <ArtemisIcon
                 aria-hidden="true"
                 name="connector"
@@ -2578,6 +2595,7 @@ export function ImSettingsPanel({
                     {!settings.enabled && enableReason && (
                       <span className="im-power-reason">{enableReason}</span>
                     )}
+                    {/* 状态胶囊已移至标题左侧；此处仅剩连接/断开动作钮。 */}
                     <button
                       type="button"
                       role="switch"
@@ -2635,7 +2653,7 @@ export function ImSettingsPanel({
                             <path d="M12 2.5v7.5" />
                             <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
                           </svg>
-                          <span>{t("ImSettingsPanel.powerConnected")}</span>
+                          <span>{t("ImSettingsPanel.powerStop")}</span>
                         </>
                       ) : (
                         <>
@@ -2654,7 +2672,7 @@ export function ImSettingsPanel({
                             <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
                             <path d="m3.5 3.5 17 17" />
                           </svg>
-                          <span>{t("ImSettingsPanel.powerStop")}</span>
+                          <span>{t("ImSettingsPanel.powerConnected")}</span>
                         </>
                       )}
                     </button>

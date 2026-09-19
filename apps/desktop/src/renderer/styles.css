@@ -10381,6 +10381,18 @@ kbd {
   color: var(--muted);
   flex: none;
 }
+/* 服务状态胶囊（信号灯+已就绪/已断开）：居「连接服务」标题左侧。 */
+.im-service-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
 .im-service-state {
   margin-inline-start: auto;
   display: inline-flex;
