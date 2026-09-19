@@ -1,6 +1,6 @@
 import { uiTranslator } from "../shared/ui-text.js";
 import { ImNativeGroups, imNativeGroupChoices } from "./ImNativeGroups";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ImDataPermissions } from "./ImDataPermissions";
 import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
@@ -139,6 +139,8 @@ export function ImSettingsPanel({
   const [selectedBotId, setSelectedBotId] = useState("");
   /* 关联凭据卡的飞书扫码开合（ZCode 式：卡头「扫码」钮展开二维码）。 */
   const [credScan, setCredScan] = useState(false);
+  /* 渠道弹窗高度跟随「消息接入」主弹窗实际渲染高度（打开时量测注入）。 */
+  const [channelDialogHeight, setChannelDialogHeight] = useState<number>();
   const [fields, setFields] = useState<Record<string, string>>({});
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [savedMetadata, setSavedMetadata] = useState<
@@ -580,6 +582,16 @@ export function ImSettingsPanel({
         : (channelConnections[0]?.id ?? ""),
     );
   }, [channelDetail, channel, channelConnections]);
+  useLayoutEffect(() => {
+    /* 主弹窗高度内容驱动（随概览/向导内容浮动）：渠道弹窗打开时量测其
+       实际高度注入，两个面板视觉齐平；无主弹窗宿主（测试/嵌入）时走
+       CSS 缺省公式。 */
+    if (!channelDetail) return;
+    const main = panelRef.current?.closest("dialog");
+    if (!main) return;
+    const height = main.getBoundingClientRect().height;
+    if (height > 0) setChannelDialogHeight(height);
+  }, [channelDetail]);
   const resolvePairing = (requestId: string, approve: boolean) =>
     run(async () => {
       await window.artemis.manageIm({
@@ -2772,6 +2784,15 @@ export function ImSettingsPanel({
         <Dialog
           className="im-detail-dialog im-channel-dialog"
           label={imChannelLabel(channel, t)}
+          style={
+            channelDialogHeight
+              ? {
+                  blockSize: `${channelDialogHeight}px`,
+                  minBlockSize: `${channelDialogHeight}px`,
+                  maxBlockSize: `${channelDialogHeight}px`,
+                }
+              : undefined
+          }
           onOpenChange={(open) => {
             if (!open) setChannelDetail(false);
           }}

@@ -10546,7 +10546,8 @@ kbd {
 }
 .im-detail-dialog.im-channel-dialog {
   width: min(896px, 94vw);
-  /* 高度与「消息接入」主弹窗同一公式：视觉齐平，内容超出时内部滚动。 */
+  /* 缺省高度公式：正常打开时由运行时量测注入主弹窗实际高度（主弹窗
+     高度内容驱动），保证两个面板齐平；内容超出时内部滚动。 */
   min-block-size: min(680px, 88dvh, calc(100dvh - 52px));
   max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
 }
