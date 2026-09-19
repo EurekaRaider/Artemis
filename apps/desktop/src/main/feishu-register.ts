@@ -14,6 +14,10 @@ const REGISTRATION_HOSTS = {
   lark: "https://accounts.larksuite.com",
 } as const;
 type FeishuScanDomain = keyof typeof REGISTRATION_HOSTS;
+const API_HOSTS = {
+  feishu: "https://open.feishu.cn",
+  lark: "https://open.larksuite.com",
+} as const;
 
 const beginResponseSchema = z
   .object({
@@ -153,5 +157,46 @@ export async function pollFeishuScan(input: {
     message: result.error_description
       ? `${result.error}: ${result.error_description}`
       : `Feishu registration error: ${result.error}`,
+  };
+}
+
+/**
+ * Live bot profile straight from Feishu. The registration service does not
+ * always carry the app name, so the freshly minted credentials resolve it
+ * (plus the bot's open id, sparing the gateway a lookup).
+ */
+export async function fetchFeishuBotInfo(
+  domain: FeishuScanDomain,
+  appId: string,
+  appSecret: string,
+): Promise<{ name?: string; botOpenId?: string }> {
+  const token = (await (
+    await fetch(
+      `${API_HOSTS[domain]}/open-apis/auth/v3/tenant_access_token/internal`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+      },
+    )
+  ).json()) as { code?: number; tenant_access_token?: string };
+  if (!token.tenant_access_token)
+    throw new Error(`tenant_access_token failed (code ${token.code}).`);
+  const info = (await (
+    await fetch(`${API_HOSTS[domain]}/open-apis/bot/v3/info`, {
+      headers: { Authorization: `Bearer ${token.tenant_access_token}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    })
+  ).json()) as { code?: number; bot?: { app_name?: string; open_id?: string } };
+  if (info.code !== 0)
+    throw new Error(`bot info failed (code ${info.code}).`);
+  const name = info.bot?.app_name?.trim();
+  const botOpenId = info.bot?.open_id;
+  return {
+    ...(name ? { name } : {}),
+    ...(botOpenId ? { botOpenId } : {}),
   };
 }

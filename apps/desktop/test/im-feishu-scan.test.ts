@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImFeishuScanPollResult } from "@artemis/protocol";
 import {
   beginFeishuScan,
+  fetchFeishuBotInfo,
   pollFeishuScan,
 } from "../src/main/feishu-register.js";
 
@@ -175,5 +176,60 @@ describe("feishu scan-to-register", () => {
       intervalMs: 5000,
       domain: "feishu",
     });
+  });
+
+  it("resolves the live bot name and open id from the Feishu API", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        calls.push(String(url));
+        if (String(url).endsWith("/tenant_access_token/internal")) {
+          expect(JSON.parse(String(init?.body))).toEqual({
+            app_id: "cli_x",
+            app_secret: "sec",
+          });
+          return {
+            ok: true,
+            json: async () => ({ code: 0, tenant_access_token: "t-1" }),
+          };
+        }
+        expect(
+          (init?.headers as Record<string, string>).Authorization,
+        ).toBe("Bearer t-1");
+        return {
+          ok: true,
+          json: async () => ({
+            code: 0,
+            bot: { app_name: " 产物机器人 ", open_id: "ou_bot" },
+          }),
+        };
+      }),
+    );
+    expect(await fetchFeishuBotInfo("feishu", "cli_x", "sec")).toEqual({
+      name: "产物机器人",
+      botOpenId: "ou_bot",
+    });
+    expect(calls[0]).toBe(
+      "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+    );
+    expect(calls[1]).toBe("https://open.feishu.cn/open-apis/bot/v3/info");
+    expect(await fetchFeishuBotInfo("lark", "cli_x", "sec")).toBeDefined();
+    expect(calls[2]).toBe(
+      "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal",
+    );
+  });
+
+  it("fails loudly so the connect flow can keep its fallback name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ code: 99991663, msg: "invalid app_id" }),
+      })),
+    );
+    await expect(fetchFeishuBotInfo("feishu", "cli_x", "sec")).rejects.toThrow(
+      "tenant_access_token",
+    );
   });
 });

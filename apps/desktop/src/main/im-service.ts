@@ -7,7 +7,11 @@ import {
 import { randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
 import { prepareImShellRuntime } from "./im-shell-runtime.js";
-import { beginFeishuScan, pollFeishuScan } from "./feishu-register.js";
+import {
+  beginFeishuScan,
+  fetchFeishuBotInfo,
+  pollFeishuScan,
+} from "./feishu-register.js";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
   IM_ADHOC_PROJECT_ID,
@@ -1747,18 +1751,26 @@ export class ImService {
       // 扫码凭据走与手动表单相同的连接保存通道：网关负责解析剩余平台身份
       // （tenantId/botOpenId）；扫码会话若带回 tenant_key 则直接跳过企业解析。
       const id = `feishu-${randomUUID()}`;
+      // 注册服务不总带应用名：用刚换到的凭据直接向飞书取机器人资料，
+      // 拿真实应用名与机器人 open id；失败不阻断建连，仅保留回落名。
+      const bot = await fetchFeishuBotInfo(
+        action.domain ?? "feishu",
+        action.appId,
+        action.appSecret,
+      ).catch(() => undefined);
       await this.manage({
         action: "admin",
         operation: "connections",
         configuration: {
           id,
-          name: action.appName ?? `Feishu ${id.slice(7, 15)}`,
+          name: bot?.name ?? action.appName ?? `Feishu ${id.slice(7, 15)}`,
           channel: "feishu",
           transport: "websocket",
           domain: action.domain ?? "feishu",
           appId: action.appId,
           appSecret: action.appSecret,
           ...(action.tenantId ? { tenantId: action.tenantId } : {}),
+          ...(bot?.botOpenId ? { botOpenId: bot.botOpenId } : {}),
           enabled: true,
         },
       });
