@@ -1756,6 +1756,62 @@ describe("CodexPluginService", () => {
     expect(listed[0]?.iconDataUrl).toMatch(/^data:image\/png;base64,/u);
   });
 
+  it.each([false, true])(
+    "handles legacy HTTP hashes without accepting endpoint edits (%s)",
+    async (modified) => {
+      const root = await temporaryRoot();
+      const source = join(root, "source", "demo-tools");
+      await writePlugin(source);
+      const { service, mcpStore } = createService(root);
+      const installed = await service.install({ kind: "local", path: source });
+      const servers = await mcpStore.list();
+      const remote = servers.find(
+        (server) => server.transport === "streamable-http",
+      )!;
+      if (remote.transport !== "streamable-http")
+        throw new Error("Expected HTTP");
+      const legacy = {
+        id: remote.id,
+        name: remote.name,
+        transport: remote.transport,
+        url: remote.url,
+      };
+      const hash = createHash("sha256")
+        .update(
+          JSON.stringify(
+            Object.fromEntries(
+              Object.entries(legacy).sort(([left], [right]) =>
+                left.localeCompare(right),
+              ),
+            ),
+          ),
+        )
+        .digest("hex");
+      const statePath = join(root, "user-data", "codex-plugins.json");
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      state.plugins[0].mcpServers.find(
+        (server: { id: string }) => server.id === remote.id,
+      ).structuralHash = hash;
+      await writeFile(statePath, JSON.stringify(state));
+      const { service: restarted } = createService(root, { mcpStore });
+      if (modified) {
+        await mcpStore.upsert({
+          ...remote,
+          url: "https://changed.example/mcp",
+        });
+        await expect(restarted.remove(installed.plugin.id)).rejects.toThrow(
+          "structurally modified",
+        );
+      } else {
+        await expect(restarted.remove(installed.plugin.id)).resolves.toEqual({
+          warnings: [],
+        });
+        expect(await restarted.listInstalled()).toEqual([]);
+        expect(await mcpStore.list()).toEqual([]);
+      }
+    },
+  );
+
   it("protects modified managed resources from destructive update or removal", async () => {
     const root = await temporaryRoot();
     const source = join(root, "source", "demo-tools");

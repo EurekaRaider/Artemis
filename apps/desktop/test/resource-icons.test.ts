@@ -49,7 +49,7 @@ describe("resource icons", () => {
     ["find-docs", "file-search"],
     ["find-skills", "skill-search"],
     ["finishing-a-development-branch", "git-branch"],
-    ["gsap", "video"],
+    ["gsap", "lightning"],
     ["hyperframes", "video"],
     ["hyperframes-cli", "terminal"],
     ["hyperframes-registry", "package"],

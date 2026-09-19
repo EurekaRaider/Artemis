@@ -1463,7 +1463,7 @@ export function ResourceCenter({
         kind: "plugin" as const,
         description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
         enabled: pluginIsEnabled(plugin),
-        disabled: !plugin.installable,
+        disabled: !plugin.installable && !pluginIsEnabled(plugin),
         configure: () =>
           pluginHasConnection(plugin)
             ? setConnectionPlugin(plugin)
@@ -2373,7 +2373,7 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === plugin.id ||
-                          !plugin.installable
+                          (!plugin.installable && !pluginIsEnabled(plugin))
                         }
                         label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
                         labelVisibility="hidden"

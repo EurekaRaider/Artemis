@@ -8315,43 +8315,48 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .resource-avatar[data-icon] {
-  --resource-tile: #edeaf6;
-  --resource-ink: var(--resource-brand, #514584);
-  background: var(--resource-tile);
-  color: var(--resource-ink);
+  color: var(--resource-brand, #9464eb);
+  border-radius: 0;
 }
 
-.resource-avatar:where([data-kind="mcp"])[data-icon] {
-  --resource-tile: #e8f0ef;
-  --resource-ink: #285a53;
+.resource-avatar:where([data-kind="mcp"])[data-icon],
+.resource-avatar[data-icon="connector"],
+.resource-avatar[data-icon="cloud"] {
+  color: #24abc0;
 }
 
-.resource-avatar[data-icon="terminal"],
 .resource-avatar[data-icon="github"],
 .resource-avatar[data-icon="code"] {
-  --resource-tile: #eeeef0;
-  --resource-ink: #252529;
+  color: var(--text);
 }
 
-.resource-avatar[data-icon="lightbulb"],
-.resource-avatar[data-icon="checklist"],
-.resource-avatar[data-icon="agents"] {
-  --resource-tile: #f6ecd8;
-  --resource-ink: #986326;
-}
-
-.resource-avatar[data-icon="file-search"],
 .resource-avatar[data-icon="document"],
-.resource-avatar[data-icon="browser"] {
-  --resource-tile: #e5edf9;
-  --resource-ink: #3463a4;
+.resource-avatar[data-icon="browser"],
+.resource-avatar[data-icon="filesystem"] {
+  color: #388ded;
 }
 
-.resource-avatar .resource-artwork,
+.resource-avatar[data-icon="spreadsheet"],
+.resource-avatar[data-icon="verify"],
+.resource-avatar[data-icon="test"] {
+  color: #1bb476;
+}
+
+.resource-avatar[data-icon="pdf"],
+.resource-avatar[data-icon="bug"],
+.resource-avatar[data-icon="email"] {
+  color: #ed6171;
+}
+
+.resource-avatar .resource-artwork {
+  height: 100%;
+  width: 100%;
+}
+
 .resource-avatar .resource-semantic-icon,
-.resource-avatar svg {
-  height: 25px;
-  width: 25px;
+.resource-avatar .resource-semantic-icon svg {
+  height: 28px;
+  width: 28px;
 }
 
 .resource-avatar[data-icon] .resource-semantic-icon svg {

@@ -3485,7 +3485,24 @@ export class CodexPluginService {
           continue;
         throw new Error(`Plugin MCP server is missing: ${server.id}`);
       }
-      if (mcpStructuralHash(current) !== server.structuralHash) {
+      // Before versioned Connectors, ordinary HTTP MCP hashes omitted auth.
+      // Match that exact legacy shape without weakening Connector trust checks.
+      const matchesLegacyHttp =
+        current.transport === "streamable-http" &&
+        !current.connector &&
+        current.resourceKind !== "connector" &&
+        stableHash({
+          id: current.id,
+          name: current.name,
+          transport: current.transport,
+          url: current.url,
+          resourceKind: current.resourceKind,
+          connectorId: current.connectorId,
+        }) === server.structuralHash;
+      if (
+        mcpStructuralHash(current) !== server.structuralHash &&
+        !matchesLegacyHttp
+      ) {
         throw new Error(
           `Plugin MCP server was structurally modified: ${server.id}`,
         );
