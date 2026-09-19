@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "먼저 실행 중인 작업을 중지하세요",
   "EnvironmentWorkspaceMenu.message12": "작업을 만든 후 작업 공간을 전환할 수 있습니다",
   "ImAccountControls.message1": "봇 페어링 코드",
-  "ImAccountControls.message2": "페어링 코드가 만료되었습니다. 다시 생성하세요.",
-  "ImAccountControls.message3": "페어링 코드 유효",
   "ImAccountControls.message4": "페어링 코드",
   "ImAccountControls.message5": "남은 유효 시간",
   "ImAccountControls.message6": "복사",

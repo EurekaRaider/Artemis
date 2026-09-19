@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "Arrêtez d’abord les tâches en cours",
   "EnvironmentWorkspaceMenu.message12": "Créez une tâche pour changer d’espace de travail",
   "ImAccountControls.message1": "Code d’association du bot",
-  "ImAccountControls.message2": "Le code d’association a expiré. Générez-en un nouveau.",
-  "ImAccountControls.message3": "Code d’association actif",
   "ImAccountControls.message4": "Code d’association",
   "ImAccountControls.message5": "Temps restant",
   "ImAccountControls.message6": "Copier",

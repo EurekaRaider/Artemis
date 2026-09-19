@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "先に実行中のタスクを停止してください",
   "EnvironmentWorkspaceMenu.message12": "タスクを作成するとワークスペースを切り替えられます",
   "ImAccountControls.message1": "ボットのペアリングコード",
-  "ImAccountControls.message2": "ペアリングコードの有効期限が切れました。再生成してください。",
-  "ImAccountControls.message3": "ペアリングコードは有効です",
   "ImAccountControls.message4": "ペアリングコード",
   "ImAccountControls.message5": "残り有効時間",
   "ImAccountControls.message6": "コピー",

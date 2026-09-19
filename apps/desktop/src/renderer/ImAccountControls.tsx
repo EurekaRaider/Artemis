@@ -87,26 +87,24 @@ export function ImPairingCode({
       </header>
       <div className="im-pair-dialog-body">
         {guide}
-        <span role="status">
-          {seconds
-            ? t("ImAccountControls.message3")
-            : t("ImAccountControls.message2")}
-        </span>
         <div className="im-pair-code-line">
           <span>{t("ImAccountControls.message4")}</span>
           {pair && (
             <>
               <strong className="im-pair-code-value">{pair.code}</strong>
-              {seconds > 0 && (
-                <span
-                  className="im-countdown"
-                  aria-label={t("ImAccountControls.message5")}
-                >
-                  {" "}
-                  · {Math.floor(seconds / 60)}:
-                  {String(seconds % 60).padStart(2, "0")}
-                </span>
-              )}
+              {/* 分隔点即信号灯：绿=有效，红=已过期。 */}
+              <span
+                aria-hidden="true"
+                className="im-dot"
+                data-state={seconds > 0 ? "connected" : "error"}
+              />
+              <span
+                className="im-countdown"
+                aria-label={t("ImAccountControls.message5")}
+              >
+                {Math.floor(seconds / 60)}:
+                {String(seconds % 60).padStart(2, "0")}
+              </span>
               <span className="im-pair-code-actions">
                 <Button
                   disabled={busy || !seconds}

@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "Zuerst laufende Aufgaben stoppen",
   "EnvironmentWorkspaceMenu.message12": "Aufgabe erstellen, um den Arbeitsbereich zu wechseln",
   "ImAccountControls.message1": "Kopplungscode des Bots",
-  "ImAccountControls.message2": "Kopplungscode abgelaufen. Erstelle einen neuen.",
-  "ImAccountControls.message3": "Kopplungscode gültig",
   "ImAccountControls.message4": "Kopplungscode",
   "ImAccountControls.message5": "Verbleibende Zeit",
   "ImAccountControls.message6": "Kopieren",

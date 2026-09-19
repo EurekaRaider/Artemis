@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "Stop running tasks first",
   "EnvironmentWorkspaceMenu.message12": "Create a task to switch workspaces",
   "ImAccountControls.message1": "Bot pairing code",
-  "ImAccountControls.message2": "Pairing code expired. Generate a new one.",
-  "ImAccountControls.message3": "Pairing code active",
   "ImAccountControls.message4": "Pairing code",
   "ImAccountControls.message5": "Time remaining",
   "ImAccountControls.message6": "Copy",

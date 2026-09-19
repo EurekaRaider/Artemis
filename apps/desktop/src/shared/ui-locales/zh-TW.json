@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "請先停止正在執行的任務",
   "EnvironmentWorkspaceMenu.message12": "建立任務後可切換工作區",
   "ImAccountControls.message1": "機器人配對碼",
-  "ImAccountControls.message2": "配對碼已過期，請重新生成。",
-  "ImAccountControls.message3": "配對碼有效",
   "ImAccountControls.message4": "配對碼",
   "ImAccountControls.message5": "剩餘有效時間",
   "ImAccountControls.message6": "複製",

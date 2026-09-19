@@ -9472,7 +9472,7 @@ kbd {
 .automation-list,
 /* 配对码弹窗：提示信息 + 大号配对码行。 */
 .im-pair-dialog {
-  width: min(560px, 94vw);
+  width: min(500px, 94vw);
 }
 .im-pair-dialog-head {
   display: flex;

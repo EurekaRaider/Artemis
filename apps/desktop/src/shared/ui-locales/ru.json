@@ -567,8 +567,6 @@
   "EnvironmentWorkspaceMenu.message11": "Сначала остановите выполняемые задачи",
   "EnvironmentWorkspaceMenu.message12": "Создайте задачу для смены рабочей области",
   "ImAccountControls.message1": "Код сопряжения бота",
-  "ImAccountControls.message2": "Код сопряжения истёк. Создайте новый.",
-  "ImAccountControls.message3": "Код сопряжения действителен",
   "ImAccountControls.message4": "Код сопряжения",
   "ImAccountControls.message5": "Оставшееся время",
   "ImAccountControls.message6": "Копировать",
