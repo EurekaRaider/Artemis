@@ -45,6 +45,7 @@ import {
   verifyFeishu,
   type ChannelAdapter,
   type ChannelConnection,
+  type FeishuStreamCardState,
 } from "./channels.js";
 
 export interface GatewayOptions {
@@ -1541,13 +1542,7 @@ export class ArtemisGateway {
               ])
             : undefined;
           const card = cardKey
-            ? this.store.get<{
-                messageId: string;
-                createdAt: number;
-                cardId?: string;
-                sequence?: number;
-                streaming?: boolean;
-              }>("status-cards", cardKey)
+            ? this.store.get<FeishuStreamCardState>("status-cards", cardKey)
             : undefined;
           let messageId: string | undefined;
           const approval = item.payload.approval;
@@ -1657,26 +1652,23 @@ export class ArtemisGateway {
                   messageId,
                 } satisfies FeishuApprovalCard);
             }
-          } else if (cardKey && item.payload.stream && adapter.streamCard) {
+          } else if (
+            cardKey &&
+            adapter.streamCard &&
+            (item.payload.stream || card?.cardId)
+          ) {
             const current =
               card && card.createdAt > Date.now() - 13 * 86400000
                 ? card
                 : undefined;
-            let streamed:
-              | {
-                  messageId: string;
-                  createdAt: number;
-                  cardId?: string;
-                  sequence?: number;
-                  streaming?: boolean;
-                }
-              | undefined;
+            let streamed: FeishuStreamCardState | undefined;
             try {
               streamed = await adapter.streamCard(
                 item.payload.conversation,
                 item.payload.text,
                 item.id,
                 current,
+                Boolean(item.payload.stream),
               );
             } catch (error) {
               if (
@@ -1710,6 +1702,7 @@ export class ArtemisGateway {
                   error instanceof DeliveryUncertain
                 )
                   throw error;
+                if (item.payload.stream) throw error;
                 messageId = await adapter.send(
                   item.payload.conversation,
                   item.payload.text,

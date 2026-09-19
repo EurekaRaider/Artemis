@@ -142,6 +142,7 @@ export interface ChannelAdapter {
     text: string,
     idempotencyKey: string,
     state?: FeishuStreamCardState,
+    streaming?: boolean,
   ): Promise<FeishuStreamCardState>;
   approvalCard?(
     conversation: ImConversation,
@@ -759,55 +760,69 @@ export class FeishuAdapter implements ChannelAdapter {
       messageId,
     );
   }
-  /**
-   * Streaming reply card (Feishu CardKit). Creates a Card JSON 2.0 message with
-   * streaming_mode enabled, converts its message_id to a card entity, and then
-   * pushes typewriter-style text updates with a monotonic sequence. Errors map
-   * to the shared channel failure classes so the server can apply its
-   * fallback ladder (status card -> plain text).
-   */
+  /** Update one CardKit entity, preserving the existing status message. */
   async streamCard(
     conversation: ImConversation,
     text: string,
     key: string,
     state?: FeishuStreamCardState,
+    streaming = true,
   ): Promise<FeishuStreamCardState> {
     const elementId = "reply_text";
     const content = text.slice(-30000);
-    if (state?.cardId && state.streaming !== false) {
-      const sequence = (state.sequence ?? 0) + 1;
-      const body = await this.cardkitRequest(
-        `cards/${encodeURIComponent(state.cardId)}/elements/${elementId}/content`,
-        "PUT",
-        { content, sequence },
-      );
-      return { ...state, sequence };
-    }
     const card = {
       schema: "2.0",
-      config: { streaming_mode: true, update_multi: true },
+      config: { streaming_mode: streaming, update_multi: true },
       body: {
         elements: [{ tag: "markdown", element_id: elementId, content }],
       },
     };
-    const messageId = await this.message(
-      conversation,
-      card,
-      "interactive",
-      key,
-    );
-    const converted = await this.cardkitRequest("cards/id_convert", "POST", {
-      message_id: messageId,
+    if (state?.cardId) {
+      const sequence = (state.sequence ?? 0) + 1;
+      const uuid = createHash("sha256").update(key).digest("hex").slice(0, 32);
+      if (streaming && state.streaming) {
+        await this.cardkitRequest(
+          `cards/${encodeURIComponent(state.cardId)}/elements/${elementId}/content`,
+          "PUT",
+          { content, sequence, uuid },
+        );
+      } else {
+        // Full updates also close streaming mode on completion/waiting, or
+        // reopen the same card when another turn starts.
+        await this.cardkitRequest(
+          `cards/${encodeURIComponent(state.cardId)}`,
+          "PUT",
+          {
+            card: { type: "card_json", data: JSON.stringify(card) },
+            sequence,
+            uuid,
+          },
+        );
+      }
+      return { ...state, sequence, streaming };
+    }
+    // Obtain the card id before publishing anything: a confirmed creation
+    // rejection can fall back without duplicating a message already sent.
+    const created = await this.cardkitRequest("cards", "POST", {
+      type: "card_json",
+      data: JSON.stringify(card),
     });
-    const cardId = string(record(record(converted.data)).card_id);
+    const cardId = string(record(created.data).card_id);
     if (!cardId)
       throw new Error("Feishu did not return a streaming card entity id.");
+    const messageId = await this.message(
+      conversation,
+      { type: "card", data: { card_id: cardId } },
+      "interactive",
+      key,
+      state?.messageId,
+    );
     return {
       messageId,
-      createdAt: Date.now(),
+      createdAt: state?.createdAt ?? Date.now(),
       cardId,
       sequence: 0,
-      streaming: true,
+      streaming,
     };
   }
   /** Shared CardKit REST plumbing with the same failure mapping as message(). */

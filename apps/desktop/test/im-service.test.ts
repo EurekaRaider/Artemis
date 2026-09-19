@@ -1298,6 +1298,49 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.approvals).toEqual([]);
     expect(deliveries().at(-1)!.payload.text).toContain("确认码无效");
   });
+  it.each(["feishu", "wecom", "slack"] as const)(
+    "streams the first public delta only for a supported %s conversation",
+    async (channel) => {
+      const f = await fixture(channel);
+      await f.send("/new analyze");
+      const delta: AgentEvent = {
+        protocolVersion: 4,
+        eventId: randomUUID(),
+        threadId: f.threads[0]!.id,
+        turnId: "stream-turn",
+        seq: 1,
+        timestamp: new Date().toISOString(),
+        payload: {
+          type: "message.part.delta",
+          partId: "answer",
+          partType: "text",
+          delta: "First public text",
+        },
+      };
+      f.service.observe([delta]);
+      await f.service.poll();
+      const streams = () =>
+        f.gateway.store
+          .pending<{ stream?: boolean; text: string }>("outgoing")
+          .filter((item) => item.payload.stream);
+      if (channel === "feishu") {
+        expect(streams().map((item) => item.payload.text)).toEqual([
+          "First public text",
+        ]);
+      }
+      f.service.observe([{ ...delta, eventId: randomUUID(), seq: 2 }]);
+      await f.service.poll();
+      if (channel !== "feishu") {
+        expect(
+          f.gateway.store
+            .pending<{ text: string }>("outgoing")
+            .some((item) => item.payload.text.includes("First public text")),
+        ).toBe(false);
+      }
+      await f.service.close();
+    },
+  );
+
   it("sends only the final public answer without private reasoning", async () => {
     const f = await fixture();
     await f.send("/new analyze");

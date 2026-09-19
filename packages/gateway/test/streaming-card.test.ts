@@ -25,7 +25,7 @@ const conversation = { connectionId: "f", kind: "direct", id: "chat" } as const;
 interface Call {
   url: string;
   method?: string;
-  body?: unknown;
+  body?: Record<string, any>;
 }
 
 /** Route mocked responses by URL substring; every call is recorded. */
@@ -56,14 +56,14 @@ function stubFetch(responses: Array<[string, unknown]>) {
 }
 
 describe("Feishu streaming reply cards", () => {
-  it("creates a Card JSON 2.0 message with streaming mode and converts it to a card entity", async () => {
+  it("creates the CardKit entity before publishing its message", async () => {
     const calls = stubFetch([
       [
         "tenant_access_token",
         { code: 0, tenant_access_token: "t", expire: 7200 },
       ],
       ["/im/v1/messages?", { code: 0, data: { message_id: "msg-1" } }],
-      ["cards/id_convert", { code: 0, data: { card_id: "card-1" } }],
+      ["/cardkit/v1/cards", { code: 0, data: { card_id: "card-1" } }],
     ]);
     try {
       const adapter = new FeishuAdapter(config);
@@ -81,7 +81,12 @@ describe("Feishu streaming reply cards", () => {
       });
 
       const send = calls.find((c) => c.url.includes("/im/v1/messages?"));
-      const content = JSON.parse(String(send?.body?.content));
+      expect(JSON.parse(String(send?.body?.content))).toEqual({
+        type: "card",
+        data: { card_id: "card-1" },
+      });
+      const create = calls.find((c) => c.url.includes("/cardkit/v1/cards"));
+      const content = JSON.parse(String(create?.body?.data));
       expect(content.schema).toBe("2.0");
       expect(content.config.streaming_mode).toBe(true);
       expect(content.config.update_multi).toBe(true);
@@ -91,9 +96,8 @@ describe("Feishu streaming reply cards", () => {
         content: "第一段回复",
       });
 
-      const convert = calls.find((c) => c.url.includes("cards/id_convert"));
-      expect(convert?.method).toBe("POST");
-      expect(convert?.body).toEqual({ message_id: "msg-1" });
+      expect(create?.method).toBe("POST");
+      expect(calls.indexOf(create!)).toBeLessThan(calls.indexOf(send!));
     } finally {
       vi.unstubAllGlobals();
     }
@@ -130,9 +134,83 @@ describe("Feishu streaming reply cards", () => {
       expect(update?.body).toEqual({
         content: "第一段回复\n第二段回复",
         sequence: 4,
+        uuid: expect.any(String),
       });
       // No new message is sent for a pure streaming update.
       expect(calls.some((c) => c.url.includes("/im/v1/messages?"))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reuses a prior status message when starting a stream", async () => {
+    const calls = stubFetch([
+      [
+        "tenant_access_token",
+        { code: 0, tenant_access_token: "t", expire: 7200 },
+      ],
+      ["/cardkit/v1/cards", { code: 0, data: { card_id: "card-1" } }],
+      ["/im/v1/messages/prior", { code: 0 }],
+    ]);
+    try {
+      const state = await new FeishuAdapter(config).streamCard(
+        conversation,
+        "Live",
+        "key",
+        {
+          messageId: "prior",
+          createdAt: 10,
+        },
+      );
+      expect(state).toMatchObject({
+        messageId: "prior",
+        createdAt: 10,
+        cardId: "card-1",
+      });
+      const messages = calls.filter((c) => c.url.includes("/im/v1/messages"));
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.method).toBe("PATCH");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("closes streaming mode on the same entity with a higher sequence", async () => {
+    const calls = stubFetch([
+      [
+        "tenant_access_token",
+        { code: 0, tenant_access_token: "t", expire: 7200 },
+      ],
+      ["/cardkit/v1/cards/card-1", { code: 0 }],
+    ]);
+    try {
+      const state = await new FeishuAdapter(config).streamCard(
+        conversation,
+        "Completed",
+        "final-key",
+        {
+          messageId: "msg-1",
+          createdAt: 10,
+          cardId: "card-1",
+          sequence: 4,
+          streaming: true,
+        },
+        false,
+      );
+      expect(state).toMatchObject({
+        messageId: "msg-1",
+        cardId: "card-1",
+        sequence: 5,
+        streaming: false,
+      });
+      const update = calls.find((c) => c.url.endsWith("cards/card-1"));
+      expect(update?.method).toBe("PUT");
+      expect(update?.body?.sequence).toBe(5);
+      expect(JSON.parse(update?.body?.card.data)).toMatchObject({
+        config: { streaming_mode: false },
+        body: { elements: [{ content: "Completed" }] },
+      });
+      expect(calls.some((c) => c.url.includes("/im/v1/messages"))).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -206,20 +284,20 @@ describe("Feishu streaming reply cards", () => {
     }
   });
 
-  it("fails creation when the card entity conversion returns no id", async () => {
-    stubFetch([
+  it("does not publish a message when card creation returns no entity id", async () => {
+    const calls = stubFetch([
       [
         "tenant_access_token",
         { code: 0, tenant_access_token: "t", expire: 7200 },
       ],
-      ["/im/v1/messages?", { code: 0, data: { message_id: "msg-9" } }],
-      ["cards/id_convert", { code: 0, data: {} }],
+      ["/cardkit/v1/cards", { code: 0, data: {} }],
     ]);
     try {
       const adapter = new FeishuAdapter(config);
       await expect(
         adapter.streamCard!(conversation, "hello", "key-3"),
       ).rejects.toThrow("streaming card entity id");
+      expect(calls.some((c) => c.url.includes("/im/v1/messages"))).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }

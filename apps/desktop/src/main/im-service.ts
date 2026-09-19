@@ -1235,6 +1235,8 @@ export class ImService {
   }
   private async shutdown(): Promise<void> {
     this.closed = true;
+    for (const threadId of this.replyStreams.keys())
+      this.clearReplyStream(threadId);
     clearInterval(this.timer);
     for (const id of this.controllers.keys()) this.cancelOperations(id);
     while (this.polling)
@@ -2532,6 +2534,7 @@ export class ImService {
     }
   }
   cancelOperations(threadId: string): void {
+    this.clearReplyStream(threadId);
     for (const controller of this.controllers.get(threadId) ?? [])
       controller.abort();
   }
@@ -4498,7 +4501,6 @@ export class ImService {
       }
     }
     if (payload.type === "turn.completed" || payload.type === "turn.failed") {
-      // 两侧语义都保留：新码流式清理（对方）+ 授权拦截优先应答（本分支）。
       this.clearReplyStream(event.threadId);
       const permission = this.get<{ result: { message: string } }>(
         "permission-blocks",
@@ -4554,6 +4556,13 @@ export class ImService {
     turnId: string,
     delta: string,
   ): void {
+    if (
+      binding.request.identity.channel !== "feishu" ||
+      binding.request.conversation.kind !== "direct" ||
+      binding.request.conversation.spaceId ||
+      !binding.projectId
+    )
+      return;
     const state = this.replyStreams.get(threadId) ?? {
       text: "",
       turnId,
@@ -4566,6 +4575,7 @@ export class ImService {
       state.lastAt = 0;
     }
     state.text = (state.text + delta).slice(-60000);
+    this.replyStreams.set(threadId, state);
     const elapsed = Date.now() - state.lastAt;
     if (elapsed >= 1000) {
       this.flushReplyStream(binding, threadId);
@@ -4575,9 +4585,15 @@ export class ImService {
         1000 - elapsed,
       );
     }
-    this.replyStreams.set(threadId, state);
   }
   private flushReplyStream(binding: Binding, threadId: string): void {
+    if (this.closed || !this.config.enabled) return;
+    if (
+      this.get<Binding>("bindings", threadId)?.request.id !== binding.request.id
+    ) {
+      this.clearReplyStream(threadId);
+      return;
+    }
     const state = this.replyStreams.get(threadId);
     if (!state) return;
     if (state.timer) {
@@ -4585,7 +4601,7 @@ export class ImService {
       state.timer = undefined;
     }
     state.lastAt = Date.now();
-    if (!state.text.trim()) return;
+    if (!state.text.trim() || inspectImOutbound(state.text)) return;
     try {
       this.checkContext(binding);
     } catch {

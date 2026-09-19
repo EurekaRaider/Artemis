@@ -26,6 +26,40 @@ function event(id = "message-1"): ChannelEvent {
   };
 }
 describe("Gateway routing", () => {
+  it("coalesces cumulative stream updates without splitting them or delaying final status", () => {
+    const store = new GatewayStore(":memory:", "e".repeat(32));
+    try {
+      const router = new GatewayRouter(store);
+      const payload = {
+        conversation: {
+          connectionId: "f",
+          id: "chat",
+          kind: "direct" as const,
+        },
+        cardKey: "device:task",
+        stream: true,
+        text: "a".repeat(8000),
+      };
+      router.queueDelivery("first", payload);
+      expect(store.pending("outgoing")).toHaveLength(1);
+      router.queueDelivery("latest", { ...payload, text: "b".repeat(9000) });
+      const pending = store.pending<{ text: string }>("outgoing");
+      expect(pending).toHaveLength(1);
+      expect(pending[0]?.payload.text).toBe("b".repeat(9000));
+      router.queueDelivery("done", {
+        ...payload,
+        stream: false,
+        text: "Completed",
+      });
+      expect(
+        store
+          .pending<{ text: string }>("outgoing")
+          .map((item) => item.payload.text),
+      ).toEqual(["Completed"]);
+    } finally {
+      store.close();
+    }
+  });
   it("rejects legacy delegation without enqueuing device work", () => {
     const store = new GatewayStore(":memory:", "e".repeat(32));
     const router = new GatewayRouter(store);
