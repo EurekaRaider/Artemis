@@ -841,8 +841,10 @@ describe("renderer layout contract", () => {
     expect(cssRule(".slash-command-suggestion > span:last-child")).toMatch(
       /\bjustify-content:\s*space-between/u,
     );
-    expect(cssRule(".slash-command-icon.plugin-icon img")).toMatch(
-      /\bobject-fit:\s*contain/u,
+    expect(appSource).toContain("<ResourceAvatar");
+    expect(appSource).toContain("iconDataUrl={plugin.iconDataUrl}");
+    expect(cssRule(".slash-command-suggestion .resource-avatar")).toMatch(
+      /\bwidth:\s*30px/u,
     );
   });
 
