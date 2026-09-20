@@ -16072,10 +16072,12 @@ function createMainWindow(): BrowserWindow {
   });
 
   if (smokeScreenshot || smokeAccessibility) {
+    // Concurrent Goal smoke launches can take over 15 seconds on macOS x64.
+    // Startup performance is checked separately by the screenshot matrix.
     const readyTimeout = setTimeout(() => {
       console.error("Smoke validation failed: renderer did not paint in time.");
       app.exit(1);
-    }, 15_000);
+    }, 30_000);
     ipcMain.once(IPC.rendererReady, (event) => {
       clearTimeout(readyTimeout);
       if (event.sender.id !== window.webContents.id) {
