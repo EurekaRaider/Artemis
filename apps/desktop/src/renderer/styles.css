@@ -11602,6 +11602,18 @@ kbd {
   padding: 12px 0;
 }
 
+/* 历史轮次懒挂载占位：以分层淡色呈现“内容待挂载”，避免被误读为空白断层。 */
+[data-history-turn][data-mounted="false"] {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--text) 3%, transparent) 12%,
+    color-mix(in srgb, var(--text) 3%, transparent) 88%,
+    transparent 100%
+  );
+  border-radius: 10px;
+}
+
 /* Custom sub-agent management (D#152 PR4). */
 .custom-agents-section
   [data-artemis-component="management-row"]

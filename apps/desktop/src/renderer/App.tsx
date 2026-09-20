@@ -11238,7 +11238,7 @@ export function Timeline({
           key={`${state.threadId}:${turn.id}`}
           cacheKey={`${state.threadId}:${turn.id}`}
           active={turn.status === "running"}
-          initialVisible={turnIndex >= groupedTimeline.turns.length - 8}
+          initialVisible={turnIndex >= groupedTimeline.turns.length - 12}
         >
           {() => {
             if (turn.status !== "completed") {
