@@ -212,13 +212,11 @@ const closeChannelDialog = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 const platformState = (channel: keyof typeof platformLabels) =>
   platformCard(channel).closest("[data-connection-state]") as HTMLElement;
-/* 两栏版：群协作=IM 渠道第三卡，点击下钻群协作详情（带返回）。 */
+/* 两栏版：群协作=IM 渠道第三卡，点击以二级弹窗（同渠道设置）下钻。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
   await panelReady();
   await user.click(screen.getByRole("button", { name: /^群协作项目授权/ }));
-  expect(
-    screen.getByRole("button", { name: "返回", exact: true }),
-  ).toBeVisible();
+  expect(screen.getByRole("dialog", { name: "群协作项目授权" })).toBeVisible();
 };
 
 describe("production IM settings", () => {
@@ -1430,7 +1428,7 @@ describe("production IM settings", () => {
     projects.focus();
     await user.keyboard("{Enter}");
     expect(
-      screen.getByRole("button", { name: "返回", exact: true }),
+      screen.getByRole("dialog", { name: "群协作项目授权" }),
     ).toBeVisible();
     expect(document.getElementById("im-spaces")).toBeVisible();
   });
@@ -1774,9 +1772,8 @@ describe("pairing code lifecycle", () => {
       await screen.findByRole("button", { name: /^群协作项目授权/ }),
     );
     expect(
-      screen.getByRole("button", { name: "返回", exact: true }),
+      screen.getByRole("dialog", { name: "群协作项目授权" }),
     ).toBeVisible();
-    expect(screen.getByText("群协作项目授权")).toBeVisible();
   });
   it("advances the honest test track from real task signals only", async () => {
     const f = fixture();
@@ -2055,8 +2052,8 @@ describe("single project authorization editor", () => {
     await screen.findByRole("button", { name: "授权配置" });
     expect(screen.queryByText("Private member name")).not.toBeInTheDocument();
     expect(screen.queryByText(/群协作成员/)).not.toBeInTheDocument();
-    // 群协作入口已移至 IM 渠道第三卡：返回列表后下钻。
-    await user.click(screen.getByRole("button", { name: "返回", exact: true }));
+    // 群协作入口已移至 IM 渠道第三卡：关闭弹窗回列表后再次下钻。
+    await user.click(screen.getByRole("button", { name: "关闭", exact: true }));
     await user.click(screen.getByRole("button", { name: /^群协作项目授权/ }));
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
@@ -2088,8 +2085,11 @@ describe("single project authorization editor", () => {
     );
     await user.click(within(dialog).getByRole("button", { name: "确认设置" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("dialog", { name: "Test project · 授权设置" }),
+      ).not.toBeInTheDocument(),
     );
+    /* 深链打开的外层群协作弹窗仍在，属预期。 */
     const scopes = f.get().settings.grants[0]!.security!.scopes;
     expect(scopes.find((scope) => scope.audience === "owner")).toEqual(
       ownerScope,
@@ -2132,8 +2132,11 @@ describe("single project authorization editor", () => {
     fail = false;
     await user.click(save);
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("dialog", { name: "Test project · 授权设置" }),
+      ).not.toBeInTheDocument(),
     );
+    /* 深链打开的外层群协作弹窗仍在，属预期。 */
     expect(f.manage).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "authorize-native-group",

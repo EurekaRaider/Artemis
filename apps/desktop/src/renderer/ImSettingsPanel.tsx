@@ -2681,62 +2681,52 @@ export function ImSettingsPanel({
             <div className="im-service-body">{renderGatewayBody()}</div>
           </section>
         </div>
-        {/* 右栏：门（渠道）。渠道与群聊授权卡片↔ 详情下钻。 */}
+        {/* 右栏：门（渠道）。渠道与群协作授权均以二级弹窗下钻。 */}
         <div className="im-col-right">
-          {groupDetail ? (
-            <section className="im-channel-detail" tabIndex={-1}>
-              {detailHead(t("ImSettingsPanel.message199"), () =>
-                setGroupDetail(false),
-              )}
-              {renderSpacesBody()}
-              {local && renderPermissionsBody()}
-            </section>
-          ) : (
-            <section
-              className="im-channel-list"
-              aria-label={t("ImSettingsPanel.imChannelsTitle")}
+          <section
+            className="im-channel-list"
+            aria-label={t("ImSettingsPanel.imChannelsTitle")}
+          >
+            <div className="im-channel-list-head">
+              <ArtemisIcon
+                aria-hidden="true"
+                name="message"
+                width={24}
+                height={24}
+              />
+              <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
+            </div>
+            {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
+              channelRow,
+            )}
+            {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
+            <button
+              type="button"
+              className="im-channel-row"
+              onClick={() => {
+                setChannelDetail(false);
+                setGroupDetail(true);
+              }}
             >
-              <div className="im-channel-list-head">
-                <ArtemisIcon
-                  aria-hidden="true"
-                  name="message"
-                  width={24}
-                  height={24}
-                />
-                <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
-              </div>
-              {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
-                channelRow,
-              )}
-              {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
-              <button
-                type="button"
-                className="im-channel-row"
-                onClick={() => {
-                  setChannelDetail(false);
-                  setGroupDetail(true);
-                }}
-              >
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  className="im-channel-logo"
-                  height={20}
-                  src={groupChannelIcon}
-                  width={20}
-                />
-                <span className="im-channel-row-copy">
-                  <strong>{t("ImSettingsPanel.message165")}</strong>
-                  <span className="im-channel-row-summary">
-                    {t("ImSettingsPanel.message166")}
-                  </span>
+              <img
+                alt=""
+                aria-hidden="true"
+                className="im-channel-logo"
+                height={20}
+                src={groupChannelIcon}
+                width={20}
+              />
+              <span className="im-channel-row-copy">
+                <strong>{t("ImSettingsPanel.message165")}</strong>
+                <span className="im-channel-row-summary">
+                  {t("ImSettingsPanel.message166")}
                 </span>
-                <span aria-hidden="true" className="im-capsule-btn">
-                  {t("ImSettingsPanel.goGrant")}
-                </span>
-              </button>
-            </section>
-          )}
+              </span>
+              <span aria-hidden="true" className="im-capsule-btn">
+                {t("ImSettingsPanel.goGrant")}
+              </span>
+            </button>
+          </section>
         </div>
       </div>
     );
@@ -2841,6 +2831,46 @@ export function ImSettingsPanel({
             </button>
           </header>
           <div className="im-detail-dialog-body">{renderChannelBody()}</div>
+        </Dialog>
+      )}
+      {groupDetail && (
+        /* 群协作项目授权二级弹窗：与渠道设置同壳，头部=群协作标+标题+关闭。 */
+        <Dialog
+          className="im-detail-dialog im-group-dialog"
+          label={t("ImSettingsPanel.message165")}
+          onOpenChange={(open) => {
+            if (!open) setGroupDetail(false);
+          }}
+          open
+        >
+          <header className="im-detail-dialog-head">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="im-channel-logo"
+              height={22}
+              src={groupChannelIcon}
+              width={22}
+            />
+            <h2>{t("ImSettingsPanel.message165")}</h2>
+            <button
+              type="button"
+              className="im-detail-dialog-close"
+              aria-label={t("App_copy.renameClose")}
+              onClick={() => setGroupDetail(false)}
+            >
+              <ArtemisIcon
+                aria-hidden="true"
+                height={14}
+                name="close"
+                width={14}
+              />
+            </button>
+          </header>
+          <div className="im-detail-dialog-body">
+            {renderSpacesBody()}
+            {local && renderPermissionsBody()}
+          </div>
         </Dialog>
       )}
       {showRemote && (

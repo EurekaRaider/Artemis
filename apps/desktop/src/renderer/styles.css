@@ -10698,6 +10698,11 @@ kbd {
   padding: 0;
   --border-soft: var(--artemis-color-border-subtle);
 }
+.im-detail-dialog.im-group-dialog {
+  /* 群协作授权：同渠道弹窗壳，取表单(560)与渠道主从(896)之间的宽度。 */
+  width: min(720px, 94vw);
+}
+
 .im-detail-dialog.im-channel-dialog {
   width: min(896px, 94vw);
   /* 缺省高度公式：正常打开时由运行时量测注入主弹窗实际高度（主弹窗
