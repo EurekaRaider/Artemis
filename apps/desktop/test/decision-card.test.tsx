@@ -152,6 +152,38 @@ describe("approval and single question cards", () => {
     );
     expect(screen.queryByRole("textbox")).toBeNull();
   });
+  it("keeps every direct choice reachable through one Tab entry and arrow keys", async () => {
+    const user = userEvent.setup();
+    const onResolve = vi.fn();
+    render(
+      <UserInputCard
+        active
+        input={input}
+        locale="zh-CN"
+        onResolve={onResolve}
+      />,
+    );
+    const first = screen.getByRole("button", { name: /简洁/ });
+    const second = screen.getByRole("button", { name: /紧凑/ });
+    expect(first).toHaveFocus();
+    expect(first).toHaveAttribute("tabindex", "0");
+    expect(second).toHaveAttribute("tabindex", "-1");
+    await user.keyboard("{ArrowDown}");
+    expect(second).toHaveFocus();
+    expect(second).toHaveAttribute("tabindex", "0");
+    expect(first).toHaveAttribute("tabindex", "-1");
+    expect(onResolve).not.toHaveBeenCalled();
+    await user.tab();
+    expect(screen.getByRole("textbox")).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(second).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onResolve).toHaveBeenCalledExactlyOnceWith({
+      requestId: "q",
+      nonce: approval.nonce,
+      selectedOption: 1,
+    });
+  });
   it("does not submit single custom answer during IME input", () => {
     const onResolve = vi.fn();
     render(

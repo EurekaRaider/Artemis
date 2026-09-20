@@ -18759,6 +18759,15 @@ function createMainWindow(): BrowserWindow {
                         : role === "gridcell"
                           ? element.closest("[role='grid']")
                         : null;
+                  // Direct-choice buttons use arrow-key navigation within their
+                  // shared DecisionOptions group, with exactly one Tab entry.
+                  const decisionRoot = element.matches("button.decision-option")
+                    ? element.closest(".decision-options[role='group']")
+                    : null;
+                  const decisionEntries = decisionRoot?.querySelectorAll(
+                    ":scope > button.decision-option:not(:disabled)[tabindex='0']",
+                  );
+                  const usesDecisionRovingTabIndex = decisionEntries?.length === 1;
                   const usesRovingTabIndex = rovingRoot?.querySelector(
                     role === "option"
                       ? "[role='option'][tabindex='0']"
@@ -18776,7 +18785,8 @@ function createMainWindow(): BrowserWindow {
                     visible(element) &&
                     !(element instanceof HTMLButtonElement && element.disabled) &&
                     element.tabIndex < 0 &&
-                    !usesRovingTabIndex
+                    !usesRovingTabIndex &&
+                    !usesDecisionRovingTabIndex
                   ) {
                     issues.push({
                       rule: "keyboard-focus",

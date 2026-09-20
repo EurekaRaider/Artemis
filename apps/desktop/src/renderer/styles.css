@@ -2702,16 +2702,14 @@ button.environment-row:disabled {
   width: 26px;
 }
 
-.user-message-capability-icon.plugin-icon,
-.slash-command-icon.plugin-icon {
+.user-message-capability-icon.plugin-icon {
   background: color-mix(in srgb, var(--panel-3) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: 7px;
   overflow: hidden;
 }
 
-.user-message-capability-icon img,
-.slash-command-icon.plugin-icon img {
+.user-message-capability-icon img {
   display: block;
   height: 100%;
   object-fit: contain;
@@ -5042,40 +5040,9 @@ button.environment-row:disabled {
   white-space: nowrap;
 }
 
-.slash-command-icon {
-  align-items: center;
-  background: color-mix(in srgb, var(--blue) 18%, transparent);
-  border-radius: 8px;
-  color: var(--blue);
-  display: flex;
-  font-size: 16px;
-  height: 30px;
-  justify-content: center;
-  width: 30px;
-}
-
-.slash-command-suggestion .slash-command-icon {
-  background: transparent;
-  border-radius: 0;
-  color: var(--muted);
-  flex: 0 0 22px;
-  height: 22px;
-  width: 22px;
-}
-
-.slash-command-suggestion .slash-command-icon.plugin-icon {
-  flex-basis: 30px;
-  height: 30px;
-  width: 30px;
-}
-
 .slash-command-suggestion .resource-avatar {
   height: 30px;
   width: 30px;
-}
-
-.slash-command-suggestion.active .slash-command-icon {
-  color: var(--text);
 }
 
 /* One shared, wrapping row for selected skills, plugin skills and attachments. */
