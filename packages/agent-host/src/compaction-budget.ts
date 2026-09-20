@@ -1,7 +1,8 @@
 import {
   createAssistantMessageEventStream,
   type AssistantMessage,
-  type Context,
+  normalizeContext,
+  type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { isContextOverflow } from "@earendil-works/pi-ai/compat";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
@@ -28,7 +29,10 @@ export function installCompactionBudget(session: AgentSession): void {
 export function withCompactionBudget(stream: StreamFunction): StreamFunction {
   return async (model, context, options) => {
     let usage: AssistantMessage["usage"] | undefined;
-    const call = async (request: Context, maxTokens = options?.maxTokens) => {
+    const call = async (
+      request: TranscriptContext,
+      maxTokens = options?.maxTokens,
+    ) => {
       options?.signal?.throwIfAborted();
       const response = await (
         await stream(model, request, {
@@ -114,9 +118,12 @@ export function withCompactionBudget(stream: StreamFunction): StreamFunction {
         }
       }
 
-      // Pi 0.85 serializes summary inputs into one text message. Preserve its
+      // Pi serializes summary inputs into one user message. Preserve its
       // exact summary instructions (including custom focus and previous summary).
-      const message = request.messages[0];
+      const conversationMessages = request.messages.filter(
+        (entry) => entry.role !== "system",
+      );
+      const message = conversationMessages[0];
       const text =
         message &&
         typeof message.content !== "string" &&
@@ -126,7 +133,7 @@ export function withCompactionBudget(stream: StreamFunction): StreamFunction {
           : undefined;
       const end = text?.lastIndexOf("</conversation>") ?? -1;
       if (
-        request.messages.length !== 1 ||
+        conversationMessages.length !== 1 ||
         !text?.startsWith("<conversation>\n") ||
         end < 0
       ) {
@@ -136,18 +143,20 @@ export function withCompactionBudget(stream: StreamFunction): StreamFunction {
       }
       const body = text.slice("<conversation>\n".length, end);
       const suffix = text.slice(end);
-      const withBody = (value: string): Context => ({
-        ...request,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `<conversation>\n${value}${suffix}` },
-            ],
-            timestamp: message!.timestamp,
-          },
-        ],
-      });
+      const withBody = (value: string): TranscriptContext =>
+        normalizeContext({
+          ...request,
+          messages: [
+            ...request.messages.filter((entry) => entry.role === "system"),
+            {
+              role: "user",
+              content: [
+                { type: "text", text: `<conversation>\n${value}${suffix}` },
+              ],
+              timestamp: message!.timestamp,
+            },
+          ],
+        });
       const fixed = estimateRequestTokens(model, withBody(""));
       const chunkTokens = Math.floor((limit - fixed - 256) / 2 ** (pass + 1));
       if (chunkTokens < 256) {

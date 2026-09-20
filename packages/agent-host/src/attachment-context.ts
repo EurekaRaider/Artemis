@@ -54,6 +54,17 @@ export function estimateRequestTokens(
     estimateTextTokens(JSON.stringify(context.tools ?? []));
   for (const message of context.messages) {
     tokens += 16;
+    if (
+      message &&
+      typeof message === "object" &&
+      (message as { role?: string }).role === "system"
+    ) {
+      const system = message as { sections?: unknown; toolsAdded?: unknown };
+      tokens += estimateTextTokens(
+        JSON.stringify(system.sections ?? {}) +
+          JSON.stringify(system.toolsAdded ?? []),
+      );
+    }
     const content =
       message && typeof message === "object"
         ? (message as { content?: unknown }).content

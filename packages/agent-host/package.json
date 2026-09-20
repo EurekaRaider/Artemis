@@ -33,10 +33,10 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "3.0.84",
-    "@earendil-works/pi-ai": "0.85.1",
-    "@earendil-works/pi-coding-agent": "0.85.1",
     "@artemis/platform": "1.6.0",
     "@artemis/protocol": "1.6.0",
+    "@earendil-works/pi-ai": "0.86.0",
+    "@earendil-works/pi-coding-agent": "0.86.0",
     "@sinclair/typebox": "0.34.52",
     "ai": "6.0.168"
   }

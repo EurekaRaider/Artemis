@@ -1,3 +1,4 @@
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { Type } from "@sinclair/typebox";
 import type {
@@ -45,6 +46,26 @@ function context(systemPrompt = "Stable system prompt."): Context {
 }
 
 describe("PromptCacheController", () => {
+  it("uses transcript-backed prompt and tool changes in cache keys", () => {
+    const controller = new PromptCacheController();
+    const original = context();
+    const transcript = normalizeContext(original);
+    const before = controller.resolve(model("gpt-5.6"), original);
+    expect(controller.resolve(model("gpt-5.6"), transcript).cacheKey).toBe(
+      before.cacheKey,
+    );
+    transcript.messages.push({
+      role: "system",
+      content: "New instructions",
+      toolsRemoved: [{ name: "read" }],
+      timestamp: 2,
+    });
+    const after = controller.resolve(model("gpt-5.6"), transcript);
+    expect(after.systemPromptFingerprint).not.toBe(
+      before.systemPromptFingerprint,
+    );
+    expect(after.toolSchemaFingerprint).not.toBe(before.toolSchemaFingerprint);
+  });
   it.each([
     ["gpt-5.6", 0, "parent", "explicit-30m", "official-gpt-5.6"],
     ["gpt-5.5", 0, "parent", "long", "official-gpt-5.5"],

@@ -13,6 +13,10 @@ import {
 } from "ai";
 import {
   calculateCost,
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  normalizeContext,
+  type JsonObject,
   createAssistantMessageEventStream,
   type Api,
   type AssistantMessage,
@@ -51,6 +55,7 @@ function requestHeaders(
 
 function toModelMessages(context: Context): ModelMessage[] {
   return context.messages.flatMap((message): ModelMessage[] => {
+    if (message.role === "system") return [];
     if (message.role === "user") {
       if (typeof message.content === "string") {
         return [{ role: "user", content: message.content }];
@@ -238,6 +243,12 @@ export function streamOpenAIResponsesWithAiSdk(
         apiKey: options?.apiKey ?? "ollama",
         ...(headers ? { headers } : {}),
       });
+      const transcript = normalizeContext(context);
+      context = {
+        messages: transcript.messages,
+        systemPrompt: getCurrentSystemPrompt(transcript.messages),
+        tools: getCurrentTools(transcript.messages),
+      };
       const tools = toAiSdkTools(context);
       const cacheRetention = options?.cacheRetention ?? "short";
       const cache = promptCacheMetadata(options);
@@ -428,8 +439,8 @@ export function streamOpenAIResponsesWithAiSdk(
             part.input &&
             typeof part.input === "object" &&
             !Array.isArray(part.input)
-              ? (part.input as Record<string, unknown>)
-              : { input: part.input };
+              ? (part.input as JsonObject)
+              : { input: (part.input ?? null) as JsonObject[string] };
           block.arguments = argumentsValue;
           if (!state.json) {
             state.json = JSON.stringify(argumentsValue);

@@ -6,7 +6,10 @@ import {
   ModelRuntime,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import {
+  createAssistantMessageEventStream,
+  getCurrentSystemPrompt,
+} from "@earendil-works/pi-ai";
 import type {
   CustomAgentDefinition,
   CustomAgentInstanceSnapshot,
@@ -164,9 +167,13 @@ describe("custom agent budget through real child sessions", () => {
           expect(provider).toHaveBeenCalledOnce();
           const [model, context] = provider.mock.calls[0]!;
           expect(model.contextWindow).toBe(128000);
-          expect(context.systemPrompt).toContain(instructions);
+          expect(getCurrentSystemPrompt(context.messages)).toContain(
+            instructions,
+          );
           expect(JSON.stringify(context.messages)).toContain("Return Done");
-          expect(context.messages).toHaveLength(1);
+          expect(
+            context.messages.filter((message) => message.role !== "system"),
+          ).toHaveLength(1);
         } else {
           expect(provider).not.toHaveBeenCalled();
           expect(child.error).toContain("CUSTOM_AGENT_CONTEXT_EXCEEDED");

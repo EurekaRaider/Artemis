@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createAssistantMessageEventStream,
+  normalizeContext,
+  getCurrentSystemPrompt,
   type AssistantMessage,
   type Context,
   type Model,
@@ -54,8 +56,8 @@ function response(
   else stream.push({ type: "done", reason: "stop", message });
   return stream;
 }
-function request(): Context {
-  return {
+function request() {
+  return normalizeContext({
     systemPrompt: "Summarize the conversation.",
     messages: [
       {
@@ -69,7 +71,7 @@ function request(): Context {
         timestamp: 1,
       },
     ],
-  };
+  });
 }
 describe("bounded Pi compaction", () => {
   it("shrinks chunks when the provider reports more tokens than the local estimate", async () => {
@@ -89,6 +91,9 @@ describe("bounded Pi compaction", () => {
     const provider = vi.fn((_model, context, options) => {
       expect(estimateRequestTokens(model, context)).toBeLessThanOrEqual(
         inputTokenLimit(model, options?.maxTokens),
+      );
+      expect(getCurrentSystemPrompt(context.messages)).toBe(
+        "Summarize the conversation.",
       );
       contexts.push(context);
       return response();

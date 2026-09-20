@@ -1,3 +1,4 @@
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Type } from "@sinclair/typebox";
 import type { Api, Context, Model } from "@earendil-works/pi-ai";
@@ -74,6 +75,37 @@ beforeEach(() => {
 });
 
 describe("streamOpenAIResponsesWithAiSdk", () => {
+  it("replays transcript prompt sections and tool removals for Responses", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "finish", finishReason: "stop", totalUsage: usage },
+      ]),
+    });
+    const context = normalizeContext({
+      systemPrompt: "Base prompt",
+      tools: [
+        { name: "read", description: "Read", parameters: Type.Object({}) },
+      ],
+      messages: [{ role: "user", content: "Hello", timestamp: 1 }],
+    });
+    context.messages.push({
+      role: "system",
+      content: "Updated instructions",
+      sections: { focus: "Preserve files" },
+      toolsRemoved: [{ name: "read" }],
+      toolsAdded: [
+        { name: "search", description: "Search", parameters: Type.Object({}) },
+      ],
+      timestamp: 2,
+    });
+    await Array.fromAsync(streamOpenAIResponsesWithAiSdk(model, context));
+    const request = sdk.streamText.mock.calls[0]![0];
+    expect(request.system).toContain("Base prompt");
+    expect(request.system).toContain("Updated instructions");
+    expect(request.system).toContain("Preserve files");
+    expect(Object.keys(request.tools)).toEqual(["search"]);
+    expect(request.messages).toEqual([{ role: "user", content: "Hello" }]);
+  });
   it.each([
     {
       name: "off with short retention",

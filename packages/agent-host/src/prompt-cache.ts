@@ -1,3 +1,8 @@
+import {
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  normalizeContext,
+} from "@earendil-works/pi-ai";
 import { createHash } from "node:crypto";
 
 import type {
@@ -71,7 +76,7 @@ function canonicalValue(value: unknown): unknown {
 
 function serializedTools(context: Context): string {
   return JSON.stringify(
-    (context.tools ?? [])
+    getCurrentTools(normalizeContext(context).messages)
       .map((definition) => ({
         name: definition.name,
         description: definition.description,
@@ -286,7 +291,9 @@ export class PromptCacheController {
       reason = "unsupported-model";
     }
 
-    const systemPrompt = context.systemPrompt ?? "";
+    const systemPrompt = getCurrentSystemPrompt(
+      normalizeContext(context).messages,
+    );
     const tools = serializedTools(context);
     const systemPromptFingerprint = digest(systemPrompt).slice(0, 16);
     const toolSchemaFingerprint = digest(tools).slice(0, 16);

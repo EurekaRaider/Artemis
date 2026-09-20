@@ -1,3 +1,4 @@
+import { Type } from "@sinclair/typebox";
 import { describe, it, expect, vi } from "vitest";
 import type { Api, Model, Context } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -16,6 +17,39 @@ const model = {
 } as Model<Api>;
 const image = { type: "image" as const, data: "YWJj", mimeType: "image/png" };
 describe("attachment request boundary", () => {
+  it.each(["sections", "toolsAdded"] as const)(
+    "counts transcript %s before provider invocation",
+    (field) => {
+      const streamSimple = vi.fn();
+      const runtime = withAttachmentContextBudget({
+        streamSimple,
+      } as unknown as ModelRuntime);
+      const context: Context = {
+        messages: [
+          {
+            role: "system",
+            content: "",
+            timestamp: 0,
+            ...(field === "sections"
+              ? { sections: { instructions: "x".repeat(100000) } }
+              : {
+                  toolsAdded: [
+                    {
+                      name: "read",
+                      description: "x".repeat(100000),
+                      parameters: Type.Object({}),
+                    },
+                  ],
+                }),
+          },
+        ],
+      };
+      expect(() =>
+        runtime.streamSimple({ ...model, contextWindow: 16000 }, context),
+      ).toThrow(/before sending/);
+      expect(streamSimple).not.toHaveBeenCalled();
+    },
+  );
   it("sends 20 images in a large window and retains references in a small window without editing history", () => {
     const content = Array.from({ length: 20 }, (_, i) => [
       { type: "text" as const, text: `[artemis-attachment id=image-${i}]` },
