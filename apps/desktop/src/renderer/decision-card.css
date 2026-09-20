@@ -309,6 +309,12 @@
 .thread-select:has(.thread-waiting-badge) .thread-time {
   display: none;
 }
+/* Keep conversation context visible in short windows and at high zoom. */
+@media (max-height: 600px) {
+  .composer-awaiting-decision .composer-decision {
+    max-block-size: 20dvh;
+  }
+}
 @media (max-width: 480px) {
   .decision-card,
   .decision-card.user-input-card {
