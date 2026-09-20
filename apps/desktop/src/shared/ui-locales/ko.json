@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "인증 정보 직접 입력",
   "TerminalPanel.processExited": "프로세스 종료, 종료 코드: {{code}}",
   "ImLegacyImport.tenantKey": "테넌트 키",
-  "ImLegacyImport.botOpenId": "봇 Open ID"
+  "ImLegacyImport.botOpenId": "봇 Open ID",
+  "App_copy.unreadShort": "읽지 않음",
+  "App_copy.loadingHistory": "대화 불러오는 중…",
+  "App_copy.historyLoadFailed": "대화를 불러오지 못했습니다",
+  "App_copy.historyRetry": "다시 시도",
+  "SettingsPanel_labels.saveChanges": "변경 사항 저장",
+  "SettingsPanel_labels.modelUpdated": "모델 업데이트됨",
+  "SettingsPanel_labels.modelUpdatedDetail": "모델 설정과 입력한 API 키를 저장했습니다.",
+  "SettingsPanel_labels.sharedApiKey": "이 공급자의 모든 모델은 API 키를 공유합니다. 비워 두면 저장된 키가 유지됩니다.",
+  "SettingsPanel_labels.confirmDelete": "삭제 확인"
 }

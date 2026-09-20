@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "Enter credentials manually",
   "TerminalPanel.processExited": "Process exited with code {{code}}",
   "ImLegacyImport.tenantKey": "Tenant key",
-  "ImLegacyImport.botOpenId": "Bot Open ID"
+  "ImLegacyImport.botOpenId": "Bot Open ID",
+  "App_copy.unreadShort": "Unread",
+  "App_copy.loadingHistory": "Loading conversation…",
+  "App_copy.historyLoadFailed": "Could not load conversation",
+  "App_copy.historyRetry": "Retry",
+  "SettingsPanel_labels.saveChanges": "Save changes",
+  "SettingsPanel_labels.modelUpdated": "Model updated",
+  "SettingsPanel_labels.modelUpdatedDetail": "The model settings and any entered API key were saved.",
+  "SettingsPanel_labels.sharedApiKey": "All models from this provider share the API key. Leave blank to keep the stored key.",
+  "SettingsPanel_labels.confirmDelete": "Confirm deletion"
 }

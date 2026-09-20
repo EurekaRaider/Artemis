@@ -3069,7 +3069,9 @@ describe("renderer layout contract", () => {
       return settingsSource.slice(buttonIndex, labelIndex);
     };
 
-    for (const label of ["saveModel", "saveProvider", "saveGlobalAgents"]) {
+    // The model action changes its label between add and edit; its variant is
+    // covered by the interactive settings test.
+    for (const label of ["saveProvider", "saveGlobalAgents"]) {
       expect(buttonBefore(label)).toContain('variant="primary"');
     }
 

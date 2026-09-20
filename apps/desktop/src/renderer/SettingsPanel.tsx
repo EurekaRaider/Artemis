@@ -124,10 +124,15 @@ function modelFormState(settings: SettingsSnapshot | undefined): {
             model.modelId === settings.selection.modelId,
         )
       : undefined) ?? settings.models[0];
+  const saved = settings.addedModels.find(
+    (model) =>
+      model.providerId === selected?.providerId &&
+      model.modelId === selected.modelId,
+  );
   return {
     contextWindow: String(
       Math.min(
-        settings.contextWindow,
+        saved?.contextWindow ?? settings.contextWindow,
         selected?.contextWindow ?? settings.contextWindow,
       ),
     ),
@@ -196,6 +201,8 @@ export function SettingsPanel({
     () => modelFormState(initialSettings).contextWindow,
   );
   const [editingProviderId, setEditingProviderId] = useState<string>();
+  const [editingProviderModelId, setEditingProviderModelId] =
+    useState<string>();
   const [providerId, setProviderId] = useState("");
   const [providerName, setProviderName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -219,6 +226,7 @@ export function SettingsPanel({
   const [message, setMessage] = useState("");
   const [modelApplyResult, setModelApplyResult] = useState<{
     kind: "success" | "failure";
+    title?: string;
     detail: string;
   }>();
   const [modelDeleteTarget, setModelDeleteTarget] =
@@ -340,6 +348,11 @@ export function SettingsPanel({
       (provider) => provider.id === selectedModelInfo.providerId,
     ),
   );
+  const selectedAddedModel = settings?.addedModels.find(
+    (model) =>
+      model.providerId === selectedModelInfo?.providerId &&
+      model.modelId === selectedModelInfo.modelId,
+  );
   const selectedModelCredential = settings?.credentials.find(
     (credential) =>
       credential.providerId === selectedModelInfo?.providerId &&
@@ -388,7 +401,12 @@ export function SettingsPanel({
         candidate.providerId === providerId && candidate.modelId === modelId,
     );
     if (!model) return;
+    const saved = settings?.addedModels.find(
+      (candidate) =>
+        candidate.providerId === providerId && candidate.modelId === modelId,
+    );
     setContextWindow((current) => {
+      if (saved) return String(saved.contextWindow);
       const parsed = Number(current);
       return Number.isInteger(parsed) &&
         parsed >= 1_024 &&
@@ -426,7 +444,8 @@ export function SettingsPanel({
       setKeyApiKey("");
       setModelApplyResult({
         kind: "success",
-        detail: t.modelSavedDetail,
+        title: selectedAddedModel ? t.modelUpdated : t.modelSaved,
+        detail: selectedAddedModel ? t.modelUpdatedDetail : t.modelSavedDetail,
       });
     } catch (error) {
       setModelApplyResult({
@@ -548,24 +567,31 @@ export function SettingsPanel({
 
   async function saveProviderConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const existingProvider = settings?.providers.find(
+      (provider) => provider.id === editingProviderId,
+    );
+    const editedModel: ProviderConnection["models"][number] = {
+      id: providerModelId.trim(),
+      name: providerModelName.trim() || providerModelId.trim(),
+      reasoning: providerReasoning,
+      ...(providerReasoning
+        ? { highestThinkingLevel: providerHighestThinkingLevel }
+        : {}),
+      input: providerImages ? ["text", "image"] : ["text"],
+      contextWindow: parsedProviderContextWindow,
+      maxTokens: parsedProviderMaxTokens,
+    };
     const provider: ProviderConnection = {
+      ...existingProvider,
       id: trimmedProviderId,
       name: providerName.trim() || trimmedProviderId,
       baseUrl: baseUrl.trim(),
       api: providerApi,
-      models: [
-        {
-          id: providerModelId.trim(),
-          name: providerModelName.trim() || providerModelId.trim(),
-          reasoning: providerReasoning,
-          ...(providerReasoning
-            ? { highestThinkingLevel: providerHighestThinkingLevel }
-            : {}),
-          input: providerImages ? ["text", "image"] : ["text"],
-          contextWindow: parsedProviderContextWindow,
-          maxTokens: parsedProviderMaxTokens,
-        },
-      ],
+      models: existingProvider
+        ? existingProvider.models.map((model) =>
+            model.id === editingProviderModelId ? editedModel : model,
+          )
+        : [editedModel],
     };
     await run(async () => {
       const updated = await window.artemis.saveProviderConnection(
@@ -576,8 +602,7 @@ export function SettingsPanel({
       onSettingsChange(updated);
       const savedModel = updated.models.find(
         (model) =>
-          model.providerId === provider.id &&
-          model.modelId === provider.models[0]!.id,
+          model.providerId === provider.id && model.modelId === editedModel.id,
       );
       if (savedModel) {
         setSelectedModel(modelKey(savedModel.providerId, savedModel.modelId));
@@ -594,6 +619,7 @@ export function SettingsPanel({
 
   function resetProviderForm() {
     setEditingProviderId(undefined);
+    setEditingProviderModelId(undefined);
     setProviderId("");
     setProviderName("");
     setBaseUrl("");
@@ -608,9 +634,15 @@ export function SettingsPanel({
     setApiKey("");
   }
 
-  function editProviderConnection(provider: ProviderConnection) {
-    const model = provider.models[0];
+  function editProviderConnection(
+    provider: ProviderConnection,
+    modelId?: string,
+  ) {
+    const model =
+      provider.models.find((candidate) => candidate.id === modelId) ??
+      provider.models[0];
     setEditingProviderId(provider.id);
+    setEditingProviderModelId(model?.id);
     setProviderId(provider.id);
     setProviderName(provider.name);
     setBaseUrl(provider.baseUrl);
@@ -978,7 +1010,9 @@ export function SettingsPanel({
                           label={t.apiKey}
                           description={
                             settings.encryptionAvailable ? (
-                              t.encrypted
+                              <>
+                                {t.encrypted} · {t.sharedApiKey}
+                              </>
                             ) : (
                               <InlineNotice tone="warning">
                                 {t.unavailable}
@@ -1022,7 +1056,7 @@ export function SettingsPanel({
                         onClick={addModel}
                         variant="primary"
                       >
-                        {t.saveModel}
+                        {selectedAddedModel ? t.saveChanges : t.saveModel}
                       </Button>
                       <div
                         aria-label={t.addedModels}
@@ -1038,18 +1072,48 @@ export function SettingsPanel({
                           return (
                             <ManagementRow
                               actions={
-                                <IconButton
-                                  className="management-destructive-action"
-                                  icon={<ArtemisIcon name="trash" />}
-                                  title={t.delete}
-                                  disabled={busy}
-                                  label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
-                                  onClick={() => {
-                                    setMessage("");
-                                    setModelDeleteTarget(model);
-                                  }}
-                                  variant="quiet"
-                                />
+                                <span className="mcp-server-actions">
+                                  <Button
+                                    disabled={busy}
+                                    label={`${t.edit}: ${catalogModel?.name ?? model.modelId}`}
+                                    onClick={() => {
+                                      setMessage("");
+                                      setKeyApiKey("");
+                                      const provider = settings.providers.find(
+                                        (item) => item.id === model.providerId,
+                                      );
+                                      if (provider) {
+                                        editProviderConnection(
+                                          provider,
+                                          model.modelId,
+                                        );
+                                        setProviderConfigTab("custom");
+                                      } else {
+                                        selectModel(
+                                          modelKey(
+                                            model.providerId,
+                                            model.modelId,
+                                          ),
+                                        );
+                                      }
+                                    }}
+                                    variant="quiet"
+                                  >
+                                    {t.edit}
+                                  </Button>
+                                  <IconButton
+                                    className="management-destructive-action"
+                                    icon={<ArtemisIcon name="trash" />}
+                                    title={t.delete}
+                                    disabled={busy}
+                                    label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
+                                    onClick={() => {
+                                      setMessage("");
+                                      setModelDeleteTarget(model);
+                                    }}
+                                    variant="quiet"
+                                  />
+                                </span>
                               }
                               className="added-model-row"
                               description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
@@ -1321,10 +1385,23 @@ export function SettingsPanel({
                       label={t.optionalApiKey}
                       labelVisibility="hidden"
                       onValueChange={setApiKey}
-                      placeholder={t.optionalApiKey}
+                      placeholder={
+                        settings.credentials.some(
+                          (credential) =>
+                            credential.providerId === editingProviderId &&
+                            credential.type === "api_key",
+                        )
+                          ? t.storedApiKey
+                          : t.optionalApiKey
+                      }
                       type="password"
                       value={apiKey}
                     />
+                    {editingProviderId && (
+                      <p className="settings-row-description">
+                        {t.sharedApiKey}
+                      </p>
+                    )}
                     <span className="provider-capabilities">
                       <Checkbox
                         checked={providerReasoning}
@@ -1920,7 +1997,7 @@ export function SettingsPanel({
           description={modelApplyResult.detail}
           label={
             modelApplyResult.kind === "success"
-              ? t.modelSaved
+              ? (modelApplyResult.title ?? t.modelSaved)
               : t.modelSaveFailed
           }
           onOpenChange={(open) => {
@@ -1929,7 +2006,7 @@ export function SettingsPanel({
           open
           title={
             modelApplyResult.kind === "success"
-              ? t.modelSaved
+              ? (modelApplyResult.title ?? t.modelSaved)
               : t.modelSaveFailed
           }
           tone={modelApplyResult.kind === "success" ? "success" : "danger"}
@@ -1943,14 +2020,14 @@ export function SettingsPanel({
                 disabled={busy}
                 onClick={() => setModelDeleteTarget(undefined)}
               >
-                {t.cancelEdit}
+                {t.cancel}
               </Button>
               <Button
                 loading={busy}
                 onClick={() => void removeModel()}
                 variant="danger"
               >
-                {t.delete}
+                {t.confirmDelete}
               </Button>
             </>
           }
@@ -2005,7 +2082,7 @@ export function SettingsPanel({
                 disabled={busy}
                 onClick={() => setProviderDeleteTarget(undefined)}
               >
-                {t.cancelEdit}
+                {t.cancel}
               </Button>
               <Button
                 loading={busy}
@@ -2014,10 +2091,11 @@ export function SettingsPanel({
                 }
                 variant="danger"
               >
-                {t.delete}
+                {t.confirmDelete}
               </Button>
             </>
           }
+          className="model-delete-dialog"
           description={t.deleteProviderConfirm.replace(
             "{provider}",
             providerDeleteTarget.name,

@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "Masukkan kredensial secara manual",
   "TerminalPanel.processExited": "Proses berakhir dengan kode {{code}}",
   "ImLegacyImport.tenantKey": "Kunci tenant",
-  "ImLegacyImport.botOpenId": "Open ID bot"
+  "ImLegacyImport.botOpenId": "Open ID bot",
+  "App_copy.unreadShort": "Belum dibaca",
+  "App_copy.loadingHistory": "Memuat percakapan…",
+  "App_copy.historyLoadFailed": "Gagal memuat percakapan",
+  "App_copy.historyRetry": "Coba lagi",
+  "SettingsPanel_labels.saveChanges": "Simpan perubahan",
+  "SettingsPanel_labels.modelUpdated": "Model diperbarui",
+  "SettingsPanel_labels.modelUpdatedDetail": "Pengaturan model dan kunci API yang dimasukkan telah disimpan.",
+  "SettingsPanel_labels.sharedApiKey": "Semua model dari penyedia ini menggunakan kunci API yang sama. Biarkan kosong untuk mempertahankan kunci yang tersimpan.",
+  "SettingsPanel_labels.confirmDelete": "Konfirmasi penghapusan"
 }

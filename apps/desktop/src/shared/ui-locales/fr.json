@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "Saisir les identifiants manuellement",
   "TerminalPanel.processExited": "Processus terminé avec le code {{code}}",
   "ImLegacyImport.tenantKey": "Clé du locataire",
-  "ImLegacyImport.botOpenId": "Open ID du bot"
+  "ImLegacyImport.botOpenId": "Open ID du bot",
+  "App_copy.unreadShort": "Non lu",
+  "App_copy.loadingHistory": "Chargement de la conversation…",
+  "App_copy.historyLoadFailed": "Impossible de charger la conversation",
+  "App_copy.historyRetry": "Réessayer",
+  "SettingsPanel_labels.saveChanges": "Enregistrer les modifications",
+  "SettingsPanel_labels.modelUpdated": "Modèle mis à jour",
+  "SettingsPanel_labels.modelUpdatedDetail": "Les paramètres du modèle et toute clé API saisie ont été enregistrés.",
+  "SettingsPanel_labels.sharedApiKey": "Tous les modèles de ce fournisseur partagent la clé API. Laissez le champ vide pour conserver la clé enregistrée.",
+  "SettingsPanel_labels.confirmDelete": "Confirmer la suppression"
 }

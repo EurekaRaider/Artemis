@@ -7,7 +7,11 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Thread } from "@artemis/protocol";
+import {
+  createThreadViewState,
+  type AgentEvent,
+  type Thread,
+} from "@artemis/protocol";
 import { ThreadStatusIndicator } from "../src/renderer/ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "../src/renderer/task-notification-read.js";
 
@@ -50,29 +54,121 @@ describe("notification reading and sidebar", () => {
     expect(reportTaskView).toHaveBeenLastCalledWith({});
   });
 
-  it("shows only a red failure dot while retaining the separate unread state", () => {
-    const thread = {
-      status: "failed",
-      notification: { revision: 1, seq: 3, kind: "failed", unread: true },
-    } as Thread;
+  it.each(["failed", "completed"] as const)(
+    "clears the %s result dot after reading",
+    (kind) => {
+      const thread = {
+        status: kind === "failed" ? "failed" : "idle",
+        notification: { revision: 1, seq: 3, kind, unread: true },
+      } as Thread;
+      const { container, rerender } = render(
+        <ThreadStatusIndicator thread={thread} locale="zh-CN" />,
+      );
+      expect(screen.getByRole("img")).toBeTruthy();
+      expect(container.querySelector(".thread-unread-dot")).toBeNull();
+      expect(container.querySelector(`.status-dot.${kind}`)).toBeTruthy();
+      rerender(
+        <ThreadStatusIndicator
+          thread={{
+            ...thread,
+            notification: { ...thread.notification!, unread: false },
+          }}
+          locale="zh-CN"
+        />,
+      );
+      expect(container.querySelector(".thread-unread-dot")).toBeNull();
+      expect(container.querySelector(".status-dot")).toBeNull();
+    },
+  );
+
+  it("reflects background queue transitions and ignores activity from a previous turn", () => {
+    const thread = { status: "running" } as Thread;
+    const event = (payload: AgentEvent["payload"]) =>
+      ({ payload }) as AgentEvent;
+    const queued = event({ type: "turn.activity", phase: "queued" });
     const { container, rerender } = render(
-      <ThreadStatusIndicator thread={thread} locale="zh-CN" />,
+      <ThreadStatusIndicator thread={thread} locale="en" events={[queued]} />,
     );
-    expect(
-      screen.getByRole("img", { name: /任务执行失败.*未读状态更新/ }),
-    ).toBeTruthy();
-    expect(container.querySelector(".thread-unread-dot")).toBeNull();
-    expect(container.querySelector(".status-dot.failed")).toBeTruthy();
+    expect(container.querySelector(".status-dot.queued")).toBeTruthy();
     rerender(
       <ThreadStatusIndicator
-        thread={{
-          ...thread,
-          notification: { ...thread.notification!, unread: false },
-        }}
-        locale="zh-CN"
+        thread={thread}
+        locale="en"
+        events={[
+          queued,
+          event({ type: "turn.activity", phase: "requesting-model" }),
+        ]}
       />,
     );
-    expect(container.querySelector(".thread-unread-dot")).toBeNull();
-    expect(container.querySelector(".status-dot.failed")).toBeTruthy();
+    expect(container.querySelector(".status-dot.running")).toBeTruthy();
+    rerender(
+      <ThreadStatusIndicator
+        thread={thread}
+        locale="en"
+        events={[queued, event({ type: "turn.started", mode: "execute" })]}
+      />,
+    );
+    expect(container.querySelector(".status-dot.running")).toBeTruthy();
+  });
+
+  it("keeps waiting visible after reading and leaves idle tasks without a dot", () => {
+    const { container, rerender } = render(
+      <ThreadStatusIndicator
+        thread={
+          {
+            status: "waiting-approval",
+            notification: { unread: false },
+          } as Thread
+        }
+        locale="en"
+      />,
+    );
+    expect(
+      container.querySelector(".status-dot.waiting-approval"),
+    ).toBeTruthy();
+    rerender(
+      <ThreadStatusIndicator
+        thread={{ status: "idle" } as Thread}
+        locale="en"
+      />,
+    );
+    expect(container.querySelector(".status-dot")).toBeNull();
+  });
+
+  it("keeps a loaded history queue phase until a newer activity replaces it", () => {
+    const thread = { status: "running" } as Thread;
+    const historyState = {
+      ...createThreadViewState("thread", "execute"),
+      lastSeq: 20,
+      activity: { type: "turn.activity", phase: "queued" } as const,
+    };
+    const start = {
+      seq: 10,
+      payload: { type: "turn.started", mode: "execute" },
+    } as AgentEvent;
+    const { container, rerender } = render(
+      <ThreadStatusIndicator
+        thread={thread}
+        locale="en"
+        historyState={historyState}
+        events={[start]}
+      />,
+    );
+    expect(container.querySelector(".status-dot.queued")).toBeTruthy();
+    rerender(
+      <ThreadStatusIndicator
+        thread={thread}
+        locale="en"
+        historyState={historyState}
+        events={[
+          start,
+          {
+            seq: 21,
+            payload: { type: "turn.activity", phase: "thinking" },
+          } as AgentEvent,
+        ]}
+      />,
+    );
+    expect(container.querySelector(".status-dot.running")).toBeTruthy();
   });
 });

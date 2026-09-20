@@ -86,6 +86,7 @@
     {
       "classNameSets": [
         ["status-dot", "idle"],
+        ["status-dot", "completed"],
         ["status-dot", "running"],
         ["status-dot", "queued"],
         ["status-dot", "waiting-approval"],
@@ -97,7 +98,7 @@
       "sources": [
         {
           "path": "apps/desktop/src/renderer/ThreadStatusIndicator.tsx",
-          "contains": "className={`status-dot ${thread.status}`}"
+          "contains": "className={`status-dot ${status}`}"
         },
         {
           "path": "apps/desktop/src/renderer/App.tsx",

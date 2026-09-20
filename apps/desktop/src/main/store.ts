@@ -2773,6 +2773,20 @@ export class AppStore {
         }
         events[thread.id] = this.getThreadEvents(thread.id);
       }
+    } else {
+      // Restore sidebar queue state without loading conversation histories.
+      const latestActivity = this.database.prepare(`
+        SELECT body FROM events WHERE thread_id = ?
+          AND json_extract(body, '$.payload.type') IN
+            ('turn.started', 'turn.activity', 'turn.completed', 'turn.failed')
+        ORDER BY seq DESC LIMIT 1
+      `);
+      for (const thread of threads) {
+        if (thread.archived || thread.status !== "running") continue;
+        const row = latestActivity.get(thread.id) as
+          { body: string } | undefined;
+        if (row) events[thread.id] = [agentEventFromBody(row.body)];
+      }
     }
     return { projects, threads, worktrees, events, locale, platform, sandbox };
   }

@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "क्रेडेंशियल मैन्युअल रूप से दर्ज करें",
   "TerminalPanel.processExited": "प्रक्रिया कोड {{code}} के साथ समाप्त हुई",
   "ImLegacyImport.tenantKey": "टेनेंट कुंजी",
-  "ImLegacyImport.botOpenId": "बॉट का Open ID"
+  "ImLegacyImport.botOpenId": "बॉट का Open ID",
+  "App_copy.unreadShort": "अपठित",
+  "App_copy.loadingHistory": "बातचीत लोड हो रही है…",
+  "App_copy.historyLoadFailed": "बातचीत लोड नहीं हो सकी",
+  "App_copy.historyRetry": "फिर कोशिश करें",
+  "SettingsPanel_labels.saveChanges": "बदलाव सहेजें",
+  "SettingsPanel_labels.modelUpdated": "मॉडल अपडेट किया गया",
+  "SettingsPanel_labels.modelUpdatedDetail": "मॉडल की सेटिंग और दर्ज की गई API कुंजी सहेज दी गई हैं।",
+  "SettingsPanel_labels.sharedApiKey": "इस प्रदाता के सभी मॉडल एक ही API कुंजी साझा करते हैं। सहेजी गई कुंजी बनाए रखने के लिए खाली छोड़ें।",
+  "SettingsPanel_labels.confirmDelete": "हटाने की पुष्टि करें"
 }

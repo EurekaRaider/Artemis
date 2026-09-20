@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "Zugangsdaten manuell eingeben",
   "TerminalPanel.processExited": "Prozess mit Code {{code}} beendet",
   "ImLegacyImport.tenantKey": "Mandantenschlüssel",
-  "ImLegacyImport.botOpenId": "Open ID des Bots"
+  "ImLegacyImport.botOpenId": "Open ID des Bots",
+  "App_copy.unreadShort": "Ungelesen",
+  "App_copy.loadingHistory": "Unterhaltung wird geladen…",
+  "App_copy.historyLoadFailed": "Unterhaltung konnte nicht geladen werden",
+  "App_copy.historyRetry": "Erneut versuchen",
+  "SettingsPanel_labels.saveChanges": "Änderungen speichern",
+  "SettingsPanel_labels.modelUpdated": "Modell aktualisiert",
+  "SettingsPanel_labels.modelUpdatedDetail": "Die Modelleinstellungen und ein eventuell eingegebener API-Schlüssel wurden gespeichert.",
+  "SettingsPanel_labels.sharedApiKey": "Alle Modelle dieses Anbieters verwenden denselben API-Schlüssel. Leer lassen, um den gespeicherten Schlüssel beizubehalten.",
+  "SettingsPanel_labels.confirmDelete": "Löschen bestätigen"
 }

@@ -38,7 +38,12 @@ import {
   filterVisibleModels,
   loadBundledModelCatalog,
 } from "../src/main/model-catalog.js";
-import type { AgentModelInfo, Automation, Project } from "@artemis/protocol";
+import type {
+  AgentModelInfo,
+  Automation,
+  Project,
+  ProviderConnection,
+} from "@artemis/protocol";
 import type { SettingsSnapshot } from "../src/shared/api.js";
 
 const stylesSource = readFileSync(
@@ -527,6 +532,126 @@ describe("settings management operation contract (MIG5A)", () => {
     expect(screen.getByLabelText("Model")).not.toHaveTextContent(
       "synthetic-provider · Synthetic Model · synthetic-model",
     );
+  });
+
+  it.each(["", "synthetic-replacement-key"])(
+    "edits a saved model with key %j without resetting its context window",
+    async (key) => {
+      const saved = {
+        providerId: syntheticModel.providerId,
+        modelId: syntheticModel.modelId,
+        contextWindow: 64_000,
+      };
+      const initial = settingsSnapshot({
+        models: [syntheticModel],
+        addedModels: [saved],
+        credentials: [
+          { providerId: syntheticModel.providerId, type: "api_key" },
+        ],
+      });
+      const addModel = vi.fn().mockResolvedValue(initial);
+      stubSettingsApi(initial, { addModel });
+      await renderSettingsPanel(initial, "providers");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Edit: Synthetic Model" }),
+      );
+      expect(screen.getByLabelText("Context length")).toHaveValue(64_000);
+      const keyInput = screen.getByLabelText("API key · synthetic-provider");
+      expect(keyInput).toHaveValue("");
+      if (key) await userEvent.type(keyInput, key);
+      const save = screen.getByRole("button", { name: "Save changes" });
+      expect(save).toHaveAttribute("data-variant", "primary");
+      await userEvent.click(save);
+      expect(addModel).toHaveBeenCalledExactlyOnceWith(saved, key || undefined);
+      expect(
+        await screen.findByRole("alertdialog", { name: "Model updated" }),
+      ).toBeVisible();
+      expect(document.querySelectorAll(".added-model-row")).toHaveLength(1);
+    },
+  );
+
+  it("uses cancellation and explicit delete confirmation for saved models", async () => {
+    const initial = settingsSnapshot({
+      models: [syntheticModel],
+      addedModels: [
+        {
+          providerId: syntheticModel.providerId,
+          modelId: syntheticModel.modelId,
+          contextWindow: 64_000,
+        },
+      ],
+    });
+    const removeModel = vi.fn();
+    stubSettingsApi(initial, { removeModel });
+    await renderSettingsPanel(initial, "providers");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete: Synthetic Model" }),
+    );
+    const dialog = screen.getByRole("alertdialog");
+    expect(
+      within(dialog).getByRole("button", { name: "Confirm deletion" }),
+    ).toHaveAttribute("data-variant", "danger");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    );
+    expect(removeModel).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("edits the selected custom model through its provider without removing other models", async () => {
+    const provider: ProviderConnection = {
+      id: "synthetic-provider",
+      name: "Synthetic provider",
+      baseUrl: "https://example.invalid/v1",
+      api: "openai-completions",
+      models: ["first", "second"].map((id) => ({
+        id,
+        name: id,
+        reasoning: false,
+        input: ["text"],
+        contextWindow: 64_000,
+        maxTokens: 4_096,
+      })),
+    };
+    const initial = settingsSnapshot({
+      providers: [provider],
+      models: provider.models.map((model) => ({
+        ...syntheticModel,
+        modelId: model.id,
+        name: model.name,
+        contextWindow: model.contextWindow,
+      })),
+      addedModels: provider.models.map((model) => ({
+        providerId: provider.id,
+        modelId: model.id,
+        contextWindow: 32_000,
+      })),
+    });
+    const saveProviderConnection = vi.fn().mockResolvedValue(initial);
+    stubSettingsApi(initial, { saveProviderConnection });
+    await renderSettingsPanel(initial, "providers");
+    await userEvent.click(screen.getByRole("button", { name: "Edit: second" }));
+    expect(screen.getByLabelText("Model ID, e.g. deepseek-r1:8b")).toHaveValue(
+      "second",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save provider connection" }),
+    );
+    expect(saveProviderConnection).toHaveBeenCalledExactlyOnceWith(
+      provider,
+      undefined,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete: synthetic-provider" }),
+    );
+    const dialog = screen.getByRole("alertdialog");
+    expect(
+      within(dialog).getByRole("button", { name: "Confirm deletion" }),
+    ).toHaveAttribute("data-variant", "danger");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it.each(["disabled", "idle", "error"] as const)(

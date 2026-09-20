@@ -850,15 +850,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   gap: 4px;
 }
 
-.thread-unread-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--blue);
-  flex-shrink: 0;
-}
-
 .status-dot.running {
   animation: pulse 1.4s ease-in-out infinite;
   background: var(--blue);
@@ -878,6 +869,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .status-dot.idle,
+.status-dot.completed,
 .automation-run-dot.completed {
   background: var(--success);
 }
@@ -4197,6 +4189,7 @@ button.environment-row:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .thread-status-indicator .status-dot.running,
   .status-pill .status-dot.running,
   .turn-status[data-state="running"] > [data-part="indicator"] {
     animation: none;
@@ -7759,10 +7752,19 @@ button.sources-panel-entry.attachment:focus-visible {
   margin-top: 22px;
 }
 
-.confirmation-actions .primary-button.danger,
-.model-delete-dialog .primary-button.danger {
+.confirmation-actions .primary-button.danger {
   background: var(--danger);
   color: #fff;
+}
+
+.model-delete-dialog [data-artemis-component="button"][data-variant="danger"] {
+  --artemis-color-status-danger: #dc2626;
+  --artemis-color-status-on-danger: #fff;
+}
+
+.conversation-history-feedback {
+  margin: 24px auto;
+  width: min(100%, 720px);
 }
 
 .confirmation-actions button:focus-visible {

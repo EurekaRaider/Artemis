@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "Inserir credenciais manualmente",
   "TerminalPanel.processExited": "Processo encerrado com código {{code}}",
   "ImLegacyImport.tenantKey": "Chave do locatário",
-  "ImLegacyImport.botOpenId": "Open ID do bot"
+  "ImLegacyImport.botOpenId": "Open ID do bot",
+  "App_copy.unreadShort": "Não lida",
+  "App_copy.loadingHistory": "Carregando conversa…",
+  "App_copy.historyLoadFailed": "Não foi possível carregar a conversa",
+  "App_copy.historyRetry": "Tentar novamente",
+  "SettingsPanel_labels.saveChanges": "Salvar alterações",
+  "SettingsPanel_labels.modelUpdated": "Modelo atualizado",
+  "SettingsPanel_labels.modelUpdatedDetail": "As configurações do modelo e a chave de API informada foram salvas.",
+  "SettingsPanel_labels.sharedApiKey": "Todos os modelos deste provedor compartilham a chave de API. Deixe em branco para manter a chave salva.",
+  "SettingsPanel_labels.confirmDelete": "Confirmar exclusão"
 }

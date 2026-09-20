@@ -20,6 +20,58 @@ afterEach(async () => {
 });
 
 describe("AppStore", () => {
+  it("restores the latest background queue phase in the lightweight snapshot", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const store = new AppStore(databasePath);
+    const now = new Date().toISOString();
+    store.createThread({
+      id: "queued",
+      title: "Background task",
+      mode: "execute",
+      target: "local",
+      status: "running",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    store.appendEvent("start", "queued", "turn", {
+      type: "turn.started",
+      mode: "execute",
+    });
+    store.appendEvent("queue", "queued", "turn", {
+      type: "turn.activity",
+      phase: "queued",
+    });
+    store.close();
+    const reopened = new AppStore(databasePath);
+    const snapshot = () =>
+      reopened.snapshot(
+        "en",
+        "darwin",
+        { available: false, implementation: "test" },
+        { includeEvents: false },
+      );
+    expect(snapshot().events.queued?.map((event) => event.payload)).toEqual([
+      { type: "turn.activity", phase: "queued" },
+    ]);
+    reopened.appendEvent("request", "queued", "turn", {
+      type: "turn.activity",
+      phase: "requesting-model",
+    });
+    expect(snapshot().events.queued?.map((event) => event.payload)).toEqual([
+      { type: "turn.activity", phase: "requesting-model" },
+    ]);
+    reopened.appendEvent("next-turn", "queued", "next-turn", {
+      type: "turn.started",
+      mode: "execute",
+    });
+    expect(snapshot().events.queued?.[0]?.payload.type).toBe("turn.started");
+    reopened.close();
+  });
+
   it("normalizes v3 events to the v4 turn-view protocol without rewriting payloads", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);

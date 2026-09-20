@@ -59,6 +59,7 @@ import {
 } from "@artemis/ui/conversation";
 import {
   Dialog,
+  ErrorState,
   LoadingState,
   Popover,
   Toast,
@@ -856,9 +857,20 @@ function preserveLoadedEvents(
   return {
     ...refreshed,
     events: Object.fromEntries(
-      Object.entries(current?.events ?? {}).filter(([threadId]) =>
-        visibleThreads.has(threadId),
-      ),
+      [
+        ...new Set([
+          ...Object.keys(current?.events ?? {}),
+          ...Object.keys(refreshed.events),
+        ]),
+      ]
+        .filter((threadId) => visibleThreads.has(threadId))
+        .map((threadId) => [
+          threadId,
+          mergeThreadEvents(
+            current?.events[threadId] ?? [],
+            refreshed.events[threadId] ?? [],
+          ),
+        ]),
     ),
   };
 }
@@ -1472,6 +1484,10 @@ export function App() {
   >(undefined);
   const loadedEventThreads = useRef(new Set<string>());
   const loadingEventThreads = useRef(new Set<string>());
+  const [historyLoadErrors, setHistoryLoadErrors] = useState<
+    Record<string, true>
+  >({});
+  const [historyRetry, setHistoryRetry] = useState(0);
   const pendingAgentEvents = useRef<AgentEvent[]>([]);
   const pendingAgentFrame = useRef<number | undefined>(undefined);
   const [liveChildActivities, setLiveChildActivities] = useState<
@@ -3454,7 +3470,8 @@ export function App() {
     if (
       !activeThreadId ||
       loadedEventThreads.current.has(activeThreadId) ||
-      loadingEventThreads.current.has(activeThreadId)
+      loadingEventThreads.current.has(activeThreadId) ||
+      historyLoadErrors[activeThreadId] !== undefined
     ) {
       return;
     }
@@ -3483,9 +3500,11 @@ export function App() {
               : current,
           );
         })
-        .catch((error) => {
-          if (activeThreadIdRef.current === threadId)
-            setToast(error instanceof Error ? error.message : String(error));
+        .catch(() => {
+          setHistoryLoadErrors((current) => ({
+            ...current,
+            [threadId]: true,
+          }));
         })
         .finally(() => loadingEventThreads.current.delete(threadId));
       return;
@@ -3508,15 +3527,22 @@ export function App() {
           };
         });
       })
-      .catch((error) => {
-        if (activeThreadIdRef.current === threadId) {
-          setToast(error instanceof Error ? error.message : String(error));
-        }
+      .catch(() => {
+        setHistoryLoadErrors((current) => ({
+          ...current,
+          [threadId]: true,
+        }));
       })
       .finally(() => {
         loadingEventThreads.current.delete(threadId);
       });
-  }, [activeThreadId]);
+  }, [activeThreadId, historyRetry]);
+  const activeHistoryPending = Boolean(
+    activeThreadId && !loadedEventThreads.current.has(activeThreadId),
+  );
+  const activeHistoryError = activeThreadId
+    ? historyLoadErrors[activeThreadId]
+    : undefined;
   const activeHistory = activeThreadId
     ? historyPages[activeThreadId]
     : undefined;
@@ -6274,6 +6300,8 @@ export function App() {
                                 <ThreadStatusIndicator
                                   thread={thread}
                                   locale={locale}
+                                  events={snapshot.events[thread.id]}
+                                  historyState={historyPages[thread.id]?.state}
                                 />
                                 {imThreadStatus[thread.id] && (
                                   <ImThreadConnection
@@ -6298,11 +6326,13 @@ export function App() {
                                     thread.updatedAt,
                                   ).toLocaleString(locale)}
                                 >
-                                  {formatSidebarTime(
-                                    thread.updatedAt,
-                                    clockMs,
-                                    locale,
-                                  )}
+                                  {thread.notification?.unread
+                                    ? uiText(locale, "App_copy.unreadShort")
+                                    : formatSidebarTime(
+                                        thread.updatedAt,
+                                        clockMs,
+                                        locale,
+                                      )}
                                 </time>
                               </button>
                               <Tooltip align="end" label={t.moreActions}>
@@ -6525,7 +6555,12 @@ export function App() {
                       }}
                       type="button"
                     >
-                      <ThreadStatusIndicator thread={thread} locale={locale} />
+                      <ThreadStatusIndicator
+                        thread={thread}
+                        locale={locale}
+                        events={snapshot.events[thread.id]}
+                        historyState={historyPages[thread.id]?.state}
+                      />
                       {imThreadStatus[thread.id] && (
                         <ImThreadConnection
                           status={imThreadStatus[thread.id]!}
@@ -6549,7 +6584,13 @@ export function App() {
                           locale,
                         )}
                       >
-                        {formatSidebarTime(thread.updatedAt, clockMs, locale)}
+                        {thread.notification?.unread
+                          ? uiText(locale, "App_copy.unreadShort")
+                          : formatSidebarTime(
+                              thread.updatedAt,
+                              clockMs,
+                              locale,
+                            )}
                       </time>
                     </button>
                     <Tooltip align="end" label={t.moreActions}>
@@ -6971,12 +7012,41 @@ export function App() {
                   }}
                   ref={timelineScroll}
                 >
-                  {!activeThread ||
-                  (!activeThread.archived &&
-                    loadedEventThreads.current.has(activeThread.id) &&
-                    activeEvents.length === 0 &&
-                    !activeHistory?.state.order.length &&
-                    !busy) ? (
+                  {activeHistoryPending ? (
+                    activeHistoryError !== undefined ? (
+                      <ErrorState
+                        className="conversation-history-feedback"
+                        action={
+                          <Button
+                            onClick={() => {
+                              if (!activeThreadId) return;
+                              setHistoryLoadErrors((current) => {
+                                const next = { ...current };
+                                delete next[activeThreadId];
+                                return next;
+                              });
+                              setHistoryRetry((current) => current + 1);
+                            }}
+                          >
+                            {uiText(locale, "App_copy.historyRetry")}
+                          </Button>
+                        }
+                      >
+                        {uiText(locale, "App_copy.historyLoadFailed")}
+                      </ErrorState>
+                    ) : (
+                      <LoadingState
+                        className="conversation-history-feedback"
+                        label={uiText(locale, "App_copy.loadingHistory")}
+                        lines={3}
+                      />
+                    )
+                  ) : !activeThread ||
+                    (!activeThread.archived &&
+                      loadedEventThreads.current.has(activeThread.id) &&
+                      activeEvents.length === 0 &&
+                      !activeHistory?.state.order.length &&
+                      !busy) ? (
                     <ConversationEmptyState
                       className="conversation-empty-state"
                       icon={<ArtemisMark />}
