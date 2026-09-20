@@ -86,6 +86,7 @@
     {
       "classNameSets": [
         ["status-dot", "idle"],
+        ["status-dot", "completed"],
         ["status-dot", "running"],
         ["status-dot", "queued"],
         ["status-dot", "waiting-approval"],
@@ -97,7 +98,7 @@
       "sources": [
         {
           "path": "apps/desktop/src/renderer/ThreadStatusIndicator.tsx",
-          "contains": "className={`status-dot ${thread.status}`}"
+          "contains": "className={`status-dot ${status}`}"
         },
         {
           "path": "apps/desktop/src/renderer/App.tsx",
@@ -512,15 +513,6 @@
       "important": false,
       "owner": "September 19 approved plugin card layout",
       "reason": "Keep keyboard focus visible above the adjacent button's shared border. Reference: design-qa.md."
-    },
-    {
-      "atRules": [],
-      "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
-      "property": "border-bottom",
-      "value": "1px solid var(--border-soft)",
-      "important": false,
-      "owner": "September 6 screenshot alignment",
-      "reason": "Model rows use a single divider to match the supplied settings reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
     },
     {
       "atRules": [],

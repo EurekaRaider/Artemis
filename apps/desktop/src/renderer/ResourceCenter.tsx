@@ -1722,7 +1722,7 @@ export function ResourceCenter({
           </div>
         </div>
         <div className="plugin-market-copy">
-          <small>{description}</small>
+          <small title={description}>{description}</small>
           {diagnostic && (
             <InlineNotice className="plugin-market-diagnostic" tone="warning">
               {pluginPageText(diagnostic)}
@@ -1882,24 +1882,52 @@ export function ResourceCenter({
               <div className="resource-marketplace-source-list">
                 {(marketplaceState?.sources ?? [])
                   .filter((source) => !source.builtIn)
-                  .map((source, index) => (
+                  .map((source, index, sources) => (
                     <ManagementRow
                       actions={
-                        <IconButton
-                          className="resource-icon-button resource-marketplace-remove-button"
-                          disabled={
-                            operationPending ||
-                            busyId === `marketplace:${source.id}`
-                          }
-                          icon={<TrashIcon />}
-                          label={`${t.removeMarketplace}: ${source.displayName}`}
-                          onClick={() =>
-                            runResourceOperation(() =>
-                              removeMarketplace(source),
-                            )
-                          }
-                          title={t.removeMarketplace}
-                        />
+                        <>
+                          <span className="resource-marketplace-reorder-actions">
+                            <IconButton
+                              disabled={operationPending || index === 0}
+                              icon={<span aria-hidden="true">↑</span>}
+                              label={`${t.moveMarketplaceUp}: ${source.displayName}`}
+                              onClick={() =>
+                                runResourceOperation(() =>
+                                  reorderMarketplace(source.id, index - 1),
+                                )
+                              }
+                              title={t.moveMarketplaceUp}
+                            />
+                            <IconButton
+                              disabled={
+                                operationPending || index === sources.length - 1
+                              }
+                              icon={<span aria-hidden="true">↓</span>}
+                              label={`${t.moveMarketplaceDown}: ${source.displayName}`}
+                              onClick={() =>
+                                runResourceOperation(() =>
+                                  reorderMarketplace(source.id, index + 1),
+                                )
+                              }
+                              title={t.moveMarketplaceDown}
+                            />
+                          </span>
+                          <IconButton
+                            className="resource-icon-button resource-marketplace-remove-button"
+                            disabled={
+                              operationPending ||
+                              busyId === `marketplace:${source.id}`
+                            }
+                            icon={<TrashIcon />}
+                            label={`${t.removeMarketplace}: ${source.displayName}`}
+                            onClick={() =>
+                              runResourceOperation(() =>
+                                removeMarketplace(source),
+                              )
+                            }
+                            title={t.removeMarketplace}
+                          />
+                        </>
                       }
                       className="resource-marketplace-source-row"
                       data-dragging={

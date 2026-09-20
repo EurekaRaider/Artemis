@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "Ввести учетные данные вручную",
   "TerminalPanel.processExited": "Процесс завершён с кодом {{code}}",
   "ImLegacyImport.tenantKey": "Ключ арендатора",
-  "ImLegacyImport.botOpenId": "Open ID бота"
+  "ImLegacyImport.botOpenId": "Open ID бота",
+  "App_copy.unreadShort": "Не прочитано",
+  "App_copy.loadingHistory": "Загрузка беседы…",
+  "App_copy.historyLoadFailed": "Не удалось загрузить беседу",
+  "App_copy.historyRetry": "Повторить",
+  "SettingsPanel_labels.saveChanges": "Сохранить изменения",
+  "SettingsPanel_labels.modelUpdated": "Модель обновлена",
+  "SettingsPanel_labels.modelUpdatedDetail": "Настройки модели и введённый ключ API сохранены.",
+  "SettingsPanel_labels.sharedApiKey": "Все модели этого провайдера используют общий ключ API. Оставьте поле пустым, чтобы сохранить текущий ключ.",
+  "SettingsPanel_labels.confirmDelete": "Подтвердить удаление"
 }

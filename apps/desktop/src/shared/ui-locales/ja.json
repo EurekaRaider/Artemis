@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "認証情報を手動で入力",
   "TerminalPanel.processExited": "プロセスが終了しました（終了コード：{{code}}）",
   "ImLegacyImport.tenantKey": "テナントキー",
-  "ImLegacyImport.botOpenId": "ボットの Open ID"
+  "ImLegacyImport.botOpenId": "ボットの Open ID",
+  "App_copy.unreadShort": "未読",
+  "App_copy.loadingHistory": "会話を読み込み中…",
+  "App_copy.historyLoadFailed": "会話を読み込めませんでした",
+  "App_copy.historyRetry": "再試行",
+  "SettingsPanel_labels.saveChanges": "変更を保存",
+  "SettingsPanel_labels.modelUpdated": "モデルを更新しました",
+  "SettingsPanel_labels.modelUpdatedDetail": "モデル設定と入力された API キーを保存しました。",
+  "SettingsPanel_labels.sharedApiKey": "このプロバイダーのすべてのモデルで API キーを共有します。空欄の場合、保存済みのキーを保持します。",
+  "SettingsPanel_labels.confirmDelete": "削除を確定"
 }

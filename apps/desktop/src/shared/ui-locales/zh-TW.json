@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "手動填寫憑證",
   "TerminalPanel.processExited": "程序已結束，結束代碼：{{code}}",
   "ImLegacyImport.tenantKey": "租戶識別碼（Tenant Key）",
-  "ImLegacyImport.botOpenId": "機器人 Open ID"
+  "ImLegacyImport.botOpenId": "機器人 Open ID",
+  "App_copy.unreadShort": "未讀",
+  "App_copy.loadingHistory": "正在載入對話…",
+  "App_copy.historyLoadFailed": "對話載入失敗",
+  "App_copy.historyRetry": "重試",
+  "SettingsPanel_labels.saveChanges": "儲存變更",
+  "SettingsPanel_labels.modelUpdated": "模型已更新",
+  "SettingsPanel_labels.modelUpdatedDetail": "模型設定及填寫的 API Key 已儲存。",
+  "SettingsPanel_labels.sharedApiKey": "此供應商的所有模型共用 API Key；留空會保留已儲存的 Key。",
+  "SettingsPanel_labels.confirmDelete": "確認刪除"
 }

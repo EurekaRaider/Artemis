@@ -885,11 +885,6 @@ body:has(.app-shell[data-platform="darwin"]),
   backdrop-filter: blur(24px) saturate(1.35);
   box-shadow: none;
 }
-/* 导航行选中只铺背景，不加 inset 描边/高光。 */
-.sidebar-nav .nav-row[aria-current="page"] {
-  background: var(--selected);
-}
-
 .app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
   padding-block-start: 38px;
 }

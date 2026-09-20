@@ -496,6 +496,32 @@ describe("EncryptedSettingsStore", () => {
     });
   });
 
+  it("replaces the shared provider key without duplicating models and preserves it on a blank update", async () => {
+    const { filePath, store } = await createStore();
+    const model = {
+      providerId: "openai",
+      modelId: "gpt-5",
+      contextWindow: 64_000,
+    };
+    const other = { ...model, modelId: "gpt-5-mini" };
+    await store.addModel(model, "synthetic-old-key");
+    await store.addModel(other);
+    await store.addModel(model, "synthetic-new-key");
+    await store.addModel({ ...model, contextWindow: 32_000 });
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    expect(await reopened.addedModels()).toEqual([
+      { ...model, contextWindow: 32_000 },
+      other,
+    ]);
+    expect(await reopened.runtimeConfiguration()).toEqual({
+      credentials: { openai: { type: "api_key", key: "synthetic-new-key" } },
+    });
+    expect(await readFile(filePath, "utf8")).not.toContain("synthetic-new-key");
+  });
+
   it("removes added models and deletes a provider credential only with the last model", async () => {
     const { store } = await createStore();
     await store.addModel(

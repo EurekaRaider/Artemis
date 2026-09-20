@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "手动填写凭据",
   "TerminalPanel.processExited": "进程已退出，退出码：{{code}}",
   "ImLegacyImport.tenantKey": "租户标识（Tenant Key）",
-  "ImLegacyImport.botOpenId": "机器人 Open ID"
+  "ImLegacyImport.botOpenId": "机器人 Open ID",
+  "App_copy.unreadShort": "未读",
+  "App_copy.loadingHistory": "正在加载对话…",
+  "App_copy.historyLoadFailed": "对话加载失败",
+  "App_copy.historyRetry": "重试",
+  "SettingsPanel_labels.saveChanges": "保存修改",
+  "SettingsPanel_labels.modelUpdated": "模型已更新",
+  "SettingsPanel_labels.modelUpdatedDetail": "模型配置及填写的 API Key 已保存。",
+  "SettingsPanel_labels.sharedApiKey": "此供应商的所有模型共用 API Key；留空会保留已保存的 Key。",
+  "SettingsPanel_labels.confirmDelete": "确认删除"
 }

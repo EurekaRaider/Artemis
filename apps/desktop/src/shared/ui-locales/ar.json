@@ -1456,5 +1456,14 @@
   "ImSettingsPanel.manualCredentials": "إدخال بيانات الاعتماد يدويًا",
   "TerminalPanel.processExited": "انتهت العملية بالرمز {{code}}",
   "ImLegacyImport.tenantKey": "مفتاح المستأجر",
-  "ImLegacyImport.botOpenId": "معرّف Open ID للبوت"
+  "ImLegacyImport.botOpenId": "معرّف Open ID للبوت",
+  "App_copy.unreadShort": "غير مقروء",
+  "App_copy.loadingHistory": "جارٍ تحميل المحادثة…",
+  "App_copy.historyLoadFailed": "تعذّر تحميل المحادثة",
+  "App_copy.historyRetry": "إعادة المحاولة",
+  "SettingsPanel_labels.saveChanges": "حفظ التغييرات",
+  "SettingsPanel_labels.modelUpdated": "تم تحديث النموذج",
+  "SettingsPanel_labels.modelUpdatedDetail": "تم حفظ إعدادات النموذج وأي مفتاح API تم إدخاله.",
+  "SettingsPanel_labels.sharedApiKey": "تستخدم جميع نماذج هذا المزوّد مفتاح API نفسه. اترك الحقل فارغًا للاحتفاظ بالمفتاح المحفوظ.",
+  "SettingsPanel_labels.confirmDelete": "تأكيد الحذف"
 }
