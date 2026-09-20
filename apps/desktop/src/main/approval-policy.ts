@@ -60,6 +60,14 @@ export class PendingApprovalRegistry<T> {
       throw new Error("Denied approvals must use one-time scope.");
     }
 
+    if (
+      ((resolution.skipped || resolution.feedback) && resolution.approved) ||
+      (resolution.skipped && resolution.feedback)
+    ) {
+      throw new Error(
+        "Skip and feedback cannot grant approval or be combined.",
+      );
+    }
     this.pending.delete(resolution.approvalId);
     return pending.value;
   }

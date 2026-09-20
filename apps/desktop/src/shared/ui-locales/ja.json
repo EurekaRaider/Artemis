@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "モデルを更新しました",
   "SettingsPanel_labels.modelUpdatedDetail": "モデル設定と入力された API キーを保存しました。",
   "SettingsPanel_labels.sharedApiKey": "このプロバイダーのすべてのモデルで API キーを共有します。空欄の場合、保存済みのキーを保持します。",
-  "SettingsPanel_labels.confirmDelete": "削除を確定"
+  "SettingsPanel_labels.confirmDelete": "削除を確定",
+  "DecisionCard.skip": "スキップ",
+  "DecisionCard.skipped": "スキップ済み",
+  "DecisionCard.submit": "送信",
+  "DecisionCard.other": "その他：回答を入力…",
+  "DecisionCard.feedback": "Artemis に変更内容を伝える…",
+  "DecisionCard.feedbackSent": "フィードバック送信済み",
+  "DecisionCard.failed": "送信できませんでした。再試行してください。",
+  "DecisionCard.allowedOnce": "今回のみ許可済み",
+  "DecisionCard.allowedSession": "このセッションで許可済み",
+  "DecisionCard.allowedProject": "このプロジェクトで許可済み"
 }

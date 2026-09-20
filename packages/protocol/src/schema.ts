@@ -414,14 +414,29 @@ export type ApprovalRequestedPayload = z.infer<
   typeof approvalRequestedPayloadSchema
 >;
 
-export const approvalResolvedPayloadSchema = z.object({
-  type: z.literal("approval.resolved"),
-  approvalId: z.string().min(1),
-  nonce: z.string().min(16),
-  approved: z.boolean(),
-  scope: approvalScopeSchema,
-  source: z.enum(["user", "model", "policy", "automation"]).optional(),
-});
+export const approvalResolvedPayloadSchema = z
+  .object({
+    type: z.literal("approval.resolved"),
+    approvalId: z.string().min(1),
+    nonce: z.string().min(16),
+    approved: z.boolean(),
+    skipped: z.literal(true).optional(),
+    feedback: z.string().trim().min(1).max(2_000).optional(),
+    scope: approvalScopeSchema,
+    source: z.enum(["user", "model", "policy", "automation"]).optional(),
+  })
+  .superRefine((value, context) => {
+    if (
+      ((value.skipped || value.feedback) &&
+        (value.approved || value.scope !== "once")) ||
+      (value.skipped && value.feedback)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Skip and feedback cannot grant approval or be combined",
+      });
+    }
+  });
 
 export const MAX_USER_INPUT_QUESTIONS = 3;
 export const USER_INPUT_MIN_OPTIONS = 2;
@@ -535,6 +550,7 @@ export const userInputSingleQuestionResolvedPayloadSchema = z.object({
   kind: z.literal("single-question").optional(),
   requestId: z.string().min(1),
   nonce: z.string().min(16),
+  skipped: z.literal(true).optional(),
   answer: z.string().max(2_000),
   selectedOption: z
     .number()
@@ -557,6 +573,7 @@ export const userInputMultiQuestionResolvedPayloadSchema = z
     kind: z.literal("multi-question"),
     requestId: z.string().min(1),
     nonce: z.string().min(16),
+    skipped: z.literal(true).optional(),
     questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
     // The chosen option *label*, deliberately named differently from the
     // single-question resolved payload's selectedOption numeric index so the
@@ -567,8 +584,10 @@ export const userInputMultiQuestionResolvedPayloadSchema = z
   })
   .superRefine((payload, context) => {
     if (
-      (payload.selectedOptionLabel === undefined) ===
-      (payload.customAnswer === undefined)
+      Number(payload.selectedOptionLabel !== undefined) +
+        Number(payload.customAnswer !== undefined) +
+        Number(payload.skipped === true) !==
+      1
     ) {
       context.addIssue({
         code: "custom",
@@ -1326,13 +1345,28 @@ export interface TurnStartCommand {
   attachments?: PromptAttachment[];
 }
 
-export const approvalResolutionSchema = z.object({
-  approvalId: z.string().min(1),
-  nonce: z.string().min(16),
-  approved: z.boolean(),
-  scope: approvalScopeSchema,
-  source: z.enum(["user", "model", "policy", "automation"]).optional(),
-});
+export const approvalResolutionSchema = z
+  .object({
+    approvalId: z.string().min(1),
+    nonce: z.string().min(16),
+    approved: z.boolean(),
+    skipped: z.literal(true).optional(),
+    feedback: z.string().trim().min(1).max(2_000).optional(),
+    scope: approvalScopeSchema,
+    source: z.enum(["user", "model", "policy", "automation"]).optional(),
+  })
+  .superRefine((value, context) => {
+    if (
+      ((value.skipped || value.feedback) &&
+        (value.approved || value.scope !== "once")) ||
+      (value.skipped && value.feedback)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Skip and feedback cannot grant approval or be combined",
+      });
+    }
+  });
 export type ApprovalResolution = z.infer<typeof approvalResolutionSchema>;
 
 // Legacy IPC command face (decision D#76 PR10C, decision J case 1): the
@@ -1344,6 +1378,7 @@ export const userInputSingleQuestionResolutionSchema = z
   .object({
     requestId: z.string().min(1),
     nonce: z.string().min(16),
+    skipped: z.literal(true).optional(),
     selectedOption: z
       .number()
       .int()
@@ -1368,8 +1403,10 @@ export const userInputSingleQuestionResolutionSchema = z
   })
   .superRefine((resolution, context) => {
     if (
-      (resolution.selectedOption === undefined) ===
-      (resolution.customAnswer === undefined)
+      Number(resolution.selectedOption !== undefined) +
+        Number(resolution.customAnswer !== undefined) +
+        Number(resolution.skipped === true) !==
+      1
     ) {
       context.addIssue({
         code: "custom",
@@ -1405,6 +1442,7 @@ export const userInputMultiQuestionResolutionSchema = z
   .object({
     requestId: z.string().min(1),
     nonce: z.string().min(16),
+    skipped: z.literal(true).optional(),
     kind: z.literal("multi-question"),
     questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
     // The chosen option *label*, deliberately named differently from the
@@ -1420,8 +1458,10 @@ export const userInputMultiQuestionResolutionSchema = z
   })
   .superRefine((resolution, context) => {
     if (
-      (resolution.selectedOptionLabel === undefined) ===
-      (resolution.customAnswer === undefined)
+      Number(resolution.selectedOptionLabel !== undefined) +
+        Number(resolution.customAnswer !== undefined) +
+        Number(resolution.skipped === true) !==
+      1
     ) {
       context.addIssue({
         code: "custom",

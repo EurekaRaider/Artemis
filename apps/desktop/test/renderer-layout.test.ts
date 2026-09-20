@@ -12,6 +12,18 @@ const appSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/App.tsx", import.meta.url)),
   "utf8",
 );
+const approvalDecisionSource = readFileSync(
+  new URL("../src/renderer/ApprovalDecisionCard.tsx", import.meta.url),
+  "utf8",
+);
+const userInputSource = readFileSync(
+  new URL("../src/renderer/UserInputCard.tsx", import.meta.url),
+  "utf8",
+);
+const decisionSource = readFileSync(
+  new URL("../src/renderer/DecisionCard.tsx", import.meta.url),
+  "utf8",
+);
 const composerContextSource = readFileSync(
   fileURLToPath(
     new URL("../src/renderer/ComposerContextBar.tsx", import.meta.url),
@@ -415,28 +427,12 @@ describe("renderer layout contract", () => {
       "for (const child of container.children) observer.observe(child);",
     );
     expect(appSource).toContain("[activeEvents.length, activeThreadId]");
-    expect(stylesSource).toContain(
-      '.timeline .approval-card[data-artemis-component="approval-card"]',
-    );
-    expect(stylesSource).not.toMatch(
-      /\.approval-card\[data-artemis-component="approval-card"\][\s\S]{0,500}\bposition:\s*sticky/u,
-    );
-    expect(stylesSource).toContain("@container (max-width: 320px)");
   });
 
   it("isolates dynamic approval copy from surrounding RTL direction", () => {
-    expect(appSource).toContain(
-      "<span>{t.modelReason}</span> {approval.modelReason}",
-    );
-    expect(appSource).toContain("<bdi>{pendingView.detail}</bdi>");
-    expect(appSource).toContain("title={<bdi>{pendingView.title}</bdi>}");
+    expect(approvalDecisionSource).toContain("<bdi>{view.detail}</bdi>");
+    expect(approvalDecisionSource).toContain("<bdi>{approval.summary}</bdi>");
     expect(mainProcessSource).toContain("dynamicCopyBidiIsolated");
-    expect(rootPackage.scripts["verify:feedback-layout"]).toBeTruthy();
-    expect(cssRule(".approval-model-reason")).toContain("margin-inline");
-    expect(cssRule(".approval-model-reason")).not.toMatch(
-      /margin-(left|right)/u,
-    );
-    expect(cssRule(".approval-resolved-details")).toContain("margin-inline");
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
@@ -815,11 +811,12 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('selectComposerCommand("/init")');
     expect(appSource).toContain("{t.compactCommand}");
     expect(appSource).toContain('selectComposerCommand("/compact")');
-    expect(appSource).toContain('className="composer-selected-skill"');
+    expect(appSource).toContain("<ComposerSkillChip");
+    expect(appSource).toContain('className="composer-resource-strip"');
     expect(appSource).toContain("selectedComposerSkillNames");
     expect(appSource).toContain('replaceActiveSlashCommand(current, "")');
     expect(appSource).toContain("promptWithSelectedSkills(");
-    expect(appSource).toContain('className="composer-selected-skill-remove"');
+    expect(appSource).toContain("removeLabel={t.removeSelectedSkill}");
     expect(appSource).toContain("selectedSkills.length === 0");
     expect(appSource).toContain("unavailablePluginSkillNames");
     expect(appSource).toContain("<strong>{skill.name}</strong>");
@@ -875,21 +872,13 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("collapses resolved approval details and keeps pending cards aligned", () => {
-    expect(appSource).toContain('if (approval.status !== "pending")');
-    expect(appSource).toContain("<ResultDisclosure");
-    expect(appSource).toContain(
-      'state={approval.status === "approved" ? "completed" : "failed"}',
+  it("uses shared decision cards for pending and completed approvals", () => {
+    expect(appSource).toContain("<ApprovalDecisionCard");
+    expect(approvalDecisionSource).toContain(
+      'if (approval.status !== "pending")',
     );
-    expect(appSource).toContain('className="approval-resolved-details"');
-    expect(appSource).not.toContain("<details className={`approval-card");
-    expect(stylesSource).toMatch(
-      /\.approval-card > header,\s*\.approval-card\[data-artemis-component="result-disclosure"\][\s\S]*?> \[data-part="disclosure"\]\s*\{[^}]*\balign-items:\s*center/u,
-    );
-    expect(appSource).toContain("<ApprovalIcon neutral />");
-    expect(appSource).not.toContain(
-      '<span className="approval-shield">!</span>',
-    );
+    expect(approvalDecisionSource).toContain("<DecisionResult");
+    expect(approvalDecisionSource).toContain("<DecisionOptions");
   });
 
   it("renders one recommended workflow choice and wires its resolution", () => {
@@ -902,15 +891,15 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("USER_INPUT_TIMEOUT_MILLISECONDS");
     expect(mainProcessSource).toContain("selectedOption: recommendedOption");
     expect(mainProcessSource).toContain('        "timeout",');
-    expect(appSource).toContain("activePendingUserInputId");
+    expect(appSource).toContain("activePendingDecisionId");
     expect(toolActivityGroupsSource).toContain('"request_user_input"');
-    expect(appSource).toContain("recommendation-badge");
+    expect(userInputSource).toContain("o.recommended");
     expect(uiText("zh-CN", "App_copy.timeoutHint")).toBe(
       "5 分钟内未选择将自动采用模型推荐项",
     );
   });
 
-  it("keeps the active workflow choice inline in the timeline with its countdown in the header", () => {
+  it("moves pending decisions into the composer and keeps completed summaries in the timeline", () => {
     const composerStart = appSource.indexOf('<div className="composer-wrap">');
     const composerContext = appSource.indexOf(
       "<ComposerContextBar",
@@ -918,64 +907,40 @@ describe("renderer layout contract", () => {
     );
     const timelineStart = appSource.indexOf("function Timeline(");
     const timelineSource = appSource.slice(timelineStart);
-    const userInputStart = appSource.indexOf("function UserInputCard(");
-    const userInputEnd = appSource.indexOf(
-      "function ToolActivityGroupCard(",
-      userInputStart,
-    );
-    const userInputSource = appSource.slice(userInputStart, userInputEnd);
     const cardHeader = userInputSource.slice(
       userInputSource.indexOf("<header>"),
       userInputSource.indexOf("</header>"),
     );
 
-    expect(appSource).toContain("activePendingUserInputId");
+    expect(appSource).toContain("activePendingDecisionId");
     expect(composerStart).toBeGreaterThan(-1);
     expect(composerContext).toBeGreaterThan(composerStart);
-    expect(appSource).not.toContain("{activePendingUserInput ? (");
-    expect(userInputSource).not.toContain('placement="composer"');
-    expect(timelineSource).toContain('active={input.status === "pending"}');
-    expect(timelineSource).not.toContain(
+    expect(
+      appSource.indexOf("<DecisionComposer", composerStart),
+    ).toBeGreaterThan(composerStart);
+    expect(appSource).toContain("decision={pendingComposerDecision}");
+    expect(timelineSource).toContain("active={false}");
+    expect(timelineSource).toContain(
       'input.status === "pending") return null;',
     );
-    expect(cardHeader).toContain('className="user-input-timeout"');
+    expect(timelineSource).toContain(
+      'approval.status === "pending") return null;',
+    );
+    expect(cardHeader).toContain("dateTime={input.expiresAt}");
     expect(cardHeader).toContain("formatUserInputCountdown(");
     expect(userInputSource).not.toContain("new ResizeObserver");
-    expect(appSource).toContain("moveUserInputOptionFocus(");
-    expect(appSource).toContain('role="listbox"');
-    expect(appSource).toContain('role="option"');
-    expect(appSource).toContain("optionButtons.current[nextIndex]?.focus()");
-
-    expect(cssRule(".user-input-card")).toMatch(/\bborder-radius:\s*10px/u);
-    expect(cssRule(".user-input-card .user-input-options")).toMatch(
-      /grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
-    );
-    expect(cssRule(".user-input-card .user-input-options-scroll")).toMatch(
-      /\boverflow-y:\s*auto/u,
-    );
-    expect(cssRule(".user-input-card .user-input-option.active")).toMatch(
-      /\bbackground:\s*var\(--artemis-color-surface-sunken\)/u,
-    );
+    expect(decisionSource).toContain("moveUserInputOptionFocus(");
+    expect(decisionSource).toContain('role="group"');
+    expect(decisionSource).toContain('type="button"');
   });
 
-  it("keeps the normal turn stop control while a timeline choice is pending", () => {
-    const cardStart = appSource.indexOf("function UserInputCard(");
-    const cardEnd = appSource.indexOf(
-      "function ToolActivityGroupCard(",
-      cardStart,
-    );
-    const cardSource = appSource.slice(cardStart, cardEnd);
+  it("keeps a turn stop control while the composer hosts a pending decision", () => {
     expect(appSource).toContain("window.artemis.cancelTurn(activeThreadId)");
     expect(appSource).toContain("onClick={() => void cancelActiveTurn()}");
-    expect(cardSource).toContain("const interactionBusy = resolving");
-    expect(cardSource).not.toContain("onCancel");
-    expect(cardSource).toContain('className="user-input-other-inline"');
-    expect(cardSource).toContain('event.key !== "Escape"');
-    expect(cardSource).toContain("closeOther();");
-    expect(cardSource).toContain("disabled={interactionBusy}");
-    expect(cardSource).toContain(
-      "disabled={interactionBusy || !otherAnswer.trim()}",
-    );
+    expect(appSource).toContain("{pendingComposerDecision && (");
+    expect(userInputSource).not.toContain("onCancel");
+    expect(decisionSource).toContain('className="decision-reply"');
+    expect(decisionSource).toContain("disabled={busy || !draft.trim()}");
   });
 
   it("creates tasks locally by default and exposes explicit workspace handoff", () => {

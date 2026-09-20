@@ -3234,6 +3234,7 @@ function completeUserInput(
     requestId: request.approvalId,
     nonce: resolution.nonce,
     answer: resolved.answer,
+    ...(resolved.skipped ? { skipped: true as const } : {}),
     ...(resolved.selectedOption === undefined
       ? {}
       : { selectedOption: resolved.selectedOption }),
@@ -3251,6 +3252,7 @@ function completeUserInput(
     },
     result: {
       answer: resolved.answer,
+      ...(resolved.skipped ? { skipped: true as const } : {}),
       ...(resolved.selectedOption === undefined
         ? {}
         : {
@@ -3384,7 +3386,11 @@ function completeMultiUserInputQuestion(
   nonce: string,
   questionId: string,
   source: "user" | "timeout",
-  selection: { selectedOptionLabel?: string; customAnswer?: string } = {},
+  selection: {
+    selectedOptionLabel?: string;
+    customAnswer?: string;
+    skipped?: true;
+  } = {},
 ): void {
   if (!agentProcess || !store) throw new Error("Application is not ready.");
   // Main-process expiry gate mirroring the reducer's own (review item 1):
@@ -3442,6 +3448,7 @@ function completeMultiUserInputQuestion(
       ...(resolved.selectedOptionLabel === undefined
         ? {}
         : { selectedOptionLabel: resolved.selectedOptionLabel }),
+      ...(resolved.skipped ? { skipped: true as const } : {}),
       ...(resolved.customAnswer === undefined
         ? {}
         : { customAnswer: resolved.customAnswer }),
@@ -5384,13 +5391,19 @@ async function resolveApproval(resolution: ApprovalResolution): Promise<void> {
       approvalId: resolution.approvalId,
       nonce: resolution.nonce,
       approved: false,
+      ...(resolution.skipped ? { skipped: true as const } : {}),
+      ...(resolution.feedback ? { feedback: resolution.feedback } : {}),
       scope: resolution.scope,
     });
     agentProcess.post({
       type: "broker.resolve",
       requestId: pending.workerRequestId,
       resolution,
-      error: "The user denied this operation.",
+      error: resolution.feedback
+        ? `The user did not authorize this operation. User feedback: ${resolution.feedback}`
+        : resolution.skipped
+          ? "The user skipped this approval. This operation is not authorized; do not execute it."
+          : "The user denied this operation.",
     });
     return;
   }
@@ -10793,11 +10806,13 @@ function registerIpc(): void {
           parsed.nonce,
           parsed.questionId,
           "user",
-          parsed.customAnswer !== undefined
-            ? { customAnswer: parsed.customAnswer }
-            : parsed.selectedOptionLabel !== undefined
-              ? { selectedOptionLabel: parsed.selectedOptionLabel }
-              : {},
+          parsed.skipped
+            ? { skipped: true }
+            : parsed.customAnswer !== undefined
+              ? { customAnswer: parsed.customAnswer }
+              : parsed.selectedOptionLabel !== undefined
+                ? { selectedOptionLabel: parsed.selectedOptionLabel }
+                : {},
         );
         return;
       }
@@ -21399,11 +21414,13 @@ app
               parsed.nonce,
               parsed.questionId,
               "user",
-              parsed.customAnswer !== undefined
-                ? { customAnswer: parsed.customAnswer }
-                : parsed.selectedOptionLabel !== undefined
-                  ? { selectedOptionLabel: parsed.selectedOptionLabel }
-                  : {},
+              parsed.skipped
+                ? { skipped: true }
+                : parsed.customAnswer !== undefined
+                  ? { customAnswer: parsed.customAnswer }
+                  : parsed.selectedOptionLabel !== undefined
+                    ? { selectedOptionLabel: parsed.selectedOptionLabel }
+                    : {},
             );
           } else completeUserInput(parsed, "user");
         },

@@ -39,6 +39,9 @@ export interface ToolState {
 
 export interface ApprovalState extends ApprovalRequestedPayload {
   status: "pending" | "approved" | "denied";
+  skipped?: true;
+  feedback?: string;
+  scope?: "once" | "session" | "project";
   requestedAt: string;
   turnId?: string;
 }
@@ -50,6 +53,7 @@ export interface UserInputState extends UserInputRequestedPayload {
   kind?: "single-question" | "multi-question" | undefined;
   status: "pending" | "answered" | "timed-out" | "cancelled";
   answer?: string;
+  skipped?: true;
   // Numeric option index; single-question state only.
   selectedOption?: number;
 }
@@ -57,6 +61,7 @@ export interface UserInputState extends UserInputRequestedPayload {
 export interface UserInputQuestionState {
   status: "pending" | "answered" | "timed-out" | "cancelled";
   answer?: string;
+  skipped?: true;
   // The chosen option *label*, named differently from the single-question
   // selectedOption numeric index above.
   selectedOptionLabel?: string;
@@ -418,6 +423,7 @@ function applyMultiQuestionResolution(
           ? { status: "cancelled" }
           : {
               status: payload.source === "timeout" ? "timed-out" : "answered",
+              ...(payload.skipped ? { skipped: true as const } : {}),
               ...(answer === undefined ? {} : { answer }),
               ...(payload.selectedOptionLabel === undefined
                 ? {}
@@ -673,6 +679,9 @@ function applyAgentPayload(
         state.approvals[payload.approvalId] = {
           ...approval,
           status: payload.approved ? "approved" : "denied",
+          scope: payload.scope,
+          ...(payload.skipped ? { skipped: true as const } : {}),
+          ...(payload.feedback ? { feedback: payload.feedback } : {}),
         };
       }
       state.status = pendingInteractionStatus(state);
@@ -779,6 +788,7 @@ function applyAgentPayload(
                 ? "cancelled"
                 : "answered",
           answer: payload.answer,
+          ...(payload.skipped ? { skipped: true as const } : {}),
           ...(payload.selectedOption === undefined
             ? {}
             : { selectedOption: payload.selectedOption }),

@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "Modelo actualizado",
   "SettingsPanel_labels.modelUpdatedDetail": "Se guardaron los ajustes del modelo y la clave API introducida.",
   "SettingsPanel_labels.sharedApiKey": "Todos los modelos de este proveedor comparten la clave API. Deja el campo vacío para conservar la clave guardada.",
-  "SettingsPanel_labels.confirmDelete": "Confirmar eliminación"
+  "SettingsPanel_labels.confirmDelete": "Confirmar eliminación",
+  "DecisionCard.skip": "Omitir",
+  "DecisionCard.skipped": "Omitido",
+  "DecisionCard.submit": "Enviar",
+  "DecisionCard.other": "Otro: escribe tu respuesta…",
+  "DecisionCard.feedback": "Indica a Artemis qué debe cambiar…",
+  "DecisionCard.feedbackSent": "Comentarios enviados",
+  "DecisionCard.failed": "No se pudo enviar. Inténtalo de nuevo.",
+  "DecisionCard.allowedOnce": "Permitido una vez",
+  "DecisionCard.allowedSession": "Permitido en esta sesión",
+  "DecisionCard.allowedProject": "Permitido en este proyecto"
 }

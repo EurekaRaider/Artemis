@@ -1,3 +1,14 @@
+import { UserInputCard } from "./UserInputCard.js";
+import {
+  DecisionComposer,
+  firstPendingComposerDecision,
+} from "./DecisionComposer.js";
+export { UserInputCard } from "./UserInputCard.js";
+import {
+  ApprovalDecisionCard,
+  type ResolveApprovalDecision,
+} from "./ApprovalDecisionCard.js";
+import { ThreadWaitingBadge } from "./ThreadStatusIndicator.js";
 import { CommandArtwork } from "./CommandArtwork.js";
 import { ResourceAvatar } from "./resource-icons.js";
 import { HistoryTurn } from "./HistoryTurn.js";
@@ -14,6 +25,7 @@ import { FileAttachment } from "./FileAttachment.js";
 import { MessageImageAttachment } from "./MessageImageAttachment.js";
 import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
 import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
+import { ComposerSkillChip } from "./ComposerSkillChip.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
@@ -71,12 +83,10 @@ import feishuChannelIcon from "./assets/feishu-channel.png";
 import slackChannelIcon from "./assets/slack-channel.svg";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
-  ApprovalCard as ApprovalPatternCard,
   AgentActivity,
   ResultDisclosure,
   ToolActivity,
   TurnStatus,
-  UserInputFrame,
 } from "@artemis/ui/patterns";
 import {
   TerminalState,
@@ -86,7 +96,6 @@ import {
 import {
   ApplicationShell,
   ApplicationShellResizer,
-  ComposerSurface,
   NavigationSidebar,
 } from "@artemis/ui/surfaces";
 import {
@@ -185,10 +194,7 @@ import {
 } from "./project-thread-tree.js";
 import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
-import {
-  approvalPatternView,
-  toolActivityPatternView,
-} from "./agent-pattern-adapters.js";
+import { toolActivityPatternView } from "./agent-pattern-adapters.js";
 import {
   prepareTimelineRestore,
   resolveTimelinePinned,
@@ -260,7 +266,6 @@ import {
   useCustomAgentMention,
 } from "./CustomAgentMention.js";
 import { customAgentInstanceIdentity } from "./custom-agent-identity.js";
-import { groupApprovedApprovals } from "./approval-groups.js";
 import { parseGoalCommand } from "./goal-command.js";
 import {
   isWorkspaceDraftThread,
@@ -269,8 +274,6 @@ import {
   sortProjectThreads,
   type ThreadDropEdge,
 } from "./thread-list-order.js";
-import { moveUserInputOptionFocus } from "./user-input-navigation.js";
-import { formatUserInputCountdown } from "./user-input-countdown.js";
 import { userInitials } from "./user-profile.js";
 import {
   agentTeamWorkspaceTab,
@@ -679,24 +682,6 @@ function TabScrollIcon({ direction }: { direction: "left" | "right" }) {
       height={16}
       name={direction === "left" ? "chev-left" : "chev-right"}
       width={16}
-    />
-  );
-}
-
-function ApprovalIcon({
-  neutral = false,
-  warning = false,
-}: {
-  neutral?: boolean;
-  warning?: boolean;
-}) {
-  return (
-    <ArtemisIcon
-      className="icon"
-      data-neutral={neutral || undefined}
-      height={19}
-      name={warning ? "warning" : "approval-ask"}
-      width={19}
     />
   );
 }
@@ -1496,7 +1481,7 @@ export function App() {
   const reportedTurnPaints = useRef(new Set<string>());
   const recoveredQueueEventIds = useRef(new Set<string>());
   const promptInput = useRef<HTMLTextAreaElement>(null);
-  const previousPendingUserInputId = useRef<string | undefined>(undefined);
+  const previousPendingDecisionId = useRef<string | undefined>(undefined);
   const approvalPolicyRoot = useRef<HTMLDivElement>(null);
   const modelPickerRoot = useRef<HTMLDivElement>(null);
   const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
@@ -3839,19 +3824,17 @@ export function App() {
       ),
     }));
   }, [activeThreadId, latestAgentTeam, t.agentTeam]);
-  const activePendingUserInputId = threadState?.order
-    .filter((entry) => entry.startsWith("input:"))
-    .map((entry) => entry.slice("input:".length))
-    .find((id) => threadState.userInputs[id]?.status === "pending");
+  const pendingComposerDecision = firstPendingComposerDecision(threadState);
+  const activePendingDecisionId = pendingComposerDecision?.entry;
   useEffect(() => {
-    const previousId = previousPendingUserInputId.current;
-    previousPendingUserInputId.current = activePendingUserInputId;
-    if (!previousId || activePendingUserInputId) return;
+    const previousId = previousPendingDecisionId.current;
+    previousPendingDecisionId.current = activePendingDecisionId;
+    if (!previousId || activePendingDecisionId) return;
     const frame = window.requestAnimationFrame(() => {
       promptInput.current?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activePendingUserInputId]);
+  }, [activePendingDecisionId]);
   const contextCompacting =
     (activeThreadId !== undefined && compactingThreadIds.has(activeThreadId)) ||
     Object.values(threadState?.contextCompactions ?? {}).some(
@@ -4852,6 +4835,7 @@ export function App() {
       approval: ApprovalState,
       approved: boolean,
       scope: "once" | "session" | "project",
+      extra?: Parameters<ResolveApprovalDecision>[3],
     ) => {
       try {
         await window.artemis.resolveApproval({
@@ -4859,11 +4843,13 @@ export function App() {
           nonce: approval.nonce,
           approved,
           scope,
+          ...extra,
         });
       } catch (error) {
         setToast(
           `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         );
+        throw error;
       }
     },
     [t.taskError],
@@ -6367,6 +6353,10 @@ export function App() {
                                     locale={locale}
                                   />
                                 </span>
+                                <ThreadWaitingBadge
+                                  thread={thread}
+                                  locale={locale}
+                                />
                                 <time
                                   className="thread-time"
                                   dateTime={thread.updatedAt}
@@ -6625,6 +6615,7 @@ export function App() {
                           locale={locale}
                         />
                       </span>
+                      <ThreadWaitingBadge thread={thread} locale={locale} />
                       <time
                         className="thread-time"
                         dateTime={thread.updatedAt}
@@ -7137,9 +7128,7 @@ export function App() {
                             ? undefined
                             : editConversationMessage
                         }
-                        onResolve={(approval, approved, scope) =>
-                          void resolveApprovalRequest(approval, approved, scope)
-                        }
+                        onResolve={resolveApprovalRequest}
                         onResolveUserInput={resolveUserInputRequest}
                         onUndoTurnChanges={(turnId) =>
                           void undoTurnChanges(turnId)
@@ -7409,7 +7398,11 @@ export function App() {
                           })}
                         </QueuedMessageGroup>
                       )}
-                      <ComposerSurface
+                      <DecisionComposer
+                        decision={pendingComposerDecision}
+                        locale={locale}
+                        onResolveApproval={resolveApprovalRequest}
+                        onResolveUserInput={resolveUserInputRequest}
                         context={
                           <div className="composer-context-row">
                             <ComposerContextBar
@@ -7448,6 +7441,18 @@ export function App() {
                                 onPause={() => void updateActiveGoal("pause")}
                                 onResume={() => void updateActiveGoal("resume")}
                               />
+                            )}
+                            {pendingComposerDecision && (
+                              <button
+                                aria-label={t.stop}
+                                className="send-button stop decision-stop"
+                                disabled={!turnRunning}
+                                onClick={() => void cancelActiveTurn()}
+                                title={t.stop}
+                                type="button"
+                              >
+                                <span />
+                              </button>
                             )}
                           </div>
                         }
@@ -7649,49 +7654,48 @@ export function App() {
                             )}
                           </div>
                         )}
-                        {!skillCommandMenuOpen &&
-                          selectedSkills.map((skill) => {
-                            const plugin = installedPluginBySkillName.get(
-                              skill.name,
-                            );
-                            return (
-                              <div
-                                className="composer-selected-skill"
-                                key={skill.id}
-                              >
-                                <span
-                                  className={`slash-command-icon${plugin ? " plugin-icon" : ""}`}
-                                >
-                                  {plugin?.iconDataUrl ? (
-                                    <img
-                                      alt=""
-                                      draggable={false}
-                                      src={plugin.iconDataUrl}
-                                    />
-                                  ) : plugin ? (
-                                    <ResourceIcon />
-                                  ) : (
-                                    "✦"
+                        {((!skillCommandMenuOpen &&
+                          selectedSkills.length > 0) ||
+                          attachments.length > 0) && (
+                          <div className="composer-resource-strip">
+                            {!skillCommandMenuOpen &&
+                              selectedSkills.map((skill) => (
+                                <ComposerSkillChip
+                                  key={skill.id}
+                                  skill={skill}
+                                  plugin={installedPluginBySkillName.get(
+                                    skill.name,
                                   )}
-                                </span>
-                                <span className="composer-selected-skill-copy">
-                                  <small>{t.selectedSkill}</small>
-                                  <strong>{skill.name}</strong>
-                                </span>
-                                <button
-                                  aria-label={`${t.removeSelectedSkill}: ${skill.name}`}
-                                  className="composer-selected-skill-remove"
-                                  onClick={() =>
+                                  removeLabel={t.removeSelectedSkill}
+                                  onRemove={() =>
                                     removeSelectedSkill(skill.name)
                                   }
-                                  title={t.removeSelectedSkill}
-                                  type="button"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            );
-                          })}
+                                />
+                              ))}
+                            {attachments.length > 0 && (
+                              <ComposerAttachments
+                                key={activeComposerDraftKey}
+                                attachments={attachments}
+                                locale={locale}
+                                onRemove={(index) => {
+                                  const attachment = attachments[index];
+                                  if (
+                                    attachment &&
+                                    isAttachmentReference(attachment)
+                                  )
+                                    void window.artemis.cancelPromptAttachment(
+                                      attachment.id,
+                                    );
+                                  setAttachments((current) =>
+                                    current.filter(
+                                      (_item, itemIndex) => itemIndex !== index,
+                                    ),
+                                  );
+                                }}
+                              />
+                            )}
+                          </div>
+                        )}
                         {customAgentTasks.length > 0 && (
                           <CustomAgentTaskBlocks
                             tasks={customAgentTasks}
@@ -7711,28 +7715,6 @@ export function App() {
                                 ),
                               );
                               promptInput.current?.focus();
-                            }}
-                          />
-                        )}
-                        {attachments.length > 0 && (
-                          <ComposerAttachments
-                            key={activeComposerDraftKey}
-                            attachments={attachments}
-                            locale={locale}
-                            onRemove={(index) => {
-                              const attachment = attachments[index];
-                              if (
-                                attachment &&
-                                isAttachmentReference(attachment)
-                              )
-                                void window.artemis.cancelPromptAttachment(
-                                  attachment.id,
-                                );
-                              setAttachments((current) =>
-                                current.filter(
-                                  (_item, itemIndex) => itemIndex !== index,
-                                ),
-                              );
                             }}
                           />
                         )}
@@ -8364,7 +8346,7 @@ export function App() {
                             )}
                           </div>
                         </div>
-                      </ComposerSurface>
+                      </DecisionComposer>
                     </>
                   </div>
                 )}
@@ -10037,346 +10019,6 @@ export function ChildAgentPanel({
   );
 }
 
-export function UserInputCard({
-  input,
-  active,
-  locale,
-  onResolve,
-}: {
-  input: UserInputState;
-  active: boolean;
-  locale: Locale;
-  onResolve: (resolution: UserInputResolution) => Promise<void>;
-}) {
-  const t = appCopy(locale);
-  const recommendedOptionIndex = Math.max(
-    0,
-    input.options.findIndex((option) => option.recommended),
-  );
-  const otherOptionIndex = input.options.length;
-  const optionCount = input.options.length + 1;
-  const [showOther, setShowOther] = useState(false);
-  const [otherAnswer, setOtherAnswer] = useState("");
-  const [resolving, setResolving] = useState(false);
-  const [clock, setClock] = useState(() => Date.now());
-  const [activeOptionIndex, setActiveOptionIndex] = useState(
-    recommendedOptionIndex,
-  );
-  const optionButtons = useRef<Array<HTMLButtonElement | null>>([]);
-  const interactionBusy = resolving;
-
-  useEffect(() => {
-    if (input.status !== "pending") return;
-    setClock(Date.now());
-    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, [input.requestId, input.status]);
-
-  useLayoutEffect(() => {
-    if (!active || input.status !== "pending") return;
-    setActiveOptionIndex(recommendedOptionIndex);
-    const frame = window.requestAnimationFrame(() => {
-      optionButtons.current[recommendedOptionIndex]?.focus({
-        preventScroll: true,
-      });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [active, input.requestId, input.status, recommendedOptionIndex]);
-
-  if (input.status === "pending" && !active) return null;
-
-  const resolve = async (
-    choice: Pick<UserInputResolution, "selectedOption" | "customAnswer">,
-  ) => {
-    if (interactionBusy) return;
-    setResolving(true);
-    try {
-      await onResolve({
-        requestId: input.requestId,
-        nonce: input.nonce,
-        ...choice,
-      });
-    } catch {
-      setResolving(false);
-    }
-  };
-
-  const closeOther = () => {
-    setShowOther(false);
-    window.requestAnimationFrame(() => {
-      optionButtons.current[otherOptionIndex]?.focus({ preventScroll: true });
-    });
-  };
-
-  const handleOptionKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-  ) => {
-    const key = event.key;
-    if (
-      key !== "ArrowDown" &&
-      key !== "ArrowUp" &&
-      key !== "Home" &&
-      key !== "End"
-    ) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const nextIndex = moveUserInputOptionFocus(
-      activeOptionIndex,
-      optionCount,
-      key,
-    );
-    if (nextIndex < 0) return;
-    setActiveOptionIndex(nextIndex);
-    optionButtons.current[nextIndex]?.focus();
-  };
-
-  return (
-    <UserInputFrame
-      className={`user-input-card ${input.status}`}
-      label={input.question}
-      state={
-        interactionBusy
-          ? "busy"
-          : input.status === "timed-out"
-            ? "timeout"
-            : input.status
-      }
-    >
-      <header>
-        <span aria-hidden="true" className="user-input-mark">
-          <ArtemisIcon
-            className="icon"
-            name="approval-ask"
-            width={18}
-            height={18}
-          />
-        </span>
-        <div className="user-input-heading">
-          <small className="user-input-eyebrow">{input.header}</small>
-        </div>
-        {input.status === "pending" && (
-          <span className="user-input-status">
-            <span>{t.waitingSelection}</span>
-            <time
-              aria-label={t.timeoutHint}
-              className="user-input-timeout"
-              dateTime={input.expiresAt}
-              title={t.timeoutHint}
-            >
-              {formatUserInputCountdown(Date.parse(input.expiresAt) - clock)}
-            </time>
-          </span>
-        )}
-      </header>
-      <p className="user-input-question" data-part="question">
-        {input.question}
-      </p>
-      {input.status === "pending" ? (
-        <>
-          <div className="user-input-options-scroll">
-            <div
-              aria-label={input.question}
-              className="user-input-options"
-              data-part="options"
-              role="listbox"
-            >
-              {input.options.map((option, index) => (
-                <button
-                  aria-keyshortcuts="ArrowUp ArrowDown Home End Enter"
-                  aria-selected={activeOptionIndex === index}
-                  className={`user-input-option${option.recommended ? " recommended" : ""}${activeOptionIndex === index ? " active" : ""}`}
-                  disabled={interactionBusy}
-                  key={option.label}
-                  onClick={() => setActiveOptionIndex(index)}
-                  onFocus={() => setActiveOptionIndex(index)}
-                  onKeyDown={handleOptionKeyDown}
-                  ref={(button) => {
-                    optionButtons.current[index] = button;
-                  }}
-                  role="option"
-                  tabIndex={activeOptionIndex === index ? 0 : -1}
-                  type="button"
-                >
-                  <span aria-hidden="true" className="user-input-option-index">
-                    {index + 1}
-                  </span>
-                  <span className="user-input-option-copy">
-                    <span className="user-input-option-title">
-                      <strong title={option.label}>{option.label}</strong>
-                      {option.recommended && (
-                        <small className="recommendation-badge">
-                          {t.recommended}
-                        </small>
-                      )}
-                    </span>
-                    <small title={option.description}>
-                      {option.description}
-                    </small>
-                  </span>
-                  <span aria-hidden="true" className="user-input-option-enter">
-                    <Icon size={17}>
-                      <path
-                        d="m9 5 7 7-7 7"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.7"
-                      />
-                    </Icon>
-                  </span>
-                </button>
-              ))}
-              {!showOther && (
-                <button
-                  aria-keyshortcuts="ArrowUp ArrowDown Home End Enter"
-                  aria-selected={activeOptionIndex === otherOptionIndex}
-                  className={`user-input-option other${activeOptionIndex === otherOptionIndex ? " active" : ""}`}
-                  disabled={interactionBusy}
-                  onClick={() => {
-                    setActiveOptionIndex(otherOptionIndex);
-                    setShowOther(true);
-                  }}
-                  onFocus={() => setActiveOptionIndex(otherOptionIndex)}
-                  onKeyDown={handleOptionKeyDown}
-                  ref={(button) => {
-                    optionButtons.current[otherOptionIndex] = button;
-                  }}
-                  role="option"
-                  tabIndex={activeOptionIndex === otherOptionIndex ? 0 : -1}
-                  type="button"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="user-input-option-index user-input-other-icon"
-                  >
-                    <Icon size={15}>
-                      <path
-                        d="m5 16 1-3L15.5 3.5a1.8 1.8 0 0 1 2.6 2.6L8.5 15.5 5 16Z"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.5"
-                      />
-                    </Icon>
-                  </span>
-                  <span className="user-input-option-copy">
-                    <span className="user-input-option-title">
-                      <strong>{t.otherAnswer}</strong>
-                    </span>
-                    <small>{t.otherAnswerDetail}</small>
-                  </span>
-                  <span aria-hidden="true" className="user-input-option-enter">
-                    <Icon size={17}>
-                      <path
-                        d="m9 5 7 7-7 7"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.7"
-                      />
-                    </Icon>
-                  </span>
-                </button>
-              )}
-            </div>
-            {showOther && (
-              <form
-                className="user-input-other-inline"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const customAnswer = otherAnswer.trim();
-                  if (customAnswer) void resolve({ customAnswer });
-                }}
-              >
-                <span aria-hidden="true" className="user-input-other-edit-icon">
-                  <Icon size={16}>
-                    <path
-                      d="m5 16 1-3L15.5 3.5a1.8 1.8 0 0 1 2.6 2.6L8.5 15.5 5 16Z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="1.5"
-                    />
-                  </Icon>
-                </span>
-                <input
-                  aria-label={t.customAnswer}
-                  autoFocus
-                  disabled={interactionBusy}
-                  maxLength={2_000}
-                  onChange={(event) => setOtherAnswer(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Escape") return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    closeOther();
-                  }}
-                  placeholder={t.customAnswer}
-                  value={otherAnswer}
-                />
-                <button
-                  aria-label={t.submitAnswer}
-                  className="user-input-other-submit"
-                  disabled={interactionBusy || !otherAnswer.trim()}
-                  title={t.submitAnswer}
-                  type="submit"
-                >
-                  <Icon size={16}>
-                    <path
-                      d="m6 12 6-6 6 6m-6-6v12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="1.7"
-                    />
-                  </Icon>
-                </button>
-              </form>
-            )}
-          </div>
-          {!showOther && (
-            <div className="user-input-actions">
-              <button
-                className="user-input-submit"
-                type="button"
-                disabled={
-                  interactionBusy || activeOptionIndex >= input.options.length
-                }
-                onClick={() =>
-                  void resolve({ selectedOption: activeOptionIndex })
-                }
-              >
-                {uiText(
-                  locale,
-                  "MultiQuestionUserInputCard_multiQuestionCopy.submitSelection",
-                )}
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="user-input-result" data-part="status">
-          <span>
-            {input.status === "timed-out"
-              ? t.timedOut
-              : input.status === "cancelled"
-                ? t.inputCancelled
-                : t.answered}
-          </span>
-          {input.answer && <strong>{input.answer}</strong>}
-        </div>
-      )}
-    </UserInputFrame>
-  );
-}
-
 export function ToolActivityGroupCard({
   active,
   locale,
@@ -10705,11 +10347,7 @@ export function Timeline({
   onOpenTurnReview: (turnId: string, path?: string) => void;
   onCopyText: (text: string) => Promise<void>;
   onEditUserMessage: ((text: string) => void) | undefined;
-  onResolve: (
-    approval: ApprovalState,
-    approved: boolean,
-    scope: "once" | "session" | "project",
-  ) => void;
+  onResolve: ResolveApprovalDecision;
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
   onUndoTurnChanges: (turnId: string) => void;
 }) {
@@ -10753,20 +10391,7 @@ export function Timeline({
     activeTimelineEntries && state.queue.steering.length === 0
       ? latestVisibleToolGroupKey(activeTimelineEntries, state.messageParts)
       : undefined;
-  const approvedApprovalGroups = useMemo(
-    () => groupApprovedApprovals(state.order, state.approvals),
-    [state.approvals, state.order],
-  );
-  const approvalTime = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        dateStyle: "short",
-        timeStyle: "medium",
-      }),
-    [locale],
-  );
   const childStatusLabels = UI_COPY.App_childStatusLabels[locale];
-  const approvalDisclosureLabels = UI_COPY.App_approvalDisclosureLabels[locale];
   const latestCompletedTurnId = state.turnOrder.findLast(
     (turnId) => state.turns[turnId]?.status === "completed",
   );
@@ -10954,11 +10579,11 @@ export function Timeline({
     }
     if (kind === "input") {
       const input = state.userInputs[id];
-      if (!input) return null;
+      if (!input || input.status === "pending") return null;
       if (isMultiQuestionUserInput(input)) {
         return (
           <MultiQuestionUserInputCard
-            active={input.status === "pending"}
+            active={false}
             input={input}
             key={entry}
             locale={locale}
@@ -10968,7 +10593,7 @@ export function Timeline({
       }
       return (
         <UserInputCard
-          active={input.status === "pending"}
+          active={false}
           input={input}
           key={entry}
           locale={locale}
@@ -10978,223 +10603,18 @@ export function Timeline({
     }
     if (kind === "approval") {
       const approval = state.approvals[id];
-      if (!approval) return null;
-      const approvedGroup = approvedApprovalGroups.get(id);
-      if (
-        approvedGroup &&
-        approvedGroup.approvalIds.length > 1 &&
-        approvedGroup.approvalIds[0] !== id
-      ) {
-        return null;
-      }
-      if (approvedGroup && approvedGroup.approvalIds.length > 1) {
-        const groupedApprovals = approvedGroup.approvalIds.flatMap(
-          (approvalId) => {
-            const grouped = state.approvals[approvalId];
-            return grouped ? [grouped] : [];
-          },
-        );
-        const groupLabel = `${t.approvalApproved} ×${groupedApprovals.length}`;
-        return (
-          <ResultDisclosure
-            className="approval-card approved approval-group"
-            collapseLabel={approvalDisclosureLabels.collapse}
-            expandLabel={approvalDisclosureLabels.expand}
-            key={`approval-group:${approvedGroup.key}`}
-            label={groupLabel}
-            state="completed"
-            statusLabel={t.approvalApproved}
-            summary={
-              <>
-                <span className="approval-shield">
-                  <ApprovalIcon neutral />
-                </span>
-                <span className="approval-card-copy">
-                  <strong>
-                    {groupedApprovals.map((item) => item.summary).join(" · ")}
-                  </strong>
-                  <small>
-                    {groupedApprovals
-                      .map((item) => item.command ?? item.paths.join(", "))
-                      .join(" · ")}
-                  </small>
-                </span>
-                <span className="approval-count-badge">
-                  ×{groupedApprovals.length}
-                </span>
-                <span className="approval-card-chevron">
-                  <ChevronIcon />
-                </span>
-              </>
-            }
-          >
-            <ol className="approval-resolved-details approval-group-list">
-              {groupedApprovals.map((grouped) => (
-                <li key={grouped.approvalId}>
-                  <div className="approval-card-copy">
-                    <strong>
-                      <bdi>{grouped.summary}</bdi>
-                    </strong>
-                    <small>
-                      <bdi>{grouped.command ?? grouped.paths.join(", ")}</bdi>
-                    </small>
-                    {grouped.actorAgentId && (
-                      <small>
-                        {t.agentActor}:{" "}
-                        <bdi>
-                          {state.childAgents[grouped.actorAgentId]?.label ??
-                            grouped.actorAgentId}
-                        </bdi>
-                      </small>
-                    )}
-                  </div>
-                  <time dateTime={grouped.requestedAt}>
-                    {approvalTime.format(new Date(grouped.requestedAt))}
-                  </time>
-                  {grouped.modelReason && (
-                    <p className="approval-model-reason">
-                      <bdi>
-                        <span>{t.modelReason}</span> {grouped.modelReason}
-                      </bdi>
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </ResultDisclosure>
-        );
-      }
-      const approvalCopy = (
-        <div className="approval-card-copy">
-          <strong>
-            <bdi>{approval.summary}</bdi>
-          </strong>
-          <small>
-            <bdi>{approval.command ?? approval.paths.join(", ")}</bdi>
-          </small>
-          {approval.actorAgentId && (
-            <small>
-              {t.agentActor}:{" "}
-              <bdi>
-                {state.childAgents[approval.actorAgentId]?.label ??
-                  approval.actorAgentId}
-              </bdi>
-            </small>
-          )}
-        </div>
-      );
-      const modelReason = approval.modelReason ? (
-        <p className="approval-model-reason">
-          <bdi>
-            <span>{t.modelReason}</span> {approval.modelReason}
-          </bdi>
-        </p>
-      ) : null;
-      if (approval.status !== "pending") {
-        const statusLabel =
-          approval.status === "approved"
-            ? t.approvalApproved
-            : t.approvalDenied;
-        return (
-          <ResultDisclosure
-            className={`approval-card ${approval.status}`}
-            collapseLabel={approvalDisclosureLabels.collapse}
-            expandLabel={approvalDisclosureLabels.expand}
-            key={entry}
-            label={statusLabel}
-            state={approval.status === "approved" ? "completed" : "failed"}
-            statusLabel={statusLabel}
-            summary={
-              <>
-                <span className="approval-shield">
-                  <ApprovalIcon neutral />
-                </span>
-                {approvalCopy}
-                <span className="approval-card-chevron">
-                  <ChevronIcon />
-                </span>
-              </>
-            }
-          >
-            <div className="approval-resolved-details">{modelReason}</div>
-          </ResultDisclosure>
-        );
-      }
-      const pendingView = approvalPatternView(
-        approval,
-        approval.actorAgentId
-          ? `${t.agentActor}: ${state.childAgents[approval.actorAgentId]?.label ?? approval.actorAgentId}`
-          : undefined,
-      );
+      if (!approval || approval.status === "pending") return null;
       return (
-        <ApprovalPatternCard
-          actions={
-            <>
-              {approval.modelRecommendation && (
-                <small className="approval-recommendation">
-                  {t.recommended}:{" "}
-                  {approval.modelRecommendation === "deny"
-                    ? t.deny
-                    : t.approveOnce}
-                </small>
-              )}
-              {pendingView.actions.map((action) => {
-                const label =
-                  action.id === "deny"
-                    ? t.deny
-                    : action.id === "approve-project"
-                      ? t.approveProject
-                      : action.id === "approve-session"
-                        ? t.approveSession
-                        : t.approveOnce;
-                return (
-                  <button
-                    className="secondary-button approval-action"
-                    title={
-                      action.id === "approve-project"
-                        ? t.approvalScopeHint
-                        : undefined
-                    }
-                    key={action.id}
-                    onClick={() =>
-                      onResolve(approval, action.approved, action.scope)
-                    }
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-              {approval.allowedScopes.includes("project") && (
-                <small className="approval-scope-hint">
-                  {t.approvalScopeHint}
-                </small>
-              )}
-            </>
-          }
-          className={`approval-card ${approval.status}`}
-          description={
-            <>
-              <code className="approval-command">
-                <bdi>{pendingView.detail}</bdi>
-              </code>
-              {pendingView.actorLabel && (
-                <small>
-                  <bdi>{pendingView.actorLabel}</bdi>
-                </small>
-              )}
-            </>
-          }
-          icon={
-            <span className="approval-shield">
-              <ApprovalIcon neutral />
-            </span>
-          }
+        <ApprovalDecisionCard
           key={entry}
-          label={pendingView.title}
-          reason={modelReason}
-          state={pendingView.state}
-          statusLabel={t.waiting}
-          title={<bdi>{pendingView.title}</bdi>}
+          approval={approval}
+          locale={locale}
+          onResolve={onResolve}
+          {...(approval.actorAgentId
+            ? {
+                actorLabel: `${t.agentActor}: ${state.childAgents[approval.actorAgentId]?.label ?? approval.actorAgentId}`,
+              }
+            : {})}
         />
       );
     }

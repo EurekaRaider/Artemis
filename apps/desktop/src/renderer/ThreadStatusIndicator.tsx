@@ -1,3 +1,4 @@
+import { uiText } from "../shared/ui-text.js";
 import type {
   AgentEvent,
   AppLocale,
@@ -54,6 +55,25 @@ export function ThreadStatusIndicator({
       role={status ? "img" : undefined}
     >
       {status && <span aria-hidden="true" className={`status-dot ${status}`} />}
+    </span>
+  );
+}
+
+export function ThreadWaitingBadge({
+  thread,
+  locale,
+}: {
+  thread: Thread;
+  locale: AppLocale;
+}) {
+  if (thread.status !== "waiting-approval") return null;
+  const label =
+    thread.notification?.kind === "input-required"
+      ? uiText(locale, "App_copy.waitingSelection")
+      : statusText(locale, "waiting-approval");
+  return (
+    <span className="thread-waiting-badge" title={label}>
+      {label}
     </span>
   );
 }

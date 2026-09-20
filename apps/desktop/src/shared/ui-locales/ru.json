@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "Модель обновлена",
   "SettingsPanel_labels.modelUpdatedDetail": "Настройки модели и введённый ключ API сохранены.",
   "SettingsPanel_labels.sharedApiKey": "Все модели этого провайдера используют общий ключ API. Оставьте поле пустым, чтобы сохранить текущий ключ.",
-  "SettingsPanel_labels.confirmDelete": "Подтвердить удаление"
+  "SettingsPanel_labels.confirmDelete": "Подтвердить удаление",
+  "DecisionCard.skip": "Пропустить",
+  "DecisionCard.skipped": "Пропущено",
+  "DecisionCard.submit": "Отправить",
+  "DecisionCard.other": "Другое: введите ответ…",
+  "DecisionCard.feedback": "Укажите Artemis, что изменить…",
+  "DecisionCard.feedbackSent": "Комментарий отправлен",
+  "DecisionCard.failed": "Не удалось отправить. Повторите попытку.",
+  "DecisionCard.allowedOnce": "Разрешено один раз",
+  "DecisionCard.allowedSession": "Разрешено в этом сеансе",
+  "DecisionCard.allowedProject": "Разрешено в этом проекте"
 }

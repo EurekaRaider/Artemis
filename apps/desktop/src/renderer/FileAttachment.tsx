@@ -2,7 +2,7 @@ import type { AppLocale } from "@artemis/protocol";
 import { uiText } from "../shared/ui-text.js";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArtemisIcon } from "@artemis/ui/icons";
+import { AttachmentFileIcon } from "./AttachmentFileIcon.js";
 import type { AttachmentFilePreview } from "../shared/api.js";
 
 export function FileAttachment({
@@ -69,11 +69,7 @@ export function FileAttachment({
           void read();
         }}
       >
-        <ArtemisIcon
-          name="file"
-          width={compact ? 14 : 32}
-          height={compact ? 14 : 32}
-        />
+        <AttachmentFileIcon name={name} size={compact ? 18 : 20} />
         <span>{name}</span>
       </button>
       {open &&
@@ -114,7 +110,7 @@ export function FileAttachment({
                 role="img"
                 aria-label={`${uiText(locale, "FileAttachment.inline3")}: ${name}`}
               >
-                <ArtemisIcon name="file" width={64} height={64} />
+                <AttachmentFileIcon name={name} size={64} />
                 <span>{name}</span>
               </div>
             )}

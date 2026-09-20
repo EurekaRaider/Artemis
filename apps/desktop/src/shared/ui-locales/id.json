@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "Model diperbarui",
   "SettingsPanel_labels.modelUpdatedDetail": "Pengaturan model dan kunci API yang dimasukkan telah disimpan.",
   "SettingsPanel_labels.sharedApiKey": "Semua model dari penyedia ini menggunakan kunci API yang sama. Biarkan kosong untuk mempertahankan kunci yang tersimpan.",
-  "SettingsPanel_labels.confirmDelete": "Konfirmasi penghapusan"
+  "SettingsPanel_labels.confirmDelete": "Konfirmasi penghapusan",
+  "DecisionCard.skip": "Lewati",
+  "DecisionCard.skipped": "Dilewati",
+  "DecisionCard.submit": "Kirim",
+  "DecisionCard.other": "Lainnya: masukkan jawaban…",
+  "DecisionCard.feedback": "Beri tahu Artemis apa yang perlu diubah…",
+  "DecisionCard.feedbackSent": "Masukan terkirim",
+  "DecisionCard.failed": "Gagal mengirim. Coba lagi.",
+  "DecisionCard.allowedOnce": "Diizinkan sekali",
+  "DecisionCard.allowedSession": "Diizinkan untuk sesi ini",
+  "DecisionCard.allowedProject": "Diizinkan untuk proyek ini"
 }

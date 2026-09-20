@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "मॉडल अपडेट किया गया",
   "SettingsPanel_labels.modelUpdatedDetail": "मॉडल की सेटिंग और दर्ज की गई API कुंजी सहेज दी गई हैं।",
   "SettingsPanel_labels.sharedApiKey": "इस प्रदाता के सभी मॉडल एक ही API कुंजी साझा करते हैं। सहेजी गई कुंजी बनाए रखने के लिए खाली छोड़ें।",
-  "SettingsPanel_labels.confirmDelete": "हटाने की पुष्टि करें"
+  "SettingsPanel_labels.confirmDelete": "हटाने की पुष्टि करें",
+  "DecisionCard.skip": "छोड़ें",
+  "DecisionCard.skipped": "छोड़ दिया गया",
+  "DecisionCard.submit": "भेजें",
+  "DecisionCard.other": "अन्य: अपना उत्तर लिखें…",
+  "DecisionCard.feedback": "Artemis को बताएँ कि क्या बदलना है…",
+  "DecisionCard.feedbackSent": "सुझाव भेज दिया गया",
+  "DecisionCard.failed": "भेजा नहीं जा सका। फिर कोशिश करें।",
+  "DecisionCard.allowedOnce": "एक बार अनुमति दी गई",
+  "DecisionCard.allowedSession": "इस सत्र के लिए अनुमति दी गई",
+  "DecisionCard.allowedProject": "इस प्रोजेक्ट के लिए अनुमति दी गई"
 }

@@ -1,0 +1,252 @@
+[
+  {
+    "provider": "zai-coding-cn",
+    "arguments": {
+      "header": "界面偏好",
+      "questions": [
+        {
+          "options": [
+            {
+              "description": "深色背景配浅色文字，夜间使用更护眼",
+              "label": "深色主题",
+              "recommended": true
+            },
+            {
+              "description": "白色背景配深色文字，日间阅读更清晰",
+              "label": "浅色主题",
+              "recommended": false
+            },
+            {
+              "description": "跟随系统深浅色模式自动切换",
+              "label": "自动跟随系统",
+              "recommended": false
+            }
+          ],
+          "question": "您偏好哪种界面主题？"
+        },
+        {
+          "options": [
+            {
+              "description": "左侧导航栏+右侧内容区，信息密度高",
+              "label": "侧边栏布局",
+              "recommended": true
+            },
+            {
+              "description": "顶部导航栏+全宽内容区，视觉更开阔",
+              "label": "顶部导航布局",
+              "recommended": false
+            },
+            {
+              "description": "以卡片形式聚合内容，浏览体验轻快",
+              "label": "卡片式布局",
+              "recommended": false
+            }
+          ],
+          "question": "您偏好哪种页面布局方式？"
+        },
+        {
+          "options": [
+            {
+              "description": "现代无衬线字体，笔画均匀，屏幕显示清晰",
+              "label": "无衬线字体（如思源黑体）",
+              "recommended": true
+            },
+            {
+              "description": "传统衬线字体，适合长文阅读，更具书卷气",
+              "label": "衬线字体（如宋体）",
+              "recommended": false
+            },
+            {
+              "description": "笔画末端圆润，观感柔和友好",
+              "label": "圆体字（如苹方圆体）",
+              "recommended": false
+            }
+          ],
+          "question": "您偏好哪种正文字体？"
+        }
+      ]
+    }
+  },
+  {
+    "provider": "kimi-coding",
+    "arguments": {
+      "header": "界面偏好设置",
+      "questions": [
+        {
+          "question": "您偏好哪种界面主题？",
+          "options": [
+            {
+              "label": "浅色模式",
+              "description": "明亮的背景配深色文字，适合光线充足的环境"
+            },
+            {
+              "label": "深色模式",
+              "description": "深色背景配浅色文字，适合夜间使用，减轻眼睛疲劳"
+            },
+            {
+              "label": "跟随系统",
+              "description": "自动根据操作系统的主题设置切换浅色或深色模式",
+              "recommended": true
+            }
+          ]
+        },
+        {
+          "question": "您偏好哪种界面布局？",
+          "options": [
+            {
+              "label": "紧凑布局",
+              "description": "更高的信息密度，一屏展示更多内容"
+            },
+            {
+              "label": "舒适布局",
+              "description": "信息密度与留白平衡，兼顾可读性与效率，适合大多数用户",
+              "recommended": true
+            },
+            {
+              "label": "宽松布局",
+              "description": "更多留白空间，视觉更清爽，内容密度较低"
+            }
+          ]
+        },
+        {
+          "question": "您偏好哪种界面字体？",
+          "options": [
+            {
+              "label": "系统默认字体",
+              "description": "使用操作系统自带字体，渲染效果最稳定、兼容性最好",
+              "recommended": true
+            },
+            {
+              "label": "无衬线字体",
+              "description": "如思源黑体、Helvetica，风格现代简洁，屏幕阅读清晰"
+            },
+            {
+              "label": "衬线字体",
+              "description": "如思源宋体、Georgia，风格典雅，适合长文阅读"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "provider": "deepseek",
+    "arguments": {
+      "header": "界面偏好",
+      "questions": [
+        {
+          "question": "界面主题偏好哪一种？",
+          "options": [
+            {
+              "label": "跟随系统",
+              "description": "根据操作系统的深浅色设置自动切换，省心且与系统观感一致",
+              "recommended": true
+            },
+            {
+              "label": "浅色模式",
+              "description": "明亮背景配深色文字，日间使用清爽通透"
+            },
+            {
+              "label": "深色模式",
+              "description": "深色背景配浅色文字，夜间使用更柔和护眼"
+            }
+          ]
+        },
+        {
+          "question": "页面布局偏好哪一种？",
+          "options": [
+            {
+              "label": "侧边栏 + 主内容区",
+              "description": "左侧导航搭配右侧内容，层级清晰，适合大多数应用场景",
+              "recommended": true
+            },
+            {
+              "label": "单栏居中",
+              "description": "内容居中单列排布，视觉聚焦，适合阅读与表单填写"
+            },
+            {
+              "label": "多栏工作区",
+              "description": "多个面板并列展示，便于同时查看和操作多项内容"
+            }
+          ]
+        },
+        {
+          "question": "字体风格偏好哪一种？",
+          "options": [
+            {
+              "label": "无衬线字体",
+              "description": "现代简洁的界面字体，屏幕显示清晰、易读性好",
+              "recommended": true
+            },
+            {
+              "label": "衬线字体",
+              "description": "传统典雅，适合长篇阅读与正式文档风格"
+            },
+            {
+              "label": "等宽字体",
+              "description": "字符等宽对齐，适合代码、日志与数据展示场景"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "provider": "google",
+    "arguments": {
+      "questions": [
+        {
+          "options": [
+            {
+              "label": "浅色主题",
+              "description": "适合白天及亮光环境使用，视觉清晰明亮",
+              "recommended": true
+            },
+            {
+              "description": "适合夜间及暗光环境使用，减少眼睛疲劳",
+              "label": "深色主题"
+            },
+            {
+              "description": "自动跟随操作系统的主题外观进行切换",
+              "label": "跟随系统"
+            }
+          ],
+          "question": "请选择您偏好的界面主题："
+        },
+        {
+          "question": "请选择您偏好的界面布局：",
+          "options": [
+            {
+              "description": "元素间距适中，视觉留白充足，阅读体验更佳",
+              "label": "舒适布局",
+              "recommended": true
+            },
+            {
+              "description": "元素间距较小，信息密度高，一屏展示更多内容",
+              "label": "紧凑布局"
+            }
+          ]
+        },
+        {
+          "question": "请选择您偏好的界面字体样式：",
+          "options": [
+            {
+              "description": "现代简约，屏幕显示清晰度高，适合日常界面",
+              "label": "无衬线字体",
+              "recommended": true
+            },
+            {
+              "description": "典雅复古，结构明确，适合长文本沉浸阅读",
+              "label": "衬线字体"
+            },
+            {
+              "description": "字符等宽对齐，格式整齐，适合代码及数据展示",
+              "label": "等宽字体"
+            }
+          ]
+        }
+      ],
+      "header": "界面偏好"
+    }
+  }
+]

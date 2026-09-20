@@ -73,17 +73,21 @@ describe("request_user_input", () => {
 
     const parameters = {
       header: "Baseline",
-      question: "Should a baseline be measured before implementation?",
-      options: [
+      questions: [
         {
-          label: "Measure first",
-          description: "Confirm the hotspot with timing data.",
-          recommended: true,
-        },
-        {
-          label: "Implement now",
-          description: "Start from the suspected hotspot.",
-          recommended: false,
+          question: "Should a baseline be measured before implementation?",
+          options: [
+            {
+              label: "Measure first",
+              description: "Confirm the hotspot with timing data.",
+              recommended: true,
+            },
+            {
+              label: "Implement now",
+              description: "Start from the suspected hotspot.",
+              recommended: false,
+            },
+          ],
         },
       ],
     };
@@ -91,7 +95,12 @@ describe("request_user_input", () => {
     const second = tool.execute("input-call-2", {
       ...parameters,
       header: "Platform",
-      question: "Which platform should be targeted first?",
+      questions: [
+        {
+          ...parameters.questions[0]!,
+          question: "Which platform should be targeted first?",
+        },
+      ],
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(requests).toHaveLength(1);
@@ -120,7 +129,6 @@ describe("request_user_input", () => {
 interface MultiQuestionParameters {
   header: string;
   questions: Array<{
-    questionId: string;
     question: string;
     options: Array<{
       label: string;
@@ -135,7 +143,6 @@ function buildMultiQuestionParameters(): MultiQuestionParameters {
     header: "Release",
     questions: [
       {
-        questionId: "q1",
         question: "Ship today or measure the hotspot first?",
         options: [
           {
@@ -151,7 +158,6 @@ function buildMultiQuestionParameters(): MultiQuestionParameters {
         ],
       },
       {
-        questionId: "q2",
         question: "Which platform should be verified first?",
         options: [
           {
@@ -170,7 +176,7 @@ function buildMultiQuestionParameters(): MultiQuestionParameters {
   };
 }
 
-describe("request_user_input multi-question producer activation (D#76 PR10C, decisions F/H)", () => {
+describe("request_user_input sequential single-choice questions", () => {
   it("sends one broker request carrying the questions variant for a questions-array call", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-input-multi-"));
     cleanupPaths.push(workspace);
@@ -211,7 +217,6 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
       header: "Release",
       questions: [
         {
-          questionId: "q1",
           question: "Ship today or measure the hotspot first?",
           options: [
             {
@@ -227,7 +232,6 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
           ],
         },
         {
-          questionId: "q2",
           question: "Which platform should be verified first?",
           options: [
             {
@@ -248,7 +252,6 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
           ],
         },
         {
-          questionId: "q3",
           question: "Where should the report land?",
           options: [
             {
@@ -356,7 +359,7 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
     host.dispose();
   });
 
-  it("rejects empty questions, more than three questions, invalid question ids, and mixed payloads", async () => {
+  it("rejects empty questions, more than three questions, blank text, and mixed payloads", async () => {
     const workspace = await mkdtemp(
       join(tmpdir(), "artemis-input-multi-shape-"),
     );
@@ -395,7 +398,6 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
     const fourQuestions = buildMultiQuestionParameters();
     fourQuestions.questions.push(
       {
-        questionId: "q3",
         question: "Should the changelog be updated?",
         options: [
           {
@@ -411,7 +413,6 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
         ],
       },
       {
-        questionId: "q4",
         question: "Where should the report land?",
         options: [
           {
@@ -431,16 +432,16 @@ describe("request_user_input multi-question producer activation (D#76 PR10C, dec
       tool.execute("multi-four-questions", fourQuestions),
     ).rejects.toThrow();
 
-    const duplicateQuestionIds = buildMultiQuestionParameters();
-    duplicateQuestionIds.questions[1]!.questionId = "q1";
+    const blankHeader = buildMultiQuestionParameters();
+    blankHeader.header = "   ";
     await expect(
-      tool.execute("multi-duplicate-question-ids", duplicateQuestionIds),
+      tool.execute("multi-blank-header", blankHeader),
     ).rejects.toThrow();
 
-    const blankQuestionId = buildMultiQuestionParameters();
-    blankQuestionId.questions[0]!.questionId = "   ";
+    const blankQuestion = buildMultiQuestionParameters();
+    blankQuestion.questions[0]!.question = "   ";
     await expect(
-      tool.execute("multi-blank-question-id", blankQuestionId),
+      tool.execute("multi-blank-question", blankQuestion),
     ).rejects.toThrow();
 
     const mixed = {

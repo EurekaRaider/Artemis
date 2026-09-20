@@ -1,5 +1,6 @@
 import type { AppLocale } from "@artemis/protocol";
 import { uiText } from "../shared/ui-text.js";
+import { AttachmentFileIcon } from "./AttachmentFileIcon.js";
 import { FileAttachment } from "./FileAttachment.js";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { useEffect, useRef, useState } from "react";
@@ -58,7 +59,7 @@ export function ComposerAttachments({
       <div className="attachment-image-strip composer-image-strip">
         {attachments.map((attachment, index) => (
           <div
-            className="attachment-image-tile"
+            className="attachment-image-tile composer-resource-chip"
             key={isAttachmentReference(attachment) ? attachment.id : index}
           >
             {attachmentIsImage(attachment) ? (
@@ -72,8 +73,11 @@ export function ComposerAttachments({
                 {thumbnail(attachment) ? (
                   <img src={thumbnail(attachment)} alt={attachment.name} />
                 ) : (
-                  <span>{attachment.name}</span>
+                  <AttachmentFileIcon name={attachment.name} />
                 )}
+                <span className="composer-resource-name">
+                  {attachment.name}
+                </span>
               </button>
             ) : (
               <FileAttachment
@@ -91,7 +95,7 @@ export function ComposerAttachments({
             )}
             <button
               type="button"
-              className="attachment-image-remove"
+              className="composer-resource-remove"
               aria-label={`${attachmentIsImage(attachment) ? uiText(locale, "ComposerAttachments.inline4") : uiText(locale, "ComposerAttachments.inline3")}: ${attachment.name}`}
               onClick={() => onRemove(index)}
             >

@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "模型已更新",
   "SettingsPanel_labels.modelUpdatedDetail": "模型設定及填寫的 API Key 已儲存。",
   "SettingsPanel_labels.sharedApiKey": "此供應商的所有模型共用 API Key；留空會保留已儲存的 Key。",
-  "SettingsPanel_labels.confirmDelete": "確認刪除"
+  "SettingsPanel_labels.confirmDelete": "確認刪除",
+  "DecisionCard.skip": "略過",
+  "DecisionCard.skipped": "已略過",
+  "DecisionCard.submit": "傳送",
+  "DecisionCard.other": "其他：輸入你的想法…",
+  "DecisionCard.feedback": "告訴 Artemis 如何調整操作…",
+  "DecisionCard.feedbackSent": "已傳送修改意見",
+  "DecisionCard.failed": "提交失敗，請重試。",
+  "DecisionCard.allowedOnce": "已允許一次",
+  "DecisionCard.allowedSession": "本對話已允許",
+  "DecisionCard.allowedProject": "本專案已允許"
 }

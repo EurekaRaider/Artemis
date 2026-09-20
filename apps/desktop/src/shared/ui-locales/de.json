@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "Modell aktualisiert",
   "SettingsPanel_labels.modelUpdatedDetail": "Die Modelleinstellungen und ein eventuell eingegebener API-Schlüssel wurden gespeichert.",
   "SettingsPanel_labels.sharedApiKey": "Alle Modelle dieses Anbieters verwenden denselben API-Schlüssel. Leer lassen, um den gespeicherten Schlüssel beizubehalten.",
-  "SettingsPanel_labels.confirmDelete": "Löschen bestätigen"
+  "SettingsPanel_labels.confirmDelete": "Löschen bestätigen",
+  "DecisionCard.skip": "Überspringen",
+  "DecisionCard.skipped": "Übersprungen",
+  "DecisionCard.submit": "Senden",
+  "DecisionCard.other": "Andere Antwort eingeben…",
+  "DecisionCard.feedback": "Artemis mitteilen, was anders sein soll…",
+  "DecisionCard.feedbackSent": "Feedback gesendet",
+  "DecisionCard.failed": "Senden fehlgeschlagen. Bitte erneut versuchen.",
+  "DecisionCard.allowedOnce": "Einmal erlaubt",
+  "DecisionCard.allowedSession": "Für diese Sitzung erlaubt",
+  "DecisionCard.allowedProject": "Für dieses Projekt erlaubt"
 }

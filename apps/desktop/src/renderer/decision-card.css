@@ -1,0 +1,336 @@
+/* Shared approval and question surface, matching the selected desktop design. */
+.decision-card,
+.decision-card.user-input-card {
+  box-sizing: border-box;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+  color: var(--text);
+  min-width: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+.decision-card > header,
+.decision-card.user-input-card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+}
+.decision-card > header strong,
+.decision-card.multi-question > header [data-part="question"] {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.decision-waiting {
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.decision-command {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 8px 12px;
+  font-family: var(--font-mono, monospace);
+}
+.decision-reason {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.decision-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.decision-card .decision-option.user-input-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  font-size: 13px;
+}
+.decision-card
+  .decision-option.user-input-option:is(:hover, :focus):not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.decision-card .decision-option:focus-visible {
+  outline: none;
+}
+.decision-option-number {
+  color: var(--muted);
+  flex: 0 0 16px;
+  font-variant-numeric: tabular-nums;
+}
+.decision-option-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.decision-option-copy strong {
+  font-weight: 500;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.decision-option-copy small {
+  flex: 1 1 200px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.decision-options:has(.decision-option:hover)
+  .decision-option:focus:not(:hover) {
+  background: transparent;
+}
+.decision-reply {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 0;
+  min-width: 0;
+}
+.decision-reply input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.decision-reply input::placeholder {
+  color: var(--muted);
+}
+.decision-reply input:focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: -1px;
+}
+.decision-reply button {
+  flex-shrink: 0;
+  min-height: 30px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.decision-skip {
+  padding: 6px 4px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+.decision-skip:hover {
+  color: var(--text);
+}
+.decision-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 5px 14px;
+  border: 0;
+  background: var(--text);
+  color: var(--panel);
+  font-weight: 600;
+}
+.decision-reply button:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 2px;
+}
+.decision-card button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.decision-card .decision-submit:disabled {
+  opacity: 1;
+  background: color-mix(in srgb, var(--text) 90%, var(--panel));
+  color: color-mix(in srgb, var(--panel) 55%, var(--text));
+}
+.decision-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+.decision-result {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  min-width: 0;
+  font-size: 12px;
+}
+.timeline .decision-result {
+  margin-block: 16px;
+}
+.decision-result > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  min-width: 0;
+}
+.decision-result > summary::-webkit-details-marker {
+  display: none;
+}
+.decision-result > summary > strong {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+.decision-result.approved > summary > svg:first-child {
+  color: var(--success);
+}
+.decision-result-answer {
+  min-width: 0;
+  flex: 1;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.decision-chevron {
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+  margin-inline-start: auto;
+  color: var(--muted);
+}
+[dir="rtl"] .decision-chevron {
+  transform: rotate(90deg);
+}
+.decision-result[open] .decision-chevron {
+  transform: none;
+}
+.decision-result-detail {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.decision-result-detail pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.decision-result-detail p {
+  color: var(--muted);
+}
+.decision-card.multi-question .user-question-progress {
+  display: none;
+}
+.decision-card.multi-question > header {
+  display: flex;
+  grid-template-columns: none;
+}
+.decision-question-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.decision-card.multi-question .user-question-track {
+  padding: 0;
+}
+.decision-card.multi-question .user-question-slide {
+  padding: 0;
+  gap: 0;
+}
+.decision-card.multi-question .user-question-nav {
+  padding: 6px 0 0;
+}
+.composer-awaiting-decision .composer-decision {
+  min-width: 0;
+  max-block-size: min(520px, 60dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.composer-awaiting-decision .composer-decision > .decision-card {
+  margin: 0;
+  padding: 12px 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.composer.composer-awaiting-decision > [data-part="context"] {
+  margin-block-start: 0;
+  padding-block: 7px 0;
+  border-block: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.composer-awaiting-decision .decision-stop {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+.thread-waiting-badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.thread-select:has(.thread-waiting-badge) .thread-title {
+  flex: 1;
+  min-width: 0;
+}
+.thread-select:has(.thread-waiting-badge) .thread-time {
+  display: none;
+}
+@media (max-width: 480px) {
+  .decision-card,
+  .decision-card.user-input-card {
+    padding: 12px;
+  }
+  .decision-card > header {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .decision-reply {
+    gap: 6px;
+  }
+  .decision-submit {
+    padding-inline: 10px;
+  }
+}
+@media (forced-colors: active) {
+  .thread-waiting-badge,
+  .decision-submit {
+    border: 1px solid ButtonText;
+  }
+  .decision-option:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}

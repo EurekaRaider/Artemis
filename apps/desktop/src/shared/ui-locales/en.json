@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "Model updated",
   "SettingsPanel_labels.modelUpdatedDetail": "The model settings and any entered API key were saved.",
   "SettingsPanel_labels.sharedApiKey": "All models from this provider share the API key. Leave blank to keep the stored key.",
-  "SettingsPanel_labels.confirmDelete": "Confirm deletion"
+  "SettingsPanel_labels.confirmDelete": "Confirm deletion",
+  "DecisionCard.skip": "Skip",
+  "DecisionCard.skipped": "Skipped",
+  "DecisionCard.submit": "Submit",
+  "DecisionCard.other": "Other: enter your answer…",
+  "DecisionCard.feedback": "Tell Artemis what to do differently…",
+  "DecisionCard.feedbackSent": "Feedback sent",
+  "DecisionCard.failed": "Could not submit. Please try again.",
+  "DecisionCard.allowedOnce": "Allowed once",
+  "DecisionCard.allowedSession": "Allowed for this session",
+  "DecisionCard.allowedProject": "Allowed for this project"
 }

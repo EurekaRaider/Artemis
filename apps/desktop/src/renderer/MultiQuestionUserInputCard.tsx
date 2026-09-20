@@ -1,3 +1,5 @@
+import { DecisionOptions, DecisionResult } from "./DecisionCard.js";
+import { uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
 import {
   useEffect,
@@ -6,7 +8,6 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
 } from "react";
 import type {
   AppLocale,
@@ -16,14 +17,10 @@ import type {
   UserInputQuestionState,
   UserInputState,
 } from "@artemis/protocol";
-import { ArtemisIcon } from "@artemis/ui/icons";
 import { UserInputFrame } from "@artemis/ui/patterns";
 
 import { formatUserInputCountdown } from "./user-input-countdown.js";
-import {
-  moveUserInputOptionFocus,
-  moveUserInputQuestionFocus,
-} from "./user-input-navigation.js";
+import { moveUserInputQuestionFocus } from "./user-input-navigation.js";
 
 // D#76 PR10C (decision L option 1): the multi-question card keeps the v17 17b
 // semantics — one question in focus at a time, a dots tablist for question
@@ -93,123 +90,41 @@ function questionStatusLabel(
   return { status: t.inputCancelled, label: undefined };
 }
 
-function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon"
-      fill="none"
-      height={size}
-      viewBox="0 0 24 24"
-      width={size}
-    >
-      {children}
-    </svg>
-  );
-}
-
-function EnterIcon() {
-  return (
-    <span aria-hidden="true" className="user-input-option-enter">
-      <Icon size={17}>
-        <path
-          d="m9 5 7 7-7 7"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.7"
-        />
-      </Icon>
-    </span>
-  );
-}
-
 function QuestionSlide({
   answer,
   busy,
   current,
   onCustomSubmit,
   onOptionSelect,
+  onSkip,
   panelId,
   question,
   registerOptionButton,
   tabId,
   t,
+  locale,
+  error,
 }: {
   answer: UserInputQuestionState | undefined;
   busy: boolean;
   current: boolean;
-  onCustomSubmit: (customAnswer: string) => void;
-  onOptionSelect: (selectedOptionLabel: string) => void;
+  onCustomSubmit: (text: string) => void;
+  onOptionSelect: (label: string) => void;
+  onSkip: () => void;
   panelId: string;
   question: UserInputQuestion;
+  tabId: string;
+  t: MultiQuestionCopy;
+  locale: AppLocale;
+  error: boolean;
   registerOptionButton: (
     questionId: string,
     index: number,
     button: HTMLButtonElement | null,
   ) => void;
-  tabId: string;
-  t: MultiQuestionCopy;
 }) {
-  const otherOptionIndex = question.options.length;
-  const optionCount = question.options.length + 1;
-  const slideOptionButtons = useRef<Array<HTMLButtonElement | null>>([]);
-  const [activeOptionIndex, setActiveOptionIndex] = useState(() =>
-    recommendedOptionIndex(question),
-  );
-  const [showOther, setShowOther] = useState(false);
-  const [draft, setDraft] = useState("");
   const closed = (answer?.status ?? "pending") !== "pending";
-  // While the inline "other" form is open the "other" button is unmounted but
-  // activeOptionIndex still points at otherOptionIndex, which would give every
-  // real option tabIndex=-1 and drop the whole listbox from the tab order
-  // (Tab skips it; Shift+Tab from the draft input cannot reach it). Pin the
-  // roving stop on the last real option — the unmounted button's DOM neighbor
-  // — until the form closes. Once the user focuses or hovers a real option,
-  // activeOptionIndex moves there and the stop follows it as usual; closing
-  // the form remounts the "other" button with activeOptionIndex untouched,
-  // restoring the original roving semantics.
-  const rovingOptionIndex =
-    showOther && activeOptionIndex === otherOptionIndex && otherOptionIndex > 0
-      ? otherOptionIndex - 1
-      : activeOptionIndex;
-
-  const closeOther = () => {
-    setShowOther(false);
-    window.requestAnimationFrame(() => {
-      slideOptionButtons.current[otherOptionIndex]?.focus({
-        preventScroll: true,
-      });
-    });
-  };
-
-  const handleOptionKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-  ) => {
-    const key = event.key;
-    if (
-      key !== "ArrowDown" &&
-      key !== "ArrowUp" &&
-      key !== "Home" &&
-      key !== "End"
-    ) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const nextIndex = moveUserInputOptionFocus(
-      activeOptionIndex,
-      optionCount,
-      key,
-    );
-    if (nextIndex < 0) return;
-    setActiveOptionIndex(nextIndex);
-    slideOptionButtons.current[nextIndex]?.focus();
-  };
-
   const result = closed ? questionStatusLabel(question, answer, t) : null;
-
   return (
     <div
       aria-hidden={!current || undefined}
@@ -219,187 +134,40 @@ function QuestionSlide({
       inert={!current || undefined}
       role="tabpanel"
     >
-      <strong className="user-question-text" title={question.question}>
-        {question.question}
-      </strong>
-      {closed && result ? (
-        <div className="user-input-result user-question-result">
-          <span>{result.status}</span>
-          {result.label && <strong>{result.label}</strong>}
-        </div>
+      {result ? (
+        <DecisionResult
+          label={
+            answer?.skipped
+              ? uiText(locale, "DecisionCard.skipped")
+              : result.status
+          }
+          {...(result.label ? { answer: result.label } : {})}
+        >
+          <p>{question.question}</p>
+          {result.label && <p>{result.label}</p>}
+        </DecisionResult>
       ) : (
-        <div className="user-input-options-scroll">
-          <div
-            aria-label={question.question}
-            className="user-input-options"
-            data-part="options"
-            role="listbox"
-          >
-            {question.options.map((option, index) => (
-              <button
-                aria-keyshortcuts="ArrowUp ArrowDown Home End Enter"
-                aria-selected={activeOptionIndex === index}
-                className={`user-input-option${option.recommended ? " recommended" : ""}${activeOptionIndex === index ? " active" : ""}`}
-                disabled={busy}
-                key={option.label}
-                onClick={() => setActiveOptionIndex(index)}
-                onFocus={() => setActiveOptionIndex(index)}
-                onKeyDown={handleOptionKeyDown}
-                ref={(button) => {
-                  slideOptionButtons.current[index] = button;
-                  registerOptionButton(question.questionId, index, button);
-                }}
-                role="option"
-                tabIndex={rovingOptionIndex === index ? 0 : -1}
-                title={option.label}
-                type="button"
-              >
-                <span aria-hidden="true" className="user-input-option-index">
-                  {index + 1}
-                </span>
-                <span className="user-input-option-copy">
-                  <span className="user-input-option-title">
-                    <strong title={option.label}>{option.label}</strong>
-                    {option.recommended && (
-                      <small className="recommendation-badge">
-                        {t.recommended}
-                      </small>
-                    )}
-                  </span>
-                  <small title={option.description}>{option.description}</small>
-                </span>
-                <EnterIcon />
-              </button>
-            ))}
-            {!showOther && (
-              <button
-                aria-keyshortcuts="ArrowUp ArrowDown Home End Enter"
-                aria-selected={activeOptionIndex === otherOptionIndex}
-                className={`user-input-option other${activeOptionIndex === otherOptionIndex ? " active" : ""}`}
-                disabled={busy}
-                key="__other"
-                onClick={() => {
-                  setActiveOptionIndex(otherOptionIndex);
-                  setShowOther(true);
-                }}
-                onFocus={() => setActiveOptionIndex(otherOptionIndex)}
-                onKeyDown={handleOptionKeyDown}
-                ref={(button) => {
-                  slideOptionButtons.current[otherOptionIndex] = button;
-                  registerOptionButton(
-                    question.questionId,
-                    otherOptionIndex,
-                    button,
-                  );
-                }}
-                role="option"
-                tabIndex={activeOptionIndex === otherOptionIndex ? 0 : -1}
-                type="button"
-              >
-                <span
-                  aria-hidden="true"
-                  className="user-input-option-index user-input-other-icon"
-                >
-                  <Icon size={15}>
-                    <path
-                      d="m5 16 1-3L15.5 3.5a1.8 1.8 0 0 1 2.6 2.6L8.5 15.5 5 16Z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="1.5"
-                    />
-                  </Icon>
-                </span>
-                <span className="user-input-option-copy">
-                  <span className="user-input-option-title">
-                    <strong>{t.otherAnswer}</strong>
-                  </span>
-                  <small>{t.otherAnswerDetail}</small>
-                </span>
-                <EnterIcon />
-              </button>
-            )}
-          </div>
-          {!showOther && (
-            <div className="user-input-actions">
-              <button
-                className="user-input-submit"
-                type="button"
-                disabled={busy || !question.options[activeOptionIndex]}
-                onClick={() => {
-                  const option = question.options[activeOptionIndex];
-                  if (option) onOptionSelect(option.label);
-                }}
-              >
-                {t.submitSelection}
-              </button>
-            </div>
+        <>
+          <DecisionOptions
+            options={question.options}
+            locale={locale}
+            busy={busy}
+            registerButton={(index, button) =>
+              registerOptionButton(question.questionId, index, button)
+            }
+            onChoose={(index) => {
+              const option = question.options[index];
+              if (option) onOptionSelect(option.label);
+            }}
+            onReply={onCustomSubmit}
+            onSkip={onSkip}
+          />
+          {error && (
+            <p role="alert" className="decision-error">
+              {uiText(locale, "DecisionCard.failed")}
+            </p>
           )}
-          {showOther && (
-            <form
-              className="user-input-other-inline"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const customAnswer = draft.trim();
-                if (customAnswer) onCustomSubmit(customAnswer);
-              }}
-            >
-              <span aria-hidden="true" className="user-input-other-edit-icon">
-                <Icon size={16}>
-                  <path
-                    d="m5 16 1-3L15.5 3.5a1.8 1.8 0 0 1 2.6 2.6L8.5 15.5 5 16Z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                  />
-                </Icon>
-              </span>
-              <input
-                aria-label={t.customAnswer}
-                autoFocus
-                disabled={busy}
-                maxLength={2_000}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    closeOther();
-                    return;
-                  }
-                  // IME composition confirmations must not submit the form.
-                  if (event.key === "Enter" && event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }
-                }}
-                placeholder={t.customAnswer}
-                value={draft}
-              />
-              <button
-                aria-label={t.submitAnswer}
-                className="user-input-other-submit"
-                disabled={busy || !draft.trim()}
-                title={t.submitAnswer}
-                type="submit"
-              >
-                <Icon size={16}>
-                  <path
-                    d="m6 12 6-6 6 6m-6-6v12"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.7"
-                  />
-                </Icon>
-              </button>
-            </form>
-          )}
-        </div>
+        </>
       )}
     </div>
   );
@@ -433,6 +201,8 @@ export function MultiQuestionUserInputCard({
   const [resolvingQuestions, setResolvingQuestions] = useState<
     Record<string, true>
   >({});
+  const pendingQuestions = useRef(new Set<string>());
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [clock, setClock] = useState(() => Date.now());
   const activeQuestionIndexRef = useRef(activeQuestionIndex);
   const dotButtons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -533,7 +303,7 @@ export function MultiQuestionUserInputCard({
     question: UserInputQuestion,
     choice: Pick<
       UserInputMultiQuestionResolution,
-      "selectedOptionLabel" | "customAnswer"
+      "selectedOptionLabel" | "customAnswer" | "skipped"
     >,
   ) => {
     if (input.status !== "pending") return;
@@ -542,7 +312,9 @@ export function MultiQuestionUserInputCard({
     ) {
       return;
     }
-    if (resolvingQuestions[question.questionId]) return;
+    if (pendingQuestions.current.has(question.questionId)) return;
+    pendingQuestions.current.add(question.questionId);
+    setErrors((current) => ({ ...current, [question.questionId]: false }));
     setResolvingQuestions((current) => ({
       ...current,
       [question.questionId]: true,
@@ -556,6 +328,8 @@ export function MultiQuestionUserInputCard({
         ...choice,
       });
     } catch {
+      pendingQuestions.current.delete(question.questionId);
+      setErrors((current) => ({ ...current, [question.questionId]: true }));
       setResolvingQuestions((current) => {
         const next = { ...current };
         delete next[question.questionId];
@@ -592,51 +366,78 @@ export function MultiQuestionUserInputCard({
     goToQuestion(nextIndex, true);
   };
 
+  if (input.status !== "pending") {
+    const summaries = input.questions.map((question) => {
+      const answer = input.answers[question.questionId];
+      const result = questionStatusLabel(question, answer, t);
+      return {
+        question: question.question,
+        label: answer?.skipped
+          ? uiText(locale, "DecisionCard.skipped")
+          : (result.label ?? result.status),
+      };
+    });
+    return (
+      <DecisionResult
+        label={
+          input.status === "cancelled"
+            ? t.inputCancelled
+            : input.status === "timed-out"
+              ? t.timedOut
+              : t.answered
+        }
+        answer={summaries.map((item) => item.label).join(" · ")}
+      >
+        {summaries.map((item, index) => (
+          <div key={index}>
+            <strong>{item.question}</strong>
+            <p>{item.label}</p>
+          </div>
+        ))}
+      </DecisionResult>
+    );
+  }
   return (
     <UserInputFrame
-      className={`user-input-card multi-question ${input.status}`}
+      className={`decision-card user-input-card multi-question ${input.status}`}
       label={input.header}
       state={
-        Object.keys(resolvingQuestions).length > 0
+        input.questions.some(
+          (question) =>
+            resolvingQuestions[question.questionId] &&
+            (input.answers[question.questionId]?.status ?? "pending") ===
+              "pending",
+        )
           ? "busy"
-          : input.status === "timed-out"
-            ? "timeout"
-            : input.status
+          : input.status
       }
     >
       <header>
-        <span aria-hidden="true" className="user-input-mark">
-          <ArtemisIcon
-            className="icon"
-            name="approval-ask"
-            width={18}
-            height={18}
-          />
-        </span>
-        <div className="user-input-heading">
-          <small className="user-input-eyebrow">{input.header}</small>
-          <strong className="user-input-question" data-part="question">
+        <strong data-part="question">
+          {currentQuestion?.question ?? input.header}
+        </strong>
+        <div className="decision-question-meta">
+          <span className="decision-question-progress">
             {fill(t.questionProgress, {
               index: activeQuestionIndex + 1,
               count: questionCount,
             })}
-          </strong>
-        </div>
-        {input.status === "pending" && currentQuestion && (
-          <span className="user-input-status">
-            <span>{t.waitingSelection}</span>
-            <time
-              aria-label={t.timeoutHint}
-              className="user-input-timeout"
-              dateTime={currentQuestion.expiresAt}
-              title={t.timeoutHint}
-            >
-              {formatUserInputCountdown(
-                Date.parse(currentQuestion.expiresAt) - clock,
-              )}
-            </time>
           </span>
-        )}
+          {input.status === "pending" && currentQuestion && (
+            <span className="decision-waiting">
+              <time
+                aria-label={t.timeoutHint}
+                className="user-input-timeout"
+                dateTime={currentQuestion.expiresAt}
+                title={t.timeoutHint}
+              >
+                {formatUserInputCountdown(
+                  Date.parse(currentQuestion.expiresAt) - clock,
+                )}
+              </time>
+            </span>
+          )}
+        </div>
       </header>
       <div className="user-question-progress">
         <div
@@ -665,6 +466,9 @@ export function MultiQuestionUserInputCard({
       <div className="user-question-track">
         {input.questions.map((question, index) => (
           <QuestionSlide
+            locale={locale}
+            error={Boolean(errors[question.questionId])}
+            onSkip={() => void resolveQuestion(question, { skipped: true })}
             answer={input.answers[question.questionId]}
             busy={Boolean(resolvingQuestions[question.questionId])}
             current={index === activeQuestionIndex}

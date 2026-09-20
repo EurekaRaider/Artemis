@@ -46,7 +46,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
-import type { Static, TSchema } from "@sinclair/typebox";
+import type { TSchema } from "@sinclair/typebox";
 import { resolveWorkspacePath } from "@artemis/platform";
 import {
   AGENT_CONCURRENCY_FALLBACK,
@@ -68,7 +68,6 @@ import {
   type CustomAgentInstanceSnapshot,
   MAX_USER_INPUT_QUESTIONS,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
-  USER_INPUT_QUESTION_ID_MAX_LENGTH,
   PiAdapter,
   officeDocumentRequestSchema,
   type AgentPayload,
@@ -3725,29 +3724,9 @@ export class ArtemisAgentHost {
       },
     });
 
-    const singleQuestionUserInputParameters = Type.Object(
-      {
-        header: Type.String({
-          minLength: 1,
-          maxLength: 12,
-          description: "Short topic label for the choice card.",
-        }),
-        question: Type.String({ minLength: 1, maxLength: 1_000 }),
-        options: Type.Array(
-          Type.Object(
-            {
-              label: Type.String({ minLength: 1, maxLength: 80 }),
-              description: Type.String({ minLength: 1, maxLength: 240 }),
-              recommended: Type.Boolean(),
-            },
-            { additionalProperties: false },
-          ),
-          { minItems: 2, maxItems: 3 },
-        ),
-      },
-      { additionalProperties: false },
-    );
-    const multiQuestionUserInputParameters = Type.Object(
+    // Tool APIs need a root object with properties; a top-level union is
+    // rejected by some providers and loses its branches in Pi's Anthropic path.
+    const userInputParameters = Type.Object(
       {
         header: Type.String({
           minLength: 1,
@@ -3757,11 +3736,6 @@ export class ArtemisAgentHost {
         questions: Type.Array(
           Type.Object(
             {
-              questionId: Type.String({
-                minLength: 1,
-                maxLength: USER_INPUT_QUESTION_ID_MAX_LENGTH,
-                description: "Stable question id, unique across this call.",
-              }),
               question: Type.String({ minLength: 1, maxLength: 1_000 }),
               options: Type.Array(
                 Type.Object(
@@ -3771,7 +3745,13 @@ export class ArtemisAgentHost {
                       minLength: 1,
                       maxLength: 240,
                     }),
-                    recommended: Type.Boolean(),
+                    recommended: Type.Optional(
+                      Type.Boolean({
+                        default: false,
+                        description:
+                          "Mark exactly one option in each question true. Omitted means false.",
+                      }),
+                    ),
                   },
                   { additionalProperties: false },
                 ),
@@ -3780,122 +3760,61 @@ export class ArtemisAgentHost {
             },
             { additionalProperties: false },
           ),
-          { minItems: 1, maxItems: MAX_USER_INPUT_QUESTIONS },
+          {
+            minItems: 1,
+            maxItems: MAX_USER_INPUT_QUESTIONS,
+            description:
+              "One to three single-choice questions, answered in order. Use a one-item array for a single question.",
+          },
         ),
       },
       { additionalProperties: false },
     );
-    type SingleQuestionUserInputCall = Static<
-      typeof singleQuestionUserInputParameters
-    >;
-    type MultiQuestionUserInputCall = Static<
-      typeof multiQuestionUserInputParameters
-    >;
-    // Third validation layer (schema branches are mutually exclusive, but a
-    // direct execute call bypasses schema validation): route on the actual
-    // questions array, mirroring the consumer's value-based routing in
-    // user-input-policy.ts (isMultiQuestionUserInputRequest).
-    const isMultiQuestionUserInputCall = (
-      params: SingleQuestionUserInputCall | MultiQuestionUserInputCall,
-    ): params is MultiQuestionUserInputCall =>
-      Array.isArray((params as { questions?: unknown }).questions);
-
     const requestUserInputTool = defineTool({
       name: "request_user_input",
       label: "Ask the user",
       description:
-        "Pause for user decisions. Ask one focused question or a group of up to three closely related questions per call, each with two or three mutually exclusive options and exactly one option per question marked as recommended. Use this for requirement, design, or workflow decisions, never for execution approval. The desktop shows the choices on one card and selects each recommended option after five minutes without an answer.",
-      parameters: Type.Union([
-        singleQuestionUserInputParameters,
-        multiQuestionUserInputParameters,
-      ]),
+        "Pause for user decisions. Always supply a questions array containing one focused question or up to three closely related questions, each with two or three mutually exclusive options and exactly one option per question marked as recommended. The user answers one single-choice question at a time. Use this for requirement, design, or workflow decisions, never for execution approval. The desktop may select each recommended option after five minutes without an answer.",
+      parameters: userInputParameters,
       execute: async (_toolCallId, params) => {
         const hosted = this.threads.get(request.threadId);
         if (!hosted?.currentTurnId || !hosted.currentMode) {
           throw new Error("No active turn is available for user input.");
         }
-        if (isMultiQuestionUserInputCall(params)) {
-          if ("question" in params) {
-            throw new Error(
-              "User input accepts either question or questions, not both.",
-            );
-          }
-          const questions = params.questions.map((question) => ({
-            questionId: question.questionId.trim(),
-            question: question.question.trim(),
-            options: question.options.map((option) => ({
-              label: option.label.trim(),
-              description: option.description.trim(),
-              recommended: option.recommended,
-            })),
-          }));
-          const questionIds = questions.map((question) => question.questionId);
-          const invalidQuestion =
-            questions.length < 1 ||
-            questions.length > MAX_USER_INPUT_QUESTIONS ||
-            questions.some(
-              (question) =>
-                !question.questionId ||
-                !question.question ||
-                question.options.length < 2 ||
-                question.options.length > 3 ||
-                question.options.some(
-                  (option) => !option.label || !option.description,
-                ) ||
-                question.options.filter((option) => option.recommended)
-                  .length !== 1 ||
-                new Set(question.options.map((option) => option.label)).size !==
-                  question.options.length,
-            ) ||
-            new Set(questionIds).size !== questions.length;
-          if (invalidQuestion) {
-            throw new Error(
-              "Multi-question user input requires one to three unique questions with unique, non-empty options and exactly one recommendation each.",
-            );
-          }
-          const turnId = hosted.currentTurnId;
-          const mode = hosted.currentMode;
-          const result = await this.serializeUserInput(request.threadId, () => {
-            const active = this.threads.get(request.threadId);
-            if (active?.currentTurnId !== turnId) {
-              throw new Error("The turn ended before this question was shown.");
-            }
-            return this.broker.request({
-              kind: "user.input",
-              approvalId: randomUUID(),
-              threadId: request.threadId,
-              turnId,
-              workspacePath: request.workspacePath,
-              header: params.header.trim(),
-              questions,
-              mode,
-            });
-          });
-          if (!result.approved) {
-            throw new Error(result.error ?? "User input was cancelled.");
-          }
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(result.data ?? {}, null, 2),
-              },
-            ],
-            details: result.data,
-          };
+        if ("question" in params || "options" in params) {
+          throw new Error("User input accepts a questions array.");
         }
-        const options = params.options.map((option) => ({
-          label: option.label.trim(),
-          description: option.description.trim(),
-          recommended: option.recommended,
+        const header = params.header.trim();
+        const questions = params.questions.map((question, index) => ({
+          // IDs belong to this request, not to the model's response format.
+          questionId: `q${index + 1}`,
+          question: question.question.trim(),
+          options: question.options.map((option) => ({
+            label: option.label.trim(),
+            description: option.description.trim(),
+            recommended: option.recommended ?? false,
+          })),
         }));
         if (
-          options.some((option) => !option.label || !option.description) ||
-          options.filter((option) => option.recommended).length !== 1 ||
-          new Set(options.map((option) => option.label)).size !== options.length
+          !header ||
+          questions.length < 1 ||
+          questions.length > MAX_USER_INPUT_QUESTIONS ||
+          questions.some(
+            (question) =>
+              !question.question ||
+              question.options.length < 2 ||
+              question.options.length > 3 ||
+              question.options.some(
+                (option) => !option.label || !option.description,
+              ) ||
+              question.options.filter((option) => option.recommended).length !==
+                1 ||
+              new Set(question.options.map((option) => option.label)).size !==
+                question.options.length,
+          )
         ) {
           throw new Error(
-            "User input requires unique, non-empty options and exactly one recommendation.",
+            "User input requires a non-empty header and one to three non-empty questions with two or three unique, non-empty options and exactly one recommendation each.",
           );
         }
         const turnId = hosted.currentTurnId;
@@ -3911,9 +3830,13 @@ export class ArtemisAgentHost {
             threadId: request.threadId,
             turnId,
             workspacePath: request.workspacePath,
-            header: params.header.trim(),
-            question: params.question.trim(),
-            options,
+            header,
+            ...(questions.length === 1
+              ? {
+                  question: questions[0]!.question,
+                  options: questions[0]!.options,
+                }
+              : { questions }),
             mode,
           });
         });

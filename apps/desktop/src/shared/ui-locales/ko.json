@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "모델 업데이트됨",
   "SettingsPanel_labels.modelUpdatedDetail": "모델 설정과 입력한 API 키를 저장했습니다.",
   "SettingsPanel_labels.sharedApiKey": "이 공급자의 모든 모델은 API 키를 공유합니다. 비워 두면 저장된 키가 유지됩니다.",
-  "SettingsPanel_labels.confirmDelete": "삭제 확인"
+  "SettingsPanel_labels.confirmDelete": "삭제 확인",
+  "DecisionCard.skip": "건너뛰기",
+  "DecisionCard.skipped": "건너뜀",
+  "DecisionCard.submit": "보내기",
+  "DecisionCard.other": "기타: 답변 입력…",
+  "DecisionCard.feedback": "Artemis에 변경할 내용을 알려주세요…",
+  "DecisionCard.feedbackSent": "의견 전송됨",
+  "DecisionCard.failed": "제출하지 못했습니다. 다시 시도하세요.",
+  "DecisionCard.allowedOnce": "이번만 허용됨",
+  "DecisionCard.allowedSession": "이 세션에서 허용됨",
+  "DecisionCard.allowedProject": "이 프로젝트에서 허용됨"
 }

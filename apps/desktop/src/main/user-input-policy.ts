@@ -23,6 +23,7 @@ interface PendingUserInput<T> {
 export interface ResolvedUserInput<T> {
   value: T;
   answer: string;
+  skipped?: true;
   selectedOption?: number;
 }
 
@@ -80,9 +81,17 @@ export class PendingUserInputRegistry<T> {
       throw new Error("User-input nonce does not match.");
     }
 
+    if (
+      resolution.skipped &&
+      (resolution.selectedOption !== undefined ||
+        resolution.customAnswer !== undefined)
+    )
+      throw new Error("Skip cannot include an answer.");
     let answer: string;
     let selectedOption: number | undefined;
-    if (resolution.selectedOption !== undefined) {
+    if (resolution.skipped) {
+      answer = "";
+    } else if (resolution.selectedOption !== undefined) {
       const selected = input.options[resolution.selectedOption];
       if (!selected)
         throw new Error("Selected user-input option was not offered.");
@@ -98,6 +107,7 @@ export class PendingUserInputRegistry<T> {
     return {
       value: input.value,
       answer,
+      ...(resolution.skipped ? { skipped: true as const } : {}),
       ...(selectedOption === undefined ? {} : { selectedOption }),
     };
   }
@@ -141,12 +151,14 @@ export interface MultiUserInputQuestionResolution {
   questionId: string;
   selectedOptionLabel?: string;
   customAnswer?: string;
+  skipped?: true;
   source: "user" | "timeout";
 }
 
 export interface AnsweredMultiUserInputQuestion {
   questionId: string;
   answer: string;
+  skipped?: true;
   selectedOptionLabel?: string;
   customAnswer?: string;
   // Per-question provenance so the aggregated broker backfill can tell a
@@ -157,6 +169,7 @@ export interface AnsweredMultiUserInputQuestion {
 export interface ResolvedMultiUserInputQuestion<T> {
   questionId: string;
   answer: string;
+  skipped?: true;
   selectedOptionLabel?: string;
   customAnswer?: string;
   value: T;
@@ -284,8 +297,10 @@ export class PendingMultiUserInputRegistry<T> {
     // runs before any state change, so a refused answer leaves the entry
     // pending and the question retryable.
     if (
-      (resolution.selectedOptionLabel !== undefined) ===
-      (resolution.customAnswer !== undefined)
+      Number(resolution.selectedOptionLabel !== undefined) +
+        Number(resolution.customAnswer !== undefined) +
+        Number(resolution.skipped === true) !==
+      1
     ) {
       throw new Error(
         "Resolve one user-input question with one offered option label or one custom answer.",
@@ -293,7 +308,14 @@ export class PendingMultiUserInputRegistry<T> {
     }
 
     let answered: AnsweredMultiUserInputQuestion;
-    if (resolution.selectedOptionLabel !== undefined) {
+    if (resolution.skipped) {
+      answered = {
+        questionId: question.questionId,
+        answer: "",
+        skipped: true,
+        source: resolution.source,
+      };
+    } else if (resolution.selectedOptionLabel !== undefined) {
       const selected = question.options.find(
         (option) => option.label === resolution.selectedOptionLabel,
       );
@@ -340,6 +362,7 @@ export class PendingMultiUserInputRegistry<T> {
     return {
       questionId: answered.questionId,
       answer: answered.answer,
+      ...(answered.skipped ? { skipped: true as const } : {}),
       ...(answered.selectedOptionLabel === undefined
         ? {}
         : { selectedOptionLabel: answered.selectedOptionLabel }),

@@ -1465,5 +1465,15 @@
   "SettingsPanel_labels.modelUpdated": "تم تحديث النموذج",
   "SettingsPanel_labels.modelUpdatedDetail": "تم حفظ إعدادات النموذج وأي مفتاح API تم إدخاله.",
   "SettingsPanel_labels.sharedApiKey": "تستخدم جميع نماذج هذا المزوّد مفتاح API نفسه. اترك الحقل فارغًا للاحتفاظ بالمفتاح المحفوظ.",
-  "SettingsPanel_labels.confirmDelete": "تأكيد الحذف"
+  "SettingsPanel_labels.confirmDelete": "تأكيد الحذف",
+  "DecisionCard.skip": "تخطي",
+  "DecisionCard.skipped": "تم التخطي",
+  "DecisionCard.submit": "إرسال",
+  "DecisionCard.other": "أخرى: أدخل إجابتك…",
+  "DecisionCard.feedback": "أخبر Artemis بما يجب تغييره…",
+  "DecisionCard.feedbackSent": "تم إرسال الملاحظات",
+  "DecisionCard.failed": "تعذر الإرسال. حاول مجددًا.",
+  "DecisionCard.allowedOnce": "مسموح لمرة واحدة",
+  "DecisionCard.allowedSession": "مسموح لهذه الجلسة",
+  "DecisionCard.allowedProject": "مسموح لهذا المشروع"
 }
