@@ -1528,6 +1528,10 @@ export function App() {
       }
     >(),
   );
+  // Highest turn count ever derived per thread. Cross-switch cache pollution
+  // can shrink a derivation below what this thread already rendered; the
+  // memo re-derives from raw inputs whenever that watermark is exceeded.
+  const turnWatermarks = useRef(new Map<string, number>());
 
   const locale: Locale = snapshot?.locale ?? "en";
   const t = appCopy(locale);
@@ -3500,7 +3504,12 @@ export function App() {
               : current,
           );
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error(
+            "[thread-history] history page load failed",
+            threadId,
+            error instanceof Error ? error.message : String(error),
+          );
           setHistoryLoadErrors((current) => ({
             ...current,
             [threadId]: true,
@@ -3527,7 +3536,12 @@ export function App() {
           };
         });
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error(
+          "[thread-history] thread events load failed",
+          threadId,
+          error instanceof Error ? error.message : String(error),
+        );
         setHistoryLoadErrors((current) => ({
           ...current,
           [threadId]: true,
@@ -3658,6 +3672,37 @@ export function App() {
             ),
           )
         : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
+    // Guard against cross-switch derivation regressions (blank or shrunken
+    // timelines): if this thread rendered more turns before, re-derive once
+    // from the raw history page + events instead of trusting the incremental
+    // or cached path.
+    const turnWatermark =
+      cached?.history === activeHistory
+        ? (turnWatermarks.current.get(activeThread.id) ?? 0)
+        : 0;
+    let guardedState = state;
+    if (state.order.length < turnWatermark) {
+      guardedState = activeHistory
+        ? reduceAgentEventBatch(
+            activeHistory.state,
+            activeEvents.filter(
+              (event) => event.seq > activeHistory.state.lastSeq,
+            ),
+          )
+        : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
+      if (guardedState.order.length < turnWatermark) {
+        console.error(
+          "[thread-history] derived turns regressed below the session watermark",
+          activeThread.id,
+          turnWatermark,
+          guardedState.order.length,
+        );
+      }
+    }
+    turnWatermarks.current.set(
+      activeThread.id,
+      Math.max(turnWatermark, guardedState.order.length),
+    );
     threadStateCache.current.delete(activeThread.id);
     threadStateCache.current.set(activeThread.id, {
       ...(activeHistory ? { history: activeHistory } : {}),
@@ -3666,15 +3711,18 @@ export function App() {
         ? { lastEventId: activeEvents.at(-1)!.eventId }
         : {}),
       mode: activeThread.mode,
-      state,
+      state: guardedState,
     });
     if (threadStateCache.current.size > 8) {
       const oldestThreadId = threadStateCache.current.keys().next().value;
-      if (oldestThreadId) threadStateCache.current.delete(oldestThreadId);
+      if (oldestThreadId) {
+        threadStateCache.current.delete(oldestThreadId);
+        turnWatermarks.current.delete(oldestThreadId);
+      }
     }
     const liveActivities = liveChildActivities[activeThread.id];
-    if (!liveActivities) return state;
-    const childAgents = { ...state.childAgents };
+    if (!liveActivities) return guardedState;
+    const childAgents = { ...guardedState.childAgents };
     for (const [agentId, live] of Object.entries(liveActivities)) {
       const current = childAgents[agentId];
       if (!current) continue;
@@ -3704,7 +3752,7 @@ export function App() {
       }
       childAgents[agentId] = merged;
     }
-    return { ...state, childAgents };
+    return { ...guardedState, childAgents };
   }, [
     activeEvents,
     activeHistory,
@@ -11196,7 +11244,7 @@ export function Timeline({
           key={`${state.threadId}:${turn.id}`}
           cacheKey={`${state.threadId}:${turn.id}`}
           active={turn.status === "running"}
-          initialVisible={turnIndex >= groupedTimeline.turns.length - 8}
+          initialVisible={turnIndex >= groupedTimeline.turns.length - 12}
         >
           {() => {
             if (turn.status !== "completed") {
