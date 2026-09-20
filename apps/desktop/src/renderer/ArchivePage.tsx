@@ -8,6 +8,7 @@ import { SearchField } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 import archiveHeaderIcon from "./assets/archive-header-icon.png";
+import archiveEmptyIcon from "./assets/archive-empty-icon.png";
 
 import {
   promptWithoutSelectedSkills,
@@ -171,7 +172,13 @@ export function ArchivePage({
                   ? t.archiveNoResultsDescription
                   : t.archiveEmptyDescription
               }
-              icon={<ArtemisIcon name="archive" />}
+              icon={
+                <img
+                  className="archive-empty-artwork"
+                  src={archiveEmptyIcon}
+                  alt=""
+                />
+              }
               title={
                 isSearching ? t.archiveNoResultsTitle : t.archiveEmptyTitle
               }

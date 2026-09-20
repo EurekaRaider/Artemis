@@ -263,7 +263,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     ],
     [".workspace-tab-menu svg", 17],
     [".sources-panel-icon svg", 16],
-    ['.archive-empty [data-part="icon"] svg', 23],
+    [".archive-empty-artwork", 64],
   ];
 
   it.each(PROTOTYPE_RULES)(

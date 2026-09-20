@@ -1,6 +1,7 @@
 import { statusText } from "../shared/status-text.js";
 import { makeUiCopy } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
+import automationHeaderIcon from "./assets/automation-header-icon.png";
 import { Temporal } from "@js-temporal/polyfill";
 import {
   createAutomationViewState,
@@ -658,9 +659,11 @@ export function AutomationPage(props: {
           </Button>
         }
         leading={
-          <span className="secondary-page-icon">
-            <ArtemisIcon name="automation" width={19} height={19} />
-          </span>
+          <img
+            className="automation-header-artwork"
+            src={automationHeaderIcon}
+            alt=""
+          />
         }
         className="automation-header"
         description={t.subtitle}
