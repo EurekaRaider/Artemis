@@ -1722,7 +1722,7 @@ export function ResourceCenter({
           </div>
         </div>
         <div className="plugin-market-copy">
-          <small>{description}</small>
+          <small title={description}>{description}</small>
           {diagnostic && (
             <InlineNotice className="plugin-market-diagnostic" tone="warning">
               {pluginPageText(diagnostic)}

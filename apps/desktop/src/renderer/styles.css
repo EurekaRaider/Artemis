@@ -8531,6 +8531,7 @@ button.sources-panel-entry.attachment:focus-visible {
 .plugin-market-card > [data-part="content"] {
   align-items: stretch;
   display: flex;
+  flex: 1;
   gap: 7px;
   grid-template-columns: 39px minmax(0, 1fr) auto;
   min-height: 150px;
@@ -12430,6 +12431,9 @@ kbd {
   border: 1px solid var(--artemis-color-border-subtle);
   border-radius: 12px;
   background: var(--artemis-color-surface-base);
+  /* 卡片本身撑满网格行高，内容区跟随填满，底部按钮行始终贴底。 */
+  display: flex;
+  flex-direction: column;
 }
 
 .plugin-market-card-heading {
@@ -12481,6 +12485,11 @@ kbd {
   line-height: 1.5;
   margin: 0;
   overflow-wrap: anywhere;
+  /* 说明固定最多 3 行，超出省略；完整内容见 hover 浮窗（title）。 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .plugin-market-card-footer {
