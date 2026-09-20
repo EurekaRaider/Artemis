@@ -17952,222 +17952,65 @@ function createMainWindow(): BrowserWindow {
                       trigger.click();
                       await wait(300);
                     }
-                    if (view !== 'environment-feedback-approval') {
-                      const completedTurnDetails = document.querySelector(
-                        '.timeline-scroll details.turn-execution-details',
-                      );
-                      if (
-                        completedTurnDetails instanceof HTMLDetailsElement &&
-                        !completedTurnDetails.open
-                      ) {
-                        const summary = completedTurnDetails.querySelector(
-                          ':scope > summary',
-                        );
-                        if (!(summary instanceof HTMLElement)) {
-                          throw new Error(
-                            'Completed turn execution disclosure missing.',
-                          );
-                        }
-                        summary.click();
-                        await wait(350);
-                      }
+                    const pending = view === 'environment-feedback-approval';
+                    const completed = document.querySelector('.timeline-scroll details.turn-execution-details');
+                    if (!pending && completed instanceof HTMLDetailsElement && !completed.open) {
+                      completed.querySelector(':scope > summary')?.click();
+                      await wait(350);
                     }
-                    const approvalSelector = view === 'environment-feedback-approval'
-                      ? '.approval-card[data-artemis-component="approval-card"]'
-                      : '.approval-card[data-artemis-component="result-disclosure"]';
-                    const approvalDeadline = Date.now() + 8_000;
-                    while (
-                      !document.querySelector(approvalSelector) &&
-                      Date.now() < approvalDeadline
-                    ) {
+                    const selector = pending ? '.composer-decision .approval-decision' : '.timeline-scroll .decision-result';
+                    const deadline = Date.now() + 8_000;
+                    while (!document.querySelector(selector) && Date.now() < deadline) await wait(100);
+                    const cards = [...document.querySelectorAll(selector)];
+                    if (!cards.length) throw new Error('Approval decision surface missing.');
+                    const reachable = async (element, scroll) => {
+                      if (!(element instanceof HTMLElement) || !(scroll instanceof HTMLElement)) return false;
+                      element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
                       await wait(100);
-                    }
-                    if (view !== 'environment-feedback-approval') {
-                      const disclosure = document.querySelector(
-                        '.approval-card[data-artemis-component="result-disclosure"]',
-                      );
-                      const disclosureButton = disclosure?.querySelector(
-                        '[data-part="disclosure"]',
-                      );
-                      if (
-                        !(disclosure instanceof HTMLElement) ||
-                        !(disclosureButton instanceof HTMLButtonElement)
-                      ) {
-                        throw new Error(
-                          'Public resolved approval ResultDisclosure missing.',
-                        );
-                      }
-                      const timelineScroll = disclosure.closest('.timeline-scroll');
-                      if (!(timelineScroll instanceof HTMLElement)) {
-                        throw new Error(
-                          'Resolved approval timeline scroll container missing.',
-                        );
-                      }
-                      disclosure.scrollIntoView({
-                        block: 'start',
-                        inline: 'nearest',
-                      });
-                      await wait(350);
-                      const collapsedBounds =
-                        disclosureButton.getBoundingClientRect();
-                      const collapsedScrollBounds =
-                        timelineScroll.getBoundingClientRect();
-                      const collapsedVisible =
-                        collapsedBounds.top >= collapsedScrollBounds.top - 1 &&
-                        collapsedBounds.bottom <=
-                          collapsedScrollBounds.bottom + 1;
-                      disclosureButton.click();
-                      await wait(350);
-                      const content = disclosure.querySelector(
-                        '[data-part="content"]',
-                      );
-                      const expandedEndTarget =
-                        disclosure.querySelector(
-                          '.approval-group-list > li:last-child',
-                        ) ?? content;
-                      expandedEndTarget?.scrollIntoView({
-                        block: 'end',
-                        inline: 'nearest',
-                      });
-                      await wait(350);
-                      const expandedScrollBounds =
-                        timelineScroll.getBoundingClientRect();
-                      const contentBounds =
-                        expandedEndTarget?.getBoundingClientRect();
-                      const groupItems = disclosure.querySelectorAll(
-                        '.approval-group-list > li',
-                      ).length;
-                      window.__approvalDisclosureVerification = {
-                        atScrollEnd:
-                          Math.abs(
-                            timelineScroll.scrollTop -
-                              (timelineScroll.scrollHeight -
-                                timelineScroll.clientHeight),
-                          ) <= 1,
-                        collapsedVisible,
-                        collapsedGeometry: {
-                          bottom: collapsedBounds.bottom,
-                          top: collapsedBounds.top,
-                        },
-                        collapsedScrollGeometry: {
-                          bottom: collapsedScrollBounds.bottom,
-                          top: collapsedScrollBounds.top,
-                        },
-                        contentVisible:
-                          content instanceof HTMLElement && !content.hidden,
-                        expanded:
-                          disclosure.getAttribute('data-expanded') === 'true',
-                        expandedEndVisible:
-                          contentBounds instanceof DOMRect &&
-                          contentBounds.bottom <=
-                            expandedScrollBounds.bottom + 1 &&
-                          contentBounds.bottom >= expandedScrollBounds.top - 1,
-                        expandedEndGeometry:
-                          contentBounds instanceof DOMRect
-                            ? {
-                                bottom: contentBounds.bottom,
-                                top: contentBounds.top,
-                              }
-                            : null,
-                        expandedScrollGeometry: {
-                          bottom: expandedScrollBounds.bottom,
-                          top: expandedScrollBounds.top,
-                        },
-                        groupItems,
-                        state: disclosure.getAttribute('data-state'),
-                        timelineScrollable:
-                          timelineScroll.scrollHeight >
-                          timelineScroll.clientHeight,
-                      };
-                      return;
-                    }
-                    const approvalCard = document.querySelector(
-                      '.approval-card[data-artemis-component="approval-card"]',
-                    );
-                    if (!approvalCard) {
-                      throw new Error('Public pending ApprovalCard missing.');
-                    }
-                    const timelineScroll = approvalCard.closest('.timeline-scroll');
-                    const actions = approvalCard.querySelector(
-                      '[data-part="actions"]',
-                    );
-                    if (
-                      !(timelineScroll instanceof HTMLElement) ||
-                      !(actions instanceof HTMLElement)
-                    ) {
-                      throw new Error(
-                        'Pending approval scroll contract is incomplete.',
-                      );
-                    }
-                    const withinTimeline = (element) => {
-                      const bounds = element.getBoundingClientRect();
-                      const timelineBounds =
-                        timelineScroll.getBoundingClientRect();
-                      return (
-                        bounds.left >= timelineBounds.left - 1 &&
-                        bounds.right <= timelineBounds.right + 1 &&
-                        bounds.top >= timelineBounds.top - 1 &&
-                        bounds.bottom <= timelineBounds.bottom + 1
-                      );
+                      const box = element.getBoundingClientRect();
+                      const viewport = scroll.getBoundingClientRect();
+                      return box.width > 0 && box.height > 0 &&
+                        box.left >= viewport.left - 1 && box.right <= viewport.right + 1 &&
+                        box.top >= viewport.top - 1 && box.bottom <= viewport.bottom + 1 &&
+                        element.scrollWidth <= element.clientWidth + 1;
                     };
-                    const securityParts = [
-                      'title',
-                      'description',
-                      'status',
-                      'reason',
-                    ].map((part) =>
-                      approvalCard.querySelector('[data-part="' + part + '"]'),
-                    );
-                    if (securityParts.some((part) => !(part instanceof HTMLElement))) {
-                      throw new Error(
-                        'Pending approval security content is incomplete.',
-                      );
-                    }
-                    const scrollUntilVisible = async (target, block, parts) => {
-                      // Timeline measurement can reposition a newly mounted card.
-                      // Require stable visible geometry after scrolling, rather
-                      // than sampling once during that layout adjustment.
-                      let stableSamples = 0;
-                      const deadline = performance.now() + 5_000;
-                      while (performance.now() < deadline) {
-                        target.scrollIntoView({ block, behavior: 'instant' });
+                    const checks = [];
+                    if (pending) {
+                      const card = cards[0];
+                      const scroll = card.closest('.composer-decision');
+                      const parts = ['header strong', '.decision-command', '.decision-waiting', '.decision-reason'];
+                      for (const selector of parts) {
+                        const part = card.querySelector(selector);
+                        checks.push({ name: 'security-reachable-' + selector, pass: await reachable(part, scroll) });
+                        if (selector !== '.decision-waiting') checks.push({ name: 'bidi-' + selector, pass: !!part?.querySelector('bdi') });
+                      }
+                      const options = [...card.querySelectorAll('.decision-option')];
+                      checks.push({ name: 'approval-options-present', pass: options.length >= 2 });
+                      for (const option of options) {
+                        option.focus();
+                        checks.push({ name: 'approval-option-reachable', pass: document.activeElement === option && await reachable(option, scroll) });
+                      }
+                      checks.push({ name: 'feedback-reachable', pass: await reachable(card.querySelector('.decision-reply input'), scroll) });
+                      const command = card.querySelector('.decision-command');
+                      checks.push({ name: 'security-before-actions', pass: !!command && !!options[0] && command.getBoundingClientRect().bottom <= options[0].getBoundingClientRect().top + 1 });
+                      card.scrollIntoView({ block: 'start' });
+                      if (scroll) scroll.scrollTop = 0;
+                    } else {
+                      for (const card of cards) {
+                        const scroll = card.closest('.timeline-scroll');
+                        const summary = card.querySelector(':scope > summary');
+                        checks.push({ name: 'native-collapsed-result', pass: card instanceof HTMLDetailsElement && !card.open });
+                        checks.push({ name: 'result-summary-reachable', pass: await reachable(summary, scroll) });
+                        summary?.click();
                         await wait(100);
-                        stableSamples = parts.every(withinTimeline)
-                          ? stableSamples + 1
-                          : 0;
-                        if (stableSamples >= 3) return true;
+                        checks.push({ name: 'native-result-expanded', pass: card instanceof HTMLDetailsElement && card.open });
+                        const detail = card.querySelector('.decision-result-detail');
+                        const parts = detail ? [...detail.children] : [];
+                        checks.push({ name: 'result-details-present', pass: parts.length > 0 });
+                        for (const part of parts) checks.push({ name: 'result-detail-reachable', pass: await reachable(part, scroll) });
                       }
-                      return false;
-                    };
-                    const securityVisibleAtStart = await scrollUntilVisible(
-                      approvalCard, 'start', securityParts,
-                    );
-                    const actionsVisibleAtEnd = await scrollUntilVisible(
-                      actions, 'end', [actions],
-                    );
-                    const securityBottom = Math.max(
-                      ...securityParts.map(
-                        (part) => part.getBoundingClientRect().bottom,
-                      ),
-                    );
-                    const actionsTop = actions.getBoundingClientRect().top;
-                    window.__approvalScrollVerification = {
-                      actionsVisibleAtEnd,
-                      dynamicCopyBidiIsolated: [
-                        'title',
-                        'description',
-                        'reason',
-                      ].every((part) =>
-                        approvalCard
-                          .querySelector('[data-part="' + part + '"]')
-                          ?.querySelector('bdi'),
-                      ),
-                      securityAndActionsDoNotOverlap:
-                        securityBottom <= actionsTop + 1,
-                      securityVisibleAtStart,
-                    };
-                    approvalCard.scrollIntoView({ block: 'start' });
-                    await wait(350);
+                    }
+                    window.__decisionApprovalVerification = { count: cards.length, checks };
                     return;
                   }
                   if (view === 'environment-sources' || view === 'environment-sources-image') {
@@ -21061,6 +20904,8 @@ function createMainWindow(): BrowserWindow {
                       direction: document.documentElement.dir,
                       interaction:
                         window.__feedbackLayoutInteraction ?? null,
+                      decisionApprovalVerification:
+                        window.__decisionApprovalVerification ?? null,
                       approvalScrollVerification:
                         window.__approvalScrollVerification ?? null,
                       approvalDisclosureVerification:

@@ -337,6 +337,51 @@ try {
       feedbackLayout?.rootTokens ?? null,
       "non-empty semantic overlay tokens",
     );
+    if (testCase.context === "approval") {
+      const evidence = feedbackLayout.decisionApprovalVerification;
+      const expectedCount = testCase.expectedGroupCount || 1;
+      assert(
+        "approval-decision-count",
+        evidence?.count === expectedCount,
+        evidence?.count,
+        expectedCount,
+      );
+      assert(
+        "approval-interaction-evidence",
+        evidence?.checks?.length > 0,
+        evidence,
+        "nonempty interaction checks",
+      );
+      for (const check of evidence.checks) {
+        assert(check.name, check.pass === true, check, true);
+      }
+      assert(
+        "workspace-label-fully-visible",
+        feedbackLayout.workspaceLabel?.text === "Artemis" &&
+          feedbackLayout.workspaceLabel?.contentFitsInline === true &&
+          feedbackLayout.workspaceLabel?.fullyVisible === true &&
+          feedbackLayout.workspaceLabel?.textFullyVisible === true,
+        feedbackLayout.workspaceLabel,
+        "complete Artemis workspace label",
+      );
+      results.push({
+        assertions,
+        caseId: testCase.caseId,
+        candidateHead,
+        component:
+          testCase.view === "environment-feedback-approval"
+            ? "decision-approval"
+            : "decision-result",
+        context: testCase.context,
+        direction: testCase.direction,
+        reducedMotion: testCase.reducedMotion,
+        scale: testCase.scale,
+        screenshotBytes,
+        theme: testCase.theme,
+        view: testCase.view,
+      });
+      continue;
+    }
     const found = feedbackLayout?.components?.find(
       (candidate) =>
         candidate.component === testCase.component &&
