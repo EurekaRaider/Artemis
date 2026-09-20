@@ -191,7 +191,7 @@ it("removes direct-chat grants and keeps the group authorization entry", async (
   render(<ImSettingsPanel locale="zh-CN" />);
   await panelReady();
   expect(screen.queryByRole("button", { name: /单聊项目授权/ })).toBeNull();
-  expect(screen.getByRole("button", { name: /群聊项目授权/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /群协作项目授权/ })).toBeVisible();
 });
 /* 渠道行下钻：先等面板加载完（原 openCard 的 findByRole 等待语义）。 */
 const openChannel = async (
@@ -215,7 +215,7 @@ const platformState = (channel: keyof typeof platformLabels) =>
 /* 两栏版：群协作=IM 渠道第三卡，点击下钻群协作详情（带返回）。 */
 const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
   await panelReady();
-  await user.click(screen.getByRole("button", { name: /^群聊项目授权/ }));
+  await user.click(screen.getByRole("button", { name: /^群协作项目授权/ }));
   expect(
     screen.getByRole("button", { name: "返回", exact: true }),
   ).toBeVisible();
@@ -1426,7 +1426,7 @@ describe("production IM settings", () => {
     ).not.toBeInTheDocument();
     expect(document.getElementById("im-prepare")).toBeVisible();
     /* 卡片行可键盘下钻。 */
-    const projects = screen.getByRole("button", { name: /^群聊项目授权/ });
+    const projects = screen.getByRole("button", { name: /^群协作项目授权/ });
     projects.focus();
     await user.keyboard("{Enter}");
     expect(
@@ -1771,12 +1771,12 @@ describe("pairing code lifecycle", () => {
       screen.queryByRole("button", { name: "设置群协作" }),
     ).not.toBeInTheDocument();
     await user.click(
-      await screen.findByRole("button", { name: /^群聊项目授权/ }),
+      await screen.findByRole("button", { name: /^群协作项目授权/ }),
     );
     expect(
       screen.getByRole("button", { name: "返回", exact: true }),
     ).toBeVisible();
-    expect(screen.getByText("群聊项目授权")).toBeVisible();
+    expect(screen.getByText("群协作项目授权")).toBeVisible();
   });
   it("advances the honest test track from real task signals only", async () => {
     const f = fixture();
@@ -2057,7 +2057,7 @@ describe("single project authorization editor", () => {
     expect(screen.queryByText(/群协作成员/)).not.toBeInTheDocument();
     // 群协作入口已移至 IM 渠道第三卡：返回列表后下钻。
     await user.click(screen.getByRole("button", { name: "返回", exact: true }));
-    await user.click(screen.getByRole("button", { name: /^群聊项目授权/ }));
+    await user.click(screen.getByRole("button", { name: /^群协作项目授权/ }));
     await user.click(screen.getByRole("button", { name: /已发现的群/ }));
     await user.click(screen.getByRole("option", { name: "研发群 · Slack" }));
     expect(screen.getAllByRole("button", { name: "授权配置" })).toHaveLength(1);
