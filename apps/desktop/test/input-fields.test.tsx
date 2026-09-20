@@ -555,20 +555,160 @@ describe("settings management operation contract (MIG5A)", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "Edit: Synthetic Model" }),
       );
-      expect(screen.getByLabelText("Context length")).toHaveValue(64_000);
-      const keyInput = screen.getByLabelText("API key · synthetic-provider");
+      const editor = screen.getByRole("form", {
+        name: "Edit: Synthetic Model",
+      });
+      expect(editor.closest(".added-model-item")).toHaveTextContent(
+        "Synthetic Model",
+      );
+      expect(within(editor).getByLabelText("Context length")).toHaveValue(
+        64_000,
+      );
+      expect(within(editor).getByLabelText("Context length")).toHaveFocus();
+      const keyInput = within(editor).getByLabelText(
+        "API key · synthetic-provider",
+      );
       expect(keyInput).toHaveValue("");
       if (key) await userEvent.type(keyInput, key);
-      const save = screen.getByRole("button", { name: "Save changes" });
+      const save = within(editor).getByRole("button", { name: "Save changes" });
       expect(save).toHaveAttribute("data-variant", "primary");
       await userEvent.click(save);
       expect(addModel).toHaveBeenCalledExactlyOnceWith(saved, key || undefined);
+      expect(await screen.findByText("Model updated")).toBeVisible();
       expect(
-        await screen.findByRole("alertdialog", { name: "Model updated" }),
-      ).toBeVisible();
+        screen.queryByRole("form", { name: "Edit: Synthetic Model" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Edit: Synthetic Model" }),
+      ).toHaveFocus();
       expect(document.querySelectorAll(".added-model-row")).toHaveLength(1);
     },
   );
+
+  it.each(["button", "Escape"])(
+    "cancels inline edits with %s while preserving the add-model draft and returning focus",
+    async (cancelWith) => {
+      const saved = {
+        providerId: syntheticModel.providerId,
+        modelId: syntheticModel.modelId,
+        contextWindow: 64_000,
+      };
+      const initial = settingsSnapshot({
+        models: [
+          syntheticModel,
+          { ...syntheticModel, modelId: "another", name: "Another Model" },
+        ],
+        selection: {
+          providerId: syntheticModel.providerId,
+          modelId: "another",
+        },
+        addedModels: [saved],
+      });
+      const addModel = vi.fn();
+      stubSettingsApi(initial, { addModel });
+      await renderSettingsPanel(initial, "providers");
+      const addContext = screen.getByLabelText("Context length");
+      const addKey = screen.getByLabelText("API key · synthetic-provider");
+      fireEvent.change(addContext, { target: { value: "123456" } });
+      await userEvent.type(addKey, "synthetic-add-draft");
+      const editButton = screen.getByRole("button", {
+        name: "Edit: Synthetic Model",
+      });
+      await userEvent.click(editButton);
+      const editor = screen.getByRole("form", {
+        name: "Edit: Synthetic Model",
+      });
+      fireEvent.change(within(editor).getByLabelText("Context length"), {
+        target: { value: "32000" },
+      });
+      await userEvent.type(
+        within(editor).getByLabelText("API key · synthetic-provider"),
+        "synthetic-edit-draft",
+      );
+      expect(screen.getByLabelText("Model")).toHaveTextContent("Another Model");
+      if (cancelWith === "button") {
+        await userEvent.click(
+          within(editor).getByRole("button", { name: "Cancel" }),
+        );
+      } else {
+        await userEvent.keyboard("{Escape}");
+      }
+      expect(
+        screen.queryByRole("form", { name: "Edit: Synthetic Model" }),
+      ).toBeNull();
+      expect(editButton).toHaveFocus();
+      expect(addContext).toHaveValue(123456);
+      expect(addKey).toHaveValue("synthetic-add-draft");
+      expect(addModel).not.toHaveBeenCalled();
+      await userEvent.click(editButton);
+      const reopened = screen.getByRole("form", {
+        name: "Edit: Synthetic Model",
+      });
+      expect(within(reopened).getByLabelText("Context length")).toHaveValue(
+        64_000,
+      );
+      expect(
+        within(reopened).getByLabelText("API key · synthetic-provider"),
+      ).toHaveValue("");
+    },
+  );
+
+  it("keeps a failed inline edit available for retry and updates only the edited model", async () => {
+    const saved = {
+      providerId: syntheticModel.providerId,
+      modelId: syntheticModel.modelId,
+      contextWindow: 64_000,
+    };
+    const initial = settingsSnapshot({
+      models: [syntheticModel],
+      addedModels: [saved],
+    });
+    const changed = { ...saved, contextWindow: 123456 };
+    let rejectSave!: (error: Error) => void;
+    const addModel = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectSave = reject;
+          }),
+      )
+      .mockResolvedValueOnce({ ...initial, addedModels: [changed] });
+    stubSettingsApi(initial, { addModel });
+    await renderSettingsPanel(initial, "providers");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Edit: Synthetic Model" }),
+    );
+    const editor = screen.getByRole("form", { name: "Edit: Synthetic Model" });
+    const contextInput = within(editor).getByLabelText(
+      "Context length",
+    ) as HTMLInputElement;
+    const save = within(editor).getByRole("button", { name: "Save changes" });
+    for (const value of ["", "1023", "258001"]) {
+      fireEvent.change(contextInput, { target: { value } });
+      expect(save).toBeDisabled();
+    }
+    fireEvent.change(contextInput, { target: { value: "123456" } });
+    expect(contextInput.checkValidity()).toBe(true);
+    await userEvent.click(save);
+    expect(contextInput).toBeDisabled();
+    expect(
+      within(editor).getByRole("button", { name: "Cancel" }),
+    ).toBeDisabled();
+    await act(async () => rejectSave(new Error("Synthetic save failure")));
+    expect(within(editor).getByRole("alert")).toHaveTextContent(
+      "Synthetic save failure",
+    );
+    expect(contextInput).toHaveValue(123456);
+    await userEvent.click(save);
+    expect(addModel).toHaveBeenCalledTimes(2);
+    expect(addModel).toHaveBeenLastCalledWith(changed, undefined);
+    expect(await screen.findByText("Model updated")).toBeVisible();
+    expect(document.querySelector(".added-model-row")).toHaveTextContent(
+      "123.5K token",
+    );
+    expect(screen.getByLabelText("Context length")).toHaveValue(123456);
+  });
 
   it("uses cancellation and explicit delete confirmation for saved models", async () => {
     const initial = settingsSnapshot({

@@ -2,6 +2,7 @@ import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
 import { CustomAgentsSettingsSection } from "./CustomAgentsSettingsSection.js";
+import { AddedModelEditor } from "./AddedModelEditor.js";
 import {
   lazy,
   Suspense,
@@ -231,6 +232,8 @@ export function SettingsPanel({
   }>();
   const [modelDeleteTarget, setModelDeleteTarget] =
     useState<AddedModelConfiguration>();
+  const [editingModelKey, setEditingModelKey] = useState<string>();
+  const [savedModelKey, setSavedModelKey] = useState<string>();
   const [providerDeleteTarget, setProviderDeleteTarget] =
     useState<ProviderConnection>();
   const [globalAgentsContent, setGlobalAgentsContent] = useState(
@@ -255,6 +258,11 @@ export function SettingsPanel({
   >(["instructions", "skills", "mcp"]);
   const operationPendingRef = useRef(false);
   const profileAvatarInputRef = useRef<HTMLInputElement>(null);
+  const modelEditTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!editingModelKey) modelEditTriggerRef.current?.focus();
+  }, [editingModelKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -485,6 +493,27 @@ export function SettingsPanel({
         setContextWindow(String(updated.contextWindow));
       }
     });
+  }
+
+  async function saveModelEdit(
+    model: AddedModelConfiguration,
+    apiKey?: string,
+  ) {
+    if (operationPendingRef.current) return;
+    operationPendingRef.current = true;
+    setBusy(true);
+    try {
+      const updated = await window.artemis.addModel(model, apiKey);
+      setSettings(updated);
+      onSettingsChange(updated);
+      const key = modelKey(model.providerId, model.modelId);
+      if (selectedModel === key) setContextWindow(String(model.contextWindow));
+      setSavedModelKey(key);
+      setEditingModelKey(undefined);
+    } finally {
+      operationPendingRef.current = false;
+      setBusy(false);
+    }
   }
 
   async function setLanguage(language: AppLanguage) {
@@ -963,7 +992,11 @@ export function SettingsPanel({
                         <Select
                           size="compact"
                           label={t.model}
-                          disabled={busy || models.length === 0}
+                          disabled={
+                            busy ||
+                            Boolean(editingModelKey) ||
+                            models.length === 0
+                          }
                           onValueChange={selectModel}
                           noResultsLabel={t.modelSearchEmpty}
                           options={modelOptions}
@@ -994,7 +1027,11 @@ export function SettingsPanel({
                           className="settings-number-field"
                           labelVisibility="hidden"
                           size="compact"
-                          disabled={busy || !selectedModelInfo}
+                          disabled={
+                            busy ||
+                            Boolean(editingModelKey) ||
+                            !selectedModelInfo
+                          }
                           label={t.contextWindow}
                           max={selectedModelInfo?.contextWindow}
                           min={1_024}
@@ -1027,6 +1064,7 @@ export function SettingsPanel({
                             size="compact"
                             disabled={
                               busy ||
+                              Boolean(editingModelKey) ||
                               !selectedModelInfo ||
                               !settings.encryptionAvailable
                             }
@@ -1049,6 +1087,7 @@ export function SettingsPanel({
                       <Button
                         disabled={
                           busy ||
+                          Boolean(editingModelKey) ||
                           !selectedModel ||
                           !contextWindowValid ||
                           !selectedModelCanBeAdded
@@ -1064,62 +1103,96 @@ export function SettingsPanel({
                       >
                         <strong>{t.addedModels}</strong>
                         {settings.addedModels.map((model) => {
+                          const key = modelKey(model.providerId, model.modelId);
+                          const editing = editingModelKey === key;
                           const catalogModel = models.find(
                             (candidate) =>
                               candidate.providerId === model.providerId &&
                               candidate.modelId === model.modelId,
                           );
                           return (
-                            <ManagementRow
-                              actions={
-                                <span className="mcp-server-actions">
-                                  <Button
-                                    disabled={busy}
-                                    label={`${t.edit}: ${catalogModel?.name ?? model.modelId}`}
-                                    onClick={() => {
-                                      setMessage("");
-                                      setKeyApiKey("");
-                                      const provider = settings.providers.find(
-                                        (item) => item.id === model.providerId,
-                                      );
-                                      if (provider) {
-                                        editProviderConnection(
-                                          provider,
-                                          model.modelId,
-                                        );
-                                        setProviderConfigTab("custom");
-                                      } else {
-                                        selectModel(
-                                          modelKey(
-                                            model.providerId,
-                                            model.modelId,
-                                          ),
-                                        );
+                            <div
+                              className="added-model-item"
+                              data-editing={editing || undefined}
+                              key={key}
+                            >
+                              <ManagementRow
+                                actions={
+                                  <span className="mcp-server-actions">
+                                    <Button
+                                      disabled={
+                                        busy ||
+                                        Boolean(editingModelKey && !editing)
                                       }
-                                    }}
-                                    variant="quiet"
-                                  >
-                                    {t.edit}
-                                  </Button>
-                                  <IconButton
-                                    className="management-destructive-action"
-                                    icon={<ArtemisIcon name="trash" />}
-                                    title={t.delete}
-                                    disabled={busy}
-                                    label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
-                                    onClick={() => {
-                                      setMessage("");
-                                      setModelDeleteTarget(model);
-                                    }}
-                                    variant="quiet"
-                                  />
-                                </span>
-                              }
-                              className="added-model-row"
-                              description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
-                              key={modelKey(model.providerId, model.modelId)}
-                              title={catalogModel?.name ?? model.modelId}
-                            />
+                                      label={`${editing ? t.cancelEdit : t.edit}: ${catalogModel?.name ?? model.modelId}`}
+                                      onClick={(event) => {
+                                        if (editing) {
+                                          setEditingModelKey(undefined);
+                                          return;
+                                        }
+                                        setMessage("");
+                                        setSavedModelKey(undefined);
+                                        const provider =
+                                          settings.providers.find(
+                                            (item) =>
+                                              item.id === model.providerId,
+                                          );
+                                        if (provider) {
+                                          editProviderConnection(
+                                            provider,
+                                            model.modelId,
+                                          );
+                                          setProviderConfigTab("custom");
+                                        } else {
+                                          modelEditTriggerRef.current =
+                                            event.currentTarget;
+                                          setEditingModelKey(key);
+                                        }
+                                      }}
+                                      variant="quiet"
+                                    >
+                                      {editing ? t.cancelEdit : t.edit}
+                                    </Button>
+                                    <IconButton
+                                      className="management-destructive-action"
+                                      icon={<ArtemisIcon name="trash" />}
+                                      title={t.delete}
+                                      disabled={
+                                        busy || Boolean(editingModelKey)
+                                      }
+                                      label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
+                                      onClick={() => {
+                                        setMessage("");
+                                        setModelDeleteTarget(model);
+                                      }}
+                                      variant="quiet"
+                                    />
+                                  </span>
+                                }
+                                className="added-model-row"
+                                description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
+                                title={catalogModel?.name ?? model.modelId}
+                              />
+                              {editing && (
+                                <AddedModelEditor
+                                  busy={busy}
+                                  catalogModel={catalogModel}
+                                  locale={locale}
+                                  model={model}
+                                  onCancel={() => setEditingModelKey(undefined)}
+                                  onSave={saveModelEdit}
+                                  settings={settings}
+                                />
+                              )}
+                              {savedModelKey === key && (
+                                <InlineNotice
+                                  className="added-model-feedback"
+                                  tone="success"
+                                >
+                                  {t.modelUpdated}
+                                </InlineNotice>
+                              )}
+                            </div>
                           );
                         })}
                         {settings.addedModels.length === 0 && (

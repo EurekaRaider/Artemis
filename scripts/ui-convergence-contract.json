@@ -517,15 +517,6 @@
     {
       "atRules": [],
       "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
-      "property": "border-bottom",
-      "value": "1px solid var(--border-soft)",
-      "important": false,
-      "owner": "September 6 screenshot alignment",
-      "reason": "Model rows use a single divider to match the supplied settings reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
-    },
-    {
-      "atRules": [],
-      "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
       "property": "padding",
       "value": "10px 0",
       "important": false,
