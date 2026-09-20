@@ -866,7 +866,7 @@
   "ImSettingsPanel.message163": "刷新群列表",
   "ImSettingsPanel.message164": "請先啓用本機內置服務。原生群不使用共享網關。",
   "ImSettingsPanel.message165": "群聊專案授權",
-  "ImSettingsPanel.message166": "一個原生群對應一個本機群對話。",
+  "ImSettingsPanel.message166": "授權使 Artemis 可接收群協作團隊指令進行存取",
   "ImSettingsPanel.message167": "你從手機發送任務指令",
   "ImSettingsPanel.message168": "等待桌面出現任務",
   "ImSettingsPanel.message169": "桌面已出現任務",

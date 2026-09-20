@@ -866,7 +866,7 @@
   "ImSettingsPanel.message163": "그룹 목록 새로 고침",
   "ImSettingsPanel.message164": "먼저 로컬 기본 제공 서비스를 활성화하세요. 기본 IM 그룹은 공유 Gateway를 사용하지 않습니다.",
   "ImSettingsPanel.message165": "그룹 채팅 프로젝트 권한",
-  "ImSettingsPanel.message166": "기본 IM 그룹 하나가 로컬 그룹 대화 하나에 대응합니다.",
+  "ImSettingsPanel.message166": "승인하면 Artemis가 그룹 협업 팀 지시를 수신하여 접근할 수 있습니다",
   "ImSettingsPanel.message167": "휴대전화에서 작업 명령 보내기",
   "ImSettingsPanel.message168": "데스크톱에 작업이 나타나기를 기다리는 중",
   "ImSettingsPanel.message169": "데스크톱에 작업이 나타났습니다",

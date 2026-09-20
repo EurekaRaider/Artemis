@@ -866,7 +866,7 @@
   "ImSettingsPanel.message163": "Обновить группы",
   "ImSettingsPanel.message164": "Включите встроенную локальную службу. Нативные группы не используют общий шлюз.",
   "ImSettingsPanel.message165": "Проектные доступы для групп",
-  "ImSettingsPanel.message166": "Одной нативной группе соответствует один локальный чат.",
+  "ImSettingsPanel.message166": "Авторизация позволяет Artemis получать командные инструкции из групповых чатов для доступа",
   "ImSettingsPanel.message167": "Вы отправляете команду задачи",
   "ImSettingsPanel.message168": "Ожидание задачи на компьютере",
   "ImSettingsPanel.message169": "Задача появилась на компьютере",
