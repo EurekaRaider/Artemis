@@ -866,7 +866,7 @@
   "ImSettingsPanel.message163": "Actualizar grupos",
   "ImSettingsPanel.message164": "Habilita el servicio local integrado. Los grupos nativos no usan una pasarela compartida.",
   "ImSettingsPanel.message165": "Autorización de proyectos grupales",
-  "ImSettingsPanel.message166": "Un grupo nativo corresponde a una conversación local.",
+  "ImSettingsPanel.message166": "La autorización permite que Artemis reciba instrucciones del equipo de los chats grupales para acceder",
   "ImSettingsPanel.message167": "Envía la instrucción de la tarea",
   "ImSettingsPanel.message168": "Esperando una tarea en el escritorio",
   "ImSettingsPanel.message169": "La tarea apareció en el escritorio",

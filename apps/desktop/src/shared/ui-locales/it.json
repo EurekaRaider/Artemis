@@ -866,7 +866,7 @@
   "ImSettingsPanel.message163": "Aggiorna gruppi",
   "ImSettingsPanel.message164": "Abilita il servizio locale integrato. I gruppi nativi non usano un gateway condiviso.",
   "ImSettingsPanel.message165": "Autorizzazione progetti di gruppo",
-  "ImSettingsPanel.message166": "Un gruppo nativo corrisponde a una conversazione locale.",
+  "ImSettingsPanel.message166": "L'autorizzazione consente ad Artemis di ricevere istruzioni del team dalle chat di gruppo per accedere",
   "ImSettingsPanel.message167": "Invia il comando dell’attività",
   "ImSettingsPanel.message168": "In attesa di un’attività sul desktop",
   "ImSettingsPanel.message169": "L’attività è comparsa sul desktop",
