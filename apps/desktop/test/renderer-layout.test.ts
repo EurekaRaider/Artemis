@@ -432,7 +432,7 @@ describe("renderer layout contract", () => {
   it("isolates dynamic approval copy from surrounding RTL direction", () => {
     expect(approvalDecisionSource).toContain("<bdi>{view.detail}</bdi>");
     expect(approvalDecisionSource).toContain("<bdi>{approval.summary}</bdi>");
-    expect(mainProcessSource).toContain("dynamicCopyBidiIsolated");
+    expect(mainProcessSource).toContain("name: 'bidi-' + selector");
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
