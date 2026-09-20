@@ -4,6 +4,7 @@ import type {
   UserInputResolution,
   UserInputState,
 } from "@artemis/protocol";
+import { UserInputFrame } from "@artemis/ui/patterns";
 import { UI_COPY } from "../shared/ui-copy.js";
 import { uiText } from "../shared/ui-text.js";
 import { DecisionOptions, DecisionResult } from "./DecisionCard.js";
@@ -82,10 +83,10 @@ export function UserInputCard({
     }
   };
   return (
-    <article
+    <UserInputFrame
       className="decision-card user-input-card"
-      aria-label={input.question}
-      aria-busy={busy}
+      label={input.question}
+      state={busy ? "busy" : input.status}
     >
       <header>
         <strong>{input.question}</strong>
@@ -113,6 +114,6 @@ export function UserInputCard({
           {uiText(locale, "DecisionCard.failed")}
         </p>
       )}
-    </article>
+    </UserInputFrame>
   );
 }

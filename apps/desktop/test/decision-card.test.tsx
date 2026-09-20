@@ -165,6 +165,9 @@ describe("approval and single question cards", () => {
     );
     const first = screen.getByRole("button", { name: /简洁/ });
     const second = screen.getByRole("button", { name: /紧凑/ });
+    expect(
+      first.closest('[data-artemis-component="user-input"]'),
+    ).toHaveAttribute("data-state", "pending");
     expect(first).toHaveFocus();
     expect(first).toHaveAttribute("tabindex", "0");
     expect(second).toHaveAttribute("tabindex", "-1");
