@@ -42,9 +42,11 @@ export function HistoryTurn({
   active: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const height = useRef(
-    measuredHeights.get(cacheKey) ?? estimatePlaceholderHeight(cacheKey),
-  );
+  const height = useRef<number | undefined>(undefined);
+  if (height.current === undefined) {
+    height.current =
+      measuredHeights.get(cacheKey) ?? estimatePlaceholderHeight(cacheKey);
+  }
   const [visible, setVisible] = useState(initialVisible || active);
   // Synchronous visibility check shared by first paint and scroll events:
   // the IntersectionObserver callback is async, so a placeholder can sit
@@ -74,17 +76,19 @@ export function HistoryTurn({
   useEffect(() => {
     const scroller = root.current?.closest(".timeline-scroll");
     if (!scroller) return;
-    let scheduled = false;
+    let scheduled: number | undefined;
     const onScroll = () => {
-      if (scheduled) return;
-      scheduled = true;
-      requestAnimationFrame(() => {
-        scheduled = false;
+      if (scheduled !== undefined) return;
+      scheduled = requestAnimationFrame(() => {
+        scheduled = undefined;
         checkInView();
       });
     };
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroller.removeEventListener("scroll", onScroll);
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      if (scheduled !== undefined) cancelAnimationFrame(scheduled);
+    };
   }, []);
   useEffect(() => {
     const element = root.current;
@@ -115,7 +119,10 @@ export function HistoryTurn({
     )
       return;
     const observer = new ResizeObserver(() => {
-      height.current = element.getBoundingClientRect().height || height.current;
+      height.current =
+        element.getBoundingClientRect().height ||
+        height.current ||
+        PLACEHOLDER_DEFAULT_HEIGHT;
       measuredHeights.delete(cacheKey);
       measuredHeights.set(cacheKey, height.current);
       if (measuredHeights.size > 4_096)

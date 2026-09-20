@@ -3676,7 +3676,10 @@ export function App() {
     // timelines): if this thread rendered more turns before, re-derive once
     // from the raw history page + events instead of trusting the incremental
     // or cached path.
-    const turnWatermark = turnWatermarks.current.get(activeThread.id) ?? 0;
+    const turnWatermark =
+      cached?.history === activeHistory
+        ? (turnWatermarks.current.get(activeThread.id) ?? 0)
+        : 0;
     let guardedState = state;
     if (state.order.length < turnWatermark) {
       guardedState = activeHistory
@@ -3712,11 +3715,14 @@ export function App() {
     });
     if (threadStateCache.current.size > 8) {
       const oldestThreadId = threadStateCache.current.keys().next().value;
-      if (oldestThreadId) threadStateCache.current.delete(oldestThreadId);
+      if (oldestThreadId) {
+        threadStateCache.current.delete(oldestThreadId);
+        turnWatermarks.current.delete(oldestThreadId);
+      }
     }
     const liveActivities = liveChildActivities[activeThread.id];
     if (!liveActivities) return guardedState;
-    const childAgents = { ...state.childAgents };
+    const childAgents = { ...guardedState.childAgents };
     for (const [agentId, live] of Object.entries(liveActivities)) {
       const current = childAgents[agentId];
       if (!current) continue;
