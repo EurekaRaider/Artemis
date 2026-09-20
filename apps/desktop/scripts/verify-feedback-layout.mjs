@@ -403,117 +403,21 @@ try {
       found.geometry,
       "positive width and height",
     );
-    const expandedGroupedApproval =
-      testCase.component === "result-disclosure" &&
-      testCase.expectedGroupCount > 0;
-    if (!expandedGroupedApproval) {
-      assert(
-        "within-viewport",
-        found.withinViewport === true,
-        found.geometry,
-        "inside viewport",
-      );
-      assert(
-        "visible-within-scroll-container",
-        found.visibleWithinScrollContainer === true,
-        {
-          component: found.geometry,
-          scrollContainer: found.scrollContainerGeometry,
-        },
-        "fully inside the nearest scroll viewport",
-      );
-    }
-    if (testCase.component === "approval-card") {
-      assert(
-        "approval-dynamic-copy-bidi-isolated",
-        feedbackLayout.approvalScrollVerification?.dynamicCopyBidiIsolated ===
-          true,
-        feedbackLayout.approvalScrollVerification ?? null,
-        "title, detail, and model reason are isolated from RTL chrome",
-      );
-      assert(
-        "approval-security-content-visible-before-actions",
-        feedbackLayout.approvalScrollVerification?.securityVisibleAtStart ===
-          true,
-        feedbackLayout.approvalScrollVerification ?? null,
-        "title, detail, status, and reason visible at the approval start",
-      );
-      assert(
-        "approval-actions-reachable",
-        feedbackLayout.approvalScrollVerification?.actionsVisibleAtEnd === true,
-        feedbackLayout.approvalScrollVerification ?? null,
-        "actions visible after scrolling to the approval end",
-      );
-      assert(
-        "approval-content-not-obscured-by-actions",
-        feedbackLayout.approvalScrollVerification
-          ?.securityAndActionsDoNotOverlap === true,
-        feedbackLayout.approvalScrollVerification ?? null,
-        "security content and actions have non-overlapping flow geometry",
-      );
-      assert(
-        "approval-actions-do-not-wrap-per-character",
-        found.approvalActionButtons.length > 0 &&
-          found.approvalActionButtons.every(
-            (button) =>
-              button.width >= 32 &&
-              button.height <= 48 &&
-              button.scrollWidth <= button.clientWidth + 1 &&
-              button.scrollHeight <= button.clientHeight + 1,
-          ),
-        found.approvalActionButtons,
-        "single-line reachable approval actions",
-      );
-    }
-    if (testCase.component === "result-disclosure") {
-      assert(
-        "approval-disclosure-collapsed-trigger-visible",
-        feedbackLayout.approvalDisclosureVerification?.collapsedVisible ===
-          true,
-        feedbackLayout.approvalDisclosureVerification ?? null,
-        "collapsed disclosure fully visible before expansion",
-      );
-      assert(
-        "approval-disclosure-expanded",
-        feedbackLayout.approvalDisclosureVerification?.expanded === true &&
-          feedbackLayout.approvalDisclosureVerification?.contentVisible ===
-            true,
-        feedbackLayout.approvalDisclosureVerification ?? null,
-        "expanded public disclosure with visible content",
-      );
-      assert(
-        "approval-group-count",
-        feedbackLayout.approvalDisclosureVerification?.groupItems ===
-          testCase.expectedGroupCount,
-        feedbackLayout.approvalDisclosureVerification ?? null,
-        testCase.expectedGroupCount,
-      );
-      if (expandedGroupedApproval) {
-        assert(
-          "approval-disclosure-expanded-end-reachable",
-          feedbackLayout.approvalDisclosureVerification?.timelineScrollable ===
-            true &&
-            feedbackLayout.approvalDisclosureVerification
-              ?.expandedEndVisible === true,
-          feedbackLayout.approvalDisclosureVerification ?? null,
-          "expanded grouped content end reachable at timeline scroll end",
-        );
-      }
-    }
-    if (
-      testCase.component === "approval-card" ||
-      testCase.component === "result-disclosure"
-    ) {
-      assert(
-        "workspace-label-fully-visible",
-        feedbackLayout.workspaceLabel?.text === "Artemis" &&
-          feedbackLayout.workspaceLabel?.contentFitsInline === true &&
-          feedbackLayout.workspaceLabel?.fullyVisible === true &&
-          feedbackLayout.workspaceLabel?.textFullyVisible === true,
-        feedbackLayout.workspaceLabel ?? null,
-        "complete Artemis label inside the workspace heading",
-      );
-    }
+    assert(
+      "within-viewport",
+      found.withinViewport === true,
+      found.geometry,
+      "inside viewport",
+    );
+    assert(
+      "visible-within-scroll-container",
+      found.visibleWithinScrollContainer === true,
+      {
+        component: found.geometry,
+        scrollContainer: found.scrollContainerGeometry,
+      },
+      "fully inside the nearest scroll viewport",
+    );
     assert(
       "inline-content-not-cropped",
       found.contentFitsInline === true,

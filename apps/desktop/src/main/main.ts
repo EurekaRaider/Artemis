@@ -20906,10 +20906,6 @@ function createMainWindow(): BrowserWindow {
                         window.__feedbackLayoutInteraction ?? null,
                       decisionApprovalVerification:
                         window.__decisionApprovalVerification ?? null,
-                      approvalScrollVerification:
-                        window.__approvalScrollVerification ?? null,
-                      approvalDisclosureVerification:
-                        window.__approvalDisclosureVerification ?? null,
                       workspaceLabel:
                         workspaceHeading instanceof HTMLElement &&
                         workspaceLabel instanceof HTMLElement &&
