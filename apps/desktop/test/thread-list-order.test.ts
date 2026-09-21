@@ -137,7 +137,49 @@ describe("sidebar conversation order", () => {
     expect(isWorkspaceDraftThread({ ...draft, archived: true })).toBe(false);
   });
 
-  it("keeps every active conversation above inactive conversations", () => {
+  it.each(["idle", "running", "waiting-approval"] as const)(
+    "keeps a pinned %s conversation above newer unpinned active conversations",
+    (status) => {
+      const pinned = {
+        ...thread("pinned", status, "2026-08-02T01:00:00.000Z"),
+        pinned: true,
+      };
+      const normal = thread("normal", "running", "2026-08-02T03:00:00.000Z");
+
+      expect(
+        sortProjectThreads([normal, pinned], {}).map(({ id }) => id),
+      ).toEqual(["pinned", "normal"]);
+    },
+  );
+
+  it.each([
+    ["normal-second", "pinned-second", "normal-first", "pinned-first"],
+    ["normal-second", "pinned-second"],
+  ])("keeps manual ordering within pin groups: %j", (...preference) => {
+    const threads = [
+      "pinned-first",
+      "normal-first",
+      "pinned-second",
+      "normal-second",
+    ].map((id) => ({
+      ...thread(id, "idle", "2026-08-02T01:00:00.000Z"),
+      pinned: id.startsWith("pinned"),
+    }));
+
+    expect(
+      orderProjectThreadsByPreference(
+        sortProjectThreads(threads, {}),
+        preference,
+      ).map(({ id }) => id),
+    ).toEqual([
+      "pinned-second",
+      "pinned-first",
+      "normal-second",
+      "normal-first",
+    ]);
+  });
+
+  it("keeps every active conversation above inactive conversations with the same pin state", () => {
     const threads = [
       thread("idle-newer", "idle", "2026-08-02T04:00:00.000Z"),
       thread("running", "running", "2026-08-02T02:00:00.000Z"),

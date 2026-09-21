@@ -69,6 +69,9 @@ export function sortProjectThreads(
   return threads
     .map((thread, index) => ({ thread, index }))
     .sort((left, right) => {
+      if (left.thread.pinned !== right.thread.pinned) {
+        return left.thread.pinned ? -1 : 1;
+      }
       const leftActive = isActiveThread(left.thread);
       const rightActive = isActiveThread(right.thread);
       if (leftActive !== rightActive) return leftActive ? -1 : 1;
@@ -94,6 +97,9 @@ export function orderProjectThreadsByPreference(
   return threads
     .map((thread, index) => ({ index, thread }))
     .sort((left, right) => {
+      if (left.thread.pinned !== right.thread.pinned) {
+        return left.thread.pinned ? -1 : 1;
+      }
       const leftIndex = preferredIndex.get(left.thread.id);
       const rightIndex = preferredIndex.get(right.thread.id);
       if (leftIndex === undefined && rightIndex === undefined) {
