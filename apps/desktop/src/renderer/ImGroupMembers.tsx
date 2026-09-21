@@ -177,7 +177,9 @@ export function ImGroupMembers({
       >
         <div className="environment-setting-copy im-group-members im-native-members">
           {error && <small role="alert">{error}</small>}
-          {(!roster?.complete || group.stale) && (
+          {(group.stale ||
+            (!roster?.complete &&
+              !(channel === "feishu" && roster?.error === "partial"))) && (
             <small role="status">
               {roster?.error === "missing-scope"
                 ? channel === "feishu"
@@ -185,9 +187,7 @@ export function ImGroupMembers({
                   : t("ImGroupMembers.message4")
                 : channel === "wecom"
                   ? t("ImGroupMembers.message3")
-                  : channel === "feishu" && roster?.error === "partial"
-                    ? t("ImGroupMembers.message2")
-                    : t("ImGroupMembers.message1")}
+                  : t("ImGroupMembers.message1")}
             </small>
           )}
           <div
