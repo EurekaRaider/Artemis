@@ -1931,7 +1931,7 @@ describe("renderer layout contract", () => {
     expect(openWorkspaceTabSource).not.toContain("if (!activeThreadId) return");
     expect(appSource).toContain("moveComposerDraft(");
     expect(appSource).toMatch(
-      /\.filter\(\s*\(thread\) =>\s*!isWorkspaceDraftThread\(thread\) &&\s*\(!imThreadStatus\[thread.id\]\?\.group\?\.native\s*\|\|\s*!!imThreadStatus\[thread.id\]\?\.parentThreadId\)/u,
+      /\.filter\(\s*\(thread\) =>\s*!isWorkspaceDraftThread\(thread\) &&\s*\(!imThreadStatus\[thread.id\]\?\.group\?\.native\s*\|\|\s*!!imThreadStatus\[thread.id\]\?\.group\?\.retired\s*\|\|\s*!!imThreadStatus\[thread.id\]\?\.parentThreadId\)/u,
     );
   });
 
