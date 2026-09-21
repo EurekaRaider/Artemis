@@ -11,6 +11,7 @@ const commandSchema = z
   .object({
     version: z.literal(1),
     operationId: z.string().uuid(),
+    supersedes: z.string().uuid().optional(),
     phase: z.enum(["prepare", "activate"]),
     expectedGroupVersion: z.string().nullable(),
     binding: nativeGroupInputSchema,
@@ -19,7 +20,7 @@ const commandSchema = z
 interface Record {
   fingerprint: string;
   group: CollaborationSpace;
-  phase: "prepared" | "applied";
+  phase: "prepared" | "applied" | "superseded";
 }
 /** Both journal and binding are committed in the same Gateway transaction. */
 export function authorizeNativeGroup(store: GatewayStore, raw: unknown) {
@@ -49,6 +50,10 @@ export function authorizeNativeGroup(store: GatewayStore, raw: unknown) {
       device.revoked
     )
       throw new Error("Authorization identity is no longer paired.");
+    if (recorded?.phase === "superseded")
+      throw new Error(
+        "This authorization was superseded by a new confirmation.",
+      );
     if (recorded) {
       const current = store.get<CollaborationSpace>(
         "native-groups",
@@ -82,6 +87,17 @@ export function authorizeNativeGroup(store: GatewayStore, raw: unknown) {
       );
     if ((current?.revision ?? null) !== input.expectedGroupVersion)
       throw new Error("Authorization group version conflict.");
+    if (input.supersedes) {
+      const old = store.get<Record>("native-authorizations", input.supersedes);
+      if (old) {
+        if (old.group.id !== current?.id)
+          throw new Error("A replacement must target the same group.");
+        store.put("native-authorizations", input.supersedes, {
+          ...old,
+          phase: "superseded",
+        });
+      }
+    }
     const group = saveNativeGroup(store, input.binding);
     // Reserve the final version now. Activation never rolls that version again.
     store.put("native-groups", group.id, {

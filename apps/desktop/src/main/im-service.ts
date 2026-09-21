@@ -18,6 +18,7 @@ import {
   IM_AUTHORIZATION_VERSION,
   imAuthorizationFingerprint,
   imAuthorizationCommandSchema,
+  imAuthorizationImpactVersion,
   imPolicyVersion,
   imProjectPolicy,
   type ImAuthorizationCommand,
@@ -1358,16 +1359,26 @@ export class ImService {
   }
   private pendingAuthorizations() {
     return this.list<ImAuthorizationOperation>("group-authorizations").filter(
-      (op) => op.state !== "complete",
+      (op) => op.state !== "complete" && op.state !== "superseded",
     );
   }
   private pendingAudience(audience: string, except?: string) {
-    return this.pendingAuthorizations().some(
-      (op) =>
+    return this.pendingAuthorizations().some((op) => {
+      const group =
+        op.group ??
+        (this.spaces as CollaborationSpace[]).find((g) =>
+          g.endpoints.some(
+            (e) =>
+              imConversationKey(e) ===
+              imConversationKey(op.command.conversation),
+          ),
+        );
+      return (
         op.command.operationId !== except &&
-        op.group &&
-        `space:${op.group.id}` === audience,
-    );
+        group &&
+        `space:${group.id}` === audience
+      );
+    });
   }
   async save(input: unknown): Promise<ImStatus> {
     const baseline = JSON.stringify(this.config);
@@ -1586,6 +1597,9 @@ export class ImService {
       throw error;
     }
     this.config = settings;
+    return this.applySettingsEffects(settings);
+  }
+  private async applySettingsEffects(settings: ImSettings): Promise<ImStatus> {
     // Invalidate every local operation before waiting on cancellations or the network.
     const invalid = this.list<Binding>("bindings").filter((binding) => {
       const revision = binding.security?.revision;
@@ -1716,7 +1730,14 @@ export class ImService {
         ? imScopeRevision(grant.security, scope)
         : null) !== (scopeVersion ?? null) ||
       (group?.revision ?? null) !== groupVersion ||
-      (!applied && this.config.enabled !== command.expectedDeviceEnabled)
+      (!applied &&
+        (this.config.enabled !== command.expectedDeviceEnabled ||
+          imAuthorizationImpactVersion(
+            this.config,
+            command.projectId,
+            !!command.policy,
+            command.enableService,
+          ) !== command.expectedImpactVersion))
     )
       throw new Error(
         "Authorization version conflict. Review the current policy, group and scope before confirming again.",
@@ -1795,12 +1816,23 @@ export class ImService {
       throw new Error(
         "Authorization operation ID conflicts with saved contents.",
       );
-    if (operation?.state === "complete") return operation;
+    if (operation?.state === "complete" || operation?.state === "superseded")
+      return operation;
     if (operation?.state === "conflict") throw new Error(operation.error);
     if (!operation) {
       if (command.gatewayUrl !== this.config.gatewayUrl)
         throw new Error("Gateway identity changed.");
-      if (this.pendingAuthorizations().length)
+      const pending = this.pendingAuthorizations();
+      const superseded = pending.find(
+        (op) => op.command.operationId === command.supersedes,
+      );
+      if (
+        pending.length &&
+        (!superseded ||
+          pending.length !== 1 ||
+          imConversationKey(superseded.command.conversation) !==
+            imConversationKey(command.conversation))
+      )
         throw new Error(
           "Resolve the pending authorization before submitting another change.",
         );
@@ -1822,11 +1854,12 @@ export class ImService {
           "A project change requires explicit rebind confirmation.",
         );
       if (
-        !command.scope.confirmedAt ||
-        (command.policy?.expiresAt ??
-          this.config.grants.find((g) => g.projectId === command.projectId)
-            ?.expiresAt ??
-          0) <= Date.now()
+        command.intent !== "pause" &&
+        (!command.scope.confirmedAt ||
+          (command.policy?.expiresAt ??
+            this.config.grants.find((g) => g.projectId === command.projectId)
+              ?.expiresAt ??
+            0) <= Date.now())
       )
         throw new Error(
           "Confirm the scope and a future expiration before submitting.",
@@ -1861,6 +1894,11 @@ export class ImService {
       };
       this.db.exec("SAVEPOINT im_authorization_begin");
       try {
+        if (superseded)
+          this.put("group-authorizations", superseded.command.operationId, {
+            ...superseded,
+            state: "superseded",
+          });
         this.put("migrations", "authorization-v1", true);
         this.put("settings", "current", this.config);
         this.put("group-authorizations", command.operationId, operation);
@@ -1909,6 +1947,7 @@ export class ImService {
             {
               version: IM_AUTHORIZATION_VERSION,
               operationId: command.operationId,
+              ...(command.supersedes ? { supersedes: command.supersedes } : {}),
               phase: step,
               expectedGroupVersion: command.expectedGroupVersion,
               binding: requestBinding,
@@ -1938,6 +1977,8 @@ export class ImService {
         snapshot = await this.authorizationSnapshot(command);
         this.checkAuthorizationVersions(command, snapshot.group, record);
         await this.savePreparedSettings(settings, record);
+      } else {
+        await this.applySettingsEffects(this.config);
       }
       phase = "activation";
       if (

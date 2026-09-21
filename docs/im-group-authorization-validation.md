@@ -28,3 +28,10 @@ Development, automated integration, rendered interaction, exact-SHA CI, packagin
 - Rebind removes old-project effective scopes and starts a fresh group entry while preserving history.
 - Node 24.21.0: core build and desktop typecheck passed; 94 native-group/Gateway tests passed, including narrow-command preflight, double clicks, scope-only edits, lost prepare/activate responses, restart and revoked-owner recovery.
 - Remaining integration matrix is tracked through P4; this foundation test result does not claim real-provider acceptance or exhaustive failure-boundary coverage.
+
+## P1 recovery follow-up
+
+- A newly confirmed CAS command can supersede the same group's incomplete operation; old IDs remain terminal and cannot reactivate it.
+- Journal-write, local-write and post-commit task-effect failures remain recoverable without rolling the applied authorization revision.
+- Confirmation also binds the affected authorization audience snapshot when changing shared project policy or enabling the device.
+- Node 24.21.0: 99 native-group/Gateway tests passed after these changes.

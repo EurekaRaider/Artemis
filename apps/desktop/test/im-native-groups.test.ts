@@ -7,6 +7,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   imAuthorizationFingerprint,
   imPolicyVersion,
+  imAuthorizationImpactVersion,
   type ImAuthorizationCommand,
   type ImAuthorizationOperation,
   executionGrantSchema,
@@ -2632,6 +2633,12 @@ function authorizationCommand(
     expectedGroupVersion: null,
     expectedScopeVersion: null,
     expectedDeviceEnabled: settings.enabled,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      settings,
+      "p",
+      true,
+      true,
+    ),
     policy: {
       mode: "plan" as const,
       approval: "ask" as const,
@@ -2841,4 +2848,227 @@ it("keeps a prepared group disabled when its owner is revoked before recovery", 
   expect(resumed.state).toBe("conflict");
   expect(f.gateway.router.findSpace(f.event.conversation)).toBeUndefined();
   expect(f.service.status().settings.grants).toEqual([]);
+});
+
+it("rebinds to a new project without reusing old model context or old effective scopes", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const oldThread = f.service.status().remoteTasks![0]!.threadId;
+  const group =
+    f.gateway.store.list<import("@artemis/protocol").CollaborationSpace>(
+      "native-groups",
+    )[0]!;
+  const projects = f.ops.projects();
+  const nextPath = join(f.root, "next-project");
+  await mkdir(nextPath);
+  f.ops.projects = () => [
+    ...projects,
+    { ...projects[0]!, id: "next", name: "Next", path: nextPath },
+  ];
+  const command = authorizationCommand(f);
+  Object.assign(command, {
+    intent: "rebind",
+    projectId: "next",
+    expectedGroupVersion: group.revision,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      f.service.status().settings,
+      "next",
+      true,
+      true,
+    ),
+  });
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  const result = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(result.state).toBe("complete");
+  const oldGrant = f.service
+    .status()
+    .settings.grants.find((g) => g.projectId === "p")!;
+  expect(oldGrant.groups).not.toContain(`space:${group.id}`);
+  expect(
+    oldGrant.security?.scopes.some((s) => s.audience === `space:${group.id}`),
+  ).toBe(false);
+  const newThread = f.service
+    .status()
+    .remoteTasks!.find(
+      (t) => t.group?.spaceId === group.id && t.threadId !== oldThread,
+    );
+  expect(newThread).toBeDefined();
+  expect(f.threads.some((t) => t.id === oldThread)).toBe(true);
+  await expect(
+    f.service.manage({
+      action: "native-group-input",
+      threadId: oldThread,
+      messageId: randomUUID(),
+      destination: "local",
+      text: "Use old context",
+    }),
+  ).rejects.toThrow();
+});
+
+it("allows a newly confirmed CAS operation to replace an incomplete activation without rollback", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const original = globalThis.fetch;
+  let fail = true;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    if (
+      fail &&
+      String(url).endsWith("/native-authorization") &&
+      JSON.parse(String(options?.body)).phase === "activate"
+    )
+      throw new Error("activation unavailable");
+    return original(url, options);
+  });
+  const pending = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(pending.phases.local).toBe("applied");
+  const grant = f.service.status().settings.grants[0]!;
+  const replacement = {
+    ...command,
+    operationId: randomUUID(),
+    supersedes: command.operationId,
+    intent: "restore" as const,
+    expectedGroupVersion: pending.group!.revision!,
+    expectedPolicyVersion: imPolicyVersion(grant),
+    expectedScopeVersion: grant.security!.scopes[0]!.revision!,
+    expectedDeviceEnabled: true,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      f.service.status().settings,
+      "p",
+      true,
+      true,
+    ),
+  };
+  replacement.confirmationFingerprint = imAuthorizationFingerprint(replacement);
+  fail = false;
+  const result = (await f.service.manage({
+    action: "authorize-group",
+    command: replacement,
+  })) as ImAuthorizationOperation;
+  expect(result.error).toBeUndefined();
+  expect(result.state).toBe("complete");
+  expect(
+    f.service
+      .status()
+      .authorizationOperations?.find(
+        (op) => op.command.operationId === command.operationId,
+      )?.state,
+  ).toBe("superseded");
+  expect(f.service.status().settings.grants[0]!.expiresAt).toBe(
+    grant.expiresAt,
+  );
+  expect(
+    (
+      (await f.service.manage({
+        action: "authorize-group",
+        command,
+      })) as ImAuthorizationOperation
+    ).state,
+  ).toBe("superseded");
+});
+
+it.each(["journal", "local"])(
+  "recovers a %s persistence failure without early execution",
+  async (boundary) => {
+    const f = await fixture();
+    const command = authorizationCommand(f);
+    const internal = f.service as unknown as {
+      put(namespace: string, id: string, value: unknown): void;
+    };
+    const original = internal.put.bind(internal);
+    let failed = false;
+    vi.spyOn(internal, "put").mockImplementation((namespace, id, value) => {
+      if (
+        !failed &&
+        (boundary === "journal"
+          ? namespace === "group-authorizations"
+          : namespace === "settings" &&
+            f.service
+              .status()
+              .authorizationOperations?.some(
+                (op) => op.phases.binding === "applied",
+              ))
+      ) {
+        failed = true;
+        throw new Error("Injected persistence failure");
+      }
+      original(namespace, id, value);
+    });
+    if (boundary === "journal") {
+      await expect(
+        f.service.manage({ action: "authorize-group", command }),
+      ).rejects.toThrow(/persistence/);
+      expect(f.gateway.store.list("native-groups")).toHaveLength(0);
+      expect(f.service.status().authorizationOperations).toEqual([]);
+    } else {
+      const pending = (await f.service.manage({
+        action: "authorize-group",
+        command,
+      })) as ImAuthorizationOperation;
+      expect(pending.phases.local).toBe("failed");
+      expect(f.gateway.router.findSpace(command.conversation)).toBeUndefined();
+    }
+    expect(f.service.status().settings.grants).toEqual([]);
+    expect(f.starts).toEqual([]);
+    const result = (await f.service.manage({
+      action: "authorize-group",
+      command,
+    })) as ImAuthorizationOperation;
+    expect(result.error).toBeUndefined();
+    expect(result.state).toBe("complete");
+  },
+);
+
+it("retries post-commit task effects without re-saving the local authorization", async () => {
+  const f = await fixture();
+  const first = authorizationCommand(f);
+  const saved = (await f.service.manage({
+    action: "authorize-group",
+    command: first,
+  })) as ImAuthorizationOperation;
+  const grant = f.service.status().settings.grants[0]!;
+  const command = {
+    ...first,
+    operationId: randomUUID(),
+    intent: "edit" as const,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      f.service.status().settings,
+      "p",
+      true,
+      true,
+    ),
+    expectedGroupVersion: saved.group!.revision!,
+    expectedPolicyVersion: imPolicyVersion(grant),
+    expectedScopeVersion: grant.security!.scopes[0]!.revision!,
+    scope: {
+      ...first.scope,
+      readMode: "selected" as const,
+      readPaths: ["future.txt"],
+    },
+  };
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  f.ops.close = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Injected close failure"))
+    .mockResolvedValue(undefined);
+  const pending = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(pending.phases.local).toBe("applied");
+  expect(pending.state).toBe("pending");
+  const before = f.service.status().settings;
+  const resumed = (await f.service.manage({
+    action: "retry-group-authorization",
+    operationId: command.operationId,
+  })) as ImAuthorizationOperation;
+  expect(resumed.error).toBeUndefined();
+  expect(resumed.state).toBe("complete");
+  expect(f.service.status().settings).toEqual(before);
+  expect(f.ops.close).toHaveBeenCalledTimes(2);
 });

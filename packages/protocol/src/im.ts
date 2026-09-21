@@ -2,6 +2,7 @@ import { z } from "zod";
 import { appLocaleSchema } from "./schema.js";
 import {
   imGrantSecuritySchema,
+  imScopeRevision,
   imDataScopeSchema,
   imDeliverySecuritySchema,
   type ImSecurityContext,
@@ -161,6 +162,7 @@ export const imAuthorizationCommandSchema = z
   .object({
     version: z.literal(IM_AUTHORIZATION_VERSION),
     operationId: z.string().uuid(),
+    supersedes: z.string().uuid().optional(),
     intent: z.enum(["create", "edit", "renew", "restore", "rebind", "pause"]),
     deviceId: id,
     gatewayUrl: z.string().max(2048),
@@ -172,6 +174,7 @@ export const imAuthorizationCommandSchema = z
     expectedGroupVersion: id.nullable(),
     expectedScopeVersion: id.nullable(),
     expectedDeviceEnabled: z.boolean(),
+    expectedImpactVersion: z.string().max(60000),
     policy: executionGrantSchema
       .pick({
         mode: true,
@@ -199,6 +202,34 @@ export function imPolicyVersion(
   return grant
     ? (grant.policyVersion ?? JSON.stringify(imProjectPolicy(grant)))
     : null;
+}
+/** Audiences affected by shared policy edits or by enabling the device. */
+export function imAuthorizationImpactVersion(
+  settings: ImSettings,
+  projectId: string,
+  editPolicy: boolean,
+  enableService: boolean,
+): string {
+  return JSON.stringify(
+    settings.grants
+      .filter(
+        (grant) =>
+          (!settings.enabled && enableService) ||
+          (editPolicy && grant.projectId === projectId),
+      )
+      .map((grant) => ({
+        projectId: grant.projectId,
+        policy: imPolicyVersion(grant),
+        groups: [...grant.groups].sort(),
+        scopes: (grant.security?.scopes ?? [])
+          .map((scope) => ({
+            audience: scope.audience,
+            revision: imScopeRevision(grant.security!, scope),
+          }))
+          .sort((a, b) => a.audience.localeCompare(b.audience)),
+      }))
+      .sort((a, b) => a.projectId.localeCompare(b.projectId)),
+  );
 }
 /** Canonical confirmation contents shared by renderer and main; no Node API. */
 export function imAuthorizationFingerprint(
@@ -229,7 +260,7 @@ export type ImAuthorizationPhase =
 export interface ImAuthorizationOperation {
   version: typeof IM_AUTHORIZATION_VERSION;
   command: ImAuthorizationCommand;
-  state: "pending" | "complete" | "conflict";
+  state: "pending" | "complete" | "conflict" | "superseded";
   phases: Record<
     "binding" | "local" | "activation" | "sync",
     ImAuthorizationPhase
