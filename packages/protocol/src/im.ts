@@ -459,6 +459,8 @@ export const remoteInvocationSchema = z
     /** Desktop language captured when this request was initiated. */
     locale: appLocaleSchema.optional(),
     nativeTaskId: id.optional(),
+    /** Authenticated native assignment explicitly requests a fresh conversation. */
+    nativeNewSession: z.literal(true).optional(),
     sourceKind: z.enum(["direct", "tool-result", "member"]).optional(),
     version: z.literal(IM_PROTOCOL_VERSION),
     id,

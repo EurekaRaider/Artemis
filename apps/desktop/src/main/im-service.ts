@@ -173,6 +173,10 @@ interface Binding {
   groupName?: string;
   targetDeviceIds?: string[];
 }
+interface SuspendedBinding {
+  binding: Binding;
+  waitIds: string[];
+}
 interface GroupEntry {
   threadId: string;
   projectId: string;
@@ -227,7 +231,12 @@ export class ImService {
   }
   canResumeDelegation(id: string): boolean {
     const wait = this.delegationWaits.active().find((w) => w.id === id);
-    if (!wait || wait.state !== "ready") return false;
+    if (
+      !wait ||
+      wait.state !== "ready" ||
+      this.suspendedWait(wait.id, wait.threadId)
+    )
+      return false;
     const binding = this.get<Binding>("bindings", wait.threadId);
     const thread = this.ops.thread(wait.threadId);
     if (!binding || !thread || thread.archived || thread.mode !== "execute")
@@ -241,8 +250,24 @@ export class ImService {
       return false;
     }
   }
+  private suspendedWait(id: string, threadId: string): boolean {
+    return (
+      this.get<SuspendedBinding[]>("suspended-bindings", threadId) ?? []
+    ).some((entry) => entry.waitIds.includes(id));
+  }
+  private restoreBinding(threadId: string): void {
+    const stack =
+      this.get<SuspendedBinding[]>("suspended-bindings", threadId) ?? [];
+    const prior = stack.pop();
+    if (!prior) return;
+    this.put("bindings", threadId, prior.binding);
+    if (stack.length) this.put("suspended-bindings", threadId, stack);
+    else this.remove("suspended-bindings", threadId);
+  }
   hasDelegationWait(threadId: string): boolean {
-    return this.delegationWaits.active(threadId).length > 0;
+    return this.delegationWaits
+      .active(threadId)
+      .some((wait) => !this.suspendedWait(wait.id, threadId));
   }
   private cancelDelegationTask(
     threadId: string,
@@ -287,11 +312,15 @@ export class ImService {
         : undefined) ?? Promise.resolve()
     );
   }
-  async cancelThreadDelegations(threadId: string): Promise<boolean> {
+  async cancelThreadDelegations(
+    threadId: string,
+    currentAssignmentOnly = false,
+  ): Promise<boolean> {
     const resumed = this.get<string>("delegation-resumed", threadId);
     const waits = this.list<DelegationWait>("delegation-waits").filter(
       (w) =>
         w.threadId === threadId &&
+        (!currentAssignmentOnly || !this.suspendedWait(w.id, threadId)) &&
         (["waiting", "ready", "interrupted"].includes(w.state) ||
           w.id === resumed),
     );
@@ -384,12 +413,24 @@ export class ImService {
       );
     if (stopTurn)
       await this.ops.cancelDelegationContinuation?.(wait.threadId, ids);
+    if (
+      binding?.request.nativeTaskId &&
+      this.get<Binding>("bindings", wait.threadId)?.request.id ===
+        binding.request.id &&
+      !this.hasDelegationWait(wait.threadId)
+    )
+      this.restoreBinding(wait.threadId);
     return true;
   }
   private async drainDelegationWaits(): Promise<void> {
     if (!this.ops.ready() || !this.ops.resumeDelegation) return;
     for (const wait of this.delegationWaits.active()) {
-      if (wait.state !== "ready" || this.shortWaits.has(wait.id)) continue;
+      if (
+        wait.state !== "ready" ||
+        this.shortWaits.has(wait.id) ||
+        this.suspendedWait(wait.id, wait.threadId)
+      )
+        continue;
       if (await this.interruptFailedWait(wait, true)) continue;
       const thread = this.ops.thread(wait.threadId);
       const binding = this.get<Binding>("bindings", wait.threadId);
@@ -454,7 +495,15 @@ export class ImService {
           operation: "state",
         })
       ).json()) as { tasks: DelegatedTaskResult[] };
-      return state.tasks;
+      const suspended =
+        this.get<SuspendedBinding[]>("suspended-bindings", binding.threadId) ??
+        [];
+      return state.tasks.filter(
+        (task) =>
+          !suspended.some(
+            (entry) => entry.binding.request.id === task.invocationId,
+          ),
+      );
     };
     const tasks = (await load()).filter((t) => command.taskIds!.includes(t.id));
     if (
@@ -3161,6 +3210,7 @@ export class ImService {
         .run(threadId);
       for (const namespace of [
         "bindings",
+        "suspended-bindings",
         "subscriptions",
         "progress-time",
         "permission-blocks",
@@ -3470,8 +3520,15 @@ export class ImService {
             operation: "state",
           })
         ).json()) as { tasks: DelegatedTaskResult[] };
+        const suspended =
+          this.get<SuspendedBinding[]>("suspended-bindings", threadId) ?? [];
         const tasks = state.tasks.filter(
-          (t) => t.threadId === threadId && t.direction === "outgoing",
+          (t) =>
+            t.threadId === threadId &&
+            t.direction === "outgoing" &&
+            !suspended.some(
+              (entry) => entry.binding.request.id === t.invocationId,
+            ),
         );
         if (operation.command.action === "status") {
           let delivered = false;
@@ -3482,6 +3539,7 @@ export class ImService {
             tasks,
           );
           for (const wait of this.delegationWaits.active(threadId)) {
+            if (this.suspendedWait(wait.id, threadId)) continue;
             if (await this.interruptFailedWait(wait, false, turnId))
               return {
                 state: "interrupted",
@@ -3980,6 +4038,12 @@ export class ImService {
       try {
         await this.dispatch(receipt);
       } catch (error) {
+        if (
+          receipt.threadId &&
+          this.get<Binding>("bindings", receipt.threadId)?.request.id ===
+            request.id
+        )
+          this.restoreBinding(receipt.threadId);
         receipt.state = "done";
         this.put("receipts", request.id, receipt);
         this.reply(
@@ -4142,9 +4206,12 @@ export class ImService {
       if (threadId) {
         this.cancelOperations(threadId);
         const thread = this.ops.thread(threadId);
+        const active = this.get<Binding>("bindings", threadId);
+        const currentAssignment =
+          active?.request.nativeTaskId === request.nativeTaskId;
         const results = await Promise.allSettled([
           ...(thread && busy(thread) ? [this.ops.cancel(threadId)] : []),
-          this.cancelThreadDelegations(threadId),
+          this.cancelThreadDelegations(threadId, currentAssignment),
         ]);
         const failed = results.find((r) => r.status === "rejected");
         if (failed?.status === "rejected") throw failed.reason;
@@ -4157,6 +4224,12 @@ export class ImService {
           randomUUID(),
           "cancelled",
         );
+        if (
+          currentAssignment &&
+          this.get<Binding>("bindings", threadId)?.request.id ===
+            active?.request.id
+        )
+          this.restoreBinding(threadId);
       } else
         this.reply(
           request,
@@ -4422,19 +4495,21 @@ export class ImService {
       complete(this.text("unsubscribed", request));
       return;
     }
+    const reuseGroupSession =
+      !request.collaboration ||
+      (!!request.nativeTaskId && !request.nativeNewSession);
     let threadId =
       request.taskId ??
       (request.collaboration
         ? this.get<string>("assignments", request.collaboration.taskId)
         : undefined) ??
-      (!request.collaboration ? selection.threadId : undefined) ??
-      (request.conversation.kind === "group" && !request.collaboration
+      (reuseGroupSession ? selection.threadId : undefined) ??
+      (request.conversation.kind === "group" && reuseGroupSession
         ? this.list<Binding>("bindings")
             .filter(
               (b) =>
                 b.parentThreadId &&
                 !b.privateLocal &&
-                !b.request.collaboration &&
                 b.request.conversation.spaceId ===
                   request.conversation.spaceId &&
                 this.ops.thread(b.threadId) &&
@@ -4742,9 +4817,19 @@ export class ImService {
     const localTurnActive = () => {
       if (!existing) return false;
       const current = this.ops.thread(existing.id);
+      const suspended = this.get<SuspendedBinding[]>(
+        "suspended-bindings",
+        existing.id,
+      )?.length;
       return (
+        (!!suspended &&
+          (!request.nativeTaskId || !this.hasDelegationWait(existing.id))) ||
         this.starts.has(existing.id) ||
-        (!!current && busy(current) && !this.hasBinding(existing.id))
+        (!!current &&
+          busy(current) &&
+          (!!request.nativeTaskId ||
+            !this.hasBinding(existing.id) ||
+            !!suspended))
       );
     };
     if (localTurnActive()) {
@@ -4806,6 +4891,25 @@ export class ImService {
     if (projectId && !isImOwnerDirectRequest(request))
       binding.security = this.secureContext(binding);
     this.grant(binding);
+    if (
+      request.nativeTaskId &&
+      priorBinding &&
+      priorBinding.request.id !== request.id &&
+      (!priorBinding.request.nativeTaskId ||
+        this.hasDelegationWait(receipt.threadId))
+    ) {
+      const stack =
+        this.get<SuspendedBinding[]>("suspended-bindings", receipt.threadId) ??
+        [];
+      stack.push({
+        binding: priorBinding,
+        waitIds: this.delegationWaits
+          .active(receipt.threadId)
+          .filter((wait) => !this.suspendedWait(wait.id, binding.threadId))
+          .map((wait) => wait.id),
+      });
+      this.put("suspended-bindings", receipt.threadId, stack);
+    }
     this.put("bindings", receipt.threadId, binding);
     let thread = existing ?? this.ops.thread(receipt.threadId);
     let titleContext: ImTaskTitleContext | undefined;
@@ -4829,7 +4933,7 @@ export class ImService {
     this.put("subscriptions", thread.id, true);
     if (request.collaboration)
       this.put("assignments", request.collaboration.taskId, thread.id);
-    if (!request.collaboration)
+    if (!request.collaboration || request.nativeTaskId)
       this.put("selections", key, { projectId, threadId: thread.id });
     this.grant(binding);
     const wasBusy = busy(thread);
@@ -5205,6 +5309,11 @@ export class ImService {
         false,
         this.hasDelegationWait(event.threadId) ? "waiting" : undefined,
       );
+      if (
+        binding.request.nativeTaskId &&
+        !this.hasDelegationWait(event.threadId)
+      )
+        this.restoreBinding(event.threadId);
     }
   }
   /** Stream live text deltas into throttled non-final replies (1s flush). */

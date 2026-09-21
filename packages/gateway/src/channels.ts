@@ -402,6 +402,37 @@ export function normalizeFeishu(
     message.mentions.some(
       (item: any) => item.id?.open_id === connection.botOpenId,
     );
+  const bot = sender.sender_type === "bot" || sender.sender_type === "app";
+  let firstMention: string | undefined;
+  const renderMention = (userId: string, name: string): string => {
+    const first = firstMention === undefined;
+    firstMention ??= userId;
+    // Only the addressed mention is routing syntax; later names are task content.
+    return userId === connection.botOpenId && (bot || first)
+      ? ""
+      : `@${name || userId}`;
+  };
+  const replacements = new Map(
+    mentionItems.flatMap((item) => {
+      const key = string(item.key);
+      const userId = string(record(item.id).open_id);
+      return key && userId
+        ? [[key, { userId, name: string(item.name).trim() }] as const]
+        : [];
+    }),
+  );
+  // Longest keys first, with one pass so display names stay literal.
+  const pattern = [...replacements.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const replaceMentions = (value: string): string =>
+    pattern
+      ? value.replace(new RegExp(pattern, "g"), (key) => {
+          const item = replacements.get(key)!;
+          return renderMention(item.userId, item.name);
+        })
+      : value;
   // Card actions use the issued-card identity and single-use receiver, never arbitrary commands.
   if (header.event_type !== "im.message.receive_v1") return undefined;
   const attachments: ChannelEvent["attachments"] = [];
@@ -414,7 +445,7 @@ export function normalizeFeishu(
       : (Object.values(content)
           .map(record)
           .find((item) => Array.isArray(item.content)) ?? {});
-    const lines = [string(post.title)];
+    const lines = [replaceMentions(string(post.title))];
     for (const row of Array.isArray(post.content) ? post.content : []) {
       if (!Array.isArray(row)) continue;
       lines.push(
@@ -432,9 +463,12 @@ export function normalizeFeishu(
                 resourceId: node.image_key,
               });
             if (node.tag === "at")
-              return node.user_id === connection.botOpenId
-                ? ""
-                : `@${string(node.user_name) || mentions.find((item) => item.userId === node.user_id)?.name || string(node.user_id)}`;
+              return renderMention(
+                string(node.user_id),
+                string(node.user_name) ||
+                  mentions.find((item) => item.userId === node.user_id)?.name ||
+                  "",
+              );
             if (node.tag === "a") {
               const native = feishuNativeLink(
                 string(node.href),
@@ -442,12 +476,12 @@ export function normalizeFeishu(
                 connection.domain ?? "feishu",
               );
               if (native) nativeLinks.push(native);
-              return [string(node.text), string(node.href)]
+              return [replaceMentions(string(node.text)), string(node.href)]
                 .filter(Boolean)
                 .join(" ");
             }
             return node.tag === "text" || node.tag === "md"
-              ? string(node.text)
+              ? replaceMentions(string(node.text))
               : "";
           })
           .join(""),
@@ -455,32 +489,9 @@ export function normalizeFeishu(
     }
     text = lines.filter(Boolean).join("\n");
   }
-  const replacements = new Map(
-    mentionItems.flatMap((mention) => {
-      const key = string(mention.key);
-      const userId = string(record(mention.id).open_id);
-      const name = string(mention.name).trim();
-      return key && userId
-        ? [
-            [
-              key,
-              userId === connection.botOpenId ? "" : `@${name || userId}`,
-            ] as const,
-          ]
-        : [];
-    }),
-  );
-  // Replace once, longest keys first: @_user_1 must not corrupt @_user_10,
-  // and a display name resembling another placeholder is still literal data.
-  if (replacements.size) {
-    const keys = [...replacements.keys()].sort((a, b) => b.length - a.length);
-    const pattern = keys
-      .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("|");
-    text = text.replace(new RegExp(pattern, "g"), (key) =>
-      replacements.get(key)!,
-    );
-  }
+  if (message.message_type !== "post") text = replaceMentions(text);
+  if (!bot && message.chat_type !== "p2p")
+    mentioned = firstMention === connection.botOpenId;
   if (
     (sender.sender_type === "bot" || sender.sender_type === "app") &&
     nativeLinks.length === 1

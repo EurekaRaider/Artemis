@@ -645,6 +645,19 @@ export class NativeCooperation {
             group.nativeGroup!.ownerDeviceId,
             group.id,
           );
+          const ancestor = !envelope.newTask
+            ? [...ancestors]
+                .reverse()
+                .map((item) =>
+                  this.store.get<NativeTask>("native-tasks", item.task),
+                )
+                .find(
+                  (item) =>
+                    item?.direction === "outgoing" &&
+                    item.groupId === group.id &&
+                    item.threadId,
+                )
+            : undefined;
           const request: RemoteInvocationContext = {
             ...owner,
             locale:
@@ -658,7 +671,10 @@ export class NativeCooperation {
               : envelope.text,
             expiresAt: Math.min(envelope.expiresAt, this.now() + 30 * 60000),
             nativeTaskId: envelope.task,
-            ...(previous ? { taskId: previous.threadId } : {}),
+            ...(previous?.threadId || ancestor?.threadId
+              ? { taskId: previous?.threadId ?? ancestor?.threadId }
+              : {}),
+            ...(envelope.newTask ? { nativeNewSession: true } : {}),
             collaboration: {
               taskId: envelope.task,
               coordinatorDeviceId: owner.deviceId,
@@ -1076,7 +1092,7 @@ export class NativeCooperation {
             throw new Error(
               "This dependency is already pending. Wait for its result instead of dispatching it again.",
             );
-          const dependencies = assignment.dependsOn ?? [];
+          const dependencies = [...(assignment.dependsOn ?? [])];
           if (
             dependencies.some(
               (dep) =>
@@ -1100,6 +1116,7 @@ export class NativeCooperation {
             workflow.id,
           );
           if (request.locale) envelope.locale = request.locale;
+          if (command.newTask) envelope.newTask = true;
           if (parent) {
             envelope.parentTask = parent.id;
             envelope.dependency = assignment.dependency;
@@ -1112,19 +1129,11 @@ export class NativeCooperation {
             group,
             assignment.participantId,
           );
-          const independent =
-            !!parent ||
-            dependencies.length > 0 ||
-            assignments.filter(
-              (a) => a.participantId === assignment.participantId,
-            ).length > 1;
           let sessionId = envelope.task;
           let sessionReason: NativeTask["sessionReason"] = command.newTask
             ? "explicit-new"
-            : independent
-              ? "independent-batch"
-              : "first-assignment";
-          if (!command.newTask && !independent) {
+            : "first-assignment";
+          if (!command.newTask) {
             const selected = this.store.get<string>(
               "native-sessions-v3",
               sessionKey,
@@ -1138,7 +1147,6 @@ export class NativeCooperation {
                       t.peer !== assignment.participantId
                     )
                       return false;
-                    if (t.sessionReason === "independent-batch") return false;
                     if (t.sessionKey) {
                       if (t.sessionKey === sessionKey) return true;
                       // v2 also keyed by the human originator. Migrate the
@@ -1171,13 +1179,30 @@ export class NativeCooperation {
                 "The saved peer session is missing. Use newTask:true to explicitly start a new conversation.",
               );
             if (previous) {
-              if (!terminal(previous.state))
-                throw new Error(
-                  "Wait for the peer's result before continuing, or use newTask for independent work.",
-                );
+              // A reverse prerequisite must run inside the waiting ancestor's
+              // session; making it depend on that ancestor would deadlock both bots.
+              const returning =
+                !terminal(previous.state) &&
+                ancestors.some((ancestor) => ancestor.task === previous.id);
+              if (!terminal(previous.state) && !returning) {
+                if (
+                  parent ||
+                  dependencies.length ||
+                  tasks.some((t) => t.peer === assignment.participantId)
+                ) {
+                  if (!dependencies.includes(previous.id))
+                    dependencies.push(previous.id);
+                } else {
+                  throw new Error(
+                    "Wait for the peer's result before continuing. Use newTask:true only when the user explicitly requests a new conversation.",
+                  );
+                }
+              }
               if (previous.state !== "rejected") {
-                envelope.action = "continue";
-                envelope.previousTask = previous.id;
+                if (!returning) {
+                  envelope.action = "continue";
+                  envelope.previousTask = previous.id;
+                }
                 sessionId = previous.sessionId ?? previous.id;
                 sessionReason = "continued";
               } else {
@@ -1209,8 +1234,7 @@ export class NativeCooperation {
             updatedAt: this.now(),
           };
           this.store.put("native-tasks", task.id, task);
-          if (!independent)
-            this.store.put("native-sessions-v3", sessionKey, task.id);
+          this.store.put("native-sessions-v3", sessionKey, task.id);
           tasks.push(task);
           if (!dependencies.length) this.send(group, envelope, request.id);
         }

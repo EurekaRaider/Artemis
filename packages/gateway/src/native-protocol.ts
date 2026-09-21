@@ -36,6 +36,7 @@ export const nativeEnvelopeSchema = z
     ]),
     replyTo: z.string().uuid().optional(),
     previousTask: z.string().uuid().optional(),
+    newTask: z.literal(true).optional(),
     parentTask: z.string().uuid().optional(),
     dependency: collaborationDependencySchema.optional(),
     ancestors: z
@@ -72,6 +73,9 @@ export const nativeEnvelopeSchema = z
       message: "Dependency assignments require a parent and bounded ancestry.",
     },
   )
+  .refine((frame) => !frame.newTask || frame.action === "delegate", {
+    message: "Only a fresh assignment may request a new conversation.",
+  })
   .refine((frame) => (frame.action === "continue") === !!frame.previousTask, {
     message: "Only continuation frames must identify a previous task.",
   });

@@ -199,6 +199,66 @@ describe("Channel trust boundary", () => {
     expect(event?.text).toBe("请问 @Mino 和 @_user_10、@unknown");
     expect(event?.mentioned).toBe(true);
   });
+  it.each(["text", "post", "localized-post"])(
+    "routes %s to the first mention and preserves the collaboration partner",
+    (format) => {
+      const input = {
+        header: { event_type: "im.message.receive_v1" },
+        event: {
+          sender: { sender_type: "user", sender_id: { open_id: "alice" } },
+          message: {
+            message_id: "two-mentions",
+            chat_id: "group",
+            chat_type: "group",
+            message_type: format === "text" ? "text" : "post",
+            content: JSON.stringify(
+              format === "text"
+                ? { text: "@_user_1 你跟 @_user_2 讨论下分工" }
+                : format === "post"
+                  ? {
+                      content: [
+                        [
+                          { tag: "at", user_id: "mino" },
+                          { tag: "text", text: " 你跟 " },
+                          { tag: "at", user_id: "jupiter" },
+                          { tag: "text", text: " 讨论下分工" },
+                        ],
+                      ],
+                    }
+                  : {
+                      zh_cn: {
+                        content: [
+                          [
+                            { tag: "text", text: "@_user_1 你跟 " },
+                            { tag: "at", user_id: "jupiter" },
+                            { tag: "text", text: " 讨论下分工" },
+                          ],
+                        ],
+                      },
+                    },
+            ),
+            // Delivery metadata order must not decide the addressee.
+            mentions: [
+              { key: "@_user_2", id: { open_id: "jupiter" }, name: "Jupiter" },
+              { key: "@_user_1", id: { open_id: "mino" }, name: "Mino" },
+            ],
+          },
+        },
+      };
+      expect(
+        normalizeFeishu({ ...config, botOpenId: "mino" }, input),
+      ).toMatchObject({
+        mentioned: true,
+        text: "你跟 @Jupiter 讨论下分工",
+      });
+      expect(
+        normalizeFeishu({ ...config, botOpenId: "jupiter" }, input),
+      ).toMatchObject({
+        mentioned: false,
+        text: "@Mino 你跟 @Jupiter 讨论下分工",
+      });
+    },
+  );
   it("recovers only the current app's Typing reaction before cleanup", async () => {
     const requests: string[] = [];
     const fetch = vi

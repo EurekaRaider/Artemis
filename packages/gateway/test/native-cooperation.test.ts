@@ -910,9 +910,96 @@ describe.each(["slack", "feishu", "lark"] as const)(
       exchange(f.a, f.b);
       expect(f.b.store.pending("device")).toHaveLength(2);
       expect(
+        f.b.store.pending<RemoteInvocationContext>("device")[1]!.payload.taskId,
+      ).toBe("worker");
+      expect(
         f.b.router.native.tasks(f.b.group.id).find((t) => t.id !== first!.id)
           ?.text,
       ).toContain("Artifact result");
+    });
+    it("serializes batch assignments to one peer in the same session", () => {
+      const f = pair();
+      const tasks = f.a.router.native.command(
+        f.request,
+        "coordinator",
+        randomUUID(),
+        {
+          action: "delegate-many",
+          text: "",
+          assignments: [
+            { participantId: "B", text: "First part" },
+            { participantId: "B", text: "Second part" },
+          ],
+        },
+      ) as Array<{ id: string }>;
+      exchange(f.a, f.b);
+      expect(f.b.store.pending("device")).toHaveLength(1);
+      const first = f.b.router.native.tasks(f.b.group.id)[0]!;
+      f.b.router.receiveReply(f.b.device.id, {
+        version: 1,
+        id: randomUUID(),
+        invocationId: first.invocationId,
+        taskId: "one-worker",
+        text: "First result",
+        final: true,
+        outcome: "completed",
+      });
+      exchange(f.b, f.a);
+      f.a.router.native.tick();
+      exchange(f.a, f.b);
+      const second = f.b.router.native
+        .tasks(f.b.group.id)
+        .find((t) => t.id === tasks[1]!.id)!;
+      expect(
+        f.b.store.get<RemoteInvocationContext>(
+          "invocations",
+          second.invocationId,
+        )?.taskId,
+      ).toBe("one-worker");
+    });
+    it("reuses a peer session for successive upstream prerequisites", () => {
+      const f = pair();
+      delegate(f);
+      exchange(f.a, f.b);
+      const parent = f.b.router.native.tasks(f.b.group.id)[0]!;
+      const worker = f.b.store.get<RemoteInvocationContext>(
+        "invocations",
+        parent.invocationId,
+      )!;
+      const ask = (text: string) =>
+        f.b.router.native.command(worker, "worker", randomUUID(), {
+          action: "delegate",
+          participantId: "A",
+          text,
+          dependency: {
+            reason: "Need local constraints",
+            retainedWork: "Retain analysis",
+          },
+        }) as Array<{ id: string }>;
+      const [first] = ask("Provide deployment constraints");
+      exchange(f.b, f.a);
+      const incoming = f.a.router.native
+        .tasks(f.a.group.id)
+        .find((t) => t.id === first!.id)!;
+      f.a.router.receiveReply(f.a.device.id, {
+        version: 1,
+        id: randomUUID(),
+        invocationId: incoming.invocationId,
+        taskId: "upstream-session",
+        text: "Linux",
+        final: true,
+        outcome: "completed",
+      });
+      exchange(f.a, f.b);
+      const [second] = ask("Clarify memory constraints");
+      exchange(f.b, f.a);
+      const next = f.a.router.native
+        .tasks(f.a.group.id)
+        .find((t) => t.id === second!.id)!;
+      expect(
+        f.a.store.get<RemoteInvocationContext>("invocations", next.invocationId)
+          ?.taskId,
+      ).toBe("upstream-session");
     });
     it("keeps remote cancellation pending until the peer confirms and terminal states resist late progress", () => {
       const f = pair();
@@ -1598,6 +1685,58 @@ describe.each(["slack", "feishu", "lark"] as const)(
         f.a.router.native.tasks(f.a.group.id).find((t) => t.id === parent!.id)!
           .state,
       ).not.toBe("completed");
+    });
+
+    it("routes nested reverse prerequisites to each original session without waiting on their own ancestor", () => {
+      const f = pair();
+      delegate(f);
+      exchange(f.a, f.b);
+      const workerTask = f.b.router.native.tasks(f.b.group.id)[0]!;
+      const worker = f.b.store.get<RemoteInvocationContext>(
+        "invocations",
+        workerTask.invocationId,
+      )!;
+      const dependency = {
+        reason: "Need a distinct local detail",
+        retainedWork: "Retain the original work",
+      };
+      f.b.router.native.command(worker, "worker-session", randomUUID(), {
+        action: "delegate",
+        participantId: "A",
+        text: "Provide deployment constraints",
+        dependency,
+      });
+      exchange(f.b, f.a);
+      const reverse = f.a.router.native
+        .tasks(f.a.group.id)
+        .find((t) => t.direction === "incoming")!;
+      const coordinator = f.a.store.get<RemoteInvocationContext>(
+        "invocations",
+        reverse.invocationId,
+      )!;
+      expect(coordinator.taskId).toBe("coordinator");
+      const [nested] = f.a.router.native.command(
+        coordinator,
+        "coordinator",
+        randomUUID(),
+        {
+          action: "delegate",
+          participantId: "B",
+          text: "Which runtime versions are supported?",
+          dependency,
+        },
+      ) as Array<{ id: string; state: string }>;
+      expect(nested!.state).toBe("sent");
+      exchange(f.a, f.b);
+      const received = f.b.router.native
+        .tasks(f.b.group.id)
+        .find((t) => t.id === nested!.id)!;
+      expect(
+        f.b.store.get<RemoteInvocationContext>(
+          "invocations",
+          received.invocationId,
+        )?.taskId,
+      ).toBe("worker-session");
     });
 
     it("rejects copying the parent assignment back despite a dependency declaration", () => {
