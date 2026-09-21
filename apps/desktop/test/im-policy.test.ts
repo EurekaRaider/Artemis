@@ -297,3 +297,13 @@ it.runIf(process.platform === "darwin")(
     }
   },
 );
+
+it("includes future directory files without expanding another audience or a single file", () => {
+  const directory = { audience: "space:a", readPaths: ["docs"], writePaths: [] };
+  const file = { audience: "space:b", readPaths: ["docs/guide"], filePaths: ["docs/guide"], writePaths: [] };
+  expect(authorizeImReadPath(directory, "docs/new/future.md")).toBe("docs/new/future.md");
+  expect(() => authorizeImReadPath(file, "docs/new/future.md")).toThrow();
+  expect(() => authorizeImReadPath(file, "docs/guide/private.md")).toThrow();
+  expect(() => authorizeImPath(directory, "docs/.env")).toThrow();
+  expect(() => authorizeImPath(directory, "docs/new/future.md", true)).toThrow();
+});

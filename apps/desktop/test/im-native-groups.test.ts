@@ -2600,3 +2600,12 @@ it("invalidates pending deliveries when a scope changes but keeps the conversati
     f.secret,
   );
 });
+
+it("rejects an unconfirmed new group before creating any Gateway relationship", async () => {
+  const f = await fixture();
+  f.grant.security!.confirmedAt = 0;
+  await expect(f.authorize()).rejects.toThrow();
+  expect(f.gateway.store.list("native-groups")).toEqual([]);
+  expect(f.service.status().settings.grants).toEqual([]);
+  expect(f.threads).toEqual([]);
+});
