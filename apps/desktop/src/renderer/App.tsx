@@ -3004,8 +3004,10 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    performance.mark?.("artemis:snapshot-request");
     void window.artemis.getSnapshot().then((value) => {
       if (!mounted) return;
+      performance.mark?.("artemis:snapshot-ready");
       setSnapshot(value);
       const project = value.projects[0];
       setActiveProjectId(project?.id);
@@ -3315,6 +3317,11 @@ export function App() {
     const readyTimer = setTimeout(() => {
       void desktopSkinReady.then(() => {
         if (cancelled) return;
+        if (
+          performance.getEntriesByName?.("artemis:renderer-ready").length === 0
+        ) {
+          performance.mark?.("artemis:renderer-ready");
+        }
         window.artemis.rendererReady();
       });
     }, 0);

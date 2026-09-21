@@ -9,6 +9,8 @@ import "./styles.css";
 import "./prototype-migration.css";
 import "@artemis/theme-artemis/theme.css";
 
+performance.mark?.("artemis:renderer-entry");
+
 function diagnosticDetails(value: unknown): {
   message: string;
   stack?: string;
@@ -42,9 +44,11 @@ if (!root) {
 }
 
 await bootstrapDesktopSkin();
+performance.mark?.("artemis:skin-ready");
 
 createRoot(root).render(
   <StrictMode>
     <App />
   </StrictMode>,
 );
+performance.mark?.("artemis:react-scheduled");

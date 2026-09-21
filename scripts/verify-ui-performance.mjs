@@ -85,7 +85,7 @@ export function startupStageMaximums(budget) {
   return thresholds;
 }
 
-export function evaluateStartupTimings(budget, variants) {
+export function evaluateStartupTimings(budget, variants, coldVariants) {
   const thresholds = startupStageMaximums(budget);
   const policy = budget.thresholds.startup;
   const maximumWarmOutlierVariants = policy.maximumWarmOutlierVariants;
@@ -100,9 +100,31 @@ export function evaluateStartupTimings(budget, variants) {
     violations.push("startup matrix: expected at least one variant");
   }
 
-  for (const [index, variant] of variants.entries()) {
+  if (
+    coldVariants !== undefined &&
+    (!Array.isArray(coldVariants) ||
+      coldVariants.length !== variants.length ||
+      new Set(variants.map((variant) => variant.id)).size !== variants.length ||
+      coldVariants.some((variant, index) => variant.id !== variants[index]?.id))
+  ) {
+    violations.push(
+      "startup matrix: expected one matching cold sample per warm variant",
+    );
+  }
+  const samples =
+    coldVariants === undefined
+      ? variants.map((variant, index) => ({
+          variant,
+          isColdStart: index === 0,
+        }))
+      : [
+          ...(Array.isArray(coldVariants) ? coldVariants : []).map(
+            (variant) => ({ variant, isColdStart: true }),
+          ),
+          ...variants.map((variant) => ({ variant, isColdStart: false })),
+        ];
+  for (const [index, { variant, isColdStart }] of samples.entries()) {
     const variantId = variant.id ?? `variant-${String(index + 1)}`;
-    const isColdStart = index === 0;
     const hardMaximumMs = isColdStart
       ? coldStartHardMaximumMs
       : warmHardMaximumMs;
@@ -148,6 +170,9 @@ export function evaluateStartupTimings(budget, variants) {
   return {
     coldStartVariantId:
       variants.length === 0 ? null : (variants[0]?.id ?? "variant-1"),
+    coldStartVariantIds: samples
+      .filter((sample) => sample.isColdStart)
+      .map((sample) => sample.variant.id),
     stageMaximumMs,
     warmStageMaximumMs,
     thresholds,
@@ -195,7 +220,13 @@ export async function verifyUiPerformance(
   let startupWarmOutlierVariants;
   if (screenshotManifestPath !== undefined) {
     const manifest = JSON.parse(await readFile(screenshotManifestPath, "utf8"));
-    const startup = evaluateStartupTimings(budget, manifest.variants ?? []);
+    const startup = evaluateStartupTimings(
+      budget,
+      manifest.variants ?? [],
+      manifest.version >= 4
+        ? (manifest.coldVariants ?? [])
+        : manifest.coldVariants,
+    );
     startupColdStartVariantId = startup.coldStartVariantId;
     startupStageMaximumMs = startup.stageMaximumMs;
     startupWarmStageMaximumMs = startup.warmStageMaximumMs;

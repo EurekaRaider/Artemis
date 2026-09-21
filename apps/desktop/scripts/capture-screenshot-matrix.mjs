@@ -170,7 +170,7 @@ const temporaryDirectory = await mkdtemp(
 );
 const manifest = {
   format: "artemis-screenshot-matrix",
-  version: 3,
+  version: 4,
   generatedAt: new Date().toISOString(),
   candidateHead,
   expectedHead,
@@ -186,12 +186,19 @@ const manifest = {
     viewports: ["1440x900", "980x720"],
   },
   variants: [],
+  coldVariants: [],
 };
 
+// Measure a fresh profile and then reuse it exactly once. A different
+// locale/profile is not a warm launch merely because English ran first.
+const launches = variants.flatMap((variant) =>
+  ["cold", "warm"].map((phase) => ({ variant, phase })),
+);
 try {
-  for (const variant of variants) {
-    const screenshotPath = join(outputDirectory, `${variant.id}.png`);
-    const accessibilityPath = join(outputDirectory, `${variant.id}.a11y.json`);
+  for (const { variant, phase } of launches) {
+    const artifactId = phase === "cold" ? `${variant.id}.cold` : variant.id;
+    const screenshotPath = join(outputDirectory, `${artifactId}.png`);
+    const accessibilityPath = join(outputDirectory, `${artifactId}.a11y.json`);
     await rm(screenshotPath, { force: true });
     await rm(accessibilityPath, { force: true });
     const environment = {
@@ -317,18 +324,21 @@ try {
 
     const startupTimings = accessibility.startupTimings ?? [];
 
-    manifest.variants.push({
+    const samples =
+      phase === "cold" ? manifest.coldVariants : manifest.variants;
+    samples.push({
       ...variant,
-      screenshot: `${variant.id}.png`,
+      screenshot: `${artifactId}.png`,
       screenshotBytes: screenshotSize,
       screenshotSha256: createHash("sha256").update(screenshot).digest("hex"),
-      accessibility: `${variant.id}.a11y.json`,
+      accessibility: `${artifactId}.a11y.json`,
       interactiveCount: accessibility.interactiveCount,
       issueCount: accessibility.issues.length,
       rendererSandbox: true,
       resolvedTheme: accessibility.resolvedTheme,
       launchDurationMs: Number(launchDurationMs.toFixed(1)),
       startupTimings,
+      rendererStartup: accessibility.rendererStartup,
       actualViewport: {
         width: accessibility.windowInnerWidth,
         height: accessibility.windowInnerHeight,
@@ -336,9 +346,14 @@ try {
     });
   }
 
-  const startup = evaluateStartupTimings(budget, manifest.variants);
+  const startup = evaluateStartupTimings(
+    budget,
+    manifest.variants,
+    manifest.coldVariants,
+  );
   manifest.startupBudget = {
     coldStartVariantId: startup.coldStartVariantId,
+    coldStartVariantIds: startup.coldStartVariantIds,
     stageMaximumMs: startup.stageMaximumMs,
     warmStageMaximumMs: startup.warmStageMaximumMs,
     stageThresholdMaximumMs: startup.thresholds,

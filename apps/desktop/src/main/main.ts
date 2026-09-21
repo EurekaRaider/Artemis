@@ -18794,6 +18794,18 @@ function createMainWindow(): BrowserWindow {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
                   title: document.title,
+                  rendererStartup: {
+                    stages: ["renderer-entry", "skin-ready", "react-scheduled", "snapshot-request", "snapshot-ready", "renderer-ready"].map((stage) => {
+                      const entry = performance.getEntriesByName("artemis:" + stage)[0];
+                      return { stage, elapsedMs: entry ? Math.round(entry.startTime * 10) / 10 : null };
+                    }),
+                    navigation: performance.getEntriesByType("navigation").map((entry) => ({
+                      responseEnd: entry.responseEnd,
+                      domInteractive: entry.domInteractive,
+                      domContentLoadedEventEnd: entry.domContentLoadedEventEnd,
+                      loadEventEnd: entry.loadEventEnd,
+                    })),
+                  },
                   themePreference:
                     document.documentElement.dataset.theme ?? "system",
                   resolvedTheme:

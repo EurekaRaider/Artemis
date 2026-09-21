@@ -15,11 +15,11 @@ failures had independent causes:
 
 ## Recurring failures
 
-| Runs                                                                                                                                                             | Evidence                                                                            | Treatment                                                                                                                                                                                                                                                                                                                        |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [35453149862](https://github.com/EurekaRaider/Artemis/actions/runs/35453149862), [35512822294](https://github.com/EurekaRaider/Artemis/actions/runs/35512822294) | CSS/source expectations and accessibility evidence no longer matched the changed UI | These checks catch changes in UI contracts. Update intended behavior and its evidence together; do not globally disable the contracts. Later main commits already repaired these failures.                                                                                                                                       |
-| [35478491374](https://github.com/EurekaRaider/Artemis/actions/runs/35478491374), [35486744244](https://github.com/EurekaRaider/Artemis/actions/runs/35486744244) | Concurrent Goal smoke renderers exceeded their startup deadline                     | The existing main fix increased the initialization deadline within the aggregate workload budget. It is already present in this repair's base.                                                                                                                                                                                   |
-| [35491224206](https://github.com/EurekaRaider/Artemis/actions/runs/35491224206), [35503223593](https://github.com/EurekaRaider/Artemis/actions/runs/35503223593) | Windows renderer startup exceeded the 4-second warm maximum                         | Screenshot launches are serial. The first run measured 5793.1 ms for Chinese and 4381.3 ms for Japanese, while later launches were substantially faster. This alone does not establish a runner or application root cause. Preserve failures and complete timing evidence instead of raising thresholds or retrying until green. |
+| Runs                                                                                                                                                             | Evidence                                                                            | Treatment                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [35453149862](https://github.com/EurekaRaider/Artemis/actions/runs/35453149862), [35512822294](https://github.com/EurekaRaider/Artemis/actions/runs/35512822294) | CSS/source expectations and accessibility evidence no longer matched the changed UI | These checks catch changes in UI contracts. Update intended behavior and its evidence together; do not globally disable the contracts. Later main commits already repaired these failures.                                                                                                                                                                                                                    |
+| [35478491374](https://github.com/EurekaRaider/Artemis/actions/runs/35478491374), [35486744244](https://github.com/EurekaRaider/Artemis/actions/runs/35486744244) | Concurrent Goal smoke renderers exceeded their startup deadline                     | The existing main fix increased the initialization deadline within the aggregate workload budget. It is already present in this repair's base.                                                                                                                                                                                                                                                                |
+| [35491224206](https://github.com/EurekaRaider/Artemis/actions/runs/35491224206), [35503223593](https://github.com/EurekaRaider/Artemis/actions/runs/35503223593) | Windows renderer startup exceeded the 4-second warm maximum                         | Screenshot launches are serial. The first run measured 5793.1 ms for Chinese and 4381.3 ms for Japanese, while later launches were substantially faster. The later repair run reproduced first-use CJK delays. The harness gave every variant a fresh profile but classified all except the first English launch as warm. Measure a cold/warm pair for each variant instead of classifying by array position. |
 
 The screenshot matrix now writes its complete manifest, including startup
 violations, before rejecting a performance failure. Previously that rejection
@@ -54,3 +54,26 @@ CI is required to validate this test adjustment.
 
 These changes address confirmed causes and improve diagnosis. They do not
 promise that future regressions or hosted-runner/network failures cannot occur.
+
+## Cold and warm startup measurements
+
+[35557936054](https://github.com/EurekaRaider/Artemis/actions/runs/35557936054)
+reproduced Windows startup failures: Traditional Chinese took 4582.7 ms and
+Japanese 5304.8 ms; subsequent scaled Japanese took 918.7 ms. The previous
+harness created a new user profile for every variant while classifying only
+the first English launch as cold. Different fresh profiles and first-use locale
+resources were therefore compared against a warm-start ceiling.
+
+Manifest version 4 records two fixed launches per variant: a fresh-profile
+cold sample and a warm sample reusing the same profile. Both launches run the
+visual, accessibility and runtime-security assertions and retain their evidence.
+All 27 cold samples must satisfy the existing 10-second ceiling; all 27 warm
+samples (including English) must satisfy the existing 4-second ceiling and
+warm-outlier limit. There are no retries or discarded timing samples. The
+aggregate screenshot workload budget remains 180 seconds. Missing, mismatched,
+slow-cold and slow-warm sample fixtures verify that the gate still fails closed.
+
+Renderer stage marks and navigation timing are retained in both samples to
+distinguish module loading, skin initialization, state retrieval and the first
+ready render. The 10-second cold ceiling is a failure guard, not a product
+latency target; passing it alone does not establish acceptable startup UX.
