@@ -18,6 +18,7 @@ const expectedAddons = {
       "im:chat.members:read",
       "im:chat.members:bot_access",
       "im:message.group_at_msg.include_bot:readonly",
+      "im:message.group_msg.include_bot:read",
       "im:message.p2p_msg:readonly",
       "im:message:send_as_bot",
       "im:message:readonly",
