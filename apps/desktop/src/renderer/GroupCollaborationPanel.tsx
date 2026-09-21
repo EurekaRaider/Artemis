@@ -198,7 +198,7 @@ export function GroupCollaborationPanel({
     return (
       <div className="im-field-stack">
         <Select
-          label={t("GroupAuthorization.mode")}
+          label={t("AutomationPage_text.mode")}
           labelVisibility="visible"
           value={active.mode}
           disabled={locked}
@@ -322,7 +322,7 @@ export function GroupCollaborationPanel({
           {t("GroupAuthorization.title")}
         </h2>
         <Button variant="quiet" onClick={() => navigate(onClose)}>
-          {t("GroupAuthorization.close")}
+          {t("App_copy.renameClose")}
         </Button>
       </header>
       <div
@@ -956,7 +956,7 @@ export function GroupCollaborationPanel({
                 )}
                 <footer className="im-group-actions">
                   <Button onClick={() => navigate(() => setDraft(undefined))}>
-                    {t("GroupAuthorization.cancel")}
+                    {t("App_copy.renameCancel")}
                   </Button>
                   {draft.step > 1 && (
                     <Button
