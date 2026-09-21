@@ -108,3 +108,17 @@ with atomic rollback. Twenty local fresh-database constructor samples improved
 from a 3.47 ms median to 1.87 ms; this microbenchmark is not proof of the Windows
 end-to-end improvement. A database-ready stage makes that remote measurement
 explicit.
+
+## Routine CI platform scope
+
+Per the owner's September 21 request, routine CI no longer schedules macOS x64.
+It retains portable checks, Windows native sandbox integration, Windows x64
+visual/package verification and macOS arm64 visual verification. The release
+workflow still builds Intel macOS artifacts when a release tag is pushed.
+
+At `1ae564379c9b9aee16fd2db372fcf96b77b0e2da`, run 35559859474 passed all four
+retained jobs. Only the still-running macOS x64 job was canceled at the owner's
+request. Windows fresh-profile renderer-ready timings were 714 ms median and
+1612 ms maximum across 27 samples; warm timings were 581 ms median and 789 ms
+maximum. Database initialization was at most 230 ms. These are CI stage timings,
+not a controlled cross-run comparison or installed-app click-to-ready timings.

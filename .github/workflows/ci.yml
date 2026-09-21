@@ -86,9 +86,6 @@ jobs:
           - id: macos-arm64
             label: macOS arm64
             runner: macos-15
-          - id: macos-x64
-            label: macOS x64
-            runner: macos-15-intel
           - id: windows-x64
             label: Windows x64
             runner: windows-2025
