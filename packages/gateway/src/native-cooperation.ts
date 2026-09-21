@@ -304,7 +304,6 @@ export class NativeCooperation {
 
   observeBot(event: ChannelEvent): void {
     if (
-      !event.bot ||
       event.identity.channel !== "feishu" ||
       event.conversation.kind !== "group"
     )
@@ -318,13 +317,48 @@ export class NativeCooperation {
       event.identity.tenantId !== owner.tenantId ||
       event.identity.appId !== owner.appId ||
       event.timestamp < group.nativeGroup!.enabledAt ||
-      event.timestamp > this.now() + 60000 ||
-      event.identity.userId === this.address(group).sender
+      event.timestamp > this.now() + 60000
     )
       return;
     const peers = this.peers(group.id);
+    const names = new Map(
+      this.store.get<Array<[string, string]>>(
+        "native-member-names",
+        group.id,
+      ) ?? [],
+    );
+    for (const mention of event.mentions ?? [])
+      names.set(mention.userId, mention.name);
+    if (event.mentions?.length) {
+      this.store.put("native-member-names", group.id, [...names].slice(-1000));
+      for (const peer of peers) peer.name = names.get(peer.id) ?? peer.name;
+      this.store.put("native-peers", group.id, peers);
+      const info = this.store.get<{ roster?: ImGroupRoster }>(
+        "native-group-info",
+        group.id,
+      );
+      if (info?.roster)
+        this.store.put("native-group-info", group.id, {
+          ...info,
+          roster: {
+            ...info.roster,
+            members: info.roster.members.map((member) => ({
+              ...member,
+              name: names.get(member.identity.userId) ?? member.name,
+            })),
+          },
+        });
+    }
+    // Mention names label already observed identities; they do not discover bots
+    // or grant verification, assignment permission, or automatic collaboration.
+    if (!event.bot || event.identity.userId === this.address(group).sender)
+      return;
+    const name =
+      names.get(event.identity.userId) ??
+      peers.find((p) => p.id === event.identity.userId)?.name ??
+      event.identity.userId;
     if (!peers.some((p) => p.id === event.identity.userId)) {
-      peers.push({ id: event.identity.userId, name: event.identity.userId });
+      peers.push({ id: event.identity.userId, name });
       this.store.put("native-peers", group.id, peers.slice(-100));
     }
     // Observation is identity evidence only. Permission and correlated proof
@@ -338,7 +372,7 @@ export class NativeCooperation {
     );
     members.push({
       identity: event.identity,
-      name: event.identity.userId,
+      name,
       kind: "bot",
     });
     this.store.put("native-group-info", group.id, {

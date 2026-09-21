@@ -1,3 +1,4 @@
+import { imUserMessageText } from "./im-user-message.js";
 import { UserInputCard } from "./UserInputCard.js";
 import {
   DecisionComposer,
@@ -9411,11 +9412,6 @@ export function App() {
             locale={locale}
             projects={projects}
             onClose={() => setSettingsOpen(false)}
-            onOpenThread={async (threadId) => {
-              await openAutomationThread(threadId);
-              setSettingsOpen(false);
-              window.requestAnimationFrame(() => promptInput.current?.focus());
-            }}
             returnFocusRef={settingsTrigger}
             onSettingsChange={(value, options) => {
               setRuntimeSettings(value);
@@ -10489,7 +10485,9 @@ export function Timeline({
         (source) => source.kind === "file",
       );
       const skillNames = selectedSkillNamesForPrompt(message.text);
-      const visibleText = promptWithoutSelectedSkills(message.text);
+      const visibleText = promptWithoutSelectedSkills(
+        imUserMessageText(message.text),
+      );
       const editable =
         onEditUserMessage !== undefined &&
         (turn?.status === "cancelled" || turn?.status === "failed");

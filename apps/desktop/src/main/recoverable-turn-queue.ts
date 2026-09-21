@@ -101,6 +101,16 @@ export class RecoverableTurnQueues {
     };
   }
 
+  displayText(threadId: string, runtimeText: string): string {
+    const queue = this.#queues.get(threadId);
+    const item =
+      queue &&
+      [...queue.steering, ...queue.followUp, ...queue.recentlyRemoved].find(
+        (item) => item.runtimeText === runtimeText,
+      );
+    return item?.text ?? runtimeText;
+  }
+
   recover(
     threadId: string,
     messages?: readonly string[],
@@ -201,6 +211,21 @@ export class RecoverableTurnQueues {
     const current = this.#queues.get(replacement.threadId);
     if (!current || current.revision !== replacement.appliedRevision) return;
     this.#queues.set(replacement.threadId, replacement.previous);
+  }
+
+  takeForDispatch(
+    threadId: string,
+  ): Array<RecoveredQueueItem & { displayText: string }> {
+    const queue = this.#queues.get(threadId);
+    const items = [...(queue?.steering ?? []), ...(queue?.followUp ?? [])].map(
+      (item) => ({
+        ...publicItem(item),
+        text: item.runtimeText,
+        displayText: item.text,
+      }),
+    );
+    this.#queues.delete(threadId);
+    return items;
   }
 
   snapshot(threadId: string): { steering: string[]; followUp: string[] } {

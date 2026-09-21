@@ -260,8 +260,8 @@ it("shows matched bot and account names instead of authorization identifiers", a
   expect(
     screen.queryByText("已观察成员可能不完整，仍适用现有群成员准入规则。"),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByText("群成员", { selector: "summary" }));
   const roster = document.querySelector(".im-group-members") as HTMLElement;
+  expect(roster).toHaveAttribute("open");
   expect(roster).toHaveTextContent("林晓");
   expect(roster).toHaveTextContent("陈晨");
   expect(within(roster).getAllByRole("img", { name: "成员" })).toHaveLength(3);
@@ -422,7 +422,6 @@ it.each([false, true])(
 
 it("does not open an unrelated task for an unbound Lark group", async () => {
   const f = fixture();
-  const open = vi.fn();
   const diagnostics = {
     ...f.props.diagnostics,
     groups: [
@@ -443,7 +442,6 @@ it("does not open an unrelated task for an unbound Lark group", async () => {
     <GroupCollaborationPanel
       {...f.props}
       diagnostics={diagnostics}
-      onOpenThread={open}
       status={{
         ...f.props.status,
         remoteTasks: [
@@ -459,12 +457,10 @@ it("does not open an unrelated task for an unbound Lark group", async () => {
   expect(
     screen.getByText("在群内向机器人发送首条消息，即可开始对话。"),
   ).toBeVisible();
-  expect(open).not.toHaveBeenCalled();
 });
 
-it("opens only the selected group's current root task", async () => {
+it("omits the open group conversation button when a current task exists", async () => {
   const f = fixture();
-  const open = vi.fn();
   const group = {
     spaceId: "saved",
     name: "研发群",
@@ -489,7 +485,6 @@ it("opens only the selected group's current root task", async () => {
   render(
     <GroupCollaborationPanel
       {...f.props}
-      onOpenThread={open}
       status={{
         ...f.props.status,
         spaces: [space],
@@ -521,6 +516,8 @@ it("opens only the selected group's current root task", async () => {
     />,
   );
   await userEvent.click(screen.getByRole("button", { name: /研发群/ }));
-  await userEvent.click(screen.getByRole("button", { name: "打开群对话" }));
-  expect(open).toHaveBeenCalledExactlyOnceWith("current");
+  expect(
+    screen.queryByRole("button", { name: "打开群对话" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText("群成员").closest("details")).toHaveAttribute("open");
 });

@@ -79,6 +79,38 @@ function fixture() {
 const image = { name: "test.png", mimeType: "image/png", data: "aW1hZ2U=" };
 
 describe("manual compaction IPC queue", () => {
+  it("keeps IM display text separate while dispatching private prompts after compaction", async () => {
+    const f = fixture();
+    await f.queueTurn(
+      "turn.follow-up",
+      { threadId: "a", text: "private first" },
+      false,
+      "@Mino first",
+    );
+    await f.queueTurn(
+      "turn.follow-up",
+      { threadId: "a", text: "private second" },
+      false,
+      "@Mino second",
+    );
+    expect(f.compactionFollowUps.snapshot("a").followUp).toEqual([
+      "@Mino first",
+      "@Mino second",
+    ]);
+    f.compactingThreads.delete("a");
+    await f.resumeCompactionFollowUps(f.thread);
+    expect(f.startTaskTurn).toHaveBeenCalledWith(
+      { threadId: "a", mode: "execute", text: "private first" },
+      { origin: "desktop", afterCompaction: true, displayText: "@Mino first" },
+    );
+    expect(f.agentProcess.request).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "private second" }),
+    );
+    expect(f.recoverableTurnQueues.displayText("a", "private second")).toBe(
+      "@Mino second",
+    );
+  });
+
   it("accepts messages before the compacting session opens while another task runs independently", async () => {
     const f = fixture();
     f.openedThreads.delete("a");
@@ -117,7 +149,7 @@ describe("manual compaction IPC queue", () => {
         attachments: [image],
         mode: "execute",
       }),
-      { origin: "desktop", afterCompaction: true },
+      { origin: "desktop", afterCompaction: true, displayText: "first" },
     );
     expect(
       f.agentProcess.request.mock.calls.map(([command]: any[]) => command.text),

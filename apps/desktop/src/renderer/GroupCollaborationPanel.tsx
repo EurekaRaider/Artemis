@@ -86,7 +86,6 @@ export function GroupCollaborationPanel({
   locale,
   refresh,
   onClose,
-  onOpenThread,
   returnFocusRef,
 }: {
   status: Status;
@@ -95,7 +94,6 @@ export function GroupCollaborationPanel({
   locale: AppLocale;
   refresh(): Promise<void>;
   onClose(): void;
-  onOpenThread?: ((id: string) => Promise<void>) | undefined;
   returnFocusRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const t = uiTranslator(locale);
@@ -402,7 +400,7 @@ export function GroupCollaborationPanel({
     );
     const members = roster.success ? roster.data.members : [];
     return (
-      <details className="im-group-members">
+      <details className="im-group-members" open>
         <summary>
           <UsersThree size={16} aria-hidden="true" />
           {t("GroupAuthorization.members")}
@@ -821,19 +819,7 @@ export function GroupCollaborationPanel({
                         </dl>
                       )}
                       <div className="im-group-actions im-group-primary-actions">
-                        {task && onOpenThread ? (
-                          <Button
-                            icon={
-                              <ChatCircleDots
-                                weight="duotone"
-                                aria-hidden="true"
-                              />
-                            }
-                            onClick={() => void onOpenThread(task.threadId)}
-                          >
-                            {t("ImNativeGroups.message9")}
-                          </Button>
-                        ) : (
+                        {!task && (
                           <p>{t("GroupAuthorization.firstMessage")}</p>
                         )}
                         <Button

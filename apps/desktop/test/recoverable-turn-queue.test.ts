@@ -12,6 +12,35 @@ const screenshot = {
 };
 
 describe("recoverable turn queues", () => {
+  it("keeps private IM prompts out of queue snapshots and consumed user messages", () => {
+    const queues = new RecoverableTurnQueues();
+    const runtime =
+      '[IM provenance {"version":2}]\n[协作成员 feishu:member]\n@Mino 你好';
+    queues.add("im", "followUp", "@Mino 你好", [], runtime);
+    expect(queues.reconcile("im", [], [runtime]).followUp).toEqual([
+      "@Mino 你好",
+    ]);
+    expect(queues.displayText("im", runtime)).toBe("@Mino 你好");
+    queues.reconcile("im", [], []);
+    expect(queues.displayText("im", runtime)).toBe("@Mino 你好");
+    expect(queues.displayText("other", runtime)).toBe(runtime);
+    expect(queues.recover("im", [runtime])).toEqual([{ text: "@Mino 你好" }]);
+  });
+
+  it("preserves the model prompt and separate display text through compaction dispatch", () => {
+    const queues = new RecoverableTurnQueues();
+    queues.add("im", "followUp", "visible", [screenshot], "private prompt");
+    expect(queues.snapshot("im").followUp).toEqual(["visible"]);
+    expect(queues.takeForDispatch("im")).toEqual([
+      {
+        text: "private prompt",
+        displayText: "visible",
+        attachments: [screenshot],
+      },
+    ]);
+    expect(queues.snapshot("im").followUp).toEqual([]);
+  });
+
   it("reads pending compaction messages without consuming attachments or another thread", () => {
     const queues = new RecoverableTurnQueues();
     queues.add("compacting", "followUp", "first", [screenshot]);

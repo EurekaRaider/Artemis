@@ -66,7 +66,6 @@ interface SettingsPanelProps {
   /** Project list for scoped custom sub-agent definitions (D#152). */
   projects?: ReadonlyArray<{ id: string; name: string }> | undefined;
   onClose(): void;
-  onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
   returnFocusRef?: RefObject<HTMLElement | null> | undefined;
   onSettingsChange(
     settings: SettingsSnapshot,
@@ -174,7 +173,6 @@ export function SettingsPanel({
   locale,
   projects = [],
   onClose,
-  onOpenThread,
   onSettingsChange,
   returnFocusRef,
 }: SettingsPanelProps) {
@@ -1949,10 +1947,7 @@ export function SettingsPanel({
                     />
                   }
                 >
-                  <ImSettingsPanel
-                    locale={locale}
-                    onOpenThread={onOpenThread}
-                  />
+                  <ImSettingsPanel locale={locale} />
                 </Suspense>
               )}
 

@@ -2,6 +2,7 @@ import { imText } from "@artemis/gateway";
 import type { AppLocale } from "@artemis/protocol";
 import { z } from "zod";
 import QRCode from "qrcode";
+import { gzipSync } from "node:zlib";
 import type {
   ImFeishuScanBeginResult,
   ImFeishuScanPollResult,
@@ -118,6 +119,18 @@ export async function beginFeishuScan(
   // brand's CLI page. The API still returns the legacy /page/launcher URL.
   const qrUrl = new URL("/page/cli", API_HOSTS[domain]);
   qrUrl.searchParams.set("user_code", begin.user_code);
+  // Official registerApp addons encoding: JSON -> gzip -> base64url.
+  // Keep PersonalAgent's defaults and request the extra member-read scope
+  // on the scan confirmation page, for both new and selected existing apps.
+  qrUrl.searchParams.set(
+    "addons",
+    gzipSync(
+      Buffer.from(
+        JSON.stringify({ scopes: { tenant: ["im:chat.members:read"] } }),
+        "utf8",
+      ),
+    ).toString("base64url"),
+  );
   return {
     deviceCode: begin.device_code,
     qrUrl: qrUrl.href,

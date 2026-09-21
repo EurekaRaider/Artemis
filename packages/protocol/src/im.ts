@@ -120,6 +120,13 @@ export const channelEventSchema = z
     text,
     timestamp: z.number().int().nonnegative(),
     mentioned: z.boolean(),
+    // Display metadata only; mention names never establish membership or trust.
+    mentions: z
+      .array(
+        z.object({ userId: id, name: z.string().min(1).max(200) }).strict(),
+      )
+      .max(100)
+      .optional(),
     bot: z.boolean(),
     replyTo: id.optional(),
     attachments: z

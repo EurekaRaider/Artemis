@@ -1167,6 +1167,52 @@ it("discovers bots from the roster but requires owner permission and proof befor
   expect(saved.nativeGroup?.capability).toBe("events");
 });
 
+it("uses mention names for observed bots without granting trust or inventing bots", () => {
+  const a = instance("A", ":memory:", "feishu");
+  const mention = {
+    ...a.event,
+    timestamp: Date.now(),
+    bot: false,
+    mentions: [{ userId: "B", name: "Mino" }],
+  };
+  a.router.native.observeBot({
+    ...mention,
+    identity: { ...mention.identity, tenantId: "wrong" },
+  });
+  a.router.native.observeBot({
+    ...a.event,
+    timestamp: Date.now(),
+    bot: true,
+    identity: { ...a.event.identity, userId: "B" },
+  });
+  expect(a.router.native.peers(a.group.id)).toEqual([{ id: "B", name: "B" }]);
+  a.router.native.observeBot(mention);
+  expect(a.router.native.peers(a.group.id)).toEqual([
+    { id: "B", name: "Mino" },
+  ]);
+  a.router.native.observeBot({
+    ...mention,
+    mentions: [{ userId: "C", name: "Other" }],
+  });
+  expect(a.router.native.peers(a.group.id)).toEqual([
+    { id: "B", name: "Mino" },
+  ]);
+  // A subsequent bot event must not overwrite the known display name with its ID.
+  a.router.native.observeBot({
+    ...a.event,
+    timestamp: Date.now(),
+    bot: true,
+    identity: { ...a.event.identity, userId: "B" },
+  });
+  expect(a.router.native.peers(a.group.id)).toEqual([
+    { id: "B", name: "Mino" },
+  ]);
+  expect(() => a.router.native.authorize(a.group.id, ["B"])).toThrow(
+    /round-trip/,
+  );
+  expect(a.store.pending("device")).toHaveLength(0);
+});
+
 it.each(["feishu", "lark"] as const)(
   "discovers authenticated %s bots without granting work and probes a partial directory",
   (platform) => {

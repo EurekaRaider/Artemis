@@ -78,12 +78,10 @@ type BotMetadata = Partial<Record<(typeof PUBLIC_BOT_FIELDS)[number], string>>;
 type Status = ImStatus & { connections?: unknown[]; spaces?: unknown[] };
 export function ImSettingsPanel({
   locale,
-  onOpenThread,
   initialPermissions = false,
 }: {
   locale: AppLocale;
   initialPermissions?: boolean;
-  onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
 }) {
   const t = uiTranslator(locale);
   const [status, setStatus] = useState<Status>();
@@ -2056,7 +2054,6 @@ export function ImSettingsPanel({
           locale={locale}
           refresh={refreshGroups}
           onClose={() => setGroupDetail(false)}
-          onOpenThread={onOpenThread}
           returnFocusRef={groupDialogTrigger}
         />
       )}

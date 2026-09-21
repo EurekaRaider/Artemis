@@ -11456,6 +11456,10 @@ kbd {
   padding-block: 0;
 }
 
+.git-environment-section .environment-setting-row[role="status"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .environment-branch-row .environment-setting-copy {
   white-space: nowrap;
 }

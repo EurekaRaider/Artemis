@@ -382,6 +382,16 @@ export function normalizeFeishu(
     messageId = string(message.message_id),
     userId = string(record(sender.sender_id).open_id),
     chatId = string(message.chat_id);
+  const mentionItems = Array.isArray(message.mentions)
+    ? message.mentions.map(record)
+    : [];
+  const mentions = mentionItems
+    .flatMap((item) => {
+      const userId = string(record(item.id).open_id);
+      const name = string(item.name).trim().slice(0, 200);
+      return userId && name ? [{ userId, name }] : [];
+    })
+    .slice(0, 100);
   let mentioned =
     Array.isArray(message.mentions) &&
     message.mentions.some(
@@ -418,7 +428,7 @@ export function normalizeFeishu(
             if (node.tag === "at")
               return node.user_id === connection.botOpenId
                 ? ""
-                : string(node.user_name);
+                : `@${string(node.user_name) || mentions.find((item) => item.userId === node.user_id)?.name || string(node.user_id)}`;
             if (node.tag === "a")
               return [string(node.text), string(node.href)]
                 .filter(Boolean)
@@ -432,9 +442,32 @@ export function normalizeFeishu(
     }
     text = lines.filter(Boolean).join("\n");
   }
-  for (const mention of Array.isArray(message.mentions) ? message.mentions : [])
-    if (mention.id?.open_id === connection.botOpenId && string(mention.key))
-      text = text.replaceAll(mention.key, "");
+  const replacements = new Map(
+    mentionItems.flatMap((mention) => {
+      const key = string(mention.key);
+      const userId = string(record(mention.id).open_id);
+      const name = string(mention.name).trim();
+      return key && userId
+        ? [
+            [
+              key,
+              userId === connection.botOpenId ? "" : `@${name || userId}`,
+            ] as const,
+          ]
+        : [];
+    }),
+  );
+  // Replace once, longest keys first: @_user_1 must not corrupt @_user_10,
+  // and a display name resembling another placeholder is still literal data.
+  if (replacements.size) {
+    const keys = [...replacements.keys()].sort((a, b) => b.length - a.length);
+    const pattern = keys
+      .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    text = text.replace(new RegExp(pattern, "g"), (key) =>
+      replacements.get(key)!,
+    );
+  }
   if (message.message_type === "image" && string(content.image_key))
     attachments.push({
       kind: "image",
@@ -465,6 +498,7 @@ export function normalizeFeishu(
     text: text.trim(),
     timestamp: Number(message.create_time) || Date.now(),
     mentioned,
+    ...(mentions.length ? { mentions } : {}),
     bot: sender.sender_type === "bot" || sender.sender_type === "app",
     ...(string(message.parent_id) ? { replyTo: message.parent_id } : {}),
     attachments,

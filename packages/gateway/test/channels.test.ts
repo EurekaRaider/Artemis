@@ -156,18 +156,48 @@ describe("Channel trust boundary", () => {
           }),
           mentions: [
             { key: "@_user_1", id: { open_id: "own-bot" } },
-            { key: "@_user_2", id: { open_id: "bob" } },
+            { key: "@_user_2", id: { open_id: "bob" }, name: "Mino" },
           ],
         },
       },
     });
     expect(event).toMatchObject({
       messageId: "post",
-      text: "检查\n 你好 @_user_2",
+      text: "检查\n 你好 @Mino",
+      mentions: [{ userId: "bob", name: "Mino" }],
       attachments: [
         { kind: "image", name: "image-1.png", resourceId: "image" },
       ],
     });
+  });
+  it("resolves text mentions once without confusing overlapping keys or inventing names", () => {
+    const event = normalizeFeishu(config, {
+      header: { event_type: "im.message.receive_v1" },
+      event: {
+        sender: { sender_type: "user", sender_id: { open_id: "alice" } },
+        message: {
+          message_id: "text",
+          chat_id: "chat",
+          chat_type: "group",
+          message_type: "text",
+          content: JSON.stringify({
+            text: "@_user_1 请问 @_user_10 和 @_user_2、@_user_3",
+          }),
+          mentions: [
+            {
+              key: "@_user_1",
+              id: { open_id: "own-bot" },
+              name: "ArtemisLark",
+            },
+            { key: "@_user_10", id: { open_id: "mino" }, name: "Mino" },
+            { key: "@_user_2", id: { open_id: "literal" }, name: "_user_10" },
+            { key: "@_user_3", id: { open_id: "unknown" } },
+          ],
+        },
+      },
+    });
+    expect(event?.text).toBe("请问 @Mino 和 @_user_10、@unknown");
+    expect(event?.mentioned).toBe(true);
   });
   it("recovers only the current app's Typing reaction before cleanup", async () => {
     const requests: string[] = [];

@@ -1,3 +1,4 @@
+import { imUserMessageText } from "../src/renderer/im-user-message.js";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -356,6 +357,33 @@ it("uses the assignment deadline only before execution and retains the project g
   expect(() => f.service.authorizeThread(f.starts[0]!, "plan")).not.toThrow();
   vi.spyOn(Date, "now").mockReturnValue(now + 61 * 60000);
   expect(() => f.service.authorizeThread(f.starts[0]!, "plan")).toThrow();
+});
+
+it("queues group prompts with clean display text separate from private context", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const queue = vi.spyOn(f.ops, "queue");
+  const send = async (text: string) => {
+    f.gateway.router.ingest({
+      ...f.event,
+      messageId: randomUUID(),
+      timestamp: Date.now(),
+      text,
+    });
+    f.gateway.router.processIncoming();
+    await f.service.poll();
+  };
+  await send("first");
+  const child = f.starts[0]!;
+  f.threads.find((thread) => thread.id === child)!.status = "running";
+  await send("@Mino 请报告内存");
+  expect(queue).toHaveBeenCalledWith(
+    child,
+    expect.stringContaining("[IM provenance"),
+    [],
+    "@Mino 请报告内存",
+  );
+  expect(imUserMessageText(queue.mock.calls[0]![1])).toBe("@Mino 请报告内存");
 });
 
 it("commits terminal replies before emitting reentrant group activity", async () => {
@@ -791,6 +819,7 @@ it.each(["slack", "feishu", "wecom"] as const)(
       first,
       expect.stringContaining("One more detail"),
       [],
+      "One more detail while it is running",
     );
     expect(f.starts).toHaveLength(3);
     firstThread.status = "idle";

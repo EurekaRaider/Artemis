@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { gunzipSync } from "node:zlib";
 import type { ImFeishuScanPollResult } from "@artemis/protocol";
 import { APP_LOCALES } from "@artemis/protocol";
 import { imText } from "@artemis/gateway";
@@ -79,13 +80,24 @@ describe("feishu scan-to-register", () => {
     });
     expect(result).toMatchObject({
       deviceCode: "dev1",
-      qrUrl: "https://open.feishu.cn/page/cli?user_code=ABCD",
       userCode: "ABCD",
       intervalMs: 5000,
       domain: "feishu",
     });
     expect(result.expiresAt).toBeGreaterThanOrEqual(before + 600_000);
     expect(result.qrImage).toMatch(/^data:image\/png;base64,/);
+    const qrUrl = new URL(result.qrUrl);
+    expect(qrUrl.origin + qrUrl.pathname).toBe(
+      "https://open.feishu.cn/page/cli",
+    );
+    expect(qrUrl.searchParams.get("user_code")).toBe("ABCD");
+    expect(
+      JSON.parse(
+        gunzipSync(
+          Buffer.from(qrUrl.searchParams.get("addons")!, "base64url"),
+        ).toString("utf8"),
+      ),
+    ).toEqual({ scopes: { tenant: ["im:chat.members:read"] } });
   });
 
   it("rejects environments without client_secret registration", async () => {
@@ -108,11 +120,22 @@ describe("feishu scan-to-register", () => {
     const begin = await beginFeishuScan("lark");
     expect(begin).toMatchObject({
       deviceCode: "lark-device",
-      qrUrl: "https://open.larksuite.com/page/cli?user_code=LARK",
       domain: "lark",
       pollDomain: "feishu",
     });
     expect(begin.expiresAt).toBeGreaterThanOrEqual(before + 3_600_000);
+    const qrUrl = new URL(begin.qrUrl);
+    expect(qrUrl.origin + qrUrl.pathname).toBe(
+      "https://open.larksuite.com/page/cli",
+    );
+    expect(qrUrl.searchParams.get("user_code")).toBe("LARK");
+    expect(
+      JSON.parse(
+        gunzipSync(
+          Buffer.from(qrUrl.searchParams.get("addons")!, "base64url"),
+        ).toString("utf8"),
+      ),
+    ).toEqual({ scopes: { tenant: ["im:chat.members:read"] } });
     expect(calls.map(({ url }) => url)).toEqual(
       Array(2).fill("https://accounts.feishu.cn/oauth/v1/app/registration"),
     );
