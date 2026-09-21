@@ -65,6 +65,19 @@ describe("application language packs", () => {
     },
   );
 
+  it.each(APP_LOCALES)(
+    "substitutes project names in group rebind warnings in %s",
+    (locale) => {
+      const text = uiText(locale, "GroupAuthorization.rebindImpact", {
+        before: "Project Atlas",
+        after: "Project Orion",
+      });
+      expect(text).toContain("Project Atlas");
+      expect(text).toContain("Project Orion");
+      expect(text).not.toMatch(/\{\{?(before|after)\}\}?/);
+    },
+  );
+
   it("substitutes dynamic data once and isolates RTL values without interpreting their contents", () => {
     const hostileLookingName = "repo {{value2}} $& <b>main</b>";
     const text = uiText("ar", "EnvironmentPanel_labels.branchSearch", {

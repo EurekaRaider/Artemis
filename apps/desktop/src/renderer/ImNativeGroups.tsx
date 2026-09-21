@@ -88,6 +88,10 @@ export function imNativeGroupChoices(
       ...group,
       saved,
       owner,
+      displayName:
+        group.name?.trim() ||
+        saved?.name?.trim() ||
+        t("ImNativeGroups.message1"),
       label: groupLabel(group),
       value: saved
         ? `space:${saved.id}`

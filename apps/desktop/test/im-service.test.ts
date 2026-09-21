@@ -807,6 +807,19 @@ describe("IM desktop and Gateway loop", () => {
           f.service.status().remoteTasks[0]!.devicePresence,
         ).toBeUndefined();
       }
+      const thread = f.threads.find(
+        (thread) => thread.id === f.service.status().remoteTasks[0]!.threadId,
+      )!;
+      for (const taskState of [
+        "running",
+        "waiting-approval",
+        "idle",
+      ] as const) {
+        thread.status = taskState;
+        expect(f.service.status().remoteTasks[0]!.running).toBe(
+          taskState !== "idle",
+        );
+      }
       missing = true;
       await f.service.poll();
       expect(f.service.status().remoteTasks[0]).toMatchObject({

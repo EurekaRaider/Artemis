@@ -27,6 +27,52 @@ const config: Extract<ChannelConnection, { channel: "feishu" }> = {
 };
 describe("Channel trust boundary", () => {
   it.each(["feishu", "lark"] as const)(
+    "%s recognizes both dissolved chat states without treating access errors as deletion",
+    async (domain) => {
+      const fetcher = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (url) =>
+          Response.json(
+            String(url).includes("tenant_access_token")
+              ? { code: 0, tenant_access_token: "test", expire: 7200 }
+              : {
+                  code: 0,
+                  data: { name: "ArtemisGroup", chat_status: "dissolved" },
+                },
+          ),
+        );
+      try {
+        const adapter = new FeishuAdapter({ ...config, domain });
+        const conversation = {
+          connectionId: "f",
+          id: "room",
+          kind: "group" as const,
+        };
+        expect(await adapter.groupInfo(conversation)).toEqual({
+          name: "ArtemisGroup",
+          unavailable: "dissolved",
+        });
+        fetcher.mockResolvedValueOnce(
+          Response.json({
+            code: 0,
+            data: { name: "ArtemisGroup", chat_status: "dissolved_save" },
+          }),
+        );
+        expect(await adapter.groupInfo(conversation)).toMatchObject({
+          unavailable: "dissolved",
+        });
+        fetcher.mockResolvedValueOnce(
+          Response.json({ code: 99991679 }, { status: 403 }),
+        );
+        await expect(adapter.groupInfo(conversation)).rejects.toThrow(
+          "unavailable",
+        );
+      } finally {
+        fetcher.mockRestore();
+      }
+    },
+  );
+  it.each(["feishu", "lark"] as const)(
     "sends a native requester mention with next steps on %s",
     async (domain) => {
       const fetcher = vi
@@ -47,9 +93,11 @@ describe("Channel trust boundary", () => {
           "ou_dispatcher",
         );
         const body = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body));
-        expect(JSON.parse(body.content).text).toBe(
-          '<at user_id="ou_dispatcher"></at>\n等待补充：请提供目标分支。',
-        );
+        expect(body.msg_type).toBe("post");
+        expect(JSON.parse(body.content).zh_cn.content).toEqual([
+          [{ tag: "at", user_id: "ou_dispatcher" }],
+          [{ tag: "md", text: "等待补充：请提供目标分支。" }],
+        ]);
       } finally {
         fetcher.mockRestore();
       }
@@ -204,7 +252,7 @@ describe("Channel trust boundary", () => {
       wecomAttachmentName("attachment", Buffer.from([0, 1, 2]), null),
     ).toBe("attachment");
   });
-  it("creates an updatable Feishu card and updates the same message using plain text content", async () => {
+  it("creates an updatable Feishu card and updates the same message using Markdown content", async () => {
     const calls: Array<{ url: string; method: string | undefined; body: any }> =
       [];
     const fetch = vi
@@ -241,7 +289,14 @@ describe("Channel trust boundary", () => {
       });
       expect(JSON.parse(calls[1]!.body.content)).toMatchObject({
         config: { update_multi: true },
-        elements: [{ text: { tag: "plain_text" } }],
+        elements: [
+          {
+            text: {
+              tag: "lark_md",
+              content: "正在执行 &lt;at id=all&gt;任务&lt;/at&gt;",
+            },
+          },
+        ],
       });
       expect(calls[2]).toMatchObject({
         url: "https://open.feishu.cn/open-apis/im/v1/messages/om_card",

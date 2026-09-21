@@ -37,6 +37,10 @@ export const slackAppManifest = (userName: string) =>
             "app_mention",
             "member_joined_channel",
             "member_left_channel",
+            "channel_deleted",
+            "group_deleted",
+            "channel_archive",
+            "group_archive",
           ],
         },
         socket_mode_enabled: true,
@@ -92,6 +96,17 @@ export function ImSlackSetup({
               <li>
                 <code>member_left_channel</code>
                 {t("ImSlackSetup.message10")}
+              </li>
+              <li>
+                <code>channel_deleted</code>
+                {", "}
+                <code>group_deleted</code>
+              </li>
+              <li>
+                <code>channel_archive</code>
+              </li>
+              <li>
+                <code>group_archive</code>
               </li>
             </ul>
             {t("ImSlackSetup.message11")}

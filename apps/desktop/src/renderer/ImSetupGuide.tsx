@@ -1,5 +1,6 @@
 import { type UiTranslate } from "../shared/ui-text.js";
 import type { AppLocale, ImStatus } from "@artemis/protocol";
+import { SlidersHorizontal } from "@phosphor-icons/react";
 import { Button } from "@artemis/ui/actions";
 import { ManagementSection } from "@artemis/ui/management";
 
@@ -15,7 +16,12 @@ export function ImGatewayInstructions({
   // 入口卡：点击进入整幅二级卡（不再内联折叠展开）。
   return (
     <button type="button" className="im-gateway-fold" onClick={onOpen}>
-      <span className="im-gateway-fold-head">{t("ImSetupGuide.message4")}</span>
+      <span className="im-gateway-fold-head">
+        <span className="im-gateway-entry-icon">
+          <SlidersHorizontal size={20} weight="duotone" aria-hidden="true" />
+        </span>
+        {t("ImSetupGuide.message4")}
+      </span>
     </button>
   );
 }

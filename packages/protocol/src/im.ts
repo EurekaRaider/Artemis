@@ -315,7 +315,15 @@ export const imGroupRosterSchema = z.object({
     .optional(),
 });
 export type ImGroupRoster = z.infer<typeof imGroupRosterSchema>;
+export const imRetiredGroupSchema = z.object({
+  conversation: imConversationSchema,
+  groupIds: z.array(z.string()),
+  reason: z.enum(["dissolved", "archived"]),
+  retiredAt: z.number(),
+});
+
 export const imGroupContextSchema = z.object({
+  retired: z.enum(["dissolved", "archived"]).optional(),
   roster: imGroupRosterSchema.optional(),
   native: z.boolean().optional(),
   capability: z.enum(["manual", "events"]).optional(),
@@ -416,6 +424,8 @@ export interface ImStatus {
   pairingRequests?: ImPairingRequest[];
   remoteTasks?: Array<{
     threadId: string;
+    /** Current local task activity; does not imply provider/client presence. */
+    running?: boolean;
     parentThreadId?: string;
     /** Whether this is the current native group entry, excluding retained history. */
     currentGroupEntry?: boolean;

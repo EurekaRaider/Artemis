@@ -910,7 +910,7 @@ function ThreadChannelMark({
           : "IM";
   return (
     <Tooltip label={label}>
-      {channel === "feishu" ? (
+      {channel === "feishu" || channel === "lark" ? (
         <img
           alt=""
           aria-hidden="true"
@@ -938,16 +938,20 @@ function ThreadChannelMark({
 function ThreadTitleContent({
   title,
   locale,
+  hideChannel = false,
 }: {
   title: string;
   locale: AppLocale;
+  hideChannel?: boolean;
 }) {
   const visible = visibleThreadTitle(title);
   const parsed = splitImChannelPrefix(visible);
   const text = parsed ? parsed.rest : visible;
   return (
     <>
-      {parsed && <ThreadChannelMark channel={parsed.channel} locale={locale} />}
+      {parsed && !hideChannel && (
+        <ThreadChannelMark channel={parsed.channel} locale={locale} />
+      )}
       <span className="thread-title-text">
         <span>{text}</span>
         <span aria-hidden="true" className="thread-title-copy">
@@ -3370,6 +3374,7 @@ export function App() {
         (thread) =>
           !isWorkspaceDraftThread(thread) &&
           (!imThreadStatus[thread.id]?.group?.native ||
+            !!imThreadStatus[thread.id]?.group?.retired ||
             !!imThreadStatus[thread.id]?.parentThreadId),
       )
       .filter(
@@ -3390,7 +3395,12 @@ export function App() {
   useEffect(() => {
     if (!activeThreadId) return;
     const connection = imThreadStatus[activeThreadId];
-    if (!connection?.group?.native || connection.parentThreadId) return;
+    if (
+      !connection?.group?.native ||
+      connection.group.retired ||
+      connection.parentThreadId
+    )
+      return;
     // Restore old group-page links to a normal task after the overview is removed.
     const task = snapshot?.threads
       .filter(
@@ -4081,6 +4091,9 @@ export function App() {
         (wait) => wait.state !== "interrupted",
       )
     );
+  const retiredGroup = activeThreadId
+    ? imThreadStatus[activeThreadId]?.group?.retired
+    : undefined;
   const permissionBlock = activeThreadId
     ? imThreadStatus[activeThreadId]?.permissionBlock
     : undefined;
@@ -5155,7 +5168,7 @@ export function App() {
   );
 
   const sendPrompt = useCallback(async () => {
-    if (busy) return;
+    if (busy || retiredGroup) return;
     await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
     const pendingAttachments =
       draftAttachments.current.get(activeComposerDraftKey) ?? [];
@@ -5393,6 +5406,7 @@ export function App() {
     activeComposerDraft,
     activeComposerDraftKey,
     busy,
+    retiredGroup,
     clearSubmittedPrompt,
     closeGoalEditor,
     createThread,
@@ -6019,6 +6033,7 @@ export function App() {
                         (thread) =>
                           !isWorkspaceDraftThread(thread) &&
                           (!imThreadStatus[thread.id]?.group?.native ||
+                            !!imThreadStatus[thread.id]?.group?.retired ||
                             !!imThreadStatus[thread.id]?.parentThreadId),
                       )
                       .filter(
@@ -6347,6 +6362,15 @@ export function App() {
                                 {imThreadStatus[thread.id] && (
                                   <ImThreadConnection
                                     status={imThreadStatus[thread.id]!}
+                                    channelIcon={
+                                      <ThreadChannelMark
+                                        channel={
+                                          imThreadStatus[thread.id]?.channel ??
+                                          ""
+                                        }
+                                        locale={locale}
+                                      />
+                                    }
                                     locale={locale}
                                   />
                                 )}
@@ -6356,6 +6380,10 @@ export function App() {
                                   title={visibleThreadTitle(thread.title)}
                                 >
                                   <ThreadTitleContent
+                                    hideChannel={
+                                      !!imThreadStatus[thread.id]?.group
+                                        ?.retired
+                                    }
                                     title={thread.title}
                                     locale={locale}
                                   />
@@ -6609,6 +6637,12 @@ export function App() {
                       {imThreadStatus[thread.id] && (
                         <ImThreadConnection
                           status={imThreadStatus[thread.id]!}
+                          channelIcon={
+                            <ThreadChannelMark
+                              channel={imThreadStatus[thread.id]?.channel ?? ""}
+                              locale={locale}
+                            />
+                          }
                           locale={locale}
                         />
                       )}
@@ -6618,6 +6652,9 @@ export function App() {
                         title={visibleThreadTitle(thread.title)}
                       >
                         <ThreadTitleContent
+                          hideChannel={
+                            !!imThreadStatus[thread.id]?.group?.retired
+                          }
                           title={thread.title}
                           locale={locale}
                         />
@@ -7207,7 +7244,20 @@ export function App() {
                   </div>
                 )}
 
-                {!activeThread?.archived && (
+                {retiredGroup && (
+                  <div className="im-retired-notice" role="status">
+                    <ArtemisIcon name="agents" width={18} height={18} />
+                    <span>
+                      {uiText(
+                        locale,
+                        retiredGroup === "dissolved"
+                          ? "ImThreadConnection.dissolvedDetail"
+                          : "ImThreadConnection.archivedDetail",
+                      )}
+                    </span>
+                  </div>
+                )}
+                {!activeThread?.archived && !retiredGroup && (
                   <div className="composer-wrap">
                     {turnFailureBanner}
                     {permissionBlock && (

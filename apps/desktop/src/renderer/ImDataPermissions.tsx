@@ -23,6 +23,7 @@ export function ImDataPermissions({
   initialAudience = "owner",
   showAudienceSelector = true,
   draftMode = false,
+  compact = false,
 }: {
   grant: ExecutionGrant;
   onChange: (security: NonNullable<ExecutionGrant["security"]>) => void;
@@ -32,6 +33,7 @@ export function ImDataPermissions({
   initialAudience?: string | undefined;
   showAudienceSelector?: boolean;
   draftMode?: boolean;
+  compact?: boolean;
 }) {
   const [selectedAudience, setAudience] = useState(initialAudience);
   const audience =
@@ -47,6 +49,7 @@ export function ImDataPermissions({
     readPaths: [],
     writePaths: [],
   };
+  const [customWrite, setCustomWrite] = useState(false);
   const wholeProject =
     scope.readPaths.length === 0 && scope.readMode !== "selected";
   const audienceRevision = audiences.find(
@@ -276,8 +279,11 @@ export function ImDataPermissions({
     );
   }
   return (
-    <fieldset className="im-security-scope" disabled={disabled || pending}>
-      <legend>{t("ImDataPermissions.message7")}</legend>
+    <fieldset
+      className={`im-security-scope${compact ? " im-security-scope--inline" : ""}`}
+      disabled={disabled || pending}
+    >
+      {!compact && <legend>{t("ImDataPermissions.message7")}</legend>}
       {showAudienceSelector && (
         <Select
           labelVisibility="visible"
@@ -293,19 +299,21 @@ export function ImDataPermissions({
           ]}
         />
       )}
-      <p>{t("ImDataPermissions.message10")}</p>
+      {!compact && <p>{t("ImDataPermissions.message10")}</p>}
       {draftMode && (
         <Select
           label={t("GroupAuthorization.readScope")}
           labelVisibility="visible"
           value={wholeProject ? "project" : "selected"}
           options={[
-            { value: "project", label: t("ImDataPermissions.message13") },
-            { value: "selected", label: t("ImDataPermissions.selectedOnly") },
+            { value: "project", label: t("ImDataPermissions.projectScope") },
+            { value: "selected", label: t("ImDataPermissions.selectedScope") },
           ]}
           onValueChange={(value) => {
+            setCustomWrite(false);
             if (value === "project") selectAll(false);
-            else
+            else {
+              if (compact && !entries[""]) void expand("");
               change({
                 ...scope,
                 readMode: "selected",
@@ -313,67 +321,166 @@ export function ImDataPermissions({
                 writePaths: [],
                 writeMode: "selected",
               });
+            }
           }}
         />
+      )}
+      {compact ? (
+        <Select
+          label={t("GroupAuthorization.writeScope")}
+          labelVisibility="visible"
+          disabled={disabled || pending || grant.mode !== "execute"}
+          value={
+            grant.mode !== "execute"
+              ? "none"
+              : scope.writeMode === "project" && wholeProject
+                ? "project"
+                : scope.writePaths.length ||
+                    customWrite ||
+                    scope.writeMode === "project"
+                  ? "selected"
+                  : "none"
+          }
+          options={[
+            { value: "none", label: t("GroupAuthorization.denied") },
+            ...(wholeProject
+              ? [
+                  {
+                    value: "project",
+                    label: t("ImDataPermissions.projectScope"),
+                  },
+                ]
+              : []),
+            { value: "selected", label: t("ImDataPermissions.selectedScope") },
+          ]}
+          onValueChange={(value) => {
+            setCustomWrite(value === "selected");
+            if (value === "selected" && !entries[""]) void expand("");
+            change(
+              {
+                ...scope,
+                writeMode: value === "project" ? "project" : "selected",
+                writePaths: [],
+              },
+              undefined,
+              wholeProject,
+            );
+          }}
+        />
+      ) : (
+        <dl className="im-scope-current" role="status">
+          {!draftMode && (
+            <>
+              <dt>{t("GroupAuthorization.readScope")}</dt>
+              <dd>
+                {wholeProject
+                  ? t("ImDataPermissions.projectScope")
+                  : scope.readPaths.join(" · ") ||
+                    t("ImDataPermissions.selectedScope")}
+              </dd>
+            </>
+          )}
+          <dt>{t("GroupAuthorization.writeScope")}</dt>
+          <dd>
+            {grant.mode !== "execute"
+              ? t("GroupAuthorization.denied")
+              : scope.writeMode === "project"
+                ? wholeProject
+                  ? t("ImDataPermissions.projectScope")
+                  : scope.readPaths.join(" · ") ||
+                    t("GroupAuthorization.denied")
+                : scope.writePaths.join(" · ") ||
+                  t("GroupAuthorization.denied")}
+          </dd>
+        </dl>
       )}
       {draftMode && !wholeProject && !scope.readPaths.length && (
         <InlineNotice tone="warning">
           {t("GroupAuthorization.emptySelection")}
         </InlineNotice>
       )}
-      <p role="status">
-        {t(
-          scope.writeMode === "project"
-            ? "ImDataPermissions.wholeProjectWrite"
-            : wholeProject
-              ? "ImDataPermissions.wholeProject"
-              : "ImDataPermissions.selectedOnly",
+      {!compact && (
+        <div className="im-scope-actions">
+          <Button
+            size="compact"
+            disabled={pending || disabled}
+            onClick={() => void expand("")}
+          >
+            {entries[""]
+              ? t("ImDataPermissions.message12")
+              : t("ImDataPermissions.message11")}
+          </Button>
+          <Button
+            size="compact"
+            disabled={pending || disabled}
+            onClick={() => void selectAll(false)}
+          >
+            {t("ImDataPermissions.setReadOnly")}
+          </Button>
+          <Button
+            size="compact"
+            disabled={pending || disabled || grant.mode !== "execute"}
+            onClick={() => void selectAll(true)}
+          >
+            {t("ImDataPermissions.setReadWrite")}
+          </Button>
+          <Button
+            size="compact"
+            disabled={disabled}
+            onClick={() =>
+              change(
+                {
+                  ...scope,
+                  readPaths: [],
+                  writePaths: [],
+                  writeMode: "selected",
+                },
+                undefined,
+                true,
+              )
+            }
+          >
+            {t("ImDataPermissions.message15")}
+          </Button>
+        </div>
+      )}
+      {compact &&
+        !entries[""] &&
+        (!wholeProject || scope.writePaths.length > 0 || customWrite) && (
+          <Button
+            size="compact"
+            disabled={disabled || pending}
+            onClick={() => void expand("")}
+          >
+            {t("ImDataPermissions.message11")}
+          </Button>
         )}
-      </p>
-      <div className="im-scope-actions">
-        <Button
-          size="compact"
-          disabled={pending || disabled}
-          onClick={() => void expand("")}
-        >
-          {entries[""]
-            ? t("ImDataPermissions.message12")
-            : t("ImDataPermissions.message11")}
-        </Button>
-        <Button
-          size="compact"
-          disabled={pending || disabled}
-          onClick={() => void selectAll(false)}
-        >
-          {t("ImDataPermissions.message13")}
-        </Button>
-        <Button
-          size="compact"
-          disabled={pending || disabled || grant.mode !== "execute"}
-          onClick={() => void selectAll(true)}
-        >
-          {t("ImDataPermissions.message14")}
-        </Button>
-        <Button
-          size="compact"
-          disabled={disabled}
-          onClick={() =>
-            change(
-              {
-                ...scope,
-                readPaths: [],
-                writePaths: [],
-                writeMode: "selected",
-              },
-              undefined,
-              true,
-            )
-          }
-        >
-          {t("ImDataPermissions.message15")}
-        </Button>
-      </div>
-      {entries[""] ? (
+      {compact &&
+        (scope.readPaths.length > 0 ||
+          scope.writePaths.length > 0 ||
+          customWrite) && (
+          <p className="im-scope-selected-paths">
+            {t("GroupAuthorization.readScope")}:{" "}
+            {wholeProject
+              ? t("ImDataPermissions.projectScope")
+              : scope.readPaths.join(" · ")}
+            <br />
+            {t("GroupAuthorization.writeScope")}:{" "}
+            {grant.mode === "execute"
+              ? scope.writePaths.join(" · ") ||
+                (scope.writeMode === "project"
+                  ? wholeProject
+                    ? t("ImDataPermissions.projectScope")
+                    : scope.readPaths.join(" · ")
+                  : t("GroupAuthorization.denied"))
+              : t("GroupAuthorization.denied")}
+          </p>
+        )}
+      {entries[""] &&
+      (!compact ||
+        !wholeProject ||
+        customWrite ||
+        scope.writePaths.length > 0) ? (
         <div className="im-scope-tree">
           <div className="im-scope-row im-scope-heading" aria-hidden="true">
             <span>{t("ImDataPermissions.message16")}</span>

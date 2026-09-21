@@ -66,6 +66,8 @@ export class GatewayRouter {
   }
   ingest(input: unknown): boolean {
     const event = channelEventSchema.parse(input);
+    if (this.store.get("retired-groups", imConversationKey(event.conversation)))
+      return false;
     if (event.conversation.connectionId !== event.identity.connectionId)
       throw new Error("Channel identity does not match the conversation.");
     if (event.text.trim().startsWith(NATIVE_PREFIX))
@@ -84,6 +86,10 @@ export class GatewayRouter {
     return digest(`${event.identity.connectionId}\0${event.messageId}`);
   }
   queueDelivery(id: string, delivery: Delivery): void {
+    if (
+      this.store.get("retired-groups", imConversationKey(delivery.conversation))
+    )
+      return;
     const invocationId = delivery.invocationId;
     if (invocationId) {
       const request = this.store.get<RemoteInvocationContext>(
@@ -174,6 +180,12 @@ export class GatewayRouter {
       this.now(),
     )) {
       const event = item.payload;
+      if (
+        this.store.get("retired-groups", imConversationKey(event.conversation))
+      ) {
+        this.store.mark("incoming", item.id, "cancelled");
+        continue;
+      }
       try {
         if (
           event.conversation.kind === "direct" &&
@@ -696,6 +708,10 @@ export class GatewayRouter {
     });
   }
   canDeliver(delivery: Delivery): boolean {
+    if (
+      this.store.get("retired-groups", imConversationKey(delivery.conversation))
+    )
+      return false;
     if (
       delivery.native &&
       delivery.native.expiresAt <= this.now() &&

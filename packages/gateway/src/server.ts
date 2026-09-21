@@ -1,3 +1,8 @@
+import {
+  retireGroup,
+  retireKnownGroups,
+  type RetiredGroup,
+} from "./group-retirement.js";
 import { authorizeNativeGroup } from "./native-authorization.js";
 import { imText } from "./im-localization.js";
 import type { AppLocale } from "@artemis/protocol";
@@ -111,6 +116,7 @@ export class ArtemisGateway {
         ? undefined
         : `${options.databasePath}.pre-native-groups.sqlite`,
     );
+    retireKnownGroups(this.store);
     this.router = new GatewayRouter(this.store);
     this.server.requestTimeout = 35000;
     this.server.headersTimeout = 10000;
@@ -120,6 +126,8 @@ export class ArtemisGateway {
       this.install(this.store.unseal<ChannelConnection>(sealed.sealed));
   }
   private receiveChannelEvent(event: ChannelEvent): void {
+    if (this.store.get("retired-groups", imConversationKey(event.conversation)))
+      return;
     if (this.store.get("removed-connections", event.identity.connectionId))
       return;
     this.router.native.observeBot(event);
@@ -184,6 +192,15 @@ export class ArtemisGateway {
     this.store.transaction(() => {
       this.invalidateGroupRoster(config.id, event.chatId);
       if (!event.unavailable) return;
+      if (event.unavailable === "dissolved") {
+        retireGroup(
+          this.store,
+          { connectionId: config.id, id: event.chatId, kind: "group" },
+          "dissolved",
+          event.timestamp,
+        );
+        return;
+      }
       for (const group of this.store.list<CollaborationSpace>(
         "native-groups",
       )) {
@@ -308,8 +325,17 @@ export class ArtemisGateway {
       (config.channel === "wecom"
         ? new WecomAdapter(config, receive)
         : config.channel === "slack"
-          ? new SlackAdapter(config, receive, (channel) =>
-              this.invalidateGroupRoster(config.id, channel),
+          ? new SlackAdapter(
+              config,
+              receive,
+              (channel) => this.invalidateGroupRoster(config.id, channel),
+              (channel, reason, timestamp) =>
+                retireGroup(
+                  this.store,
+                  { connectionId: config.id, id: channel, kind: "group" },
+                  reason,
+                  timestamp,
+                ),
             )
           : config.transport === "websocket"
             ? new FeishuSocketAdapter(
@@ -736,6 +762,7 @@ export class ArtemisGateway {
         url.pathname === "/v1/admin/refresh-groups" &&
         request.method === "PUT"
       ) {
+        retireKnownGroups(this.store);
         await this.refreshDiscoveredGroupNames(true);
         respond(response, 200, { refreshed: true });
         return;
@@ -936,6 +963,9 @@ export class ArtemisGateway {
               : {},
           };
         }),
+        retiredGroups: this.store
+          .list<RetiredGroup>("retired-groups")
+          .filter((group) => group.deviceIds.includes(deviceId)),
         spaces: this.store
           .list<CollaborationSpace>("native-groups")
           .filter((s) => s.participants.some((p) => p.deviceId === deviceId))
@@ -1122,6 +1152,14 @@ export class ArtemisGateway {
         })
         .strict()
         .parse(body);
+      const retiredAudiences = new Set(
+        this.store
+          .list<RetiredGroup>("retired-groups")
+          .flatMap((group) => group.groupIds.map((id) => `space:${id}`)),
+      );
+      policy.grants = policy.grants.filter(
+        (grant) => !retiredAudiences.has(grant.audience),
+      );
       this.store.put("device-security", deviceId, policy);
       respond(response, 200, { accepted: true });
       return;
@@ -1883,50 +1921,60 @@ export class ArtemisGateway {
           !!adapter?.groupInfo && adapter.status().state === "connected" && due
         );
       })
-      .slice(0, force ? 3 : 1);
-    await Promise.all(
-      candidates.map(async (group) => {
-        const adapter = this.adapters.get(group.conversation.connectionId)!;
-        const key = imConversationKey(group.conversation);
-        this.store.put("observed-groups", key, {
-          ...group,
-          nameNextCheck: Date.now() + 60000,
-          nameCheckedAt: Date.now(),
-        });
-        try {
-          const info = await adapter.groupInfo!(group.conversation);
-          const current = this.store.get<Observed>("observed-groups", key);
-          if (
-            current &&
-            this.adapters.get(group.conversation.connectionId) === adapter
-          ) {
-            this.store.put("observed-groups", key, {
-              ...current,
-              ...(info.name?.trim() ? { name: info.name.trim() } : {}),
-              nameError: info.name
-                ? undefined
-                : (info.nameError ?? info.unavailable ?? "lookup-failed"),
-              nameNextCheck: Date.now() + 60000,
-            });
+      .slice(0, force ? undefined : 1);
+    for (let offset = 0; offset < candidates.length; offset += 3)
+      await Promise.all(
+        candidates.slice(offset, offset + 3).map(async (group) => {
+          const adapter = this.adapters.get(group.conversation.connectionId)!;
+          const key = imConversationKey(group.conversation);
+          this.store.put("observed-groups", key, {
+            ...group,
+            nameNextCheck: Date.now() + 60000,
+            nameCheckedAt: Date.now(),
+          });
+          try {
+            const info = await adapter.groupInfo!(group.conversation);
+            if (this.adapters.get(group.conversation.connectionId) !== adapter)
+              return;
+            if (
+              info.unavailable === "dissolved" ||
+              info.unavailable === "archived"
+            ) {
+              retireGroup(this.store, group.conversation, info.unavailable);
+              return;
+            }
+            const current = this.store.get<Observed>("observed-groups", key);
+            if (
+              current &&
+              this.adapters.get(group.conversation.connectionId) === adapter
+            ) {
+              this.store.put("observed-groups", key, {
+                ...current,
+                ...(info.name?.trim() ? { name: info.name.trim() } : {}),
+                nameError: info.name
+                  ? undefined
+                  : (info.nameError ?? info.unavailable ?? "lookup-failed"),
+                nameNextCheck: Date.now() + 60000,
+              });
+            }
+          } catch (error) {
+            const current = this.store.get<Observed>("observed-groups", key);
+            if (current)
+              this.store.put("observed-groups", key, {
+                ...current,
+                nameError:
+                  error instanceof ChannelRateLimit
+                    ? "rate-limited"
+                    : "lookup-failed",
+                nameNextCheck:
+                  Date.now() +
+                  (error instanceof ChannelRateLimit
+                    ? Math.max(60, error.seconds) * 1000
+                    : 60000),
+              });
           }
-        } catch (error) {
-          const current = this.store.get<Observed>("observed-groups", key);
-          if (current)
-            this.store.put("observed-groups", key, {
-              ...current,
-              nameError:
-                error instanceof ChannelRateLimit
-                  ? "rate-limited"
-                  : "lookup-failed",
-              nameNextCheck:
-                Date.now() +
-                (error instanceof ChannelRateLimit
-                  ? Math.max(60, error.seconds) * 1000
-                  : 60000),
-            });
-        }
-      }),
-    );
+        }),
+      );
   }
   private invalidateGroupRoster(connectionId: string, channel: string): void {
     for (const group of this.store.list<CollaborationSpace>("native-groups")) {
@@ -2003,6 +2051,13 @@ export class ArtemisGateway {
           this.adapters.get(endpoint!.connectionId) !== adapter
         )
           return;
+        if (
+          info.unavailable === "dissolved" ||
+          info.unavailable === "archived"
+        ) {
+          retireGroup(this.store, endpoint!, info.unavailable);
+          return;
+        }
         this.store.transaction(() => {
           this.store.put("native-group-info", group.id, {
             ...info,

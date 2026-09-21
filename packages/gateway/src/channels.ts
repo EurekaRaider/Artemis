@@ -496,6 +496,14 @@ export async function boundedResponse(response: Response): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+// Only explicit adapter mention targets may notify users; model-authored tags
+// must remain literal when a reply is rendered as Markdown.
+function escapeFeishuMentions(text: string): string {
+  return text.replace(/<\/?at\b[^>]*>/giu, (tag) =>
+    tag.replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
+  );
+}
+
 export class FeishuAdapter implements ChannelAdapter {
   private token = "";
   private tokenExpires = 0;
@@ -692,6 +700,26 @@ export class FeishuAdapter implements ChannelAdapter {
             kind: "human",
           });
         }
+        // This endpoint lists people only. The authenticated connection already
+        // resolved its own bot identity at setup; include it after a successful
+        // group lookup, without inferring any other bot or dispatch permission.
+        if (
+          this.config.tenantId &&
+          (members.has(this.config.botOpenId) || members.size < 10000)
+        ) {
+          members.set(this.config.botOpenId, {
+            identity: {
+              channel: "feishu",
+              connectionId: this.config.id,
+              tenantId: this.config.tenantId,
+              appId: this.config.appId,
+              userId: this.config.botOpenId,
+            },
+            name: this.config.name,
+            kind: "bot",
+            self: true,
+          });
+        }
         if (
           !data.has_more ||
           data.trigger_security_conf_limit ||
@@ -740,9 +768,21 @@ export class FeishuAdapter implements ChannelAdapter {
   ): Promise<string> {
     const mention =
       mentionUserId && conversation.kind === "group"
-        ? `<at user_id="${validateMentionUserId(mentionUserId)}"></at>\n`
-        : "";
-    return this.message(conversation, { text: mention + text }, "text", key);
+        ? [[{ tag: "at", user_id: validateMentionUserId(mentionUserId) }]]
+        : [];
+    return this.message(
+      conversation,
+      {
+        zh_cn: {
+          content: [
+            ...mention,
+            [{ tag: "md", text: escapeFeishuMentions(text) }],
+          ],
+        },
+      },
+      "post",
+      key,
+    );
   }
   async statusCard(
     conversation: ImConversation,
@@ -759,7 +799,12 @@ export class FeishuAdapter implements ChannelAdapter {
           template: "blue",
           title: { tag: "plain_text", content: imText(locale, "cardTitle") },
         },
-        elements: [{ tag: "div", text: { tag: "plain_text", content: text } }],
+        elements: [
+          {
+            tag: "div",
+            text: { tag: "lark_md", content: escapeFeishuMentions(text) },
+          },
+        ],
       },
       "interactive",
       key,
@@ -985,7 +1030,7 @@ export class FeishuAdapter implements ChannelAdapter {
   private async message(
     conversation: ImConversation,
     content: unknown,
-    type: "text" | "interactive" | "file",
+    type: "text" | "post" | "interactive" | "file",
     key: string,
     messageId?: string,
     authorize?: () => void,

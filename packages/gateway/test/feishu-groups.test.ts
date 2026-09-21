@@ -57,6 +57,7 @@ describe("Feishu and Lark group directories", () => {
       expect(roster).toMatchObject({ complete: false, error: "partial" });
       expect(roster.members.map((m) => [m.name, m.kind])).toEqual([
         ["alice", "human"],
+        ["Feishu", "bot"],
         ["bob", "human"],
       ]);
       expect(String(fetcher.mock.calls[2]![0])).toContain(
@@ -65,6 +66,51 @@ describe("Feishu and Lark group directories", () => {
       expect(String(fetcher.mock.calls[2]![0])).toContain("page_token=next");
     },
   );
+  it.each(["feishu", "lark"] as const)(
+    "includes the configured %s bot exactly once without granting peer permissions",
+    async (domain) => {
+      mockPages([
+        {
+          code: 0,
+          data: {
+            items: [member("alice")],
+            has_more: true,
+            page_token: "next",
+          },
+        },
+        {
+          code: 0,
+          data: { items: [member("alice"), member("bot")], has_more: false },
+        },
+      ]);
+      const roster = await new FeishuAdapter({
+        ...config,
+        domain,
+        name: "Artemis 助手",
+      }).groupMembers(conversation);
+      expect(roster.members.filter((m) => m.kind === "bot")).toEqual([
+        {
+          identity: {
+            channel: "feishu",
+            connectionId: "f",
+            tenantId: "tenant",
+            appId: "app",
+            userId: "bot",
+          },
+          name: "Artemis 助手",
+          kind: "bot",
+          self: true,
+        },
+      ]);
+      expect(roster).toMatchObject({ complete: false, error: "partial" });
+    },
+  );
+  it("does not invent membership when the provider rejects the group lookup", async () => {
+    mockPages([{ code: 1 }], 403);
+    expect(
+      (await new FeishuAdapter(config).groupMembers(conversation)).members,
+    ).toEqual([]);
+  });
   it.each([
     [403, "missing-scope"],
     [429, "rate-limited"],
@@ -84,7 +130,7 @@ describe("Feishu and Lark group directories", () => {
     );
     expect(
       (await new FeishuAdapter(config).groupMembers(conversation)).members,
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     expect(fetcher).toHaveBeenCalledTimes(3);
     mockPages([
       {

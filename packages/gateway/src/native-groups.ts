@@ -30,6 +30,8 @@ export function saveNativeGroup(
 ): CollaborationSpace {
   const input = nativeGroupInputSchema.parse(raw);
   const { conversation, owner, deviceId } = input;
+  if (store.get("retired-groups", imConversationKey(conversation)))
+    throw new Error("This group is dissolved or archived.");
   const observed = store.get<{ identities?: ImIdentity[] }>(
     "observed-groups",
     imConversationKey(conversation),

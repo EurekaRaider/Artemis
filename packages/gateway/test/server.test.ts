@@ -16,7 +16,10 @@ afterEach(async () => {
 });
 async function fixture(
   withCards = false,
-  groupInfo?: () => Promise<{ name?: string; unavailable?: "removed" }>,
+  groupInfo?: () => Promise<{
+    name?: string;
+    unavailable?: "removed" | "dissolved";
+  }>,
   groupMembers?: () => Promise<ImGroupRoster>,
 ) {
   const sent: string[] = [];
@@ -1002,7 +1005,7 @@ it("resolves discovered group names before authorization and preserves cached na
 it("refreshes group names on demand without waiting for the normal cache and debounces repeated clicks", async () => {
   const info = vi.fn(async () => ({ name: "Current name" }));
   const f = await fixture(false, info);
-  for (const id of ["one", "two", "limited"]) {
+  for (const id of ["one", "two", "three", "four", "limited"]) {
     const conversation = { connectionId: "wecom", id, kind: "group" as const };
     f.gateway.store.put("observed-groups", imConversationKey(conversation), {
       conversation,
@@ -1019,14 +1022,98 @@ it("refreshes group names on demand without waiting for the normal cache and deb
       headers: { Authorization: `Bearer ${"a".repeat(32)}` },
     });
   expect((await refresh()).ok).toBe(true);
-  expect(info).toHaveBeenCalledTimes(2);
+  expect(info).toHaveBeenCalledTimes(4);
   expect(
     f.gateway.store
       .list<{ name?: string }>("observed-groups")
       .filter((g) => g.name === "Current name"),
-  ).toHaveLength(2);
+  ).toHaveLength(4);
   expect((await refresh()).ok).toBe(true);
-  expect(info).toHaveBeenCalledTimes(2);
+  expect(info).toHaveBeenCalledTimes(4);
+});
+
+it.each([true, false])(
+  "refresh removes dissolved groups from both directories, including enabled=%s bindings",
+  async (enabled) => {
+    const info = vi.fn(async () => ({
+      name: "ArtemisGroup",
+      unavailable: "dissolved" as const,
+    }));
+    const f = await fixture(false, info);
+    const conversation = {
+      ...f.input.conversation,
+      kind: "group" as const,
+      id: "room",
+    };
+    f.gateway.router.ingest({ ...f.input, conversation });
+    f.gateway.router.processIncoming();
+    const input = {
+      conversation,
+      owner: f.input.identity,
+      deviceId: f.device.id,
+      name: "ArtemisGroup",
+      projectId: "p",
+      enabled,
+    };
+    const group = saveNativeGroup(f.gateway.store, input);
+    const headers = { Authorization: `Bearer ${"a".repeat(32)}` };
+    await fetch(`${f.url}/v1/admin/refresh-groups`, {
+      method: "PUT",
+      headers,
+      body: "{}",
+    });
+    const admin = await fetch(`${f.url}/v1/admin/status`, { headers }).then(
+      (r) => r.json(),
+    );
+    const device = await fetch(`${f.url}/v1/device/status`, {
+      headers: f.headers,
+    }).then((r) => r.json());
+    expect(admin.groups).toEqual([]);
+    expect(admin.spaces).toEqual([]);
+    expect(device.spaces).toEqual([]);
+    expect(f.gateway.store.get("native-groups", group.id)).toBeUndefined();
+    expect(() =>
+      saveNativeGroup(f.gateway.store, { ...input, enabled: true }),
+    ).toThrow(/dissolved/);
+  },
+);
+
+it("keeps legacy dissolved groups hidden even when the next lookup fails", async () => {
+  const info = vi.fn(async () => {
+    throw new Error("offline");
+  });
+  const f = await fixture(false, info);
+  const conversation = {
+    ...f.input.conversation,
+    kind: "group" as const,
+    id: "room",
+  };
+  f.gateway.router.ingest({ ...f.input, conversation });
+  f.gateway.router.processIncoming();
+  const group = saveNativeGroup(f.gateway.store, {
+    conversation,
+    owner: f.input.identity,
+    deviceId: f.device.id,
+    name: "ArtemisGroup",
+    projectId: "p",
+    enabled: false,
+  });
+  f.gateway.store.put("native-group-info", group.id, {
+    unavailable: "dissolved",
+    next: 0,
+  });
+  const headers = { Authorization: `Bearer ${"a".repeat(32)}` };
+  await fetch(`${f.url}/v1/admin/refresh-groups`, {
+    method: "PUT",
+    headers,
+    body: "{}",
+  });
+  const admin = await fetch(`${f.url}/v1/admin/status`, { headers }).then((r) =>
+    r.json(),
+  );
+  expect(admin.groups).toEqual([]);
+  expect(admin.spaces).toEqual([]);
+  expect(f.gateway.store.get("native-groups", group.id)).toBeUndefined();
 });
 
 it("publishes native roster metadata without granting directory members execution access", async () => {
@@ -1247,83 +1334,99 @@ it("persists observed WeCom members and rejects old or cross-tenant observations
   ).toBe(true);
 });
 
-it("disables a Feishu group only after a signed current removal event", async () => {
-  const f = await fixture();
-  const config = {
-    id: "feishu",
-    name: "Feishu",
-    channel: "feishu",
-    tenantId: "tenant",
-    appId: "app",
-    botOpenId: "bot",
-    appSecret: "secret",
-    verificationToken: "verify",
-    encryptKey: "encrypt",
-    enabled: true,
-  };
-  const saved = await fetch(`${f.url}/v1/admin/connections`, {
-    method: "PUT",
-    headers: { authorization: `Bearer ${"a".repeat(32)}` },
-    body: JSON.stringify(config),
-  });
-  expect(saved.status).toBe(200);
-  const conversation = { connectionId: "feishu", id: "room", kind: "group" };
-  const enabledAt = Date.now() - 500;
-  const group = {
-    id: "feishu-room",
-    name: "Team",
-    revision: "original",
-    endpoints: [conversation],
-    participants: [],
-    nativeGroup: {
-      version: 1,
+it.each(["removed", "dissolved"] as const)(
+  "handles Feishu %s only after a signed current lifecycle event",
+  async (reason) => {
+    const f = await fixture();
+    const config = {
+      id: "feishu",
+      name: "Feishu",
+      channel: "feishu",
+      tenantId: "tenant",
+      appId: "app",
+      botOpenId: "bot",
+      appSecret: "secret",
+      verificationToken: "verify",
+      encryptKey: "encrypt",
       enabled: true,
-      enabledAt,
-      projectId: "p",
-      ownerDeviceId: f.device.id,
-    },
-  };
-  f.gateway.store.put("native-groups", group.id, group);
-  f.gateway.store.put("space-confirmations", group.id, [
-    imConversationKey(conversation as typeof f.input.conversation),
-  ]);
-  const send = async (created: number, tenant = "tenant", valid = true) => {
-    const body = JSON.stringify({
-      header: {
-        token: "verify",
-        app_id: "app",
-        tenant_key: tenant,
-        event_type: "im.chat.member.bot.deleted_v1",
-        create_time: String(created),
-      },
-      event: { chat_id: "room" },
+    };
+    const saved = await fetch(`${f.url}/v1/admin/connections`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      body: JSON.stringify(config),
     });
-    const time = String(Math.floor(Date.now() / 1000));
-    return fetch(`${f.url}/channels/feishu/feishu`, {
-      method: "POST",
-      headers: {
-        "x-lark-request-timestamp": time,
-        "x-lark-request-nonce": "nonce",
-        "x-lark-signature": valid
-          ? createHash("sha256")
-              .update(time + "nonce" + "encrypt" + body)
-              .digest("hex")
-          : "invalid",
+    expect(saved.status).toBe(200);
+    const conversation = { connectionId: "feishu", id: "room", kind: "group" };
+    const enabledAt = Date.now() - 500;
+    const group = {
+      id: "feishu-room",
+      name: "Team",
+      revision: "original",
+      endpoints: [conversation],
+      participants: [],
+      nativeGroup: {
+        version: 1,
+        enabled: true,
+        enabledAt,
+        projectId: "p",
+        ownerDeviceId: f.device.id,
       },
-      body,
-    });
-  };
-  await send(Date.now(), "tenant", false);
-  await send(Date.now(), "foreign");
-  await send(enabledAt - 1);
-  expect(f.gateway.store.get("native-groups", group.id)).toEqual(group);
-  expect((await send(Date.now())).status).toBe(200);
-  const disabled = f.gateway.store.get<{ revision: string }>(
-    "native-groups",
-    group.id,
-  );
-  expect(disabled).toMatchObject({ nativeGroup: { enabled: false } });
-  expect(f.gateway.store.get("space-confirmations", group.id)).toBeUndefined();
-  await send(Date.now());
-  expect(f.gateway.store.get("native-groups", group.id)).toEqual(disabled);
-});
+    };
+    f.gateway.store.put("native-groups", group.id, group);
+    f.gateway.store.put("space-confirmations", group.id, [
+      imConversationKey(conversation as typeof f.input.conversation),
+    ]);
+    const send = async (created: number, tenant = "tenant", valid = true) => {
+      const body = JSON.stringify({
+        header: {
+          token: "verify",
+          app_id: "app",
+          tenant_key: tenant,
+          event_type:
+            reason === "dissolved"
+              ? "im.chat.disbanded_v1"
+              : "im.chat.member.bot.deleted_v1",
+          create_time: String(created),
+        },
+        event: { chat_id: "room" },
+      });
+      const time = String(Math.floor(Date.now() / 1000));
+      return fetch(`${f.url}/channels/feishu/feishu`, {
+        method: "POST",
+        headers: {
+          "x-lark-request-timestamp": time,
+          "x-lark-request-nonce": "nonce",
+          "x-lark-signature": valid
+            ? createHash("sha256")
+                .update(time + "nonce" + "encrypt" + body)
+                .digest("hex")
+            : "invalid",
+        },
+        body,
+      });
+    };
+    await send(Date.now(), "tenant", false);
+    await send(Date.now(), "foreign");
+    await send(enabledAt - 1);
+    expect(f.gateway.store.get("native-groups", group.id)).toEqual(group);
+    expect((await send(Date.now())).status).toBe(200);
+    const disabled = f.gateway.store.get<{ revision: string }>(
+      "native-groups",
+      group.id,
+    );
+    if (reason === "dissolved") {
+      expect(disabled).toBeUndefined();
+      expect(
+        f.gateway.store.get(
+          "retired-groups",
+          imConversationKey(conversation as typeof f.input.conversation),
+        ),
+      ).toMatchObject({ reason: "dissolved" });
+    } else expect(disabled).toMatchObject({ nativeGroup: { enabled: false } });
+    expect(
+      f.gateway.store.get("space-confirmations", group.id),
+    ).toBeUndefined();
+    await send(Date.now());
+    expect(f.gateway.store.get("native-groups", group.id)).toEqual(disabled);
+  },
+);

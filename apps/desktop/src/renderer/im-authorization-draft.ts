@@ -24,7 +24,7 @@ export interface AuthorizationDraft {
   baseline: ImSettings;
   grant: ExecutionGrant;
   editPolicy: boolean;
-  step: 1 | 2 | 3;
+  step: 1 | 2;
   operationId: string;
   confirmation: string;
   dirty: boolean;

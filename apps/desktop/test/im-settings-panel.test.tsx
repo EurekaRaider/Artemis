@@ -73,6 +73,24 @@ it.each(APP_LOCALES)(
     ).toBeVisible();
   },
 );
+it("keeps the device identifier in advanced details instead of the connection overview", async () => {
+  fixture();
+  render(<ImSettingsPanel locale="zh-CN" />);
+  const advanced = await screen.findByRole("button", {
+    name: t("ImSetupGuide.message4"),
+  });
+  expect(screen.queryByText("test-device")).not.toBeInTheDocument();
+  await userEvent.setup().click(advanced);
+  const dialog = screen.getByRole("dialog", {
+    name: t("ImSetupGuide.message4"),
+  });
+  expect(within(dialog).getByText("test-device")).toBeVisible();
+  expect(
+    within(dialog).getByRole("button", {
+      name: t("ImSettingsPanel.deviceCopy"),
+    }),
+  ).toBeVisible();
+});
 function fixture(ready = true) {
   let current: Status = {
     authorizationVersion: 1,
@@ -1168,9 +1186,7 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
     await openGroupSetup(user);
-    await user.click(
-      await screen.findByRole("button", { name: /Slack · room/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: /IM 群/ }));
     name = "后台取得的群名";
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
@@ -1178,7 +1194,7 @@ describe("production IM settings", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("heading", { name: /后台取得的群名/ }),
-      ).toHaveTextContent("后台取得的群名 · Slack"),
+      ).toHaveTextContent("后台取得的群名"),
     );
     expect(
       screen.queryByRole("button", { name: "确认并启用群聊" }),
@@ -1217,14 +1233,11 @@ describe("production IM settings", () => {
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
     await openGroupSetup(user);
-    await user.click(
-      await screen.findByRole("button", { name: /研发群 · Slack/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: /研发群/ }));
     await user.click(screen.getByRole("button", { name: "为此群授权" }));
     expect(screen.getByRole("button", { name: "下一步" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /^项目/ }));
     await user.click(screen.getByRole("option", { name: "Test project" }));
-    await user.click(screen.getByRole("button", { name: "下一步" }));
     await user.click(screen.getByRole("button", { name: "下一步" }));
     expect(screen.getByRole("button", { name: "确认并应用" })).toBeDisabled();
     await user.click(
@@ -2028,7 +2041,7 @@ describe("single project authorization editor", () => {
     return { ...f, owner };
   }
   async function openGroupEditor(user: ReturnType<typeof userEvent.setup>) {
-    const group = await screen.findByRole("button", { name: /研发群 · Slack/ });
+    const group = await screen.findByRole("button", { name: /研发群/ });
     await user.click(group);
     await user.click(
       screen.getByRole("button", { name: /^(编辑授权|恢复授权)$/ }),
@@ -2045,13 +2058,32 @@ describe("single project authorization editor", () => {
     expect(screen.queryByText("Private member name")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "关闭" }));
     await openGroupSetup(user);
-    await user.click(
-      await screen.findByRole("button", { name: /研发群 · Slack/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: /研发群/ }));
     expect(screen.getByRole("button", { name: "编辑授权" })).toBeVisible();
     expect(
       screen.queryByRole("group", { name: "数据与分享范围" }),
     ).not.toBeInTheDocument();
+  });
+  it("refreshes provider group state before reloading the group directory", async () => {
+    const f = groupFixture(true);
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" initialPermissions />);
+    const dialog = await screen.findByRole("dialog", { name: "群项目协作" });
+    await screen.findByRole("button", { name: /研发群/ });
+    f.manage.mockClear();
+    await user.click(
+      within(dialog).getByRole("button", { name: "刷新", exact: true }),
+    );
+    const calls = f.manage.mock.calls.map(([input]) => input);
+    const refresh = calls.findIndex(
+      (input) =>
+        input.action === "admin" && input.operation === "refresh-groups",
+    );
+    const status = calls.findIndex(
+      (input) => input.action === "admin" && input.operation === "status",
+    );
+    expect(refresh).toBeGreaterThanOrEqual(0);
+    expect(status).toBeGreaterThan(refresh);
   });
   it("edits an enabled group's scope in the same dialog without changing the owner's scope", async () => {
     const f = groupFixture(true);
@@ -2059,10 +2091,14 @@ describe("single project authorization editor", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" initialPermissions />);
     const dialog = await openGroupEditor(user);
+    await user.click(within(dialog).getByRole("button", { name: /^可读范围/ }));
     await user.click(
-      within(dialog).getByRole("button", { name: "整个项目可修改" }),
+      screen.getByRole("option", { name: "整个项目", exact: true }),
     );
-    await user.click(within(dialog).getByRole("button", { name: "下一步" }));
+    await user.click(within(dialog).getByRole("button", { name: /^可写范围/ }));
+    await user.click(
+      screen.getByRole("option", { name: "整个项目", exact: true }),
+    );
     const submit = within(dialog).getByRole("button", { name: "确认并应用" });
     expect(submit).toBeDisabled();
     await user.click(
@@ -2094,7 +2130,6 @@ describe("single project authorization editor", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" initialPermissions />);
     await openGroupEditor(user);
-    await user.click(screen.getByRole("button", { name: "下一步" }));
     const submit = screen.getByRole("button", { name: "确认并应用" });
     expect(submit).toBeDisabled();
     await user.click(
@@ -2109,9 +2144,7 @@ describe("single project authorization editor", () => {
     const f = groupFixture(false, false);
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" initialPermissions />);
-    await user.click(
-      await screen.findByRole("button", { name: /研发群 · Slack/ }),
-    );
+    await user.click(await screen.findByRole("button", { name: /研发群/ }));
     expect(screen.getByRole("button", { name: "恢复授权" })).toBeDisabled();
     expect(screen.getByText(/请配对本人账号/)).toBeVisible();
     expect(

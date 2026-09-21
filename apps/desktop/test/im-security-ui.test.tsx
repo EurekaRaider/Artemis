@@ -117,7 +117,7 @@ it("requires explicit whole-project write consent including future files for onl
     );
   }
   render(<Editor />);
-  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
+  await user.click(screen.getByRole("button", { name: "设为整个项目只读" }));
   expect(value!.security!.scopes[0]).toMatchObject({
     audience: "owner",
     readPaths: [],
@@ -125,7 +125,7 @@ it("requires explicit whole-project write consent including future files for onl
     filePaths: [],
   });
   await user.click(screen.getByRole("checkbox", { name: /我确认当前会话/ }));
-  await user.click(screen.getByRole("button", { name: "整个项目可修改" }));
+  await user.click(screen.getByRole("button", { name: "设为整个项目可读写" }));
   expect(value!.security!.confirmedAt).toBe(0);
   expect(value!.security!.scopes[0]).toMatchObject({
     readPaths: [],
@@ -135,7 +135,7 @@ it("requires explicit whole-project write consent including future files for onl
   });
   await user.click(screen.getByRole("button", { name: /^分享给谁/ }));
   await user.click(screen.getByRole("option", { name: "Team", exact: true }));
-  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
+  await user.click(screen.getByRole("button", { name: "设为整个项目只读" }));
   expect(value!.security!.scopes[1]).toMatchObject({
     audience: "space:team",
     readPaths: [],
@@ -178,7 +178,7 @@ it("exposes disclosure state and preserves inherited permissions with keyboard c
     );
   }
   render(<Editor />);
-  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
+  await user.click(screen.getByRole("button", { name: "设为整个项目只读" }));
   await user.click(screen.getByRole("button", { name: "选择目录或文件" }));
   const disclosure = screen.getByRole("button", {
     name: "展开 src",
@@ -319,7 +319,7 @@ it("confirms only the selected audience without confirming or blocking on unrela
     );
   }
   render(<Editor />);
-  await user.click(screen.getByRole("button", { name: "整个项目可读" }));
+  await user.click(screen.getByRole("button", { name: "设为整个项目只读" }));
   const confirmation = screen.getByRole("checkbox", { name: /我确认当前会话/ });
   expect(confirmation).toBeEnabled();
   expect(screen.getByText(/Old group/)).toBeVisible();
@@ -346,6 +346,111 @@ it("confirms only the selected audience without confirming or blocking on unrela
   ).toMatchObject({
     spaceRevision: "v0",
     readPaths: ["src"],
+    writePaths: [],
+  });
+});
+
+it.each(["execute", "plan", "review"] as const)(
+  "distinguishes read scope, effective write scope and preset actions in %s",
+  async (mode) => {
+    function Editor() {
+      const [grant, setGrant] = useState(
+        executionGrantSchema.parse({
+          projectId: "p",
+          mode,
+          expiresAt: Date.now() + 60000,
+        }),
+      );
+      return (
+        <ImDataPermissions
+          grant={grant}
+          t={t}
+          audiences={[]}
+          disabled={false}
+          draftMode
+          showAudienceSelector={false}
+          onChange={(security) => setGrant({ ...grant, security })}
+        />
+      );
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    const read = screen.getByRole("button", { name: /^可读范围/ });
+    expect(read).toHaveTextContent("整个项目");
+    expect(read).not.toHaveTextContent("整个项目可读");
+    expect(screen.getByRole("status")).toHaveTextContent("可写范围不允许");
+    const allowWrites = screen.getByRole("button", {
+      name: "设为整个项目可读写",
+    });
+    if (mode !== "execute") {
+      expect(allowWrites).toBeDisabled();
+      return;
+    }
+    await user.click(allowWrites);
+    expect(screen.getByRole("status")).toHaveTextContent("可写范围整个项目");
+    await user.click(screen.getByRole("button", { name: "设为整个项目只读" }));
+    expect(screen.getByRole("status")).toHaveTextContent("可写范围不允许");
+  },
+);
+
+it("edits inline ranges without keeping whole-project writes after narrowing reads", async () => {
+  const user = userEvent.setup();
+  stubWindowArtemis({
+    manageIm: async () => [
+      { path: "src", directory: true, protected: false },
+      { path: "docs", directory: true, protected: false },
+    ],
+  });
+  let value: ExecutionGrant;
+  function Editor() {
+    const [grant, setGrant] = useState(
+      executionGrantSchema.parse({
+        projectId: "p",
+        mode: "execute",
+        expiresAt: Date.now() + 60000,
+      }),
+    );
+    value = grant;
+    return (
+      <ImDataPermissions
+        grant={grant}
+        onChange={(security) => setGrant({ ...grant, security })}
+        t={t}
+        audiences={[]}
+        disabled={false}
+        draftMode
+        compact
+        showAudienceSelector={false}
+      />
+    );
+  }
+  render(<Editor />);
+  expect(
+    screen.queryByRole("button", { name: "数据与分享范围" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /^可写范围/ }));
+  await user.click(
+    screen.getByRole("option", { name: "整个项目", exact: true }),
+  );
+  expect(value!.security!.scopes[0]!.writeMode).toBe("project");
+  await user.click(screen.getByRole("button", { name: /^可读范围/ }));
+  await user.click(screen.getByRole("option", { name: "指定目录或文件" }));
+  expect(value!.security!.scopes[0]).toMatchObject({
+    readMode: "selected",
+    writeMode: "selected",
+    readPaths: [],
+    writePaths: [],
+  });
+  await user.click(await screen.findByRole("checkbox", { name: "可读取 src" }));
+  expect(screen.getByRole("checkbox", { name: "可修改 docs" })).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: "可修改 src" }));
+  expect(value!.security!.scopes[0]).toMatchObject({
+    readPaths: ["src"],
+    writePaths: ["src"],
+  });
+  await user.click(screen.getByRole("checkbox", { name: "可读取 src" }));
+  expect(value!.security!.scopes[0]).toMatchObject({
+    readPaths: [],
     writePaths: [],
   });
 });

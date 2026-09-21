@@ -293,6 +293,11 @@ export class SlackAdapter implements ChannelAdapter {
     readonly config: SlackConnection,
     private readonly receive: (event: ChannelEvent) => void,
     private readonly rosterChanged?: (channel: string) => void,
+    private readonly groupRetired?: (
+      channel: string,
+      reason: "dissolved" | "archived",
+      timestamp: number,
+    ) => void,
   ) {}
   status(): ChannelStatus {
     return {
@@ -398,6 +403,35 @@ export class SlackAdapter implements ChannelAdapter {
               : undefined;
           const payload = record(message.payload);
           const membership = record(payload.event);
+          if (
+            message.type === "events_api" &&
+            payload.type === "event_callback" &&
+            payload.team_id === this.config.tenantId &&
+            payload.api_app_id === this.config.appId &&
+            [
+              "channel_deleted",
+              "group_deleted",
+              "channel_archive",
+              "group_archive",
+            ].includes(string(membership.type)) &&
+            string(membership.channel)
+          ) {
+            const timestamp =
+              Number(membership.event_ts ?? payload.event_time) * 1000;
+            if (
+              Number.isFinite(timestamp) &&
+              timestamp > 0 &&
+              timestamp <= Date.now() + 60000
+            )
+              this.groupRetired?.(
+                string(membership.channel),
+                membership.type === "channel_deleted" ||
+                  membership.type === "group_deleted"
+                  ? "dissolved"
+                  : "archived",
+                timestamp,
+              );
+          }
           if (
             message.type === "events_api" &&
             payload.type === "event_callback" &&

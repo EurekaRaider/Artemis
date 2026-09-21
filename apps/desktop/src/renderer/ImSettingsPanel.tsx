@@ -14,6 +14,7 @@ import {
   type Project,
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
+import { Desktop, PlugsConnected } from "@phosphor-icons/react";
 import {
   Dialog,
   InlineNotice,
@@ -711,29 +712,6 @@ export function ImSettingsPanel({
       <>
         {/* 顶部信息区随提示内容自适应高度。 */}
         <div className="im-service-meta">
-          {settings.deviceId && (
-            <p
-              className="im-identifier im-service-device-line"
-              title={t("ImSettingsPanel.message44")}
-            >
-              <ArtemisIcon
-                aria-hidden="true"
-                name="mobile"
-                width={15}
-                height={15}
-              />
-              <span className="im-device-id">{settings.deviceId}</span>
-              <button
-                type="button"
-                className="im-capsule-btn"
-                onClick={() =>
-                  void navigator.clipboard.writeText(settings.deviceId)
-                }
-              >
-                {t("ImSettingsPanel.deviceCopy")}
-              </button>
-            </p>
-          )}
           {/* 就绪后不再展示禁用态按钮，只留提示。 */}
           {!gatewayReady && (
             <Button
@@ -783,6 +761,9 @@ export function ImSettingsPanel({
             onClick={() => setShowRemote(true)}
           >
             <span className="im-gateway-fold-head">
+              <span className="im-gateway-entry-icon">
+                <PlugsConnected size={20} weight="duotone" aria-hidden="true" />
+              </span>
               {t("ImSettingsPanel.message46")}
             </span>
           </button>
@@ -1732,6 +1713,10 @@ export function ImSettingsPanel({
     );
   }
   async function refreshGroups() {
+    await window.artemis.manageIm({
+      action: "admin",
+      operation: "refresh-groups",
+    });
     const [next, current] = await Promise.all([
       window.artemis.manageIm({ action: "admin", operation: "status" }),
       window.artemis.manageIm({ action: "refresh" }),
@@ -2284,6 +2269,26 @@ export function ImSettingsPanel({
             </button>
           </header>
           <div className="im-detail-dialog-body">
+            {settings.deviceId && (
+              <p
+                className="im-identifier im-service-device-line"
+                title={t("ImSettingsPanel.message44")}
+              >
+                <Desktop size={16} aria-hidden="true" />
+                <span>{t("ImSettingsPanel.message44")}</span>
+                <span className="im-device-id">{settings.deviceId}</span>
+                <button
+                  type="button"
+                  className="im-capsule-btn"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(settings.deviceId)
+                  }
+                >
+                  {t("ImSettingsPanel.deviceCopy")}
+                </button>
+              </p>
+            )}
+
             <p>{t("ImSetupGuide.message5")}</p>
             <div className="im-actions">
               <Button

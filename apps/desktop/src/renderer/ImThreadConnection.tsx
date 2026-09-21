@@ -1,5 +1,5 @@
 import { uiText } from "../shared/ui-text.js";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   AppLocale,
   ImConnectionStatus,
@@ -116,9 +116,11 @@ export function useImThreadStatus() {
 export function ImThreadConnection({
   status,
   locale,
+  channelIcon,
 }: {
   status: ThreadConnection;
   locale: AppLocale;
+  channelIcon?: ReactNode;
 }) {
   const channel =
     status.channel === "slack"
@@ -129,20 +131,27 @@ export function ImThreadConnection({
           ? uiText(locale, "ImNavigation.message2")
           : "IM";
   const state =
-    status.group?.native && !status.group.confirmed
+    status.group?.retired || (status.group?.native && !status.group.confirmed)
       ? "disabled"
       : status.connectionState;
-  const label = {
-    connected: uiText(locale, "ImNavigation.message12"),
-    connecting: uiText(locale, "ImNavigation.message11"),
-    error: uiText(locale, "ImThreadConnection.inline1"),
-    disabled: uiText(
-      locale,
-      "CustomAgentsSettingsSection_labels.disabledBadge",
-    ),
-    removed: uiText(locale, "ImThreadConnection.removedBadge"),
-    unknown: uiText(locale, "ImGroupMembers.message6"),
-  }[state];
+  const label = status.group?.retired
+    ? uiText(
+        locale,
+        status.group.retired === "dissolved"
+          ? "ImThreadConnection.dissolvedBadge"
+          : "ImThreadConnection.archivedBadge",
+      )
+    : {
+        connected: uiText(locale, "ImNavigation.message12"),
+        connecting: uiText(locale, "ImNavigation.message11"),
+        error: uiText(locale, "ImThreadConnection.inline1"),
+        disabled: uiText(
+          locale,
+          "CustomAgentsSettingsSection_labels.disabledBadge",
+        ),
+        removed: uiText(locale, "ImThreadConnection.removedBadge"),
+        unknown: uiText(locale, "ImGroupMembers.message6"),
+      }[state];
   const summary = `${channel} · ${uiText(locale, "ImThreadConnection.inline2")}：${label}`;
   const group = status.group;
   const members = group ? imGroupMentionTargets(group) : [];
@@ -181,7 +190,19 @@ export function ImThreadConnection({
           height={14}
         />
       </span>
-      {group && !group.native && (
+      {group?.retired && (
+        <>
+          {channelIcon}
+          <span className="im-thread-separator" aria-hidden="true">
+            ·
+          </span>
+          <span className="im-thread-retired">{label}</span>
+          <span className="im-thread-separator" aria-hidden="true">
+            ·
+          </span>
+        </>
+      )}
+      {group && !group.native && !group.retired && (
         <span
           className="im-thread-computers"
           data-state={computerState}

@@ -63,6 +63,7 @@ import {
   assertImGatewayUrl,
   imConversationKey,
   imGroupContextSchema,
+  imRetiredGroupSchema,
   imGroupMentionTargets,
   resolveImGroupMentions,
   imIdentityKey,
@@ -586,6 +587,7 @@ export class ImService {
     }
   >();
   private spaces: unknown[] = [];
+  private readonly retiredThreads = new Set<string>();
   private reconciled = false;
   private syncingGroups: Promise<void> | undefined;
   private groupConversationError: string | undefined;
@@ -797,6 +799,8 @@ export class ImService {
     };
   }
   private checkContext(binding: Binding): ExecutionGrant {
+    if (this.retiredGroup(binding))
+      throw new Error("群已解散或归档，对话不可用。");
     if (isImOwnerDirectRequest(binding.request)) {
       if (
         !this.identities.some(
@@ -1056,6 +1060,9 @@ export class ImService {
       spaces: structuredClone(this.displaySpaces()),
       remoteTasks: this.list<Binding>("bindings").map((b) => ({
         threadId: b.threadId,
+        running:
+          this.ops.thread(b.threadId)?.status === "running" ||
+          this.ops.thread(b.threadId)?.status === "waiting-approval",
         ...(b.nativeGroup && !b.parentThreadId && b.request.conversation.spaceId
           ? {
               currentGroupEntry:
@@ -1129,6 +1136,15 @@ export class ImService {
         return "unknown";
     }
   }
+  private retiredGroup(binding: Binding): "dissolved" | "archived" | undefined {
+    const id = binding.request.conversation.spaceId;
+    return id
+      ? this.get<{ reason: "dissolved" | "archived" }>(
+          "retired-groups",
+          this.groupEntryKey(id),
+        )?.reason
+      : undefined;
+  }
   private groupContext(binding: Binding) {
     const spaceId = binding.request.conversation.spaceId!;
     const space = this.displaySpaces().find(
@@ -1147,6 +1163,9 @@ export class ImService {
       | undefined;
     const native = (space as CollaborationSpace | undefined)?.nativeGroup;
     const parsed = imGroupContextSchema.safeParse({
+      ...(this.retiredGroup(binding)
+        ? { retired: this.retiredGroup(binding) }
+        : {}),
       ...(native || binding.nativeGroup
         ? { native: true, capability: native?.capability ?? "manual" }
         : {}),
@@ -1234,6 +1253,7 @@ export class ImService {
     if (!binding?.localExecution || !binding.request.conversation.spaceId)
       return undefined;
     const group = this.groupContext(binding);
+    if (group.retired) throw new Error("群已解散或归档，对话不可用。");
     if (group.native)
       return "This is a private local task associated with an IM group. Do not send messages, publish results, or delegate to other bots unless the user explicitly requests publication. Automatic bot collaboration is not verified; use manual IM handoff.";
     const members = imGroupMentionTargets(group);
@@ -5507,10 +5527,88 @@ export class ImService {
         : [],
     });
   }
+  private async applyRetiredGroups(raw: unknown): Promise<void> {
+    const parsed = z.array(imRetiredGroupSchema).safeParse(raw ?? []);
+    if (!parsed.success) return;
+    const ids = new Set(parsed.data.flatMap((group) => group.groupIds));
+    if (!ids.size) return;
+    const audiences = new Set([...ids].map((id) => `space:${id}`));
+    for (const group of parsed.data)
+      for (const id of group.groupIds) {
+        this.put("retired-groups", this.groupEntryKey(id), {
+          reason: group.reason,
+          retiredAt: group.retiredAt,
+        });
+        this.remove("group-entries", this.groupEntryKey(id));
+      }
+    const grants = this.config.grants
+      .map((grant) => ({
+        ...grant,
+        groups: grant.groups.filter((audience) => !audiences.has(audience)),
+        ...(grant.security
+          ? {
+              security: {
+                ...grant.security,
+                scopes: grant.security.scopes.filter(
+                  (scope) => !audiences.has(scope.audience),
+                ),
+              },
+            }
+          : {}),
+      }))
+      .filter(
+        (grant, index) =>
+          !this.config.grants[index]!.groups.some((audience) =>
+            audiences.has(audience),
+          ) ||
+          grant.groups.length > 0 ||
+          !!grant.security?.scopes.length,
+      );
+    if (JSON.stringify(grants) !== JSON.stringify(this.config.grants)) {
+      this.config = { ...this.config, grants };
+      this.put("settings", "current", this.config);
+    }
+    for (const operation of this.list<ImAuthorizationOperation>(
+      "group-authorizations",
+    ))
+      if (
+        (operation.group && ids.has(operation.group.id)) ||
+        parsed.data.some(
+          (group) =>
+            imConversationKey(group.conversation) ===
+            imConversationKey(operation.command.conversation),
+        )
+      )
+        this.remove("group-authorizations", operation.command.operationId);
+    for (const binding of this.list<Binding>("bindings")) {
+      if (!ids.has(binding.request.conversation.spaceId ?? "")) continue;
+      const thread = this.ops.thread(binding.threadId);
+      if (
+        this.retiredThreads.has(binding.threadId) &&
+        (!thread || !busy(thread))
+      )
+        continue;
+      this.cancelOperations(binding.threadId);
+      this.remove("permission-blocks", binding.threadId);
+      for (const reply of this.list<ImReply>("outbox"))
+        if (reply.taskId === binding.threadId) this.remove("outbox", reply.id);
+      for (const candidate of this.list<ImOutboundCandidate>(
+        "outbound-candidates",
+      )) {
+        if (candidate.threadId !== binding.threadId) continue;
+        this.remove("outbound-candidates", candidate.id);
+        this.remove("outbound-bodies", candidate.id);
+      }
+      if (thread && busy(thread)) await this.ops.cancel(binding.threadId);
+      await this.ops.close(binding.threadId);
+      this.retiredThreads.add(binding.threadId);
+    }
+  }
   private async refreshConnection(): Promise<void> {
     if (!this.token || !this.config.deviceId) return;
     const status = await (await this.http("/v1/device/status")).json();
     this.securityReady = status.securityVersion === IM_SECURITY_VERSION;
+    await this.applyRetiredGroups(status.retiredGroups);
     if (this.securityReady) await this.syncSecurity();
     this.identities = z
       .array(remoteInvocationSchema.shape.identity)

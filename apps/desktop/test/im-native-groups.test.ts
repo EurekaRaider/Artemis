@@ -19,6 +19,7 @@ import {
   type AgentEvent,
 } from "@artemis/protocol";
 import type { ArtemisGateway } from "@artemis/gateway";
+import { retireGroup } from "../../../packages/gateway/src/group-retirement.js";
 import { ImPermissionError } from "../src/main/im-policy.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
 const cleanup: Array<() => Promise<void>> = [];
@@ -202,6 +203,62 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "slack") {
     root,
   };
 }
+it.each(["feishu", "slack"] as const)(
+  "%s retires group permissions but retains read-only conversation history across restart",
+  async (channel) => {
+    const f = await fixture(channel);
+    await f.authorize();
+    const before = f.service.status();
+    const thread = f.threads[0]!;
+    const groupId = before.remoteTasks![0]!.group!.spaceId;
+    const ownerScopes = before.settings.grants.flatMap(
+      (grant) =>
+        grant.security?.scopes.filter(
+          (scope) => scope.audience !== `space:${groupId}`,
+        ) ?? [],
+    );
+    retireGroup(f.gateway.store, f.event.conversation, "dissolved");
+    await f.service.manage({ action: "refresh" });
+    const after = f.service.status();
+    expect(after.spaces).toEqual([]);
+    expect(after.authorizationOperations).toEqual([]);
+    expect(
+      after.settings.grants.flatMap((grant) => grant.groups),
+    ).not.toContain(`space:${groupId}`);
+    expect(
+      after.settings.grants.flatMap((grant) => grant.security?.scopes ?? []),
+    ).toEqual(ownerScopes);
+    expect(
+      after.remoteTasks!.find((task) => task.threadId === thread.id)?.group,
+    ).toMatchObject({ retired: "dissolved", confirmed: false });
+    expect(f.threads).toContain(thread);
+    expect(() =>
+      f.service.desktopGroupContext(thread.id, "continue", "execute"),
+    ).toThrow(/对话不可用/);
+    await expect(f.authorize()).rejects.toThrow();
+    await f.service.close();
+    const restarted = new ImService(
+      f.root,
+      {
+        isEncryptionAvailable: () => true,
+        encryptString: (s) => Buffer.from(s),
+        decryptString: (b) => b.toString(),
+      },
+      f.ops,
+    );
+    cleanup.push(() => restarted.close());
+    expect(
+      restarted
+        .status()
+        .remoteTasks!.find((task) => task.threadId === thread.id)?.group
+        ?.retired,
+    ).toBe("dissolved");
+    expect(() =>
+      restarted.desktopGroupContext(thread.id, "continue", "execute"),
+    ).toThrow(/对话不可用/);
+  },
+);
+
 for (const channel of ["wecom", "feishu", "slack"] as const)
   it(`${channel} creates one fixed entry only after authorization and runs group work in a child`, async () => {
     const f = await fixture(channel);

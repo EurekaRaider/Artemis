@@ -25,6 +25,10 @@ interface Record {
 /** Both journal and binding are committed in the same Gateway transaction. */
 export function authorizeNativeGroup(store: GatewayStore, raw: unknown) {
   const input = commandSchema.parse(raw);
+  if (
+    store.get("retired-groups", imConversationKey(input.binding.conversation))
+  )
+    throw new Error("This group is dissolved or archived.");
   const { phase, ...contents } = input;
   const fingerprint = JSON.stringify(contents);
   return store.transaction(() => {

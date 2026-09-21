@@ -78,6 +78,52 @@ function api() {
   });
 }
 describe("Slack Socket Mode", () => {
+  it.each([
+    "channel_deleted",
+    "group_deleted",
+    "channel_archive",
+    "group_archive",
+  ])("handles authenticated %s events before acknowledging", async (type) => {
+    api();
+    const retired = vi.fn();
+    const adapter = new SlackAdapter(config, vi.fn(), undefined, retired);
+    adapters.push(adapter);
+    adapter.start();
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    const socket = sockets[0];
+    socket.emit(
+      "message",
+      Buffer.from(
+        JSON.stringify({ type: "hello", connection_info: { app_id: "A1" } }),
+      ),
+    );
+    const timestamp = Math.floor(Date.now() / 1000);
+    for (const team_id of ["foreign", config.tenantId])
+      socket.emit(
+        "message",
+        Buffer.from(
+          JSON.stringify({
+            type: "events_api",
+            envelope_id: team_id,
+            payload: {
+              ...payload({ type, channel: "C1" }),
+              team_id,
+              event_time: timestamp,
+            },
+          }),
+        ),
+      );
+    expect(retired).toHaveBeenCalledExactlyOnceWith(
+      "C1",
+      type === "channel_deleted" || type === "group_deleted"
+        ? "dissolved"
+        : "archived",
+      timestamp * 1000,
+    );
+    expect(retired.mock.invocationCallOrder[0]).toBeLessThan(
+      socket.send.mock.invocationCallOrder.at(-1)!,
+    );
+  });
   it("routes a multi-mention request only to its leading addressee", () => {
     const event = payload({
       type: "app_mention",
