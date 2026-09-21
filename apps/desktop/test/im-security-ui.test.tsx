@@ -1,7 +1,7 @@
 import { uiTranslator } from "../src/shared/ui-text.js";
 // @vitest-environment jsdom
 import { useState } from "react";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import {
@@ -433,6 +433,10 @@ it("edits inline ranges without keeping whole-project writes after narrowing rea
     screen.getByRole("option", { name: "整个项目", exact: true }),
   );
   expect(value!.security!.scopes[0]!.writeMode).toBe("project");
+  // Select restores focus on the next frame; finish that before opening a sibling.
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /^可写范围/ })).toHaveFocus(),
+  );
   await user.click(screen.getByRole("button", { name: /^可读范围/ }));
   await user.click(screen.getByRole("option", { name: "指定目录或文件" }));
   expect(value!.security!.scopes[0]).toMatchObject({

@@ -4924,10 +4924,9 @@ button.environment-row:disabled {
   gap: 10px;
   font-size: 12px;
   line-height: 1.6;
-  margin: 12px auto 18px;
-  max-width: 760px;
+  margin: 12px 0 0;
   padding: 12px 16px;
-  width: calc(100% - 40px);
+  width: 100%;
 }
 
 .im-retired-notice > svg {

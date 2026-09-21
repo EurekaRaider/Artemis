@@ -7245,16 +7245,18 @@ export function App() {
                 )}
 
                 {retiredGroup && (
-                  <div className="im-retired-notice" role="status">
-                    <ArtemisIcon name="agents" width={18} height={18} />
-                    <span>
-                      {uiText(
-                        locale,
-                        retiredGroup === "dissolved"
-                          ? "ImThreadConnection.dissolvedDetail"
-                          : "ImThreadConnection.archivedDetail",
-                      )}
-                    </span>
+                  <div className="composer-wrap">
+                    <div className="im-retired-notice" role="status">
+                      <ArtemisIcon name="agents" width={18} height={18} />
+                      <span>
+                        {uiText(
+                          locale,
+                          retiredGroup === "dissolved"
+                            ? "ImThreadConnection.dissolvedDetail"
+                            : "ImThreadConnection.archivedDetail",
+                        )}
+                      </span>
+                    </div>
                   </div>
                 )}
                 {!activeThread?.archived && !retiredGroup && (

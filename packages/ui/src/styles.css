@@ -569,9 +569,7 @@
   [data-artemis-component="select"] [data-part="menu"] {
     position: absolute;
     z-index: 20;
-    inset-block-start: calc(
-      var(--artemis-select-trigger-bottom, 100%) + var(--artemis-space-1)
-    );
+    inset-block-start: calc(100% + var(--artemis-space-1));
     inset-inline-start: 0;
     box-sizing: border-box;
     inline-size: max-content;

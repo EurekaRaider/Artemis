@@ -994,10 +994,7 @@ export function Select<Value extends string>({
       const element = menu.current;
       const anchor = trigger.current;
       if (!element || !anchor) return;
-      element.style.setProperty(
-        "--artemis-select-trigger-bottom",
-        `${anchor.offsetTop + anchor.offsetHeight}px`,
-      );
+      element.style.insetBlockStart = `calc(${anchor.offsetTop + anchor.offsetHeight}px + var(--artemis-space-1))`;
       const scale = anchor.offsetWidth
         ? anchor.getBoundingClientRect().width / anchor.offsetWidth
         : 1;
