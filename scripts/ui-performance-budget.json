@@ -25,7 +25,7 @@
   "thresholds": {
     "bundles": {
       "desktopCssBytes": 430000,
-      "desktopJsBytes": 3575000,
+      "desktopJsBytes": 4500000,
       "desktopLargestJsBytes": 1962000,
       "galleryCssBytes": 182000,
       "galleryJsBytes": 372500,
@@ -197,6 +197,14 @@
       "baseGalleryJsBytes": 365094,
       "measuredGalleryJsBytes": 365094,
       "reason": "Clean installs and production builds of the existing main and candidate reproduce the expired JavaScript ceilings at both revisions. The IM permission redesign adds 3050 bytes (0.087%) to desktop JavaScript; gallery JavaScript is unchanged. Rebaseline the three hard ceilings with approximately 2% measured headroom. CSS, startup timing, warm/cold hard limits, workload budgets and the performance verifier are unchanged."
+    },
+    {
+      "date": "2026-09-21",
+      "measurementHead": "05285c1d66f541b8b58a9103870b12673b3bc1c7",
+      "measuredDesktopJsBytes": 3644743,
+      "previousDesktopJsMaximumBytes": 3575000,
+      "desktopJsMaximumBytes": 4500000,
+      "reason": "User requested sufficient headroom for ongoing development. The Node 24 clean-checkout pre-push production build measures 3644743 bytes of desktop JavaScript. A 4500000-byte hard ceiling reserves 855257 bytes (23.5% above the measured bundle). The largest-chunk, CSS, gallery, shared UI, startup and workload budgets remain unchanged."
     }
   ],
   "startupBudgetRevisions": [
