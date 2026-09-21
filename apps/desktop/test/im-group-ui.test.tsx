@@ -21,7 +21,7 @@ import {
   imGroupMentionTargets,
   type ImGroupContext,
 } from "@artemis/protocol";
-import { ImNativeGroups } from "../src/renderer/ImNativeGroups.js";
+import { imNativeGroupChoices } from "../src/renderer/ImNativeGroups.js";
 import { ImGroupMembers } from "../src/renderer/ImGroupMembers.js";
 import { useImThreadStatus } from "../src/renderer/ImThreadConnection.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
@@ -72,85 +72,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("group collaboration UI", () => {
-  it("keeps legacy spaces out of native group actions", () => {
-    render(
-      <ImNativeGroups
-        spaces={[space]}
-        settings={imSettingsSchema.parse({})}
-        diagnostics={{
-          identities: [],
-          groups: [],
-          spaces: [space],
-          deliveries: [],
-        }}
-        projects={[]}
-        busy={false}
-        t={uiTranslator("zh-CN")}
-        run={async (fn) => {
-          await fn();
-          return true;
-        }}
-        refresh={async () => {}}
-      />,
-    );
+  it("keeps retired shared spaces out of the native group directory", () => {
     expect(
-      screen.queryByRole("button", { name: "打开群对话" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("/space-confirm team")).not.toBeInTheDocument();
+      imNativeGroupChoices(
+        { identities: [], groups: [], spaces: [space], deliveries: [] },
+        [space],
+        "device",
+        uiTranslator("zh-CN"),
+      ),
+    ).toEqual([]);
   });
-  it("pauses a native group through its single IM binding without deleting its history", async () => {
-    const manage = vi.fn(async (input: { action: string }) =>
-      input.action === "scope-entries" ? [] : {},
-    );
-    stubWindowArtemis({ manageIm: manage });
-    const user = userEvent.setup();
-    const native = {
-      ...space,
-      endpoints: [space.endpoints[0]],
-      participants: [space.participants[0]],
-      nativeGroup: {
-        version: 1,
-        projectId: "project",
-        enabled: true,
-        capability: "manual",
-        enabledAt: 1,
-        ownerDeviceId: "alice-device",
-      },
-    };
-    render(
-      <ImNativeGroups
-        spaces={[native]}
-        settings={imSettingsSchema.parse({})}
-        diagnostics={{ identities: [], groups: [], spaces: [], deliveries: [] }}
-        projects={[]}
-        busy={false}
-        t={uiTranslator("zh-CN")}
-        run={async (fn) => {
-          await fn();
-          return true;
-        }}
-        refresh={async () => {}}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: /已发现的群/ }));
-    await user.click(screen.getByRole("option", { name: /Design team/ }));
-    await user.click(
-      screen.getByRole("button", { name: "暂停接入，保留历史" }),
-    );
-    expect(manage).toHaveBeenCalledWith({
-      action: "admin",
-      operation: "native-group",
-      configuration: {
-        conversation: space.endpoints[0],
-        owner: space.participants[0]!.identity,
-        allowedSenders: [],
-        deviceId: "alice-device",
-        name: space.name,
-        projectId: "project",
-        enabled: false,
-      },
-    });
-  });
+
   it("selects @ members by keyboard without submitting, and resolves equal names to different computers", async () => {
     const frames: FrameRequestCallback[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -681,53 +613,5 @@ it("keeps task member lists read-only without a permission settings entry", () =
   ).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "项目与协作权限" }),
-  ).not.toBeInTheDocument();
-});
-
-it("keeps group status free of permission controls", async () => {
-  const native = {
-    ...space,
-    endpoints: [space.endpoints[0]],
-    participants: [space.participants[0]],
-    nativeGroup: {
-      version: 1,
-      projectId: "project",
-      enabled: true,
-      capability: "manual",
-      enabledAt: 1,
-      ownerDeviceId: "alice-device",
-    },
-  };
-  render(
-    <ImNativeGroups
-      spaces={[native]}
-      settings={imSettingsSchema.parse({
-        grants: [{ projectId: "project", expiresAt: Date.now() + 60000 }],
-      })}
-      diagnostics={{ identities: [], groups: [], spaces: [], deliveries: [] }}
-      projects={[]}
-      busy={false}
-      t={uiTranslator("zh-CN")}
-      run={async (run) => {
-        await run();
-        return true;
-      }}
-      refresh={async () => {}}
-    />,
-  );
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: /已发现的群/ }));
-  await user.click(screen.getByRole("option", { name: /Design team/ }));
-  expect(
-    screen.queryByRole("group", { name: "数据与分享范围" }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "确认并启用群聊" }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "授权配置" }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: /本地项目/ }),
   ).not.toBeInTheDocument();
 });

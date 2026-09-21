@@ -1,156 +1,78 @@
-import { uiTranslator } from "../src/shared/ui-text.js";
-// @vitest-environment jsdom
-import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it } from "vitest";
-import { imSettingsSchema } from "@artemis/protocol";
-import { ImNativeGroups } from "../src/renderer/ImNativeGroups.js";
-import "./renderer-test-utils.js";
-afterEach(cleanup);
-it("distinguishes groups by real route identifiers and permits keyboard selection without authorizing", async () => {
-  const user = userEvent.setup();
-  render(
-    <ImNativeGroups
-      spaces={[]}
-      settings={imSettingsSchema.parse({})}
-      diagnostics={{
-        identities: [],
-        groups: ["room-a", "room-b"].map((id) => ({
-          conversation: { connectionId: "bot", id, kind: "group" },
-          name: "设计群",
-          platform: "slack",
-          identities: [],
-          lastSeenAt: 1,
-        })),
-        spaces: [],
-        deliveries: [],
-      }}
-      projects={[]}
-      busy={false}
-      t={uiTranslator("zh-CN")}
-      run={async (fn) => {
-        await fn();
-        return true;
-      }}
-      refresh={async () => {}}
-    />,
-  );
-  const select = screen.getByRole("button", { name: /已发现的群/ });
-  await user.click(select);
-  expect(
-    screen.getByRole("option", { name: "设计群 · Slack · room-a" }),
-  ).toBeVisible();
-  expect(
-    screen.getByRole("option", { name: "设计群 · Slack · room-b" }),
-  ).toBeVisible();
-  // The shared Select moves keyboard focus on the next animation frame.
-  await waitFor(() => expect(screen.getByRole("listbox")).toHaveFocus());
-  await user.keyboard("{Escape}");
-  await waitFor(() => expect(select).toHaveFocus());
-  expect(select).toHaveAttribute("aria-expanded", "false");
-  expect(
-    screen.queryByRole("button", { name: "确认并启用群聊" }),
-  ).not.toBeInTheDocument();
+import { expect, it } from "vitest";
+import { imNativeGroupChoices } from "../src/renderer/ImNativeGroups";
+import { uiTranslator } from "../src/shared/ui-text";
+const t = uiTranslator("zh-CN");
+const diagnostics = (groups: unknown[]) => ({
+  identities: [],
+  groups,
+  spaces: [],
+  deliveries: [],
 });
-
-it("keeps many groups compact and searches without expanding their settings", async () => {
-  const user = userEvent.setup();
-  render(
-    <ImNativeGroups
-      spaces={[]}
-      settings={imSettingsSchema.parse({})}
-      diagnostics={{
+it("distinguishes same-named groups on different bot connections", () => {
+  const groups = imNativeGroupChoices(
+    diagnostics(
+      ["bot-a", "bot-b"].map((connectionId) => ({
+        conversation: { connectionId, id: "room", kind: "group" },
+        name: "设计群",
+        platform: "slack",
         identities: [],
-        spaces: [],
-        deliveries: [],
-        groups: Array.from({ length: 40 }, (_, i) => ({
-          conversation: { connectionId: "bot", id: `room-${i}`, kind: "group" },
-          name: `Team ${i}`,
-          platform: "slack",
-          identities: [],
-          lastSeenAt: 1,
-        })),
-      }}
-      projects={[]}
-      busy={false}
-      t={uiTranslator("zh-CN")}
-      run={async (fn) => {
-        await fn();
-        return true;
-      }}
-      refresh={async () => {}}
-    />,
+        lastSeenAt: 1,
+      })),
+    ),
+    [],
+    "device",
+    t,
   );
-  expect(
-    screen.queryByRole("button", { name: /本地项目/ }),
-  ).not.toBeInTheDocument();
-  await user.type(screen.getByRole("textbox", { name: "搜索群" }), "Team 39");
-  await user.click(screen.getByRole("button", { name: /已发现的群/ }));
-  expect(screen.getAllByRole("option")).toHaveLength(2);
-  await user.click(screen.getByRole("option", { name: "Team 39 · Slack" }));
-  expect(
-    screen.queryByRole("button", { name: /本地项目/ }),
-  ).not.toBeInTheDocument();
+  expect(groups.map((g) => g.label)).toEqual([
+    "设计群 · Slack · bot-a · room",
+    "设计群 · Slack · bot-b · room",
+  ]);
+  expect(new Set(groups.map((g) => g.value)).size).toBe(2);
 });
-
-it("hides discovered and saved WeCom groups while keeping Slack and Lark selectable", async () => {
-  const user = userEvent.setup();
-  const wecom = {
-    channel: "wecom",
-    connectionId: "w",
-    tenantId: "t",
-    appId: "b",
-    userId: "owner",
-  };
-  render(
-    <ImNativeGroups
-      spaces={[
-        {
-          id: "saved-w",
-          name: "Hidden saved WeCom",
-          nativeGroup: {},
-          endpoints: [{ connectionId: "w", id: "old", kind: "group" }],
-          participants: [{ identity: wecom }],
-        },
-      ]}
-      settings={imSettingsSchema.parse({})}
-      diagnostics={{
+it("retains conversation identity when an observed audience becomes a saved native group", () => {
+  const conversation = { connectionId: "bot", id: "room", kind: "group" };
+  const observed = diagnostics([
+    {
+      conversation,
+      name: "设计群",
+      platform: "slack",
+      identities: [],
+      lastSeenAt: 1,
+    },
+  ]);
+  const before = imNativeGroupChoices(observed, [], "device", t)[0]!;
+  const after = imNativeGroupChoices(
+    observed,
+    [
+      {
+        id: "saved",
+        name: "设计群",
+        endpoints: [conversation],
+        participants: [],
+        nativeGroup: { version: 1 },
+      },
+    ],
+    "device",
+    t,
+  )[0]!;
+  expect(before.value).toMatch(/^native:/);
+  expect(after.value).toBe("space:saved");
+  expect(after.conversation).toEqual(before.conversation);
+});
+it("excludes retired WeCom groups while retaining Slack and Lark observations", () => {
+  const groups = imNativeGroupChoices(
+    diagnostics(
+      ["wecom", "slack", "lark"].map((platform) => ({
+        conversation: { connectionId: platform, id: "room", kind: "group" },
+        platform,
+        name: platform,
         identities: [],
-        spaces: [],
-        deliveries: [],
-        groups: [
-          {
-            conversation: { connectionId: "w", id: "room", kind: "group" },
-            platform: "wecom",
-            name: "Hidden WeCom",
-            identities: [wecom],
-            lastSeenAt: 1,
-          },
-          ...["slack", "lark"].map((platform) => ({
-            conversation: {
-              connectionId: platform,
-              id: platform,
-              kind: "group",
-            },
-            platform,
-            name: platform,
-            identities: [],
-            lastSeenAt: 1,
-          })),
-        ],
-      }}
-      projects={[]}
-      busy={false}
-      t={uiTranslator("zh-CN")}
-      run={async () => true}
-      refresh={async () => {}}
-    />,
+        lastSeenAt: 1,
+      })),
+    ),
+    [],
+    "device",
+    t,
   );
-  await user.click(screen.getByRole("button", { name: /已发现的群/ }));
-  expect(
-    screen.queryByRole("option", { name: /WeCom/ }),
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole("option", { name: "slack · Slack" })).toBeVisible();
-  expect(screen.getByRole("option", { name: "lark · Lark" })).toBeVisible();
+  expect(groups.map((g) => g.label)).toEqual(["slack · Slack", "lark · Lark"]);
 });

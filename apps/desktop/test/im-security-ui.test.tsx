@@ -32,6 +32,7 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
     const [grant, setGrant] = useState(
       executionGrantSchema.parse({
         projectId: "p",
+        mode: "execute",
         expiresAt: Date.now() + 60000,
       }),
     );
@@ -100,6 +101,7 @@ it("requires explicit whole-project write consent including future files for onl
     const [grant, setGrant] = useState(
       executionGrantSchema.parse({
         projectId: "p",
+        mode: "execute",
         expiresAt: Date.now() + 60000,
       }),
     );

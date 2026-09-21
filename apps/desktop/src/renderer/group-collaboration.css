@@ -1,0 +1,113 @@
+.im-group-dialog {
+  inline-size: min(896px, calc(100vw - 32px));
+  max-block-size: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+.im-group-header,
+.im-group-actions,
+.im-group-steps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.im-group-header {
+  justify-content: space-between;
+  flex: none;
+}
+.im-group-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.im-group-body {
+  overflow: auto;
+  min-block-size: 0;
+  padding-block: 16px;
+}
+.im-group-management {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr);
+  gap: 24px;
+}
+.im-group-management > * {
+  min-inline-size: 0;
+}
+.im-group-management nav button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+.im-group-identity {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.im-group-steps {
+  list-style: none;
+  padding: 0;
+  color: var(--muted);
+}
+.im-group-steps [aria-current] {
+  color: var(--text);
+  font-weight: 600;
+}
+.im-group-summary {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(0, 3fr);
+  gap: 12px;
+}
+.im-group-summary dt {
+  color: var(--muted);
+}
+.im-group-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.im-group-body p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .im-group-dialog {
+    padding: 16px;
+  }
+  .im-group-management,
+  .im-group-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.im-group-dialog {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.im-group-body p {
+  margin-block: 0;
+  line-height: 1.6;
+}
+.im-group-body h3 {
+  margin-block: 0;
+}
+.im-group-row-copy {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+  padding-block: 6px;
+}
+.im-group-row-copy strong {
+  font-weight: 500;
+}
+.im-group-header h2:focus {
+  outline: none;
+}
+.im-group-body input[type="datetime-local"] {
+  display: block;
+  margin-block-start: 6px;
+  max-inline-size: 100%;
+  padding: 6px 10px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control);
+  font: inherit;
+}

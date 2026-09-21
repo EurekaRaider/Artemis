@@ -1,17 +1,10 @@
 import { uiTranslator } from "../shared/ui-text.js";
-import { ImNativeGroups, imNativeGroupChoices } from "./ImNativeGroups";
+import { GroupCollaborationPanel } from "./GroupCollaborationPanel";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { ImDataPermissions } from "./ImDataPermissions";
-import { imRetryEnable, imSaveAndEnable } from "./im-save-enable";
 import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
 import {
-  executionGrantSchema,
-  IM_SECURITY_VERSION,
-  imScopeConfirmation,
-  type ExecutionGrant,
-  type CollaborationSpace,
   imIdentityKey,
   type AppLocale,
   type ImConnectionStatus,
@@ -152,15 +145,7 @@ export function ImSettingsPanel({
   const [savedPending, setSavedPending] = useState<
     Partial<Record<ImChannel, boolean>>
   >({});
-  const [enableFailedError, setEnableFailedError] = useState("");
-  const [customScopeOpen, setCustomScopeOpen] = useState<
-    Record<string, boolean>
-  >({});
-  const [grantAudience, setGrantAudience] = useState("");
-  const [nativeScopeDraft, setNativeScopeDraft] =
-    useState<NonNullable<ExecutionGrant["security"]>>();
-  const [grantDialog, setGrantDialog] = useState<string | null>(null);
-  const grantDialogAnchor = useRef<HTMLButtonElement | null>(null);
+  const groupDialogTrigger = useRef<HTMLButtonElement | null>(null);
   const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(null);
   /* ②尾「顺手验证」折叠段：imReadVerify 恢复确认态；开合本次会话内记住
      （首绑自动展开一次，用户手动开合后不再抢开）。 */
@@ -218,7 +203,7 @@ export function ImSettingsPanel({
     let active = true;
     let refreshing = false;
     const refreshStatus = async () => {
-      if (running.current || refreshing || grantDialog) return;
+      if (running.current || refreshing) return;
       refreshing = true;
       const epoch = refreshEpoch.current;
       try {
@@ -228,9 +213,7 @@ export function ImSettingsPanel({
             action: "refresh",
           })) as Status;
         const groupDiagnostics =
-          (groupDetail || grantDialog) &&
-          current.localGateway &&
-          current.settings.deviceId
+          groupDetail && current.localGateway && current.settings.deviceId
             ? await window.artemis.manageIm({
                 action: "admin",
                 operation: "status",
@@ -259,7 +242,7 @@ export function ImSettingsPanel({
       window.removeEventListener("focus", refreshStatus);
       document.removeEventListener("visibilitychange", refreshStatus);
     };
-  }, [screen, groupDetail, flowCard, grantDialog]);
+  }, [screen, groupDetail, flowCard]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -483,32 +466,6 @@ export function ImSettingsPanel({
       spellCheck={false}
     />
   );
-  function updateGrant(projectId: string, changes: Record<string, unknown>) {
-    if (!settings) return;
-    setSettings({
-      ...settings,
-      grants: settings.grants.map((g) =>
-        g.projectId === projectId
-          ? executionGrantSchema.parse({
-              ...g,
-              ...changes,
-              ...(changes.groups && g.security
-                ? {
-                    security: {
-                      ...g.security,
-                      scopes: g.security.scopes.filter(
-                        (s) =>
-                          s.audience === "owner" ||
-                          (changes.groups as string[]).includes(s.audience),
-                      ),
-                    },
-                  }
-                : {}),
-            })
-          : g,
-      ),
-    });
-  }
   const channelConnections = connections.filter((c) => c.channel === channel);
   const selectedConnection =
     channelConnections.find(
@@ -546,8 +503,7 @@ export function ImSettingsPanel({
   const local = !!status?.localGateway;
   useEffect(() => {
     /* 群诊断在群协作详情或授权弹窗（群选项/属主观察）打开时拉取。 */
-    if ((!groupDetail && !grantDialog) || !local || !status?.settings.deviceId)
-      return;
+    if (!groupDetail || !local || !status?.settings.deviceId) return;
     let active = true;
     void run(async () => {
       const result = await window.artemis.manageIm({
@@ -559,7 +515,7 @@ export function ImSettingsPanel({
     return () => {
       active = false;
     };
-  }, [groupDetail, grantDialog, local, status?.settings.deviceId]);
+  }, [groupDetail, local, status?.settings.deviceId]);
   useEffect(() => {
     /* 渠道详情主从：选中项失效（删除/切换渠道）时回落到本渠道首个机器人。 */
     if (!channelDetail) return;
@@ -1775,639 +1731,14 @@ export function ImSettingsPanel({
       </>
     );
   }
-  function renderPermissionsBody() {
-    const settings = activeSettings;
-    const nativeChoices = status?.localGateway
-      ? imNativeGroupChoices(
-          diagnostics,
-          status.spaces ?? [],
-          settings.deviceId,
-          t,
-        )
-      : [];
-    const rowSummary = (grant: ExecutionGrant) => {
-      const groupScopes =
-        grant.security?.scopes.filter((scope) =>
-          grant.groups.includes(scope.audience),
-        ) ?? [];
-      const selectedScope =
-        groupScopes.find((scope) => scope.audience === grantAudience) ??
-        groupScopes[0];
-      const write = selectedScope?.writePaths ?? [];
-      const scope =
-        grant.mode === "execute" && selectedScope?.writeMode === "project"
-          ? t("ImDataPermissions.message14")
-          : grant.mode === "execute" && write.length
-            ? t("ImSettingsPanel.writePaths", {
-                paths: locale.startsWith("zh")
-                  ? write.join("、")
-                  : new Intl.ListFormat(locale, { type: "unit" }).format(write),
-              })
-            : t("ImSettingsPanel.message109");
-      const state =
-        !groupScopes.length ||
-        groupScopes.some((scope) => !imScopeConfirmation(grant.security, scope))
-          ? t("ImSettingsPanel.message112")
-          : grant.expiresAt <= Date.now()
-            ? t("ImSettingsPanel.message111")
-            : "";
-      return state ? `${scope} · ${state}` : scope;
-    };
-    // 保存失败时保持弹窗打开；启用失败时保留已保存的群聊授权并显示重试入口。
-    const performSaveAndEnable = async (
-      next: ImSettings = settings,
-      advance = true,
-    ): Promise<boolean> => {
-      setEnableFailedError("");
-      const outcome = await imSaveAndEnable(
-        (draft) => window.artemis.saveImSettings(draft),
-        next,
-        status!.settings,
-      );
-      if (outcome.phase === "save-failed") {
-        setMessageError(true);
-        setMessage(outcome.error);
-        return false;
-      }
-      setStatus((previous) => ({ ...previous, ...outcome.status }));
-      setSettings(outcome.status.settings);
-      if (outcome.phase === "saved-enable-failed") {
-        setEnableFailedError(outcome.error);
-        // 授权已保存但启用失败：留在群聊设置，保留提示与重试入口。
-        setGroupDetail(true);
-        return true;
-      }
-      setMessage(t("ImSettingsPanel.message113"));
-      if (advance) flowAdvanceFrom();
-      return true;
-    };
-    const closeGrantDialog = (projectId: string) => {
-      // 关闭 = 放弃弹窗内未确认的改动，该项目的授权回退到已保存状态。
-      const saved = status?.settings.grants.find(
-        (g) => g.projectId === projectId,
-      );
-      setSettings((current) =>
-        current
-          ? {
-              ...current,
-              grants: saved
-                ? current.grants.map((g) =>
-                    g.projectId === projectId ? saved! : g,
-                  )
-                : current.grants.filter((g) => g.projectId !== projectId),
-            }
-          : current,
-      );
-      setGrantDialog(null);
-    };
-    return (
-      <section id="im-permissions" tabIndex={-1}>
-        <h4 className="im-project-list-title">
-          {t("ImSettingsPanel.message124")}
-        </h4>
-        {projects.map((project) => {
-          const grant = settings.grants.find((g) => g.projectId === project.id);
-          const nativeTarget = nativeChoices.find(
-            (group) => group.value === grantAudience,
-          );
-          const authorizeGroup =
-            nativeTarget &&
-            (!nativeTarget.saved?.nativeGroup?.enabled ||
-              nativeTarget.saved.nativeGroup.projectId !== project.id ||
-              !grant?.groups.includes(nativeTarget.value));
-          const audiences = [
-            ...nativeChoices.map((group) => ({
-              value: group.value,
-              label: group.label,
-              ...(group.saved?.revision
-                ? { revision: group.saved.revision }
-                : {}),
-            })),
-            ...(grant?.groups ?? [])
-              .filter(
-                (value) =>
-                  !nativeChoices.some((group) => group.value === value),
-              )
-              .map((value) => {
-                const space = (
-                  (status?.spaces ?? []) as CollaborationSpace[]
-                ).find((space) => `space:${space.id}` === value);
-                return {
-                  value,
-                  label: space?.name ?? value,
-                  ...(space?.revision ? { revision: space.revision } : {}),
-                };
-              }),
-          ];
-          const groupScope = nativeScopeDraft?.scopes[0];
-          const groupConfirmed =
-            !!groupScope && !!imScopeConfirmation(nativeScopeDraft, groupScope);
-
-          return (
-            <div className="im-project" key={project.id}>
-              <span className="im-project-name">{project.name}</span>
-              {grant && grant.groups.length > 0 && (
-                <span className="im-row-summary">{rowSummary(grant)}</span>
-              )}
-              <Button
-                className="im-grant-open"
-                size="compact"
-                variant="quiet"
-                title={t("ImSettingsPanel.message130")}
-                disabled={busy || !audiences.length}
-                onClick={(event) => {
-                  grantDialogAnchor.current = event.currentTarget;
-                  const audience = audiences[0]!.value;
-                  setGrantAudience(audience);
-                  const scope = grant?.security?.scopes.find(
-                    (scope) => scope.audience === audience,
-                  );
-                  setNativeScopeDraft({
-                    version: IM_SECURITY_VERSION,
-                    revision: "draft",
-                    confirmedAt: 0,
-                    scopes: [
-                      {
-                        ...scope,
-                        audience: "owner",
-                        readPaths: scope?.readPaths ?? [],
-                        writePaths: scope?.writePaths ?? [],
-                        confirmedAt: 0,
-                      },
-                    ],
-                  });
-                  if (!grant)
-                    setSettings({
-                      ...settings,
-                      grants: [
-                        ...settings.grants,
-                        executionGrantSchema.parse({
-                          projectId: project.id,
-                          expiresAt: Date.now() + 30 * 86400000,
-                          security: {
-                            version: IM_SECURITY_VERSION,
-                            revision: "draft",
-                            confirmedAt: 0,
-                            scopes: [
-                              {
-                                audience: "owner",
-                                readPaths: [],
-                                writePaths: [],
-                                confirmedAt: 0,
-                              },
-                            ],
-                          },
-                        }),
-                      ],
-                    });
-                  setGrantDialog(project.id);
-                }}
-              >
-                {t("ImSettingsPanel.message129")}
-              </Button>
-              {grant && grantDialog === project.id && (
-                <Dialog
-                  className="im-grant-dialog"
-                  label={t("ImSettingsPanel.message131", {
-                    value1: project.name,
-                  })}
-                  returnFocusRef={grantDialogAnchor}
-                  onOpenChange={(open) => {
-                    if (!open) closeGrantDialog(project.id);
-                  }}
-                  open
-                >
-                  <header>
-                    <h2>
-                      {t("ImSettingsPanel.message131", {
-                        value1: project.name,
-                      })}
-                    </h2>
-                  </header>
-                  <div className="im-grant-dialog-body">
-                    {messageError && (
-                      <InlineNotice tone="warning">{message}</InlineNotice>
-                    )}
-                    <Select
-                      labelVisibility="visible"
-                      label={t("ImDataPermissions.message8")}
-                      value={grantAudience}
-                      disabled={busy}
-                      options={audiences}
-                      onValueChange={(audience) => {
-                        setGrantAudience(audience);
-                        setCustomScopeOpen((current) => ({
-                          ...current,
-                          [project.id]: true,
-                        }));
-                        // A new or paused audience needs its own explicit confirmation.
-                        // Keep this draft separate from the owner's saved scope.
-                        const scope = grant.security?.scopes.find(
-                          (scope) => scope.audience === audience,
-                        );
-                        setNativeScopeDraft({
-                          version: IM_SECURITY_VERSION,
-                          revision: "draft",
-                          confirmedAt: 0,
-                          scopes: [
-                            {
-                              ...scope,
-                              audience: "owner",
-                              readPaths: scope?.readPaths ?? [],
-                              writePaths: scope?.writePaths ?? [],
-                              confirmedAt: 0,
-                            },
-                          ],
-                        });
-                      }}
-                    />
-                    {authorizeGroup && !nativeTarget.owner && (
-                      <InlineNotice tone="warning">
-                        {t("ImSettingsPanel.nativeOwnerRequired")}
-                      </InlineNotice>
-                    )}
-                    {/* 三档模式（D3）：档位切换收窄离开 Execute 时同步关闭命令与网络。 */}
-                    <div
-                      className="im-mode-tiers"
-                      role="radiogroup"
-                      aria-label={t("App_copy.taskMode")}
-                    >
-                      {(
-                        [
-                          [
-                            "plan",
-                            t("ImSettingsPanel.message132"),
-                            t("ImSettingsPanel.message133"),
-                          ],
-                          [
-                            "review",
-                            t("ImSettingsPanel.message134"),
-                            t("ImSettingsPanel.message135"),
-                          ],
-                          [
-                            "execute",
-                            t("ImSettingsPanel.message136"),
-                            t("ImSettingsPanel.message137"),
-                          ],
-                        ] as const
-                      ).map(([mode, label, desc]) => (
-                        <label
-                          className={
-                            "im-mode-tier" + (grant.mode === mode ? " on" : "")
-                          }
-                          key={mode}
-                        >
-                          <input
-                            type="radio"
-                            name={`imMode-${project.id}`}
-                            checked={grant.mode === mode}
-                            disabled={busy}
-                            onChange={() =>
-                              updateGrant(
-                                project.id,
-                                mode === "execute"
-                                  ? { mode }
-                                  : {
-                                      mode,
-                                      shell: false,
-                                      network: false,
-                                    },
-                              )
-                            }
-                          />
-                          <strong>{label}</strong>
-                          <small>{desc}</small>
-                        </label>
-                      ))}
-                    </div>
-                    <p className="im-fine">
-                      {grant.mode === "execute"
-                        ? t("ImSettingsPanel.message140")
-                        : t("ImSettingsPanel.message139")}
-                    </p>
-                    {grant.mode !== "execute" && (
-                      <Button
-                        size="compact"
-                        variant="quiet"
-                        onClick={() =>
-                          setCustomScopeOpen((open) => ({
-                            ...open,
-                            [project.id]: !open[project.id],
-                          }))
-                        }
-                      >
-                        {customScopeOpen[project.id]
-                          ? t("ImSettingsPanel.message142")
-                          : t("ImSettingsPanel.message141")}
-                      </Button>
-                    )}
-                    {(grant.mode === "execute" ||
-                      !grant.security?.scopes.some(
-                        (scope) =>
-                          scope.audience === grantAudience &&
-                          imScopeConfirmation(grant.security, scope),
-                      ) ||
-                      customScopeOpen[project.id]) && (
-                      <ImDataPermissions
-                        key={`${project.id}:${grantAudience}`}
-                        initialAudience={
-                          authorizeGroup ? "owner" : grantAudience
-                        }
-                        showAudienceSelector={false}
-                        grant={
-                          authorizeGroup
-                            ? { ...grant, security: nativeScopeDraft! }
-                            : grant
-                        }
-                        t={t}
-                        disabled={busy}
-                        onChange={(security) =>
-                          authorizeGroup
-                            ? setNativeScopeDraft(security)
-                            : updateGrant(project.id, { security })
-                        }
-                        audiences={authorizeGroup ? [] : audiences}
-                      />
-                    )}
-                    <div className="im-grant-fields">
-                      <Select
-                        labelVisibility="visible"
-                        label={t("ImSettingsPanel.message143")}
-                        value={grant.approval}
-                        onValueChange={(approval) =>
-                          updateGrant(project.id, { approval })
-                        }
-                        disabled={busy}
-                        options={[
-                          {
-                            value: "ask",
-                            label: t("ImSettingsPanel.message144"),
-                          },
-                          {
-                            value: "automatic",
-                            label: t("ImSettingsPanel.message145"),
-                          },
-                        ]}
-                      />
-                      {grant.mode === "execute" && (
-                        <>
-                          {status?.scopedShellSupported === false ? (
-                            <InlineNotice tone="warning">
-                              {t("ImSettingsPanel.message146")}
-                            </InlineNotice>
-                          ) : null}
-                          <Checkbox
-                            label={t("ImSettingsPanel.message147")}
-                            checked={grant.shell}
-                            disabled={
-                              busy || status?.scopedShellSupported === false
-                            }
-                            onCheckedChange={(shell) =>
-                              updateGrant(project.id, { shell })
-                            }
-                          />
-                          <Checkbox
-                            label={t("ImSettingsPanel.message148")}
-                            description={t("ImSettingsPanel.message149")}
-                            checked={grant.network}
-                            disabled={busy || !grant.shell}
-                            onCheckedChange={(network) =>
-                              updateGrant(project.id, { network })
-                            }
-                          />
-                        </>
-                      )}
-                      {availableSpaces.some(
-                        (space) =>
-                          !nativeChoices.some(
-                            (group) => group.value === `space:${space.id}`,
-                          ),
-                      ) && (
-                        <div className="im-field-stack">
-                          <h4>{t("ImSettingsPanel.message150")}</h4>
-                          {availableSpaces
-                            .filter(
-                              (space) =>
-                                !nativeChoices.some(
-                                  (group) =>
-                                    group.value === `space:${space.id}`,
-                                ),
-                            )
-                            .map((space) => (
-                              <Checkbox
-                                key={space.id}
-                                label={space.name}
-                                checked={grant.groups.includes(
-                                  `space:${space.id}`,
-                                )}
-                                disabled={busy}
-                                onCheckedChange={(checked) =>
-                                  updateGrant(project.id, {
-                                    groups: checked
-                                      ? [...grant.groups, `space:${space.id}`]
-                                      : grant.groups.filter(
-                                          (id) => id !== `space:${space.id}`,
-                                        ),
-                                  })
-                                }
-                              />
-                            ))}
-                        </div>
-                      )}
-                      <details>
-                        <summary>{t("ImSettingsPanel.message152")}</summary>
-                        <TextField
-                          label={t("ImSettingsPanel.message153")}
-                          value={grant.groups
-                            .filter((g) => g.startsWith("space:"))
-                            .map((g) => g.slice(6))
-                            .join(", ")}
-                          onValueChange={(value) =>
-                            updateGrant(project.id, {
-                              groups: value
-                                .split(",")
-                                .map((v) => v.trim())
-                                .filter(Boolean)
-                                .map((v) => `space:${v}`),
-                            })
-                          }
-                          disabled={busy}
-                        />
-                      </details>
-                      <p>
-                        {t("ImSettingsPanel.message154")}
-                        {new Date(grant.expiresAt).toLocaleString(locale)}{" "}
-                        <Button
-                          disabled={busy}
-                          onClick={() =>
-                            updateGrant(project.id, {
-                              expiresAt: Date.now() + 30 * 86400000,
-                            })
-                          }
-                        >
-                          {t("ImSettingsPanel.message155")}
-                        </Button>
-                      </p>
-                    </div>
-                  </div>
-                  <footer>
-                    <span>{t("ImSettingsPanel.message156")}</span>
-                    <div className="im-grant-dialog-actions">
-                      <Button
-                        variant="quiet"
-                        disabled={busy}
-                        onClick={() => closeGrantDialog(project.id)}
-                      >
-                        {t("App_copy.renameClose")}
-                      </Button>
-                      <Button
-                        disabled={
-                          busy ||
-                          !settings.deviceId ||
-                          (!!authorizeGroup &&
-                            (!nativeTarget.owner || !groupConfirmed))
-                        }
-                        onClick={() => {
-                          void (async () => {
-                            const saved = await run(async () => {
-                              if (authorizeGroup) {
-                                if (!nativeTarget.owner || !groupConfirmed)
-                                  return false;
-                                // Save the shared operation policy before adding the group scope;
-                                // the backend preserves the project's existing owner grant.
-                                if (
-                                  !(await performSaveAndEnable(settings, false))
-                                )
-                                  return false;
-                                const next = (await window.artemis.manageIm({
-                                  action: "authorize-native-group",
-                                  conversation: nativeTarget.conversation,
-                                  owner: nativeTarget.owner,
-                                  allowedSenders:
-                                    nativeTarget.saved?.participants
-                                      .filter(
-                                        (member) =>
-                                          imIdentityKey(member.identity) !==
-                                          imIdentityKey(nativeTarget.owner!),
-                                      )
-                                      .map((member) => member.identity) ?? [],
-                                  name: (
-                                    nativeTarget.name || nativeTarget.label
-                                  ).slice(0, 100),
-                                  grant: {
-                                    ...grant,
-                                    security: nativeScopeDraft!,
-                                  },
-                                  confirmed: true,
-                                })) as Status;
-                                setStatus(next);
-                                setSettings(next.settings);
-                                return true;
-                              }
-                              return performSaveAndEnable();
-                            });
-                            if (saved) setGrantDialog(null);
-                          })();
-                        }}
-                      >
-                        {t(
-                          authorizeGroup
-                            ? "ImNativeGroups.message20"
-                            : "ImSettingsPanel.message158",
-                        )}
-                      </Button>
-                    </div>
-                  </footer>
-                </Dialog>
-              )}
-            </div>
-          );
-        })}
-        {/* 按项目的范围/状态摘要在各项目行内呈现（.im-row-summary）。 */}
-        {enableFailedError && (
-          <InlineNotice tone="warning">
-            {t("ImSettingsPanel.message160")} {enableFailedError}{" "}
-            <Button
-              size="compact"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const next = await imRetryEnable(
-                    (draft) => window.artemis.saveImSettings(draft),
-                    status!.settings,
-                  );
-                  setStatus((previous) => ({
-                    ...previous,
-                    ...next,
-                  }));
-                  setSettings(next.settings);
-                  setEnableFailedError("");
-                  setMessage(t("ImSettingsPanel.message162"));
-                })
-              }
-            >
-              {t("ImSettingsPanel.message161")}
-            </Button>
-          </InlineNotice>
-        )}
-      </section>
-    );
-  }
-
-  function renderSpacesBody() {
-    const reload = async () => {
-      await window.artemis.manageIm({
-        action: "admin",
-        operation: "refresh-groups",
-      });
-      const next = await window.artemis.manageIm({
-        action: "admin",
-        operation: "status",
-      });
-      setDiagnostics(next);
-      const status = (await window.artemis.manageIm({
-        action: "refresh",
-      })) as Status;
-      setStatus(status);
-      setSettings(status.settings);
-    };
-    return (
-      <section id="im-spaces" tabIndex={-1}>
-        <ManagementSection
-          className="im-space-setup"
-          title={t("ImSettingsPanel.message165")}
-          description={t("ImSettingsPanel.message166")}
-        >
-          {!local ? (
-            <InlineNotice tone="warning">
-              {t("ImSettingsPanel.message164")}
-            </InlineNotice>
-          ) : (
-            <>
-              <Button disabled={busy} onClick={() => void run(reload)}>
-                {t("ImSettingsPanel.message163")}
-              </Button>
-              <ImNativeGroups
-                diagnostics={diagnostics}
-                settings={activeSettings}
-                spaces={status?.spaces ?? []}
-                projects={projects}
-                busy={busy}
-                t={t}
-                run={run}
-                refresh={reload}
-                open={onOpenThread}
-              />
-            </>
-          )}
-          {status?.groupConversationError ? (
-            <InlineNotice tone="warning">
-              {status.groupConversationError}
-            </InlineNotice>
-          ) : null}
-        </ManagementSection>
-      </section>
-    );
+  async function refreshGroups() {
+    const [next, current] = await Promise.all([
+      window.artemis.manageIm({ action: "admin", operation: "status" }),
+      window.artemis.manageIm({ action: "refresh" }),
+    ]);
+    setDiagnostics(next);
+    setStatus(current as Status);
+    setSettings((current as Status).settings);
   }
 
   /**
@@ -2545,14 +1876,6 @@ export function ImSettingsPanel({
         </button>
       );
     };
-    const detailHead = (label: string, onBack: () => void) => (
-      <div className="im-channel-detail-head">
-        <Button size="compact" variant="quiet" onClick={onBack}>
-          {t("ImSettingsPanel.channelBack")}
-        </Button>
-        <strong>{label}</strong>
-      </div>
-    );
     return (
       <div className="im-two-col">
         {/* 左栏：这台电脑是谁（服务）。固定标题+内容，不再折叠。 */}
@@ -2683,60 +2006,51 @@ export function ImSettingsPanel({
         </div>
         {/* 右栏：门（渠道）。渠道与群聊授权卡片↔ 详情下钻。 */}
         <div className="im-col-right">
-          {groupDetail ? (
-            <section className="im-channel-detail" tabIndex={-1}>
-              {detailHead(t("ImSettingsPanel.message199"), () =>
-                setGroupDetail(false),
-              )}
-              {renderSpacesBody()}
-              {local && renderPermissionsBody()}
-            </section>
-          ) : (
-            <section
-              className="im-channel-list"
-              aria-label={t("ImSettingsPanel.imChannelsTitle")}
+          <section
+            className="im-channel-list"
+            aria-label={t("ImSettingsPanel.imChannelsTitle")}
+          >
+            <div className="im-channel-list-head">
+              <ArtemisIcon
+                aria-hidden="true"
+                name="message"
+                width={24}
+                height={24}
+              />
+              <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
+            </div>
+            {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
+              channelRow,
+            )}
+            {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
+            <button
+              type="button"
+              className="im-channel-row"
+              onClick={(event) => {
+                groupDialogTrigger.current = event.currentTarget;
+                setChannelDetail(false);
+                setGroupDetail(true);
+              }}
             >
-              <div className="im-channel-list-head">
-                <ArtemisIcon
-                  aria-hidden="true"
-                  name="message"
-                  width={24}
-                  height={24}
-                />
-                <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
-              </div>
-              {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
-                channelRow,
-              )}
-              {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
-              <button
-                type="button"
-                className="im-channel-row"
-                onClick={() => {
-                  setChannelDetail(false);
-                  setGroupDetail(true);
-                }}
-              >
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  className="im-channel-logo"
-                  height={20}
-                  src={groupChannelIcon}
-                  width={20}
-                />
-                <span className="im-channel-row-copy">
-                  <strong>{t("ImSettingsPanel.message165")}</strong>
-                  <span className="im-channel-row-summary">
-                    {t("ImSettingsPanel.message166")}
-                  </span>
+              <img
+                alt=""
+                aria-hidden="true"
+                className="im-channel-logo"
+                height={20}
+                src={groupChannelIcon}
+                width={20}
+              />
+              <span className="im-channel-row-copy">
+                <strong>{t("ImSettingsPanel.message165")}</strong>
+                <span className="im-channel-row-summary">
+                  {t("ImSettingsPanel.message166")}
                 </span>
-                <span aria-hidden="true" className="im-capsule-btn">
-                  {t("ImSettingsPanel.goGrant")}
-                </span>
-              </button>
-            </section>
-          )}
+              </span>
+              <span aria-hidden="true" className="im-capsule-btn">
+                {t("ImSettingsPanel.goGrant")}
+              </span>
+            </button>
+          </section>
         </div>
       </div>
     );
@@ -2749,6 +2063,18 @@ export function ImSettingsPanel({
       data-mode={activeScreen === "flow" ? "wizard" : activeScreen}
       data-compact={compact}
     >
+      {groupDetail && status && (
+        <GroupCollaborationPanel
+          status={status}
+          diagnostics={diagnostics}
+          projects={projects}
+          locale={locale}
+          refresh={refreshGroups}
+          onClose={() => setGroupDetail(false)}
+          onOpenThread={onOpenThread}
+          returnFocusRef={groupDialogTrigger}
+        />
+      )}
       <header className="im-header">
         <span aria-hidden="true" className="im-header-mark">
           <ArtemisIcon name="mobile" />

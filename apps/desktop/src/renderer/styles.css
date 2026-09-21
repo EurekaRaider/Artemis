@@ -9550,85 +9550,9 @@ kbd {
   align-items: center;
   gap: 8px;
 }
-.im-project {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-block: 3px;
-}
 /* 项目行所在容器（management-section content）有 12px gap：相邻行用负
    margin 压到 6px 视觉行距。 */
-.im-project + .im-project {
-  margin-block-start: -6px;
-}
-.im-project label {
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-.im-project > [data-artemis-component="checkbox"] {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  max-inline-size: 45%;
-}
-.im-project > [data-artemis-component="checkbox"] [data-part="label"] {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.im-grant-open {
-  flex: none;
-}
-.im-row-summary {
-  flex: 1 1 0;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--muted);
-}
 /* Per-project permission editor: focused dialog like the rename task dialog. */
-.im-grant-dialog {
-  inline-size: min(560px, calc(100vw - 48px));
-  padding: 24px;
-  border-radius: 24px;
-}
-.im-grant-dialog h2 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-}
-.im-grant-dialog-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-block-size: min(56vh, 540px);
-  overflow-y: auto;
-  margin-block: 12px 16px;
-  padding-inline: 2px;
-}
-.im-grant-dialog footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.im-grant-dialog footer span {
-  flex: 1;
-  font-size: 12px;
-  color: var(--muted);
-}
-.im-grant-dialog-actions {
-  display: flex;
-  gap: 8px;
-  flex: none;
-}
-.im-grant-fields {
-  display: grid;
-  gap: 12px;
-  padding-block-start: 12px;
-}
 .im-identifier {
   overflow-wrap: anywhere;
   user-select: text;
@@ -9714,7 +9638,7 @@ kbd {
   background: currentColor;
 }
 .im-settings [data-artemis-component="checkbox"],
-.im-grant-dialog [data-artemis-component="checkbox"] {
+.im-group-dialog [data-artemis-component="checkbox"] {
   min-block-size: 28px;
 }
 
@@ -9758,37 +9682,6 @@ kbd {
   white-space: nowrap;
 }
 /* ④卡：三档模式与内置临时会话行。 */
-.im-mode-tiers {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-.im-mode-tier {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  cursor: pointer;
-}
-.im-mode-tier input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.im-mode-tier.on {
-  border-color: var(--artemis-color-border-strong);
-  background: var(--artemis-color-interaction-selected);
-}
-.im-mode-tier strong {
-  font-size: 12.5px;
-  font-weight: 560;
-}
-.im-mode-tier small {
-  font-size: 11.5px;
-  color: var(--muted);
-}
 /* ⑤卡：测试任务诚实版四段轨道。 */
 .im-test-track {
   display: flex;
@@ -10552,23 +10445,6 @@ kbd {
   color: var(--muted);
 }
 /* 渠道详情（右栏下钻）：返回行 + 原渠道主体。 */
-.im-channel-detail {
-  border: 0;
-  /* 栏容器顶部内边距归零后，详情态在此自补原有的顶部留白。 */
-  padding-block-start: 14px;
-  padding-block-end: 0;
-  padding-inline: 0;
-}
-.im-channel-detail-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.im-channel-detail-head strong {
-  font-size: 13px;
-  font-weight: 650;
-}
 .im-verify-body {
   display: flex;
   flex-direction: column;
@@ -10661,22 +10537,11 @@ kbd {
     transform: rotate(360deg);
   }
 }
-.im-project-list-title {
-  margin: 2px 0 6px;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-2, var(--muted));
-}
 .im-icon-action:focus-visible {
   outline: 2px solid var(--artemis-color-focus-ring);
   outline-offset: 1px;
 }
 @media (max-width: 720px) {
-  .im-mode-tiers {
-    grid-template-columns: 1fr;
-  }
 }
 .im-settings h4 {
   margin-block: 0 8px;
@@ -10710,10 +10575,6 @@ kbd {
 }
 .im-unpair-confirm > span {
   flex-basis: 100%;
-}
-.im-countdown,
-.im-grant-fields {
-  font-variant-numeric: tabular-nums;
 }
 .im-identifier,
 .im-settings textarea {
@@ -12516,7 +12377,7 @@ kbd {
   display: grid;
   gap: 12px;
 }
-:is(.im-settings, .im-bot-dialog, .im-grant-dialog)
+:is(.im-settings, .im-bot-dialog, .im-group-dialog)
   :is(
     [data-artemis-component="text-field"],
     [data-artemis-component="select"],
@@ -12525,7 +12386,7 @@ kbd {
   min-width: 0;
   max-width: 100%;
 }
-:is(.im-settings, .im-bot-dialog, .im-grant-dialog)
+:is(.im-settings, .im-bot-dialog, .im-group-dialog)
   :is([data-artemis-component="text-field"], [data-artemis-component="select"])
   :is([data-part="control"], [data-part="trigger"]) {
   box-sizing: border-box;
@@ -12543,7 +12404,6 @@ kbd {
   overflow-wrap: anywhere;
 }
 .im-platform-setup,
-.im-space-setup,
 .im-field-stack {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -12567,17 +12427,11 @@ kbd {
 .im-platform-help details[open] {
   grid-column: 1 / -1;
 }
-.im-space-setup > [data-part="content"] > [data-artemis-component="button"] {
-  justify-self: start;
-  align-self: start;
-}
-.im-platform-setup p,
-.im-space-setup p {
+.im-platform-setup p {
   margin: 0;
   line-height: 1.6;
 }
-.im-platform-setup h4,
-.im-space-setup h4 {
+.im-platform-setup h4 {
   font-size: 13px;
 }
 .im-platform-steps {

@@ -22,6 +22,7 @@ export function ImDataPermissions({
   disabled,
   initialAudience = "owner",
   showAudienceSelector = true,
+  draftMode = false,
 }: {
   grant: ExecutionGrant;
   onChange: (security: NonNullable<ExecutionGrant["security"]>) => void;
@@ -30,6 +31,7 @@ export function ImDataPermissions({
   disabled: boolean;
   initialAudience?: string | undefined;
   showAudienceSelector?: boolean;
+  draftMode?: boolean;
 }) {
   const [selectedAudience, setAudience] = useState(initialAudience);
   const audience =
@@ -45,6 +47,8 @@ export function ImDataPermissions({
     readPaths: [],
     writePaths: [],
   };
+  const wholeProject =
+    scope.readPaths.length === 0 && scope.readMode !== "selected";
   const audienceRevision = audiences.find(
     (a) => a.value === audience,
   )?.revision;
@@ -76,7 +80,7 @@ export function ImDataPermissions({
     knownEntries = Object.values(entries).flat(),
     reset = false,
   ) {
-    if (!reset && next.readPaths.length === 0) {
+    if (!draftMode && !reset && next.readPaths.length === 0) {
       setError(t("ImDataPermissions.message1"));
       return;
     }
@@ -86,7 +90,7 @@ export function ImDataPermissions({
       {
         ...next,
         confirmedAt: 0,
-        readMode: next.readPaths.length ? "selected" : "project",
+        readMode: reset ? "project" : "selected",
         filePaths: [...new Set([...next.readPaths, ...next.writePaths])].filter(
           (path) =>
             knownEntries.find((e) => e.path === path)?.directory === false ||
@@ -166,12 +170,12 @@ export function ImDataPermissions({
                     label={`${t("ImDataPermissions.message4")} ${entry.path}`}
                     labelVisibility="hidden"
                     checked={
-                      scope.readPaths.length === 0 ||
+                      wholeProject ||
                       imPathWithinScope(entry.path, scope.readPaths)
                     }
                     disabled={
                       disabled ||
-                      (scope.readPaths.length === 0 && path !== "") ||
+                      (wholeProject && path !== "") ||
                       scope.readPaths.some(
                         (p) =>
                           p !== entry.path &&
@@ -179,7 +183,7 @@ export function ImDataPermissions({
                       )
                     }
                     onCheckedChange={(checked) => {
-                      if (scope.readPaths.length === 0) {
+                      if (wholeProject) {
                         // 默认=整个项目可读；首次取消勾选收窄为根级枚举。
                         if (checked) return;
                         const rootEntries = entries[""] ?? [];
@@ -219,9 +223,15 @@ export function ImDataPermissions({
                     className="im-scope-check"
                     label={`${t("ImDataPermissions.message5")} ${entry.path}`}
                     labelVisibility="hidden"
-                    checked={imScopeCanWrite(scope, entry.path)}
+                    checked={
+                      grant.mode === "execute" &&
+                      imScopeCanWrite(scope, entry.path)
+                    }
                     disabled={
                       disabled ||
+                      grant.mode !== "execute" ||
+                      (scope.readMode === "selected" &&
+                        !scope.readPaths.length) ||
                       (scope.writeMode === "project" && path !== "") ||
                       (scope.readPaths.length > 0 &&
                         !imPathWithinScope(entry.path, scope.readPaths)) ||
@@ -250,7 +260,7 @@ export function ImDataPermissions({
                                 ),
                         },
                         undefined,
-                        scope.readPaths.length === 0,
+                        wholeProject,
                       )
                     }
                   />
@@ -284,11 +294,38 @@ export function ImDataPermissions({
         />
       )}
       <p>{t("ImDataPermissions.message10")}</p>
+      {draftMode && (
+        <Select
+          label={t("GroupAuthorization.readScope")}
+          labelVisibility="visible"
+          value={wholeProject ? "project" : "selected"}
+          options={[
+            { value: "project", label: t("ImDataPermissions.message13") },
+            { value: "selected", label: t("ImDataPermissions.selectedOnly") },
+          ]}
+          onValueChange={(value) => {
+            if (value === "project") selectAll(false);
+            else
+              change({
+                ...scope,
+                readMode: "selected",
+                readPaths: [],
+                writePaths: [],
+                writeMode: "selected",
+              });
+          }}
+        />
+      )}
+      {draftMode && !wholeProject && !scope.readPaths.length && (
+        <InlineNotice tone="warning">
+          {t("GroupAuthorization.emptySelection")}
+        </InlineNotice>
+      )}
       <p role="status">
         {t(
           scope.writeMode === "project"
             ? "ImDataPermissions.wholeProjectWrite"
-            : scope.readPaths.length === 0
+            : wholeProject
               ? "ImDataPermissions.wholeProject"
               : "ImDataPermissions.selectedOnly",
         )}
@@ -312,7 +349,7 @@ export function ImDataPermissions({
         </Button>
         <Button
           size="compact"
-          disabled={pending || disabled}
+          disabled={pending || disabled || grant.mode !== "execute"}
           onClick={() => void selectAll(true)}
         >
           {t("ImDataPermissions.message14")}
@@ -376,26 +413,30 @@ export function ImDataPermissions({
           </Button>
         </InlineNotice>
       ) : null}
-      {!confirmed ? (
+      {!draftMode && !confirmed ? (
         <InlineNotice tone="warning">
           {t("ImDataPermissions.message19")}
         </InlineNotice>
       ) : null}
-      <Checkbox
-        label={t("ImDataPermissions.message20")}
-        checked={confirmed}
-        disabled={disabled || (audience !== "owner" && !audienceRevision)}
-        onCheckedChange={(checked) =>
-          updateScopes([
-            ...otherScopes,
-            {
-              ...scope,
-              confirmedAt: checked ? Date.now() : 0,
-              ...(audienceRevision ? { spaceRevision: audienceRevision } : {}),
-            },
-          ])
-        }
-      />
+      {!draftMode && (
+        <Checkbox
+          label={t("ImDataPermissions.message20")}
+          checked={confirmed}
+          disabled={disabled || (audience !== "owner" && !audienceRevision)}
+          onCheckedChange={(checked) =>
+            updateScopes([
+              ...otherScopes,
+              {
+                ...scope,
+                confirmedAt: checked ? Date.now() : 0,
+                ...(audienceRevision
+                  ? { spaceRevision: audienceRevision }
+                  : {}),
+              },
+            ])
+          }
+        />
+      )}
     </fieldset>
   );
 }
