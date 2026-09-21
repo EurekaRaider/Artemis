@@ -122,9 +122,13 @@ describe("feishu scan-to-register", () => {
     expect(result.qrImage).toMatch(/^data:image\/png;base64,/);
     const qrUrl = new URL(result.qrUrl);
     expect(qrUrl.origin + qrUrl.pathname).toBe(
-      "https://open.feishu.cn/page/cli",
+      "https://accounts.feishu.cn/confirm",
     );
     expect(qrUrl.searchParams.get("user_code")).toBe("ABCD");
+    expect(qrUrl.searchParams.get("c")).toBe("1");
+    expect(qrUrl.searchParams.get("from")).toBe("sdk");
+    expect(qrUrl.searchParams.get("tp")).toBe("sdk");
+    expect(qrUrl.searchParams.get("source")).toBe("node-sdk/artemis");
     expect(
       JSON.parse(
         gunzipSync(
@@ -134,12 +138,39 @@ describe("feishu scan-to-register", () => {
     ).toEqual(expectedAddons);
   });
 
+  it.each([
+    "https://example.com/confirm",
+    "https://user@open.feishu.cn/page/launcher",
+    "http://open.feishu.cn/page/launcher",
+  ])("rejects an untrusted registration confirmation URL: %s", async (url) => {
+    stubFetch({
+      init: { supported_auth_methods: ["client_secret"] },
+      begin: {
+        device_code: "device",
+        user_code: "CODE",
+        verification_uri_complete: url,
+      },
+    });
+    await expect(beginFeishuScan()).rejects.toThrow();
+  });
+
+  it("uses the SDK launcher when the server omits its confirmation URL", async () => {
+    stubFetch({
+      init: { supported_auth_methods: ["client_secret"] },
+      begin: { device_code: "device", user_code: "CODE" },
+    });
+    const result = await beginFeishuScan();
+    const url = new URL(result.qrUrl);
+    expect(url.pathname).toBe("/page/launcher");
+    expect(url.searchParams.get("tp")).toBe("sdk");
+  });
+
   it("rejects environments without client_secret registration", async () => {
     stubFetch({ init: { supported_auth_methods: ["private_key_jwt"] } });
     await expect(beginFeishuScan()).rejects.toThrow("扫码创建应用");
   });
 
-  it("bootstraps Lark on Feishu and replaces the legacy launcher URL", async () => {
+  it("bootstraps Lark on Feishu and preserves the SDK launcher path", async () => {
     const calls = stubFetch({
       init: { supported_auth_methods: ["client_secret"] },
       begin: {
@@ -160,9 +191,11 @@ describe("feishu scan-to-register", () => {
     expect(begin.expiresAt).toBeGreaterThanOrEqual(before + 3_600_000);
     const qrUrl = new URL(begin.qrUrl);
     expect(qrUrl.origin + qrUrl.pathname).toBe(
-      "https://open.larksuite.com/page/cli",
+      "https://open.larksuite.com/page/launcher",
     );
     expect(qrUrl.searchParams.get("user_code")).toBe("LARK");
+    expect(qrUrl.searchParams.get("from")).toBe("sdk");
+    expect(qrUrl.searchParams.get("tp")).toBe("sdk");
     expect(
       JSON.parse(
         gunzipSync(

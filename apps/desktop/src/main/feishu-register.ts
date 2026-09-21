@@ -62,6 +62,7 @@ const beginResponseSchema = z
   .object({
     device_code: z.string().min(1),
     user_code: z.string().min(1),
+    verification_uri_complete: z.string().url().optional(),
     expire_in: z.number().optional(),
     expires_in: z.number().optional(),
     interval: z.number().optional(),
@@ -150,10 +151,30 @@ export async function beginFeishuScan(
       throw new Error(networkHint);
     }),
   );
-  // Match the official Lark CLI: bootstrap on Feishu, confirm on the selected
-  // brand's CLI page. The API still returns the legacy /page/launcher URL.
-  const qrUrl = new URL("/page/cli", API_HOSTS[domain]);
+  // Follow registerApp's SDK confirmation flow, preserving the server's path
+  // and query. Do not replace it with the separate CLI landing page.
+  const qrUrl = new URL(
+    begin.verification_uri_complete ?? `${API_HOSTS[domain]}/page/launcher`,
+  );
+  if (
+    ![...Object.values(API_HOSTS), ...Object.values(REGISTRATION_HOSTS)].some(
+      (origin) => origin === qrUrl.origin,
+    ) ||
+    qrUrl.username ||
+    qrUrl.password
+  )
+    throw new Error(imText(locale, "scanUnsupported", { platform }));
+  // Registration bootstraps on Feishu even when the selected brand is Lark.
+  if (domain === "lark") {
+    if (qrUrl.origin === API_HOSTS.feishu)
+      qrUrl.hostname = new URL(API_HOSTS.lark).hostname;
+    else if (qrUrl.origin === REGISTRATION_HOSTS.feishu)
+      qrUrl.hostname = new URL(REGISTRATION_HOSTS.lark).hostname;
+  }
   qrUrl.searchParams.set("user_code", begin.user_code);
+  qrUrl.searchParams.set("from", "sdk");
+  qrUrl.searchParams.set("tp", "sdk");
+  qrUrl.searchParams.set("source", "node-sdk/artemis");
   // Official registerApp addons encoding: JSON -> gzip -> base64url.
   qrUrl.searchParams.set(
     "addons",
