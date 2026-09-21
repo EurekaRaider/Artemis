@@ -70,7 +70,8 @@ visual, accessibility and runtime-security assertions and retain their evidence.
 All 27 cold samples must satisfy the existing 10-second ceiling; all 27 warm
 samples (including English) must satisfy the existing 4-second ceiling and
 warm-outlier limit. There are no retries or discarded timing samples. The
-aggregate screenshot workload budget remains 180 seconds. Missing, mismatched,
+aggregate screenshot workload budget is 360 seconds for 54 launches, preserving
+the previous 180-second allowance per 27 launches. Missing, mismatched,
 slow-cold and slow-warm sample fixtures verify that the gate still fails closed.
 
 Renderer stage marks and navigation timing are retained in both samples to
@@ -88,4 +89,22 @@ on the first `require("electron")` when the executable is absent. Thus `npm ci`
 does not guarantee a provisioned binary, and the first visual workload also
 paid the download/extraction cost. The orchestrator now prepares the runtime
 in a separate, bounded five-minute phase and records that duration separately.
-Screenshot and per-launch performance limits remain unchanged.
+Per-launch performance limits remain unchanged. The subsequent run
+35559229807 still exhausted the 180-second aggregate deadline after provisioning
+completed, so the doubled matrix receives twice its former aggregate allowance.
+
+## First-profile database initialization
+
+Windows paired evidence from run 35558702205 put the slowest cold sample at
+5479 ms, including 4874 ms between diagnostics-ready and core-state-ready;
+its renderer initialization took about 525 ms. All warm samples passed, with
+a maximum of 872 ms. This identifies main-process state initialization as the
+next optimization target, rather than establishing a language-specific delay.
+
+Initial table and index creation now shares one transaction, retaining WAL,
+foreign keys and the existing versioned migrations. A regression test first
+reproduced partially committed schema after an incompatible table, then passed
+with atomic rollback. Twenty local fresh-database constructor samples improved
+from a 3.47 ms median to 1.87 ms; this microbenchmark is not proof of the Windows
+end-to-end improvement. A database-ready stage makes that remote measurement
+explicit.

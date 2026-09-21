@@ -40,7 +40,7 @@
       "note": "Each warm-start stage ceiling is its merged-base maximum times eight plus 750 ms of cross-runner jitter. Each variant has a separately bounded fresh-profile cold launch followed by one warm launch reusing that profile. At most two warm launches may exceed their stage ceilings, no warm timing may exceed four seconds, and no cold timing may exceed ten seconds. Both samples are retained; failed samples are never retried."
     },
     "workloadWallClockMs": {
-      "screenshot-matrix": 180000,
+      "screenshot-matrix": 360000,
       "conversation-timeline": 180000,
       "feedback-and-composer": 240000,
       "large-diff-and-environment": 240000,

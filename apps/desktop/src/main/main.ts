@@ -21067,6 +21067,7 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+    markStartupStage("database-ready");
     threadHistoryService = new ThreadHistoryService(
       join(app.getPath("userData"), "artemis.sqlite"),
     );
