@@ -16192,6 +16192,29 @@ function createMainWindow(): BrowserWindow {
               (async () => {
                 const wait = (milliseconds) =>
                   new Promise((resolve) => setTimeout(resolve, milliseconds));
+                const openSmokeHistoryThread = async (threadId) => {
+                  const selector = '[data-tree-row-id="thread:' + threadId + '"] .thread-select';
+                  const deadline = Date.now() + 30_000;
+                  let selected = false;
+                  while (Date.now() < deadline) {
+                    if (!selected) {
+                      const thread = document.querySelector(selector);
+                      if (thread instanceof HTMLButtonElement) {
+                        thread.click();
+                        selected = true;
+                      }
+                    } else if (
+                      !document.querySelector('.conversation-history-feedback') &&
+                      document.querySelector('.timeline .user-message')
+                    ) {
+                      return;
+                    }
+                    await wait(50);
+                  }
+                  const feedback = document.querySelector('.conversation-history-feedback');
+                  throw new Error('Smoke history did not load for ' + threadId +
+                    ': selected=' + selected + '; feedback=' + (feedback?.textContent ?? 'none'));
+                };
                 const clickByText = (selector, text) => {
                   const button = [...document.querySelectorAll(selector)].find(
                     (candidate) =>
@@ -17106,9 +17129,8 @@ function createMainWindow(): BrowserWindow {
                     }
                     return null;
                   };
-                  document.querySelector('.thread-select')?.click();
-                  await wait(400);
                   if (view === 'markdown-editor-navigation-preview') {
+                    await openSmokeHistoryThread('artemis-smoke-markdown-editor-thread');
                     const completedTurn = await waitFor('.turn-execution-details');
                     if (completedTurn instanceof HTMLDetailsElement && !completedTurn.open) {
                       completedTurn.querySelector(':scope > summary')?.click();
@@ -17134,6 +17156,8 @@ function createMainWindow(): BrowserWindow {
                     }
                     return;
                   }
+                  document.querySelector('.thread-select')?.click();
+                  await wait(400);
                   document.querySelector('.right-sidebar-toggle')?.click();
                   await waitFor('.workspace-tab-add');
                   document.querySelector('.workspace-tab-add')?.click();
@@ -17847,6 +17871,7 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view === 'message-actions-edit') {
+                  await openSmokeHistoryThread('artemis-smoke-message-actions-thread');
                   const waitForMessageState = async (label, predicate) => {
                     const deadline = Date.now() + 8_000;
                     while (Date.now() < deadline) {
@@ -17856,10 +17881,6 @@ function createMainWindow(): BrowserWindow {
                     }
                     throw new Error('message-actions-edit: timed out waiting for ' + label);
                   };
-                  const thread = await waitForMessageState('thread selector', () =>
-                    document.querySelector('.thread-select'),
-                  );
-                  thread.click();
                   const edit = await waitForMessageState('enabled edit action', () => {
                     const button = document.querySelector(
                       '.user-message .message-action:nth-child(2)',
