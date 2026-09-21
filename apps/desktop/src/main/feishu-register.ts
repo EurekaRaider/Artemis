@@ -23,6 +23,41 @@ const API_HOSTS = {
   lark: "https://open.larksuite.com",
 } as const;
 
+// Match the APIs used by FeishuAdapter and events handled by FeishuSocketAdapter.
+// Use a minimal base so the platform's broad PersonalAgent preset is not added.
+const ARTEMIS_APP_ADDONS = {
+  preset: false,
+  scopes: {
+    tenant: [
+      "im:chat:read",
+      "im:chat.members:read",
+      "im:chat.members:bot_access",
+      "im:message.group_at_msg.include_bot:readonly",
+      "im:message.p2p_msg:readonly",
+      "im:message:send_as_bot",
+      "im:message:readonly",
+      "im:resource",
+      "im:message.reactions:read",
+      "im:message.reactions:write_only",
+      "cardkit:card:write",
+    ],
+  },
+  events: {
+    items: {
+      tenant: [
+        "im.message.receive_v1",
+        "im.chat.member.user.added_v1",
+        "im.chat.member.user.deleted_v1",
+        "im.chat.member.user.withdrawn_v1",
+        "im.chat.member.bot.added_v1",
+        "im.chat.member.bot.deleted_v1",
+        "im.chat.disbanded_v1",
+      ],
+    },
+  },
+  callbacks: { items: ["card.action.trigger"] },
+};
+
 const beginResponseSchema = z
   .object({
     device_code: z.string().min(1),
@@ -120,16 +155,11 @@ export async function beginFeishuScan(
   const qrUrl = new URL("/page/cli", API_HOSTS[domain]);
   qrUrl.searchParams.set("user_code", begin.user_code);
   // Official registerApp addons encoding: JSON -> gzip -> base64url.
-  // Keep PersonalAgent's defaults and request the extra member-read scope
-  // on the scan confirmation page, for both new and selected existing apps.
   qrUrl.searchParams.set(
     "addons",
-    gzipSync(
-      Buffer.from(
-        JSON.stringify({ scopes: { tenant: ["im:chat.members:read"] } }),
-        "utf8",
-      ),
-    ).toString("base64url"),
+    gzipSync(Buffer.from(JSON.stringify(ARTEMIS_APP_ADDONS), "utf8")).toString(
+      "base64url",
+    ),
   );
   return {
     deviceCode: begin.device_code,

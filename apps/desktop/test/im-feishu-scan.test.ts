@@ -9,6 +9,40 @@ import {
   pollFeishuScan,
 } from "../src/main/feishu-register.js";
 
+// Exact permission contract: prevent broad preset or unrelated scopes returning.
+const expectedAddons = {
+  preset: false,
+  scopes: {
+    tenant: [
+      "im:chat:read",
+      "im:chat.members:read",
+      "im:chat.members:bot_access",
+      "im:message.group_at_msg.include_bot:readonly",
+      "im:message.p2p_msg:readonly",
+      "im:message:send_as_bot",
+      "im:message:readonly",
+      "im:resource",
+      "im:message.reactions:read",
+      "im:message.reactions:write_only",
+      "cardkit:card:write",
+    ],
+  },
+  events: {
+    items: {
+      tenant: [
+        "im.message.receive_v1",
+        "im.chat.member.user.added_v1",
+        "im.chat.member.user.deleted_v1",
+        "im.chat.member.user.withdrawn_v1",
+        "im.chat.member.bot.added_v1",
+        "im.chat.member.bot.deleted_v1",
+        "im.chat.disbanded_v1",
+      ],
+    },
+  },
+  callbacks: { items: ["card.action.trigger"] },
+};
+
 /** Route mocked responses by the `action` field of the form body. */
 function stubFetch(responses: Record<string, unknown>) {
   const calls: Array<{ url: string; body: Record<string, string> }> = [];
@@ -97,7 +131,7 @@ describe("feishu scan-to-register", () => {
           Buffer.from(qrUrl.searchParams.get("addons")!, "base64url"),
         ).toString("utf8"),
       ),
-    ).toEqual({ scopes: { tenant: ["im:chat.members:read"] } });
+    ).toEqual(expectedAddons);
   });
 
   it("rejects environments without client_secret registration", async () => {
@@ -135,7 +169,7 @@ describe("feishu scan-to-register", () => {
           Buffer.from(qrUrl.searchParams.get("addons")!, "base64url"),
         ).toString("utf8"),
       ),
-    ).toEqual({ scopes: { tenant: ["im:chat.members:read"] } });
+    ).toEqual(expectedAddons);
     expect(calls.map(({ url }) => url)).toEqual(
       Array(2).fill("https://accounts.feishu.cn/oauth/v1/app/registration"),
     );
