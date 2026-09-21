@@ -337,10 +337,6 @@ try {
   }
 
   const startup = evaluateStartupTimings(budget, manifest.variants);
-  assert(
-    startup.violations.length === 0,
-    `Screenshot matrix startup budget failed:\n${startup.violations.join("\n")}`,
-  );
   manifest.startupBudget = {
     coldStartVariantId: startup.coldStartVariantId,
     stageMaximumMs: startup.stageMaximumMs,
@@ -350,7 +346,19 @@ try {
     coldStartHardMaximumMs: startup.coldStartHardMaximumMs,
     maximumWarmOutlierVariants: startup.maximumWarmOutlierVariants,
     warmOutlierVariants: startup.warmOutlierVariants,
+    violations: startup.violations,
   };
+  // Preserve the complete timing distribution even when the performance gate
+  // fails, so runner jitter can be distinguished from a repeatable regression.
+  await writeFile(
+    join(outputDirectory, "manifest.json"),
+    `${JSON.stringify(manifest, undefined, 2)}\n`,
+    "utf8",
+  );
+  assert(
+    startup.violations.length === 0,
+    `Screenshot matrix startup budget failed:\n${startup.violations.join("\n")}`,
+  );
 
   const visualEvidence = evaluateScreenshotMatrixVisualEvidence(
     manifest.variants,

@@ -2311,6 +2311,9 @@ async function packageAndScan() {
       arch,
       "--publish",
       "never",
+      // Package the same installed runtime used by the smoke checks. Avoid a
+      // second Electron download (and its independent network failure modes).
+      `--config.electronDist=${join(dirname(createRequire(import.meta.url).resolve("electron/package.json")), "dist")}`,
       `--config.directories.output=${packageOutput}`,
     ],
     {
