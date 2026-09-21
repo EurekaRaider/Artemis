@@ -819,9 +819,7 @@ export function GroupCollaborationPanel({
                         </dl>
                       )}
                       <div className="im-group-actions im-group-primary-actions">
-                        {!task && (
-                          <p>{t("GroupAuthorization.firstMessage")}</p>
-                        )}
+                        {!task && <p>{t("GroupAuthorization.firstMessage")}</p>}
                         <Button
                           variant="primary"
                           icon={
