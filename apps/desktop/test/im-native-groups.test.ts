@@ -3077,3 +3077,52 @@ it("retries post-commit task effects without re-saving the local authorization",
   expect(f.service.status().settings).toEqual(before);
   expect(f.ops.close).toHaveBeenCalledTimes(2);
 });
+
+it("queues device registration behind an in-flight group authorization", async () => {
+  const f = await fixture();
+  await f.service.save({ ...f.service.status().settings, enabled: false });
+  const command = authorizationCommand(f);
+  let release!: () => void;
+  let reached!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const entered = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  const original = globalThis.fetch;
+  const requests: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    requests.push(String(url));
+    const response = await original(url, options);
+    if (
+      String(url).endsWith("/native-authorization") &&
+      JSON.parse(String(options?.body)).phase === "prepare"
+    ) {
+      reached();
+      await held;
+    }
+    return response;
+  });
+  const authorizing = f.service.manage({ action: "authorize-group", command });
+  await entered;
+  const registering = f.service
+    .manage({
+      action: "register",
+      gatewayUrl: command.gatewayUrl,
+      adminToken: "synthetic-invalid-token-".repeat(2),
+      name: "Replacement device",
+    })
+    .catch((error) => error);
+  await new Promise((resolve) => setImmediate(resolve));
+  const racedRegistration = requests.some((url) =>
+    url.endsWith("/admin/register"),
+  );
+  release();
+  const result = (await authorizing) as ImAuthorizationOperation;
+  const registration = await registering;
+  expect(racedRegistration).toBe(false);
+  expect(result.state).toBe("complete");
+  expect(String(registration)).toContain("Pause IM");
+  expect(f.service.status().settings.deviceId).toBe(command.deviceId);
+});

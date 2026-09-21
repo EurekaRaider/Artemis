@@ -2108,6 +2108,8 @@ export class ImService {
     if (
       !serialized &&
       (action.action === "authorize-native-group" ||
+        action.action === "register" ||
+        action.action === "resolve-pairing" ||
         action.action === "set-group-member-assignment" ||
         action.action === "unpair" ||
         (action.action === "admin" &&
