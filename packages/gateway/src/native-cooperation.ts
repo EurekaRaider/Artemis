@@ -525,7 +525,16 @@ export class NativeCooperation {
         );
         if (envelope.action === "delegate" || envelope.action === "continue") {
           if (existing || !envelope.text.trim()) return false;
-          const ancestors = envelope.ancestors ?? [];
+          // Feishu/Lark Open IDs change between applications. The persisted
+          // outgoing task is authoritative for local ancestry, including paths
+          // that have passed through more than one peer's identity namespace.
+          const ancestors = (envelope.ancestors ?? []).map((ancestor) =>
+            event.identity.channel === "feishu" &&
+            this.store.get<NativeTask>("native-tasks", ancestor.task)
+              ?.direction === "outgoing"
+              ? { ...ancestor, sender: address.sender }
+              : ancestor,
+          );
           const pending = this.tasks(group.id).filter(
             (t) =>
               t.direction === "outgoing" &&

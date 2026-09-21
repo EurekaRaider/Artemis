@@ -34,7 +34,11 @@ Outgoing requests distinguish queued/platform-sent from peer-accepted. Cancellat
 
 Persistent inbox, outbox, command IDs and task records deduplicate retries and survive restarts. Uncertain sends/execution are not blindly replayed. Terminal states cannot be overwritten by late progress. Local timeline entries combine linked tasks, public messages, protocol receipts, remote task states and local activity chronologically; private instructions and outputs stay local.
 
-The two-instance simulation uses separate stores and exchanges serialized IM messages only. It covers identity spoofing, human protocol copies, receipts, dependencies, cancellation races, revocation, restart uncertainty, command deduplication and more than 16 handoffs.
+The same collaboration suite runs for Slack, Feishu and Lark with separate stores. Feishu/Lark exchanges pass through the rich-message encoder and event normalizer, with different self and peer Open IDs; those IDs are scoped to each application. The authenticated platform event determines the local sender and a platform mention determines the local recipient. Group/tenant checks, owner authorization and correlated proof are still required. Locally persisted task IDs determine ownership when a dependency crosses multiple application namespaces.
+
+Feishu/Lark renders localized status labels and task text as rich posts. The versioned envelope travels in the fragment of a same-chat AppLink, not in visible message text; the fragment is not sent to a web server. New receivers still accept legacy text envelopes from authenticated bots. Both instances must update for the new rich-post transport to work in both directions, then retry communication verification. Existing QR registrations already contain both `include_bot` receive scopes; updating Artemis does not change an older application's published permissions.
+
+Coverage includes identity spoofing, human protocol copies, receipts, dependencies, cancellation races, revocation, restart uncertainty, command deduplication, session continuation and more than 16 handoffs. The adapter tests cover all fourteen protocol actions. Slack's message adapter is unchanged. WeCom's current adapter still requires manual bot assignment: its documented callback identifies a human operator, and there is no implemented trustworthy bot-event path. It must not advertise Slack-equivalent automatic delegation until that path exists and passes the same tests.
 
 ## Legacy retirement and storage
 

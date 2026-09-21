@@ -1,4 +1,9 @@
 import { imText } from "./im-localization.js";
+import {
+  feishuNativeLink,
+  feishuNativePost,
+  localizeFeishuNative,
+} from "./feishu-native.js";
 import type { AppLocale } from "@artemis/protocol";
 import { createDecipheriv, createHash, randomUUID } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
@@ -400,6 +405,7 @@ export function normalizeFeishu(
   // Card actions use the issued-card identity and single-use receiver, never arbitrary commands.
   if (header.event_type !== "im.message.receive_v1") return undefined;
   const attachments: ChannelEvent["attachments"] = [];
+  const nativeLinks: string[] = [];
   if (message.message_type === "post") {
     // The event normally carries the selected locale directly. Older clients
     // wrap it in a locale key; select one rendition, never duplicate every locale.
@@ -429,10 +435,17 @@ export function normalizeFeishu(
               return node.user_id === connection.botOpenId
                 ? ""
                 : `@${string(node.user_name) || mentions.find((item) => item.userId === node.user_id)?.name || string(node.user_id)}`;
-            if (node.tag === "a")
+            if (node.tag === "a") {
+              const native = feishuNativeLink(
+                string(node.href),
+                chatId,
+                connection.domain ?? "feishu",
+              );
+              if (native) nativeLinks.push(native);
               return [string(node.text), string(node.href)]
                 .filter(Boolean)
                 .join(" ");
+            }
             return node.tag === "text" || node.tag === "md"
               ? string(node.text)
               : "";
@@ -467,6 +480,21 @@ export function normalizeFeishu(
     text = text.replace(new RegExp(pattern, "g"), (key) =>
       replacements.get(key)!,
     );
+  }
+  if (
+    (sender.sender_type === "bot" || sender.sender_type === "app") &&
+    nativeLinks.length === 1
+  )
+    text = nativeLinks[0]!;
+  if (sender.sender_type === "bot" || sender.sender_type === "app") {
+    const native = localizeFeishuNative(
+      text.trim(),
+      userId,
+      mentioned,
+      connection,
+    );
+    if (native) text = native;
+    else if (text.trim().startsWith("ARTEMIS-IM/1:")) return undefined;
   }
   if (message.message_type === "image" && string(content.image_key))
     attachments.push({
@@ -624,15 +652,14 @@ export class FeishuAdapter implements ChannelAdapter {
     text: string,
     key: string,
     recipient: string,
+    locale?: AppLocale,
   ) {
     if (!/^[a-zA-Z0-9_-]+$/u.test(recipient) && recipient !== "*")
       throw new Error("Invalid native bot identity.");
     return this.message(
       conversation,
-      {
-        text: `${recipient === "*" ? "" : `<at user_id="${recipient}"></at> `}${text}`,
-      },
-      "text",
+      feishuNativePost(text, recipient, locale),
+      "post",
       key,
     );
   }

@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import { feishuNativePost } from "../src/feishu-native.js";
+import {
+  encodeNativeEnvelope,
+  decodeNativeEnvelope,
+} from "../src/native-protocol.js";
 import {
   Domain,
   EventDispatcher,
@@ -86,6 +92,60 @@ function fixture(
 }
 
 describe("Feishu Gateway long connection", () => {
+  it("normalizes app-scoped bot IDs only after the SDK subscription is authenticated", async () => {
+    const f = fixture();
+    const frame = {
+      version: 1 as const,
+      id: randomUUID(),
+      platform: "feishu" as const,
+      tenant: "tenant",
+      group: "group",
+      sender: "peer-self",
+      recipient: "own-bot-in-peer-app",
+      workflow: randomUUID(),
+      task: randomUUID(),
+      action: "probe" as const,
+      issuedAt: Date.now(),
+      expiresAt: Date.now() + 30000,
+      sequence: 0,
+      text: "",
+    };
+    const input = envelope();
+    input.event.sender = {
+      sender_type: "bot",
+      sender_id: { open_id: "peer-in-own-app" },
+    };
+    Object.assign(input.event.message, {
+      chat_type: "group",
+      chat_id: "group",
+      message_type: "post",
+      content: JSON.stringify(
+        feishuNativePost(encodeNativeEnvelope(frame), frame.recipient),
+      ),
+      mentions: [
+        {
+          key: "@_user_1",
+          id: { open_id: config.botOpenId },
+          name: "Receiver",
+        },
+      ],
+    });
+    await f.push({
+      ...input,
+      header: { ...input.header, app_id: "foreign-app" },
+    });
+    await f.push({
+      ...input,
+      header: { ...input.header, tenant_key: "foreign-tenant" },
+    });
+    expect(f.receive).not.toHaveBeenCalled();
+    await f.push(input);
+    expect(f.receive).toHaveBeenCalledOnce();
+    expect(
+      decodeNativeEnvelope(f.receive.mock.calls[0]![0].text),
+    ).toMatchObject({ sender: "peer-in-own-app", recipient: config.botOpenId });
+    f.adapter.stop();
+  });
   it.each(["feishu", "lark"] as const)(
     "clears a failed %s handshake after the SDK reconnects",
     async (domain) => {
