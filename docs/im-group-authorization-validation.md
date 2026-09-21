@@ -35,3 +35,12 @@ Development, automated integration, rendered interaction, exact-SHA CI, packagin
 - Journal-write, local-write and post-commit task-effect failures remain recoverable without rolling the applied authorization revision.
 - Confirmation also binds the affected authorization audience snapshot when changing shared project policy or enabling the device.
 - Node 24.21.0: 99 native-group/Gateway tests passed after these changes.
+
+## P2 manager and P3 localization
+
+- One group-first manager dialog, explicit project/group choices, local three-step drafts, same-shell discard, and fingerprint-bound confirmation.
+- Edit, renew, restore, pause and rebind use the narrow command; persisted partial phases remain visible and retryable. Background status refresh continues during editing.
+- Selected read mode with zero paths cannot advance; Plan/Review cannot select write access. File and folder semantics remain in the existing scope editor.
+- All 14 locale resources include the new manager copy. Arabic applies RTL to the full dialog, including its header.
+- Isolated production components were exercised in Electron at 980 × 680 across 14 locales and light/dark themes. Actual webContents zoom factor 2 was checked; native capturePage was used because CDP screenshots cropped high-density zoomed captures.
+- Node 24.21.0: full test:im passed, 702 passed and 6 pre-existing skipped. Native screen-reader and real-provider acceptance are not covered by these checks.
