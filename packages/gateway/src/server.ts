@@ -1,3 +1,4 @@
+import { authorizeNativeGroup } from "./native-authorization.js";
 import { imText } from "./im-localization.js";
 import type { AppLocale } from "@artemis/protocol";
 import { normalizeFeishuGroupEvent } from "./feishu-group-events.js";
@@ -422,6 +423,7 @@ export class ArtemisGateway {
         ok: true,
         version: 1,
         securityVersion: IM_SECURITY_VERSION,
+        authorizationVersion: 1,
       });
       return;
     }
@@ -716,6 +718,13 @@ export class ArtemisGateway {
         return;
       }
       if (
+        url.pathname === "/v1/admin/native-authorization" &&
+        request.method === "PUT"
+      ) {
+        respond(response, 200, authorizeNativeGroup(this.store, body));
+        return;
+      }
+      if (
         url.pathname === "/v1/admin/native-group" &&
         request.method === "PUT"
       ) {
@@ -741,6 +750,7 @@ export class ArtemisGateway {
               confirmed: !!this.router.findSpace(space.endpoints[0]!),
             })),
           securityVersion: IM_SECURITY_VERSION,
+          authorizationVersion: 1,
           identities: this.store.list("identities"),
           groups: this.store
             .list<{ conversation: ImConversation }>("observed-groups")
@@ -881,6 +891,7 @@ export class ArtemisGateway {
     if (url.pathname === "/v1/device/status" && request.method === "GET") {
       respond(response, 200, {
         securityVersion: IM_SECURITY_VERSION,
+        authorizationVersion: 1,
         removedConnections: this.store
           .list<{ id: string }>("removed-connections")
           .map((entry) => entry.id),
@@ -1080,6 +1091,14 @@ export class ArtemisGateway {
         "X-Artemis-Name": encodeURIComponent(attachment.name),
       });
       response.end(attachment.data);
+      return;
+    }
+    if (url.pathname === "/v1/device/security" && request.method === "GET") {
+      respond(
+        response,
+        200,
+        this.store.get("device-security", deviceId) ?? { grants: [] },
+      );
       return;
     }
     if (request.method !== "POST") throw new Error("Unknown device operation.");

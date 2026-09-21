@@ -15,6 +15,13 @@ import {
 } from "./feishu-register.js";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
+  IM_AUTHORIZATION_VERSION,
+  imAuthorizationFingerprint,
+  imAuthorizationCommandSchema,
+  imPolicyVersion,
+  imProjectPolicy,
+  type ImAuthorizationCommand,
+  type ImAuthorizationOperation,
   IM_ADHOC_PROJECT_ID,
   IM_SECURITY_VERSION,
   imScopeConfirmation,
@@ -616,7 +623,8 @@ export class ImService {
       "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS im_state(namespace TEXT NOT NULL,id TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,value TEXT NOT NULL,PRIMARY KEY(namespace,id));",
     );
     this.config = imSettingsSchema.parse(
-      this.get("settings-v2", "current") ??
+      this.get("settings-v3", "current") ??
+        this.get("settings-v2", "current") ??
         this.get("settings", "current") ??
         {},
     );
@@ -687,7 +695,14 @@ export class ImService {
           "INSERT INTO im_state(namespace,id,value) VALUES(?,?,?) ON CONFLICT(namespace,id) DO UPDATE SET value=excluded.value",
         );
         write.run("settings", "current", JSON.stringify(legacy));
-        write.run("settings-v2", "current", JSON.stringify(config));
+        const guarded = !!this.get("migrations", "authorization-v1");
+        write.run(
+          "settings-v2",
+          "current",
+          JSON.stringify(guarded ? legacy : config),
+        );
+        if (guarded)
+          write.run("settings-v3", "current", JSON.stringify(config));
         this.db.exec("RELEASE im_settings_migration");
       } catch (error) {
         this.db.exec(
@@ -755,6 +770,8 @@ export class ImService {
       binding.projectId,
     );
     const audience = imAudience(binding.request.conversation);
+    if (this.pendingAudience(audience))
+      throw new Error("Group authorization is not active yet.");
     const scope = requireImScope(grant, audience);
     if (
       binding.request.conversation.kind === "group" &&
@@ -800,6 +817,8 @@ export class ImService {
       return grant;
     }
     if (!binding.projectId) throw new Error("临时任务仅在本人单聊可用。");
+    if (this.pendingAudience(`space:${binding.request.conversation.spaceId}`))
+      throw new Error("Group authorization is saved but not active.");
     if (binding.request.conversation.spaceId) {
       const space = this.spaces.find(
         (s) =>
@@ -1002,6 +1021,10 @@ export class ImService {
     remoteTasks: NonNullable<ImStatus["remoteTasks"]>;
   } {
     return {
+      authorizationVersion: IM_AUTHORIZATION_VERSION,
+      authorizationOperations: this.list<ImAuthorizationOperation>(
+        "group-authorizations",
+      ),
       scopedShellSupported: this.scopedExecutionSupported,
       scopedFileCreationSupported: this.scopedExecutionSupported,
       settings: structuredClone(this.config),
@@ -1251,6 +1274,15 @@ export class ImService {
   }
   start(): void {
     if (this.timer) return;
+    // Resume committed operations even when service enablement had not completed.
+    for (const operation of this.pendingAuthorizations().filter(
+      (op) => op.state === "pending",
+    ))
+      void this.serializeAuthorization(() =>
+        this.submitGroupAuthorization(operation.command),
+      ).catch((error) => {
+        this.error = errorMessage(error);
+      });
     this.timer = setInterval(() => {
       void this.poll();
     }, 2000);
@@ -1272,6 +1304,7 @@ export class ImService {
     for (const id of this.controllers.keys()) this.cancelOperations(id);
     while (this.polling)
       await new Promise((resolve) => setTimeout(resolve, 10));
+    await this.authorizationTail.catch(() => undefined);
     await this.localSetup?.catch(() => undefined);
     await this.syncingGroups?.catch(() => undefined);
     if (this.token && this.leaseUntil > Date.now())
@@ -1317,7 +1350,47 @@ export class ImService {
     this.error = undefined;
     return this.status();
   }
+  private authorizationTail: Promise<unknown> = Promise.resolve();
+  private serializeAuthorization<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.authorizationTail.then(work, work);
+    this.authorizationTail = next.catch(() => undefined);
+    return next;
+  }
+  private pendingAuthorizations() {
+    return this.list<ImAuthorizationOperation>("group-authorizations").filter(
+      (op) => op.state !== "complete",
+    );
+  }
+  private pendingAudience(audience: string, except?: string) {
+    return this.pendingAuthorizations().some(
+      (op) =>
+        op.command.operationId !== except &&
+        op.group &&
+        `space:${op.group.id}` === audience,
+    );
+  }
   async save(input: unknown): Promise<ImStatus> {
+    const baseline = JSON.stringify(this.config);
+    if (
+      this.get("migrations", "authorization-v1") &&
+      JSON.stringify(imSettingsSchema.parse(input).grants) !==
+        JSON.stringify(this.config.grants)
+    )
+      throw new Error(
+        "Use the versioned group authorization command to change grants.",
+      );
+    return this.serializeAuthorization(async () => {
+      if (baseline !== JSON.stringify(this.config))
+        throw new Error("IM settings changed; refresh before saving.");
+      if (this.pendingAuthorizations().length)
+        throw new Error(
+          "Resolve pending group authorization before changing IM settings.",
+        );
+      return this.savePreparedSettings(await this.prepareSettings(input));
+    });
+  }
+  private async prepareSettings(input: unknown): Promise<ImSettings> {
+    const baseline = JSON.stringify(this.config);
     const settings = imSettingsSchema.parse(input);
     if (settings.deviceId !== this.config.deviceId)
       throw new Error("Register the device before changing its identity.");
@@ -1389,6 +1462,12 @@ export class ImService {
       const previous = this.config.grants.find(
         (g) => g.projectId === grant.projectId,
       );
+      grant.policyVersion =
+        previous &&
+        JSON.stringify(imProjectPolicy(previous)) ===
+          JSON.stringify(imProjectPolicy(grant))
+          ? imPolicyVersion(previous)!
+          : randomUUID();
       if (!grant.security) continue;
       const allowed = new Set(["owner", ...grant.groups]);
       const controls = (g: ExecutionGrant) =>
@@ -1473,8 +1552,40 @@ export class ImService {
         ...grant.security.scopes.map((s) => s.confirmedAt ?? 0),
       );
     }
+    if (baseline !== JSON.stringify(this.config))
+      throw new Error("IM settings changed during validation.");
+    return settings;
+  }
+  private async savePreparedSettings(
+    settings: ImSettings,
+    operation?: ImAuthorizationOperation,
+  ): Promise<ImStatus> {
+    this.db.exec("SAVEPOINT im_authorization_commit");
+    try {
+      this.put("settings", "current", settings);
+      if (operation) {
+        operation.phases.local = "applied";
+        const grant = settings.grants.find(
+          (g) => g.projectId === operation.command.projectId,
+        )!;
+        operation.appliedPolicyVersion = imPolicyVersion(grant)!;
+        operation.appliedScopeVersion = grant.security?.scopes.find(
+          (s) => s.audience === `space:${operation.group!.id}`,
+        )?.revision!;
+        this.put(
+          "group-authorizations",
+          operation.command.operationId,
+          operation,
+        );
+      }
+      this.db.exec("RELEASE im_authorization_commit");
+    } catch (error) {
+      this.db.exec(
+        "ROLLBACK TO im_authorization_commit; RELEASE im_authorization_commit",
+      );
+      throw error;
+    }
     this.config = settings;
-    this.put("settings", "current", settings);
     // Invalidate every local operation before waiting on cancellations or the network.
     const invalid = this.list<Binding>("bindings").filter((binding) => {
       const revision = binding.security?.revision;
@@ -1529,6 +1640,371 @@ export class ImService {
     }
     return this.status();
   }
+  private async authorizationSnapshot(command: ImAuthorizationCommand) {
+    if (!this.usesLocalGateway() || command.deviceId !== this.config.deviceId)
+      throw new Error("Native group authorization requires this local device.");
+    const credential = await this.ensureLocalGateway();
+    const status = await (
+      await this.http("/v1/admin/status", "GET", undefined, credential)
+    ).json();
+    if (status.authorizationVersion !== IM_AUTHORIZATION_VERSION)
+      throw new Error(
+        "Gateway does not support recoverable authorization. Upgrade before continuing.",
+      );
+    const paired = (
+      status.identities as Array<{ deviceId: string; identity: ImIdentity }>
+    ).some(
+      (i) =>
+        i.deviceId === command.deviceId &&
+        imIdentityKey(i.identity) === imIdentityKey(command.owner),
+    );
+    if (
+      !paired ||
+      command.owner.connectionId !== command.conversation.connectionId ||
+      command.conversation.kind !== "group" ||
+      command.conversation.spaceId
+    )
+      throw new Error("The target group requires its observed paired owner.");
+    const observed = (
+      status.groups as Array<{
+        conversation: import("@artemis/protocol").ImConversation;
+        identities: ImIdentity[];
+      }>
+    ).find(
+      (g) =>
+        imConversationKey(g.conversation) ===
+        imConversationKey(command.conversation),
+    );
+    if (
+      !observed?.identities.some(
+        (i) => imIdentityKey(i) === imIdentityKey(command.owner),
+      )
+    )
+      throw new Error(
+        "Use your paired account in the target group before authorizing it.",
+      );
+    const group = (status.spaces as CollaborationSpace[]).find((g) =>
+      g.endpoints.some(
+        (e) => imConversationKey(e) === imConversationKey(command.conversation),
+      ),
+    );
+    return { credential, group };
+  }
+  private checkAuthorizationVersions(
+    command: ImAuthorizationCommand,
+    group?: CollaborationSpace,
+    operation?: ImAuthorizationOperation,
+  ) {
+    const grant = this.config.grants.find(
+      (g) => g.projectId === command.projectId,
+    );
+    const scope = grant?.security?.scopes.find(
+      (s) => s.audience === `space:${group?.id}`,
+    );
+    const applied = operation?.phases.local === "applied";
+    const policyVersion = applied
+      ? operation.appliedPolicyVersion
+      : command.expectedPolicyVersion;
+    const scopeVersion = applied
+      ? operation.appliedScopeVersion
+      : command.expectedScopeVersion;
+    const groupVersion =
+      operation?.group?.revision ?? command.expectedGroupVersion;
+    if (
+      imPolicyVersion(grant) !== policyVersion ||
+      (scope && grant?.security
+        ? imScopeRevision(grant.security, scope)
+        : null) !== (scopeVersion ?? null) ||
+      (group?.revision ?? null) !== groupVersion ||
+      (!applied && this.config.enabled !== command.expectedDeviceEnabled)
+    )
+      throw new Error(
+        "Authorization version conflict. Review the current policy, group and scope before confirming again.",
+      );
+    if (!this.ops.projects().some((p) => p.id === command.projectId))
+      throw new Error("Project is unavailable.");
+  }
+  private authorizationSettings(
+    command: ImAuthorizationCommand,
+    group: CollaborationSpace,
+  ): ImSettings {
+    const previous = this.config.grants.find(
+      (g) => g.projectId === command.projectId,
+    );
+    if (!previous && !command.policy)
+      throw new Error("A new project requires an explicit shared policy.");
+    const audience = `space:${group.id}`;
+    const grant: ExecutionGrant = {
+      ...(previous ?? { projectId: command.projectId, groups: [] }),
+      ...(command.policy ?? imProjectPolicy(previous!)),
+      groups: [...new Set([...(previous?.groups ?? []), audience])],
+      security: {
+        version: IM_SECURITY_VERSION,
+        revision: previous?.security?.revision ?? command.operationId,
+        confirmedAt: command.scope.confirmedAt ?? 0,
+        scopes: [
+          ...(previous?.security?.scopes.filter(
+            (s) => s.audience !== audience,
+          ) ?? []),
+          {
+            ...command.scope,
+            audience,
+            spaceRevision: group.revision!,
+          },
+        ],
+      },
+    };
+    return {
+      ...this.config,
+      enabled: command.enableService || this.config.enabled,
+      grants: [
+        ...this.config.grants
+          .filter((g) => g.projectId !== command.projectId)
+          .map((g) => ({
+            ...g,
+            groups: g.groups.filter((value) => value !== audience),
+            ...(g.security
+              ? {
+                  security: {
+                    ...g.security,
+                    scopes: g.security.scopes.filter(
+                      (s) => s.audience !== audience,
+                    ),
+                  },
+                }
+              : {}),
+          })),
+        grant,
+      ],
+    };
+  }
+  private async submitGroupAuthorization(
+    raw: ImAuthorizationCommand,
+  ): Promise<ImAuthorizationOperation> {
+    const command = imAuthorizationCommandSchema.parse(raw);
+    if (command.confirmationFingerprint !== imAuthorizationFingerprint(command))
+      throw new Error("The authorization summary changed. Confirm it again.");
+    let operation = this.get<ImAuthorizationOperation>(
+      "group-authorizations",
+      command.operationId,
+    );
+    if (
+      operation &&
+      JSON.stringify(operation.command) !== JSON.stringify(command)
+    )
+      throw new Error(
+        "Authorization operation ID conflicts with saved contents.",
+      );
+    if (operation?.state === "complete") return operation;
+    if (operation?.state === "conflict") throw new Error(operation.error);
+    if (!operation) {
+      if (command.gatewayUrl !== this.config.gatewayUrl)
+        throw new Error("Gateway identity changed.");
+      if (this.pendingAuthorizations().length)
+        throw new Error(
+          "Resolve the pending authorization before submitting another change.",
+        );
+      const { group } = await this.authorizationSnapshot(command);
+      this.checkAuthorizationVersions(command, group);
+      if (
+        (!group && command.intent !== "create") ||
+        (group && command.intent === "create")
+      )
+        throw new Error(
+          "The group already exists or no longer exists. Review its current binding.",
+        );
+      if (
+        group?.nativeGroup?.projectId !== command.projectId &&
+        group &&
+        command.intent !== "rebind"
+      )
+        throw new Error(
+          "A project change requires explicit rebind confirmation.",
+        );
+      if (
+        !command.scope.confirmedAt ||
+        (command.policy?.expiresAt ??
+          this.config.grants.find((g) => g.projectId === command.projectId)
+            ?.expiresAt ??
+          0) <= Date.now()
+      )
+        throw new Error(
+          "Confirm the scope and a future expiration before submitting.",
+        );
+      // Entire scope and sandbox preflight happens before either journal or Gateway writes.
+      await this.prepareSettings(
+        this.authorizationSettings(
+          command,
+          group ??
+            ({
+              id: "authorization-preflight",
+              revision: "authorization-preflight",
+            } as CollaborationSpace),
+        ),
+      );
+      this.checkAuthorizationVersions(command, group);
+      const bindingNeeded =
+        !group ||
+        group.nativeGroup?.projectId !== command.projectId ||
+        group.nativeGroup?.enabled !== (command.intent !== "pause");
+      operation = {
+        version: IM_AUTHORIZATION_VERSION,
+        command,
+        state: "pending",
+        phases: {
+          binding: bindingNeeded ? "pending" : "not-needed",
+          local: "pending",
+          activation: bindingNeeded ? "pending" : "not-needed",
+          sync: "pending",
+        },
+        ...(bindingNeeded ? {} : { group }),
+      };
+      this.db.exec("SAVEPOINT im_authorization_begin");
+      try {
+        this.put("migrations", "authorization-v1", true);
+        this.put("settings", "current", this.config);
+        this.put("group-authorizations", command.operationId, operation);
+        this.db.exec("RELEASE im_authorization_begin");
+      } catch (error) {
+        this.db.exec(
+          "ROLLBACK TO im_authorization_begin; RELEASE im_authorization_begin",
+        );
+        throw error;
+      }
+    }
+    const record = operation;
+    let phase: keyof ImAuthorizationOperation["phases"] = "binding";
+    try {
+      let snapshot = await this.authorizationSnapshot(command);
+      const binding = {
+        conversation: command.conversation,
+        owner: command.owner,
+        allowedSenders:
+          snapshot.group?.participants
+            .map((p) => p.identity)
+            .filter((i) => imIdentityKey(i) !== imIdentityKey(command.owner)) ??
+          [],
+        deviceId: command.deviceId,
+        name: command.name,
+        projectId: command.projectId,
+        enabled: command.intent !== "pause",
+      };
+      // Gateway persists the exact binding input; retries use its saved senders, not a refreshed roster.
+      const savedBinding = this.get<typeof binding>(
+        "group-authorization-bindings",
+        command.operationId,
+      );
+      const requestBinding = savedBinding ?? binding;
+      const gatewayStep = async (step: "prepare" | "activate") => {
+        if (!savedBinding)
+          this.put(
+            "group-authorization-bindings",
+            command.operationId,
+            requestBinding,
+          );
+        return (await (
+          await this.http(
+            "/v1/admin/native-authorization",
+            "PUT",
+            {
+              version: IM_AUTHORIZATION_VERSION,
+              operationId: command.operationId,
+              phase: step,
+              expectedGroupVersion: command.expectedGroupVersion,
+              binding: requestBinding,
+            },
+            snapshot.credential,
+          )
+        ).json()) as { version: number; group: CollaborationSpace };
+      };
+      if (
+        record.phases.binding !== "not-needed" &&
+        record.phases.binding !== "applied"
+      ) {
+        // Replaying prepare reconciles a lost response against the Gateway journal.
+        const result = await gatewayStep("prepare");
+        record.group = result.group;
+        record.phases.binding = "applied";
+        this.put("group-authorizations", command.operationId, record);
+      }
+      snapshot = await this.authorizationSnapshot(command);
+      this.checkAuthorizationVersions(command, snapshot.group, record);
+      phase = "local";
+      if (record.phases.local !== "applied") {
+        const settings = await this.prepareSettings(
+          this.authorizationSettings(command, record.group!),
+        );
+        // Identity and CAS are checked again after asynchronous filesystem and network work.
+        snapshot = await this.authorizationSnapshot(command);
+        this.checkAuthorizationVersions(command, snapshot.group, record);
+        await this.savePreparedSettings(settings, record);
+      }
+      phase = "activation";
+      if (
+        record.phases.activation !== "not-needed" &&
+        record.phases.activation !== "applied"
+      ) {
+        await gatewayStep("activate");
+        record.phases.activation = "applied";
+        this.put("group-authorizations", command.operationId, record);
+      }
+      phase = "sync";
+      this.completingAuthorization = command.operationId;
+      await this.refreshConnection();
+      await this.syncSecurity(command.operationId);
+      const security = (await (
+        await this.http("/v1/device/security")
+      ).json()) as {
+        grants: Array<{
+          projectId: string;
+          audience: string;
+          revision: string;
+        }>;
+      };
+      if (
+        this.config.enabled &&
+        !security.grants.some(
+          (g) =>
+            g.projectId === command.projectId &&
+            g.audience === `space:${record.group!.id}` &&
+            g.revision === record.appliedScopeVersion,
+        )
+      )
+        throw new Error(
+          "Gateway authorization readback does not match the committed scope.",
+        );
+      snapshot = await this.authorizationSnapshot(command);
+      this.checkAuthorizationVersions(command, snapshot.group, record);
+      if (snapshot.group?.nativeGroup?.enabled !== (command.intent !== "pause"))
+        throw new Error("Group activation could not be verified.");
+      record.phases.sync = "applied";
+      record.state = "complete";
+      delete record.error;
+      this.put("group-authorizations", command.operationId, record);
+      await this.syncGroupConversations();
+      return record;
+    } catch (error) {
+      // A local write may already be committed even when cancellation/close rejects.
+      const persisted = this.get<ImAuthorizationOperation>(
+        "group-authorizations",
+        command.operationId,
+      )!;
+      if (persisted.phases[phase] !== "applied")
+        persisted.phases[phase] = phase === "local" ? "failed" : "unknown";
+      persisted.error = errorMessage(error);
+      if (
+        /version conflict|identity is no longer|paired owner/.test(
+          persisted.error,
+        )
+      )
+        persisted.state = "conflict";
+      this.put("group-authorizations", command.operationId, persisted);
+      return persisted;
+    } finally {
+      this.completingAuthorization = undefined;
+    }
+  }
+
   private async http(
     path: string,
     method = "GET",
@@ -1569,8 +2045,46 @@ export class ImService {
     if (lease > 0) this.leaseUntil = requestedAt + 40000;
     return response;
   }
-  async manage(input: ImManagement): Promise<unknown> {
+  async manage(input: ImManagement, serialized = false): Promise<unknown> {
     const action = imManagementSchema.parse(input);
+    if (
+      this.get("migrations", "authorization-v1") &&
+      (action.action === "authorize-native-group" ||
+        (action.action === "admin" && action.operation === "native-group"))
+    )
+      throw new Error(
+        "Use the versioned group authorization command to change bindings.",
+      );
+    if (
+      !serialized &&
+      (action.action === "authorize-native-group" ||
+        action.action === "set-group-member-assignment" ||
+        action.action === "unpair" ||
+        (action.action === "admin" &&
+          action.operation !== "status" &&
+          action.operation !== "refresh-groups"))
+    ) {
+      return this.serializeAuthorization(async () => {
+        if (this.pendingAuthorizations().length)
+          throw new Error(
+            "Resolve pending group authorization before changing its identity or binding.",
+          );
+        return this.manage(action, true);
+      });
+    }
+    if (action.action === "authorize-group")
+      return this.serializeAuthorization(() =>
+        this.submitGroupAuthorization(action.command),
+      );
+    if (action.action === "retry-group-authorization")
+      return this.serializeAuthorization(async () => {
+        const operation = this.get<ImAuthorizationOperation>(
+          "group-authorizations",
+          action.operationId,
+        );
+        if (!operation) throw new Error("Authorization operation not found.");
+        return this.submitGroupAuthorization(operation.command);
+      });
     if (
       action.action === "delegation-retry" ||
       action.action === "delegation-continue-wait"
@@ -2001,13 +2515,17 @@ export class ImService {
           ],
         },
       };
-      await this.save({
-        ...this.config,
-        grants: [
-          ...this.config.grants.filter((g) => g.projectId !== grant.projectId),
-          grant,
-        ],
-      });
+      await this.savePreparedSettings(
+        await this.prepareSettings({
+          ...this.config,
+          grants: [
+            ...this.config.grants.filter(
+              (g) => g.projectId !== grant.projectId,
+            ),
+            grant,
+          ],
+        }),
+      );
       await this.refreshConnection();
       return this.status();
     }
@@ -4901,7 +5419,16 @@ export class ImService {
       this.polling = false;
     }
   }
-  private async syncSecurity(): Promise<void> {
+  private completingAuthorization: string | undefined;
+  private securitySyncTail: Promise<unknown> = Promise.resolve();
+  private syncSecurity(completingOperation?: string): Promise<void> {
+    const result = this.securitySyncTail.then(() =>
+      this.sendSecurity(completingOperation ?? this.completingAuthorization),
+    );
+    this.securitySyncTail = result.catch(() => undefined);
+    return result;
+  }
+  private async sendSecurity(completingOperation?: string): Promise<void> {
     await this.http("/v1/device/security", "POST", {
       version: IM_SECURITY_VERSION,
       grants: this.config.enabled
@@ -4910,8 +5437,12 @@ export class ImService {
               ? g.security.scopes
                   .filter(
                     (scope) =>
-                      scope.audience === "owner" ||
-                      g.groups.includes(scope.audience),
+                      (scope.audience === "owner" ||
+                        g.groups.includes(scope.audience)) &&
+                      !this.pendingAudience(
+                        scope.audience,
+                        completingOperation,
+                      ),
                   )
                   .map((scope) => ({
                     projectId: g.projectId,
@@ -5067,6 +5598,12 @@ export class ImService {
       if (!member || !endpoint) continue;
       const key = this.groupEntryKey(space.id);
       let entry = this.get<GroupEntry>("group-entries", key);
+      if (entry && entry.projectId !== space.nativeGroup.projectId) {
+        // Historical tasks remain, but a rebind gets a fresh model conversation.
+        this.remove("group-entries", key);
+        entry = undefined;
+      }
+      if (this.pendingAudience(`space:${space.id}`)) continue;
       let thread = entry && this.ops.thread(entry.threadId);
       // An explicitly deleted or archived conversation stays that way on refresh/restart.
       if ((entry?.created && !thread) || thread?.archived) continue;

@@ -18,3 +18,13 @@ The implementation follows the reviewed contract: P1 precedes the new UI.
 ## Evidence boundaries
 
 Development, automated integration, rendered interaction, exact-SHA CI, packaging and real-channel acceptance are separate evidence. No real channel message is authorized by this task unless a specific testing identity and group have been explicitly approved.
+
+## P1 implemented foundation
+
+- Narrow version-1 command with target identity, expected absence/versions, operation ID and canonical confirmation contents.
+- SQLite operation journal and local settings commit share a savepoint. Old binaries read paused settings after migration.
+- Gateway prepare/activate journal preserves the same group revision across response loss and activation.
+- Local authorization writes serialize; pending targets fail closed. Restarts resume pending records; legacy grant/binding writes cannot bypass the versioned command after migration.
+- Rebind removes old-project effective scopes and starts a fresh group entry while preserving history.
+- Node 24.21.0: core build and desktop typecheck passed; 94 native-group/Gateway tests passed, including narrow-command preflight, double clicks, scope-only edits, lost prepare/activate responses, restart and revoked-owner recovery.
+- Remaining integration matrix is tracked through P4; this foundation test result does not claim real-provider acceptance or exhaustive failure-boundary coverage.

@@ -5,6 +5,10 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, expect, it, vi } from "vitest";
 import {
+  imAuthorizationFingerprint,
+  imPolicyVersion,
+  type ImAuthorizationCommand,
+  type ImAuthorizationOperation,
   executionGrantSchema,
   IM_SECURITY_VERSION,
   type Thread,
@@ -2608,4 +2612,233 @@ it("rejects an unconfirmed new group before creating any Gateway relationship", 
   expect(f.gateway.store.list("native-groups")).toEqual([]);
   expect(f.service.status().settings.grants).toEqual([]);
   expect(f.threads).toEqual([]);
+});
+
+function authorizationCommand(
+  f: Awaited<ReturnType<typeof fixture>>,
+): ImAuthorizationCommand {
+  const settings = f.service.status().settings;
+  const command = {
+    version: 1 as const,
+    operationId: randomUUID(),
+    intent: "create" as const,
+    deviceId: settings.deviceId,
+    gatewayUrl: settings.gatewayUrl,
+    conversation: f.event.conversation,
+    owner: f.event.identity,
+    name: "Synthetic room",
+    projectId: "p",
+    expectedPolicyVersion: null,
+    expectedGroupVersion: null,
+    expectedScopeVersion: null,
+    expectedDeviceEnabled: settings.enabled,
+    policy: {
+      mode: "plan" as const,
+      approval: "ask" as const,
+      shell: false,
+      network: false,
+      expiresAt: f.grant.expiresAt,
+    },
+    scope: {
+      audience: "owner",
+      readMode: "project" as const,
+      readPaths: [],
+      writePaths: [],
+      confirmedAt: Date.now(),
+    },
+    enableService: true,
+  };
+  return {
+    ...command,
+    confirmationFingerprint: imAuthorizationFingerprint(command),
+  };
+}
+it("commits and replays narrow authorization without rolling versions or expiration", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const first = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(first).toMatchObject({
+    state: "complete",
+    phases: { local: "applied", activation: "applied", sync: "applied" },
+  });
+  const before = f.service.status().settings;
+  expect(
+    await f.service.manage({ action: "authorize-group", command }),
+  ).toEqual(first);
+  expect(f.service.status().settings).toEqual(before);
+  expect(f.gateway.store.list("native-groups")).toHaveLength(1);
+  const changed = { ...command, name: "Changed" };
+  changed.confirmationFingerprint = imAuthorizationFingerprint(changed);
+  await expect(
+    f.service.manage({ action: "authorize-group", command: changed }),
+  ).rejects.toThrow(/ID conflicts/);
+});
+it("rejects stale policy and empty selected scope before persisting an operation", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  command.scope.readMode = "selected";
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  await expect(
+    f.service.manage({ action: "authorize-group", command }),
+  ).rejects.toThrow();
+  expect(f.service.status().authorizationOperations).toEqual([]);
+  expect(f.gateway.store.list("native-groups")).toEqual([]);
+  command.scope.readMode = "project";
+  command.expectedPolicyVersion = "stale";
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  await expect(
+    f.service.manage({ action: "authorize-group", command }),
+  ).rejects.toThrow(/version conflict/);
+  expect(f.service.status().authorizationOperations).toEqual([]);
+});
+it.each(["prepare", "activate"])(
+  "reconciles a lost %s response using the Gateway journal",
+  async (phase) => {
+    const f = await fixture();
+    const command = authorizationCommand(f);
+    const original = globalThis.fetch;
+    let lost = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+      const response = await original(url, options);
+      if (
+        !lost &&
+        String(url).endsWith("/native-authorization") &&
+        JSON.parse(String(options?.body)).phase === phase
+      ) {
+        lost = true;
+        throw new Error("Injected response loss");
+      }
+      return response;
+    });
+    const failed = (await f.service.manage({
+      action: "authorize-group",
+      command,
+    })) as ImAuthorizationOperation;
+    expect(failed.state).toBe("pending");
+    expect(Object.values(failed.phases)).toContain("unknown");
+    const group = f.gateway.store.list<{ revision: string }>(
+      "native-groups",
+    )[0]!;
+    const resumed = (await f.service.manage({
+      action: "retry-group-authorization",
+      operationId: command.operationId,
+    })) as ImAuthorizationOperation;
+    expect(resumed.state).toBe("complete");
+    expect(resumed.group?.revision).toBe(group.revision);
+    expect(f.gateway.store.list("native-groups")).toHaveLength(1);
+  },
+);
+it("serializes double clicks and changes only the target scope without rebinding", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const [a, b] = (await Promise.all(
+    [1, 2].map(() => f.service.manage({ action: "authorize-group", command })),
+  )) as ImAuthorizationOperation[];
+  expect(a).toEqual(b);
+  const grant = f.service.status().settings.grants[0]!;
+  const scope = grant.security!.scopes[0]!;
+  const edit = {
+    ...command,
+    operationId: randomUUID(),
+    intent: "edit" as const,
+    expectedGroupVersion: a!.group!.revision!,
+    expectedScopeVersion: scope.revision!,
+    expectedPolicyVersion: imPolicyVersion(grant),
+    scope: {
+      ...scope,
+      readMode: "selected" as const,
+      readPaths: ["future.txt"],
+    },
+  };
+  delete (edit as Partial<ImAuthorizationCommand>).policy;
+  edit.confirmationFingerprint = imAuthorizationFingerprint(edit);
+  const changed = (await f.service.manage({
+    action: "authorize-group",
+    command: edit,
+  })) as ImAuthorizationOperation;
+  expect(changed).toMatchObject({
+    state: "complete",
+    phases: { binding: "not-needed", activation: "not-needed" },
+  });
+  expect(changed.group?.revision).toBe(a!.group!.revision);
+  expect(f.service.status().settings.grants[0]!.expiresAt).toBe(
+    grant.expiresAt,
+  );
+});
+
+it("recovers a committed operation after restart without repeating the local write", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const original = globalThis.fetch;
+  let fail = true;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    if (
+      fail &&
+      String(url).endsWith("/native-authorization") &&
+      JSON.parse(String(options?.body)).phase === "activate"
+    )
+      throw new Error("Injected activation outage");
+    return original(url, options);
+  });
+  const pending = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(pending.phases.local).toBe("applied");
+  expect(f.starts).toEqual([]);
+  const grant = f.service.status().settings.grants[0]!;
+  await f.service.close();
+  fail = false;
+  const restarted = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restarted.close());
+  restarted.start();
+  await vi.waitFor(() =>
+    expect(restarted.status().authorizationOperations?.[0]?.state).toBe(
+      "complete",
+    ),
+  );
+  expect(restarted.status().settings.grants[0]).toEqual(grant);
+});
+it("keeps a prepared group disabled when its owner is revoked before recovery", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const original = globalThis.fetch;
+  let lost = false;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    const response = await original(url, options);
+    if (!lost && String(url).endsWith("/native-authorization")) {
+      lost = true;
+      throw new Error("lost");
+    }
+    return response;
+  });
+  await f.service.manage({ action: "authorize-group", command });
+  f.gateway.store.delete(
+    "identities",
+    JSON.stringify([
+      command.owner.channel,
+      command.owner.connectionId,
+      command.owner.tenantId,
+      command.owner.appId,
+      command.owner.userId,
+    ]),
+  );
+  const resumed = (await f.service.manage({
+    action: "retry-group-authorization",
+    operationId: command.operationId,
+  })) as ImAuthorizationOperation;
+  expect(resumed.state).toBe("conflict");
+  expect(f.gateway.router.findSpace(f.event.conversation)).toBeUndefined();
+  expect(f.service.status().settings.grants).toEqual([]);
 });

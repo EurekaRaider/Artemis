@@ -78,7 +78,14 @@ export function saveNativeGroup(
         "Every sender must be observed and paired to this local device.",
       );
   }
-  const id = `native-${digest(JSON.stringify([owner.channel, owner.tenantId, owner.appId, conversation.id]))}`;
+  const legacyId = `native-${digest(JSON.stringify([owner.channel, owner.tenantId, owner.appId, conversation.id]))}`;
+  const legacy = store.get<CollaborationSpace>("native-groups", legacyId);
+  const id = legacy?.endpoints.some(
+    (endpoint) =>
+      imConversationKey(endpoint) === imConversationKey(conversation),
+  )
+    ? legacyId
+    : `native-${digest(JSON.stringify([owner.channel, owner.connectionId, owner.tenantId, owner.appId, conversation.id]))}`;
   const previous = store.get<CollaborationSpace>("native-groups", id);
   if (
     previous?.nativeGroup?.ownerDeviceId &&
@@ -86,6 +93,19 @@ export function saveNativeGroup(
   )
     throw new Error(
       "This bot and group already belong to another Artemis instance.",
+    );
+  if (
+    store
+      .list<{ group: CollaborationSpace; phase: string }>(
+        "native-authorizations",
+      )
+      .some(
+        (operation) =>
+          operation.phase === "prepared" && operation.group.id === id,
+      )
+  )
+    throw new Error(
+      "A pending authorization must be reconciled before another binding change.",
     );
   const next: CollaborationSpace & { administrators: ImIdentity[] } = {
     id,

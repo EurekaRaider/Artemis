@@ -2,6 +2,7 @@ import { z } from "zod";
 import { appLocaleSchema } from "./schema.js";
 import {
   imGrantSecuritySchema,
+  imDataScopeSchema,
   imDeliverySecuritySchema,
   type ImSecurityContext,
   type ImDataScope,
@@ -141,6 +142,7 @@ export type ChannelEvent = z.infer<typeof channelEventSchema>;
 export const executionGrantSchema = z
   .object({
     projectId: id,
+    policyVersion: id.optional(),
     // Accepted only for compatibility with saved grants; no usage cap is enforced.
     tokenBudget: z.number().int().min(1024).max(1000000).optional(),
     approval: z.enum(["ask", "automatic"]).default("ask"),
@@ -153,6 +155,90 @@ export const executionGrantSchema = z
   })
   .strict();
 export type ExecutionGrant = z.infer<typeof executionGrantSchema>;
+/** Versioned, narrow command. Null versions explicitly mean expected absence. */
+export const IM_AUTHORIZATION_VERSION = 1 as const;
+export const imAuthorizationCommandSchema = z
+  .object({
+    version: z.literal(IM_AUTHORIZATION_VERSION),
+    operationId: z.string().uuid(),
+    intent: z.enum(["create", "edit", "renew", "restore", "rebind", "pause"]),
+    deviceId: id,
+    gatewayUrl: z.string().max(2048),
+    conversation: imConversationSchema,
+    owner: imIdentitySchema,
+    name: z.string().trim().min(1).max(100),
+    projectId: id,
+    expectedPolicyVersion: z.string().max(4096).nullable(),
+    expectedGroupVersion: id.nullable(),
+    expectedScopeVersion: id.nullable(),
+    expectedDeviceEnabled: z.boolean(),
+    policy: executionGrantSchema
+      .pick({
+        mode: true,
+        approval: true,
+        shell: true,
+        network: true,
+        expiresAt: true,
+      })
+      .optional(),
+    scope: imDataScopeSchema,
+    enableService: z.boolean(),
+    confirmationFingerprint: z.string().min(1).max(65536),
+  })
+  .strict();
+export type ImAuthorizationCommand = z.infer<
+  typeof imAuthorizationCommandSchema
+>;
+export function imProjectPolicy(grant: ExecutionGrant) {
+  const { mode, approval, shell, network, expiresAt } = grant;
+  return { mode, approval, shell, network, expiresAt };
+}
+export function imPolicyVersion(
+  grant: ExecutionGrant | undefined,
+): string | null {
+  return grant
+    ? (grant.policyVersion ?? JSON.stringify(imProjectPolicy(grant)))
+    : null;
+}
+/** Canonical confirmation contents shared by renderer and main; no Node API. */
+export function imAuthorizationFingerprint(
+  command:
+    | Omit<ImAuthorizationCommand, "confirmationFingerprint">
+    | ImAuthorizationCommand,
+): string {
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value)
+              .filter(([, v]) => v !== undefined)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => [k, canonical(v)]),
+          )
+        : value;
+  const {
+    operationId: _id,
+    confirmationFingerprint: _confirmation,
+    ...contents
+  } = command as ImAuthorizationCommand;
+  return JSON.stringify(canonical(contents));
+}
+export type ImAuthorizationPhase =
+  "not-needed" | "pending" | "applied" | "failed" | "unknown";
+export interface ImAuthorizationOperation {
+  version: typeof IM_AUTHORIZATION_VERSION;
+  command: ImAuthorizationCommand;
+  state: "pending" | "complete" | "conflict";
+  phases: Record<
+    "binding" | "local" | "activation" | "sync",
+    ImAuthorizationPhase
+  >;
+  group?: CollaborationSpace;
+  appliedPolicyVersion?: string;
+  appliedScopeVersion?: string;
+  error?: string;
+}
 /**
  * defaultProjectId sentinel (and legacy empty string) meaning plain owner
  * messages start a project-less ad-hoc task instead of a project task.
@@ -287,6 +373,8 @@ export function resolveImGroupMentions(group: ImGroupContext, text: string) {
   return [...found.values()];
 }
 export interface ImStatus {
+  authorizationVersion?: typeof IM_AUTHORIZATION_VERSION;
+  authorizationOperations?: ImAuthorizationOperation[];
   scopedShellSupported?: boolean;
   scopedFileCreationSupported?: boolean;
   settings: ImSettings;
@@ -677,6 +765,18 @@ export const imManagementSchema = z.discriminatedUnion("action", [
       operation: z.enum(["state", "announce", "probe", "authorize"]),
       peer: id.optional(),
       peers: z.array(id).max(50).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("authorize-group"),
+      command: imAuthorizationCommandSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("retry-group-authorization"),
+      operationId: z.string().uuid(),
     })
     .strict(),
   z
