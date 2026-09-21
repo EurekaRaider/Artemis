@@ -680,9 +680,9 @@ export class FeishuAdapter implements ChannelAdapter {
     const members = new Map<string, ImGroupRoster["members"][number]>();
     const cursors = new Set<string>();
     let cursor = "";
-    // The official endpoint excludes bots. Never claim a complete directory or
-    // use absence from this list to revoke a verified bot's identity.
-    let error: ImGroupRoster["error"] = "partial";
+    // The list endpoint returns both people and bots, unlike /members.
+    let complete = false;
+    let error: ImGroupRoster["error"];
     const signal = AbortSignal.timeout(10000);
     try {
       const token = await this.accessToken();
@@ -693,7 +693,7 @@ export class FeishuAdapter implements ChannelAdapter {
         });
         if (cursor) query.set("page_token", cursor);
         const response = await fetch(
-          `${this.apiOrigin}/open-apis/im/v1/chats/${encodeURIComponent(conversation.id)}/members?${query}`,
+          `${this.apiOrigin}/open-apis/im/v1/chats/${encodeURIComponent(conversation.id)}/members/list?${query}`,
           {
             headers: { Authorization: `Bearer ${token}` },
             redirect: "error",
@@ -714,52 +714,59 @@ export class FeishuAdapter implements ChannelAdapter {
           break;
         }
         const data = record(body.data);
-        if (!response.ok || body.code !== 0 || !Array.isArray(data.items))
-          throw new ChannelUnavailable("Group members are unavailable.");
-        for (const value of data.items) {
-          const item = record(value),
-            userId = string(item.member_id);
-          if (!userId || item.member_id_type !== "open_id")
-            throw new ChannelUnavailable("Invalid group member identity.");
-          if (members.size >= 10000) break;
-          members.set(userId, {
-            identity: {
-              channel: "feishu",
-              connectionId: this.config.id,
-              tenantId: this.config.tenantId,
-              appId: this.config.appId,
-              userId,
-            },
-            name: (string(item.name) || userId).slice(0, 200),
-            kind: "human",
-          });
-        }
-        // This endpoint lists people only. The authenticated connection already
-        // resolved its own bot identity at setup; include it after a successful
-        // group lookup, without inferring any other bot or dispatch permission.
         if (
-          this.config.tenantId &&
-          (members.has(this.config.botOpenId) || members.size < 10000)
-        ) {
-          members.set(this.config.botOpenId, {
-            identity: {
-              channel: "feishu",
-              connectionId: this.config.id,
-              tenantId: this.config.tenantId,
-              appId: this.config.appId,
-              userId: this.config.botOpenId,
-            },
-            name: this.config.name,
-            kind: "bot",
-            self: true,
-          });
-        }
-        if (
-          !data.has_more ||
-          data.trigger_security_conf_limit ||
-          members.size >= 10000
+          !response.ok ||
+          body.code !== 0 ||
+          !Array.isArray(data.users) ||
+          !Array.isArray(data.bots) ||
+          typeof data.has_more !== "boolean"
         )
+          throw new ChannelUnavailable("Group members are unavailable.");
+        let capped = false;
+        for (const [values, kind] of [
+          [data.users, "human"],
+          [data.bots, "bot"],
+        ] as const) {
+          for (const value of values) {
+            const item = record(value),
+              userId = string(item.member_id);
+            if (
+              !userId ||
+              (item.member_id_type !== undefined &&
+                item.member_id_type !== "open_id")
+            )
+              throw new ChannelUnavailable("Invalid group member identity.");
+            if (members.size >= 10000 && !members.has(userId)) {
+              capped = true;
+              break;
+            }
+            members.set(userId, {
+              identity: {
+                channel: "feishu",
+                connectionId: this.config.id,
+                tenantId: this.config.tenantId,
+                appId: this.config.appId,
+                userId,
+              },
+              name: (string(item.name) || userId).slice(0, 200),
+              kind,
+              ...(kind === "bot" && userId === this.config.botOpenId
+                ? { self: true }
+                : {}),
+            });
+          }
+        }
+        if (
+          capped ||
+          (Array.isArray(data.truncations) && data.truncations.length > 0)
+        ) {
+          error = "partial";
           break;
+        }
+        if (!data.has_more) {
+          complete = true;
+          break;
+        }
         cursor = string(data.page_token);
         if (!cursor || cursors.has(cursor)) break;
         cursors.add(cursor);
@@ -767,7 +774,11 @@ export class FeishuAdapter implements ChannelAdapter {
     } catch {
       error = "unavailable";
     }
-    return { members: [...members.values()], complete: false, error };
+    return {
+      members: [...members.values()],
+      complete,
+      ...(!complete || error ? { error: error ?? "partial" } : {}),
+    };
   }
   async groupInfo(conversation: ImConversation) {
     const response = await fetch(

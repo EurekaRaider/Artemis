@@ -92,18 +92,30 @@ export function ImGroupMembers({
 
   useEffect(() => {
     if (!group.native || !group.confirmed) return;
-    const refresh = () => {
-      if (!document.hidden)
-        void window.artemis
-          .manageIm({
-            action: "refresh-group-members",
-            spaceId: group.spaceId,
-          })
-          .catch(() => {});
+    let pending = false;
+    const refresh = async () => {
+      if (document.hidden || pending) return;
+      pending = true;
+      try {
+        await window.artemis.manageIm({
+          action: "refresh-group-members",
+          spaceId: group.spaceId,
+        });
+      } catch {
+        // Keep the last snapshot; the status poll exposes connection failures.
+      } finally {
+        pending = false;
+      }
     };
-    refresh();
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 10000);
     window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [group.native, group.confirmed, group.spaceId]);
 
   const canAssign = (member: Person) =>

@@ -2021,9 +2021,14 @@ export class ArtemisGateway {
           adapter.groupInfo(endpoint!),
           adapter.groupMembers?.(endpoint!),
         ]);
-        // Feishu's member endpoint excludes bots. Keep only bot identities
-        // learned from authenticated events; they remain untrusted for dispatch.
-        if (roster && endpoint && adapter instanceof FeishuAdapter) {
+        // Preserve observations only while the directory is incomplete. A full
+        // snapshot must replace historical bots, including removed identities.
+        if (
+          roster &&
+          !roster.complete &&
+          endpoint &&
+          adapter instanceof FeishuAdapter
+        ) {
           const observed = this.store.get<{ roster?: ImGroupRoster }>(
             "native-group-info",
             group.id,

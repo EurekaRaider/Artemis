@@ -1586,3 +1586,34 @@ it("closes a deleted local worker without changing completed work or another dev
     result: "Done",
   });
 });
+
+it.each(["slack", "feishu", "lark"] as const)(
+  "reconciles removed %s peers while retaining members with unknown profiles",
+  (platform) => {
+    const a = instance("A", ":memory:", platform);
+    a.store.put("native-peers", a.group.id, [
+      { id: "gone", name: "Mino", verifiedAt: 1 },
+      { id: "present", name: "Present", verifiedAt: 1 },
+    ]);
+    const roster = {
+      complete: false,
+      members: [
+        {
+          identity: { ...a.event.identity, userId: "present" },
+          name: "present",
+          kind: "unknown",
+        },
+      ],
+    };
+    a.store.put("native-group-info", a.group.id, { roster });
+    a.router.native.syncRoster(a.group.id);
+    expect(a.router.native.peers(a.group.id)).toHaveLength(2);
+    a.store.put("native-group-info", a.group.id, {
+      roster: { ...roster, complete: true },
+    });
+    a.router.native.syncRoster(a.group.id);
+    expect(a.router.native.peers(a.group.id).map((p) => p.id)).toEqual([
+      "present",
+    ]);
+  },
+);

@@ -806,3 +806,31 @@ it("localizes legacy-compatible handshakes without displaying protocol negotiati
     envelope,
   );
 });
+
+it("keeps membership authoritative when profiles fail and removes departed cached bots", async () => {
+  let ids = ["Ubot", "Mino"];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("conversations.members"))
+      return Response.json({ ok: true, members: ids });
+    if (url.pathname.endsWith("users.getPresence"))
+      return Response.json({ ok: true, presence: "away" });
+    if (url.searchParams.get("user") === "new-user")
+      return Response.json({ ok: false, error: "missing_scope" });
+    return Response.json({
+      ok: true,
+      user: { id: url.searchParams.get("user"), is_bot: true, name: "Mino" },
+    });
+  });
+  const adapter = new SlackAdapter(config, () => {});
+  const conversation = {
+    connectionId: "slack",
+    id: "C1",
+    kind: "group" as const,
+  };
+  expect((await adapter.groupMembers(conversation)).members).toHaveLength(2);
+  ids = ["Ubot", "new-user"];
+  const roster = await adapter.groupMembers(conversation);
+  expect(roster.members.map((m) => m.identity.userId)).toEqual(ids);
+  expect(roster).toMatchObject({ complete: true, error: "missing-scope" });
+});

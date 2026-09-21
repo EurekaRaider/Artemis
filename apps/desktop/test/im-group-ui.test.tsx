@@ -615,3 +615,77 @@ it("keeps task member lists read-only without a permission settings entry", () =
     screen.queryByRole("button", { name: "项目与协作权限" }),
   ).not.toBeInTheDocument();
 });
+
+it("refreshes visible native members and bots while open, on return, and stops on close", async () => {
+  vi.useFakeTimers();
+  let current: ImGroupContext = {
+    ...group,
+    native: true,
+    roster: {
+      complete: true,
+      members: [
+        {
+          identity: identity("self", "feishu"),
+          name: "ArtemisLark",
+          kind: "bot",
+          self: true,
+        },
+        { identity: identity("old", "feishu"), name: "Mino", kind: "bot" },
+      ],
+    },
+  };
+  let next = current;
+  const manageIm = vi.fn(async () => {
+    current = next;
+  });
+  const getImStatus = vi.fn(async () => ({
+    remoteTasks: [
+      { threadId: "room", kind: "group", channel: "feishu", group: current },
+    ],
+  }));
+  stubWindowArtemis({ manageIm, getImStatus });
+  function Panel() {
+    const statuses = useImThreadStatus();
+    return statuses.room?.group ? (
+      <ImGroupMembers group={statuses.room.group} locale="zh-CN" />
+    ) : null;
+  }
+  const { unmount } = render(<Panel />);
+  await act(async () => {});
+  expect(screen.getByText("Mino")).toBeVisible();
+  next = {
+    ...current,
+    roster: {
+      complete: true,
+      members: [
+        current.roster!.members[0]!,
+        {
+          identity: identity("peer", "feishu"),
+          name: "Teammate bot",
+          kind: "bot",
+        },
+        {
+          identity: identity("human", "feishu"),
+          name: "Teammate",
+          kind: "human",
+        },
+      ],
+    },
+  };
+  await act(() => vi.advanceTimersByTimeAsync(12000));
+  expect(screen.queryByText("Mino")).not.toBeInTheDocument();
+  expect(screen.getByText("Teammate bot")).toBeVisible();
+  expect(screen.getByText("Teammate")).toBeVisible();
+  vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+  const calls = manageIm.mock.calls.length;
+  await act(() => vi.advanceTimersByTimeAsync(20000));
+  expect(manageIm).toHaveBeenCalledTimes(calls);
+  vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(manageIm).toHaveBeenCalledTimes(calls + 1);
+  unmount();
+  await act(() => vi.advanceTimersByTimeAsync(20000));
+  expect(manageIm).toHaveBeenCalledTimes(calls + 1);
+});

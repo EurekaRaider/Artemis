@@ -410,9 +410,7 @@ export class NativeCooperation {
         .filter(
           (p) =>
             !roster.complete ||
-            roster.members.some(
-              (m) => m.kind === "bot" && m.identity.userId === p.id,
-            ),
+            roster.members.some((m) => m.identity.userId === p.id),
         )
         .slice(-100),
     );

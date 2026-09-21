@@ -664,6 +664,8 @@ export class SlackAdapter implements ChannelAdapter {
     } catch (cause) {
       error = classify(cause);
     }
+    // Profile failures do not invalidate a fully fetched membership snapshot.
+    const complete = !error;
     const members: ImGroupRoster["members"] = [];
     const userIds = [...ids];
     for (let offset = 0; offset < userIds.length; offset += 8) {
@@ -728,7 +730,7 @@ export class SlackAdapter implements ChannelAdapter {
       );
       members.push(...batch);
     }
-    return { members, complete: !error, ...(error ? { error } : {}) };
+    return { members, complete, ...(error ? { error } : {}) };
   }
   async groupInfo(conversation: ImConversation) {
     try {
