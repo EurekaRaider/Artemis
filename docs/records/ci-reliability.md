@@ -77,3 +77,15 @@ Renderer stage marks and navigation timing are retained in both samples to
 distinguish module loading, skin initialization, state retrieval and the first
 ready render. The 10-second cold ceiling is a failure guard, not a product
 latency target; passing it alone does not establish acceptable startup UX.
+
+## Runtime provisioning outside performance measurement
+
+In [35558702205](https://github.com/EurekaRaider/Artemis/actions/runs/35558702205),
+macOS x64 exhausted the screenshot workload deadline after completing only part
+of the matrix. Its output included `Downloading Electron binary...`. Electron
+43.2.0 no longer has a package postinstall; its `index.js` invokes `install.js`
+on the first `require("electron")` when the executable is absent. Thus `npm ci`
+does not guarantee a provisioned binary, and the first visual workload also
+paid the download/extraction cost. The orchestrator now prepares the runtime
+in a separate, bounded five-minute phase and records that duration separately.
+Screenshot and per-launch performance limits remain unchanged.
