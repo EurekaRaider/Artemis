@@ -112,7 +112,7 @@ describe("Feishu scan request lifecycle", () => {
     vi.useFakeTimers();
     const manage = vi.fn(async (input: { action: string }) => {
       if (input.action === "feishu-scan-begin")
-        return { ...begin, domain: "lark" };
+        return { ...begin, domain: "lark", pollDomain: "feishu" };
       if (input.action === "feishu-scan-poll")
         return {
           status: "success",
@@ -141,7 +141,7 @@ describe("Feishu scan request lifecycle", () => {
     expect(manage).toHaveBeenCalledWith({
       action: "feishu-scan-poll",
       deviceCode: "device",
-      domain: "lark",
+      domain: "feishu",
     });
     expect(manage).toHaveBeenCalledWith(
       expect.objectContaining({

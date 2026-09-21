@@ -75,11 +75,11 @@ describe("feishu scan-to-register", () => {
       action: "begin",
       archetype: "PersonalAgent",
       auth_method: "client_secret",
-      request_user_info: "open_id",
+      request_user_info: "open_id tenant_brand",
     });
     expect(result).toMatchObject({
       deviceCode: "dev1",
-      qrUrl: "https://accounts.feishu.cn/confirm?c=1",
+      qrUrl: "https://open.feishu.cn/page/cli?user_code=ABCD",
       userCode: "ABCD",
       intervalMs: 5000,
       domain: "feishu",
@@ -93,29 +93,46 @@ describe("feishu scan-to-register", () => {
     await expect(beginFeishuScan()).rejects.toThrow("扫码创建应用");
   });
 
-  it("starts Lark registration on the Lark host and keeps its polling domain", async () => {
+  it("bootstraps Lark on Feishu and replaces the legacy launcher URL", async () => {
     const calls = stubFetch({
       init: { supported_auth_methods: ["client_secret"] },
       begin: {
         device_code: "lark-device",
-        verification_uri_complete: "https://accounts.larksuite.com/confirm",
+        verification_uri_complete:
+          "https://open.feishu.cn/page/launcher?user_code=LARK",
         user_code: "LARK",
+        expires_in: 3600,
       },
-      poll: { client_id: "cli_lark", client_secret: "synthetic" },
     });
+    const before = Date.now();
     const begin = await beginFeishuScan("lark");
     expect(begin).toMatchObject({
       deviceCode: "lark-device",
-      qrUrl: "https://accounts.larksuite.com/confirm",
+      qrUrl: "https://open.larksuite.com/page/cli?user_code=LARK",
       domain: "lark",
+      pollDomain: "feishu",
     });
-    await expect(pollFeishuScan(begin)).resolves.toMatchObject({
-      status: "success",
-      domain: "lark",
-    });
+    expect(begin.expiresAt).toBeGreaterThanOrEqual(before + 3_600_000);
     expect(calls.map(({ url }) => url)).toEqual(
-      Array(3).fill("https://accounts.larksuite.com/oauth/v1/app/registration"),
+      Array(2).fill("https://accounts.feishu.cn/oauth/v1/app/registration"),
     );
+  });
+
+  it("reads cross-brand discovery from HTTP 400 pending responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: "authorization_pending",
+          user_info: { tenant_brand: "lark" },
+        }),
+      })),
+    );
+    await expect(
+      pollFeishuScan({ deviceCode: "device", domain: "feishu" }),
+    ).resolves.toEqual({ status: "pending", intervalMs: 0, domain: "lark" });
   });
 
   it("maps poll outcomes through the device-flow states", async () => {

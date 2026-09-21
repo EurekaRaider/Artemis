@@ -167,7 +167,7 @@ export function ImFeishuScan({
         })) as ImFeishuScanBeginResult;
         if (epoch.current !== run) return;
         setPhase({ stage: "scanning", image: begin.qrImage, begin });
-        poll(run, begin, begin.domain, begin.intervalMs);
+        poll(run, begin, begin.pollDomain ?? begin.domain, begin.intervalMs);
       } catch (error) {
         if (epoch.current !== run) return;
         setPhase({ stage: "failed", message: friendlyScanError(error) });

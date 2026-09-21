@@ -25,9 +25,9 @@ const API_HOSTS = {
 const beginResponseSchema = z
   .object({
     device_code: z.string().min(1),
-    verification_uri_complete: z.string().url(),
-    user_code: z.string().optional(),
+    user_code: z.string().min(1),
     expire_in: z.number().optional(),
+    expires_in: z.number().optional(),
     interval: z.number().optional(),
   })
   .strip();
@@ -66,11 +66,19 @@ async function postRegistration(
       signal: AbortSignal.timeout(10000),
     },
   );
-  if (!response.ok)
+  const result: unknown = await response.json();
+  // Device-flow states (including tenant discovery) can arrive with HTTP 400.
+  if (
+    !response.ok &&
+    !(
+      response.status === 400 &&
+      typeof (result as { error?: unknown })?.error === "string"
+    )
+  )
     throw new Error(
       `Feishu registration endpoint returned HTTP ${response.status}.`,
     );
-  return response.json();
+  return result;
 }
 
 export async function beginFeishuScan(
@@ -88,7 +96,7 @@ export async function beginFeishuScan(
   const networkHint = imText(locale, "scanNetwork", { platform });
   let init: unknown;
   try {
-    init = await postRegistration(domain, { action: "init" });
+    init = await postRegistration("feishu", { action: "init" });
   } catch {
     throw new Error(networkHint);
   }
@@ -97,26 +105,31 @@ export async function beginFeishuScan(
   if (!Array.isArray(methods) || !methods.includes("client_secret"))
     throw new Error(imText(locale, "scanUnsupported", { platform }));
   const begin = beginResponseSchema.parse(
-    await postRegistration(domain, {
+    await postRegistration("feishu", {
       action: "begin",
       archetype: "PersonalAgent",
       auth_method: "client_secret",
-      request_user_info: "open_id",
+      request_user_info: "open_id tenant_brand",
     }).catch(() => {
       throw new Error(networkHint);
     }),
   );
+  // Match the official Lark CLI: bootstrap on Feishu, confirm on the selected
+  // brand's CLI page. The API still returns the legacy /page/launcher URL.
+  const qrUrl = new URL("/page/cli", API_HOSTS[domain]);
+  qrUrl.searchParams.set("user_code", begin.user_code);
   return {
     deviceCode: begin.device_code,
-    qrUrl: begin.verification_uri_complete,
-    qrImage: await QRCode.toDataURL(begin.verification_uri_complete, {
+    qrUrl: qrUrl.href,
+    qrImage: await QRCode.toDataURL(qrUrl.href, {
       width: 176,
       margin: 1,
     }),
     userCode: begin.user_code ?? "",
-    expiresAt: Date.now() + (begin.expire_in ?? 600) * 1000,
+    expiresAt: Date.now() + (begin.expire_in ?? begin.expires_in ?? 600) * 1000,
     intervalMs: (begin.interval ?? 5) * 1000,
     domain,
+    pollDomain: "feishu",
   };
 }
 

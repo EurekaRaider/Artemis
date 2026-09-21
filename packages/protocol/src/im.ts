@@ -997,6 +997,8 @@ export interface ImFeishuScanBeginResult {
   expiresAt: number;
   intervalMs: number;
   domain: "feishu" | "lark";
+  /** Registration bootstraps on Feishu before tenant-brand discovery. */
+  pollDomain?: "feishu" | "lark";
 }
 export type ImFeishuScanPollResult =
   | { status: "pending"; intervalMs: number; domain: "feishu" | "lark" }
