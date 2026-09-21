@@ -26,6 +26,17 @@ violations, before rejecting a performance failure. Previously that rejection
 prevented the aggregate manifest from being saved, although individual a11y
 files remained available. All performance thresholds remain unchanged.
 
+The repair's first remote run, [35557046786](https://github.com/EurekaRaider/Artemis/actions/runs/35557046786),
+also exposed a Windows shell permission test with a 30-second launcher budget.
+It returned empty output after 53.1 seconds including the preceding native file
+snapshot. Native helper compilation takes about 23 seconds per request on
+these runners, leaving little room for shell initialization. The functional
+test now allows 60 seconds for the launcher within a 180-second test deadline,
+and explicitly checks cancellation and exit status before checking output.
+The file-grant, protected-data and writeback assertions remain intact. Product
+shell timeouts and startup performance thresholds are unchanged; Windows-native
+CI is required to validate this test adjustment.
+
 ## Verification discipline
 
 - Run `npm run verify:ci` with Node 24 before publishing code changes.
