@@ -460,7 +460,12 @@ export class AppStore {
     this.database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
-
+    `);
+    // Schema DDL otherwise commits each table/index separately. On a fresh
+    // Windows profile those repeated durable writes can delay the first window.
+    try {
+      this.database.exec(`
+      BEGIN IMMEDIATE;
       CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -696,8 +701,17 @@ export class AppStore {
         ON automation_runs(automation_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_automation_runs_thread
         ON automation_runs(thread_id);
-
+      COMMIT;
     `);
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK");
+      } catch {
+        // BEGIN itself can fail before opening a transaction.
+      }
+      this.database.close();
+      throw error;
+    }
     const projectColumns = this.database
       .prepare("PRAGMA table_info(projects)")
       .all() as unknown as Array<{ name: string }>;

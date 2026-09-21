@@ -3,6 +3,8 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
+import { evaluateStartupTimings } from "./verify-ui-performance.mjs";
 
 const checker = fileURLToPath(
   new URL("./verify-ui-performance.mjs", import.meta.url),
@@ -111,3 +113,57 @@ await runCase(
   false,
 );
 console.log("UI performance budget fixtures passed (2 accepted; 5 rejected)");
+
+const pairedBudget = {
+  baseline: { startupStageMaximumMs: { "renderer-ready": 320.7 } },
+  thresholds: {
+    startup: {
+      baselineMultiplier: 8,
+      jitterAllowanceMs: 500,
+      maximumWarmOutlierVariants: 2,
+      warmHardMaximumMs: 4000,
+      coldStartHardMaximumMs: 10000,
+    },
+  },
+};
+const warm = [
+  startupVariant("en", 100, 200, 300),
+  startupVariant("ja", 100, 200, 900),
+];
+const cold = [
+  startupVariant("en", 100, 200, 2000),
+  startupVariant("ja", 100, 200, 5304.8),
+];
+assert.deepEqual(
+  evaluateStartupTimings(pairedBudget, warm, cold).violations,
+  [],
+);
+assert(
+  evaluateStartupTimings(
+    pairedBudget,
+    [startupVariant("en", 100, 200, 5000), warm[1]],
+    cold,
+  ).violations.some((v) => v.includes("warm hard maximum")),
+);
+assert(
+  evaluateStartupTimings(pairedBudget, warm, [
+    cold[0],
+    startupVariant("ja", 100, 200, 10001),
+  ]).violations.some((v) => v.includes("cold hard maximum")),
+);
+assert(
+  evaluateStartupTimings(pairedBudget, warm, [cold[0]]).violations.length > 0,
+);
+assert(
+  evaluateStartupTimings(pairedBudget, warm, [cold[0], cold[0]]).violations
+    .length > 0,
+);
+assert(
+  evaluateStartupTimings(pairedBudget, warm, [
+    { id: "en", startupTimings: [] },
+    cold[1],
+  ]).violations.length > 0,
+);
+console.log(
+  "Paired cold/warm startup fixtures passed; slow or missing samples are rejected.",
+);

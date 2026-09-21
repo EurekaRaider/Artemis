@@ -101,11 +101,26 @@ describe("MarkdownContent", () => {
     expect(html).not.toContain("onerror");
   });
 
-  it("renders the repository README icon, badges, and Markdown screenshot", () => {
-    const readme = readFileSync(
-      fileURLToPath(new URL("../../../README.md", import.meta.url)),
-      "utf8",
-    );
+  it("renders README-style HTML icons, linked badges, and Markdown screenshots", () => {
+    // Keep renderer coverage independent of edits to the product README.
+    const readme = [
+      '<div align="center">',
+      '<img src="./apps/desktop/build/icon.png" width="92" alt="Application icon" />',
+      '<a href="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml"><img src="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>',
+      '<img src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" alt="React" />',
+      "</div>",
+      "",
+      "[Preview](#product-preview)",
+      "",
+      "## Product preview",
+      "",
+      ...[
+        "workspace-dark",
+        "workspace-light",
+        "workspace-zh-CN",
+        "resources",
+      ].map((name) => `![${name}](docs/images/screenshots/${name}.png)`),
+    ].join("\n");
     const html = renderToStaticMarkup(
       <MarkdownContent resolveImage={async () => undefined} text={readme} />,
     );

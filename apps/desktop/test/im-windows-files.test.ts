@@ -236,8 +236,15 @@ describe.runIf(process.platform === "win32")(
           command: `Get-Content docs/guide.txt; Set-Content docs/guide.txt 'FORBIDDEN' -ErrorAction SilentlyContinue; Set-Content src/new.txt 'UPDATED'; Get-ChildItem src; Get-Content src/.env -ErrorAction SilentlyContinue; Get-Content '${join(root, "private.txt").replaceAll("'", "''")}' -ErrorAction SilentlyContinue; Write-Output 'FINISHED'`,
           network: false,
           signal: new AbortController().signal,
-          timeoutSeconds: 30,
+          // This is a file-permission test, not a startup benchmark. The
+          // AppContainer launcher compiles its native helper before running
+          // PowerShell, which alone takes about 23 seconds on hosted runners.
+          timeoutSeconds: 60,
           assertCurrent: () => {},
+        });
+        expect(result, JSON.stringify(result)).toMatchObject({
+          cancelled: false,
+          exitCode: 0,
         });
         expect(result.output).toContain("READABLE");
         expect(result.output).toContain("FINISHED");
@@ -256,8 +263,8 @@ describe.runIf(process.platform === "win32")(
       } finally {
         await rm(root, { recursive: true, force: true });
       }
-      // Four native broker requests each compile their helper (~23s on CI).
-    }, 120000);
+      // Allow four native helper compilations plus the bounded shell run.
+    }, 180000);
     it("refuses stale writeback before modifying any original file", async () => {
       const root = await mkdtemp(join(tmpdir(), "artemis-im-conflict-"));
       const files = new WindowsImFiles(helper);

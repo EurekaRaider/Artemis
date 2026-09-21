@@ -207,6 +207,36 @@ async function runWorkload(workload) {
 }
 
 try {
+  // Electron 43 installs its binary lazily on the first require(). Network
+  // provisioning is setup work, not part of the screenshot workload budget.
+  const preparationStartedAt = performance.now();
+  const preparation = spawnSync(
+    process.execPath,
+    ["-e", "process.stdout.write(require('electron'))"],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      timeout: 300_000,
+      maxBuffer: 2 * 1024 * 1024,
+    },
+  );
+  report.electronPreparation = {
+    durationMs: Number((performance.now() - preparationStartedAt).toFixed(1)),
+    status: preparation.error || preparation.status !== 0 ? "failed" : "passed",
+    stdoutTail: outputTail(preparation.stdout),
+    stderrTail: outputTail(preparation.stderr),
+  };
+  assert(
+    !preparation.error && preparation.status === 0,
+    [
+      "Electron runtime preparation failed before performance measurement.",
+      preparation.error?.message,
+      preparation.stdout,
+      preparation.stderr,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
   for (const workload of workloads) await runWorkload(workload);
   report.performance = await verifyUiPerformance(
     repositoryRoot,

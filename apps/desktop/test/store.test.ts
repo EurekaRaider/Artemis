@@ -20,6 +20,32 @@ afterEach(async () => {
 });
 
 describe("AppStore", () => {
+  it("rolls back initial schema creation when an existing table is incompatible", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const existing = new DatabaseSync(databasePath);
+    existing.exec("CREATE TABLE events (id TEXT PRIMARY KEY)");
+    existing.close();
+
+    expect(() => new AppStore(databasePath)).toThrow();
+    const reopened = new DatabaseSync(databasePath);
+    try {
+      expect(
+        reopened
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+          )
+          .all(),
+      ).toEqual([{ name: "events" }]);
+      expect(reopened.prepare("PRAGMA user_version").get()).toEqual({
+        user_version: 0,
+      });
+    } finally {
+      reopened.close();
+    }
+  });
+
   it("restores the latest background queue phase in the lightweight snapshot", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);
