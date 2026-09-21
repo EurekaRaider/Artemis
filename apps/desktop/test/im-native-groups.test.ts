@@ -3212,3 +3212,38 @@ it("queues device registration behind an in-flight group authorization", async (
   expect(String(registration)).toContain("Pause IM");
   expect(f.service.status().settings.deviceId).toBe(command.deviceId);
 });
+
+it.each(["feishu", "slack"] as const)(
+  "explains %s manual cooperation without changing Slack's error",
+  async (channel) => {
+    const f = await fixture(channel);
+    f.grant.mode = "execute";
+    await f.authorize();
+    const task = f.service.status().remoteTasks![0]!;
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      task.group!.spaceId,
+    );
+    await f.service.accept({ ...request, text: "Ask peer to check project" });
+    const threadId = f.starts.at(-1)!;
+    await expect(
+      f.service.operate(
+        threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "delegate",
+            participantId: "peer",
+            text: "Check project",
+          },
+        },
+        "execute",
+        randomUUID(),
+      ),
+    ).rejects.toThrow(
+      channel === "feishu"
+        ? "尚未授权群内机器人协作"
+        : "自动协作尚未通过 IM 验证",
+    );
+  },
+);

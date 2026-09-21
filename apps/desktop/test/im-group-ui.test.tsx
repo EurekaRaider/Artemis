@@ -689,3 +689,84 @@ it("refreshes visible native members and bots while open, on return, and stops o
   await act(() => vi.advanceTimersByTimeAsync(20000));
   expect(manageIm).toHaveBeenCalledTimes(calls + 1);
 });
+
+it("offers Feishu/Lark bot permission and communication retry in the task member list", async () => {
+  const manage = vi.fn().mockResolvedValue({});
+  stubWindowArtemis({ manageIm: manage });
+  render(
+    <ImGroupMembers
+      locale="zh-CN"
+      group={{
+        ...group,
+        native: true,
+        roster: {
+          complete: true,
+          members: [
+            {
+              identity: identity("mino", "feishu"),
+              name: "Mino",
+              kind: "bot",
+              canAssign: false,
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(screen.getByText("通信待验证")).toBeInTheDocument();
+  expect(screen.getByText("未授权协作")).toBeInTheDocument();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "允许 Mino 派工" }));
+  });
+  expect(manage).toHaveBeenCalledWith({
+    action: "set-group-member-assignment",
+    spaceId: group.spaceId,
+    identity: identity("mino", "feishu"),
+    allowed: true,
+  });
+  expect(screen.getByText("已授权协作")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "重新验证" })).toBeEnabled();
+});
+
+it.each(["feishu", "slack"] as const)(
+  "keeps %s task controls scoped and shows communication timeout separately",
+  (channel) => {
+    stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
+    render(
+      <ImGroupMembers
+        locale="zh-CN"
+        group={{
+          ...group,
+          native: true,
+          roster: {
+            complete: true,
+            members: [
+              {
+                identity: identity("peer", channel),
+                name: "Peer",
+                kind: "bot",
+                canAssign: false,
+                verificationPendingUntil: Date.now() - 1000,
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    if (channel === "feishu") {
+      expect(screen.getByText("通信验证超时")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "重新验证" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "允许 Peer 派工" }),
+      ).toBeEnabled();
+    } else {
+      expect(screen.getByText("未完成验证")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "重新验证" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "允许 Peer 派工" }),
+      ).not.toBeInTheDocument();
+    }
+  },
+);

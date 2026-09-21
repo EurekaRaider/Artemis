@@ -1617,3 +1617,95 @@ it.each(["slack", "feishu", "lark"] as const)(
     ]);
   },
 );
+
+it.each(["feishu", "lark"] as const)(
+  "verifies %s peers before permission and still requires authorization on both ends",
+  (platform) => {
+    const a = instance("A", ":memory:", platform);
+    const b = instance("B", ":memory:", platform);
+    for (const [local, remote] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      local.router.native.observeBot({
+        ...local.event,
+        timestamp: Date.now(),
+        bot: true,
+        identity: { ...local.event.identity, userId: remote.bot },
+      });
+      local.router.native.syncRoster(local.group.id);
+      expect(
+        local.store
+          .pending<Delivery>("outgoing")
+          .some((item) => item.payload.native?.action === "probe"),
+      ).toBe(true);
+    }
+    exchange(a, b);
+    exchange(b, a);
+    exchange(a, b);
+    expect(a.router.native.peers(a.group.id)[0]?.verifiedAt).toBeTruthy();
+    expect(b.router.native.peers(b.group.id)[0]?.verifiedAt).toBeTruthy();
+    const request = a.router.groupConversationContext(a.device.id, a.group.id);
+    const dispatch = () =>
+      a.router.native.command(request, "coordinator", randomUUID(), {
+        action: "delegate",
+        participantId: "B",
+        text: "Check project",
+        newTask: true,
+      });
+    expect(dispatch).toThrow(/not authorized/);
+    a.router.native.setMemberAssignment(a.group.id, "B", true);
+    dispatch();
+    exchange(a, b);
+    expect(b.router.native.tasks(b.group.id)).toHaveLength(0);
+    b.router.native.setMemberAssignment(b.group.id, "A", true);
+    dispatch();
+    exchange(a, b);
+    exchange(b, a);
+    expect(b.router.native.tasks(b.group.id)[0]?.state).toBe("accepted");
+    a.router.native.setMemberAssignment(a.group.id, "B", false);
+    expect(dispatch).toThrow(/not authorized/);
+  },
+);
+
+it.each(["feishu", "lark"] as const)(
+  "bounds %s communication discovery across restarts without granting work",
+  (platform) => {
+    vi.useFakeTimers();
+    const a = instance("A", ":memory:", platform);
+    a.router.native.observeBot({
+      ...a.event,
+      bot: true,
+      identity: { ...a.event.identity, userId: "B" },
+    });
+    a.router.native.syncRoster(a.group.id);
+    a.router.native.syncRoster(a.group.id);
+    expect(a.store.pending("outgoing")).toHaveLength(1);
+    const restarted = new GatewayRouter(a.store);
+    vi.advanceTimersByTime(60000);
+    restarted.native.syncRoster(a.group.id);
+    vi.advanceTimersByTime(300000);
+    restarted.native.syncRoster(a.group.id);
+    vi.advanceTimersByTime(86400000);
+    restarted.native.syncRoster(a.group.id);
+    expect(a.store.pending("outgoing")).toHaveLength(3);
+    restarted.native.probe(a.group.id, "B");
+    restarted.native.probe(a.group.id, "B");
+    expect(a.store.pending("outgoing")).toHaveLength(4);
+    expect(
+      a.store.get<{
+        nativeGroup: { capability: string; allowedBots?: string[] };
+      }>("native-groups", a.group.id)?.nativeGroup,
+    ).toMatchObject({ capability: "manual" });
+    expect(a.router.native.peers(a.group.id)[0]?.verifiedAt).toBeUndefined();
+    a.router.native.setMemberAssignment(a.group.id, "B", true);
+    const request = a.router.groupConversationContext(a.device.id, a.group.id);
+    expect(() =>
+      a.router.native.command(request, "coordinator", randomUUID(), {
+        action: "delegate",
+        participantId: "B",
+        text: "Check project",
+      }),
+    ).toThrow(/communication is not verified/);
+  },
+);

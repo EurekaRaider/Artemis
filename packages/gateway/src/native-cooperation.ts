@@ -417,7 +417,13 @@ export class NativeCooperation {
     if (!this.store.get("connections", group.endpoints[0]!.connectionId))
       return;
     for (const peer of this.peers(groupId)) {
-      if (!group.nativeGroup?.allowedBots?.includes(peer.id) || peer.verifiedAt)
+      // Feishu/Lark communication proof is independent of permission to work.
+      // Keep Slack's existing authorization-first discovery unchanged.
+      if (
+        peer.verifiedAt ||
+        (group.participants[0]?.identity.channel !== "feishu" &&
+          !group.nativeGroup?.allowedBots?.includes(peer.id))
+      )
         continue;
       const key = JSON.stringify([groupId, peer.id]);
       // Retry only discovery, never task delivery. Keep the budget across restarts.
@@ -1008,8 +1014,17 @@ export class NativeCooperation {
           throw new Error("At least one assignment is required.");
         const tasks: NativeTask[] = [];
         for (const assignment of assignments) {
-          if (!this.allowed(group, assignment.participantId))
+          if (!this.allowed(group, assignment.participantId)) {
+            if (group.participants[0]?.identity.channel === "feishu")
+              throw new Error(
+                !group.nativeGroup?.allowedBots?.includes(
+                  assignment.participantId,
+                )
+                  ? "Bot is not authorized. Ask the group owner to enable collaboration for this bot in the group member list."
+                  : "Bot communication is not verified. Use verification retry in the group member list; check both apps' bot-message permissions and connections if it times out.",
+              );
             throw new Error("Bot is not authorized or verified.");
+          }
           if (parent && !assignment.dependency)
             throw new Error(
               "A dependency must explain why this peer is needed and what work you retain. Complete the original assignment yourself; do not return it unchanged.",

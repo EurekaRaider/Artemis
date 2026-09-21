@@ -30,6 +30,8 @@ export function ImGroupMembers({
 }) {
   const t = uiTranslator(locale);
   type Person = NonNullable<ImGroupContext["roster"]>["members"][number];
+  const isFeishuBot = (member: Person) =>
+    member.kind === "bot" && member.identity.channel === "feishu";
   const currentSpace = useRef(group.spaceId);
   currentSpace.current = group.spaceId;
   const [verification, setVerification] = useState<
@@ -119,7 +121,9 @@ export function ImGroupMembers({
   }, [group.native, group.confirmed, group.spaceId]);
 
   const canAssign = (member: Person) =>
-    permissions[imIdentityKey(member.identity)] ?? member.canAssign ?? true;
+    permissions[imIdentityKey(member.identity)] ??
+    member.canAssign ??
+    !isFeishuBot(member);
   const toggleAssignment = async (member: Person) => {
     if (
       saving ||
@@ -242,6 +246,12 @@ export function ImGroupMembers({
                     : t("ImGroupMembers.message12");
               const editable =
                 !member.owner && !member.self && member.kind !== "unknown";
+              const canManage = managePermissions || isFeishuBot(member);
+              const proof = verificationState(member);
+              const pendingUntil =
+                verification[member.identity.userId]?.until ??
+                member.verificationPendingUntil ??
+                0;
               return (
                 <div
                   className="environment-setting-row"
@@ -271,11 +281,30 @@ export function ImGroupMembers({
                       <span>{member.name}</span>
                       {member.kind === "bot" && !member.self && (
                         <span className="im-member-device" aria-live="polite">
-                          {verificationState(member) === "verified"
-                            ? t("ImGroupMembers.message17")
-                            : verificationState(member) === "verifying"
-                              ? t("ImGroupMembers.message16")
-                              : t("ImGroupMembers.message15")}
+                          {isFeishuBot(member)
+                            ? t(
+                                proof === "verified"
+                                  ? "ImGroupMembers.communicationVerified"
+                                  : proof === "verifying"
+                                    ? "ImGroupMembers.communicationVerifying"
+                                    : pendingUntil > 0
+                                      ? "ImGroupMembers.communicationTimeout"
+                                      : "ImGroupMembers.communicationPending",
+                              )
+                            : verificationState(member) === "verified"
+                              ? t("ImGroupMembers.message17")
+                              : verificationState(member) === "verifying"
+                                ? t("ImGroupMembers.message16")
+                                : t("ImGroupMembers.message15")}
+                        </span>
+                      )}
+                      {isFeishuBot(member) && !member.self && (
+                        <span className="im-member-device" aria-live="polite">
+                          {t(
+                            canAssign(member)
+                              ? "ImGroupMembers.collaborationAllowed"
+                              : "ImGroupMembers.collaborationDenied",
+                          )}
                         </span>
                       )}
 
@@ -286,7 +315,7 @@ export function ImGroupMembers({
                       )}
                     </strong>
                   </span>
-                  {managePermissions &&
+                  {canManage &&
                     editable &&
                     member.kind === "bot" &&
                     verificationState(member) !== "verified" && (
@@ -318,7 +347,7 @@ export function ImGroupMembers({
                         </button>
                       </Tooltip>
                     )}
-                  {managePermissions && editable && (
+                  {canManage && editable && (
                     <Tooltip
                       label={
                         canAssign(member)
