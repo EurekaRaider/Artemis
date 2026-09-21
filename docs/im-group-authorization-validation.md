@@ -44,3 +44,12 @@ Development, automated integration, rendered interaction, exact-SHA CI, packagin
 - All 14 locale resources include the new manager copy. Arabic applies RTL to the full dialog, including its header.
 - Isolated production components were exercised in Electron at 980 × 680 across 14 locales and light/dark themes. Actual webContents zoom factor 2 was checked; native capturePage was used because CDP screenshots cropped high-density zoomed captures.
 - Node 24.21.0: full test:im passed, 702 passed and 6 pre-existing skipped. Native screen-reader and real-provider acceptance are not covered by these checks.
+
+## P4 production checks
+
+- The default `verify:im` now exercises the native-group manager with production Electron, preload, main process and the actual local Gateway. Its synthetic roster is inserted only while the isolated app is stopped. The retired shared-space harness is preserved behind `--legacy`; its obsolete guided-flow selector fails against the current UI and is not counted as passing.
+- The new gate covers explicit project selection, 980 × 680 and 1440 × 900 light/dark layouts, actual 200% zoom, Escape/discard, create, idempotent replay, pause, restore, rebind and restart persistence. A loopback model drives a real Pi scope-checked README read in a local child task.
+- Production testing caught a retained-history selection bug after rebind. Status now identifies the current group entry; the manager opens that entry, and both old-history retention and current-entry selection have regression assertions.
+- A related live refresh clears the confirmation checkbox as well as blocking submission.
+- Final source checks: 703 IM tests passed; 6 existing tests skipped. Production build, desktop typecheck (following successful core/UI-library checks), UI boundaries and UI convergence passed.
+- Exact-head visual/skin validation remains a separate gate; its result is reported against the tested commit. Cross-platform packaging/signing, native screen-reader use and real Slack/Feishu/Lark delivery remain external acceptance work.

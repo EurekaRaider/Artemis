@@ -150,3 +150,30 @@ it("requires renewed confirmation when the audience of a shared policy changes",
     before.confirmationFingerprint,
   );
 });
+
+it("clears confirmation when a live refresh changes the impact baseline", async () => {
+  const f = fixture();
+  const view = render(<GroupCollaborationPanel {...f.props} />);
+  const user = await openGroup();
+  await user.click(screen.getByRole("button", { name: /^项目/ }));
+  await user.click(screen.getByRole("option", { name: "Project A" }));
+  await user.click(screen.getByRole("button", { name: "下一步" }));
+  await user.click(screen.getByRole("button", { name: "下一步" }));
+  const confirmation = screen.getByRole("checkbox", {
+    name: "我已确认完整摘要及其分享与执行影响。",
+  });
+  await user.click(confirmation);
+  expect(confirmation).toBeChecked();
+  view.rerender(
+    <GroupCollaborationPanel
+      {...f.props}
+      status={{
+        ...f.props.status,
+        settings: { ...f.props.status.settings, enabled: true },
+      }}
+    />,
+  );
+  expect(confirmation).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "确认并应用" })).toBeDisabled();
+  expect(f.manage).not.toHaveBeenCalled();
+});

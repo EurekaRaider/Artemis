@@ -1056,6 +1056,15 @@ export class ImService {
       spaces: structuredClone(this.displaySpaces()),
       remoteTasks: this.list<Binding>("bindings").map((b) => ({
         threadId: b.threadId,
+        ...(b.nativeGroup && !b.parentThreadId && b.request.conversation.spaceId
+          ? {
+              currentGroupEntry:
+                this.get<GroupEntry>(
+                  "group-entries",
+                  this.groupEntryKey(b.request.conversation.spaceId),
+                )?.threadId === b.threadId,
+            }
+          : {}),
         ...(this.hasPermissionBlock(b.threadId)
           ? {
               permissionBlock: this.get<{ result: { message: string } }>(

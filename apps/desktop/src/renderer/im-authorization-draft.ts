@@ -59,7 +59,6 @@ export function createAuthorizationDraft(
       }),
       security: {
         version: IM_SECURITY_VERSION,
-        imAuthorizationImpactVersion,
         revision: "draft",
         confirmedAt: 0,
         scopes: [

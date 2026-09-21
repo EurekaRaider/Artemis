@@ -2896,6 +2896,11 @@ it("rebinds to a new project without reusing old model context or old effective 
       (t) => t.group?.spaceId === group.id && t.threadId !== oldThread,
     );
   expect(newThread).toBeDefined();
+  expect(newThread?.currentGroupEntry).toBe(true);
+  expect(
+    f.service.status().remoteTasks!.find((t) => t.threadId === oldThread)
+      ?.currentGroupEntry,
+  ).toBe(false);
   expect(f.threads.some((t) => t.id === oldThread)).toBe(true);
   await expect(
     f.service.manage({

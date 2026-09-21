@@ -112,6 +112,12 @@ export function GroupCollaborationPanel({
     heading.current?.focus({ preventScroll: true });
     if (body.current) body.current.scrollTop = 0;
   }, [draft?.step, !!draft, !!discard, pending?.state]);
+  useLayoutEffect(() => {
+    if (conflict)
+      setDraft((previous) =>
+        previous?.confirmation ? { ...previous, confirmation: "" } : previous,
+      );
+  }, [conflict]);
   function navigate(action: () => void) {
     if (draft?.dirty && !pending && !submitting) setDiscard(() => action);
     else action();
@@ -258,7 +264,14 @@ export function GroupCollaborationPanel({
     return (
       value && (
         <p>
-          {value.mode} ·{" "}
+          {t(
+            value.mode === "plan"
+              ? "ImSettingsPanel.message132"
+              : value.mode === "review"
+                ? "ImSettingsPanel.message134"
+                : "ImSettingsPanel.message136",
+          )}{" "}
+          ·{" "}
           {t(
             value.approval === "ask"
               ? "ImSettingsPanel.message144"
@@ -288,7 +301,10 @@ export function GroupCollaborationPanel({
                 ? "writePending"
                 : "executable";
   const task = status.remoteTasks?.find(
-    (task) => !task.parentThreadId && task.group?.spaceId === saved?.id,
+    (task) =>
+      !task.parentThreadId &&
+      task.currentGroupEntry !== false &&
+      task.group?.spaceId === saved?.id,
   );
   return (
     <Dialog
@@ -654,10 +670,12 @@ export function GroupCollaborationPanel({
                     </li>
                   ))}
                 </ol>
-                {draft.target && (
+                {draft.target && draft.step !== 3 && (
                   <p>
-                    <strong>{draft.target.label}</strong> ·{" "}
-                    {draft.target.conversation.connectionId} ·{" "}
+                    <strong>
+                      {draft.target.name ?? draft.target.conversation.id}
+                    </strong>{" "}
+                    · {draft.target.conversation.connectionId} ·{" "}
                     {draft.target.owner?.userId}
                   </p>
                 )}
@@ -804,7 +822,8 @@ export function GroupCollaborationPanel({
                     <dl className="im-group-summary">
                       <dt>{t("GroupAuthorization.group")}</dt>
                       <dd>
-                        {draft.target?.label} · {command.conversation.id}
+                        {draft.target?.name ?? command.conversation.id} ·{" "}
+                        {command.conversation.id}
                       </dd>
                       <dt>{t("GroupAuthorization.identity")}</dt>
                       <dd>

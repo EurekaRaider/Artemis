@@ -417,6 +417,8 @@ export interface ImStatus {
   remoteTasks?: Array<{
     threadId: string;
     parentThreadId?: string;
+    /** Whether this is the current native group entry, excluding retained history. */
+    currentGroupEntry?: boolean;
     permissionBlock?: string;
     delegationWaits?: Array<{
       id: string;
