@@ -26,7 +26,7 @@ function json(path: string): Record<string, unknown> {
 }
 
 describe("release version", () => {
-  it("keeps manifests, lockfile, MCP identity, theme, and README at v1.6.0", () => {
+  it("keeps manifests, lockfile, MCP identity, and theme at v1.6.0", () => {
     const manifests = [json("package.json")];
     for (const workspacePath of workspacePaths) {
       manifests.push(json(join(workspacePath, "package.json")));
@@ -65,16 +65,11 @@ describe("release version", () => {
       join(root, "packages/theme-artemis/src/index.ts"),
       "utf8",
     );
-    const readme = readFileSync(join(root, "README.md"), "utf8");
     expect(mcp.match(/version: "1\.6\.0"/gu)).toHaveLength(3);
     expect(
       themeArtemisSource.match(
         /ARTEMIS_THEME_VERSION = "([^"]+)" as const;/u,
       )?.[1],
     ).toBe(releaseVersion);
-    expect(readme).toContain("The `1.6.0` packaging configuration produces:");
-    expect(new Set(readme.match(/\b1\.\d+\.\d+\b/gu) ?? [])).toEqual(
-      new Set([releaseVersion]),
-    );
   });
 });

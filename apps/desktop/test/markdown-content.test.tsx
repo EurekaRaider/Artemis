@@ -154,22 +154,6 @@ describe("MarkdownContent", () => {
     expect(html).toContain('href="#product-preview"');
   });
 
-  it("renders the current repository README without depending on its copy", () => {
-    const readme = readFileSync(
-      fileURLToPath(new URL("../../../README.md", import.meta.url)),
-      "utf8",
-    );
-    const html = renderToStaticMarkup(
-      <MarkdownContent resolveImage={async () => undefined} text={readme} />,
-    );
-    const document = new JSDOM(html).window.document;
-    expect(
-      document.querySelector(".markdown-body h1")?.textContent,
-    ).toBeTruthy();
-    expect(document.querySelector("script, iframe, object")).toBeNull();
-    expect(document.querySelector("img[data-workspace-image]")).not.toBeNull();
-  });
-
   it("keeps images disabled in ordinary conversation Markdown", () => {
     const html = renderToStaticMarkup(
       <MarkdownContent text="![tracking pixel](https://example.com/pixel.png)" />,

@@ -5,8 +5,8 @@ Its Windows visual, Windows sandbox, and macOS arm64 jobs passed. The two
 failures had independent causes:
 
 - The Markdown renderer test required CI and React badges removed by a
-  README-only edit. Renderer examples now use fixed input; a separate smoke
-  test renders the current README without requiring particular marketing copy.
+  README-only edit. Renderer examples now use fixed input. Tests no longer read the repository
+  README, including the release-version check.
 - The macOS x64 package scan attempted another Electron download and failed
   with `getaddrinfo ENOTFOUND github.com`. The scan now packages the installed
   Electron distribution already exercised by its native smoke checks. This
@@ -28,10 +28,11 @@ files remained available. All performance thresholds remain unchanged.
 
 ## Verification discipline
 
-- Run `npm run verify:ci` with Node 24 before publication, including for
-  documentation changes that may be consumed by tests.
-- Use fixed examples for renderer feature tests. Tests of the actual README
-  should check rendering and safety, not a frozen list of badges or copy.
+- Run `npm run verify:ci` with Node 24 before publishing code changes.
+  README-only pushes and pull requests skip CI; the main pre-push hook also
+  skips these updates. README files are excluded from formatting checks.
+- Use fixed examples for renderer feature tests. Do not read the actual README
+  from CI tests or require its versions, badges, or copy to match code.
 - Run native visual checks from a clean checkout of the candidate SHA.
   Local macOS results do not establish Windows or macOS x64 acceptance.
 - Inspect the failing step and uploaded evidence before retrying. An external

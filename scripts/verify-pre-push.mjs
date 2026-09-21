@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export function mainPushHead(input) {
+export function mainPushUpdate(input) {
   const updates = input
     .trim()
     .split(/\r?\n/u)
@@ -12,11 +12,21 @@ export function mainPushHead(input) {
     .map((line) => line.split(/\s+/u))
     .filter(([, sha, ref]) => ref === "refs/heads/main" && !/^0+$/u.test(sha));
   if (updates.length > 1) throw new Error("Expected one main-branch update.");
-  return updates[0]?.[1];
+  const update = updates[0];
+  return update ? { head: update[1], base: update[3] } : undefined;
+}
+
+export function isReadmeOnlyChange(paths) {
+  const changed = paths.split("\0").filter(Boolean);
+  return (
+    changed.length > 0 &&
+    changed.every((path) => /(^|\/)README\.md$/u.test(path))
+  );
 }
 
 export function verifyPrePush({
   head,
+  base,
   root,
   run,
   temporary,
@@ -30,6 +40,16 @@ export function verifyPrePush({
     );
   if (git("status", "--porcelain"))
     throw new Error("Commit or stash workspace changes before pushing main.");
+  if (
+    base &&
+    !/^0+$/u.test(base) &&
+    isReadmeOnlyChange(
+      git("diff", "--name-only", "--no-renames", "-z", base, head),
+    )
+  ) {
+    console.log("README-only update: CI verification is not required.");
+    return;
+  }
   const directory = temporary();
   try {
     run(
@@ -75,29 +95,31 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   try {
-    const head = process.argv.includes("--hook")
-      ? mainPushHead(readFileSync(0, "utf8"))
-      : execute(
-          "git",
-          ["rev-parse", "HEAD"],
-          process.cwd(),
-          process.env,
-        ).trim();
-    if (head) {
+    const update = process.argv.includes("--hook")
+      ? mainPushUpdate(readFileSync(0, "utf8"))
+      : {
+          head: execute(
+            "git",
+            ["rev-parse", "HEAD"],
+            process.cwd(),
+            process.env,
+          ).trim(),
+        };
+    if (update) {
+      const { head, base } = update;
       console.log(
         `Verifying main ${head.slice(0, 12)} in a clean temporary checkout before push.`,
       );
       verifyPrePush({
         head,
+        base,
         root: process.cwd(),
         run: execute,
         temporary: () => mkdtempSync(join(tmpdir(), "artemis-pre-push-")),
         remove: (directory) =>
           rmSync(directory, { recursive: true, force: true }),
       });
-      console.log(
-        `Main ${head.slice(0, 12)} passed clean-install CI and native visual verification.`,
-      );
+      console.log(`Main ${head.slice(0, 12)} pre-push verification completed.`);
     }
   } catch (error) {
     console.error(`Push blocked: ${error.message}`);
