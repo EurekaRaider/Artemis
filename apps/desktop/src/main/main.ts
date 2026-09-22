@@ -16192,7 +16192,7 @@ function createMainWindow(): BrowserWindow {
               (async () => {
                 const wait = (milliseconds) =>
                   new Promise((resolve) => setTimeout(resolve, milliseconds));
-                const openSmokeHistoryThread = async (threadId) => {
+                const openSmokeHistoryThread = async (threadId, readySelector = '.timeline .user-message') => {
                   const selector = '[data-tree-row-id="thread:' + threadId + '"] .thread-select';
                   const deadline = Date.now() + 30_000;
                   let selected = false;
@@ -16205,7 +16205,7 @@ function createMainWindow(): BrowserWindow {
                       }
                     } else if (
                       !document.querySelector('.conversation-history-feedback') &&
-                      document.querySelector('.timeline .user-message')
+                      document.querySelector(readySelector)
                     ) {
                       return;
                     }
@@ -16290,8 +16290,12 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view.startsWith('conversation-timeline-')) {
-                  document.querySelector('.thread-select')?.click();
-                  await wait(900);
+                  await openSmokeHistoryThread(
+                    'artemis-smoke-conversation-thread',
+                    view === 'conversation-timeline-empty'
+                      ? '[data-artemis-component="conversation-empty-state"]'
+                      : '.timeline .user-message',
+                  );
                   const viewport = document.querySelector(
                     '[data-artemis-component="timeline-viewport"]',
                   );

@@ -5,17 +5,18 @@ const main = readFileSync(
   new URL("../src/main/main.ts", import.meta.url),
   "utf8",
 );
-const start = main.indexOf("const openSmokeHistoryThread = async (threadId)");
+const start = main.indexOf("const openSmokeHistoryThread = async (");
 const end = main.indexOf("const clickByText", start);
 const run = new Function(
   "document",
   "wait",
   "HTMLButtonElement",
   "Date",
-  `${main.slice(start, end)} return openSmokeHistoryThread('fixture');`,
+  "readySelector",
+  `${main.slice(start, end)} return openSmokeHistoryThread('fixture', readySelector);`,
 );
 
-function fixture({ missing = false, stuck = false } = {}) {
+function fixture({ missing = false, stuck = false, empty = false } = {}) {
   let now = 0;
   class Button {
     click = vi.fn();
@@ -31,7 +32,12 @@ function fixture({ missing = false, stuck = false } = {}) {
         return stuck || now < 12_000
           ? { textContent: "Loading history" }
           : null;
-      if (selector === ".timeline .user-message")
+      if (
+        selector ===
+        (empty
+          ? '[data-artemis-component="conversation-empty-state"]'
+          : ".timeline .user-message")
+      )
         return button.click.mock.calls.length > 0 && now >= 12_000 ? {} : null;
       return null;
     }),
@@ -48,6 +54,9 @@ function fixture({ missing = false, stuck = false } = {}) {
         },
         Button,
         { now: () => now },
+        empty
+          ? '[data-artemis-component="conversation-empty-state"]'
+          : undefined,
       ),
   };
 }
@@ -73,4 +82,11 @@ it("does not substitute an unrelated task when the fixture is absent", async () 
   const test = fixture({ missing: true });
   await expect(test.run()).rejects.toThrow("selected=false");
   expect(test.unrelated.click).not.toHaveBeenCalled();
+});
+
+it("waits for the empty conversation state without requiring a user message", async () => {
+  const test = fixture({ empty: true });
+  await test.run();
+  expect(test.elapsed()).toBe(12_000);
+  expect(test.button.click).toHaveBeenCalledOnce();
 });
