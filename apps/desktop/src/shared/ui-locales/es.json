@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "Grupo disuelto",
   "ImThreadConnection.archivedBadge": "Grupo archivado",
   "ImThreadConnection.dissolvedDetail": "El grupo se ha disuelto. La conversación no está disponible; el historial sigue accesible.",
-  "ImThreadConnection.archivedDetail": "El grupo se ha archivado. La conversación no está disponible; el historial sigue accesible."
+  "ImThreadConnection.archivedDetail": "El grupo se ha archivado. La conversación no está disponible; el historial sigue accesible.",
+  "ImPresence.available": "Disponible",
+  "ImPresence.executing": "Ejecutando",
+  "ImPresence.waiting": "Pendiente de aprobación",
+  "ImPresence.disconnected": "Conexión perdida",
+  "ImPresence.local": "Artemis local",
+  "ImPresence.peer": "Artemis remoto",
+  "ImPresence.task": "Tarea colaborativa",
+  "ImPresence.platform": "Actividad de IM",
+  "ImPresence.updated": "Actualizado {{time}}",
+  "ImPresence.limited": "Límite de solicitudes; se reintentará",
+  "ImPresence.unknown": "Sin soporte, desconectado o caducado; estado desconocido"
 }

@@ -834,3 +834,71 @@ it("keeps membership authoritative when profiles fail and removes departed cache
   expect(roster.members.map((m) => m.identity.userId)).toEqual(ids);
   expect(roster).toMatchObject({ complete: true, error: "missing-scope" });
 });
+
+it("refreshes presence independently after 20 seconds and coalesces concurrent queries", async () => {
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now);
+  let value = "active";
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async () =>
+      Response.json({ ok: true, presence: value }),
+    );
+  const adapter = new SlackAdapter(config, () => {});
+  const members = [
+    {
+      identity: {
+        channel: "slack" as const,
+        connectionId: "slack",
+        tenantId: "T1",
+        appId: "A1",
+        userId: "U1",
+      },
+      name: "Person",
+      kind: "human" as const,
+    },
+  ];
+  await Promise.all([
+    adapter.groupPresence(members),
+    adapter.groupPresence(members),
+  ]);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  value = "away";
+  vi.mocked(Date.now).mockReturnValue(now + 20001);
+  expect((await adapter.groupPresence(members))[0]?.presence).toBe("away");
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(
+    fetch.mock.calls.every((call) =>
+      String(call[0]).includes("users.getPresence"),
+    ),
+  ).toBe(true);
+});
+it("bounds presence requests and eventually services members beyond the first batch", async () => {
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now);
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async () =>
+      Response.json({ ok: true, presence: "active" }),
+    );
+  const adapter = new SlackAdapter(config, () => {});
+  const members = Array.from({ length: 60 }, (_, n) => ({
+    identity: {
+      channel: "slack" as const,
+      connectionId: "slack",
+      tenantId: "T1",
+      appId: "A1",
+      userId: `U${n}`,
+    },
+    name: `Person ${n}`,
+    kind: "human" as const,
+  }));
+  await adapter.groupPresence(members);
+  expect(fetch).toHaveBeenCalledTimes(45);
+  vi.mocked(Date.now).mockReturnValue(now + 61000);
+  const updated = await adapter.groupPresence(members);
+  expect(updated.find((m) => m.identity.userId === "U59")?.presence).toBe(
+    "active",
+  );
+  expect(fetch).toHaveBeenCalledTimes(90);
+});

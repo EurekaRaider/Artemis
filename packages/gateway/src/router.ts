@@ -719,6 +719,8 @@ export class GatewayRouter {
         "hello",
         "probe",
         "proof",
+        "presence-query",
+        "presence",
         "delegate",
         "continue",
         "cancel",

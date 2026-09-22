@@ -299,6 +299,13 @@ export interface ImDevicePresence {
   mobile: boolean;
   desktop: boolean;
 }
+export const imBotPresenceSchema = z.object({
+  state: z.enum(["online", "busy", "waiting-approval", "offline", "unknown"]),
+  source: z.enum(["local", "peer", "task"]),
+  checkedAt: z.number().nonnegative(),
+  expiresAt: z.number().nonnegative(),
+});
+export type ImBotPresence = z.infer<typeof imBotPresenceSchema>;
 export const imGroupRosterSchema = z.object({
   members: z
     .array(
@@ -309,6 +316,10 @@ export const imGroupRosterSchema = z.object({
         self: z.boolean().optional(),
         presence: z.enum(["active", "away", "unknown"]).optional(),
         presenceCheckedAt: z.number().nonnegative().optional(),
+        presenceError: z
+          .enum(["missing-scope", "rate-limited", "unavailable"])
+          .optional(),
+        botPresence: imBotPresenceSchema.optional(),
         canAssign: z.boolean().optional(),
         verifiedAt: z.number().nonnegative().optional(),
         verificationPendingUntil: z.number().nonnegative().optional(),

@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "Gruppe aufgelöst",
   "ImThreadConnection.archivedBadge": "Gruppe archiviert",
   "ImThreadConnection.dissolvedDetail": "Diese Gruppe wurde aufgelöst. Die Unterhaltung ist nicht verfügbar; der Verlauf bleibt lesbar.",
-  "ImThreadConnection.archivedDetail": "Diese Gruppe wurde archiviert. Die Unterhaltung ist nicht verfügbar; der Verlauf bleibt lesbar."
+  "ImThreadConnection.archivedDetail": "Diese Gruppe wurde archiviert. Die Unterhaltung ist nicht verfügbar; der Verlauf bleibt lesbar.",
+  "ImPresence.available": "Verfügbar",
+  "ImPresence.executing": "Wird ausgeführt",
+  "ImPresence.waiting": "Freigabe ausstehend",
+  "ImPresence.disconnected": "Verbindung verloren",
+  "ImPresence.local": "Lokales Artemis",
+  "ImPresence.peer": "Entferntes Artemis",
+  "ImPresence.task": "Gemeinsame Aufgabe",
+  "ImPresence.platform": "IM-Aktivität",
+  "ImPresence.updated": "Aktualisiert {{time}}",
+  "ImPresence.limited": "Anfragelimit erreicht; späterer Versuch",
+  "ImPresence.unknown": "Nicht unterstützt, getrennt oder abgelaufen; Status unbekannt"
 }

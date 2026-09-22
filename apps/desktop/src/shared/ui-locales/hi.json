@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "समूह भंग हो गया",
   "ImThreadConnection.archivedBadge": "समूह संग्रहित है",
   "ImThreadConnection.dissolvedDetail": "समूह भंग हो गया है। बातचीत उपलब्ध नहीं है; पुराने संदेश पढ़े जा सकते हैं।",
-  "ImThreadConnection.archivedDetail": "समूह संग्रहित है। बातचीत उपलब्ध नहीं है; पुराने संदेश पढ़े जा सकते हैं।"
+  "ImThreadConnection.archivedDetail": "समूह संग्रहित है। बातचीत उपलब्ध नहीं है; पुराने संदेश पढ़े जा सकते हैं।",
+  "ImPresence.available": "उपलब्ध",
+  "ImPresence.executing": "निष्पादन जारी",
+  "ImPresence.waiting": "अनुमोदन की प्रतीक्षा",
+  "ImPresence.disconnected": "कनेक्शन टूट गया",
+  "ImPresence.local": "स्थानीय Artemis",
+  "ImPresence.peer": "दूरस्थ Artemis",
+  "ImPresence.task": "सहयोग कार्य",
+  "ImPresence.platform": "IM गतिविधि",
+  "ImPresence.updated": "अपडेट {{time}}",
+  "ImPresence.limited": "अनुरोध सीमा; बाद में पुनः प्रयास",
+  "ImPresence.unknown": "असमर्थित, डिस्कनेक्ट या पुराना; स्थिति अज्ञात"
 }

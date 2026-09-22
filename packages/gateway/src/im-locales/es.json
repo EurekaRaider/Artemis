@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "La tarea pertenece a otra identidad o conversación.",
   "continueExplicit": "En tu propio chat directo, usa /continue <ID de tarea> para seleccionar expresamente una tarea del escritorio.",
   "selfTasksOnly": "Solo puedes consultar o detener tus propias tareas en esta conversación.",
-  "attachmentSizeLimit": "Los adjuntos superan el límite de tamaño."
+  "attachmentSizeLimit": "Los adjuntos superan el límite de tamaño.",
+  "nativePresence": "Disponibilidad de Artemis"
 }

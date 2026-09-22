@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "A tarefa pertence a outra identidade ou conversa.",
   "continueExplicit": "Na sua própria conversa direta, use /continue <ID da tarefa> para selecionar explicitamente uma tarefa do desktop.",
   "selfTasksOnly": "Você só pode consultar ou parar suas próprias tarefas nesta conversa.",
-  "attachmentSizeLimit": "Os anexos excedem o limite de tamanho."
+  "attachmentSizeLimit": "Os anexos excedem o limite de tamanho.",
+  "nativePresence": "Disponibilidade do Artemis"
 }

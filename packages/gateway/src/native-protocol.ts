@@ -23,6 +23,8 @@ export const nativeEnvelopeSchema = z
       "hello",
       "probe",
       "proof",
+      "presence-query",
+      "presence",
       "delegate",
       "continue",
       "accepted",
@@ -34,6 +36,13 @@ export const nativeEnvelopeSchema = z
       "cancel",
       "cancelled",
     ]),
+    activity: z
+      .object({
+        state: z.enum(["online", "busy", "waiting-approval", "unknown"]),
+        session: z.string().min(1).max(256),
+      })
+      .strict()
+      .optional(),
     replyTo: z.string().uuid().optional(),
     previousTask: z.string().uuid().optional(),
     newTask: z.literal(true).optional(),
@@ -58,6 +67,12 @@ export const nativeEnvelopeSchema = z
     text: z.string().max(8000),
   })
   .strict()
+  .refine(
+    (frame) =>
+      (frame.action === "presence") === !!frame.activity &&
+      (frame.action !== "presence" || !!frame.replyTo),
+    { message: "Presence requires activity and a correlated request." },
+  )
   .refine(
     (frame) => {
       const linked = !!frame.parentTask;

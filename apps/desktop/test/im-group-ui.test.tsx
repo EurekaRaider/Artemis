@@ -291,6 +291,12 @@ it("shows all four native members with robot icons only for bots", async () => {
         name: "Artemis",
         kind: "bot",
         self: true,
+        botPresence: {
+          state: "online",
+          source: "local",
+          checkedAt: Date.now(),
+          expiresAt: Date.now() + 5000,
+        },
       },
       { identity: identity("b2", "slack"), name: "Solar", kind: "bot" },
     ],
@@ -320,7 +326,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   expect(bots[1]).toHaveAttribute("data-state", "unknown");
   expect(screen.queryByText("在线")).not.toBeInTheDocument();
   await userEvent.hover(bots[0]!);
-  expect(await screen.findByRole("tooltip")).toHaveTextContent("在线");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("可用");
   await userEvent.unhover(bots[0]!);
   await userEvent.hover(bots[1]!);
   expect(await screen.findByRole("tooltip")).toHaveTextContent("状态未知");
@@ -425,7 +431,22 @@ it("shows all four native members with robot icons only for bots", async () => {
       group={{
         ...group,
         native: true,
-        roster,
+        roster: {
+          ...roster,
+          members: roster.members.map((member) => ({
+            ...member,
+            ...(member.self
+              ? {
+                  botPresence: {
+                    state: "offline" as const,
+                    source: "local" as const,
+                    checkedAt: Date.now(),
+                    expiresAt: Date.now() + 5000,
+                  },
+                }
+              : {}),
+          })),
+        },
         members: group.members.map((m) => ({ ...m, state: "offline" })),
       }}
       locale="zh-CN"
@@ -567,43 +588,47 @@ it("retries bot verification from its icon and releases the wait after timeout",
   expect(screen.getByRole("alert")).toHaveTextContent("Gateway unavailable");
 });
 
-it("shows successful verification and removes the retry action", async () => {
-  vi.useFakeTimers();
-  const manage = vi.fn(async () => ({
-    peers: [{ id: "solar", verifiedAt: Date.now() }],
-  }));
-  stubWindowArtemis({ manageIm: manage });
-  render(
-    <ImGroupMembers
-      managePermissions
-      locale="zh-CN"
-      group={{
-        ...group,
-        native: true,
-        roster: {
-          complete: true,
-          members: [
-            {
-              identity: identity("solar", "slack"),
-              name: "Solar",
-              kind: "bot",
-              verificationPendingUntil: Date.now() + 30000,
-            },
-          ],
-        },
-      }}
-    />,
-  );
-  expect(screen.getByText("验证中")).toBeInTheDocument();
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(2000);
-  });
-  expect(screen.getByText("已验证")).toBeInTheDocument();
-  fireEvent.contextMenu(screen.getByText("Solar"));
-  expect(
-    screen.queryByRole("button", { name: "重新验证" }),
-  ).not.toBeInTheDocument();
-});
+it.each(["slack", "feishu"] as const)(
+  "hides successful %s verification and removes the retry action",
+  async (channel) => {
+    vi.useFakeTimers();
+    const manage = vi.fn(async () => ({
+      peers: [{ id: "solar", verifiedAt: Date.now() }],
+    }));
+    stubWindowArtemis({ manageIm: manage });
+    render(
+      <ImGroupMembers
+        managePermissions
+        locale="zh-CN"
+        group={{
+          ...group,
+          native: true,
+          roster: {
+            complete: true,
+            members: [
+              {
+                identity: identity("solar", channel),
+                name: "Solar",
+                kind: "bot",
+                verificationPendingUntil: Date.now() + 30000,
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "验证中" })).toBeDisabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(screen.queryByText(/^(通信)?已验证$/)).not.toBeInTheDocument();
+    expect(screen.queryByText("通信待验证")).not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByText("Solar"));
+    expect(
+      screen.queryByRole("button", { name: "重新验证" }),
+    ).not.toBeInTheDocument();
+  },
+);
 
 it("keeps task member lists read-only without a permission settings entry", () => {
   stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
@@ -713,7 +738,14 @@ it("offers Feishu/Lark bot permission and communication retry in the task member
       }}
     />,
   );
-  expect(screen.getByText("通信待验证")).toBeInTheDocument();
+  const pending = screen.getByText("通信待验证");
+  fireEvent.mouseEnter(pending);
+  expect(screen.getByRole("tooltip")).toHaveTextContent("通信待验证");
+  fireEvent.mouseLeave(pending);
+  fireEvent.focus(pending);
+  expect(screen.getByRole("tooltip")).toHaveTextContent("通信待验证");
+  fireEvent.blur(pending);
+
   expect(screen.getByText("未授权协作")).toBeInTheDocument();
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: "允许 Mino 派工" }));
@@ -724,7 +756,8 @@ it("offers Feishu/Lark bot permission and communication retry in the task member
     identity: identity("mino", "feishu"),
     allowed: true,
   });
-  expect(screen.getByText("已授权协作")).toBeInTheDocument();
+  expect(screen.queryByText("已授权协作")).not.toBeInTheDocument();
+  expect(screen.queryByText("未授权协作")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "重新验证" })).toBeEnabled();
 });
 
@@ -754,7 +787,10 @@ it.each(["feishu", "slack"] as const)(
       />,
     );
     if (channel === "feishu") {
-      expect(screen.getByText("通信验证超时")).toBeInTheDocument();
+      const timeout = screen.getByText("通信验证超时");
+      fireEvent.mouseEnter(timeout);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("通信验证超时");
+      fireEvent.mouseLeave(timeout);
       expect(screen.getByRole("button", { name: "重新验证" })).toBeEnabled();
       expect(
         screen.getByRole("button", { name: "允许 Peer 派工" }),
@@ -770,3 +806,74 @@ it.each(["feishu", "slack"] as const)(
     }
   },
 );
+
+it("expires a peer's busy indicator without requiring a new snapshot", async () => {
+  vi.useFakeTimers();
+  stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
+  render(
+    <ImGroupMembers
+      locale="zh-CN"
+      group={{
+        ...group,
+        native: true,
+        roster: {
+          complete: true,
+          members: [
+            {
+              identity: identity("peer", "feishu"),
+              name: "Peer",
+              kind: "bot",
+              botPresence: {
+                state: "busy",
+                source: "peer",
+                checkedAt: Date.now(),
+                expiresAt: Date.now() + 1000,
+              },
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole("img", { name: "机器人" })).toHaveAttribute(
+    "data-state",
+    "busy",
+  );
+  await act(() => vi.advanceTimersByTimeAsync(2000));
+  expect(screen.getByRole("img", { name: "机器人" })).toHaveAttribute(
+    "data-state",
+    "unknown",
+  );
+});
+
+it("accepts a fresh snapshot arriving between expiry timer ticks", () => {
+  vi.useFakeTimers();
+  stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
+  const snapshot = () => ({
+    ...group,
+    native: true,
+    roster: {
+      complete: true,
+      members: [
+        {
+          identity: identity("peer", "feishu"),
+          name: "Peer",
+          kind: "bot" as const,
+          botPresence: {
+            state: "busy" as const,
+            source: "peer" as const,
+            checkedAt: Date.now(),
+            expiresAt: Date.now() + 45000,
+          },
+        },
+      ],
+    },
+  });
+  const view = render(<ImGroupMembers locale="zh-CN" group={snapshot()} />);
+  vi.setSystemTime(Date.now() + 100);
+  view.rerender(<ImGroupMembers locale="zh-CN" group={snapshot()} />);
+  expect(screen.getByRole("img", { name: "机器人" })).toHaveAttribute(
+    "data-state",
+    "busy",
+  );
+});

@@ -47,7 +47,11 @@ import {
   type AuthorizationTarget,
 } from "./im-authorization-draft";
 import "./group-collaboration.css";
-import { imGroupMemberStatus } from "./im-group-member-status";
+import {
+  imGroupMemberStatus,
+  imMemberLabel,
+  imMemberTooltip,
+} from "./im-group-member-status";
 
 type GroupChoice = ReturnType<typeof imNativeGroupChoices>[number];
 function GroupLogo({ group }: { group: GroupChoice }) {
@@ -104,7 +108,7 @@ export function GroupCollaborationPanel({
   const [draft, setDraft] = useState<AuthorizationDraft>();
   const [presenceNow, setPresenceNow] = useState(Date.now);
   useEffect(() => {
-    const timer = window.setInterval(() => setPresenceNow(Date.now()), 30000);
+    const timer = window.setInterval(() => setPresenceNow(Date.now()), 2000);
     return () => window.clearInterval(timer);
   }, []);
   const [refreshingMembers, setRefreshingMembers] = useState(false);
@@ -452,18 +456,11 @@ export function GroupCollaborationPanel({
                   </span>
                   <span
                     className="im-group-member-status"
+                    title={imMemberTooltip(member, presence, locale)}
                     data-state={presence}
                   >
                     <span className="im-group-member-dot" aria-hidden="true" />
-                    {t(
-                      presence === "online"
-                        ? "ImGroupMembers.message9"
-                        : presence === "busy"
-                          ? "GroupAuthorization.memberBusy"
-                          : presence === "offline"
-                            ? "ImGroupMembers.message8"
-                            : "ImGroupMembers.message6",
-                    )}
+                    {imMemberLabel(presence, locale)}
                   </span>
                 </li>
               );

@@ -63,6 +63,7 @@ import {
   assertImGatewayUrl,
   imConversationKey,
   imGroupContextSchema,
+  imGroupRosterSchema,
   imRetiredGroupSchema,
   imGroupMentionTargets,
   resolveImGroupMentions,
@@ -1244,12 +1245,27 @@ export class ImService {
           members: [],
         };
   }
+  private localActivity(): "online" | "busy" | "waiting-approval" {
+    const threads = this.ops.threads();
+    if (threads.some((t) => t.status === "running")) return "busy";
+    if (threads.some((t) => t.status === "waiting-approval"))
+      return "waiting-approval";
+    return "online";
+  }
   private displaySpaces() {
     const schema = z
       .object({
         id: z.string(),
         name: z.string(),
         participants: imGroupContextSchema.shape.members,
+        endpoints: z
+          .array(z.object({ connectionId: z.string() }).passthrough())
+          .optional(),
+        nativeGroup: z
+          .object({ ownerDeviceId: z.string() })
+          .passthrough()
+          .optional(),
+        roster: imGroupRosterSchema.optional(),
       })
       .passthrough();
     return this.spaces.flatMap((value) => {
@@ -1258,6 +1274,67 @@ export class ImService {
       return [
         {
           ...parsed.data,
+          ...(parsed.data.roster
+            ? (() => {
+                const roster = imGroupRosterSchema.safeParse(
+                  parsed.data.roster,
+                );
+                if (!roster.success) return {};
+                const connectionId = parsed.data.endpoints?.[0]?.connectionId;
+                const connection = this.channelStatus.find(
+                  (c) =>
+                    !!c &&
+                    typeof c === "object" &&
+                    "id" in c &&
+                    c.id === connectionId,
+                ) as { state?: string } | undefined;
+                const connected =
+                  this.config.enabled &&
+                  this.state === "connected" &&
+                  this.leaseUntil > Date.now() &&
+                  connection?.state === "connected";
+                return {
+                  roster: {
+                    ...roster.data,
+                    members: roster.data.members.map((member) => ({
+                      ...member,
+                      ...(member.kind === "bot" &&
+                      member.self &&
+                      parsed.data.nativeGroup?.ownerDeviceId ===
+                        this.config.deviceId
+                        ? {
+                            botPresence: {
+                              state: connected
+                                ? this.localActivity()
+                                : "unknown",
+                              source: "local" as const,
+                              checkedAt: Date.now(),
+                              expiresAt: Date.now() + 5000,
+                            },
+                          }
+                        : {}),
+                      ...(!connected
+                        ? {
+                            presence: "unknown" as const,
+                            botPresence:
+                              member.kind === "bot"
+                                ? {
+                                    state: "unknown" as const,
+                                    source: member.self
+                                      ? ("local" as const)
+                                      : ("peer" as const),
+                                    checkedAt:
+                                      member.botPresence?.checkedAt ?? 0,
+                                    expiresAt: 0,
+                                  }
+                                : undefined,
+                          }
+                        : {}),
+                    })),
+                  },
+                };
+              })()
+            : {}),
           participants: parsed.data.participants.map((member) => {
             const legacyLabels = this.get<{ name: string; deviceName: string }>(
               "member-labels",
@@ -2144,6 +2221,9 @@ export class ImService {
         "X-Artemis-Security-Version": String(IM_SECURITY_VERSION),
         "X-Artemis-Session": this.sessionId,
         "X-Artemis-Locale": this.ops.locale?.() ?? "zh-CN",
+        ...(path === "/v1/device/status"
+          ? { "X-Artemis-Activity": this.localActivity() }
+          : {}),
         "Content-Type": "application/json",
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

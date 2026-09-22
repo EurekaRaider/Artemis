@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "The task belongs to another identity or conversation.",
   "continueExplicit": "In your own direct chat, use /continue <task ID> to explicitly select a desktop task.",
   "selfTasksOnly": "You can only query or stop your own tasks in this conversation.",
-  "attachmentSizeLimit": "The attachments exceed the size limit."
+  "attachmentSizeLimit": "The attachments exceed the size limit.",
+  "nativePresence": "Artemis availability"
 }

@@ -131,7 +131,13 @@ export interface ChannelAdapter {
     key: string,
     authorize: () => void,
   ): Promise<string | undefined>;
-  groupMembers?(conversation: ImConversation): Promise<ImGroupRoster>;
+  groupMembers?(
+    conversation: ImConversation,
+    includePresence?: boolean,
+  ): Promise<ImGroupRoster>;
+  groupPresence?(
+    members: ImGroupRoster["members"],
+  ): Promise<ImGroupRoster["members"]>;
   groupInfo?(conversation: ImConversation): Promise<{
     name?: string;
     nameError?: "missing-scope";

@@ -797,12 +797,20 @@ it("refreshes native names without changing authorization and disables only on p
   expect(f.gateway.store.get("native-groups", group.id)).toMatchObject({
     nativeGroup: { enabled: true },
   });
+  await vi.waitFor(async () => {
+    await f.gateway.tick();
+    expect(f.gateway.store.get("native-group-info", group.id)).toBeDefined();
+    expect(info).toHaveBeenCalledTimes(2);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   info.mockResolvedValueOnce({ unavailable: "removed" });
   f.gateway.store.delete("native-group-info", group.id);
   await f.gateway.tick();
-  expect(f.gateway.store.get("native-groups", group.id)).toMatchObject({
-    nativeGroup: { enabled: false },
-  });
+  await vi.waitFor(() =>
+    expect(f.gateway.store.get("native-groups", group.id)).toMatchObject({
+      nativeGroup: { enabled: false },
+    }),
+  );
   expect(
     f.gateway.store.get<{ revision: string }>("native-groups", group.id)
       ?.revision,
@@ -1430,3 +1438,35 @@ it.each(["removed", "dissolved"] as const)(
     expect(f.gateway.store.get("native-groups", group.id)).toEqual(disabled);
   },
 );
+
+it("delivers messages while an independent metadata request is stalled", async () => {
+  let finish!: (value: { name: string }) => void;
+  const info = vi.fn(
+    () =>
+      new Promise<{ name: string }>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const f = await fixture(false, info);
+  f.gateway.store.put("native-groups", "slow", {
+    id: "slow",
+    name: "Slow",
+    revision: "grant",
+    participants: [],
+    endpoints: [{ connectionId: "wecom", id: "slow", kind: "group" }],
+    nativeGroup: { version: 1, enabled: true, ownerDeviceId: f.device.id },
+  });
+  f.gateway.store.enqueue("outgoing", "independent", "wecom", {
+    conversation: { connectionId: "wecom", id: "direct", kind: "direct" },
+    text: "not blocked",
+  });
+  try {
+    await f.gateway.tick();
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(f.sent).toContain("not blocked");
+    await f.gateway.tick();
+    expect(info).toHaveBeenCalledTimes(1);
+  } finally {
+    finish({ name: "Slow" });
+  }
+});

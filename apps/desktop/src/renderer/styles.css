@@ -12935,7 +12935,9 @@ kbd {
 .im-member-kind[data-state="unknown"] {
   color: var(--muted-2);
 }
-.im-member-kind[data-state="away"] {
+.im-member-kind[data-state="away"],
+.im-member-kind[data-state="busy"],
+.im-member-kind[data-state="waiting-approval"] {
   color: var(--custom-agent-yellow);
 }
 .im-member-device,
@@ -13182,6 +13184,17 @@ kbd {
 }
 .im-native-members .im-member-heading {
   line-height: 20px;
+}
+.im-native-members
+  .im-member-heading
+  > [data-artemis-component="tooltip-anchor"]:has(.im-member-device) {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.im-native-members .im-member-device {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .im-member-action[data-artemis-component="icon-button"] {
   flex: none;

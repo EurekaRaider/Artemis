@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "Die Aufgabe gehört zu einer anderen Identität oder Unterhaltung.",
   "continueExplicit": "Wählen Sie in Ihrem eigenen Direktchat mit /continue <Aufgaben-ID> ausdrücklich eine Desktop-Aufgabe aus.",
   "selfTasksOnly": "Sie können nur Ihre eigenen Aufgaben in dieser Unterhaltung abfragen oder stoppen.",
-  "attachmentSizeLimit": "Die Anhänge überschreiten die Größenbegrenzung."
+  "attachmentSizeLimit": "Die Anhänge überschreiten die Größenbegrenzung.",
+  "nativePresence": "Artemis-Verfügbarkeit"
 }

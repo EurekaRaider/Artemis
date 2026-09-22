@@ -79,7 +79,7 @@ it("does not infer a person's presence from their online desktop or the bot's ru
       "group",
       now,
     ),
-  ).toBe("online");
+  ).toBe("active");
   expect(
     imGroupMemberStatus(
       { ...human, presence: "away", presenceCheckedAt: now },
@@ -87,7 +87,7 @@ it("does not infer a person's presence from their online desktop or the bot's ru
       "group",
       now,
     ),
-  ).toBe("unknown");
+  ).toBe("away");
   expect(
     imGroupMemberStatus(
       { ...human, presence: "active", presenceCheckedAt: now - 120000 },
@@ -126,4 +126,29 @@ it("does not let retained history mark a current bot busy", () => {
     running: true,
   });
   expect(imGroupMemberStatus(bot, status, "group", now)).toBe("online");
+});
+
+it("expires peer evidence and never treats a Slack bot green dot as availability", () => {
+  const status = fixture();
+  const peer = {
+    ...bot,
+    self: false,
+    presence: "active" as const,
+    presenceCheckedAt: now,
+  };
+  expect(imGroupMemberStatus(peer, status, "group", now)).toBe("unknown");
+  const live = {
+    ...peer,
+    botPresence: {
+      state: "busy" as const,
+      source: "peer" as const,
+      checkedAt: now,
+      expiresAt: now + 45000,
+    },
+  };
+  expect(imGroupMemberStatus(live, status, "group", now)).toBe("busy");
+  expect(imGroupMemberStatus(live, status, "group", now + 45000)).toBe(
+    "unknown",
+  );
+  expect(imGroupMemberStatus(live, status, "group", now - 1)).toBe("unknown");
 });

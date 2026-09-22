@@ -10,6 +10,8 @@ const labels: Record<NativeEnvelope["action"], ImMessageKey> = {
   hello: "nativeHello",
   probe: "nativeProbe",
   proof: "nativeProof",
+  "presence-query": "nativePresence",
+  presence: "nativePresence",
   delegate: "nativeDelegate",
   continue: "nativeContinue",
   accepted: "accepted",

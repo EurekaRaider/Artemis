@@ -7,6 +7,7 @@ import type {
   CollaborationSpace,
   ImReply,
   ImGroupRoster,
+  ImBotPresence,
   RemoteInvocationContext,
 } from "@artemis/protocol";
 import { GatewayStore, digest } from "./store.js";
@@ -23,8 +24,10 @@ type Peer = {
   name: string;
   verifiedAt?: number;
   localizedMessages?: boolean;
+  presenceProtocol?: boolean;
 };
 const LOCALE_CAPABILITY = "Artemis locale/1";
+const PRESENCE_CAPABILITY = "Artemis presence/1";
 export type NativeTask = {
   // Local persisted metadata; v1 wire compatibility uses continue/previousTask.
   sessionId?: string;
@@ -76,6 +79,199 @@ const objective = (text: string) =>
 const terminal = (state: NativeTask["state"]) =>
   ["completed", "failed", "cancelled", "rejected"].includes(state);
 export class NativeCooperation {
+  private readonly presenceSession = randomUUID();
+  private readonly localActivity = new Map<
+    string,
+    {
+      state: "online" | "busy" | "waiting-approval";
+      session: string;
+      checkedAt: number;
+    }
+  >();
+  private readonly answeredPresence = new Map<
+    string,
+    { id: string; expiresAt: number }
+  >();
+  recordActivity(
+    deviceId: string,
+    state: "online" | "busy" | "waiting-approval",
+    session: string,
+  ): void {
+    this.localActivity.set(deviceId, { state, session, checkedAt: this.now() });
+  }
+  private presenceSequence = 0;
+  private readonly presenceSendAt = new Map<string, number>();
+  // Ephemeral evidence must not survive a Gateway restart.
+  private readonly presenceRequests = new Map<
+    string,
+    { id: string; sentAt: number; nextAt: number }
+  >();
+  private readonly peerPresence = new Map<
+    string,
+    ImBotPresence & { session: string; sequence: number }
+  >();
+  private readonly renegotiatedPresence = new Set<string>();
+
+  memberPresence(groupId: string, peerId: string): ImBotPresence {
+    const key = JSON.stringify([groupId, peerId]);
+    const evidence = this.peerPresence.get(key);
+    const group = this.store.get<CollaborationSpace>("native-groups", groupId);
+    const authorized =
+      group?.nativeGroup?.enabled && this.allowed(group, peerId);
+    if (authorized && evidence && evidence.expiresAt > this.now())
+      return evidence;
+    // Older peers can prove activity on an individual task, never idle availability.
+    const running =
+      authorized &&
+      this.tasks(groupId).find(
+        (t) =>
+          t.peer === peerId &&
+          t.direction === "outgoing" &&
+          ["accepted", "running"].includes(t.state) &&
+          t.heartbeatAt !== undefined &&
+          t.heartbeatAt <= this.now() &&
+          this.now() - t.heartbeatAt < 90000,
+      );
+    if (running && (!evidence || running.heartbeatAt! > evidence.checkedAt))
+      return {
+        state: "busy",
+        source: "task",
+        checkedAt: running.heartbeatAt!,
+        expiresAt: running.heartbeatAt! + 90000,
+      };
+    return {
+      state: "unknown",
+      source: "peer",
+      checkedAt: evidence?.checkedAt ?? 0,
+      expiresAt: evidence?.expiresAt ?? 0,
+    };
+  }
+
+  private refreshPresence(): void {
+    for (const [key, value] of this.answeredPresence)
+      if (value.expiresAt <= this.now()) this.answeredPresence.delete(key);
+    for (const [key, value] of this.localActivity)
+      if (this.now() - value.checkedAt >= 15000) this.localActivity.delete(key);
+    const candidates: Array<{
+      group: CollaborationSpace;
+      peer: Peer;
+      key: string;
+    }> = [];
+    const valid = new Set<string>();
+    for (const group of this.store.list<CollaborationSpace>("native-groups")) {
+      if (
+        !group.nativeGroup?.enabled ||
+        !this.router.findSpace(group.endpoints[0]!)
+      )
+        continue;
+      for (const peer of this.peers(group.id)) {
+        const key = JSON.stringify([group.id, peer.id]);
+        if (!this.allowed(group, peer.id)) continue;
+        valid.add(key);
+        if (
+          peer.presenceProtocol === undefined &&
+          !this.renegotiatedPresence.has(key)
+        ) {
+          this.renegotiatedPresence.add(key);
+          this.probe(group.id, peer.id);
+        }
+        if (
+          !peer.presenceProtocol ||
+          (this.presenceRequests.get(key)?.nextAt ?? 0) > this.now()
+        )
+          continue;
+        candidates.push({ group, peer, key });
+      }
+    }
+    candidates.sort(
+      (a, b) =>
+        (this.presenceRequests.get(a.key)?.sentAt ?? 0) -
+        (this.presenceRequests.get(b.key)?.sentAt ?? 0),
+    );
+    for (const { group, peer, key } of candidates) {
+      const connectionId = group.endpoints[0]!.connectionId;
+      if ((this.presenceSendAt.get(connectionId) ?? 0) > this.now()) continue;
+      const request = this.frame(group, peer.id, "presence-query");
+      request.expiresAt = this.now() + 10000;
+      this.presenceRequests.set(key, {
+        id: request.id,
+        sentAt: this.now(),
+        nextAt: this.now() + 30000,
+      });
+      this.presenceSendAt.set(connectionId, this.now() + 2000);
+      this.send(group, request);
+    }
+    for (const key of this.peerPresence.keys())
+      if (!valid.has(key)) this.peerPresence.delete(key);
+    for (const key of this.presenceRequests.keys())
+      if (!valid.has(key)) this.presenceRequests.delete(key);
+  }
+
+  private receivePresence(
+    group: CollaborationSpace,
+    envelope: NativeEnvelope,
+  ): boolean {
+    if (
+      !this.allowed(group, envelope.sender) ||
+      envelope.recipient !== this.address(group).sender ||
+      envelope.expiresAt <= this.now() ||
+      envelope.expiresAt <= envelope.issuedAt ||
+      envelope.expiresAt - envelope.issuedAt > 10000
+    )
+      return false;
+    if (envelope.action === "presence-query") {
+      const key = JSON.stringify([group.id, envelope.sender]);
+      const answered = this.answeredPresence.get(key);
+      if (answered && answered.expiresAt > this.now())
+        return answered.id === envelope.id;
+      this.answeredPresence.set(key, {
+        id: envelope.id,
+        expiresAt: this.now() + 10000,
+      });
+      const activity = this.localActivity.get(group.nativeGroup!.ownerDeviceId);
+      const response = this.frame(group, envelope.sender, "presence");
+      response.replyTo = envelope.id;
+      response.expiresAt = this.now() + 10000;
+      response.sequence = ++this.presenceSequence;
+      response.activity = {
+        state:
+          activity &&
+          this.now() - activity.checkedAt >= 0 &&
+          this.now() - activity.checkedAt < 15000
+            ? activity.state
+            : "unknown",
+        session: `${this.presenceSession}:${activity?.session ?? "unknown"}`,
+      };
+      this.send(group, response);
+      return true;
+    }
+    const key = JSON.stringify([group.id, envelope.sender]);
+    const pending = this.presenceRequests.get(key);
+    if (
+      !pending ||
+      pending.id !== envelope.replyTo ||
+      this.now() - pending.sentAt >= 10000 ||
+      !envelope.activity
+    )
+      return false;
+    const previous = this.peerPresence.get(key);
+    if (
+      previous?.session === envelope.activity.session &&
+      envelope.sequence <= previous.sequence
+    )
+      return false;
+    this.peerPresence.set(key, {
+      state: envelope.activity.state,
+      source: "peer",
+      checkedAt: this.now(),
+      expiresAt: pending.sentAt + 45000,
+      session: envelope.activity.session,
+      sequence: envelope.sequence,
+    });
+    this.presenceRequests.set(key, { ...pending, id: "" });
+    return true;
+  }
+
   constructor(
     readonly store: GatewayStore,
     readonly router: GatewayRouter,
@@ -170,7 +366,7 @@ export class NativeCooperation {
       recipient,
       action,
       text: ["hello", "probe", "proof"].includes(action)
-        ? LOCALE_CAPABILITY
+        ? `${LOCALE_CAPABILITY}; ${PRESENCE_CAPABILITY}`
         : text,
       task,
       workflow,
@@ -209,6 +405,7 @@ export class NativeCooperation {
       delivery.conversation.connectionId,
       delivery,
     );
+    if (["presence-query", "presence"].includes(envelope.action)) return;
     this.store.put(
       "native-history",
       digest(JSON.stringify([group.id, envelope.sender, envelope.id])),
@@ -466,6 +663,8 @@ export class NativeCooperation {
       event.timestamp < group.nativeGroup!.enabledAt
     )
       return false;
+    if (["presence-query", "presence"].includes(envelope.action))
+      return this.receivePresence(group, envelope);
     const key = JSON.stringify([group.id, envelope.sender, envelope.id]);
     const previous = this.store.get<NativeEnvelope>("native-inbox", key);
     if (previous) {
@@ -501,7 +700,12 @@ export class NativeCooperation {
             return false;
           const peer = peers.find((p) => p.id === envelope.sender)!;
           peer.verifiedAt = this.now();
-          peer.localizedMessages = envelope.text === LOCALE_CAPABILITY;
+          peer.localizedMessages = envelope.text
+            .split("; ")
+            .includes(LOCALE_CAPABILITY);
+          peer.presenceProtocol = envelope.text
+            .split("; ")
+            .includes(PRESENCE_CAPABILITY);
           this.store.delete("native-probes", envelope.replyTo!);
         } else if (
           envelope.action === "probe" &&
@@ -1301,6 +1505,7 @@ export class NativeCooperation {
     });
   }
   tick(): void {
+    this.refreshPresence();
     for (const task of this.store.list<NativeTask>("native-tasks")) {
       if (terminal(task.state)) continue;
       const request = this.store.get<RemoteInvocationContext>(

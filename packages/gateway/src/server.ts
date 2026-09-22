@@ -103,6 +103,10 @@ export class ArtemisGateway {
   private readonly adapters = new Map<string, ChannelAdapter>();
   private timer: ReturnType<typeof setInterval> | undefined;
   private delivering = false;
+  private metadataJob: Promise<void> | undefined;
+  private presenceJob: Promise<void> | undefined;
+  private readonly visibleGroups = new Map<string, number>();
+  private presenceRefreshAt = 0;
   private mediaJobs = new Map<string, Promise<void>>();
   constructor(private readonly options: GatewayOptions) {
     if (options.adminToken.length < 32)
@@ -387,7 +391,11 @@ export class ArtemisGateway {
       await new Promise((resolve) => setTimeout(resolve, 10));
     await this.updateTyping(true);
     for (const adapter of this.adapters.values()) adapter.stop();
-    await Promise.allSettled(this.mediaJobs.values());
+    await Promise.allSettled(
+      [...this.mediaJobs.values(), this.metadataJob, this.presenceJob].filter(
+        (job): job is Promise<void> => !!job,
+      ),
+    );
     this.store.close();
   }
   private identityStillBound(request: RemoteInvocationContext): boolean {
@@ -687,11 +695,15 @@ export class ArtemisGateway {
           spaceId,
         );
         if (!group?.nativeGroup?.enabled) throw new Error("Group unavailable.");
+        this.visibleGroups.set(group.id, Date.now() + 30000);
+        this.presenceRefreshAt = 0;
         this.invalidateGroupRoster(
           group.endpoints[0]!.connectionId,
           group.endpoints[0]!.id,
         );
         await this.tick();
+        await this.metadataJob;
+        await this.presenceJob;
         respond(response, 200, { refreshed: true });
         return;
       }
@@ -916,6 +928,11 @@ export class ArtemisGateway {
     )
       throw new Error("Upgrade Artemis to use IM security version 2.");
     if (url.pathname === "/v1/device/status" && request.method === "GET") {
+      const activity = z
+        .enum(["online", "busy", "waiting-approval"])
+        .safeParse(request.headers["x-artemis-activity"]);
+      if (activity.success)
+        this.router.native.recordActivity(deviceId, activity.data, sessionId);
       respond(response, 200, {
         securityVersion: IM_SECURITY_VERSION,
         authorizationVersion: 1,
@@ -984,6 +1001,10 @@ export class ArtemisGateway {
                     ...m,
                     ...(m.kind === "bot" && !m.self
                       ? {
+                          botPresence: this.router.native.memberPresence(
+                            s.id,
+                            m.identity.userId,
+                          ),
                           verifiedAt: this.router.native
                             .peers(s.id)
                             .find((peer) => peer.id === m.identity.userId)
@@ -1577,8 +1598,22 @@ export class ArtemisGateway {
     this.delivering = true;
     try {
       this.router.native.tick();
-      await this.refreshNativeGroupInfo();
-      await this.refreshDiscoveredGroupNames();
+      // Provider metadata can take seconds. It must never hold the inbox/outbox
+      // loop or prevent task completion/heartbeats from being delivered.
+      this.metadataJob ??= this.refreshNativeGroupInfo()
+        .then(() => this.refreshDiscoveredGroupNames())
+        .catch(() => {})
+        .finally(() => {
+          this.metadataJob = undefined;
+        });
+      if (Date.now() >= this.presenceRefreshAt) {
+        this.presenceRefreshAt = Date.now() + 5000;
+        this.presenceJob ??= this.refreshMemberPresence()
+          .catch(() => {})
+          .finally(() => {
+            this.presenceJob = undefined;
+          });
+      }
       this.router.processIncoming();
       // Keep publication receipts, but discard encrypted upload bodies once
       // there is no permitted automatic send left (including restart uncertainty).
@@ -1997,6 +2032,73 @@ export class ArtemisGateway {
       });
     }
   }
+  private async refreshMemberPresence(): Promise<void> {
+    const groups = this.store
+      .list<CollaborationSpace>("native-groups")
+      .sort(
+        (a, b) =>
+          Number((this.visibleGroups.get(b.id) ?? 0) > Date.now()) -
+          Number((this.visibleGroups.get(a.id) ?? 0) > Date.now()),
+      );
+    for (const [connectionId, adapter] of this.adapters) {
+      if (!adapter.groupPresence || adapter.status().state !== "connected")
+        continue;
+      const snapshots = groups.filter(
+        (group) =>
+          group.nativeGroup?.enabled &&
+          group.endpoints[0]?.connectionId === connectionId,
+      );
+      const people = new Map<string, ImGroupRoster["members"][number]>();
+      for (const group of snapshots) {
+        const roster = this.store.get<{ roster?: ImGroupRoster }>(
+          "native-group-info",
+          group.id,
+        )?.roster;
+        for (const member of roster?.members ?? [])
+          if (!people.has(imIdentityKey(member.identity)))
+            people.set(imIdentityKey(member.identity), member);
+      }
+      const members = await adapter.groupPresence([...people.values()]);
+      const updates = new Map(
+        members.map((member) => [imIdentityKey(member.identity), member]),
+      );
+      for (const group of snapshots) {
+        const current = this.store.get<CollaborationSpace>(
+          "native-groups",
+          group.id,
+        );
+        const info = this.store.get<{ roster?: ImGroupRoster }>(
+          "native-group-info",
+          group.id,
+        );
+        if (
+          current?.revision !== group.revision ||
+          this.adapters.get(connectionId) !== adapter ||
+          !info?.roster
+        )
+          continue;
+        this.store.put("native-group-info", group.id, {
+          ...info,
+          roster: {
+            ...info.roster,
+            members: info.roster.members.map((member) => {
+              const update = updates.get(imIdentityKey(member.identity));
+              return update
+                ? {
+                    ...member,
+                    presence: update.presence,
+                    presenceCheckedAt: update.presenceCheckedAt,
+                    presenceError: update.presenceError,
+                  }
+                : member;
+            }),
+          },
+        });
+      }
+    }
+    for (const [id, until] of this.visibleGroups)
+      if (until <= Date.now()) this.visibleGroups.delete(id);
+  }
   private async refreshNativeGroupInfo(): Promise<void> {
     for (const group of this.store.list<CollaborationSpace>("native-groups")) {
       const endpoint = group.endpoints[0];
@@ -2019,7 +2121,7 @@ export class ArtemisGateway {
       try {
         const [info, roster] = await Promise.all([
           adapter.groupInfo(endpoint!),
-          adapter.groupMembers?.(endpoint!),
+          adapter.groupMembers?.(endpoint!, false),
         ]);
         // Preserve observations only while the directory is incomplete. A full
         // snapshot must replace historical bots, including removed identities.
@@ -2062,6 +2164,25 @@ export class ArtemisGateway {
         ) {
           retireGroup(this.store, endpoint!, info.unavailable);
           return;
+        }
+        const latestRoster = this.store.get<{ roster?: ImGroupRoster }>(
+          "native-group-info",
+          group.id,
+        )?.roster;
+        if (roster && latestRoster) {
+          const latest = new Map(
+            latestRoster.members.map((m) => [imIdentityKey(m.identity), m]),
+          );
+          for (const member of roster.members) {
+            const fresh = latest.get(imIdentityKey(member.identity));
+            if (
+              (fresh?.presenceCheckedAt ?? 0) > (member.presenceCheckedAt ?? 0)
+            ) {
+              member.presence = fresh!.presence;
+              member.presenceCheckedAt = fresh!.presenceCheckedAt;
+              member.presenceError = fresh!.presenceError;
+            }
+          }
         }
         this.store.transaction(() => {
           this.store.put("native-group-info", group.id, {

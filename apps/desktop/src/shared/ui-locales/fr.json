@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "Groupe dissous",
   "ImThreadConnection.archivedBadge": "Groupe archivé",
   "ImThreadConnection.dissolvedDetail": "Ce groupe a été dissous. La conversation est indisponible ; l’historique reste consultable.",
-  "ImThreadConnection.archivedDetail": "Ce groupe a été archivé. La conversation est indisponible ; l’historique reste consultable."
+  "ImThreadConnection.archivedDetail": "Ce groupe a été archivé. La conversation est indisponible ; l’historique reste consultable.",
+  "ImPresence.available": "Disponible",
+  "ImPresence.executing": "En cours",
+  "ImPresence.waiting": "En attente d’approbation",
+  "ImPresence.disconnected": "Connexion perdue",
+  "ImPresence.local": "Artemis local",
+  "ImPresence.peer": "Artemis distant",
+  "ImPresence.task": "Tâche collaborative",
+  "ImPresence.platform": "Activité IM",
+  "ImPresence.updated": "Mis à jour {{time}}",
+  "ImPresence.limited": "Limite de requêtes ; nouvel essai ultérieur",
+  "ImPresence.unknown": "Non pris en charge, déconnecté ou expiré ; état inconnu"
 }

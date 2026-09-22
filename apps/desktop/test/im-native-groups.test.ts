@@ -3431,3 +3431,48 @@ it.each(["feishu", "slack"] as const)(
     );
   },
 );
+
+it("reports current local activity consistently in group and settings snapshots", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+  f.gateway.store.put("native-group-info", groupId, {
+    roster: {
+      complete: true,
+      members: [
+        {
+          identity: { ...f.event.identity, userId: "self" },
+          name: "Artemis",
+          kind: "bot",
+          self: true,
+        },
+      ],
+    },
+  });
+  await f.service.manage({ action: "refresh" });
+  await f.service.poll();
+  // This fixture has no real IM adapter; provide its connected status only.
+  (f.service as unknown as { channelStatus: unknown[] }).channelStatus = [
+    { id: "bot", state: "connected" },
+  ];
+  const assertState = (state: string) => {
+    const status = f.service.status();
+    const settings = status.spaces as Array<{
+      roster: { members: Array<{ botPresence: { state: string } }> };
+    }>;
+    expect(settings[0]!.roster.members[0]!.botPresence.state).toBe(state);
+    expect(
+      status.remoteTasks![0]!.group!.roster!.members[0]!.botPresence!.state,
+    ).toBe(state);
+  };
+  assertState("online");
+  f.threads[0]!.status = "running";
+  assertState("busy");
+  f.threads.push({ ...f.threads[0]!, id: "second" });
+  f.threads[0]!.status = "idle";
+  assertState("busy");
+  f.threads[1]!.status = "waiting-approval";
+  assertState("waiting-approval");
+  f.threads[1]!.status = "idle";
+  assertState("online");
+});

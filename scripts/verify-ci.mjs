@@ -9,6 +9,19 @@ if (process.env.ARTEMIS_SKIP_PRODUCTION_AUDIT !== "true") {
 for (const command of commands) {
   const result = spawnSync("npm", ["run", command], {
     stdio: "inherit",
+    // Let jsdom provide browser storage instead of Node 26's server-only global.
+    env:
+      command === "test"
+        ? {
+            ...process.env,
+            NODE_OPTIONS: [
+              process.env.NODE_OPTIONS,
+              "--no-experimental-webstorage",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          }
+        : process.env,
     shell: process.platform === "win32",
   });
   if (result.error) throw result.error;

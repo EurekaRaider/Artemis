@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "任务属于其他身份或会话。",
   "continueExplicit": "请在本人单聊使用 /continue 任务编号 明确选择桌面任务。",
   "selfTasksOnly": "只能查询或停止自己在此会话中的任务。",
-  "attachmentSizeLimit": "附件超出大小限制。"
+  "attachmentSizeLimit": "附件超出大小限制。",
+  "nativePresence": "Artemis 可用状态"
 }

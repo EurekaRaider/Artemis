@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "Группа расформирована",
   "ImThreadConnection.archivedBadge": "Группа архивирована",
   "ImThreadConnection.dissolvedDetail": "Группа расформирована. Переписка недоступна; история доступна для чтения.",
-  "ImThreadConnection.archivedDetail": "Группа архивирована. Переписка недоступна; история доступна для чтения."
+  "ImThreadConnection.archivedDetail": "Группа архивирована. Переписка недоступна; история доступна для чтения.",
+  "ImPresence.available": "Доступен",
+  "ImPresence.executing": "Выполняется",
+  "ImPresence.waiting": "Ожидает подтверждения",
+  "ImPresence.disconnected": "Соединение потеряно",
+  "ImPresence.local": "Локальный Artemis",
+  "ImPresence.peer": "Удалённый Artemis",
+  "ImPresence.task": "Совместная задача",
+  "ImPresence.platform": "Активность IM",
+  "ImPresence.updated": "Обновлено {{time}}",
+  "ImPresence.limited": "Лимит запросов; повтор позже",
+  "ImPresence.unknown": "Не поддерживается, отключено или устарело; статус неизвестен"
 }

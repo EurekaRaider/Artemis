@@ -348,6 +348,14 @@ it.each(["feishu", "lark"] as const)(
         },
       ]);
       await gateway.tick();
+      await vi.waitFor(() =>
+        expect(
+          gateway.store.get<{ roster: ImGroupRoster }>(
+            "native-group-info",
+            "group",
+          )?.roster.complete,
+        ).toBe(true),
+      );
       const info = gateway.store.get<{ roster: ImGroupRoster }>(
         "native-group-info",
         "group",

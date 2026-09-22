@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "群已解散",
   "ImThreadConnection.archivedBadge": "群已归档",
   "ImThreadConnection.dissolvedDetail": "群已解散，对话不可用。历史消息仍可查看。",
-  "ImThreadConnection.archivedDetail": "群已归档，对话不可用。历史消息仍可查看。"
+  "ImThreadConnection.archivedDetail": "群已归档，对话不可用。历史消息仍可查看。",
+  "ImPresence.available": "可用",
+  "ImPresence.executing": "执行中",
+  "ImPresence.waiting": "等待确认",
+  "ImPresence.disconnected": "连接中断",
+  "ImPresence.local": "本机 Artemis",
+  "ImPresence.peer": "远端 Artemis",
+  "ImPresence.task": "协作任务",
+  "ImPresence.platform": "IM 活跃状态",
+  "ImPresence.updated": "更新于 {{time}}",
+  "ImPresence.limited": "请求受限，稍后重试",
+  "ImPresence.unknown": "不支持、连接中断或数据过期，无法确认当前状态"
 }

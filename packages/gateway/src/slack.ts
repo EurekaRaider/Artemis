@@ -256,37 +256,123 @@ export class SlackAdapter implements ChannelAdapter {
   >();
   private readonly memberPresence = new Map<
     string,
-    { presence: "active" | "away" | "unknown"; presenceCheckedAt: number }
+    Pick<
+      ImGroupRoster["members"][number],
+      "presence" | "presenceCheckedAt" | "presenceError"
+    >
   >();
+  private readonly presencePending = new Map<
+    string,
+    Promise<
+      Pick<
+        ImGroupRoster["members"][number],
+        "presence" | "presenceCheckedAt" | "presenceError"
+      >
+    >
+  >();
+  private presenceRequests: number[] = [];
   private presenceRetryAt = 0;
+  private presenceFailure: "missing-scope" | "rate-limited" | "unavailable" =
+    "unavailable";
   private async getMemberPresence(user: string, signal: AbortSignal) {
     const cached = this.memberPresence.get(user);
-    if (cached && Date.now() - cached.presenceCheckedAt < 60000) return cached;
-    const result: {
-      presence: "active" | "away" | "unknown";
-      presenceCheckedAt: number;
-    } = { presence: "unknown", presenceCheckedAt: Date.now() };
-    if (Date.now() < this.presenceRetryAt || signal.aborted) return result;
+    if (cached && Date.now() - (cached.presenceCheckedAt ?? 0) < 20000)
+      return cached;
+    const pending = this.presencePending.get(user);
+    if (pending) return pending;
+    this.presenceRequests = this.presenceRequests.filter(
+      (time) => Date.now() - time < 60000,
+    );
+    // A conservative per-connection budget below Slack's Tier 3 limit. Reserve
+    // before awaiting to bound concurrent group requests as well as sequential ones.
+    if (
+      Date.now() < this.presenceRetryAt ||
+      signal.aborted ||
+      this.presenceRequests.length >= 45
+    )
+      return {
+        presence: "unknown" as const,
+        presenceCheckedAt: cached?.presenceCheckedAt,
+        presenceError: signal.aborted
+          ? ("unavailable" as const)
+          : Date.now() < this.presenceRetryAt
+            ? this.presenceFailure
+            : ("rate-limited" as const),
+      };
+    this.presenceRequests.push(Date.now());
+    const query = (async () => {
+      let result: Pick<
+        ImGroupRoster["members"][number],
+        "presence" | "presenceCheckedAt" | "presenceError"
+      >;
+      try {
+        const response = await slackApi(
+          "users.getPresence",
+          this.config.botToken,
+          { user },
+          false,
+          signal,
+        );
+        result = {
+          presence:
+            response.presence === "active" || response.presence === "away"
+              ? response.presence
+              : "unknown",
+          presenceCheckedAt: Date.now(),
+        };
+      } catch (cause) {
+        this.presenceFailure =
+          cause instanceof SlackApiError && cause.code === "missing_scope"
+            ? "missing-scope"
+            : cause instanceof ChannelRateLimit
+              ? "rate-limited"
+              : "unavailable";
+        this.presenceRetryAt =
+          Date.now() +
+          (cause instanceof ChannelRateLimit
+            ? Math.max(1, cause.seconds)
+            : 60) *
+            1000;
+        result = {
+          presence: "unknown",
+          presenceCheckedAt: Date.now(),
+          presenceError: this.presenceFailure,
+        };
+      }
+      if (this.memberPresence.size >= 10000)
+        this.memberPresence.delete(this.memberPresence.keys().next().value!);
+      this.memberPresence.set(user, result);
+      return result;
+    })();
+    this.presencePending.set(user, query);
     try {
-      const response = await slackApi(
-        "users.getPresence",
-        this.config.botToken,
-        { user },
-        false,
-        signal,
-      );
-      if (response.presence === "active" || response.presence === "away")
-        result.presence = response.presence;
-    } catch (cause) {
-      // Presence failure must not discard the roster or imply an offline user.
-      this.presenceRetryAt =
-        Date.now() +
-        (cause instanceof ChannelRateLimit ? Math.max(60, cause.seconds) : 60) *
-          1000;
+      return await query;
+    } finally {
+      this.presencePending.delete(user);
     }
-    if (this.memberPresence.size >= 10000)
-      this.memberPresence.delete(this.memberPresence.keys().next().value!);
-    this.memberPresence.set(user, result);
+  }
+  async groupPresence(
+    members: ImGroupRoster["members"],
+  ): Promise<ImGroupRoster["members"]> {
+    const signal = AbortSignal.timeout(10000);
+    const people = members
+      .filter((m) => m.kind === "human")
+      .sort(
+        (a, b) =>
+          (this.memberPresence.get(a.identity.userId)?.presenceCheckedAt ?? 0) -
+          (this.memberPresence.get(b.identity.userId)?.presenceCheckedAt ?? 0),
+      );
+    const result: ImGroupRoster["members"] = [];
+    for (let offset = 0; offset < people.length; offset += 4) {
+      result.push(
+        ...(await Promise.all(
+          people.slice(offset, offset + 4).map(async (member) => ({
+            ...member,
+            ...(await this.getMemberPresence(member.identity.userId, signal)),
+          })),
+        )),
+      );
+    }
     return result;
   }
   constructor(
@@ -499,6 +585,8 @@ export class SlackAdapter implements ChannelAdapter {
       hello: "nativeHello",
       probe: "nativeProbe",
       proof: "nativeProof",
+      "presence-query": "nativePresence",
+      presence: "nativePresence",
       delegate: "nativeDelegate",
       continue: "nativeContinue",
       accepted: "accepted",
@@ -512,13 +600,17 @@ export class SlackAdapter implements ChannelAdapter {
       cancelled: "nativeCancelled",
     };
     const mention = recipient === "*" ? "" : `<@${recipient}> · `;
-    const heartbeatKey = `${conversation.id}:${frame.task}`;
+    const presence =
+      frame.action === "presence" || frame.action === "presence-query";
+    const heartbeatKey = presence
+      ? `${conversation.id}:presence:${recipient}`
+      : `${conversation.id}:${frame.task}`;
     const result = await slackApi(
       "chat.postMessage",
       this.config.botToken,
       {
         channel: conversation.id,
-        ...(frame.action === "heartbeat" &&
+        ...((frame.action === "heartbeat" || presence) &&
         this.heartbeatThreads.has(heartbeatKey)
           ? { thread_ts: this.heartbeatThreads.get(heartbeatKey) }
           : {}),
@@ -557,7 +649,7 @@ export class SlackAdapter implements ChannelAdapter {
     if (!string(result.ts))
       throw new DeliveryUncertain("Slack did not return a message ID.");
     if (
-      frame.action === "heartbeat" &&
+      (frame.action === "heartbeat" || presence) &&
       !this.heartbeatThreads.has(heartbeatKey)
     )
       this.heartbeatThreads.set(heartbeatKey, string(result.ts));
@@ -615,7 +707,10 @@ export class SlackAdapter implements ChannelAdapter {
     // The file ID is not a message timestamp and must not enter message-map.
     return undefined;
   }
-  async groupMembers(conversation: ImConversation): Promise<ImGroupRoster> {
+  async groupMembers(
+    conversation: ImConversation,
+    includePresence = true,
+  ): Promise<ImGroupRoster> {
     const ids = new Set<string>();
     let error: ImGroupRoster["error"];
     let cursor = "";
@@ -718,7 +813,9 @@ export class SlackAdapter implements ChannelAdapter {
               appId: this.config.appId,
               userId,
             },
-            ...(await this.getMemberPresence(userId, signal)),
+            ...(includePresence
+              ? await this.getMemberPresence(userId, signal)
+              : this.memberPresence.get(userId)),
             name: profile?.name ?? userId,
             kind:
               userId === this.config.botUserId

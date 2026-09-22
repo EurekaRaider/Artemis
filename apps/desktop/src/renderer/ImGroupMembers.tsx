@@ -1,3 +1,4 @@
+import { imMemberState, imMemberTooltip } from "./im-group-member-status";
 import { uiTranslator } from "../shared/ui-text.js";
 import { useEffect, useRef, useState } from "react";
 import { ImMemberRemoval } from "./ImMemberRemoval";
@@ -38,6 +39,15 @@ export function ImGroupMembers({
     Record<string, { until?: number; verifiedAt?: number }>
   >({});
   const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const update = () => setNow(Date.now());
+    const timer = window.setInterval(update, 2000);
+    window.addEventListener("focus", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+    };
+  }, []);
   const verificationState = (member: Person) => {
     const local = verification[member.identity.userId];
     if (local?.verifiedAt || member.verifiedAt) return "verified";
@@ -217,27 +227,12 @@ export function ImGroupMembers({
                     (value) => value.deviceId === group.executingDeviceId,
                   )
                 : undefined;
-              const state =
-                group.stale || !group.confirmed
-                  ? "unknown"
-                  : (target?.state ??
-                    (member.presenceCheckedAt !== undefined &&
-                    Date.now() - member.presenceCheckedAt < 120000
-                      ? member.presence
-                      : undefined) ??
-                    "unknown");
-              const status =
-                state === "active"
-                  ? t("EnvironmentPanel_labels.active")
-                  : state === "away"
-                    ? t("ImGroupMembers.message10")
-                    : state === "online"
-                      ? t("ImGroupMembers.message9")
-                      : state === "offline"
-                        ? t("ImGroupMembers.message8")
-                        : state === "unavailable"
-                          ? t("ImGroupMembers.message7")
-                          : t("ImGroupMembers.message6");
+              const state = imMemberState(
+                member,
+                group,
+                Math.max(now, Date.now()),
+              );
+              const status = imMemberTooltip(member, state, locale);
               const kind =
                 member.kind === "bot"
                   ? t("ImGroupMembers.message14")
@@ -252,6 +247,14 @@ export function ImGroupMembers({
                 verification[member.identity.userId]?.until ??
                 member.verificationPendingUntil ??
                 0;
+              const proofLabel = isFeishuBot(member)
+                ? t(
+                    pendingUntil > 0
+                      ? "ImGroupMembers.communicationTimeout"
+                      : "ImGroupMembers.communicationPending",
+                  )
+                : t("ImGroupMembers.message15");
+              const permissionLabel = t("ImGroupMembers.collaborationDenied");
               return (
                 <div
                   className="environment-setting-row"
@@ -279,34 +282,32 @@ export function ImGroupMembers({
                         </span>
                       </Tooltip>
                       <span>{member.name}</span>
-                      {member.kind === "bot" && !member.self && (
-                        <span className="im-member-device" aria-live="polite">
-                          {isFeishuBot(member)
-                            ? t(
-                                proof === "verified"
-                                  ? "ImGroupMembers.communicationVerified"
-                                  : proof === "verifying"
-                                    ? "ImGroupMembers.communicationVerifying"
-                                    : pendingUntil > 0
-                                      ? "ImGroupMembers.communicationTimeout"
-                                      : "ImGroupMembers.communicationPending",
-                              )
-                            : verificationState(member) === "verified"
-                              ? t("ImGroupMembers.message17")
-                              : verificationState(member) === "verifying"
-                                ? t("ImGroupMembers.message16")
-                                : t("ImGroupMembers.message15")}
-                        </span>
-                      )}
-                      {isFeishuBot(member) && !member.self && (
-                        <span className="im-member-device" aria-live="polite">
-                          {t(
-                            canAssign(member)
-                              ? "ImGroupMembers.collaborationAllowed"
-                              : "ImGroupMembers.collaborationDenied",
-                          )}
-                        </span>
-                      )}
+                      {member.kind === "bot" &&
+                        !member.self &&
+                        proof === "unverified" && (
+                          <Tooltip label={proofLabel}>
+                            <span
+                              className="im-member-device"
+                              aria-live="polite"
+                              tabIndex={0}
+                            >
+                              {proofLabel}
+                            </span>
+                          </Tooltip>
+                        )}
+                      {isFeishuBot(member) &&
+                        !member.self &&
+                        !canAssign(member) && (
+                          <Tooltip label={permissionLabel}>
+                            <span
+                              className="im-member-device"
+                              aria-live="polite"
+                              tabIndex={0}
+                            >
+                              {permissionLabel}
+                            </span>
+                          </Tooltip>
+                        )}
 
                       {member.self && (
                         <span className="im-member-executor">

@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "La tâche appartient à une autre identité ou conversation.",
   "continueExplicit": "Dans votre propre conversation privée, utilisez /continue <identifiant de tâche> pour sélectionner explicitement une tâche du bureau.",
   "selfTasksOnly": "Vous ne pouvez consulter ou arrêter que vos propres tâches dans cette conversation.",
-  "attachmentSizeLimit": "Les pièces jointes dépassent la limite de taille."
+  "attachmentSizeLimit": "Les pièces jointes dépassent la limite de taille.",
+  "nativePresence": "Disponibilité d’Artemis"
 }

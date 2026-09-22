@@ -142,5 +142,6 @@
   "threadIdentityMismatch": "L’attività appartiene a un’altra identità o conversazione.",
   "continueExplicit": "Nella tua chat diretta personale, usa /continue <ID attività> per selezionare esplicitamente un’attività desktop.",
   "selfTasksOnly": "Puoi consultare o fermare solo le tue attività in questa conversazione.",
-  "attachmentSizeLimit": "Gli allegati superano il limite di dimensione."
+  "attachmentSizeLimit": "Gli allegati superano il limite di dimensione.",
+  "nativePresence": "Disponibilità di Artemis"
 }

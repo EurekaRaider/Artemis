@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "グループは解散済み",
   "ImThreadConnection.archivedBadge": "グループはアーカイブ済み",
   "ImThreadConnection.dissolvedDetail": "グループは解散されました。この会話は利用できません。履歴は引き続き閲覧できます。",
-  "ImThreadConnection.archivedDetail": "グループはアーカイブされました。この会話は利用できません。履歴は引き続き閲覧できます。"
+  "ImThreadConnection.archivedDetail": "グループはアーカイブされました。この会話は利用できません。履歴は引き続き閲覧できます。",
+  "ImPresence.available": "利用可能",
+  "ImPresence.executing": "実行中",
+  "ImPresence.waiting": "承認待ち",
+  "ImPresence.disconnected": "接続切断",
+  "ImPresence.local": "ローカル Artemis",
+  "ImPresence.peer": "リモート Artemis",
+  "ImPresence.task": "共同作業タスク",
+  "ImPresence.platform": "IM のアクティビティ",
+  "ImPresence.updated": "更新 {{time}}",
+  "ImPresence.limited": "レート制限中。後で再試行します",
+  "ImPresence.unknown": "未対応、切断、または期限切れのため状態不明"
 }

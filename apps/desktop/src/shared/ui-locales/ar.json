@@ -1523,5 +1523,16 @@
   "ImThreadConnection.dissolvedBadge": "تم حل المجموعة",
   "ImThreadConnection.archivedBadge": "تمت أرشفة المجموعة",
   "ImThreadConnection.dissolvedDetail": "تم حل المجموعة. المحادثة غير متاحة؛ تظل الرسائل السابقة قابلة للقراءة.",
-  "ImThreadConnection.archivedDetail": "تمت أرشفة المجموعة. المحادثة غير متاحة؛ تظل الرسائل السابقة قابلة للقراءة."
+  "ImThreadConnection.archivedDetail": "تمت أرشفة المجموعة. المحادثة غير متاحة؛ تظل الرسائل السابقة قابلة للقراءة.",
+  "ImPresence.available": "متاح",
+  "ImPresence.executing": "قيد التنفيذ",
+  "ImPresence.waiting": "بانتظار الموافقة",
+  "ImPresence.disconnected": "انقطع الاتصال",
+  "ImPresence.local": "Artemis المحلي",
+  "ImPresence.peer": "Artemis البعيد",
+  "ImPresence.task": "مهمة تعاونية",
+  "ImPresence.platform": "نشاط المراسلة",
+  "ImPresence.updated": "تم التحديث {{time}}",
+  "ImPresence.limited": "تم بلوغ حد الطلبات؛ ستتم المحاولة لاحقًا",
+  "ImPresence.unknown": "غير مدعوم أو غير متصل أو منتهي الصلاحية؛ الحالة غير معروفة"
 }

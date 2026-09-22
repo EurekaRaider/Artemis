@@ -197,6 +197,120 @@ describe.each(["slack", "feishu", "lark"] as const)(
       }) as Array<{ id: string }>;
     }
 
+    it("exchanges only fresh correlated presence between authorized upgraded peers", () => {
+      vi.useFakeTimers();
+      const { a, b } = pair();
+      b.router.native.recordActivity(b.device.id, "busy", "desktop-b");
+      a.router.native.tick();
+      exchange(a, b);
+      exchange(b, a);
+      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
+        "busy",
+      );
+      vi.advanceTimersByTime(46000);
+      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
+        "unknown",
+      );
+      b.router.native.recordActivity(b.device.id, "online", "restarted-b");
+      a.router.native.tick();
+      exchange(a, b);
+      exchange(b, a);
+      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
+        "online",
+      );
+      a.router.native.authorize(a.group.id, []);
+      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
+        "unknown",
+      );
+    });
+
+    it("rejects replayed status after a newer query and forgets availability on restart", () => {
+      vi.useFakeTimers();
+      const { a, b } = pair();
+      b.router.native.recordActivity(b.device.id, "busy", "worker");
+      a.router.native.tick();
+      exchange(a, b);
+      const reply = b.store
+        .pending<Delivery>("outgoing")
+        .find((item) => item.payload.native?.action === "presence")!.payload
+        .native!;
+      exchange(b, a);
+      expect(a.router.native.memberPresence(a.group.id, "B").state).toBe(
+        "busy",
+      );
+      vi.advanceTimersByTime(31000);
+      a.router.native.tick();
+      const replay = {
+        ...reply,
+        sender: "B",
+        recipient: suitePlatform === "slack" ? "A" : "self-A",
+        expiresAt: Date.now() + 10000,
+        issuedAt: Date.now(),
+      };
+      expect(
+        a.router.native.receive({
+          ...a.event,
+          bot: true,
+          identity: { ...a.event.identity, userId: "B" },
+          text: encodeNativeEnvelope(replay),
+        }),
+      ).toBe(false);
+      exchange(a, b);
+      exchange(b, a);
+      expect(a.router.native.memberPresence(a.group.id, "B").state).toBe(
+        "unknown",
+      );
+      expect(a.router.native.tasks(a.group.id)).toHaveLength(0);
+      const restarted = new GatewayRouter(a.store);
+      expect(restarted.native.memberPresence(a.group.id, "B").state).toBe(
+        "unknown",
+      );
+    });
+
+    it("does not poll unsupported peers or accept unsolicited or human presence", () => {
+      const { a, b } = pair();
+      const peer = a.router.native.peers(a.group.id)[0]!;
+      a.store.put("native-peers", a.group.id, [
+        { ...peer, presenceProtocol: false },
+      ]);
+      a.router.native.tick();
+      expect(
+        a.store
+          .pending<Delivery>("outgoing")
+          .some((x) => x.payload.native?.action === "presence-query"),
+      ).toBe(false);
+      const frame: NativeEnvelope = {
+        version: 1,
+        id: randomUUID(),
+        platform: suitePlatform,
+        tenant: "team",
+        group: "group",
+        sender: "B",
+        recipient: suitePlatform === "slack" ? "A" : "self-A",
+        task: randomUUID(),
+        workflow: randomUUID(),
+        action: "presence",
+        replyTo: randomUUID(),
+        issuedAt: Date.now(),
+        expiresAt: Date.now() + 10000,
+        sequence: 1,
+        text: "",
+        activity: { state: "busy", session: randomUUID() },
+      };
+      for (const bot of [false, true])
+        expect(
+          a.router.native.receive({
+            ...a.event,
+            bot,
+            identity: { ...a.event.identity, userId: "B" },
+            text: encodeNativeEnvelope(frame),
+          }),
+        ).toBe(false);
+      expect(a.router.native.memberPresence(a.group.id, "B")?.state).not.toBe(
+        "busy",
+      );
+    });
+
     it("keeps v1 envelopes compatible with peers that do not advertise locale support", () => {
       const f = pair();
       const peer = f.a.router.native.peers(f.a.group.id)[0]!;
