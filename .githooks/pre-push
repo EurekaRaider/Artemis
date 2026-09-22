@@ -1,2 +1,4 @@
 #!/bin/sh
-exec node scripts/verify-pre-push.mjs --hook
+# Full CI runs only through the manually requested Release workflow.
+# The clean-checkout gate remains available as: npm run verify:prepush
+exit 0

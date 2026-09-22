@@ -1,22 +1,26 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "发布版本标签，必须与 package.json 一致，例如 v1.6.0"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-macos-arm64
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Verify tag and source
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+  prepare:
+    name: Validate release version and credentials
+    if: github.event.repository.private
+    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
@@ -28,79 +32,45 @@ jobs:
           node-version: 26
           cache: npm
 
-      - name: Verify tag matches package version
+      - name: Verify requested release matches package version
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           expected="v$(node -p "require('./package.json').version")"
-          if [[ "$GITHUB_REF_NAME" != "$expected" ]]; then
-            echo "Release tag $GITHUB_REF_NAME does not match package version $expected." >&2
+          if [[ "$RELEASE_TAG" != "$expected" ]]; then
+            echo "Release tag $RELEASE_TAG does not match package version $expected." >&2
             exit 1
           fi
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run portable CI checks
-        run: npm run verify:ci
+      - name: Check signing credentials and release repository access
+        run: |
+          node apps/desktop/scripts/validate-release-env.mjs mac
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "ARTEMIS_RELEASE_TOKEN is required to publish to ArtemisRelease." >&2
+            exit 1
+          fi
+          gh api repos/EurekaRaider/ArtemisRelease --silent
         env:
-          ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
-          GITHUB_TOKEN: ${{ github.token }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ARTEMIS_UPDATE_OWNER: EurekaRaider
+          ARTEMIS_UPDATE_REPO: ArtemisRelease
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
 
-  package-windows:
-    name: Package Windows x64
-    needs: verify
-    runs-on: windows-2025
-    timeout-minutes: 45
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js 26
-        uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Package Windows x64 ZIP
-        run: npm run package:win
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Verify Windows x64 package natively
-        run: npm run verify:win-native -w @artemis/desktop
-
-      - name: Upload Windows x64 package
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-windows-x64
-          path: apps/desktop/release/Artemis-Windows-x64-*.zip
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+  ci:
+    name: Release CI
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
 
   package-macos:
-    name: Package macOS ${{ matrix.arch }}
-    needs: verify
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-15
-            host_arch: arm64
-            binary_arch: arm64
-            app_dir: mac-arm64
-          - arch: x64
-            runner: macos-15-intel
-            host_arch: x86_64
-            binary_arch: x86_64
-            app_dir: mac
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    name: Sign and notarize macOS arm64
+    needs: ci
+    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    timeout-minutes: 180
 
     steps:
       - name: Check out repository
@@ -108,12 +78,7 @@ jobs:
 
       - name: Verify native runner architecture
         shell: bash
-        run: |
-          actual="$(uname -m)"
-          if [[ "$actual" != "${{ matrix.host_arch }}" ]]; then
-            echo "Expected ${{ matrix.host_arch }} runner, got $actual." >&2
-            exit 1
-          fi
+        run: test "$(uname -m)" = arm64
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
@@ -124,106 +89,137 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Package macOS ${{ matrix.arch }} DMG and ZIP
-        run: npm run package:mac:${{ matrix.arch }}
+      - name: Package signed and notarized macOS arm64 DMG and ZIP
+        run: |
+          node apps/desktop/scripts/validate-release-env.mjs mac
+          npm run package:mac:arm64 -w @artemis/desktop -- --release
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ARTEMIS_UPDATE_OWNER: EurekaRaider
+          ARTEMIS_UPDATE_REPO: ArtemisRelease
 
-      - name: Verify macOS ${{ matrix.arch }} engineering packages
+      - name: Verify signature, notarization, native PTY, Seatbelt and rollback
+        run: npm run verify:mac-native -w @artemis/desktop
+
+      - name: Verify final DMG and ZIP applications
         shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           version="$(node -p "require('./package.json').version")"
-          app="apps/desktop/release/${{ matrix.app_dir }}/Artemis.app"
-          executable="$app/Contents/MacOS/Artemis"
-          dmg="apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-$version.dmg"
-          zip="apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-$version.zip"
-          /usr/bin/codesign --verify --deep --strict "$app"
-          /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F "Signature=adhoc"
-          actual_arch="$(/usr/bin/lipo -archs "$executable")"
-          if [[ "$actual_arch" != "${{ matrix.binary_arch }}" ]]; then
-            echo "Expected ${{ matrix.binary_arch }} package, got $actual_arch." >&2
-            exit 1
-          fi
+          dmg="$PWD/apps/desktop/release/Artemis-macOS-arm64-$version.dmg"
+          zip="$PWD/apps/desktop/release/Artemis-macOS-arm64-$version.zip"
+          verification_root="$(mktemp -d "$RUNNER_TEMP/artemis-release-verify.XXXXXX")"
+          mount_path="$verification_root/dmg"
+          cleanup() {
+            /usr/bin/hdiutil detach "$mount_path" >/dev/null 2>&1 || true
+            rm -rf "$verification_root"
+          }
+          trap cleanup EXIT
+          verify_app() {
+            local app="$1"
+            /usr/bin/codesign --verify --deep --strict "$app"
+            /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F 'Authority=Developer ID Application:'
+            /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F "TeamIdentifier=$APPLE_TEAM_ID"
+            /usr/sbin/spctl --assess --type execute --verbose=4 "$app"
+            /usr/bin/xcrun stapler validate "$app"
+            test "$(/usr/bin/lipo -archs "$app/Contents/MacOS/Artemis")" = arm64
+          }
           /usr/bin/hdiutil verify "$dmg"
           /usr/bin/unzip -t "$zip"
-          /usr/bin/unzip -q "$zip" -d "$RUNNER_TEMP/slack-cli-package"
-          node apps/desktop/scripts/verify-slack-cli-native.mjs "$RUNNER_TEMP/slack-cli-package/Artemis.app/Contents/Resources/slack-cli"
+          /usr/bin/unzip -q "$zip" -d "$verification_root/zip"
+          verify_app "$verification_root/zip/Artemis.app"
+          mkdir "$mount_path"
+          /usr/bin/hdiutil attach -readonly -nobrowse -mountpoint "$mount_path" "$dmg"
+          verify_app "$mount_path/Artemis.app"
 
-      - name: Upload macOS ${{ matrix.arch }} packages
+      - name: Upload verified macOS arm64 release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: release-macos-${{ matrix.arch }}
+          name: release-macos-arm64
           path: |
-            apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-*.dmg
-            apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-*.zip
+            apps/desktop/release/Artemis-macOS-arm64-*.dmg
+            apps/desktop/release/Artemis-macOS-arm64-*.zip
+            apps/desktop/release/Artemis-macOS-arm64-*.blockmap
+            apps/desktop/release/*-mac.yml
+            apps/desktop/release/release-manifest.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
 
   publish:
-    name: Publish GitHub Release
-    needs:
-      - package-windows
-      - package-macos
-    runs-on: ubuntu-latest
+    name: Publish to ArtemisRelease
+    needs: package-macos
+    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 15
-    permissions:
-      contents: write
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Download release packages
+      - name: Download verified release artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: release-*
+          name: release-macos-arm64
           path: release-assets
-          merge-multiple: true
 
-      - name: Verify complete release package set
-        shell: bash
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          expected=(
-            "Artemis-Windows-x64-$version.zip"
-            "Artemis-macOS-arm64-$version.dmg"
-            "Artemis-macOS-arm64-$version.zip"
-            "Artemis-macOS-x64-$version.dmg"
-            "Artemis-macOS-x64-$version.zip"
-          )
-          for name in "${expected[@]}"; do
-            if [[ ! -f "release-assets/$name" ]]; then
-              echo "Missing release package: $name" >&2
-              exit 1
-            fi
-          done
-          actual_count="$(find release-assets -maxdepth 1 -type f | wc -l | tr -d ' ')"
-          if [[ "$actual_count" != "${#expected[@]}" ]]; then
-            echo "Expected ${#expected[@]} release packages, found $actual_count." >&2
-            find release-assets -maxdepth 1 -type f -print >&2
-            exit 1
-          fi
-
-      - name: Set up Node.js 26 for final release gate
+      - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
 
-      - name: Publish release and all packages
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          MACOS_NOTICE: |-
-            > [!WARNING]
-            > The macOS DMG and ZIP packages are engineering artifacts for local debugging and trial use only. They have an ad-hoc engineering signature, but are not signed with an Apple Developer ID and are not notarized by Apple.
-            >
-            > Before first launch, remove the quarantine attribute only after you have verified and trust the download: `xattr -dr com.apple.quarantine "/Applications/Artemis.app"`. Replace the path if Artemis is installed elsewhere.
+      - name: Verify complete macOS arm64 release set
         shell: bash
         run: |
+          version="$(node -p "require('./package.json').version")"
+          test -f "release-assets/Artemis-macOS-arm64-$version.dmg"
+          test -f "release-assets/Artemis-macOS-arm64-$version.zip"
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFileSync, readdirSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('release-assets/release-manifest.json', 'utf8'));
+          const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
+          if (manifest.version !== version) throw new Error('Release manifest version mismatch');
+          if (!manifest.artifacts.some(({ name }) => /^(latest|alpha|beta)-mac\.yml$/.test(name))) {
+            throw new Error('macOS update metadata is missing');
+          }
+          const expected = new Set(['release-manifest.json']);
+          for (const artifact of manifest.artifacts) {
+            if (!/^(Artemis-macOS-arm64-[^/]+\.(dmg|zip|blockmap)|(latest|alpha|beta)-mac\.yml)$/.test(artifact.name)) {
+              throw new Error('Unexpected release artifact');
+            }
+            const bytes = readFileSync(`release-assets/${artifact.name}`);
+            if (bytes.length !== artifact.size || createHash('sha256').update(bytes).digest('hex') !== artifact.sha256) {
+              throw new Error(`Release artifact integrity failed: ${artifact.name}`);
+            }
+            expected.add(artifact.name);
+          }
+          if (readdirSync('release-assets').some(name => !expected.has(name))) {
+            throw new Error('Unlisted release artifact');
+          }
+          NODE
+
+      - name: Publish release and macOS arm64 packages
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/artemis-release-notes.md" <<EOF
+          macOS Apple Silicon（arm64）版本。
+
+          应用已通过 Developer ID 签名、Apple 公证及最终 DMG/ZIP 内应用校验。
+
+          源码版本：\`$GITHUB_SHA\`。
+          EOF
           node scripts/verify-slack-cli.mjs
-          gh release create "$GITHUB_REF_NAME" release-assets/* \
-            --verify-tag \
-            --title "Artemis $GITHUB_REF_NAME" \
-            --generate-notes \
-            --notes "$MACOS_NOTICE"
+          gh release create "$RELEASE_TAG" release-assets/* \
+            --repo EurekaRaider/ArtemisRelease \
+            --target main \
+            --title "Artemis $RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/artemis-release-notes.md"

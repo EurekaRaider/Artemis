@@ -37,6 +37,8 @@ module.exports = {
   },
   mac: {
     ...packageJson.build.mac,
+    forceCodeSigning: true,
+    type: "distribution",
     hardenedRuntime: true,
     notarize: true,
     entitlements: "build/entitlements.mac.plist",

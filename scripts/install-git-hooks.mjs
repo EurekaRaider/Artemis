@@ -7,7 +7,7 @@ if (!process.env.CI) {
   const path = current.stdout?.trim();
   if (path && path !== ".githooks") {
     console.warn(
-      `Existing Git hooksPath ${path} was preserved. Add the Artemis pre-push check to your existing hooks.`,
+      `Existing Git hooksPath ${path} was preserved. Full CI runs only when Release is requested.`,
     );
   } else {
     const result = spawnSync(

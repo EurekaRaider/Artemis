@@ -1,4 +1,4 @@
-# PR 自动审核 — GitHub Actions 云端执行，不依赖桌面端
+# PR 手动审核 — GitHub Actions 云端执行，不依赖桌面端
 # 用法：复制到目标仓库 .github/workflows/pr-auto-review.yml
 # 准备：目标仓库 Settings → Secrets and variables → Actions 添加 ZAI_API_KEY
 #       （z.ai 中国区 Coding Plan 改用 ZAI_CODING_CN_API_KEY，并同步改下方 env 变量名）
@@ -6,12 +6,6 @@
 name: PR Auto Review
 
 on:
-  # 用 pull_request_target 而不是 pull_request：公开仓库中 fork PR 在
-  # pull_request 事件下默认读不到 repo secrets，审核会因缺 key 失败。
-  # 安全前提：本 workflow 从不执行 PR 里的代码——checkout 仅落盘供 pi 只读，
-  # pi 以 read/grep/find/ls 工具运行，无 bash/write/edit。
-  pull_request_target:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -39,7 +33,7 @@ jobs:
         id: pr
         run: echo "number=${{ github.event.pull_request.number || inputs.pr_number }}" >> "$GITHUB_OUTPUT"
 
-      # pull_request_target 默认 checkout base 分支，需显式取 PR head 才能 diff/审阅
+      # 显式取所选 PR 的 head，只用于只读审阅。
       - uses: actions/checkout@v4
         with:
           ref: refs/pull/${{ steps.pr.outputs.number }}/head

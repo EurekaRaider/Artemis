@@ -99,22 +99,25 @@ describe("desktop startup latency guardrails", () => {
     );
   });
 
-  it("pins visual convergence to the PR source head and verifies the Windows package", () => {
+  it("pins release visual convergence to the source head on the private macOS arm64 runner", () => {
     const visualJob = ciWorkflowSource.slice(
       ciWorkflowSource.indexOf("visual-convergence-electron:"),
     );
-    const exactSourceHead = "github.event.pull_request.head.sha || github.sha";
+    const exactSourceHead = "github.sha";
 
     expect(visualJob).toContain(`ref: \${{ ${exactSourceHead} }}`);
     expect(visualJob).toContain(
       `ARTEMIS_EXPECTED_HEAD: \${{ ${exactSourceHead} }}`,
     );
     expect(visualJob).toContain(
-      "Set-DisplayResolution -Width 1920 -Height 1080 -Force",
+      "runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]",
     );
-    expect(visualJob.indexOf("npm run package:win")).toBeLessThan(
-      visualJob.indexOf("npm run verify:win-native -w @artemis/desktop"),
+    expect(visualJob).toContain("github.event.repository.private");
+    expect(ciWorkflowSource).toContain("workflow_call:");
+    expect(ciWorkflowSource).not.toMatch(
+      /^  (push|pull_request|workflow_dispatch):/mu,
     );
+    expect(visualJob).not.toContain("npm run package:win");
     expect(gitAttributesSource).toContain("*.css text eol=lf");
   });
 
