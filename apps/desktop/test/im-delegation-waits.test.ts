@@ -62,7 +62,14 @@ it("does not resurrect cancelled or consumed waits on duplicate and late results
   f.waits.cancelTask("thread", "a");
   f.waits.update("group", [task("a", "completed")]);
   expect(f.waits.active("thread")).toEqual([]);
-  f.waits.register("next", "thread", "group", [task()], "Continue", "security");
+  f.waits.register(
+    "next",
+    "thread",
+    "group",
+    [task("a", "running", "attempt-2")],
+    "Continue",
+    "security",
+  );
   f.waits.consume("next");
   f.waits.update("group", [task("a", "completed")]);
   expect(f.waits.active("thread")).toEqual([]);
@@ -82,6 +89,95 @@ it("binds the attempt as well as task ID and rejects foreign tasks", () => {
       "security",
     ),
   ).toThrow();
+});
+
+it.each(["cancelled", "consumed", "interrupted"] as const)(
+  "does not restart a %s attempt through a new wait call",
+  (state) => {
+    const f = fixture();
+    register(f);
+    f.records.set("wait", { ...f.records.get("wait")!, state });
+    expect(() =>
+      f.waits.register(
+        "new-call",
+        "thread",
+        "group",
+        [task()],
+        "Wait again",
+        "security",
+      ),
+    ).toThrow("Automatic waiting for this attempt has ended");
+    expect(f.waits.active("thread")).toEqual([]);
+    expect(f.records.has("new-call")).toBe(false);
+  },
+);
+
+it("can revise an active wait even when it superseded an older continuation", () => {
+  const f = fixture();
+  register(f);
+  f.waits.register(
+    "combined",
+    "thread",
+    "group",
+    [task(), task("b")],
+    "Wait for both",
+    "security",
+  );
+  expect(f.records.get("wait")?.state).toBe("cancelled");
+  const revised = f.waits.register(
+    "revised",
+    "thread",
+    "group",
+    [task()],
+    "Wait for A",
+    "security",
+  );
+  expect(revised.state).toBe("waiting");
+  expect(f.waits.active("thread").map((w) => w.id)).toEqual(["revised"]);
+});
+
+it("does not give an old unaccepted assignment a fresh heartbeat grace period", () => {
+  const f = fixture();
+  const old = {
+    ...task("a", "uncertain"),
+    envelope: { id: "old-attempt", issuedAt: Date.now() - 3600_000 },
+  };
+  const wait = f.waits.register(
+    "wait",
+    "thread",
+    "group",
+    [old],
+    "Wait for a reply",
+    "security",
+  );
+  expect(wait).toMatchObject({
+    state: "ready",
+    results: [{ state: "timeout" }],
+  });
+  f.waits.interrupt(wait.id);
+  f.waits.continueWaiting(wait.id);
+  f.waits.update("group", [old]);
+  expect(f.waits.active("thread")[0]?.state).toBe("waiting");
+});
+
+it("preserves the initial grace period for a fresh assignment alongside an older completed result", () => {
+  const f = fixture();
+  const wait = f.waits.register(
+    "wait",
+    "thread",
+    "group",
+    [
+      {
+        ...task("a", "completed"),
+        envelope: { id: "old", issuedAt: Date.now() - 3600_000 },
+      },
+      { ...task("b", "sent"), envelope: { id: "new", issuedAt: Date.now() } },
+    ],
+    "Wait for both",
+    "security",
+  );
+  expect(wait.state).toBe("waiting");
+  expect(wait.results.map((t) => t.state)).toEqual(["completed", "sent"]);
 });
 it("accepts results that arrived before registration and deduplicates tool retries", () => {
   const f = fixture();

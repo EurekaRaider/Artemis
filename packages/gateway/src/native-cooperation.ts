@@ -1324,6 +1324,10 @@ export class NativeCooperation {
           !this.allowed(group, task.peer)
         )
           throw new Error("Select this workflow's task before sending a note.");
+        if (!["accepted", "running"].includes(task.state))
+          throw new Error(
+            "Notes require an accepted, active task. A note cannot start execution or request a reply. Check status before retrying; use delegate for work, and newTask:true only when the user explicitly requests a new conversation.",
+          );
         const note = this.frame(
           group,
           task.peer,
@@ -1334,7 +1338,13 @@ export class NativeCooperation {
         );
         if (task.envelope.locale) note.locale = task.envelope.locale;
         this.send(group, note, request.id);
-        result = { state: "note-queued", taskId: task.id };
+        result = {
+          state: "note-queued",
+          taskId: task.id,
+          startsExecution: false,
+          instruction:
+            "This note only appends to the task history; it does not request a reply or start execution. Do not wait for a new result from this note. Use delegate for work that needs execution or a reply.",
+        };
       } else if (command.action === "finish") {
         const tasks = this.tasks(group.id).filter(
           (t) =>

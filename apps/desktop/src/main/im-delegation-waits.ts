@@ -5,7 +5,7 @@ export interface DelegatedTaskResult {
   invocationId?: string;
   direction: string;
   state: string;
-  envelope: { id: string };
+  envelope: { id: string; issuedAt?: number };
   result?: string;
   text?: string;
   heartbeatAt?: number;
@@ -107,6 +107,27 @@ export class ImDelegationWaits {
       tasks.some((t) => t.threadId !== threadId || t.direction !== "outgoing")
     )
       throw new Error("Wait requires this coordinator's delegated tasks.");
+    const waits = this.store
+      .list()
+      .filter((w) => w.groupId === groupId && w.threadId === threadId);
+    if (
+      tasks.some((t) => {
+        if (terminal.has(t.state)) return false;
+        const sameAttempt = waits.filter((w) =>
+          w.tasks.some(
+            (previous) =>
+              t.id === previous.id && t.envelope.id === previous.attempt,
+          ),
+        );
+        return (
+          sameAttempt.length > 0 &&
+          !sameAttempt.some((w) => ["waiting", "ready"].includes(w.state))
+        );
+      })
+    )
+      throw new Error(
+        "Automatic waiting for this attempt has ended. Check status and ask the user how to proceed; do not restart it through another wait call. Interrupted waits have Retry and Continue waiting controls in Artemis.",
+      );
     // A newer wait for the same attempt supersedes its old continuation.
     for (const w of this.active(threadId))
       if (w.tasks.some((t) => tasks.some((next) => next.id === t.id)))
@@ -120,7 +141,13 @@ export class ImDelegationWaits {
       tasks: tasks.map((t) => ({ id: t.id, attempt: t.envelope.id })),
       continuation,
       deadline: Date.now() + timeoutSeconds * 1000,
-      heartbeatGraceUntil: Date.now() + 180_000,
+      heartbeatGraceUntil:
+        Math.min(
+          Date.now(),
+          ...tasks.map(
+            (t) => t.heartbeatAt ?? t.envelope.issuedAt ?? Date.now(),
+          ),
+        ) + 180_000,
       security,
       state: "waiting",
       results: [],
@@ -147,7 +174,7 @@ export class ImDelegationWaits {
         !terminal.has(t.state) &&
         t.state !== "blocked" &&
         Date.now() >= (w.heartbeatGraceUntil ?? w.deadline) &&
-        Date.now() - (t.heartbeatAt ?? 0) >= 180_000;
+        Date.now() - (t.heartbeatAt ?? t.envelope.issuedAt ?? 0) >= 180_000;
       if (
         (Date.now() >= w.deadline || results.some(stale)) &&
         (results.length !== w.tasks.length ||

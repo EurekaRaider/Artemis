@@ -1525,6 +1525,40 @@ it.each(["slack", "feishu", "lark"] as const)(
       ]),
     );
     expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    await expect(
+      f.service.operate(
+        f.threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "message",
+            taskId: task.id,
+            text: "Say hello and reply to the earlier question",
+          },
+        },
+        "execute",
+        randomUUID(),
+        randomUUID(),
+      ),
+    ).rejects.toThrow("Notes require an accepted, active task");
+    await expect(
+      f.service.operate(
+        f.threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "wait",
+            taskIds: [task.id],
+            text: "Wait for a reply to the note",
+            waitSeconds: 0,
+          },
+        },
+        "execute",
+        randomUUID(),
+        randomUUID(),
+      ),
+    ).rejects.toThrow("Automatic waiting for this attempt has ended");
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
     expect(
       f.gateway.router.native.tasks(f.groupId).filter((t) => t.id === task.id),
     ).toHaveLength(1);

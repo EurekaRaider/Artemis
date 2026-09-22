@@ -1086,6 +1086,65 @@ describe.each(["slack", "feishu", "lark"] as const)(
       ).toBe("legacy-worker-session");
     });
 
+    it.each(["sent", "uncertain"] as const)(
+      "refuses notes for an unaccepted %s assignment without sending or starting work",
+      (state) => {
+        const f = pair(":memory:", true);
+        const [sent] = delegate(f, "Report your computer's RAM");
+        const task = f.a.router.native.tasks(f.a.group.id)[0]!;
+        f.a.store.mark("outgoing", `native:${task.envelope.id}`, "done");
+        f.a.store.put("native-tasks", JSON.stringify([task.groupId, task.id]), {
+          ...task,
+          state,
+        });
+        expect(() =>
+          f.a.router.native.command(f.request, "coordinator", randomUUID(), {
+            action: "message",
+            taskId: sent!.id,
+            text: "Say hello and reply to the RAM question",
+          }),
+        ).toThrow("Notes require an accepted, active task");
+        expect(f.a.store.pending("outgoing")).toEqual([]);
+        expect(f.b.router.native.tasks(f.b.group.id)).toEqual([]);
+        expect(f.b.store.pending("device")).toEqual([]);
+      },
+    );
+
+    it("keeps accepted task notes in history without promising a new execution or reply", () => {
+      const f = pair(":memory:", true);
+      const [task] = delegate(f);
+      exchange(f.a, f.b);
+      exchange(f.b, f.a);
+      const executions = f.b.store.pending("device");
+      expect(
+        f.a.router.native.command(f.request, "coordinator", randomUUID(), {
+          action: "message",
+          taskId: task!.id,
+          text: "Additional background only",
+        }),
+      ).toMatchObject({
+        state: "note-queued",
+        taskId: task!.id,
+        startsExecution: false,
+        instruction: expect.stringContaining("does not request a reply"),
+      });
+      exchange(f.a, f.b);
+      expect(f.b.store.pending("device")).toEqual(executions);
+      expect(
+        f.b.store.list<{ envelope: NativeEnvelope }>("native-history"),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            envelope: expect.objectContaining({
+              action: "note",
+              task: task!.id,
+              text: "Additional background only",
+            }),
+          }),
+        ]),
+      );
+    });
+
     it("reports malformed delegation separately from authorization without dispatching", () => {
       const f = pair();
       expect(
@@ -1120,6 +1179,8 @@ describe.each(["slack", "feishu", "lark"] as const)(
         }),
       ).toThrow("Bot is not authorized");
       const [task] = delegate(f);
+      exchange(f.a, f.b);
+      exchange(f.b, f.a);
       expect(
         f.a.router.native.command(f.request, "coordinator", "valid-note", {
           action: "message",
