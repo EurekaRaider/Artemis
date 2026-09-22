@@ -41,8 +41,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/gateway": "1.6.0",
     "@artemis/agent-host": "1.6.0",
+    "@artemis/gateway": "1.6.0",
     "@artemis/platform": "1.6.0",
     "@artemis/protocol": "1.6.0",
     "@artemis/theme-artemis": "1.6.0",
@@ -52,6 +52,7 @@
     "@earendil-works/pi-coding-agent": "0.87.0",
     "@js-temporal/polyfill": "^0.5.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@napi-rs/canvas": "1.0.2",
     "@office-kit/xlsx": "^0.9.0",
     "@phosphor-icons/react": "^2.1.10",
     "@sinclair/typebox": "0.34.52",
@@ -66,34 +67,33 @@
     "node-pty": "^1.1.0",
     "officeparser": "^7.5.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "6.2.108",
     "pptxgenjs": "^4.0.1",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-i18next": "^17.0.11",
     "seti-file-icons": "0.0.8",
     "smol-toml": "^1.7.1",
     "tar": "7.5.22",
-    "zod": "^4.1.12",
-    "@napi-rs/canvas": "1.0.2",
-    "pdfjs-dist": "6.2.108",
-    "qrcode": "^1.5.4"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.6",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
     "concurrently": "10.0.4",
     "cross-env": "10.1.0",
     "electron": "43.2.0",
-    "electron-builder": "26.15.3",
+    "electron-builder": "26.16.1",
     "esbuild": "0.28.1",
     "jsdom": "^29.1.1",
     "vite": "8.1.5",
-    "wait-on": "9.1.0",
-    "@types/qrcode": "^1.5.5"
+    "wait-on": "9.1.0"
   },
   "build": {
     "appId": "com.artemis.desktop",

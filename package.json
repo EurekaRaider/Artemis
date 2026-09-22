@@ -81,9 +81,10 @@
     "update:slack-cli": "node scripts/update-slack-cli.mjs"
   },
   "devDependencies": {
+    "@electron-internal/extract-zip": "1.0.4",
     "@types/node": "26.1.1",
-    "app-builder-lib": "26.15.3",
-    "builder-util": "26.15.3",
+    "app-builder-lib": "26.16.1",
+    "builder-util": "26.16.0",
     "clean-css": "5.3.3",
     "css-tree": "3.2.1",
     "jsdom": "^29.1.1",
@@ -92,7 +93,6 @@
     "postcss": "8.5.23",
     "prettier": "3.9.6",
     "typescript": "7.0.2",
-    "vitest": "4.1.10",
-    "@electron-internal/extract-zip": "1.0.4"
+    "vitest": "4.1.10"
   }
 }
