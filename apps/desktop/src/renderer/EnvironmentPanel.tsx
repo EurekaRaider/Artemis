@@ -1503,6 +1503,7 @@ export function EnvironmentPanel({
           </header>
           {imGroup && (
             <ImGroupMembers
+              managePermissions
               group={imGroup}
               locale={locale}
               onMention={onMentionMember}

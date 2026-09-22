@@ -138,6 +138,96 @@ function resize(width: number) {
 const dialog = () =>
   screen.queryByRole("dialog", { name: "Environment", exact: true });
 
+it.each(["slack", "feishu", "wecom"] as const)(
+  "keeps %s member assignment controls available in the environment panel",
+  async (channel) => {
+    const manageIm = vi.fn().mockResolvedValue({});
+    stubWindowArtemis({ ...window.artemis, manageIm });
+    const identity = (userId: string) => ({
+      userId,
+      channel,
+      connectionId: channel,
+      appId: "bot",
+      tenantId: "tenant",
+    });
+    const imGroup: NonNullable<typeof props.imGroup> = {
+      spaceId: "team",
+      name: "Team",
+      native: true,
+      confirmed: true,
+      stale: false,
+      executingDeviceId: "device",
+      members: [],
+      roster: {
+        complete: true,
+        members: [
+          {
+            identity: identity("owner"),
+            name: "Owner",
+            kind: "human",
+            owner: true,
+          },
+          {
+            identity: identity("human"),
+            name: "Alex",
+            kind: "human",
+            canAssign: true,
+          },
+          { identity: identity("self"), name: "Self", kind: "bot", self: true },
+          {
+            identity: identity("peer"),
+            name: "Solar",
+            kind: "bot",
+            canAssign: true,
+            verifiedAt: 1,
+          },
+          { identity: identity("unknown"), name: "Unknown", kind: "unknown" },
+        ],
+      },
+    };
+    const { rerender } = await renderReady(
+      fixture({ imGroup, locale: "zh-CN" }),
+    );
+    for (const name of ["Owner", "Self", "Unknown"]) {
+      expect(
+        screen.queryByRole("button", { name: new RegExp(`${name} 派工`) }),
+      ).toBeNull();
+    }
+    for (const name of ["Alex", "Solar"]) {
+      const button = screen.getByRole("button", { name: `禁止 ${name} 派工` });
+      expect(
+        button.querySelector('svg[data-artemis-icon="send"]'),
+      ).not.toBeNull();
+      await userEvent.click(button);
+      expect(manageIm).toHaveBeenCalledWith({
+        action: "set-group-member-assignment",
+        spaceId: "team",
+        identity: identity(name === "Alex" ? "human" : "peer"),
+        allowed: false,
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: `允许 ${name} 派工` }),
+      );
+      expect(manageIm).toHaveBeenLastCalledWith({
+        action: "set-group-member-assignment",
+        spaceId: "team",
+        identity: identity(name === "Alex" ? "human" : "peer"),
+        allowed: true,
+      });
+    }
+    for (const unavailable of [{ stale: true }, { confirmed: false }]) {
+      rerender(
+        fixture({ imGroup: { ...imGroup, ...unavailable }, locale: "zh-CN" }),
+      );
+      for (const name of ["Alex", "Solar"]) {
+        expect(
+          screen.getByRole("button", { name: `禁止 ${name} 派工` }),
+        ).toBeDisabled();
+      }
+    }
+  },
+);
+
 describe("environment agent activity", () => {
   const child = {
     type: "child-agent.status" as const,
