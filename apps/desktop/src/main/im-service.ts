@@ -347,11 +347,42 @@ export class ImService {
     const fresh =
       typeof task.heartbeatAt === "number" &&
       Date.now() - task.heartbeatAt < 180_000;
+    const wait = task.threadId
+      ? [
+          ...this.delegationWaits.active(task.threadId),
+          ...this.delegationWaits.interrupted(task.threadId),
+        ].find(
+          (w) =>
+            !this.suspendedWait(w.id, w.threadId) &&
+            w.tasks.some(
+              (t) => t.id === task.id && t.attempt === task.envelope.id,
+            ),
+        )
+      : undefined;
+    const active = !!wait && ["waiting", "ready"].includes(wait.state);
     return {
       ...task,
       reportedState: task.state,
       state: terminal || fresh ? task.state : "unknown",
       liveness: terminal ? "terminal" : fresh ? "responsive" : "unknown",
+      localWait: {
+        active,
+        state: wait?.state ?? "inactive",
+        ...(wait ? { waitId: wait.id } : {}),
+      },
+      instruction: [
+        "Transport delivery (including delivery: done) does not confirm peer acceptance, receiver conversation creation, or execution.",
+        active
+          ? "Automatic waiting is active. Await the result without redispatching."
+          : wait?.state === "interrupted"
+            ? "Automatic waiting is interrupted. Ask the user to choose Retry in Artemis, or Continue waiting if the remote outcome is unknown; do not redispatch automatically."
+            : "Do not claim automatic waiting or a future automatic reply. No automatic continuation is scheduled for this attempt.",
+        ...(!active && !terminal && !wait
+          ? [
+              "Check the remote outcome and obtain an explicit user instruction before retrying or restarting waiting.",
+            ]
+          : []),
+      ].join(" "),
     };
   }
   private interruptionReason(wait: DelegationWait): string {

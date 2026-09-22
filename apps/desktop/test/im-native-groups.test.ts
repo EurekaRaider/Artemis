@@ -18,8 +18,10 @@ import {
   type ImStatus,
   type ImOutboundCandidate,
   type AgentEvent,
+  type CollaborationSpace,
 } from "@artemis/protocol";
 import type { ArtemisGateway } from "@artemis/gateway";
+import type { Delivery } from "../../../packages/gateway/src/router.js";
 import { retireGroup } from "../../../packages/gateway/src/group-retirement.js";
 import { ImPermissionError } from "../src/main/im-policy.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
@@ -794,6 +796,152 @@ async function delegatedFixture(channel: "slack" | "feishu" = "slack") {
   return { ...f, groupId, request, threadId, thread, task };
 }
 
+it.each(["slack", "feishu", "lark"] as const)(
+  "%s creates the receiver conversation on an explicit fresh dispatch after an unaccepted older assignment on the same desktop",
+  async (platform) => {
+    const f = await fixture(platform === "slack" ? "slack" : "feishu");
+    f.grant.mode = "execute";
+    const receiverEvent = {
+      ...f.event,
+      messageId: randomUUID(),
+      identity: {
+        ...f.event.identity,
+        connectionId: "venus",
+        appId: "venus-app",
+      },
+      conversation: { ...f.event.conversation, connectionId: "venus" },
+    };
+    for (const [connectionId, botId, appId] of [
+      ["bot", "jupiter", "app"],
+      ["venus", "venus", "venus-app"],
+    ])
+      f.gateway.store.put("connections", connectionId!, {
+        sealed: f.gateway.store.seal({
+          id: connectionId,
+          channel: f.event.identity.channel,
+          domain: platform === "lark" ? "lark" : "feishu",
+          tenantId: "tenant",
+          appId,
+          botUserId: botId,
+          botOpenId: botId,
+          enabled: true,
+        }),
+      });
+    await f.authorize();
+    f.gateway.store.pair(
+      f.gateway.store.pairCode(f.service.status().settings.deviceId),
+      receiverEvent.identity,
+    );
+    f.gateway.router.ingest(receiverEvent);
+    f.gateway.router.processIncoming();
+    await f.service.manage({ action: "refresh" });
+    await f.service.manage({
+      action: "authorize-native-group",
+      conversation: receiverEvent.conversation,
+      owner: receiverEvent.identity,
+      name: "Test room",
+      grant: f.grant,
+      confirmed: true,
+    });
+    const groups = f.gateway.store.list<CollaborationSpace>("native-groups");
+    const sender = groups.find((g) => g.endpoints[0]!.connectionId === "bot")!;
+    const receiver = groups.find(
+      (g) => g.endpoints[0]!.connectionId === "venus",
+    )!;
+    for (const [group, peer] of [
+      [sender, "venus"],
+      [receiver, "jupiter"],
+    ] as const) {
+      f.gateway.store.put("native-groups", group.id, {
+        ...group,
+        nativeGroup: {
+          ...group.nativeGroup,
+          capability: "events",
+          allowedBots: [peer],
+        },
+      });
+      f.gateway.store.put("native-peers", group.id, [
+        { id: peer, name: peer, verifiedAt: Date.now() },
+      ]);
+    }
+    await f.service.manage({ action: "refresh" });
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      sender.id,
+    );
+    await f.service.accept({ ...request, text: "Ask Venus to report its RAM" });
+    const coordinator = f.starts.at(-1)!;
+    const command = {
+      action: "delegate" as const,
+      participantId: "venus",
+      text: "Report your computer's RAM",
+    };
+    const [old] = (await f.service.operate(
+      coordinator,
+      { action: "collaborate", command },
+      "execute",
+      randomUUID(),
+    )) as Array<{ id: string; envelope: { id: string } }>;
+    // The provider accepted the old message, but the receiver never accepted it.
+    f.gateway.store.mark("outgoing", `native:${old!.envelope.id}`, "done");
+    await f.service.poll();
+    expect(f.starts).toEqual([coordinator]);
+    expect(f.gateway.router.native.tasks(receiver.id)).toEqual([]);
+    const oldWait = f.service
+      .status()
+      .remoteTasks!.find((t) => t.threadId === coordinator)!
+      .delegationWaits![0]!;
+    await f.service.manage({
+      action: "delegation-stop-wait",
+      waitId: oldWait.id,
+    });
+    const tasks = (await f.service.operate(
+      coordinator,
+      {
+        action: "collaborate",
+        command: { ...command, newTask: true },
+      },
+      "execute",
+      randomUUID(),
+    )) as Array<{ id: string }>;
+    expect(tasks[0]!.id).not.toBe(old!.id);
+    const delivery = f.gateway.store
+      .pending<Delivery>("outgoing", Date.now(), "bot")
+      .find((item) => item.payload.native?.action === "delegate")!;
+    expect(delivery.payload.native?.platform).toBe(platform);
+    // Only the serialized IM message crosses into the other bot connection.
+    const incoming = {
+      ...receiverEvent,
+      messageId: randomUUID(),
+      timestamp: Date.now(),
+      identity: { ...receiverEvent.identity, userId: "jupiter" },
+      bot: true,
+      text: delivery.payload.text,
+    };
+    f.gateway.router.ingest(incoming);
+    f.gateway.store.mark("outgoing", delivery.id, "done");
+    await f.service.poll();
+    const worker = f.starts.at(-1)!;
+    expect(worker).not.toBe(coordinator);
+    expect(f.starts).toEqual([coordinator, worker]);
+    expect(
+      f.service.status().remoteTasks!.find((t) => t.threadId === worker)?.group
+        ?.spaceId,
+    ).toBe(receiver.id);
+    expect(f.gateway.router.native.tasks(receiver.id)).toEqual([
+      expect.objectContaining({
+        id: tasks[0]!.id,
+        direction: "incoming",
+        state: "running",
+        threadId: worker,
+      }),
+    ]);
+    f.gateway.router.ingest(incoming);
+    await f.service.poll();
+    expect(f.starts).toEqual([coordinator, worker]);
+  },
+);
+
 it.each(["slack", "feishu", "wecom"] as const)(
   "keeps %s human follow-ups in one group task until an explicit new-task request",
   async (channel) => {
@@ -1278,8 +1426,9 @@ it("preserves cancellation when a continuation dispatch completes concurrently",
 async function automaticallyDelegatedFixture(
   batch = false,
   originTurnId?: string,
+  platform: "slack" | "feishu" | "lark" = "slack",
 ) {
-  const f = await delegatedFixture();
+  const f = await delegatedFixture(platform === "slack" ? "slack" : "feishu");
   const group = f.gateway.store.get<
     import("@artemis/protocol").CollaborationSpace
   >("native-groups", f.groupId)!;
@@ -1293,10 +1442,12 @@ async function automaticallyDelegatedFixture(
   f.gateway.store.put("connections", "bot", {
     sealed: f.gateway.store.seal({
       id: "bot",
-      channel: "slack",
+      channel: f.event.identity.channel,
+      domain: platform === "lark" ? "lark" : "feishu",
       tenantId: "tenant",
       appId: "app",
       botUserId: "jupiter",
+      botOpenId: "jupiter",
       enabled: true,
     }),
   });
@@ -1329,6 +1480,56 @@ async function automaticallyDelegatedFixture(
       .delegationWaits!;
   return { ...f, command, callId, result, waits };
 }
+
+it.each(["slack", "feishu", "lark"] as const)(
+  "%s distinguishes transport delivery from peer acceptance and a stopped local wait",
+  async (platform) => {
+    const f = await automaticallyDelegatedFixture(false, undefined, platform);
+    const task = f.result[0]!;
+    const waitId = f.waits()[0]!.id;
+    f.gateway.store.mark("outgoing", `native:${task.envelope.id}`, "done");
+    const status = () =>
+      f.service.operate(
+        f.threadId,
+        { action: "collaborate", command: { action: "status", text: "" } },
+        "execute",
+        randomUUID(),
+        randomUUID(),
+      );
+    expect(await status()).toMatchObject({
+      state: "waiting",
+      tasks: expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          state: "unknown",
+          reportedState: "sent",
+          delivery: "done",
+          localWait: { active: true, state: "waiting", waitId },
+          instruction: expect.stringContaining(
+            "does not confirm peer acceptance",
+          ),
+        }),
+      ]),
+    });
+    await f.service.manage({ action: "delegation-stop-wait", waitId });
+    expect(await status()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          delivery: "done",
+          localWait: { active: false, state: "inactive" },
+          instruction: expect.stringContaining(
+            "Do not claim automatic waiting",
+          ),
+        }),
+      ]),
+    );
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(
+      f.gateway.router.native.tasks(f.groupId).filter((t) => t.id === task.id),
+    ).toHaveLength(1);
+  },
+);
 
 it("registers waiting immediately on successful dispatch without a wait tool and reuses it for explicit wait", async () => {
   const f = await automaticallyDelegatedFixture();
@@ -1946,6 +2147,12 @@ it("queries unknown and recovered task heartbeats without rearming an interrupte
           state: fresh ? "running" : "unknown",
           reportedState: "running",
           liveness: fresh ? "responsive" : "unknown",
+          localWait: {
+            active: false,
+            state: "interrupted",
+            waitId: f.waits()[0]!.id,
+          },
+          instruction: expect.stringContaining("choose Retry in Artemis"),
         }),
       ]),
     );
