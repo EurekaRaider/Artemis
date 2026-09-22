@@ -29,13 +29,21 @@ describe.each(["slack", "feishu", "lark"] as const)(
     });
     function instance(
       bot: string,
-      database = ":memory:",
+      database:
+        | string
+        | {
+            store: GatewayStore;
+            router: GatewayRouter;
+            device: { id: string; token: string };
+          } = ":memory:",
       platform: "slack" | "feishu" | "lark" = suitePlatform,
     ) {
-      const store = new GatewayStore(database, "e".repeat(32));
-      stores.push(store);
-      const router = new GatewayRouter(store);
-      const device = store.register(bot);
+      const shared = typeof database !== "string" ? database : undefined;
+      const store =
+        shared?.store ?? new GatewayStore(database as string, "e".repeat(32));
+      if (!shared) stores.push(store);
+      const router = shared?.router ?? new GatewayRouter(store);
+      const device = shared?.device ?? store.register(bot);
       const identity = {
         channel:
           platform === "slack" ? ("slack" as const) : ("feishu" as const),
@@ -162,9 +170,9 @@ describe.each(["slack", "feishu", "lark"] as const)(
         a.store.mark("outgoing", item.id, "done");
       }
     }
-    function pair(database = ":memory:") {
+    function pair(database = ":memory:", shared = false) {
       const a = instance("A", database),
-        b = instance("B");
+        b = instance("B", shared ? a : ":memory:");
       a.router.native.probe(a.group.id);
       b.router.native.probe(b.group.id);
       exchange(a, b);
@@ -196,6 +204,127 @@ describe.each(["slack", "feishu", "lark"] as const)(
         text,
       }) as Array<{ id: string }>;
     }
+
+    it("isolates both ends of a delegation when two bots share one gateway and device", () => {
+      const f = pair(":memory:", true);
+      const [sent] = delegate(f, "Report your computer's RAM");
+      exchange(f.a, f.b);
+      const incoming = f.b.router.native.tasks(f.b.group.id)[0];
+      expect(incoming).toMatchObject({
+        id: sent!.id,
+        direction: "incoming",
+        state: "accepted",
+      });
+      expect(f.a.router.native.tasks(f.a.group.id)[0]).toMatchObject({
+        id: sent!.id,
+        direction: "outgoing",
+        state: "sent",
+      });
+      exchange(f.b, f.a);
+      expect(f.a.router.native.tasks(f.a.group.id)[0]?.state).toBe("accepted");
+      f.b.router.receiveReply(f.b.device.id, {
+        version: 1,
+        id: randomUUID(),
+        invocationId: incoming!.invocationId,
+        taskId: "worker-session",
+        text: "RAM: 32 GB",
+        final: true,
+        outcome: "completed",
+      });
+      exchange(f.b, f.a);
+      expect(f.a.router.native.tasks(f.a.group.id)[0]).toMatchObject({
+        direction: "outgoing",
+        state: "completed",
+        result: "RAM: 32 GB",
+        threadId: "coordinator",
+      });
+      expect(f.b.router.native.tasks(f.b.group.id)[0]).toMatchObject({
+        direction: "incoming",
+        state: "completed",
+        threadId: "worker-session",
+      });
+      const count = f.b.store.pending("device").length;
+      expect(
+        f.b.router.native.receive({
+          ...f.b.event,
+          bot: true,
+          timestamp: Date.now(),
+          identity: { ...f.b.event.identity, userId: "A" },
+          text: encodeNativeEnvelope(incoming!.envelope),
+        }),
+      ).toBe(true);
+      expect(f.b.store.pending("device")).toHaveLength(count);
+      const [next] = delegate(f, "Explain the RAM result");
+      exchange(f.a, f.b);
+      const resumed = f.b.router.native
+        .tasks(f.b.group.id)
+        .find((t) => t.id === next!.id)!;
+      expect(resumed.envelope).toMatchObject({
+        action: "continue",
+        previousTask: sent!.id,
+      });
+      expect(
+        f.b.store.get<RemoteInvocationContext>(
+          "invocations",
+          resumed.invocationId,
+        )?.taskId,
+      ).toBe("worker-session");
+      f.a.router.native.command(f.request, "coordinator", randomUUID(), {
+        action: "cancel",
+        taskId: next!.id,
+        text: "",
+      });
+      exchange(f.a, f.b);
+      const cancel = f.b.store
+        .pending<RemoteInvocationContext>("device")
+        .find((item) => item.payload.control === "cancel")!.payload;
+      expect(cancel.conversation.spaceId).toBe(f.b.group.id);
+      f.b.router.receiveReply(f.b.device.id, {
+        version: 1,
+        id: randomUUID(),
+        invocationId: cancel.id,
+        taskId: "worker-session",
+        text: "Cancelled",
+        final: true,
+        outcome: "cancelled",
+      });
+      exchange(f.b, f.a);
+      expect(
+        f.a.router.native.tasks(f.a.group.id).find((t) => t.id === next!.id)
+          ?.state,
+      ).toBe("cancelled");
+      expect(
+        f.b.router.native.tasks(f.b.group.id).find((t) => t.id === next!.id)
+          ?.state,
+      ).toBe("cancelled");
+    });
+
+    it("migrates legacy task storage without losing pending work or its session association", () => {
+      const f = pair(":memory:", true);
+      const [sent] = delegate(f);
+      const task = f.a.router.native.tasks(f.a.group.id)[0]!;
+      f.a.store.delete("native-tasks", JSON.stringify([f.a.group.id, task.id]));
+      f.a.store.put("native-tasks", task.id, task);
+      const restarted = new GatewayRouter(f.a.store);
+      f.a.router = restarted;
+      f.b.router = restarted;
+      expect(f.a.store.get("native-tasks", task.id)).toBeUndefined();
+      expect(restarted.native.tasks(f.a.group.id)).toHaveLength(1);
+      expect(restarted.native.tasks(f.a.group.id)[0]).toMatchObject({
+        id: sent!.id,
+        state: "sent",
+        sessionId: task.sessionId,
+      });
+      expect(() => delegate(f, "Do not duplicate pending work")).toThrow(
+        /Wait/,
+      );
+      exchange(f.a, f.b);
+      exchange(f.b, f.a);
+      expect(restarted.native.tasks(f.a.group.id)[0]?.state).toBe("accepted");
+      expect(restarted.native.tasks(f.b.group.id)[0]?.state).toBe("accepted");
+      new GatewayRouter(f.a.store);
+      expect(f.a.store.list("native-tasks")).toHaveLength(2);
+    });
 
     it("never schedules presence polling or presence renegotiation, including cached peers", () => {
       vi.useFakeTimers();
@@ -549,12 +678,16 @@ describe.each(["slack", "feishu", "lark"] as const)(
         { groupId: "other-group" },
         { state: "running" as const },
       ]) {
-        f.b.store.put("native-tasks", incoming.id, {
-          ...f.b.router.native
-            .tasks(f.b.group.id)
-            .find((t) => t.id === incoming.id)!,
-          ...patch,
-        });
+        f.b.store.put(
+          "native-tasks",
+          JSON.stringify([f.b.group.id, incoming.id]),
+          {
+            ...f.b.router.native
+              .tasks(f.b.group.id)
+              .find((t) => t.id === incoming.id)!,
+            ...patch,
+          },
+        );
         const count = f.b.store.pending("device").length;
         expect(
           f.b.router.native.receive({
@@ -565,11 +698,15 @@ describe.each(["slack", "feishu", "lark"] as const)(
           }),
         ).toBe(false);
         expect(f.b.store.pending("device")).toHaveLength(count);
-        f.b.store.put("native-tasks", incoming.id, {
-          ...incoming,
-          state: "completed",
-          threadId: "worker-session",
-        });
+        f.b.store.put(
+          "native-tasks",
+          JSON.stringify([f.b.group.id, incoming.id]),
+          {
+            ...incoming,
+            state: "completed",
+            threadId: "worker-session",
+          },
+        );
       }
       exchange(f.a, f.b);
       const resumed = f.b.router.native
@@ -767,7 +904,10 @@ describe.each(["slack", "feishu", "lark"] as const)(
           received.invocationId,
         )?.taskId,
       ).toBe("shared-worker-session");
-      f.a.store.delete("native-tasks", memberTask!.id);
+      f.a.store.delete(
+        "native-tasks",
+        JSON.stringify([f.a.group.id, memberTask!.id]),
+      );
       expect(() => delegate(f, "Follow up")).toThrow(
         /saved peer session is missing/,
       );
@@ -788,7 +928,10 @@ describe.each(["slack", "feishu", "lark"] as const)(
         outcome: "completed",
       });
       exchange(f.b, f.a);
-      f.b.store.delete("native-tasks", first!.id);
+      f.b.store.delete(
+        "native-tasks",
+        JSON.stringify([f.b.group.id, first!.id]),
+      );
       const [next] = delegate(f, "Follow up");
       exchange(f.a, f.b);
       exchange(f.b, f.a);
@@ -826,7 +969,7 @@ describe.each(["slack", "feishu", "lark"] as const)(
       ]);
       f.a.store.delete("native-sessions-v3", task.sessionKey!);
       f.a.store.put("native-sessions-v2", legacyKey, task.id);
-      f.a.store.put("native-tasks", task.id, {
+      f.a.store.put("native-tasks", JSON.stringify([f.a.group.id, task.id]), {
         ...task,
         sessionKey: legacyKey,
       });
@@ -834,7 +977,7 @@ describe.each(["slack", "feishu", "lark"] as const)(
       const foreignId = randomUUID();
       const foreignKey = JSON.parse(legacyKey);
       foreignKey[7] = "obsolete-grant";
-      f.a.store.put("native-tasks", foreignId, {
+      f.a.store.put("native-tasks", JSON.stringify([f.a.group.id, foreignId]), {
         ...task,
         id: foreignId,
         sessionKey: JSON.stringify(foreignKey),
@@ -1726,66 +1869,70 @@ describe.each(["slack", "feishu", "lark"] as const)(
       ).toBe("accepted");
     });
 
-    it("allows a distinct upstream dependency and returns its result to the worker", () => {
-      const f = pair();
-      const [parent] = delegate(
-        f,
-        "Analyze my project using the deployment constraints",
-      );
-      exchange(f.a, f.b);
-      const received = f.b.router.native.tasks(f.b.group.id)[0]!;
-      const worker = f.b.store.get<RemoteInvocationContext>(
-        "invocations",
-        received.invocationId,
-      )!;
-      const dependency = {
-        reason: "Only A has the deployment constraints",
-        retainedWork:
-          "I will analyze my own project after receiving the constraints",
-      };
-      const [child] = f.b.router.native.command(
-        worker,
-        "worker",
-        randomUUID(),
-        {
-          action: "delegate",
-          participantId: "A",
-          text: "Provide your deployment constraints",
+    it.each([false, true])(
+      "allows a distinct upstream dependency and returns its result to the worker (shared gateway: %s)",
+      (shared) => {
+        const f = pair(":memory:", shared);
+        const [parent] = delegate(
+          f,
+          "Analyze my project using the deployment constraints",
+        );
+        exchange(f.a, f.b);
+        const received = f.b.router.native.tasks(f.b.group.id)[0]!;
+        const worker = f.b.store.get<RemoteInvocationContext>(
+          "invocations",
+          received.invocationId,
+        )!;
+        const dependency = {
+          reason: "Only A has the deployment constraints",
+          retainedWork:
+            "I will analyze my own project after receiving the constraints",
+        };
+        const [child] = f.b.router.native.command(
+          worker,
+          "worker",
+          randomUUID(),
+          {
+            action: "delegate",
+            participantId: "A",
+            text: "Provide your deployment constraints",
+            dependency,
+          },
+        ) as Array<{ id: string; workflow: string; envelope: NativeEnvelope }>;
+        expect(child!.envelope).toMatchObject({
+          parentTask: parent!.id,
           dependency,
-        },
-      ) as Array<{ id: string; workflow: string; envelope: NativeEnvelope }>;
-      expect(child!.envelope).toMatchObject({
-        parentTask: parent!.id,
-        dependency,
-      });
-      exchange(f.b, f.a);
-      const incoming = f.a.router.native
-        .tasks(f.a.group.id)
-        .find((t) => t.id === child!.id)!;
-      expect(incoming.direction).toBe("incoming");
-      expect(incoming.workflow).toBe(received.workflow);
-      f.a.router.receiveReply(f.a.device.id, {
-        version: 1,
-        id: randomUUID(),
-        invocationId: incoming.invocationId,
-        taskId: "dependency-worker",
-        final: true,
-        outcome: "completed",
-        text: "Linux only",
-      });
-      exchange(f.a, f.b);
-      expect(
-        f.b.router.native.tasks(f.b.group.id).find((t) => t.id === child!.id),
-      ).toMatchObject({
-        result: "Linux only",
-        state: "completed",
-        threadId: "worker",
-      });
-      expect(
-        f.a.router.native.tasks(f.a.group.id).find((t) => t.id === parent!.id)!
-          .state,
-      ).not.toBe("completed");
-    });
+        });
+        exchange(f.b, f.a);
+        const incoming = f.a.router.native
+          .tasks(f.a.group.id)
+          .find((t) => t.id === child!.id)!;
+        expect(incoming.direction).toBe("incoming");
+        expect(incoming.workflow).toBe(received.workflow);
+        f.a.router.receiveReply(f.a.device.id, {
+          version: 1,
+          id: randomUUID(),
+          invocationId: incoming.invocationId,
+          taskId: "dependency-worker",
+          final: true,
+          outcome: "completed",
+          text: "Linux only",
+        });
+        exchange(f.a, f.b);
+        expect(
+          f.b.router.native.tasks(f.b.group.id).find((t) => t.id === child!.id),
+        ).toMatchObject({
+          result: "Linux only",
+          state: "completed",
+          threadId: "worker",
+        });
+        expect(
+          f.a.router.native
+            .tasks(f.a.group.id)
+            .find((t) => t.id === parent!.id)!.state,
+        ).not.toBe("completed");
+      },
+    );
 
     it("routes nested reverse prerequisites to each original session without waiting on their own ancestor", () => {
       const f = pair();
@@ -1991,7 +2138,7 @@ describe.each(["slack", "feishu", "lark"] as const)(
       expect(f.b.router.native.tasks(f.b.group.id)[0]!.state).toBe("cancelled");
       exchange(f.b, f.a);
       expect(f.a.router.native.tasks(f.a.group.id)[0]!.state).toBe("cancelled");
-      f.b.store.put("native-tasks", task.id, {
+      f.b.store.put("native-tasks", JSON.stringify([f.b.group.id, task.id]), {
         ...task,
         state: "completed",
         result: "Done",

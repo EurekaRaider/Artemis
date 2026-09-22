@@ -3,7 +3,11 @@ import { createRef } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import { imSettingsSchema, type Project } from "@artemis/protocol";
+import {
+  IM_SECURITY_VERSION,
+  imSettingsSchema,
+  type Project,
+} from "@artemis/protocol";
 import { stubWindowArtemis } from "./renderer-test-utils";
 import { GroupCollaborationPanel } from "../src/renderer/GroupCollaborationPanel";
 const identity = {
@@ -64,12 +68,176 @@ async function openGroup() {
   await user.click(screen.getByRole("button", { name: "为此群授权" }));
   return user;
 }
+function multiBotFixture(channel: "slack" | "feishu" | "lark" = "slack") {
+  const f = fixture();
+  const identities = ["bot-a", "bot-b"].map((connectionId) => ({
+    ...identity,
+    channel: channel === "lark" ? ("feishu" as const) : channel,
+    connectionId,
+    appId: connectionId,
+  }));
+  const groups = identities.map((owner) => ({
+    ...f.props.diagnostics.groups[0]!,
+    platform: channel,
+    identities: [owner],
+    conversation: {
+      connectionId: owner.connectionId,
+      kind: "group" as const,
+      id: "room",
+    },
+  }));
+  const spaces = groups.map((group, index) => ({
+    id: `saved-${index}`,
+    name: "研发群",
+    revision: `revision-${index}`,
+    endpoints: [group.conversation],
+    participants: [
+      { deviceId: "device", identity: identities[index]!, name: "林晓" },
+    ],
+    nativeGroup: {
+      version: 1 as const,
+      projectId: index ? "q" : "p",
+      enabled: !index,
+      ownerDeviceId: "device",
+      capability: "events" as const,
+      enabledAt: 1,
+    },
+    roster: {
+      complete: true,
+      members: [
+        { identity: identities[index]!, name: "林晓", kind: "human" },
+        {
+          identity: { ...identities[index]!, userId: `robot-${index}` },
+          name: index ? "Venus" : "Jupiter",
+          kind: "bot",
+          self: true,
+        },
+      ],
+    },
+  }));
+  const props = {
+    ...f.props,
+    projects: [
+      ...f.props.projects,
+      { id: "q", name: "Project B", path: "/synthetic-b" } as Project,
+    ],
+    diagnostics: {
+      ...f.props.diagnostics,
+      groups,
+      identities: identities.map((owner) => ({
+        deviceId: "device",
+        identity: owner,
+      })),
+    },
+    status: {
+      ...f.props.status,
+      state: "connected" as const,
+      spaces,
+      connections: identities.map((owner, index) => ({
+        id: owner.connectionId,
+        channel: owner.channel,
+        name: index ? "Venus" : "Jupiter",
+        state: "connected" as const,
+      })),
+      settings: imSettingsSchema.parse({
+        ...f.props.status.settings,
+        enabled: true,
+        grants: spaces.map((space, index) => ({
+          projectId: space.nativeGroup.projectId,
+          mode: "plan",
+          expiresAt: Date.now() + 86400000,
+          groups: [`space:${space.id}`],
+          security: {
+            version: IM_SECURITY_VERSION,
+            revision: `security-${index}`,
+            confirmedAt: 1,
+            scopes: [
+              {
+                audience: `space:${space.id}`,
+                readMode: "selected",
+                readPaths: [index ? "venus-only" : "jupiter-only"],
+                writePaths: [],
+                confirmedAt: 1,
+              },
+            ],
+          },
+        })),
+      }),
+    },
+  };
+  return { ...f, props };
+}
+it.each(["slack", "feishu", "lark"] as const)(
+  "shows one %s group with independent bot authorizations and a shared member list",
+  async (channel) => {
+    const f = multiBotFixture(channel);
+    f.manage.mockImplementation(async (input) => ({
+      version: 1,
+      state: "complete",
+      command: (input as { command: unknown }).command,
+      phases: {
+        binding: "applied",
+        local: "applied",
+        activation: "applied",
+        sync: "applied",
+      },
+    }));
+    const user = userEvent.setup();
+    render(<GroupCollaborationPanel {...f.props} />);
+    const entries = screen.getAllByRole("button", { name: /研发群/ });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toHaveTextContent("2 个本机机器人");
+    await user.click(entries[0]!);
+    const jupiter = screen.getByRole("region", { name: "Jupiter" });
+    const venus = screen.getByRole("region", { name: "Venus" });
+    expect(jupiter).toHaveTextContent("Project A");
+    expect(jupiter).toHaveTextContent("jupiter-only");
+    expect(venus).toHaveTextContent("Project B");
+    expect(venus).toHaveTextContent("venus-only");
+    expect(venus).toHaveTextContent("已暂停");
+    expect(document.querySelectorAll(".im-group-members")).toHaveLength(1);
+    await user.click(within(venus).getByRole("button", { name: "恢复授权" }));
+    expect(document.querySelector(".im-group-draft-target")).toHaveTextContent(
+      "Venus",
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: /我已确认完整摘要/ }),
+    );
+    await user.click(screen.getByRole("button", { name: "确认并应用" }));
+    expect(f.manage).toHaveBeenCalledExactlyOnceWith({
+      action: "authorize-group",
+      command: expect.objectContaining({
+        intent: "restore",
+        projectId: "q",
+        conversation: f.props.diagnostics.groups[1]!.conversation,
+        owner: f.props.diagnostics.identities[1]!.identity,
+        expectedGroupVersion: "revision-1",
+        scope: expect.objectContaining({ readPaths: ["venus-only"] }),
+      }),
+    });
+    expect(screen.getByRole("heading", { name: "研发群" })).toBeVisible();
+  },
+);
+it("filters bot authorization rows by project without losing the grouped directory", async () => {
+  const f = multiBotFixture();
+  const user = userEvent.setup();
+  render(<GroupCollaborationPanel {...f.props} />);
+  await user.click(screen.getByRole("button", { name: /研发群/ }));
+  await user.click(screen.getByRole("button", { name: "按项目" }));
+  await user.click(screen.getByRole("button", { name: /^项目/ }));
+  await user.click(screen.getByRole("option", { name: "Project B" }));
+  expect(screen.getAllByRole("button", { name: /研发群/ })).toHaveLength(1);
+  expect(screen.getByRole("region", { name: "Venus" })).toBeVisible();
+  expect(
+    screen.queryByRole("region", { name: "Jupiter" }),
+  ).not.toBeInTheDocument();
+});
 it("shows group names with platform logos and exposes the selected group", async () => {
   const f = fixture();
   render(<GroupCollaborationPanel {...f.props} />);
   const user = userEvent.setup();
   const group = screen.getByRole("button", { name: /研发群/ });
-  expect(group).toHaveTextContent(/^研发群$/);
+  expect(group).toHaveTextContent("研发群");
   expect(screen.getByRole("img", { name: "Slack" })).toBeVisible();
   expect(screen.getByRole("button", { name: "按群" })).toHaveAttribute(
     "aria-pressed",
@@ -248,12 +416,18 @@ it("shows matched bot and account names instead of authorization identifiers", a
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: /研发群/ }));
   const roster = document.querySelector(".im-group-members") as HTMLElement;
-  expect(roster).toHaveAttribute("open");
+  expect(roster).not.toHaveAttribute("open");
+  await user.click(within(roster).getByText("群成员"));
   expect(roster).toHaveTextContent("林晓");
   expect(roster).toHaveTextContent("陈晨");
   expect(within(roster).getAllByRole("img", { name: "成员" })).toHaveLength(3);
   expect(within(roster).getByRole("img", { name: "机器人" })).toBeVisible();
-  expect(within(roster).getAllByText("状态未知")).toHaveLength(4);
+  expect(within(roster).getAllByText("状态未知")).toHaveLength(3);
+  expect(within(roster).getByText("在线")).toBeVisible();
+  expect(within(roster).getByRole("img", { name: "机器人" })).toHaveAttribute(
+    "data-state",
+    "online",
+  );
   expect(roster).toHaveTextContent("Wrong account");
   await user.click(within(roster).getByRole("button", { name: "刷新" }));
   expect(f.manage).toHaveBeenCalledWith({
@@ -518,7 +692,9 @@ it("omits the open group conversation button when a current task exists", async 
   expect(
     screen.queryByRole("button", { name: "打开群对话" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByText("群成员").closest("details")).toHaveAttribute("open");
+  expect(screen.getByText("群成员").closest("details")).not.toHaveAttribute(
+    "open",
+  );
 });
 
 it("shows rejoined status and restores the saved project through authorization", async () => {

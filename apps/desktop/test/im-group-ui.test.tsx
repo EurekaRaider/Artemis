@@ -323,13 +323,13 @@ it("shows all four native members with robot icons only for bots", async () => {
   expect(screen.getByText("群协作成员 · 4")).toBeVisible();
   const bots = screen.getAllByRole("img", { name: "机器人" });
   expect(bots[0]).toHaveAttribute("data-state", "online");
-  expect(bots[1]).toHaveAttribute("data-state", "unknown");
+  expect(bots[1]).toHaveAttribute("data-state", "online");
   expect(screen.queryByText("在线")).not.toBeInTheDocument();
   await userEvent.hover(bots[0]!);
-  expect(await screen.findByRole("tooltip")).toHaveTextContent("可用");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("在线");
   await userEvent.unhover(bots[0]!);
   await userEvent.hover(bots[1]!);
-  expect(await screen.findByRole("tooltip")).toHaveTextContent("状态未知");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("在线");
   await userEvent.unhover(bots[1]!);
   expect(screen.queryByText("Bob")).not.toBeInTheDocument();
   expect(screen.getAllByRole("button")).toHaveLength(5);
@@ -454,7 +454,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   );
   expect(screen.getAllByRole("img", { name: "机器人" })[0]).toHaveAttribute(
     "data-state",
-    "offline",
+    "online",
   );
   rerender(
     <ImGroupMembers
@@ -466,7 +466,7 @@ it("shows all four native members with robot icons only for bots", async () => {
   expect(screen.queryByText("在线")).not.toBeInTheDocument();
   expect(
     screen
-      .getAllByRole("img")
+      .getAllByRole("img", { name: "成员" })
       .every((icon) => icon.dataset.state === "unknown"),
   ).toBe(true);
   rerender(
@@ -807,7 +807,7 @@ it.each(["feishu", "slack"] as const)(
   },
 );
 
-it("expires a peer's busy indicator without requiring a new snapshot", async () => {
+it("keeps a discovered bot green when task presence evidence expires", async () => {
   vi.useFakeTimers();
   stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
   render(
@@ -837,16 +837,16 @@ it("expires a peer's busy indicator without requiring a new snapshot", async () 
   );
   expect(screen.getByRole("img", { name: "机器人" })).toHaveAttribute(
     "data-state",
-    "busy",
+    "online",
   );
   await act(() => vi.advanceTimersByTimeAsync(2000));
   expect(screen.getByRole("img", { name: "机器人" })).toHaveAttribute(
     "data-state",
-    "unknown",
+    "online",
   );
 });
 
-it("accepts a fresh snapshot arriving between expiry timer ticks", () => {
+it("keeps a discovered bot green when a fresh activity snapshot arrives", () => {
   vi.useFakeTimers();
   stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
   const snapshot = () => ({
@@ -874,6 +874,6 @@ it("accepts a fresh snapshot arriving between expiry timer ticks", () => {
   view.rerender(<ImGroupMembers locale="zh-CN" group={snapshot()} />);
   expect(screen.getByRole("img", { name: "机器人" })).toHaveAttribute(
     "data-state",
-    "busy",
+    "online",
   );
 });

@@ -112,7 +112,31 @@ export class NativeCooperation {
     readonly store: GatewayStore,
     readonly router: GatewayRouter,
     private now = Date.now,
-  ) {}
+  ) {
+    // Both ends of a task can live in this gateway. Preserve legacy records,
+    // but scope storage to each bot's group binding while keeping wire IDs stable.
+    this.store.transaction(() => {
+      for (const task of this.store.list<NativeTask>("native-tasks")) {
+        const legacy = this.store.get<NativeTask>("native-tasks", task.id);
+        if (legacy?.groupId !== task.groupId) continue;
+        if (!this.task(task.groupId, task.id)) this.saveTask(legacy);
+        this.store.delete("native-tasks", task.id);
+      }
+    });
+  }
+  private task(groupId: string, id: string): NativeTask | undefined {
+    return this.store.get<NativeTask>(
+      "native-tasks",
+      JSON.stringify([groupId, id]),
+    );
+  }
+  private saveTask(task: NativeTask): void {
+    this.store.put(
+      "native-tasks",
+      JSON.stringify([task.groupId, task.id]),
+      task,
+    );
+  }
   private address(group: CollaborationSpace) {
     const stored = this.store.get<{ sealed: string }>(
       "connections",
@@ -555,10 +579,7 @@ export class NativeCooperation {
           !this.allowed(group, envelope.sender)
         )
           return false;
-        const existing = this.store.get<NativeTask>(
-          "native-tasks",
-          envelope.task,
-        );
+        const existing = this.task(group.id, envelope.task);
         if (envelope.action === "delegate" || envelope.action === "continue") {
           if (existing || !envelope.text.trim()) return false;
           // Feishu/Lark Open IDs change between applications. The persisted
@@ -566,8 +587,7 @@ export class NativeCooperation {
           // that have passed through more than one peer's identity namespace.
           const ancestors = (envelope.ancestors ?? []).map((ancestor) =>
             event.identity.channel === "feishu" &&
-            this.store.get<NativeTask>("native-tasks", ancestor.task)
-              ?.direction === "outgoing"
+            this.task(group.id, ancestor.task)?.direction === "outgoing"
               ? { ...ancestor, sender: address.sender }
               : ancestor,
           );
@@ -598,7 +618,7 @@ export class NativeCooperation {
           // or letting a remote sender re-label the original work as a dependency.
           const invalidAncestor = ancestors.some((a) => {
             if (a.sender !== address.sender) return false;
-            const local = this.store.get<NativeTask>("native-tasks", a.task);
+            const local = this.task(group.id, a.task);
             return (
               !local ||
               local.direction !== "outgoing" ||
@@ -627,7 +647,7 @@ export class NativeCooperation {
             return true;
           }
           const previous = envelope.previousTask
-            ? this.store.get<NativeTask>("native-tasks", envelope.previousTask)
+            ? this.task(group.id, envelope.previousTask)
             : undefined;
           if (envelope.action === "continue" && !previous) {
             const rejected = this.frame(
@@ -684,9 +704,7 @@ export class NativeCooperation {
           const ancestor = !envelope.newTask
             ? [...ancestors]
                 .reverse()
-                .map((item) =>
-                  this.store.get<NativeTask>("native-tasks", item.task),
-                )
+                .map((item) => this.task(group.id, item.task))
                 .find(
                   (item) =>
                     item?.direction === "outgoing" &&
@@ -736,7 +754,7 @@ export class NativeCooperation {
             dependencies: [],
             updatedAt: this.now(),
           };
-          this.store.put("native-tasks", task.id, task);
+          this.saveTask(task);
           this.store.put("invocations", request.id, request);
           this.store.enqueue("device", request.id, owner.deviceId, request);
           // Transaction commits both the task and receipt before the sender can see acceptance.
@@ -803,7 +821,7 @@ export class NativeCooperation {
             } as const;
             if (!(envelope.action in states)) return false;
             const state = states[envelope.action as keyof typeof states];
-            this.store.put("native-tasks", existing.id, {
+            this.saveTask({
               ...existing,
               state:
                 state === "completed" && !envelope.text.trim()
@@ -845,7 +863,7 @@ export class NativeCooperation {
     text: string,
     cancellationReceipt = false,
   ) {
-    const current = this.store.get<NativeTask>("native-tasks", task.id)!;
+    const current = this.task(task.groupId, task.id)!;
     const envelope = this.frame(
       group,
       task.peer,
@@ -859,7 +877,7 @@ export class NativeCooperation {
     envelope.replyTo = task.envelope.id;
     if (task.envelope.locale) envelope.locale = task.envelope.locale;
     envelope.sequence = current.sequence + 1;
-    this.store.put("native-tasks", task.id, {
+    this.saveTask({
       ...current,
       sequence: envelope.sequence,
     });
@@ -881,10 +899,7 @@ export class NativeCooperation {
     if (!request) return; // The gateway may have already pruned this invocation.
     if (request.deviceId !== deviceId || !request.nativeTaskId)
       throw new Error("Deleted task does not belong to this device.");
-    const task = this.store.get<NativeTask>(
-      "native-tasks",
-      request.nativeTaskId,
-    );
+    const task = this.task(request.conversation.spaceId!, request.nativeTaskId);
     if (!task) return;
     if (
       task.direction !== "incoming" ||
@@ -900,7 +915,7 @@ export class NativeCooperation {
         result: "Local task was deleted; execution has stopped.",
         updatedAt: this.now(),
       };
-      this.store.put("native-tasks", task.id, updated);
+      this.saveTask(updated);
       // Local cleanup survives revoked/changed sharing. Never replay old task
       // content to a changed audience just to repair a lifecycle record.
       if (this.router.isInvocationAuthorized(request))
@@ -914,10 +929,7 @@ export class NativeCooperation {
   }
   reply(request: RemoteInvocationContext, reply: ImReply): void {
     if (!request.nativeTaskId || reply.visibility === "owner") return;
-    const task = this.store.get<NativeTask>(
-      "native-tasks",
-      request.nativeTaskId,
-    );
+    const task = this.task(request.conversation.spaceId!, request.nativeTaskId);
     if (!task || task.direction !== "incoming" || terminal(task.state)) return;
     const group = this.group(task.groupId);
     if (reply.heartbeat) {
@@ -953,7 +965,7 @@ export class NativeCooperation {
         : reply.text,
       updatedAt: this.now(),
     };
-    this.store.put("native-tasks", task.id, updated);
+    this.saveTask(updated);
     this.respond(
       group,
       updated,
@@ -987,7 +999,7 @@ export class NativeCooperation {
         (t) => t.invocationId === request.id && t.threadId === threadId,
       );
     const parent = request.nativeTaskId
-      ? this.store.get<NativeTask>("native-tasks", request.nativeTaskId)
+      ? this.task(group.id, request.nativeTaskId)
       : undefined;
     if (
       command.action !== "cancel" &&
@@ -1016,10 +1028,7 @@ export class NativeCooperation {
       ) ?? { id: parent?.workflow ?? randomUUID() };
       let result: unknown;
       if (command.action === "cancel") {
-        const task = this.store.get<NativeTask>(
-          "native-tasks",
-          command.taskId ?? "",
-        );
+        const task = this.task(group.id, command.taskId ?? "");
         if (
           !task ||
           task.invocationId !== request.id ||
@@ -1029,7 +1038,7 @@ export class NativeCooperation {
           throw new Error("Task is not owned by this workflow.");
         if (!terminal(task.state) && task.state !== "cancel-sent") {
           if (task.state === "blocked")
-            this.store.put("native-tasks", task.id, {
+            this.saveTask({
               ...task,
               state: "cancelled",
               updatedAt: this.now(),
@@ -1047,7 +1056,7 @@ export class NativeCooperation {
             // This authenticated, ownership-checked frame contains no task data.
             // It remains deliverable when the original data grant has expired.
             this.send(group, cancel);
-            this.store.put("native-tasks", task.id, {
+            this.saveTask({
               ...task,
               state: "cancel-sent",
               cancelId: cancel.id,
@@ -1055,7 +1064,7 @@ export class NativeCooperation {
             });
           }
         }
-        result = this.store.get("native-tasks", task.id);
+        result = this.task(group.id, task.id);
       } else if (
         command.action === "delegate" ||
         command.action === "delegate-many"
@@ -1175,7 +1184,7 @@ export class NativeCooperation {
               sessionKey,
             );
             const previous = selected
-              ? this.store.get<NativeTask>("native-tasks", selected)
+              ? this.task(group.id, selected)
               : this.tasks(group.id)
                   .filter((t) => {
                     if (
@@ -1269,7 +1278,7 @@ export class NativeCooperation {
             sequence: 0,
             updatedAt: this.now(),
           };
-          this.store.put("native-tasks", task.id, task);
+          this.saveTask(task);
           this.store.put("native-sessions-v3", sessionKey, task.id);
           tasks.push(task);
           if (!dependencies.length) this.send(group, envelope, request.id);
@@ -1279,10 +1288,7 @@ export class NativeCooperation {
         });
         result = tasks;
       } else if (command.action === "message") {
-        const task = this.store.get<NativeTask>(
-          "native-tasks",
-          command.taskId ?? "",
-        );
+        const task = this.task(group.id, command.taskId ?? "");
         if (
           !task ||
           task.invocationId !== request.id ||
@@ -1374,7 +1380,7 @@ export class NativeCooperation {
                 expiresAt: cancel.expiresAt,
               });
               this.send(group, cancel);
-              this.store.put("native-tasks", task.id, {
+              this.saveTask({
                 ...task,
                 state: "cancel-sent",
                 cancelId: cancel.id,
@@ -1397,7 +1403,7 @@ export class NativeCooperation {
         if (row?.state === "pending" || row?.state === "expired")
           this.store.transaction(() => {
             this.store.mark("device", task.invocationId, "expired");
-            this.store.put("native-tasks", task.id, {
+            this.saveTask({
               ...task,
               state: "failed",
               result: "Assignment expired before execution.",
@@ -1425,7 +1431,7 @@ export class NativeCooperation {
           row?.state === "pending"
         ) {
           this.store.mark("outgoing", `native:${task.envelope.id}`, "expired");
-          this.store.put("native-tasks", task.id, {
+          this.saveTask({
             ...task,
             state: "failed",
             result: "Assignment expired before IM delivery.",
@@ -1437,7 +1443,7 @@ export class NativeCooperation {
           row?.state === "uncertain" ||
           (task.state === "sent" && task.envelope.expiresAt <= this.now())
         ) {
-          this.store.put("native-tasks", task.id, {
+          this.saveTask({
             ...task,
             state: "uncertain",
             result:
@@ -1447,7 +1453,7 @@ export class NativeCooperation {
           continue;
         }
         if (["failed", "revoked"].includes(String(row?.state))) {
-          this.store.put("native-tasks", task.id, {
+          this.saveTask({
             ...task,
             state: "failed",
             result: "IM delivery failed or authorization revoked.",
@@ -1458,7 +1464,7 @@ export class NativeCooperation {
       }
       if (task.direction === "outgoing" && task.state === "blocked") {
         if (task.envelope.expiresAt <= this.now()) {
-          this.store.put("native-tasks", task.id, {
+          this.saveTask({
             ...task,
             state: "failed",
             result: "Assignment expired before dependencies completed.",
@@ -1468,14 +1474,14 @@ export class NativeCooperation {
         }
 
         const dependencies = task.dependencies.map((id) =>
-          this.store.get<NativeTask>("native-tasks", id),
+          this.task(task.groupId, id),
         );
         if (
           dependencies.some(
             (t) => t && terminal(t.state) && t.state !== "completed",
           )
         ) {
-          this.store.put("native-tasks", task.id, {
+          this.saveTask({
             ...task,
             state: "failed",
             result: "A prerequisite failed; owner action required.",
@@ -1489,7 +1495,7 @@ export class NativeCooperation {
           this.store.transaction(() => {
             const text = `${task.text}\n\nPrerequisite results:\n${dependencies.map((t) => t!.result).join("\n")}`;
             if (text.length > 8000 || Buffer.byteLength(text) > 12000) {
-              this.store.put("native-tasks", task.id, {
+              this.saveTask({
                 ...task,
                 state: "failed",
                 result:
@@ -1500,7 +1506,7 @@ export class NativeCooperation {
             }
             const envelope = { ...task.envelope, text };
             this.send(this.group(task.groupId), envelope, request.id);
-            this.store.put("native-tasks", task.id, {
+            this.saveTask({
               ...task,
               envelope,
               state: "sent",

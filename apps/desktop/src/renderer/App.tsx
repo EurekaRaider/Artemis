@@ -134,6 +134,7 @@ import {
   type AppLocale,
   type ChildAgentState,
   type ChildAgentPayload,
+  type ImGroupContext,
   type ModelSelection,
   type PromptAttachment,
   type PromptImage,
@@ -7159,6 +7160,11 @@ export function App() {
                         </button>
                       ) : null}
                       <Timeline
+                        imGroup={
+                          activeThread
+                            ? imThreadStatus[activeThread.id]?.group
+                            : undefined
+                        }
                         installedPlugins={installedPlugins}
                         installedSkills={installedSkills}
                         locale={locale}
@@ -10373,6 +10379,7 @@ export function TurnChangeSetCard({
 }
 
 export function Timeline({
+  imGroup,
   installedPlugins,
   installedSkills,
   state,
@@ -10388,6 +10395,7 @@ export function Timeline({
   onResolveUserInput,
   onUndoTurnChanges,
 }: {
+  imGroup?: ImGroupContext | undefined;
   installedPlugins: readonly InstalledCodexPlugin[];
   installedSkills: readonly InstalledSkill[];
   state: ThreadViewState;
@@ -10486,7 +10494,7 @@ export function Timeline({
       );
       const skillNames = selectedSkillNamesForPrompt(message.text);
       const visibleText = promptWithoutSelectedSkills(
-        imUserMessageText(message.text),
+        imUserMessageText(message.text, imGroup),
       );
       const editable =
         onEditUserMessage !== undefined &&

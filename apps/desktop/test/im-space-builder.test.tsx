@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
-import { imNativeGroupChoices } from "../src/renderer/ImNativeGroups";
+import {
+  imNativeGroupChoices,
+  imNativeGroupDirectory,
+} from "../src/renderer/ImNativeGroups";
 import { uiTranslator } from "../src/shared/ui-text";
 const t = uiTranslator("zh-CN");
 const diagnostics = (groups: unknown[]) => ({
@@ -8,6 +11,49 @@ const diagnostics = (groups: unknown[]) => ({
   spaces: [],
   deliveries: [],
 });
+it.each([
+  ["same group through different apps", "slack", "team", "room", true, 1],
+  ["different workspace", "slack", "other-team", "room", true, 2],
+  ["different platform", "feishu", "team", "room", true, 2],
+  ["different group with the same name", "slack", "team", "other", true, 2],
+  ["unknown workspace", "slack", "team", "room", false, 2],
+] as const)(
+  "groups the directory by verified platform identity: %s",
+  (_name, platform, tenantId, id, known, count) => {
+    const groups = imNativeGroupChoices(
+      diagnostics(
+        ["bot-a", "bot-b"].map((connectionId, index) => ({
+          conversation: {
+            connectionId,
+            id: index ? id : "room",
+            kind: "group",
+          },
+          name: "设计群",
+          platform: index ? platform : "slack",
+          identities: known
+            ? [
+                {
+                  channel: index ? platform : "slack",
+                  connectionId,
+                  tenantId: index ? tenantId : "team",
+                  appId: connectionId,
+                  userId: "owner",
+                },
+              ]
+            : [],
+          lastSeenAt: 1,
+        })),
+      ),
+      [],
+      "device",
+      t,
+    );
+    const directory = imNativeGroupDirectory(groups);
+    expect(directory).toHaveLength(count);
+    expect(directory.flatMap((entry) => entry.targets)).toEqual(groups);
+    expect(new Set(groups.map((group) => group.value)).size).toBe(2);
+  },
+);
 it("distinguishes same-named groups on different bot connections", () => {
   const groups = imNativeGroupChoices(
     diagnostics(

@@ -227,12 +227,14 @@ export function ImGroupMembers({
                     (value) => value.deviceId === group.executingDeviceId,
                   )
                 : undefined;
-              const state = imMemberState(
-                member,
-                group,
-                Math.max(now, Date.now()),
-              );
-              const status = imMemberTooltip(member, state, locale);
+              const state =
+                member.kind === "bot"
+                  ? "online"
+                  : imMemberState(member, group, Math.max(now, Date.now()));
+              const status =
+                member.kind === "bot"
+                  ? t("ImGroupMembers.message9")
+                  : imMemberTooltip(member, state, locale);
               const kind =
                 member.kind === "bot"
                   ? t("ImGroupMembers.message14")

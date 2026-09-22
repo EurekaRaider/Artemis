@@ -7,6 +7,7 @@ import {
   imScopeConfirmation,
   imAuthorizationCommandSchema,
   type AppLocale,
+  type ExecutionGrant,
   type ImAuthorizationOperation,
   type ImConnectionStatus,
   type ImStatus,
@@ -38,7 +39,8 @@ import { Checkbox, Select, TextField } from "@artemis/ui/forms";
 import { Dialog, InlineNotice } from "@artemis/ui/feedback";
 import { uiTranslator } from "../shared/ui-text";
 import { ImDataPermissions } from "./ImDataPermissions";
-import { imNativeGroupChoices } from "./ImNativeGroups";
+import { imNativeGroupChoices, imNativeGroupDirectory } from "./ImNativeGroups";
+import { imChannelLabel } from "./ImNavigation";
 import {
   authorizationDraftConflict,
   createAuthorizationDraft,
@@ -125,23 +127,40 @@ export function GroupCollaborationPanel({
     status.settings.deviceId,
     t,
   );
-  const visibleGroups = groups.filter(
-    (group) =>
-      group.label.toLocaleLowerCase().includes(query.toLocaleLowerCase()) &&
-      (view === "group" ||
-        !projectFilter ||
-        group.saved?.nativeGroup?.projectId === projectFilter),
+  const directory = imNativeGroupDirectory(groups)
+    .map((entry) => ({
+      ...entry,
+      targets: entry.targets.filter(
+        (group) =>
+          view === "group" ||
+          !projectFilter ||
+          group.saved?.nativeGroup?.projectId === projectFilter,
+      ),
+    }))
+    .filter((entry) => entry.targets.length > 0);
+  const visibleGroups = directory.filter((entry) =>
+    entry.targets.some((group) =>
+      group.label.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+    ),
   );
   const key = (group: AuthorizationTarget) =>
     imConversationKey(group.conversation);
-  const current = groups.find((g) => key(g) === selected);
-  const saved = current?.saved;
-  const grant = status.settings.grants.find(
-    (g) => g.projectId === saved?.nativeGroup?.projectId,
+  const current = directory.find(
+    (entry) =>
+      entry.key === selected ||
+      entry.targets.some((group) => key(group) === selected),
   );
-  const scope = grant?.security?.scopes.find(
-    (s) => s.audience === current?.value,
-  );
+  const currentGroup = current?.targets[0];
+  const currentPlatform =
+    currentGroup?.platform ?? currentGroup?.identities[0]?.channel;
+  const memberTargets = current?.targets
+    .map((target) => ({ target, roster: rosterFor(target) }))
+    .sort(
+      (a, b) =>
+        Number(!!b.roster?.complete) - Number(!!a.roster?.complete) ||
+        (b.roster?.members.length ?? 0) - (a.roster?.members.length ?? 0),
+    );
+  const memberTarget = memberTargets?.[0];
   const command = draft && draftAuthorizationCommand(draft);
   const validCommand =
     !!command &&
@@ -391,10 +410,10 @@ export function GroupCollaborationPanel({
       </div>
     );
   }
-  function policySummary(value: typeof grant) {
+  function policySummary(value: ExecutionGrant | undefined, compact = false) {
     return (
       value && (
-        <p>
+        <p title={compact ? expiration(value.expiresAt) : undefined}>
           {t(
             value.mode === "plan"
               ? "ImSettingsPanel.message132"
@@ -408,18 +427,54 @@ export function GroupCollaborationPanel({
               ? "ImSettingsPanel.message144"
               : "ImSettingsPanel.message145",
           )}{" "}
-          · {expiration(value.expiresAt)}
+          {!compact && <> · {expiration(value.expiresAt)}</>}
         </p>
       )
     );
   }
-  function memberList(target: GroupChoice) {
+  function rosterFor(target: GroupChoice) {
     const roster = imGroupRosterSchema.safeParse(
       (target.saved as { roster?: unknown } | undefined)?.roster,
     );
-    const members = roster.success ? roster.data.members : [];
+    return roster.success ? roster.data : undefined;
+  }
+  function botName(target: GroupChoice) {
+    const identity = target.owner ?? target.identities[0];
+    const bot = rosterFor(target)?.members.find(
+      (member) =>
+        member.self &&
+        member.kind === "bot" &&
+        member.identity.connectionId === target.conversation.connectionId &&
+        (!identity ||
+          (member.identity.channel === identity.channel &&
+            member.identity.tenantId === identity.tenantId &&
+            member.identity.appId === identity.appId)),
+    );
+    const connection = (
+      status.connections as ImConnectionStatus[] | undefined
+    )?.find((item) => item.id === target.conversation.connectionId);
     return (
-      <details className="im-group-members" open>
+      [bot?.name, connection?.name]
+        .find(
+          (name) =>
+            name?.trim() &&
+            !Object.values(bot?.identity ?? identity ?? {}).includes(
+              name.trim(),
+            ) &&
+            name.trim() !== target.conversation.connectionId,
+        )
+        ?.trim() ?? t("GroupAuthorization.nameUnavailable")
+    );
+  }
+  function memberList(target: GroupChoice, targets: GroupChoice[]) {
+    const roster = rosterFor(target);
+    const members = roster?.members ?? [];
+    const refreshTargets = targets.filter(
+      (group) =>
+        group.saved?.nativeGroup?.ownerDeviceId === status.settings.deviceId,
+    );
+    return (
+      <details className="im-group-members" key={current?.key}>
         <summary>
           <UsersThree size={16} aria-hidden="true" />
           {t("GroupAuthorization.members")}
@@ -433,12 +488,15 @@ export function GroupCollaborationPanel({
         {members.length > 0 ? (
           <ul>
             {members.map((member) => {
-              const presence = imGroupMemberStatus(
-                member,
-                status,
-                target.saved?.id,
-                Math.max(presenceNow, Date.now()),
-              );
+              const presence =
+                member.kind === "bot"
+                  ? "online"
+                  : imGroupMemberStatus(
+                      member,
+                      status,
+                      target.saved?.id,
+                      Math.max(presenceNow, Date.now()),
+                    );
               return (
                 <li key={imIdentityKey(member.identity)}>
                   <span className="im-group-member-name">
@@ -471,11 +529,17 @@ export function GroupCollaborationPanel({
                   </span>
                   <span
                     className="im-group-member-status"
-                    title={imMemberTooltip(member, presence, locale)}
+                    title={
+                      member.kind === "bot"
+                        ? t("ImGroupMembers.message9")
+                        : imMemberTooltip(member, presence, locale)
+                    }
                     data-state={presence}
                   >
                     <span className="im-group-member-dot" aria-hidden="true" />
-                    {imMemberLabel(presence, locale)}
+                    {member.kind === "bot"
+                      ? t("ImGroupMembers.message9")
+                      : imMemberLabel(presence, locale)}
                   </span>
                 </li>
               );
@@ -484,68 +548,204 @@ export function GroupCollaborationPanel({
         ) : (
           <p>{t("GroupAuthorization.membersUnavailable")}</p>
         )}
-        {roster.success && !roster.data.complete && members.length > 0 && (
+        {roster && !roster.complete && members.length > 0 && (
           <p>{t("GroupAuthorization.membersPartial")}</p>
         )}
-        {target.saved &&
-          status.localGateway &&
-          target.saved.nativeGroup?.ownerDeviceId ===
-            status.settings.deviceId && (
-            <Button
-              size="compact"
-              variant="quiet"
-              disabled={locked || refreshingMembers}
-              icon={<ArrowClockwise aria-hidden="true" />}
-              onClick={async () => {
-                setRefreshingMembers(true);
-                try {
-                  await window.artemis.manageIm({
-                    action: "refresh-group-members",
-                    spaceId: target.saved!.id,
-                  });
-                  await refresh();
-                } catch (error) {
-                  setError(String(error));
-                } finally {
-                  setRefreshingMembers(false);
-                }
-              }}
-            >
-              {t("GroupAuthorization.refresh")}
-            </Button>
-          )}
+        {refreshTargets.length > 0 && status.localGateway && (
+          <Button
+            size="compact"
+            variant="quiet"
+            disabled={locked || refreshingMembers}
+            icon={<ArrowClockwise aria-hidden="true" />}
+            onClick={async () => {
+              setRefreshingMembers(true);
+              try {
+                await Promise.all(
+                  refreshTargets.map((group) =>
+                    window.artemis.manageIm({
+                      action: "refresh-group-members",
+                      spaceId: group.saved!.id,
+                    }),
+                  ),
+                );
+                await refresh();
+              } catch (error) {
+                setError(String(error));
+              } finally {
+                setRefreshingMembers(false);
+              }
+            }}
+          >
+            {t("GroupAuthorization.refresh")}
+          </Button>
+        )}
       </details>
     );
   }
-  const connection = (
-    status.connections as ImConnectionStatus[] | undefined
-  )?.find((c) => c.id === current?.conversation.connectionId);
-  const state = !saved
-    ? "unbound"
-    : !saved.nativeGroup?.enabled
-      ? saved.nativeGroup?.recovery?.rejoinedAt
-        ? "rejoined"
-        : saved.nativeGroup?.recovery
-          ? "removed"
-          : "paused"
-      : !status.settings.enabled
-        ? "saved"
-        : connection?.state !== "connected"
-          ? "connecting"
-          : !grant || !scope || grant.expiresAt <= Date.now()
-            ? "review"
-            : grant.mode !== "execute"
-              ? "readOnly"
-              : !imScopeConfirmation(grant.security, scope)
-                ? "writePending"
-                : "executable";
-  const task = status.remoteTasks?.find(
-    (task) =>
-      !!saved?.id &&
-      !task.parentThreadId &&
-      task.currentGroupEntry !== false &&
-      task.group?.spaceId === saved?.id,
-  );
+  function authorizationRow(target: GroupChoice) {
+    const saved = target.saved;
+    const grant = status.settings.grants.find(
+      (item) => item.projectId === saved?.nativeGroup?.projectId,
+    );
+    const scope = grant?.security?.scopes.find(
+      (item) => item.audience === target.value,
+    );
+    const name = botName(target);
+    const connection = (
+      status.connections as ImConnectionStatus[] | undefined
+    )?.find((c) => c.id === target.conversation.connectionId);
+    const state = !saved
+      ? "unbound"
+      : !saved.nativeGroup?.enabled
+        ? saved.nativeGroup?.recovery?.rejoinedAt
+          ? "rejoined"
+          : saved.nativeGroup?.recovery
+            ? "removed"
+            : "paused"
+        : !status.settings.enabled
+          ? "saved"
+          : connection?.state !== "connected"
+            ? "connecting"
+            : !grant || !scope || grant.expiresAt <= Date.now()
+              ? "review"
+              : grant.mode !== "execute"
+                ? "readOnly"
+                : !imScopeConfirmation(grant.security, scope)
+                  ? "writePending"
+                  : "executable";
+    const task = status.remoteTasks?.find(
+      (task) =>
+        !!saved?.id &&
+        !task.parentThreadId &&
+        task.currentGroupEntry !== false &&
+        task.group?.spaceId === saved?.id,
+    );
+    const disabled =
+      locked ||
+      status.authorizationVersion !== 1 ||
+      !status.localGateway ||
+      !target.owner;
+    return (
+      <section
+        className="im-group-bot-authorization"
+        aria-label={name}
+        key={key(target)}
+      >
+        <header className="im-group-bot-identity">
+          <span className="im-group-bot-avatar">
+            <ArtemisIcon name="bot" width={24} height={24} />
+          </span>
+          <div className="im-group-bot-name">
+            <h4>{name}</h4>
+            <span className="im-group-status" data-state={state}>
+              {t(`GroupAuthorization.${state}`)}
+            </span>
+          </div>
+        </header>
+        <div className="im-group-bot-permissions">
+          {saved?.nativeGroup?.projectId && (
+            <p className="im-group-project-name">
+              <FolderSimple size={16} weight="duotone" aria-hidden="true" />
+              {projects.find(
+                (project) => project.id === saved.nativeGroup!.projectId,
+              )?.name ?? t("GroupAuthorization.nameUnavailable")}
+            </p>
+          )}
+          {policySummary(grant, true)}
+          {scope && (
+            <dl className="im-group-summary">
+              <dt>{t("GroupAuthorization.readScope")}</dt>
+              <dd>
+                {scope.readPaths.length
+                  ? scope.readPaths.join(" · ")
+                  : t("ImDataPermissions.projectScope")}
+              </dd>
+              <dt>{t("GroupAuthorization.writeScope")}</dt>
+              <dd>
+                {grant?.mode !== "execute"
+                  ? t("GroupAuthorization.denied")
+                  : scope.writeMode === "project"
+                    ? t("ImDataPermissions.message14")
+                    : scope.writePaths.join(" · ") ||
+                      t("GroupAuthorization.denied")}
+              </dd>
+            </dl>
+          )}
+          {!task && (
+            <p className="im-group-first-message">
+              {t("GroupAuthorization.firstMessage")}
+            </p>
+          )}
+        </div>
+        <div className="im-group-bot-actions">
+          <Button
+            variant="primary"
+            size="compact"
+            icon={<ShieldCheck weight="duotone" aria-hidden="true" />}
+            disabled={disabled}
+            onClick={() =>
+              begin(
+                target,
+                saved?.nativeGroup?.projectId ?? "",
+                !saved
+                  ? "create"
+                  : !saved.nativeGroup?.enabled
+                    ? "restore"
+                    : grant && grant.expiresAt <= Date.now()
+                      ? "renew"
+                      : "edit",
+                "group",
+              )
+            }
+          >
+            {t(
+              !saved
+                ? "GroupAuthorization.authorize"
+                : !saved.nativeGroup?.enabled
+                  ? "GroupAuthorization.restore"
+                  : "GroupAuthorization.edit",
+            )}
+          </Button>
+          {saved && (
+            <>
+              <Button
+                size="compact"
+                icon={<ArrowsLeftRight aria-hidden="true" />}
+                disabled={disabled}
+                onClick={() =>
+                  begin(target, saved.nativeGroup!.projectId, "rebind", "group")
+                }
+              >
+                {t("GroupAuthorization.rebind")}
+              </Button>
+              {saved.nativeGroup?.enabled && (
+                <Button
+                  size="compact"
+                  icon={<Pause aria-hidden="true" />}
+                  disabled={disabled}
+                  onClick={() =>
+                    begin(
+                      target,
+                      saved.nativeGroup!.projectId,
+                      "pause",
+                      "group",
+                    )
+                  }
+                >
+                  {t("GroupAuthorization.pause")}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+        {!target.owner && (
+          <InlineNotice tone="warning">
+            {t("GroupAuthorization.ownerRequired")}
+          </InlineNotice>
+        )}
+      </section>
+    );
+  }
   return (
     <Dialog
       open
@@ -752,24 +952,32 @@ export function GroupCollaborationPanel({
                     aria-label={t("GroupAuthorization.directory")}
                     tabIndex={0}
                   >
-                    {visibleGroups.map((group) => (
-                      <Button
-                        className="im-group-list-item"
-                        key={key(group)}
-                        selected={selected === key(group)}
-                        onClick={() => setSelected(key(group))}
-                      >
-                        <GroupLogo group={group} />
-                        <span className="im-group-row-copy">
-                          <strong>{group.displayName}</strong>
-                        </span>
-                        <CaretRight
-                          className="im-group-row-arrow"
-                          size={14}
-                          aria-hidden="true"
-                        />
-                      </Button>
-                    ))}
+                    {visibleGroups.map((entry) => {
+                      const group = entry.targets[0]!;
+                      return (
+                        <Button
+                          className="im-group-list-item"
+                          key={entry.key}
+                          selected={current?.key === entry.key}
+                          onClick={() => setSelected(entry.key)}
+                        >
+                          <GroupLogo group={group} />
+                          <span className="im-group-row-copy">
+                            <strong>{group.displayName}</strong>
+                            <small>
+                              {t("GroupAuthorization.localBots", {
+                                count: entry.targets.length,
+                              })}
+                            </small>
+                          </span>
+                          <CaretRight
+                            className="im-group-row-arrow"
+                            size={14}
+                            aria-hidden="true"
+                          />
+                        </Button>
+                      );
+                    })}
                     {!visibleGroups.length && (
                       <div className="im-group-list-empty">
                         <UsersThree
@@ -789,129 +997,43 @@ export function GroupCollaborationPanel({
                     </Button>
                   )}
                 </nav>
-                <section
-                  className="im-field-stack im-group-detail"
-                  aria-live="polite"
-                >
-                  {current ? (
+                <section className="im-group-detail" aria-live="polite">
+                  {current && currentGroup ? (
                     <>
                       <header className="im-group-detail-header">
-                        <GroupLogo group={current} />
+                        <GroupLogo group={currentGroup} />
                         <div className="im-group-title-copy">
-                          <h3>{current.displayName}</h3>
-                          <span className="im-group-status" data-state={state}>
-                            {t(`GroupAuthorization.${state}`)}
-                          </span>
-                        </div>
-                      </header>
-                      {grant && (
-                        <p className="im-group-project-name">
-                          <FolderSimple
-                            size={16}
-                            weight="duotone"
-                            aria-hidden="true"
-                          />
-                          {projects.find((p) => p.id === grant.projectId)?.name}
-                        </p>
-                      )}
-                      {policySummary(grant)}
-                      {scope && (
-                        <dl className="im-group-summary">
-                          <dt>{t("GroupAuthorization.readScope")}</dt>
-                          <dd>
-                            {scope.readPaths.length
-                              ? scope.readPaths.join(" · ")
-                              : t("ImDataPermissions.projectScope")}
-                          </dd>
-                          <dt>{t("GroupAuthorization.writeScope")}</dt>
-                          <dd>
-                            {grant?.mode !== "execute"
-                              ? t("GroupAuthorization.denied")
-                              : scope.writeMode === "project"
-                                ? t("ImDataPermissions.message14")
-                                : scope.writePaths.join(" · ") ||
-                                  t("GroupAuthorization.denied")}
-                          </dd>
-                        </dl>
-                      )}
-                      <div className="im-group-actions im-group-primary-actions">
-                        {!task && <p>{t("GroupAuthorization.firstMessage")}</p>}
-                        <Button
-                          variant="primary"
-                          icon={
-                            <ShieldCheck weight="duotone" aria-hidden="true" />
-                          }
-                          disabled={
-                            locked ||
-                            status.authorizationVersion !== 1 ||
-                            !status.localGateway ||
-                            !current.owner
-                          }
-                          onClick={() =>
-                            begin(
-                              current,
-                              saved?.nativeGroup?.projectId ?? "",
-                              !saved
-                                ? "create"
-                                : !saved.nativeGroup?.enabled
-                                  ? "restore"
-                                  : grant && grant.expiresAt <= Date.now()
-                                    ? "renew"
-                                    : "edit",
-                              "group",
-                            )
-                          }
-                        >
-                          {t(
-                            !saved
-                              ? "GroupAuthorization.authorize"
-                              : !saved.nativeGroup?.enabled
-                                ? "GroupAuthorization.restore"
-                                : "GroupAuthorization.edit",
-                          )}
-                        </Button>
-                        {saved && (
-                          <div className="im-group-secondary-actions">
-                            {" "}
-                            <Button
-                              icon={<ArrowsLeftRight aria-hidden="true" />}
-                              disabled={locked}
-                              onClick={() =>
-                                begin(
-                                  current,
-                                  saved.nativeGroup!.projectId,
-                                  "rebind",
-                                  "group",
-                                )
-                              }
-                            >
-                              {t("GroupAuthorization.rebind")}
-                            </Button>
-                            {saved.nativeGroup?.enabled && (
-                              <Button
-                                icon={<Pause aria-hidden="true" />}
-                                disabled={locked}
-                                onClick={() =>
-                                  begin(
-                                    current,
-                                    saved.nativeGroup!.projectId,
-                                    "pause",
-                                    "group",
-                                  )
-                                }
-                              >
-                                {t("GroupAuthorization.pause")}
-                              </Button>
+                          <h3>{currentGroup.displayName}</h3>
+                          <p>
+                            {currentPlatform === "lark"
+                              ? "Lark"
+                              : currentPlatform
+                                ? imChannelLabel(currentPlatform, t)
+                                : t("ImNativeGroups.message1")}
+                            {memberTarget?.roster && (
+                              <>
+                                {" "}
+                                · {t("GroupAuthorization.members")}{" "}
+                                {memberTarget.roster.members.length}
+                              </>
                             )}
-                          </div>
-                        )}
+                          </p>
+                        </div>
+                        <span className="im-group-bot-count">
+                          {t("GroupAuthorization.localBots", {
+                            count: current.targets.length,
+                          })}
+                        </span>
+                      </header>
+                      <div className="im-group-authorizations-heading">
+                        <h4>{t("GroupAuthorization.botAuthorizations")}</h4>
+                        <p>{t("GroupAuthorization.botAuthorizationsHint")}</p>
                       </div>
-                      {!current.owner && (
-                        <InlineNotice tone="warning">
-                          {t("GroupAuthorization.ownerRequired")}
-                        </InlineNotice>
-                      )}
-                      {memberList(current)}
+                      <div className="im-group-authorizations">
+                        {current.targets.map(authorizationRow)}
+                      </div>
+                      {memberTarget &&
+                        memberList(memberTarget.target, current.targets)}
                     </>
                   ) : (
                     <div className="im-group-empty-detail">
@@ -961,6 +1083,9 @@ export function GroupCollaborationPanel({
                     <div className="im-group-draft-target">
                       <GroupLogo group={draft.target} />
                       <strong>{draft.target.displayName}</strong>
+                      <span className="im-group-draft-bot">
+                        {botName(draft.target)}
+                      </span>
                     </div>
                   )}
                   {conflict && (
@@ -995,7 +1120,7 @@ export function GroupCollaborationPanel({
                             },
                             ...groups.map((g) => ({
                               value: key(g),
-                              label: g.displayName,
+                              label: `${g.displayName} · ${botName(g)}`,
                             })),
                           ]}
                           onValueChange={(value) => {
@@ -1159,7 +1284,9 @@ export function GroupCollaborationPanel({
                         <InlineNotice tone="warning">
                           <p>{t("GroupAuthorization.policyImpact")}</p>
                           {affected.map((g) => (
-                            <p key={key(g)}>{g.displayName}</p>
+                            <p key={key(g)}>
+                              {g.displayName} · {botName(g)}
+                            </p>
                           ))}
                           {(() => {
                             const before = draft.baseline.grants.find(
@@ -1209,7 +1336,7 @@ export function GroupCollaborationPanel({
                             {t("GroupAuthorization.deviceImpact")}{" "}
                             {groups
                               .filter((g) => g.saved?.nativeGroup?.enabled)
-                              .map((g) => g.displayName)
+                              .map((g) => `${g.displayName} · ${botName(g)}`)
                               .join(" · ")}
                           </InlineNotice>
                         )}

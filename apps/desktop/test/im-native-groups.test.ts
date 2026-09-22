@@ -786,7 +786,11 @@ async function delegatedFixture(channel: "slack" | "feishu" = "slack") {
     updatedAt: Date.now(),
     envelope: { id: "attempt-a" },
   };
-  f.gateway.store.put("native-tasks", task.id, task);
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([task.groupId, task.id]),
+    task,
+  );
   return { ...f, groupId, request, threadId, thread, task };
 }
 
@@ -867,7 +871,7 @@ it("parks delegated work, preserves intervening conversation, and resumes once a
     taskId: threadId,
     text: "What is two plus two?",
   });
-  f.gateway.store.put("native-tasks", task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([task.groupId, task.id]), {
     ...task,
     state: "completed",
     result: "Solar result",
@@ -908,11 +912,15 @@ it.each(["archived", "deleted", "revoked", "review", "busy", "queued"])(
       "execute",
       randomUUID(),
     );
-    f.gateway.store.put("native-tasks", f.task.id, {
-      ...f.task,
-      state: "completed",
-      result: "Done",
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+      {
+        ...f.task,
+        state: "completed",
+        result: "Done",
+      },
+    );
     f.thread.status = "idle";
     if (condition === "archived") f.thread.archived = true;
     if (condition === "deleted")
@@ -955,7 +963,7 @@ it("cancels local continuation even if the remote cancellation cannot be deliver
   await f.service
     .manage({ action: "delegation-cancel", waitId: wait.waitId })
     .catch(() => {});
-  f.gateway.store.put("native-tasks", f.task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
     ...f.task,
     state: "completed",
     result: "Late result",
@@ -968,7 +976,7 @@ it("cancels local continuation even if the remote cancellation cannot be deliver
 
 it("returns already available results synchronously without scheduling a second turn", async () => {
   const f = await delegatedFixture();
-  f.gateway.store.put("native-tasks", f.task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
     ...f.task,
     state: "completed",
     result: "Fast result",
@@ -1014,7 +1022,7 @@ it("recovers a persisted wait and result after the IM service restarts", async (
     "execute",
     randomUUID(),
   );
-  f.gateway.store.put("native-tasks", f.task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
     ...f.task,
     state: "completed",
     result: "Persisted result",
@@ -1050,11 +1058,15 @@ it("returns a result during the bounded short wait and replays the same tool rec
   const callId = randomUUID();
   const timer = setTimeout(
     () =>
-      f.gateway.store.put("native-tasks", f.task.id, {
-        ...f.task,
-        state: "completed",
-        result: "Quick result",
-      }),
+      f.gateway.store.put(
+        "native-tasks",
+        JSON.stringify([f.groupId, f.task.id]),
+        {
+          ...f.task,
+          state: "completed",
+          result: "Quick result",
+        },
+      ),
     20,
   );
   try {
@@ -1098,7 +1110,7 @@ it("keeps task ownership checks after an intervening message changes the invocat
     randomUUID(),
   );
   expect(status).toMatchObject([{ id: f.task.id, invocationId: f.request.id }]);
-  f.gateway.store.put("native-tasks", "foreign", {
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, "foreign"]), {
     ...f.task,
     id: "foreign",
     threadId: "another-thread",
@@ -1115,7 +1127,7 @@ it("keeps task ownership checks after an intervening message changes the invocat
     ),
   ).rejects.toThrow(/owned/);
   // A completed task can be locally cancelled without sending another IM frame.
-  f.gateway.store.put("native-tasks", f.task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
     ...f.task,
     state: "completed",
     result: "Done",
@@ -1185,11 +1197,15 @@ it.each(["desktop", "chat", "tool"] as const)(
       f.threadId,
       expect.arrayContaining([wait.waitId]),
     );
-    f.gateway.store.put("native-tasks", f.task.id, {
-      ...f.task,
-      state: "completed",
-      result: "Late",
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+      {
+        ...f.task,
+        state: "completed",
+        result: "Late",
+      },
+    );
     await f.service.poll();
     expect(resume).not.toHaveBeenCalled();
     await f.service.close();
@@ -1234,7 +1250,7 @@ it("preserves cancellation when a continuation dispatch completes concurrently",
       .catch(() => {});
     return true;
   };
-  f.gateway.store.put("native-tasks", f.task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
     ...f.task,
     state: "completed",
     result: "Ready",
@@ -1353,11 +1369,15 @@ it("consumes only results actually returned by status and preserves the remainin
   const resume = vi.fn(async () => true);
   f.ops.resumeDelegation = resume;
   expect(f.waits()).toHaveLength(2);
-  f.gateway.store.put("native-tasks", f.result[0]!.id, {
-    ...f.result[0],
-    state: "completed",
-    result: "Disk result from old protocol",
-  });
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([f.groupId, f.result[0]!.id]),
+    {
+      ...f.result[0],
+      state: "completed",
+      result: "Disk result from old protocol",
+    },
+  );
   await f.service.operate(
     f.threadId,
     { action: "collaborate", command: { action: "status", text: "" } },
@@ -1369,11 +1389,15 @@ it("consumes only results actually returned by status and preserves the remainin
   f.thread.status = "idle";
   await f.service.poll();
   expect(resume).not.toHaveBeenCalled();
-  f.gateway.store.put("native-tasks", f.result[1]!.id, {
-    ...f.result[1],
-    state: "completed",
-    result: "RAM result",
-  });
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([f.groupId, f.result[1]!.id]),
+    {
+      ...f.result[1],
+      state: "completed",
+      result: "RAM result",
+    },
+  );
   await f.service.poll();
   expect(resume).toHaveBeenCalledTimes(1);
   await f.service.poll();
@@ -1398,11 +1422,15 @@ it("restores an automatically registered wait and resumes unread results once af
   const f = await automaticallyDelegatedFixture();
   const resume = vi.fn(async () => true);
   f.ops.resumeDelegation = resume;
-  f.gateway.store.put("native-tasks", f.result[0]!.id, {
-    ...f.result[0],
-    state: "completed",
-    result: "Old-format peer result",
-  });
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([f.groupId, f.result[0]!.id]),
+    {
+      ...f.result[0],
+      state: "completed",
+      result: "Old-format peer result",
+    },
+  );
   await f.service.poll();
   expect(resume).not.toHaveBeenCalled();
   await f.service.close();
@@ -1550,7 +1578,10 @@ it("cancels an in-flight dispatch that returns after its originating turn was ca
   const tasks = (await pending) as Array<{ id: string }>;
   expect(f.waits()).toHaveLength(0);
   expect(
-    f.gateway.store.get<{ state: string }>("native-tasks", tasks[0]!.id)?.state,
+    f.gateway.store.get<{ state: string }>(
+      "native-tasks",
+      JSON.stringify([f.groupId, tasks[0]!.id]),
+    )?.state,
   ).toBe("cancel-sent");
 });
 
@@ -1596,11 +1627,15 @@ it.each(["cancelled", "failed", "rejected"] as const)(
     const f = await automaticallyDelegatedFixture();
     const resume = vi.fn(async () => true);
     f.ops.resumeDelegation = resume;
-    f.gateway.store.put("native-tasks", f.result[0]!.id, {
-      ...f.result[0],
-      state,
-      result: "Peer stopped this task",
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.result[0]!.id]),
+      {
+        ...f.result[0],
+        state,
+        result: "Peer stopped this task",
+      },
+    );
     f.thread.status = "idle";
     await f.service.poll();
     expect(resume).not.toHaveBeenCalled();
@@ -1663,11 +1698,15 @@ it.each(["wait", "status"] as const)(
     ];
     f.ops.events = () => events;
     f.ops.groupActivity = vi.fn();
-    f.gateway.store.put("native-tasks", f.result[0]!.id, {
-      ...f.result[0],
-      state: "rejected",
-      result: "Peer scope is not confirmed",
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.result[0]!.id]),
+      {
+        ...f.result[0],
+        state: "rejected",
+        result: "Peer scope is not confirmed",
+      },
+    );
     await f.service.operate(
       f.threadId,
       {
@@ -1876,7 +1915,7 @@ it("queries unknown and recovered task heartbeats without rearming an interrupte
   const resume = vi.fn(async () => true);
   f.ops.resumeDelegation = resume;
   const task = f.result[0]!;
-  f.gateway.store.put("native-tasks", task.id, {
+  f.gateway.store.put("native-tasks", JSON.stringify([task.groupId, task.id]), {
     ...task,
     state: "failed",
     result: "Interrupted",
@@ -1884,11 +1923,15 @@ it("queries unknown and recovered task heartbeats without rearming an interrupte
   f.thread.status = "idle";
   await f.service.poll();
   for (const fresh of [false, true]) {
-    f.gateway.store.put("native-tasks", task.id, {
-      ...task,
-      state: "running",
-      heartbeatAt: Date.now() - (fresh ? 0 : 240_000),
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([task.groupId, task.id]),
+      {
+        ...task,
+        state: "running",
+        heartbeatAt: Date.now() - (fresh ? 0 : 240_000),
+      },
+    );
     const status = await f.service.operate(
       f.threadId,
       { action: "collaborate", command: { action: "status", text: "" } },
@@ -1961,11 +2004,15 @@ it.each(["slack", "feishu"] as const)(
     expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
     const resume = vi.fn(async () => true);
     f.ops.resumeDelegation = resume;
-    f.gateway.store.put("native-tasks", f.task.id, {
-      ...f.task,
-      state: "completed",
-      result: "Analysis ready",
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+      {
+        ...f.task,
+        state: "completed",
+        result: "Analysis ready",
+      },
+    );
     await f.service.poll();
     expect(resume).not.toHaveBeenCalled();
     const completed = (eventId: string): AgentEvent => ({
@@ -2050,7 +2097,10 @@ it("cancels a reverse assignment without cancelling the suspended user workflow"
   });
   expect(f.service.hasDelegationWait(f.threadId)).toBe(true);
   expect(
-    f.gateway.store.get<{ state: string }>("native-tasks", f.task.id)?.state,
+    f.gateway.store.get<{ state: string }>(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+    )?.state,
   ).toBe("running");
   expect(f.starts).toEqual([f.threadId, f.threadId]);
 });
@@ -2128,7 +2178,11 @@ it("lets a receiving worker wait for a prerequisite and resume its own assignmen
     invocationId: workerInvocationId,
     text: "Provide deployment constraints",
   };
-  f.gateway.store.put("native-tasks", child.id, child);
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([child.groupId, child.id]),
+    child,
+  );
   const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
     async () => true,
   );
@@ -2150,11 +2204,15 @@ it("lets a receiving worker wait for a prerequisite and resume its own assignmen
       randomUUID(),
     ),
   ).resolves.toMatchObject({ state: "waiting" });
-  f.gateway.store.put("native-tasks", child.id, {
-    ...child,
-    state: "completed",
-    result: "Linux only",
-  });
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([child.groupId, child.id]),
+    {
+      ...child,
+      state: "completed",
+      result: "Linux only",
+    },
+  );
   worker.status = "idle";
   await f.service.poll();
   expect(resume).toHaveBeenCalledTimes(1);
@@ -2191,14 +2249,18 @@ it.each([false, true])(
         spaceRevision: "previous-sharing",
       },
     });
-    f.gateway.store.put("native-tasks", nativeTaskId, {
-      ...f.task,
-      id: nativeTaskId,
-      invocationId: request.id,
-      threadId: workerId,
-      direction: "incoming",
-      state: "running",
-    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, nativeTaskId]),
+      {
+        ...f.task,
+        id: nativeTaskId,
+        invocationId: request.id,
+        threadId: workerId,
+        direction: "incoming",
+        state: "running",
+      },
+    );
     f.threads.splice(
       f.threads.findIndex((t) => t.id === workerId),
       1,
@@ -2206,8 +2268,10 @@ it.each([false, true])(
     if (cleanBinding) f.service.deleteThread(workerId);
     await f.service.poll();
     expect(
-      f.gateway.store.get<{ state: string }>("native-tasks", nativeTaskId)
-        ?.state,
+      f.gateway.store.get<{ state: string }>(
+        "native-tasks",
+        JSON.stringify([f.groupId, nativeTaskId]),
+      )?.state,
     ).toBe("cancelled");
     await f.service.poll();
     expect(f.starts.filter((id) => id === workerId)).toHaveLength(2);
@@ -2353,11 +2417,15 @@ it("stops an interrupted wait locally without cancelling the peer or resuming la
   f.thread.status = "idle";
   for (const task of f.gateway.router.native.tasks(f.groupId))
     if (task.direction === "outgoing")
-      f.gateway.store.put("native-tasks", task.id, {
-        ...task,
-        state: "completed",
-        result: "Late result",
-      });
+      f.gateway.store.put(
+        "native-tasks",
+        JSON.stringify([task.groupId, task.id]),
+        {
+          ...task,
+          state: "completed",
+          result: "Late result",
+        },
+      );
   await f.service.poll();
   expect(resume).not.toHaveBeenCalled();
 });

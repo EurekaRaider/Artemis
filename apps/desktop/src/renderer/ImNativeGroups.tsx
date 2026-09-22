@@ -99,3 +99,44 @@ export function imNativeGroupChoices(
     };
   });
 }
+
+/** Group presentation only; each bot retains its original authorization target. */
+export function imNativeGroupDirectory(
+  groups: ReturnType<typeof imNativeGroupChoices>,
+) {
+  const directory = new Map<string, { key: string; targets: typeof groups }>();
+  for (const group of groups) {
+    const identities = (
+      group.identities.length
+        ? group.identities
+        : (group.saved?.participants.map(
+            (participant) => participant.identity,
+          ) ?? [])
+    ).filter(
+      (identity) => identity.connectionId === group.conversation.connectionId,
+    );
+    const identity = identities[0];
+    const knownWorkspace =
+      identity &&
+      identities.every(
+        (other) =>
+          other.channel === identity.channel &&
+          other.tenantId === identity.tenantId &&
+          (!group.platform ||
+            other.channel ===
+              (group.platform === "lark" ? "feishu" : group.platform)),
+      );
+    const key = knownWorkspace
+      ? JSON.stringify([
+          "group",
+          group.platform ?? identity.channel,
+          identity.tenantId,
+          group.conversation.id,
+        ])
+      : JSON.stringify(["connection", imConversationKey(group.conversation)]);
+    const entry = directory.get(key);
+    if (entry) entry.targets.push(group);
+    else directory.set(key, { key, targets: [group] });
+  }
+  return [...directory.values()];
+}

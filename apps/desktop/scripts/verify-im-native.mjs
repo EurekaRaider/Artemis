@@ -263,7 +263,7 @@ try {
     const target = { ...conversation, id };
     store.put("observed-groups", imConversationKey(target), {
       conversation: target,
-      name: "合成研发群",
+      name: id === "synthetic-room" ? "合成研发群" : "其他合成群",
       platform: "slack",
       identities: [identity],
       lastSeenAt: Date.now(),
@@ -305,7 +305,7 @@ try {
     "Array.from(document.querySelectorAll('.im-channel-row')).find(b=>b.textContent.includes('群聊项目授权'))",
   );
   await click(
-    "Array.from(document.querySelectorAll('.im-group-management nav button')).find(b=>b.textContent.includes('synthetic-room'))",
+    "Array.from(document.querySelectorAll('.im-group-management nav button')).find(b=>b.textContent.includes('合成研发群'))",
   );
   await click(button("为此群授权"));
   assert.equal(await app.page.evaluate(`(${button("下一步")}).disabled`), true);
@@ -316,7 +316,10 @@ try {
     "Array.from(document.querySelectorAll('[role=option]')).find(b=>b.textContent.includes('project-a'))",
   );
   await click(button("下一步"));
-  await click(button("下一步"));
+  await until(
+    () => app.page.evaluate(`!!(${button("确认并应用")})`),
+    "authorization confirmation",
+  );
   for (const theme of ["light", "dark"]) {
     await call("setTheme", theme);
     for (const [width, height, zoom] of [
