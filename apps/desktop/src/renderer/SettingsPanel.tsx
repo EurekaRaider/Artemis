@@ -132,7 +132,7 @@ function modelFormState(settings: SettingsSnapshot | undefined): {
   return {
     contextWindow: String(
       Math.min(
-        saved?.contextWindow ?? settings.contextWindow,
+        saved?.contextWindow ?? selected?.contextWindow ?? settings.contextWindow,
         selected?.contextWindow ?? settings.contextWindow,
       ),
     ),
@@ -411,15 +411,11 @@ export function SettingsPanel({
       (candidate) =>
         candidate.providerId === providerId && candidate.modelId === modelId,
     );
-    setContextWindow((current) => {
-      if (saved) return String(saved.contextWindow);
-      const parsed = Number(current);
-      return Number.isInteger(parsed) &&
-        parsed >= 1_024 &&
-        parsed <= model.contextWindow
-        ? current
-        : String(model.contextWindow);
-    });
+    setContextWindow(
+      String(
+        Math.min(saved?.contextWindow ?? model.contextWindow, model.contextWindow),
+      ),
+    );
   }
 
   async function addModel() {
@@ -474,22 +470,9 @@ export function SettingsPanel({
       setSettings(updated);
       onSettingsChange(updated, { refreshThreads: true });
       setModelDeleteTarget(undefined);
-      const selected = updated.selection
-        ? updated.models.find(
-            (model) =>
-              model.providerId === updated.selection?.providerId &&
-              model.modelId === updated.selection.modelId,
-          )
-        : updated.models[0];
-      if (selected) {
-        setSelectedModel(modelKey(selected.providerId, selected.modelId));
-        setContextWindow(
-          String(Math.min(updated.contextWindow, selected.contextWindow)),
-        );
-      } else {
-        setSelectedModel("");
-        setContextWindow(String(updated.contextWindow));
-      }
+      const modelState = modelFormState(updated);
+      setSelectedModel(modelState.selectedModel);
+      setContextWindow(modelState.contextWindow);
     });
   }
 
@@ -699,22 +682,9 @@ export function SettingsPanel({
       if (editingProviderId === provider.id) {
         resetProviderForm();
       }
-      const selected = updated.selection
-        ? updated.models.find(
-            (model) =>
-              model.providerId === updated.selection?.providerId &&
-              model.modelId === updated.selection.modelId,
-          )
-        : updated.models[0];
-      if (selected) {
-        setSelectedModel(modelKey(selected.providerId, selected.modelId));
-        setContextWindow(
-          String(Math.min(updated.contextWindow, selected.contextWindow)),
-        );
-      } else {
-        setSelectedModel("");
-        setContextWindow(String(updated.contextWindow));
-      }
+      const modelState = modelFormState(updated);
+      setSelectedModel(modelState.selectedModel);
+      setContextWindow(modelState.contextWindow);
     });
   }
 

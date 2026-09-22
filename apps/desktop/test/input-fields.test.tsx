@@ -507,6 +507,65 @@ describe("settings management operation contract (MIG5A)", () => {
       "Model X · synthetic-provider · first",
     );
   });
+  it("uses each unsaved model's context limit and restores saved model preferences", async () => {
+    const models = [
+      { ...syntheticModel, contextWindow: 262_144 },
+      {
+        ...syntheticModel,
+        modelId: "large",
+        name: "Large Model",
+        contextWindow: 1_000_000,
+      },
+      {
+        ...syntheticModel,
+        modelId: "small",
+        name: "Small Model",
+        contextWindow: 128_000,
+      },
+      {
+        ...syntheticModel,
+        modelId: "saved",
+        name: "Saved Model",
+        contextWindow: 200_000,
+      },
+    ];
+    const initial = settingsSnapshot({
+      models,
+      contextWindow: 262_144,
+      addedModels: [
+        {
+          providerId: syntheticModel.providerId,
+          modelId: "saved",
+          contextWindow: 64_000,
+        },
+      ],
+    });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial, "providers");
+    const context = screen.getByLabelText("Context length");
+    expect(context).toHaveValue(262_144);
+    for (const [name, expected] of [
+      ["Large Model", 1_000_000],
+      ["Small Model", 128_000],
+      ["Saved Model", 64_000],
+      ["Large Model", 1_000_000],
+    ] as const) {
+      await userEvent.click(screen.getByLabelText("Model"));
+      await userEvent.click(screen.getByRole("option", { name }));
+      expect(context).toHaveValue(expected);
+    }
+  });
+
+  it("initializes an unsaved model at its limit instead of the global context preference", async () => {
+    const initial = settingsSnapshot({
+      models: [{ ...syntheticModel, contextWindow: 1_000_000 }],
+      contextWindow: 262_144,
+    });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial, "providers");
+    expect(screen.getByLabelText("Context length")).toHaveValue(1_000_000);
+  });
+
   it("keeps added models in compact rows with a quiet delete action and a readable picker", async () => {
     const initial = settingsSnapshot({
       models: [syntheticModel],
