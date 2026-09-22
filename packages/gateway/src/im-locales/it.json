@@ -144,5 +144,5 @@
   "selfTasksOnly": "Puoi consultare o fermare solo le tue attività in questa conversazione.",
   "attachmentSizeLimit": "Gli allegati superano il limite di dimensione.",
   "nativePresence": "Disponibilità di Artemis",
-  "groupRejoined": "Il bot è rientrato nel gruppo. In Artemis → Collaborazione di gruppo, ripristina l’autorizzazione e conferma il progetto e l’ambito di condivisione. Poi invia di nuovo l’attività; questo messaggio non verrà eseguito."
+  "groupRejoined": "Il bot è rientrato, ma i permessi per le attività del gruppo sono ancora sospesi. Chi ha configurato il bot deve usare il computer su cui veniva eseguito:\n\n1. Apri Artemis → Impostazioni → Integrazioni di messaggistica → Autorizzazione progetti di gruppo.\n2. In «Per gruppo», seleziona questo gruppo e fai clic su «Ripristina autorizzazione». Se manca, fai prima clic su «Aggiorna».\n3. Verifica progetto, ambito di lettura/scrittura e permessi di esecuzione. Seleziona «Confermo il riepilogo completo e i suoi effetti sulla condivisione e sull’esecuzione.», poi fai clic su «Conferma e applica».\n\nDopo l’autorizzazione, torna nel gruppo e menzionami di nuovo con @ per inviare l’attività. Il messaggio precedente non verrà eseguito automaticamente."
 }

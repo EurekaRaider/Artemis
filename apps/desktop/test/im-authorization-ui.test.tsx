@@ -247,19 +247,6 @@ it("shows matched bot and account names instead of authorization identifiers", a
   );
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: /研发群/ }));
-  await user.click(screen.getByRole("button", { name: "恢复授权" }));
-  const summary = container.ownerDocument.querySelector(
-    ".im-group-identity-summary",
-  ) as HTMLElement;
-  expect(within(summary).getByRole("img", { name: "Slack" })).toBeVisible();
-  expect(summary).toHaveTextContent("Artemis 助手");
-  expect(summary).toHaveTextContent("林晓");
-  expect(summary).not.toHaveTextContent("Wrong account");
-  expect(summary).not.toHaveTextContent("bot-a");
-  expect(screen.getByText("本次授权身份")).toBeVisible();
-  expect(
-    screen.queryByText("已观察成员可能不完整，仍适用现有群成员准入规则。"),
-  ).not.toBeInTheDocument();
   const roster = document.querySelector(".im-group-members") as HTMLElement;
   expect(roster).toHaveAttribute("open");
   expect(roster).toHaveTextContent("林晓");
@@ -274,6 +261,20 @@ it("shows matched bot and account names instead of authorization identifiers", a
     spaceId: "saved",
   });
   expect(f.props.refresh).toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "恢复授权" }));
+  const summary = container.ownerDocument.querySelector(
+    ".im-group-identity-summary",
+  ) as HTMLElement;
+  expect(within(summary).getByRole("img", { name: "Slack" })).toBeVisible();
+  expect(summary).toHaveTextContent("Artemis 助手");
+  expect(summary).toHaveTextContent("林晓");
+  expect(summary).not.toHaveTextContent("Wrong account");
+  expect(summary).not.toHaveTextContent("bot-a");
+  expect(screen.getByText("本次授权身份")).toBeVisible();
+  expect(
+    screen.queryByText("已观察成员可能不完整，仍适用现有群成员准入规则。"),
+  ).not.toBeInTheDocument();
+  expect(document.querySelector(".im-group-members")).toBeNull();
 });
 
 it("uses the configured bot name and an explicit fallback when the account name is unavailable", async () => {
@@ -308,9 +309,7 @@ it("uses the configured bot name and an explicit fallback when the account name 
   expect(
     screen.queryByText("已观察成员可能不完整，仍适用现有群成员准入规则。"),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByText("群成员", { selector: "summary" }));
-  const roster = document.querySelector(".im-group-members") as HTMLElement;
-  expect(roster).toHaveTextContent("尚未同步群成员。");
+  expect(document.querySelector(".im-group-members")).toBeNull();
   expect(summary).not.toHaveTextContent("owner");
 });
 

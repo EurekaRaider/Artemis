@@ -144,5 +144,5 @@
   "selfTasksOnly": "Sie können nur Ihre eigenen Aufgaben in dieser Unterhaltung abfragen oder stoppen.",
   "attachmentSizeLimit": "Die Anhänge überschreiten die Größenbegrenzung.",
   "nativePresence": "Artemis-Verfügbarkeit",
-  "groupRejoined": "Der Bot ist wieder beigetreten. Stellen Sie unter Artemis → Gruppenzusammenarbeit die Berechtigung wieder her und bestätigen Sie Projekt und Freigabeumfang. Senden Sie danach die Aufgabe erneut; diese Nachricht wird nicht ausgeführt."
+  "groupRejoined": "Der Bot ist wieder im Gruppenchat, die Aufgabenberechtigung bleibt jedoch pausiert. Die Person, die den Bot eingerichtet hat, muss am ursprünglichen Computer Folgendes tun:\n\n1. Öffnen Sie Artemis → Einstellungen → Nachrichtenintegrationen → Gruppenchat-Projektfreigaben.\n2. Wählen Sie unter „Nach Gruppe“ diese Gruppe und klicken Sie auf „Berechtigung wiederherstellen“. Fehlt die Gruppe, klicken Sie zuerst auf „Aktualisieren“.\n3. Prüfen Sie Projekt, Lese-/Schreibumfang und Ausführungsrechte. Aktivieren Sie „Ich bestätige die vollständige Zusammenfassung und ihre Auswirkungen auf Freigabe und Ausführung.“ und klicken Sie auf „Bestätigen und anwenden“.\n\nNach erfolgreicher Autorisierung erwähnen Sie mich hier erneut mit @ und senden die Aufgabe. Die vorige Nachricht wird nicht automatisch ausgeführt."
 }

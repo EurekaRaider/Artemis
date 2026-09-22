@@ -1140,7 +1140,6 @@ export function GroupCollaborationPanel({
                         </dl>
                       </div>
                       <p>{t("GroupAuthorization.futureFiles")}</p>
-                      {identityTarget && memberList(identityTarget)}
                       {policyChanged && affected.length > 0 && (
                         <InlineNotice tone="warning">
                           <p>{t("GroupAuthorization.policyImpact")}</p>

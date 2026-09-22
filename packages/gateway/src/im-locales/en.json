@@ -144,5 +144,5 @@
   "selfTasksOnly": "You can only query or stop your own tasks in this conversation.",
   "attachmentSizeLimit": "The attachments exceed the size limit.",
   "nativePresence": "Artemis availability",
-  "groupRejoined": "The bot has rejoined. In Artemis → Group collaboration, restore authorization and confirm the project and sharing scope. Then resend your task; this message will not execute."
+  "groupRejoined": "The bot has rejoined, but task access for this group is still paused. The person who configured this bot should use the computer that originally ran it:\n\n1. Open Artemis → Settings → Message integrations → Group-chat project grants.\n2. Under “By group”, select this group and click “Restore authorization”. If it is missing, click “Refresh” first.\n3. Review the project, read/write scope and execution permissions. Check “I confirm this complete summary and its sharing and execution effects.”, then click “Confirm and apply”.\n\nAfter authorization succeeds, return to this group and @ me again with your task. Your previous message will not run automatically."
 }

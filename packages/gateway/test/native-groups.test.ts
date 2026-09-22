@@ -11,12 +11,12 @@ const stores: GatewayStore[] = [];
 afterEach(() => {
   for (const store of stores.splice(0)) store.close();
 });
-function fixture() {
+function fixture(channel: ChannelEvent["identity"]["channel"] = "slack") {
   const store = new GatewayStore(":memory:", "e".repeat(32));
   stores.push(store);
   const device = store.register("Owner");
   const identity = {
-    channel: "slack" as const,
+    channel,
     connectionId: "bot",
     tenantId: "team",
     appId: "app",
@@ -62,31 +62,40 @@ it("keeps authorization stable on a display-name edit but invalidates a project 
     saveNativeGroup(f.store, { ...input, projectId: "other" }).revision,
   ).not.toBe(first.revision);
 });
-it.each([
-  {
-    status: "completed",
-    final: true,
-    text: "已完成，结果如下。",
-    notify: true,
-  },
-  {
-    status: "failed",
-    final: true,
-    text: "连接失败，请恢复连接后重试。",
-    notify: true,
-  },
-  { status: "cancelled", final: true, text: "任务已取消。", notify: true },
-  {
-    status: "waiting",
-    final: false,
-    text: "请提供目标分支后继续。",
-    notify: true,
-  },
-  { status: "running", final: false, text: "正在执行。", notify: false },
-] as const)(
-  "notifies the actual group dispatcher for $status, preserving next steps",
-  ({ status, final, text, notify }) => {
-    const f = fixture();
+it.each(
+  (
+    [
+      {
+        status: "completed",
+        final: true,
+        text: "已完成，结果如下。",
+        notify: true,
+      },
+      {
+        status: "failed",
+        final: true,
+        text: "连接失败，请恢复连接后重试。",
+        notify: true,
+      },
+      { status: "cancelled", final: true, text: "任务已取消。", notify: true },
+      {
+        status: "waiting",
+        final: false,
+        text: "请提供目标分支后继续。",
+        notify: true,
+      },
+      { status: "running", final: false, text: "正在执行。", notify: false },
+    ] as const
+  ).flatMap((scenario) =>
+    (["feishu", "slack"] as const).map((channel) => ({
+      ...scenario,
+      channel,
+    })),
+  ),
+)(
+  "notifies the actual group dispatcher for $channel $status, preserving next steps",
+  ({ status, final, text, notify, channel }) => {
+    const f = fixture(channel);
     f.router.ingest(f.event);
     f.router.processIncoming();
     saveNativeGroup(f.store, {
@@ -121,12 +130,16 @@ it.each([
     const deliveries = f.store
       .pending<Delivery>("outgoing")
       .map((item) => item.payload);
+    expect(deliveries.some((item) => item.text === text)).toBe(true);
+    expect(deliveries.every((item) => !item.text.includes("的 Agent"))).toBe(
+      true,
+    );
     const notifications = deliveries.filter((item) => item.mentionUserId);
     expect(notifications).toHaveLength(notify ? 1 : 0);
     if (notify) {
       expect(notifications[0]).toMatchObject({
         mentionUserId: "dispatcher",
-        text: expect.stringContaining(text),
+        text,
       });
       expect(notifications[0]!.cardKey).toBeUndefined();
     }

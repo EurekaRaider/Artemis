@@ -144,5 +144,5 @@
   "selfTasksOnly": "Anda hanya dapat memeriksa atau menghentikan tugas Anda sendiri dalam percakapan ini.",
   "attachmentSizeLimit": "Lampiran melebihi batas ukuran.",
   "nativePresence": "Ketersediaan Artemis",
-  "groupRejoined": "Bot telah bergabung kembali. Di Artemis → Kolaborasi grup, pulihkan otorisasi dan konfirmasikan proyek serta cakupan berbagi. Lalu kirim ulang tugas; pesan ini tidak akan dijalankan."
+  "groupRejoined": "Bot telah bergabung kembali, tetapi izin tugas grup ini masih dijeda. Orang yang menyiapkan bot harus menggunakan komputer tempat bot sebelumnya dijalankan:\n\n1. Buka Artemis → Pengaturan → Integrasi pesan → Otorisasi proyek grup.\n2. Di “Menurut grup”, pilih grup ini lalu klik “Pulihkan otorisasi”. Jika tidak terlihat, klik “Segarkan” terlebih dahulu.\n3. Periksa proyek, cakupan baca/tulis, dan izin eksekusi. Centang “Saya mengonfirmasi ringkasan lengkap ini beserta dampaknya pada berbagi dan eksekusi.”, lalu klik “Konfirmasi dan terapkan”.\n\nSetelah otorisasi berhasil, kembali ke grup ini dan @ saya lagi untuk mengirim tugas. Pesan sebelumnya tidak akan dijalankan otomatis."
 }

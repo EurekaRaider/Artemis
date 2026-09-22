@@ -164,7 +164,7 @@ export class GatewayRouter {
           this.broadcast(
             space,
             `expired:${String(row.id)}`,
-            `[${imText(request.locale, "agent", { name: this.participantName(space, request.deviceId) })}]\n${text}`,
+            text,
             undefined,
             request.id,
           );
@@ -1018,7 +1018,7 @@ export class GatewayRouter {
           this.broadcast(
             space,
             `${reply.id}:status`,
-            `[${imText(request.locale, "agent", { name: this.participantName(space, deviceId) })}]\n${text}`,
+            text,
             undefined,
             request.id,
             reply.taskId,
@@ -1068,7 +1068,7 @@ export class GatewayRouter {
         this.broadcast(
           space,
           reply.id,
-          `[${imText(request.locale, "agent", { name: this.participantName(space, deviceId) })}]\n${reply.text}`,
+          reply.text,
           undefined,
           request.id,
           reply.taskId,
