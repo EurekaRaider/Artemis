@@ -59,14 +59,14 @@ P12 导出密码、Mac 登录密码、Apple 账号密码是三种不同用途的
 
 ## 5. 生成 Apple 公证专用密码
 
-1. 打开 [Apple Account](https://account.apple.com/)，登录同一个开发者账号。
-2. 进入 **登录与安全性 → App 专用密码（App-Specific Passwords）**。
-3. 点击生成，名称可填 `Artemis GitHub Notarization`。
+1. 打开 [Apple 账户管理页面](https://account.apple.com/)，登录同一个开发者账号。这一步的入口在 `account.apple.com`，申请证书时使用的 Apple Developer 后台没有这个入口。
+2. 进入 **登录和安全（Sign-In and Security）→ App 专用密码（App-Specific Passwords）**。
+3. 点击 **生成 App 专用密码**，名称可填 `Artemis GitHub Notarization`。
 4. 复制生成的专用密码，后续保存为 `APPLE_APP_SPECIFIC_PASSWORD`。
 
 使用此功能需要账号开启双重认证。这里填写 App 专用密码，不填写 Apple 账号的日常登录密码。
 
-参考：[Apple App 专用密码说明](https://support.apple.com/en-us/102654)。
+参考：[Apple App 专用密码说明](https://support.apple.com/zh-cn/102654)。
 
 ## 6. 准备发布库专用 Token
 
