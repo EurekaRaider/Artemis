@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifySlackCliRelease } from "../../../scripts/slack-cli-release.mjs";
+import { verifyPackagedSlackCli } from "../../../scripts/slack-cli-package.mjs";
 
 const desktopRoot = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const workspaceRoot = join(desktopRoot, "..", "..");
@@ -38,6 +40,7 @@ const packageEnvironment = {
   ARTEMIS_PACKAGE_BUILD: "1",
 };
 
+await verifySlackCliRelease();
 await run(
   process.execPath,
   [npmCli, "run", "build:core"],
@@ -63,3 +66,9 @@ await run(
     ...(release ? {} : { ARTEMIS_ALLOW_CROSS_WINDOWS_ZIP: "1" }),
   },
 );
+await verifyPackagedSlackCli(
+  join(desktopRoot, "release", "win-unpacked", "resources", "slack-cli"),
+  "win32-x64",
+  { native: process.platform === "win32" && process.arch === "x64" },
+);
+await verifySlackCliRelease();

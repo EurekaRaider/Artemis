@@ -2,6 +2,8 @@ import { mkdtemp, mkdir, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { verifyPackagedSlackCli } from "../../../scripts/slack-cli-package.mjs";
+import { verifyPackagedSlackCliCompatibility } from "../../../scripts/slack-cli-native-compatibility.mjs";
 
 import { spawn as spawnPty } from "node-pty";
 import { buildSeatbeltLaunch } from "../../../packages/platform/dist/index.js";
@@ -34,6 +36,13 @@ const defaultAppPath =
     : resolve("release", "mac", "Artemis.app");
 const appPath = resolve(process.env.ARTEMIS_MAC_APP_PATH ?? defaultAppPath);
 const executablePath = join(appPath, "Contents", "MacOS", "Artemis");
+await verifyPackagedSlackCli(
+  join(appPath, "Contents", "Resources", "slack-cli"),
+  `darwin-${process.arch}`,
+);
+await verifyPackagedSlackCliCompatibility(
+  join(appPath, "Contents", "Resources", "slack-cli"),
+);
 
 run("/usr/bin/codesign", [
   "--verify",

@@ -21371,6 +21371,23 @@ app
         },
       },
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
+      {
+        executable: join(
+          app.isPackaged
+            ? join(process.resourcesPath, "slack-cli")
+            : join(
+                app.getAppPath(),
+                "..",
+                "..",
+                "artifacts",
+                "slack-cli",
+                `${process.platform}-${process.arch}`,
+              ),
+          process.platform === "win32" ? "slack.exe" : "slack",
+        ),
+        hook: join(import.meta.dirname, "slack-cli-hook.cjs"),
+        nodeExecutable: process.execPath,
+      },
     );
     imService.start();
     sleepPrevention.setEnabled(await settingsStore.preventSleepPreference());

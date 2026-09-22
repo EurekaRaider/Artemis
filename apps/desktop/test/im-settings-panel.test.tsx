@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APP_LOCALES,
   imSettingsSchema,
+  type ImSlackSetupStatus,
   type ImStatus,
   type ImConnectionStatus,
   type ImManagement,
@@ -253,17 +254,57 @@ const openGroupSetup = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("production IM settings", () => {
-  it("shows and copies the pairing code after saving a Slack bot", async () => {
+  it("shows and copies the pairing code after automatic Slack setup", async () => {
     const f = fixture();
     f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    let setup: ImSlackSetupStatus = { state: "idle" };
+    const sessionId = "726d9206-e855-454c-8322-a04ce9bfb222";
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "slack-setup-status") return setup;
+      if (input.action === "slack-setup-start") {
+        setup = {
+          state: "awaiting-code",
+          sessionId,
+          name: input.name,
+          authorizationCommand: "/slackauthticket YXV0aG9yaXphdGlvbi10ZXN0",
+          expiresAt: Date.now() + 600000,
+        };
+        return setup;
+      }
+      if (input.action === "slack-setup-submit") {
+        f.set({
+          identities: [],
+          connections: [
+            {
+              ...connection,
+              id: "slack-created",
+              channel: "slack",
+              name: "My Slack bot",
+              state: "connected",
+            },
+          ],
+        });
+        setup = {
+          state: "connected",
+          sessionId,
+          name: "My Slack bot",
+          connectionId: "slack-created",
+        };
+        return setup;
+      }
+      return original(input);
+    });
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "slack");
     await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
-    await user.type(screen.getByLabelText("Bot User OAuth Token"), "xoxb-test");
-    await user.type(screen.getByLabelText("App-Level Token"), "xapp-test");
-    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
+    await user.clear(screen.getByLabelText("机器人名称"));
+    await user.type(screen.getByLabelText("机器人名称"), "My Slack bot");
+    await user.click(screen.getByRole("button", { name: "自动配置" }));
+    await user.type(await screen.findByLabelText("Slack 确认码"), "ABC123xy");
+    await user.click(screen.getByRole("button", { name: "确认并连接" }));
     const dialog = await screen.findByRole("dialog", {
       name: t("ImAccountControls.message1"),
     });
@@ -517,12 +558,16 @@ describe("production IM settings", () => {
         operation: "remove-connection",
         configuration: { id: selected.id },
       });
-      /* 清空后右栏：飞书落创建页（扫码优先），其余渠道显示空态文案。 */
+      /* 清空后右栏：本地飞书和 Slack 都显示对应的自动配置入口。 */
       if (channel === "feishu") {
         expect(await screen.findByText("关联机器人")).toBeVisible();
         expect(
           screen.queryByText("尚未保存机器人连接"),
         ).not.toBeInTheDocument();
+      } else if (channel === "slack") {
+        expect(
+          await screen.findByRole("button", { name: "自动配置" }),
+        ).toBeVisible();
       } else {
         expect(await screen.findByText("尚未保存机器人连接")).toBeVisible();
       }
@@ -608,7 +653,7 @@ describe("production IM settings", () => {
       }),
     );
   });
-  it("offers a manual fallback when local Feishu scan setup fails", async () => {
+  it("keeps scan retry without a manual fallback when local Feishu setup fails", async () => {
     const f = fixture();
     f.set({ connections: [], identities: [] });
     f.set({ localGateway: { state: "running" } });
@@ -621,11 +666,15 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await openChannel(user, "feishu");
-    await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
-    expect(await screen.findByLabelText("App ID")).toBeVisible();
-    expect(screen.getByLabelText("App Secret")).toBeVisible();
+    expect(
+      await screen.findByText("扫码创建应用未完成，请稍后重试。"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "扫码" })).toBeEnabled();
+    expect(screen.queryByText("手动填写凭据")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("App ID")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("App Secret")).not.toBeInTheDocument();
   });
-  it("switches new bot scans to Lark and retains Lark for manual credentials", async () => {
+  it("switches new bot scans to Lark without exposing manual credentials", async () => {
     const f = fixture();
     f.set({ connections: [], identities: [] });
     f.set({ localGateway: { state: "running" } });
@@ -641,31 +690,43 @@ describe("production IM settings", () => {
     });
     expect(screen.queryByText("等待飞书扫码…")).not.toBeInTheDocument();
     expect(screen.getByText("用Lark扫码并确认创建应用。")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
-    expect(
-      screen.getByRole("button", { name: /^应用区域 Lark/ }),
-    ).toHaveTextContent("Lark 国际版");
-    await user.keyboard("{Escape}");
+    expect(screen.queryByText("手动填写凭据")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("App ID")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lark 国际版" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     await user.click(screen.getByRole("button", { name: "扫码" }));
     expect(await screen.findByText("等待Lark扫码…")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "手动填写凭据" }));
-    await user.type(screen.getByLabelText("App ID"), "cli_lark");
-    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
-    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
-    expect(f.manage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "admin",
-        operation: "connections",
-        configuration: expect.objectContaining({
-          domain: "lark",
-          appId: "cli_lark",
-        }),
-      }),
+    expect(f.manage).toHaveBeenLastCalledWith({
+      action: "feishu-scan-begin",
+      domain: "lark",
+    });
+  });
+  it("offers automatic Slack setup without manual credential entry", async () => {
+    const f = fixture();
+    f.set({
+      connections: [],
+      identities: [],
+      localGateway: { state: "running" },
+    });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) =>
+      input.action === "slack-setup-status"
+        ? { state: "idle" }
+        : original(input),
     );
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await openChannel(user, "slack");
+    expect(
+      await screen.findByRole("button", { name: "自动配置" }),
+    ).toBeVisible();
+    expect(screen.queryByText("手动填写凭据")).not.toBeInTheDocument();
+    expect(screen.queryByText("手动创建应用")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "保存并连接机器人" }),
+    ).not.toBeInTheDocument();
   });
   it("ignores an old Feishu poll after switching the new bot platform to Lark", async () => {
     const f = fixture();
@@ -1100,30 +1161,28 @@ describe("production IM settings", () => {
     expect(document.querySelector(".im-bot-create")).toBeNull();
     expect(document.querySelector(".im-bot-profile")).toBeVisible();
   });
-  it("separates saved credentials from an established connection in the lifecycle", async () => {
+  it("separates a configured Slack bot from an established connection in the lifecycle", async () => {
     const f = fixture();
     f.set({ localGateway: { state: "running" } });
-    const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await panelReady();
-    /* 两栏：初始态在列表行断言（未配置不亮灯）；操作进详情。
-       （Slack 走凭据表单创建；飞书新建为扫码流，另测。） */
+    // Persisted configuration alone must not report a connected bot.
     expect(platformState("slack")).toHaveAttribute(
       "data-connection-state",
       "unconfigured",
     );
-    await openChannel(user, "slack");
-    await user.click(screen.getByRole("button", { name: "新建 BOT 连接" }));
-    await user.type(
-      screen.getByLabelText("Bot User OAuth Token"),
-      "xoxb-example",
-    );
-    await user.type(screen.getByLabelText("App-Level Token"), "xapp-example");
-    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
-    // 保存成功但连接尚未建立：关闭详情弹窗，行提亮（已配置），状态仍为未配置。
-    await closeChannelDialog(user);
+    f.set({
+      connections: [{ ...connection, channel: "slack", state: "disabled" }],
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
     await waitFor(() =>
       expect(platformCard("slack")).toHaveAttribute("data-configured"),
+    );
+    expect(platformState("slack")).not.toHaveAttribute(
+      "data-connection-state",
+      "connected",
     );
     f.set({
       connections: [{ ...connection, channel: "slack", state: "connecting" }],

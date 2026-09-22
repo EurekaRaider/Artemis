@@ -41,6 +41,9 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(packageJson.build.win).toEqual({
       artifactName: "Artemis-Windows-${arch}-${version}.${ext}",
       target: [{ target: "zip", arch: ["x64"] }],
+      extraResources: [
+        { from: "../../artifacts/slack-cli/win32-${arch}", to: "slack-cli" },
+      ],
     });
     expect(packageJson.build.nsis).toBeUndefined();
     expect(packageJson.build.portable).toBeUndefined();

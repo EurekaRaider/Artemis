@@ -70,13 +70,15 @@
     "verify:ui-gallery": "npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/ui-gallery && npm run typecheck -w @artemis/ui-gallery && npm run build -w @artemis/desktop && node scripts/verify-ui-gallery.mjs",
     "verify:skin-package": "npm run build:ui-libraries && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs",
     "verify:skin-conformance": "npm run build:ui-foundation && npm run test -w @artemis/ui && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs",
-    "test": "node --test scripts/test-pre-push.mjs && npm run test:audit-production && npm run build && npm run test -w @artemis/gateway && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && node scripts/verify-ui-performance.mjs && node scripts/test-ui-performance.mjs && node scripts/verify-ui-gallery.mjs && npm run test -w @artemis/desktop",
+    "test": "node --test scripts/test-pre-push.mjs scripts/test-slack-cli.mjs && npm run test:audit-production && npm run build && npm run test -w @artemis/gateway && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && node scripts/verify-ui-performance.mjs && node scripts/test-ui-performance.mjs && node scripts/verify-ui-gallery.mjs && npm run test -w @artemis/desktop",
     "test:audit-production": "node scripts/test-audit-production-dependencies.mjs",
     "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop",
     "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify-latest-dock.mjs",
     "verify:ci": "node scripts/verify-ci.mjs",
     "verify:prepush": "node scripts/verify-pre-push.mjs",
-    "prepare": "node scripts/install-git-hooks.mjs"
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "verify:slack-cli": "node scripts/verify-slack-cli.mjs",
+    "update:slack-cli": "node scripts/update-slack-cli.mjs"
   },
   "devDependencies": {
     "@types/node": "26.1.1",
@@ -90,6 +92,7 @@
     "postcss": "8.5.23",
     "prettier": "3.9.6",
     "typescript": "7.0.2",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "@electron-internal/extract-zip": "1.0.4"
   }
 }

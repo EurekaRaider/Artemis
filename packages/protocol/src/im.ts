@@ -942,6 +942,35 @@ export const imManagementSchema = z.discriminatedUnion("action", [
     })
     .strict(),
   z.object({ action: z.literal("setup-local") }).strict(),
+  z
+    .object({
+      action: z.literal("slack-setup-start"),
+      name: z.string().trim().min(1).max(35),
+      sessionId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("slack-setup-submit"),
+      sessionId: z.string().uuid(),
+      challenge: z
+        .string()
+        .trim()
+        .regex(/^[a-zA-Z0-9]{6,32}$/u),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("slack-setup-status"),
+      sessionId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("slack-setup-cancel"),
+      sessionId: z.string().uuid(),
+    })
+    .strict(),
   /* Feishu scan-to-register (official OAuth app registration device flow). */
   z
     .object({
@@ -1012,6 +1041,47 @@ export const imManagementSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export type ImManagement = z.infer<typeof imManagementSchema>;
+export const imSlackSetupStatusSchema = z
+  .object({
+    sessionId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(80).optional(),
+    state: z.enum([
+      "idle",
+      "authorizing",
+      "awaiting-code",
+      "configuring",
+      "approval-required",
+      "interrupted",
+      "recovery-required",
+      "connected",
+      "cancelled",
+      "expired",
+      "error",
+    ]),
+    authorizationCommand: z
+      .string()
+      .regex(/^\/slackauthticket [a-zA-Z0-9+/=_-]+$/u)
+      .optional(),
+    expiresAt: z.number().optional(),
+    connectionId: z.string().optional(),
+    appId: z.string().optional(),
+    error: z
+      .enum([
+        "network",
+        "invalid-code",
+        "identity",
+        "cli-unavailable",
+        "cli-failed",
+        "secure-storage",
+        "handoff",
+        "connection",
+        "recovery",
+        "name-taken",
+      ])
+      .optional(),
+  })
+  .strict();
+export type ImSlackSetupStatus = z.infer<typeof imSlackSetupStatusSchema>;
 /** Session handle returned by feishu-scan-begin; poll until success or expiry. */
 export interface ImFeishuScanBeginResult {
   deviceCode: string;

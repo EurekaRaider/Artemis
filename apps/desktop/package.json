@@ -151,6 +151,12 @@
             "x64"
           ]
         }
+      ],
+      "extraResources": [
+        {
+          "from": "../../artifacts/slack-cli/darwin-${arch}",
+          "to": "slack-cli"
+        }
       ]
     },
     "win": {
@@ -162,7 +168,14 @@
             "x64"
           ]
         }
+      ],
+      "extraResources": [
+        {
+          "from": "../../artifacts/slack-cli/win32-${arch}",
+          "to": "slack-cli"
+        }
       ]
-    }
+    },
+    "beforePack": "scripts/prepare-slack-cli.cjs"
   }
 }

@@ -22,10 +22,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 24
+      - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
 
       - name: Verify tag matches package version
@@ -44,6 +44,7 @@ jobs:
         run: npm run verify:ci
         env:
           ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
+          GITHUB_TOKEN: ${{ github.token }}
 
   package-windows:
     name: Package Windows x64
@@ -55,10 +56,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 24
+      - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
 
       - name: Install dependencies
@@ -66,6 +67,8 @@ jobs:
 
       - name: Package Windows x64 ZIP
         run: npm run package:win
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Verify Windows x64 package natively
         run: npm run verify:win-native -w @artemis/desktop
@@ -112,10 +115,10 @@ jobs:
             exit 1
           fi
 
-      - name: Set up Node.js 24
+      - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
 
       - name: Install dependencies
@@ -123,6 +126,8 @@ jobs:
 
       - name: Package macOS ${{ matrix.arch }} DMG and ZIP
         run: npm run package:mac:${{ matrix.arch }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Verify macOS ${{ matrix.arch }} engineering packages
         shell: bash
@@ -141,6 +146,8 @@ jobs:
           fi
           /usr/bin/hdiutil verify "$dmg"
           /usr/bin/unzip -t "$zip"
+          /usr/bin/unzip -q "$zip" -d "$RUNNER_TEMP/slack-cli-package"
+          node apps/desktop/scripts/verify-slack-cli-native.mjs "$RUNNER_TEMP/slack-cli-package/Artemis.app/Contents/Resources/slack-cli"
 
       - name: Upload macOS ${{ matrix.arch }} packages
         uses: actions/upload-artifact@v7
@@ -198,9 +205,15 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Node.js 26 for final release gate
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
       - name: Publish release and all packages
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           MACOS_NOTICE: |-
             > [!WARNING]
             > The macOS DMG and ZIP packages are engineering artifacts for local debugging and trial use only. They have an ad-hoc engineering signature, but are not signed with an Apple Developer ID and are not notarized by Apple.
@@ -208,6 +221,7 @@ jobs:
             > Before first launch, remove the quarantine attribute only after you have verified and trust the download: `xattr -dr com.apple.quarantine "/Applications/Artemis.app"`. Replace the path if Artemis is installed elsewhere.
         shell: bash
         run: |
+          node scripts/verify-slack-cli.mjs
           gh release create "$GITHUB_REF_NAME" release-assets/* \
             --verify-tag \
             --title "Artemis $GITHUB_REF_NAME" \

@@ -4,6 +4,8 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { verifyPackagedSlackCli } from "../../../scripts/slack-cli-package.mjs";
+import { verifyPackagedSlackCliCompatibility } from "../../../scripts/slack-cli-native-compatibility.mjs";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
   throw new Error(
@@ -142,6 +144,13 @@ try {
     throw new Error("Windows ZIP does not contain Artemis.exe at its root");
   }
   const extractedMachine = await assertX64Executable(extractedExecutablePath);
+  await verifyPackagedSlackCli(
+    join(extractedRoot, "resources", "slack-cli"),
+    "win32-x64",
+  );
+  await verifyPackagedSlackCliCompatibility(
+    join(extractedRoot, "resources", "slack-cli"),
+  );
 
   const runtimePath = join(extractedRoot, "resources", "codex-primary-runtime");
   if (existsSync(runtimePath)) {

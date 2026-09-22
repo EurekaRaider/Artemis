@@ -1,5 +1,7 @@
 import { imText, type ImMessageKey } from "@artemis/gateway";
 import { formatImTaskTitle, type ImTaskTitleContext } from "./task-title.js";
+import { SlackSetupService } from "./slack-setup-service.js";
+import type { SlackCliRuntime } from "./slack-cli-runner.js";
 import {
   ImDelegationWaits,
   type DelegationWait,
@@ -615,6 +617,7 @@ export class ImService {
 
   private securityReady = false;
   private readonly localGateway: LocalImGateway;
+  private slackSetup: SlackSetupService | undefined;
   private localSetup: Promise<unknown> | undefined;
   private closing: Promise<void> | undefined;
   private readonly db: DatabaseSync;
@@ -665,6 +668,7 @@ export class ImService {
     private readonly secure: SafeStorageAdapter,
     private readonly ops: ImTaskOperations,
     private readonly windowsHelper?: string,
+    private readonly slackRuntime?: SlackCliRuntime,
   ) {
     if (process.platform === "win32" && windowsHelper)
       this.windowsFiles = new WindowsImFiles(windowsHelper);
@@ -1455,6 +1459,7 @@ export class ImService {
   }
   private async shutdown(): Promise<void> {
     this.closed = true;
+    await this.slackSetup?.close();
     for (const threadId of this.replyStreams.keys())
       this.clearReplyStream(threadId);
     clearInterval(this.timer);
@@ -2247,6 +2252,78 @@ export class ImService {
   }
   async manage(input: ImManagement, serialized = false): Promise<unknown> {
     const action = imManagementSchema.parse(input);
+    if (
+      action.action === "slack-setup-start" ||
+      action.action === "slack-setup-submit" ||
+      action.action === "slack-setup-status" ||
+      action.action === "slack-setup-cancel"
+    ) {
+      if (!this.config.deviceId || !this.usesLocalGateway())
+        throw new Error(
+          "Slack automatic setup requires the registered local Gateway.",
+        );
+      if (!this.slackRuntime)
+        throw new Error("Bundled Slack CLI is unavailable.");
+      this.slackSetup ??= new SlackSetupService({
+        directory: join(this.directory, "slack-setup"),
+        secure: this.secure,
+        runtime: this.slackRuntime,
+        owner: () =>
+          this.usesLocalGateway() ? this.config.deviceId : "remote",
+        connections: async () => {
+          await this.refreshConnection();
+          return this.channelStatus.flatMap((value) => {
+            const connection = value as {
+              id?: string;
+              name?: string;
+              channel?: string;
+            };
+            return connection.channel === "slack" &&
+              typeof connection.id === "string" &&
+              typeof connection.name === "string"
+              ? [{ id: connection.id, name: connection.name }]
+              : [];
+          });
+        },
+        connect: async (connection, signal) => {
+          const deviceId = this.config.deviceId;
+          await this.serializeAuthorization(async () => {
+            signal.throwIfAborted();
+            if (
+              !this.usesLocalGateway() ||
+              this.config.deviceId !== deviceId ||
+              this.pendingAuthorizations().length
+            )
+              throw new Error("Slack setup identity or authorization changed.");
+            await this.manage(
+              {
+                action: "admin",
+                operation: "connections",
+                configuration: connection,
+              },
+              true,
+            );
+            for (let attempt = 0; attempt < 30; attempt++) {
+              await this.refreshConnection();
+              const current = this.channelStatus.find(
+                (value) => (value as { id?: string }).id === connection.id,
+              ) as { state?: string } | undefined;
+              if (current?.state === "connected") return;
+              signal.throwIfAborted();
+              await wait(1000, undefined, { signal });
+            }
+            throw new Error("Slack Gateway connection could not be confirmed.");
+          });
+        },
+      });
+      if (action.action === "slack-setup-start")
+        return this.slackSetup.start(action.name, action.sessionId);
+      if (action.action === "slack-setup-submit")
+        return this.slackSetup.submit(action.sessionId, action.challenge);
+      if (action.action === "slack-setup-cancel")
+        return this.slackSetup.cancel(action.sessionId);
+      return this.slackSetup.status(action.sessionId);
+    }
     if (
       this.get("migrations", "authorization-v1") &&
       (action.action === "authorize-native-group" ||

@@ -28,6 +28,7 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
 
 import { ImSlackSetup, slackAppManifest } from "./ImSlackSetup";
+import { ImSlackAutoSetup } from "./ImSlackAutoSetup";
 import {
   imFirstPendingStep,
   imFlowProgress,
@@ -1131,7 +1132,9 @@ export function ImSettingsPanel({
         copy={() =>
           void run(async () => {
             const { userName } = await window.artemis.getSnapshot();
-            await navigator.clipboard.writeText(slackAppManifest(userName));
+            await navigator.clipboard.writeText(
+              slackAppManifest(`${userName}_bot`),
+            );
             setMessage(t("ImSettingsPanel.message60"));
           })
         }
@@ -1193,7 +1196,22 @@ export function ImSettingsPanel({
           {channelLogo(channel, 28)}
           <strong>{t("ImSettingsPanel.message76")}</strong>
         </div>
-        {channel === "feishu" && local ? (
+        {channel === "slack" && local ? (
+          <ImSlackAutoSetup
+            t={t}
+            busy={busy}
+            disabled={!activeSettings.deviceId}
+            connections={connections.filter(
+              (connection) => connection.channel === "slack",
+            )}
+            onConnected={(id) =>
+              connectScannedBot(id, () => {
+                setChannelPane("bot");
+                setSelectedBotId(id);
+              })
+            }
+          />
+        ) : channel === "feishu" && local ? (
           <>
             <SegmentedControl
               label={t("ImSettingsPanel.message78")}
@@ -1257,19 +1275,6 @@ export function ImSettingsPanel({
                 </div>
               )}
             </div>
-            <Button
-              variant="quiet"
-              size="compact"
-              disabled={busy}
-              onClick={(event) => {
-                botDialogTrigger.current = event.currentTarget;
-                setCreateScanOpen(false);
-                setFields({ domain: feishuDomain });
-                setBotDialog({});
-              }}
-            >
-              {t("ImSettingsPanel.manualCredentials")}
-            </Button>
             {renderReplyModeCard()}
           </>
         ) : (
@@ -1281,7 +1286,7 @@ export function ImSettingsPanel({
   /* 已无选中机器人时的右栏：飞书直接落创建页（首个 bot 未建时右侧
      不再是旧空态卡）；其余渠道保留空态文案卡。 */
   const renderEmptyPane = () =>
-    channel === "feishu" ? (
+    channel === "feishu" || (channel === "slack" && local) ? (
       renderCreatePane()
     ) : (
       <div className="im-bot-join">

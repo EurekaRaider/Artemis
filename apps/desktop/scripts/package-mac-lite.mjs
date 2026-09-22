@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifySlackCliRelease } from "../../../scripts/slack-cli-release.mjs";
+import { verifyPackagedSlackCli } from "../../../scripts/slack-cli-package.mjs";
 
 const desktopRoot = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const workspaceRoot = join(desktopRoot, "..", "..");
@@ -58,6 +60,7 @@ const packageEnvironment = {
   ARTEMIS_PACKAGE_BUILD: "1",
 };
 
+await verifySlackCliRelease();
 await run(process.execPath, ["scripts/build-macos-icon.mjs"]);
 
 if (releaseMode) {
@@ -185,6 +188,23 @@ try {
 } finally {
   await cleanupStagedDependencies();
 }
+
+for (const arch of targetArchitectures) {
+  await verifyPackagedSlackCli(
+    join(
+      desktopRoot,
+      "release",
+      arch === "arm64" ? "mac-arm64" : "mac",
+      "Artemis.app",
+      "Contents",
+      "Resources",
+      "slack-cli",
+    ),
+    `darwin-${arch}`,
+    { native: process.arch === arch },
+  );
+}
+await verifySlackCliRelease();
 
 if (releaseMode) {
   await run(process.execPath, ["scripts/finalize-release.mjs"]);

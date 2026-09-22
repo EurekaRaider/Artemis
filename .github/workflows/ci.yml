@@ -41,6 +41,27 @@ jobs:
         run: npm run verify:ci
         env:
           ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+  slack-cli-native:
+    name: Slack CLI native compatibility (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel, windows-2025]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - name: Verify official native CLI and bundled hooks
+        run: node scripts/test-slack-cli-native.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   windows-native-sandbox:
     name: Windows native sandbox integration
@@ -123,6 +144,8 @@ jobs:
 
       - name: Verify the locally built Windows package boundary
         if: runner.os == 'Windows'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           npm run package:win
           npm run verify:win-native -w @artemis/desktop

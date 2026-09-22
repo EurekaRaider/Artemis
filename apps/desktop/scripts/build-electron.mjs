@@ -44,6 +44,12 @@ const shared = {
 await Promise.all([
   build({
     ...shared,
+    entryPoints: ["src/main/slack-cli-hook.ts"],
+    format: "cjs",
+    outfile: "dist-electron/slack-cli-hook.cjs",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/main/thread-history-worker.ts"],
     banner: esmRequireBridge,
     format: "esm",
