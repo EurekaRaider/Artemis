@@ -197,74 +197,27 @@ describe.each(["slack", "feishu", "lark"] as const)(
       }) as Array<{ id: string }>;
     }
 
-    it("exchanges only fresh correlated presence between authorized upgraded peers", () => {
+    it("never schedules presence polling or presence renegotiation, including cached peers", () => {
       vi.useFakeTimers();
-      const { a, b } = pair();
-      b.router.native.recordActivity(b.device.id, "busy", "desktop-b");
-      a.router.native.tick();
-      exchange(a, b);
-      exchange(b, a);
-      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
-        "busy",
-      );
-      vi.advanceTimersByTime(46000);
-      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
-        "unknown",
-      );
-      b.router.native.recordActivity(b.device.id, "online", "restarted-b");
-      a.router.native.tick();
-      exchange(a, b);
-      exchange(b, a);
-      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
-        "online",
-      );
-      a.router.native.authorize(a.group.id, []);
-      expect(a.router.native.memberPresence(a.group.id, "B")?.state).toBe(
-        "unknown",
-      );
-    });
-
-    it("rejects replayed status after a newer query and forgets availability on restart", () => {
-      vi.useFakeTimers();
-      const { a, b } = pair();
-      b.router.native.recordActivity(b.device.id, "busy", "worker");
-      a.router.native.tick();
-      exchange(a, b);
-      const reply = b.store
-        .pending<Delivery>("outgoing")
-        .find((item) => item.payload.native?.action === "presence")!.payload
-        .native!;
-      exchange(b, a);
-      expect(a.router.native.memberPresence(a.group.id, "B").state).toBe(
-        "busy",
-      );
-      vi.advanceTimersByTime(31000);
-      a.router.native.tick();
-      const replay = {
-        ...reply,
-        sender: "B",
-        recipient: suitePlatform === "slack" ? "A" : "self-A",
-        expiresAt: Date.now() + 10000,
-        issuedAt: Date.now(),
-      };
-      expect(
-        a.router.native.receive({
-          ...a.event,
-          bot: true,
-          identity: { ...a.event.identity, userId: "B" },
-          text: encodeNativeEnvelope(replay),
-        }),
-      ).toBe(false);
-      exchange(a, b);
-      exchange(b, a);
-      expect(a.router.native.memberPresence(a.group.id, "B").state).toBe(
-        "unknown",
-      );
-      expect(a.router.native.tasks(a.group.id)).toHaveLength(0);
+      const { a } = pair();
+      const peer = a.router.native.peers(a.group.id)[0]!;
+      for (const presenceProtocol of [true, false, undefined]) {
+        a.store.put("native-peers", a.group.id, [
+          { ...peer, presenceProtocol },
+        ]);
+        for (let tick = 0; tick < 6; tick++) {
+          a.router.native.tick();
+          vi.advanceTimersByTime(31000);
+        }
+        expect(a.store.pending<Delivery>("outgoing")).toHaveLength(0);
+        expect(a.router.native.memberPresence(a.group.id, "B")).toMatchObject({
+          state: "unknown",
+          source: "peer",
+        });
+      }
       const restarted = new GatewayRouter(a.store);
-      expect(restarted.native.memberPresence(a.group.id, "B").state).toBe(
-        "unknown",
-      );
+      restarted.native.tick();
+      expect(a.store.pending<Delivery>("outgoing")).toHaveLength(0);
     });
 
     it("does not poll unsupported peers or accept unsolicited or human presence", () => {
@@ -297,15 +250,37 @@ describe.each(["slack", "feishu", "lark"] as const)(
         text: "",
         activity: { state: "busy", session: randomUUID() },
       };
-      for (const bot of [false, true])
+      for (const action of ["presence-query", "presence"] as const) {
+        const legacy = { ...frame, action };
+        if (action === "presence-query") delete legacy.activity;
+        for (const bot of [false, true])
+          expect(
+            a.router.native.receive({
+              ...a.event,
+              bot,
+              identity: { ...a.event.identity, userId: "B" },
+              text: encodeNativeEnvelope(legacy),
+            }),
+          ).toBe(false);
+        // Persisted outbox items from an older version must not leak on restart.
+        const outgoing = {
+          ...legacy,
+          sender: suitePlatform === "slack" ? "A" : "self-A",
+          recipient: "B",
+        };
         expect(
-          a.router.native.receive({
-            ...a.event,
-            bot,
-            identity: { ...a.event.identity, userId: "B" },
-            text: encodeNativeEnvelope(frame),
+          a.router.canDeliver({
+            conversation: {
+              ...a.group.endpoints[0]!,
+              spaceId: a.group.id,
+              spaceRevision: a.group.revision,
+            },
+            text: encodeNativeEnvelope(outgoing),
+            native: outgoing,
           }),
         ).toBe(false);
+      }
+      expect(a.store.pending<Delivery>("outgoing")).toHaveLength(0);
       expect(a.router.native.memberPresence(a.group.id, "B")?.state).not.toBe(
         "busy",
       );
@@ -1617,6 +1592,7 @@ describe.each(["slack", "feishu", "lark"] as const)(
     });
 
     it("carries a sequenced task heartbeat without overwriting the peer progress result", () => {
+      vi.useFakeTimers();
       const f = pair();
       const [task] = delegate(f);
       exchange(f.a, f.b);
@@ -1648,6 +1624,16 @@ describe.each(["slack", "feishu", "lark"] as const)(
         result: "Analyzing files",
         heartbeatAt: expect.any(Number),
       });
+      expect(f.a.router.native.memberPresence(f.a.group.id, "B")).toMatchObject(
+        {
+          state: "busy",
+          source: "task",
+        },
+      );
+      vi.advanceTimersByTime(90000);
+      expect(f.a.router.native.memberPresence(f.a.group.id, "B").state).toBe(
+        "unknown",
+      );
     });
 
     it("allows new owner work despite an unrelated incoming task still running", () => {

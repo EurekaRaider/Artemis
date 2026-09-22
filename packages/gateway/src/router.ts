@@ -708,6 +708,12 @@ export class GatewayRouter {
     });
   }
   canDeliver(delivery: Delivery): boolean {
+    // Also suppress presence frames persisted by older versions before restart.
+    if (
+      delivery.native &&
+      ["presence-query", "presence"].includes(delivery.native.action)
+    )
+      return false;
     if (
       this.store.get("retired-groups", imConversationKey(delivery.conversation))
     )

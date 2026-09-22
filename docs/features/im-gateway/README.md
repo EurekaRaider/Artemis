@@ -36,6 +36,8 @@ node gateway.mjs
 
 本地测试覆盖飞书/Lark 两个独立实例之间的模拟身份验证、委派与接收回执，以及成员分页、身份隔离、异常响应和长连接事件。模拟测试不代表真实平台双机器人投递已经验收。
 
+机器人不再通过群消息周期探测“可用状态”，也不回复旧版本的状态探测；升级前队列中残留的状态消息会被拦截。成员状态仅凭近期任务活动显示忙碌，无新依据时显示未知。任务派发、任务心跳与通信身份验证仍保留。群内所有 Artemis 实例都需要更新并重启，才能停止各自发出的周期探测；已有群消息不会删除。
+
 参考：[成员列表及机器人排除限制](https://open.feishu.cn/document/server-docs/group/chat-member/get)、[消息接收事件](https://open.feishu.cn/document/server-docs/im-v1/message/events/receive)、[机器人被移出群](https://open.feishu.cn/document/server-docs/group/chat-member/event/deleted)。
 
 ## 配置桌面与平台

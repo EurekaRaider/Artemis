@@ -928,11 +928,6 @@ export class ArtemisGateway {
     )
       throw new Error("Upgrade Artemis to use IM security version 2.");
     if (url.pathname === "/v1/device/status" && request.method === "GET") {
-      const activity = z
-        .enum(["online", "busy", "waiting-approval"])
-        .safeParse(request.headers["x-artemis-activity"]);
-      if (activity.success)
-        this.router.native.recordActivity(deviceId, activity.data, sessionId);
       respond(response, 200, {
         securityVersion: IM_SECURITY_VERSION,
         authorizationVersion: 1,
