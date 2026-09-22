@@ -738,12 +738,12 @@ export class ArtemisGateway {
         if (!group?.nativeGroup?.enabled) throw new Error("Group unavailable.");
         this.visibleGroups.set(group.id, Date.now() + 30000);
         this.presenceRefreshAt = 0;
-        this.invalidateGroupRoster(
-          group.endpoints[0]!.connectionId,
-          group.endpoints[0]!.id,
-        );
-        await this.tick();
         await this.metadataJob;
+        this.metadataJob = this.refreshNativeGroupInfo(spaceId).finally(() => {
+          this.metadataJob = undefined;
+        });
+        await this.metadataJob;
+        await this.tick();
         await this.presenceJob;
         respond(response, 200, { refreshed: true });
         return;
@@ -2135,8 +2135,9 @@ export class ArtemisGateway {
     for (const [id, until] of this.visibleGroups)
       if (until <= Date.now()) this.visibleGroups.delete(id);
   }
-  private async refreshNativeGroupInfo(): Promise<void> {
+  private async refreshNativeGroupInfo(spaceId?: string): Promise<void> {
     for (const group of this.store.list<CollaborationSpace>("native-groups")) {
+      if (spaceId && group.id !== spaceId) continue;
       const endpoint = group.endpoints[0];
       const adapter = endpoint && this.adapters.get(endpoint.connectionId);
       if (
@@ -2145,11 +2146,23 @@ export class ArtemisGateway {
         adapter.status().state !== "connected"
       )
         continue;
-      const prior = this.store.get<{ next: number; roster?: ImGroupRoster }>(
-        "native-group-info",
-        group.id,
-      );
-      if (prior && prior.next > Date.now()) continue;
+      const prior = this.store.get<{
+        next: number;
+        checkedAt?: number;
+        revision?: string;
+        roster?: ImGroupRoster;
+      }>("native-group-info", group.id);
+      if (
+        prior &&
+        prior.next > Date.now() &&
+        (!spaceId ||
+          !prior.checkedAt ||
+          (prior.revision === group.revision &&
+            prior.checkedAt + 10000 > Date.now()) ||
+          prior.roster?.error === "rate-limited" ||
+          prior.next > Date.now() + 60000)
+      )
+        continue;
       this.store.put("native-group-info", group.id, {
         ...prior,
         next: Date.now() + 60000,
@@ -2223,6 +2236,7 @@ export class ArtemisGateway {
         this.store.transaction(() => {
           this.store.put("native-group-info", group.id, {
             ...info,
+            revision: group.revision,
             ...(roster ? { roster } : {}),
             checkedAt: Date.now(),
             next: Date.now() + 60000,

@@ -1677,3 +1677,55 @@ it("invalidates an in-flight recovery authorization if the bot is removed again"
   ).toThrow("version conflict");
   expect(f.current().nativeGroup.enabled).toBe(false);
 });
+
+it("refreshes the requested group's cached roster immediately while respecting rate limits", async () => {
+  const members = vi.fn(async (): Promise<ImGroupRoster> => ({
+    members: [],
+    complete: true,
+  }));
+  const f = await fixture(false, async () => ({ name: "Team" }), members);
+  const conversation = {
+    ...f.input.conversation,
+    kind: "group" as const,
+    id: "room",
+  };
+  f.receive({ ...f.input, conversation });
+  f.gateway.router.processIncoming();
+  const group = saveNativeGroup(f.gateway.store, {
+    conversation,
+    owner: f.input.identity,
+    deviceId: f.device.id,
+    name: "Team",
+    projectId: "p",
+    enabled: true,
+  });
+  const now = Date.now();
+  f.gateway.store.put("native-group-info", group.id, {
+    checkedAt: now,
+    next: now + 60000,
+    roster: {
+      members: [
+        { identity: f.input.identity, name: "Old member", kind: "human" },
+      ],
+      complete: true,
+    },
+  });
+  const refresh = () =>
+    fetch(`${f.url}/v1/admin/refresh-group-members`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      body: JSON.stringify({ spaceId: group.id }),
+    });
+  expect((await refresh()).status).toBe(200);
+  expect(members).toHaveBeenCalledTimes(1);
+  expect(f.gateway.store.get("native-group-info", group.id)).toMatchObject({
+    roster: { members: [], complete: true },
+  });
+  f.gateway.store.put("native-group-info", group.id, {
+    checkedAt: now,
+    next: Date.now() + 120000,
+    roster: { members: [], complete: false, error: "rate-limited" },
+  });
+  expect((await refresh()).status).toBe(200);
+  expect(members).toHaveBeenCalledTimes(1);
+});

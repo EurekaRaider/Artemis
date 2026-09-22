@@ -40,7 +40,7 @@ function fixture() {
     spaces: [],
     deliveries: [],
   };
-  const manage = vi.fn(async () => []);
+  const manage = vi.fn(async (..._args: unknown[]): Promise<unknown> => []);
   const save = vi.fn();
   stubWindowArtemis({
     manageIm: manage,
@@ -554,3 +554,44 @@ it("shows rejoined status and restores the saved project through authorization",
   expect(f.save).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "确认并应用" })).toBeDisabled();
 });
+
+it.each([false, true])(
+  "refreshes members after authorization without undoing success on refresh failure (%s)",
+  async (fails) => {
+    const f = fixture();
+    f.manage.mockImplementation(async (...args: unknown[]) => {
+      const action = args[0] as { action: string; command: unknown };
+      if (action.action === "authorize-group")
+        return {
+          state: "complete",
+          command: action.command,
+          group: { id: "authorized-group", nativeGroup: { enabled: true } },
+        };
+      if (fails) throw new Error("Member refresh failed");
+      return undefined;
+    });
+    render(<GroupCollaborationPanel {...f.props} />);
+    const user = await openGroup();
+    await user.click(screen.getByRole("button", { name: /^项目/ }));
+    await user.click(screen.getByRole("option", { name: "Project A" }));
+    await user.click(screen.getByRole("button", { name: "下一步" }));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "我已确认完整摘要及其分享与执行影响。",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "确认并应用" }));
+    expect(f.manage).toHaveBeenNthCalledWith(2, {
+      action: "refresh-group-members",
+      spaceId: "authorized-group",
+    });
+    expect(f.props.refresh).toHaveBeenCalledTimes(fails ? 1 : 2);
+    expect(
+      screen.queryByRole("button", { name: "确认并应用" }),
+    ).not.toBeInTheDocument();
+    if (fails)
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Member refresh failed",
+      );
+  },
+);

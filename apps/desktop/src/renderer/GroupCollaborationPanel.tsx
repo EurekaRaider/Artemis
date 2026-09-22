@@ -290,6 +290,21 @@ export function GroupCollaborationPanel({
         setSelected(imConversationKey(result.command.conversation));
         setDraft(undefined);
         setOperation(undefined);
+        if (result.group?.nativeGroup?.enabled) {
+          setRefreshingMembers(true);
+          try {
+            await window.artemis.manageIm({
+              action: "refresh-group-members",
+              spaceId: result.group.id,
+            });
+            await refresh();
+          } catch (error) {
+            // Authorization is already committed; roster refresh is independent.
+            setError(String(error));
+          } finally {
+            setRefreshingMembers(false);
+          }
+        }
       }
     } catch (e) {
       // Preserve operation ID after a lost IPC reply. Query/retry it before any new command.
