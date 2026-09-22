@@ -59,8 +59,9 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Artemis is an **engineering preview**, not a signed public Beta. Review the
-> [platform status and packaging notes](#platform-support) before using a build.
+> macOS Apple Silicon releases are signed with **Apple Developer ID**.
+> Download from [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases)
+> and see the [platform and installation notes](#platform-support).
 
 ### Run from source
 
@@ -334,9 +335,8 @@ npm run format:check
 boundary and performance contracts. For native visual verification, run
 `npm run verify:screenshot-matrix`.
 
-CI checks formatting, tests, types, builds and the production dependency audit.
-Direct pushes to `main` additionally run the installed pre-push hook against an
-isolated checkout of the exact commit, including native visual checks. Local
+The **Release** workflow runs CI checks for formatting, tests, types, builds and
+the production dependency audit, plus native macOS arm64 verification. Local
 source checks do not establish native release acceptance on another platform.
 
 ### Package the desktop
@@ -355,7 +355,7 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.0` packaging configuration produces:
+The `1.6.0` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
@@ -363,44 +363,35 @@ The `1.6.0` packaging configuration produces:
 | macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.0.dmg` and `.zip` |
 | macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.0.dmg` and `.zip`   |
 
-Tags matching the package version trigger source verification and native package
-builds. The release workflow publishes only after all five expected files exist.
+Releases are started manually through **Release** and published to
+[ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases) after
+source and native arm64 checks, Developer ID signing, Apple notarization,
+stapling and final DMG/ZIP verification. The current release workflow publishes
+macOS arm64 packages and update metadata. See the
+[macOS release guide](docs/features/macos-release/README.md) for details.
 
 ### Platform support
 
-| Target                | Implementation                                                      | Native acceptance                                 |
-| --------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
-| **Windows 11 x64**    | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Real Windows x64 release gate required            |
-| **macOS 14+ arm64**   | Seatbelt, hardened runtime, DMG/ZIP and release gates               | Engineering artifact checked; public gate pending |
-| **macOS 14+ x64**     | Separate DMG/ZIP engineering artifacts                              | Static artifact check only; Intel gate pending    |
-| Windows ARM64 / Linux | Outside the initial Beta scope                                      | —                                                 |
-
-> [!WARNING]
-> macOS engineering packages are ad-hoc signed, without Apple Developer ID
-> signing or notarization. Windows engineering packages may also be blocked by
-> system or company policy. These builds are for trial use and local validation.
+| Target                | Implementation                                                    | Distribution                                     |
+| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| **Windows 11 x64**     | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Local builds; native release validation required |
+| **macOS 14+ arm64**    | Seatbelt, hardened runtime and DMG/ZIP                             | Releases signed with Apple Developer ID          |
+| **macOS 14+ x64**      | Separate DMG/ZIP builds                                            | Local builds; native release validation required |
+| Windows ARM64 / Linux | Not currently supported                                           | —                                                |
 
 <details>
-<summary><strong>Opening engineering packages</strong></summary>
+<summary><strong>Installing packaged builds</strong></summary>
 
-**macOS:** move `Artemis.app` to Applications. Only after verifying and trusting
-the download, remove its quarantine attribute before first launch:
+**macOS:** open the DMG and drag `Artemis.app` to Applications, then launch it
+from Applications. For ZIP downloads, extract the archive and move
+`Artemis.app` to Applications before launching.
 
-```bash
-xattr -dr com.apple.quarantine "/Applications/Artemis.app"
-```
-
-**Windows:** fully extract the ZIP into a user-owned directory and run
+**Windows local builds:** fully extract the ZIP into a user-owned directory and run
 `Artemis.exe`. Avoid running inside the archive or from a protected location
 such as `Program Files`. Updates are manual: close Artemis, extract the new ZIP
 into a new directory and launch the new executable.
 
 </details>
-
-Public release gates still include Windows signing and extracted-ZIP validation;
-macOS signing, notarization, stapling and native runtime checks; update/rollback
-acceptance; broader destructive Git coverage, real-provider smoke tests and
-language QA on Windows and Intel macOS.
 
 ---
 
