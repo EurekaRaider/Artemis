@@ -239,6 +239,7 @@ export class NativeCooperation {
     group: CollaborationSpace,
     envelope: NativeEnvelope,
     invocationId?: string,
+    permissionRejection = false,
   ): void {
     // Older v1 peers reject unknown envelope fields. Advertise support in the
     // existing handshake text and add locale only after a correlated proof.
@@ -259,6 +260,8 @@ export class NativeCooperation {
       native: envelope,
       ...(invocationId ? { invocationId } : {}),
     };
+    if (permissionRejection)
+      this.store.put("native-permission-rejections", envelope.id, delivery);
     this.store.enqueue(
       "outgoing",
       `native:${envelope.id}`,
@@ -577,8 +580,32 @@ export class NativeCooperation {
         if (
           ["delegate", "continue", "note"].includes(envelope.action) &&
           !this.allowed(group, envelope.sender)
-        )
+        ) {
+          // A verified peer can learn that execution was refused without
+          // receiving project data or obtaining permission to start work.
+          if (
+            envelope.action !== "note" &&
+            this.peers(group.id).some(
+              (peer) => peer.id === envelope.sender && peer.verifiedAt,
+            )
+          ) {
+            const rejected = this.frame(
+              group,
+              envelope.sender,
+              "rejected",
+              imText(envelope.locale, "memberNotAuthorized"),
+              envelope.task,
+              envelope.workflow,
+            );
+            if (envelope.locale) rejected.locale = envelope.locale;
+            rejected.replyTo = envelope.id;
+            rejected.sequence = 1;
+            this.send(group, rejected, undefined, true);
+            this.store.put("native-inbox", key, envelope);
+            return true;
+          }
           return false;
+        }
         const existing = this.task(group.id, envelope.task);
         if (envelope.action === "delegate" || envelope.action === "continue") {
           if (existing || !envelope.text.trim()) return false;

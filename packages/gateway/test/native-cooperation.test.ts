@@ -299,6 +299,82 @@ describe.each(["slack", "feishu", "lark"] as const)(
       ).toBe("cancelled");
     });
 
+    it("returns one correlated permission rejection without starting work or allowing arbitrary outbound data", () => {
+      const f = pair(":memory:", true);
+      f.b.router.native.authorize(f.b.group.id, []);
+      const [task] = delegate(f);
+      exchange(f.a, f.b);
+      expect(f.b.router.native.tasks(f.b.group.id)).toEqual([]);
+      expect(f.b.store.pending("device")).toHaveLength(0);
+      const denied = f.b.store
+        .pending<Delivery>("outgoing", Date.now(), "B")
+        .find((item) => item.payload.native?.action === "rejected");
+      expect(denied).toBeDefined();
+      expect(denied!.payload.native).toMatchObject({
+        task: task!.id,
+        action: "rejected",
+      });
+      expect(f.b.router.canDeliver(denied!.payload)).toBe(true);
+      expect(
+        f.b.router.canDeliver({
+          ...denied!.payload,
+          text: "private project data",
+        }),
+      ).toBe(false);
+      expect(
+        f.b.router.canDeliver({
+          ...denied!.payload,
+          native: { ...denied!.payload.native!, text: "private project data" },
+        }),
+      ).toBe(false);
+      const request = f.b.store
+        .list<NativeEnvelope>("native-inbox")
+        .find((frame) => frame.task === task!.id)!;
+      expect(
+        f.b.router.native.receive({
+          ...f.b.event,
+          timestamp: Date.now(),
+          identity: { ...f.b.event.identity, userId: "A" },
+          bot: true,
+          text: encodeNativeEnvelope(request),
+        }),
+      ).toBe(true);
+      expect(
+        f.b.store
+          .pending<Delivery>("outgoing", Date.now(), "B")
+          .filter((item) => item.payload.native?.action === "rejected"),
+      ).toHaveLength(1);
+      exchange(f.b, f.a);
+      expect(f.a.router.native.tasks(f.a.group.id)[0]).toMatchObject({
+        id: task!.id,
+        state: "rejected",
+        result: expect.stringContaining("当前不会启动任务"),
+      });
+      const group = f.b.store.get<typeof f.b.group>(
+        "native-groups",
+        f.b.group.id,
+      )!;
+      f.b.store.put("native-groups", group.id, {
+        ...group,
+        nativeGroup: { ...group.nativeGroup, enabled: false },
+      });
+      expect(f.b.router.canDeliver(denied!.payload)).toBe(false);
+    });
+
+    it("does not issue permission receipts to unverified bot identities", () => {
+      const f = pair(":memory:", true);
+      f.b.router.native.authorize(f.b.group.id, []);
+      f.b.store.put("native-peers", f.b.group.id, []);
+      delegate(f);
+      exchange(f.a, f.b);
+      expect(
+        f.b.store
+          .pending<Delivery>("outgoing", Date.now(), "B")
+          .filter((item) => item.payload.native?.action === "rejected"),
+      ).toEqual([]);
+      expect(f.b.store.pending("device")).toHaveLength(0);
+    });
+
     it("migrates legacy task storage without losing pending work or its session association", () => {
       const f = pair(":memory:", true);
       const [sent] = delegate(f);

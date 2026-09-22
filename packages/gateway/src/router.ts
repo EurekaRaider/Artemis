@@ -836,7 +836,22 @@ export class GatewayRouter {
       !["hello", "probe", "proof"].includes(delivery.native.action)
     ) {
       const group = this.findSpace(delivery.conversation);
-      if (!group?.nativeGroup?.allowedBots?.includes(delivery.native.recipient))
+      // Only the exact, durable, system-authored denial may cross this gate.
+      // Other rejected frames can contain task output and still need permission.
+      const permissionRejection =
+        delivery.native.action === "rejected" &&
+        delivery.native.expiresAt > this.now() &&
+        JSON.stringify(
+          this.store.get<Delivery>(
+            "native-permission-rejections",
+            delivery.native.id,
+          ),
+        ) === JSON.stringify(delivery);
+      if (
+        !group ||
+        (!group.nativeGroup?.allowedBots?.includes(delivery.native.recipient) &&
+          !permissionRejection)
+      )
         return false;
     }
     if (delivery.security && !this.securityAllowed(delivery.security))
