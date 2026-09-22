@@ -765,12 +765,15 @@
 }
 .im-group-member-status[data-state="active"],
 .im-group-member-status[data-state="online"],
+.im-group-member-avatar[data-state="active"],
 .im-group-member-avatar[data-state="online"] {
   color: var(--artemis-color-status-success);
 }
 .im-group-member-status[data-state="away"],
 .im-group-member-status[data-state="waiting-approval"],
 .im-group-member-status[data-state="busy"],
+.im-group-member-avatar[data-state="away"],
+.im-group-member-avatar[data-state="waiting-approval"],
 .im-group-member-avatar[data-state="busy"] {
   color: var(--artemis-color-status-warning);
 }
