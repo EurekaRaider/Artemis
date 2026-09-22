@@ -32,7 +32,7 @@
 3. 选择 **Developer ID Application**。这个类型用于 GitHub 等渠道分发的 Mac 应用；`Developer ID Installer` 用于安装器 PKG，`Apple Distribution` 用于其他分发流程。
 4. 点击 Continue，上传第 2 步保存的 `.certSigningRequest`。
 5. 完成申请，点击 Download 下载 `.cer` 文件。
-6. 双击下载的 `.cer`，安装到本机钥匙串。
+6. 打开钥匙串访问，选择 **文件 → 导入项目**，选中下载的 `.cer`。在导入窗口的“选项”中明确将目标钥匙串设为 **登录（login）**，然后导入。这样可避免双击文件时使用错误的默认目标。
 7. 回到钥匙串访问，选择“登录”钥匙串和“我的证书”，找到 `Developer ID Application: 你的名称 (TEAMID)`。
 8. 展开证书左侧箭头，确认下面有一项**私钥**。
 
@@ -44,7 +44,7 @@ security find-identity -v -p codesigning
 
 应看到 `Developer ID Application` 和至少一个有效身份。如果只有证书、没有私钥，应回到生成 CSR 的那台 Mac；单独下载 `.cer` 无法替代私钥。
 
-参考：[Apple Developer ID 证书指南](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/)。
+参考：[Apple Developer ID 证书指南](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/)、[Apple 对导入错误 -25294 的处理建议](https://developer.apple.com/forums/thread/675290)。
 
 ## 4. 导出包含私钥的 P12 文件
 
@@ -184,6 +184,7 @@ xcrun stapler validate "/Applications/Artemis.app"
 
 | 现象 | 处理 |
 | --- | --- |
+| 导入 `.cer` 报错 `-25294` | 该错误表示找不到指定的钥匙串。使用“钥匙串访问 → 文件 → 导入项目”，在选项中明确选择“登录”钥匙串后重试。 |
 | `missing environment variables` | 对照第 7 步核对 Secret 名称和值；添加到源码仓库 Artemis。 |
 | 找不到签名身份或 P12 无法导入 | 检查 `.p12` 是否包含私钥、导出密码是否正确、证书是否为 Developer ID Application。 |
 | Apple 验证失败 | 核对开发者邮箱、Team ID、App 专用密码。 |
