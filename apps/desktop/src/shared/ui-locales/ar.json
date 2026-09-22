@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "نشاط المراسلة",
   "ImPresence.updated": "تم التحديث {{time}}",
   "ImPresence.limited": "تم بلوغ حد الطلبات؛ ستتم المحاولة لاحقًا",
-  "ImPresence.unknown": "غير مدعوم أو غير متصل أو منتهي الصلاحية؛ الحالة غير معروفة"
+  "ImPresence.unknown": "غير مدعوم أو غير متصل أو منتهي الصلاحية؛ الحالة غير معروفة",
+  "GroupAuthorization.rejoined": "عاد إلى المجموعة · يلزم التفويض",
+  "GroupAuthorization.removed": "أُزيل البوت · التعاون متوقف مؤقتًا"
 }

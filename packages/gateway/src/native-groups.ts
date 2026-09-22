@@ -143,6 +143,12 @@ export function saveNativeGroup(
     next.revision = randomUUID();
   store.transaction(() => {
     store.put("native-groups", id, next);
+    // An explicit authorization edit supersedes legacy removal metadata too.
+    const info = store.get<{ unavailable?: string }>("native-group-info", id);
+    if (info?.unavailable === "removed") {
+      const { unavailable: _removed, ...rest } = info;
+      store.put("native-group-info", id, { ...rest, next: 0 });
+    }
     store.put(
       "space-confirmations",
       id,

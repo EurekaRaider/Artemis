@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "IM 活躍狀態",
   "ImPresence.updated": "更新於 {{time}}",
   "ImPresence.limited": "請求受限，稍後重試",
-  "ImPresence.unknown": "不支援、連線中斷或資料過期，無法確認目前狀態"
+  "ImPresence.unknown": "不支援、連線中斷或資料過期，無法確認目前狀態",
+  "GroupAuthorization.rejoined": "已重新加入，待確認授權",
+  "GroupAuthorization.removed": "機器人已移出，群組協作已暫停"
 }

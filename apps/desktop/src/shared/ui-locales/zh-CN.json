@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "IM 活跃状态",
   "ImPresence.updated": "更新于 {{time}}",
   "ImPresence.limited": "请求受限，稍后重试",
-  "ImPresence.unknown": "不支持、连接中断或数据过期，无法确认当前状态"
+  "ImPresence.unknown": "不支持、连接中断或数据过期，无法确认当前状态",
+  "GroupAuthorization.rejoined": "已重新加入，待确认授权",
+  "GroupAuthorization.removed": "机器人已移出，群协作已暂停"
 }

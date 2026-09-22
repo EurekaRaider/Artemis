@@ -508,7 +508,11 @@ export function GroupCollaborationPanel({
   const state = !saved
     ? "unbound"
     : !saved.nativeGroup?.enabled
-      ? "paused"
+      ? saved.nativeGroup?.recovery?.rejoinedAt
+        ? "rejoined"
+        : saved.nativeGroup?.recovery
+          ? "removed"
+          : "paused"
       : !status.settings.enabled
         ? "saved"
         : connection?.state !== "connected"

@@ -143,5 +143,6 @@
   "continueExplicit": "请在本人单聊使用 /continue 任务编号 明确选择桌面任务。",
   "selfTasksOnly": "只能查询或停止自己在此会话中的任务。",
   "attachmentSizeLimit": "附件超出大小限制。",
-  "nativePresence": "Artemis 可用状态"
+  "nativePresence": "Artemis 可用状态",
+  "groupRejoined": "机器人已重新加入。请在 Artemis → 群协作中重新启用，并确认项目与分享范围。启用后请重新发送任务；当前消息不会执行。"
 }

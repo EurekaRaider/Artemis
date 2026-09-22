@@ -521,3 +521,37 @@ it("omits the open group conversation button when a current task exists", async 
   ).not.toBeInTheDocument();
   expect(screen.getByText("群成员").closest("details")).toHaveAttribute("open");
 });
+
+it("shows rejoined status and restores the saved project through authorization", async () => {
+  const f = fixture();
+  const space = {
+    id: "saved",
+    name: "研发群",
+    revision: "rejoined",
+    endpoints: [f.props.diagnostics.groups[0]!.conversation],
+    participants: [{ deviceId: "device", identity, name: "Owner" }],
+    nativeGroup: {
+      version: 1,
+      projectId: "p",
+      enabled: false,
+      ownerDeviceId: "device",
+      capability: "manual",
+      enabledAt: 1,
+      recovery: { version: 1, removedAt: 2, rejoinedAt: 3 },
+    },
+  };
+  render(
+    <GroupCollaborationPanel
+      {...f.props}
+      status={{ ...f.props.status, spaces: [space] }}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /研发群/ }));
+  expect(screen.getByText("已重新加入，待确认授权")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "恢复授权" }));
+  expect(screen.getByText("Project A")).toBeVisible();
+  expect(f.manage).not.toHaveBeenCalled();
+  expect(f.save).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "确认并应用" })).toBeDisabled();
+});

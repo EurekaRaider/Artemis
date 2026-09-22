@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "IM-Aktivität",
   "ImPresence.updated": "Aktualisiert {{time}}",
   "ImPresence.limited": "Anfragelimit erreicht; späterer Versuch",
-  "ImPresence.unknown": "Nicht unterstützt, getrennt oder abgelaufen; Status unbekannt"
+  "ImPresence.unknown": "Nicht unterstützt, getrennt oder abgelaufen; Status unbekannt",
+  "GroupAuthorization.rejoined": "Wieder beigetreten · Berechtigung erforderlich",
+  "GroupAuthorization.removed": "Bot entfernt · Zusammenarbeit pausiert"
 }

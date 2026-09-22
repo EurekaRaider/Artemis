@@ -668,6 +668,12 @@ export interface CollaborationSpace {
     allowedBots?: string[];
     enabledAt: number;
     ownerDeviceId: string;
+    /** Membership loss revokes execution until a new authorization is confirmed. */
+    recovery?: {
+      version: 1;
+      removedAt: number;
+      rejoinedAt?: number;
+    };
   };
   id: string;
   revision?: string;

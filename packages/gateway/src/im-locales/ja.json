@@ -143,5 +143,6 @@
   "continueExplicit": "自分のダイレクトチャットで /continue <タスク ID> を使用し、デスクトップのタスクを明示的に選択してください。",
   "selfTasksOnly": "この会話で自分が作成したタスクのみ照会または停止できます。",
   "attachmentSizeLimit": "添付ファイルがサイズの上限を超えています。",
-  "nativePresence": "Artemis の稼働状態"
+  "nativePresence": "Artemis の稼働状態",
+  "groupRejoined": "ボットが再参加しました。Artemis → グループ共同作業で権限を再承認し、プロジェクトと共有範囲を確認してください。その後、タスクを再送してください。このメッセージは実行されません。"
 }

@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "Activité IM",
   "ImPresence.updated": "Mis à jour {{time}}",
   "ImPresence.limited": "Limite de requêtes ; nouvel essai ultérieur",
-  "ImPresence.unknown": "Non pris en charge, déconnecté ou expiré ; état inconnu"
+  "ImPresence.unknown": "Non pris en charge, déconnecté ou expiré ; état inconnu",
+  "GroupAuthorization.rejoined": "De retour · autorisation requise",
+  "GroupAuthorization.removed": "Bot retiré · collaboration en pause"
 }

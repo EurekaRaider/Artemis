@@ -143,5 +143,6 @@
   "continueExplicit": "Dans votre propre conversation privée, utilisez /continue <identifiant de tâche> pour sélectionner explicitement une tâche du bureau.",
   "selfTasksOnly": "Vous ne pouvez consulter ou arrêter que vos propres tâches dans cette conversation.",
   "attachmentSizeLimit": "Les pièces jointes dépassent la limite de taille.",
-  "nativePresence": "Disponibilité d’Artemis"
+  "nativePresence": "Disponibilité d’Artemis",
+  "groupRejoined": "Le bot a rejoint le groupe. Dans Artemis → Collaboration de groupe, rétablissez l’autorisation et confirmez le projet et le périmètre de partage. Renvoyez ensuite la tâche ; ce message ne sera pas exécuté."
 }

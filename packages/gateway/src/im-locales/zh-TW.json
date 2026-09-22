@@ -143,5 +143,6 @@
   "continueExplicit": "請在本人私訊中使用 /continue 任務編號，明確選擇桌面任務。",
   "selfTasksOnly": "只能查詢或停止自己在此對話中的任務。",
   "attachmentSizeLimit": "附件超出大小限制。",
-  "nativePresence": "Artemis 可用狀態"
+  "nativePresence": "Artemis 可用狀態",
+  "groupRejoined": "機器人已重新加入。請在 Artemis → 群組協作中重新啟用，並確認專案與分享範圍。啟用後請重新傳送任務；目前訊息不會執行。"
 }

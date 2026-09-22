@@ -13,7 +13,12 @@ export function normalizeFeishuGroupEvent(
   config: Extract<ChannelConnection, { channel: "feishu" }>,
   value: unknown,
 ):
-  | { chatId: string; unavailable?: "removed" | "dissolved"; timestamp: number }
+  | {
+      chatId: string;
+      unavailable?: "removed" | "dissolved";
+      joined?: true;
+      timestamp: number;
+    }
   | undefined {
   const raw = value as {
     header?: Record<string, unknown>;
@@ -44,6 +49,9 @@ export function normalizeFeishuGroupEvent(
   return {
     chatId: event.chat_id,
     timestamp,
+    ...(header.event_type === "im.chat.member.bot.added_v1"
+      ? { joined: true as const }
+      : {}),
     ...(header.event_type === "im.chat.member.bot.deleted_v1"
       ? { unavailable: "removed" as const }
       : header.event_type === "im.chat.disbanded_v1"

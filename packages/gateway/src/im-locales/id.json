@@ -143,5 +143,6 @@
   "continueExplicit": "Di obrolan langsung Anda sendiri, gunakan /continue <ID tugas> untuk memilih tugas desktop secara eksplisit.",
   "selfTasksOnly": "Anda hanya dapat memeriksa atau menghentikan tugas Anda sendiri dalam percakapan ini.",
   "attachmentSizeLimit": "Lampiran melebihi batas ukuran.",
-  "nativePresence": "Ketersediaan Artemis"
+  "nativePresence": "Ketersediaan Artemis",
+  "groupRejoined": "Bot telah bergabung kembali. Di Artemis → Kolaborasi grup, pulihkan otorisasi dan konfirmasikan proyek serta cakupan berbagi. Lalu kirim ulang tugas; pesan ini tidak akan dijalankan."
 }

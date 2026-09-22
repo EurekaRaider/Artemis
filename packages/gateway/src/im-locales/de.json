@@ -143,5 +143,6 @@
   "continueExplicit": "Wählen Sie in Ihrem eigenen Direktchat mit /continue <Aufgaben-ID> ausdrücklich eine Desktop-Aufgabe aus.",
   "selfTasksOnly": "Sie können nur Ihre eigenen Aufgaben in dieser Unterhaltung abfragen oder stoppen.",
   "attachmentSizeLimit": "Die Anhänge überschreiten die Größenbegrenzung.",
-  "nativePresence": "Artemis-Verfügbarkeit"
+  "nativePresence": "Artemis-Verfügbarkeit",
+  "groupRejoined": "Der Bot ist wieder beigetreten. Stellen Sie unter Artemis → Gruppenzusammenarbeit die Berechtigung wieder her und bestätigen Sie Projekt und Freigabeumfang. Senden Sie danach die Aufgabe erneut; diese Nachricht wird nicht ausgeführt."
 }

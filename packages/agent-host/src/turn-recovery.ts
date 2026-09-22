@@ -47,7 +47,7 @@ export function reconcileInterruptedTools(
       session.sessionManager.appendMessage(message);
     }
   }
-  session.agent.state.messages = reconciled;
+  session.refreshContext();
 }
 
 export function processRecoveryPrompt(

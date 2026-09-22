@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "IM activity",
   "ImPresence.updated": "Updated {{time}}",
   "ImPresence.limited": "Rate limited; retrying later",
-  "ImPresence.unknown": "Unsupported, disconnected or expired; availability is unknown"
+  "ImPresence.unknown": "Unsupported, disconnected or expired; availability is unknown",
+  "GroupAuthorization.rejoined": "Rejoined · authorization required",
+  "GroupAuthorization.removed": "Bot removed · collaboration paused"
 }

@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "Aktivitas IM",
   "ImPresence.updated": "Diperbarui {{time}}",
   "ImPresence.limited": "Batas permintaan; mencoba lagi nanti",
-  "ImPresence.unknown": "Tidak didukung, terputus, atau kedaluwarsa; status tidak diketahui"
+  "ImPresence.unknown": "Tidak didukung, terputus, atau kedaluwarsa; status tidak diketahui",
+  "GroupAuthorization.rejoined": "Bergabung kembali · perlu otorisasi",
+  "GroupAuthorization.removed": "Bot dihapus · kolaborasi dijeda"
 }

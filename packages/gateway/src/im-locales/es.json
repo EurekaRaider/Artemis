@@ -143,5 +143,6 @@
   "continueExplicit": "En tu propio chat directo, usa /continue <ID de tarea> para seleccionar expresamente una tarea del escritorio.",
   "selfTasksOnly": "Solo puedes consultar o detener tus propias tareas en esta conversación.",
   "attachmentSizeLimit": "Los adjuntos superan el límite de tamaño.",
-  "nativePresence": "Disponibilidad de Artemis"
+  "nativePresence": "Disponibilidad de Artemis",
+  "groupRejoined": "El bot ha vuelto al grupo. En Artemis → Colaboración de grupo, restablece la autorización y confirma el proyecto y el alcance compartido. Después, reenvía la tarea; este mensaje no se ejecutará."
 }

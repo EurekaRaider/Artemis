@@ -7,6 +7,7 @@ import {
   type ImGroupRoster,
   type RemoteInvocationContext,
 } from "@artemis/protocol";
+import { authorizeNativeGroup } from "../src/native-authorization.js";
 import { saveNativeGroup } from "../src/native-groups.js";
 import { ArtemisGateway } from "../src/server.js";
 
@@ -1469,4 +1470,210 @@ it("delivers messages while an independent metadata request is stalled", async (
   } finally {
     finish({ name: "Slow" });
   }
+});
+
+async function rejoinFixture() {
+  const f = await fixture();
+  await fetch(`${f.url}/v1/admin/connections`, {
+    method: "PUT",
+    headers: { authorization: `Bearer ${"a".repeat(32)}` },
+    body: JSON.stringify({
+      id: "feishu",
+      name: "Feishu",
+      channel: "feishu",
+      tenantId: "tenant",
+      appId: "app",
+      botOpenId: "bot",
+      appSecret: "secret",
+      verificationToken: "verify",
+      encryptKey: "encrypt",
+      enabled: true,
+    }),
+  });
+  const event: ChannelEvent = {
+    ...f.input,
+    identity: {
+      ...f.input.identity,
+      channel: "feishu",
+      connectionId: "feishu",
+      appId: "app",
+    },
+    conversation: { connectionId: "feishu", id: "room", kind: "group" },
+  };
+  f.gateway.store.pair(f.gateway.store.pairCode(f.device.id), event.identity);
+  f.receive(event);
+  f.gateway.router.processIncoming();
+  for (const item of f.gateway.store.pending("outgoing"))
+    f.gateway.store.mark("outgoing", item.id, "done");
+  const input = {
+    conversation: event.conversation,
+    owner: event.identity,
+    deviceId: f.device.id,
+    name: "Team",
+    projectId: "p",
+    enabled: true,
+  };
+  const group = saveNativeGroup(f.gateway.store, input);
+  const start = Date.now() - 1000;
+  f.gateway.store.put("native-groups", group.id, {
+    ...group,
+    nativeGroup: { ...group.nativeGroup, enabledAt: start },
+  });
+  const send = async (
+    kind: "added" | "deleted" | "disbanded",
+    timestamp: number,
+  ) => {
+    const body = JSON.stringify({
+      header: {
+        token: "verify",
+        app_id: "app",
+        tenant_key: "tenant",
+        event_type:
+          kind === "disbanded"
+            ? "im.chat.disbanded_v1"
+            : `im.chat.member.bot.${kind}_v1`,
+        create_time: String(timestamp),
+      },
+      event: { chat_id: "room" },
+    });
+    const time = String(Math.floor(Date.now() / 1000));
+    const response = await fetch(`${f.url}/channels/feishu/feishu`, {
+      method: "POST",
+      headers: {
+        "x-lark-request-timestamp": time,
+        "x-lark-request-nonce": "nonce",
+        "x-lark-signature": createHash("sha256")
+          .update(time + "nonceencrypt" + body)
+          .digest("hex"),
+      },
+      body,
+    });
+    expect(response.status).toBe(200);
+  };
+  const current = () => f.gateway.store.get<any>("native-groups", group.id);
+  const mention = (
+    id: string,
+    timestamp = Date.now(),
+    userId = "teammate",
+    tenantId = "tenant",
+  ) => {
+    f.receive({
+      ...event,
+      messageId: id,
+      timestamp,
+      identity: { ...event.identity, userId, tenantId },
+    });
+    f.gateway.router.processIncoming();
+  };
+  return { ...f, group, input, event, start, send, current, mention };
+}
+
+it("requires fresh authorization after rejoining and hints once even to an unpaired teammate", async () => {
+  const f = await rejoinFixture();
+  await f.send("deleted", f.start + 100);
+  await f.send("added", f.start + 200);
+  expect(f.current().nativeGroup).toMatchObject({
+    enabled: false,
+    recovery: {
+      version: 1,
+      removedAt: f.start + 100,
+      rejoinedAt: f.start + 200,
+    },
+  });
+  f.mention("old", f.start + 50);
+  f.mention("foreign", Date.now(), "teammate", "foreign");
+  expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
+  f.mention("first");
+  f.mention("second");
+  const replies = f.gateway.store.pending<any>("outgoing");
+  expect(replies).toHaveLength(1);
+  expect(replies[0]!.payload.text).toContain("重新加入");
+  expect(f.gateway.router.canDeliver(replies[0]!.payload)).toBe(true);
+  expect(f.gateway.store.pending("device")).toHaveLength(0);
+  const revision = f.current().revision;
+  await f.send("added", f.start + 200);
+  await f.send("deleted", f.start + 100);
+  expect(f.current().revision).toBe(revision);
+  f.mention("third");
+  expect(f.gateway.store.pending("outgoing")).toHaveLength(1);
+  const command = {
+    version: 1,
+    operationId: randomUUID(),
+    expectedGroupVersion: revision,
+    binding: f.input,
+  };
+  authorizeNativeGroup(f.gateway.store, { ...command, phase: "prepare" });
+  f.mention("during-authorization");
+  expect(f.gateway.store.pending("device")).toHaveLength(0);
+  const restored = authorizeNativeGroup(f.gateway.store, {
+    ...command,
+    phase: "activate",
+  }).group;
+  expect(restored.nativeGroup?.recovery).toBeUndefined();
+  expect(f.gateway.router.canDeliver(replies[0]!.payload)).toBe(false);
+  await f.send("deleted", f.start + 100);
+  expect(f.current().nativeGroup.enabled).toBe(true);
+  f.mention("queued-before-restore", f.start + 300);
+  expect(f.gateway.store.pending("device")).toHaveLength(0);
+  f.mention("fresh-task");
+  expect(f.gateway.store.pending("device")).toHaveLength(1);
+});
+
+it("handles reverse lifecycle delivery and does not resume manually paused or dissolved groups", async () => {
+  const f = await rejoinFixture();
+  await f.send("added", f.start + 200);
+  await f.send("deleted", f.start + 100);
+  expect(f.current().nativeGroup).toMatchObject({
+    enabled: false,
+    recovery: { rejoinedAt: f.start + 200 },
+  });
+  saveNativeGroup(f.gateway.store, { ...f.input, enabled: false });
+  await f.send("added", Date.now() + 1);
+  f.mention("manual-pause");
+  expect(f.current().nativeGroup.recovery).toBeUndefined();
+  expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
+  await f.send("disbanded", Date.now() + 2);
+  await f.send("added", Date.now() + 3);
+  f.mention("dissolved");
+  expect(f.current()).toBeUndefined();
+  expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
+});
+
+it("recovers missed added events and legacy removed state using a fresh authenticated mention", async () => {
+  const f = await rejoinFixture();
+  await f.send("deleted", f.start + 100);
+  const disabled = f.current();
+  delete disabled.nativeGroup.recovery;
+  f.gateway.store.put("native-groups", f.group.id, disabled);
+  f.gateway.store.put("native-group-info", f.group.id, {
+    unavailable: "removed",
+    checkedAt: f.start + 100,
+  });
+  f.mention("old", f.start + 50);
+  expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
+  f.mention("new", Date.now());
+  expect(f.current().nativeGroup).toMatchObject({
+    enabled: false,
+    recovery: { version: 1, rejoinedAt: expect.any(Number) },
+  });
+  expect(f.gateway.store.pending("outgoing")).toHaveLength(1);
+  expect(f.gateway.store.pending("device")).toHaveLength(0);
+});
+
+it("invalidates an in-flight recovery authorization if the bot is removed again", async () => {
+  const f = await rejoinFixture();
+  await f.send("deleted", f.start + 100);
+  await f.send("added", f.start + 200);
+  const command = {
+    version: 1,
+    operationId: randomUUID(),
+    expectedGroupVersion: f.current().revision,
+    binding: f.input,
+  };
+  authorizeNativeGroup(f.gateway.store, { ...command, phase: "prepare" });
+  await f.send("deleted", Date.now() + 1);
+  expect(() =>
+    authorizeNativeGroup(f.gateway.store, { ...command, phase: "activate" }),
+  ).toThrow("version conflict");
+  expect(f.current().nativeGroup.enabled).toBe(false);
 });

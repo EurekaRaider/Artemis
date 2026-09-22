@@ -166,20 +166,28 @@ describe("context recovery through the real Pi session", () => {
     expect(f.calls.some((call) => call.compacting)).toBe(false);
     expect(f.payloads.some((p) => p.type === "turn.completed")).toBe(true);
   });
-  it("stops bounded recovery for a single oversized request and recovers after switching models", async () => {
+  it("compacts a single oversized request without losing raw history and continues after switching models", async () => {
     const f = await fixture(0);
     let compactions = 0;
     f.session.subscribe((event) => {
       if (event.type === "compaction_start") compactions++;
     });
-    await f.host.prompt(
-      "task",
-      "too-large",
-      "Original request. " + "x".repeat(600000),
-      "plan",
-    );
-    expect(f.payloads.some((p) => p.type === "turn.failed")).toBe(true);
-    expect(compactions).toBeLessThanOrEqual(1);
+    const request = "Original request. " + "x".repeat(600000);
+    await f.host.prompt("task", "too-large", request, "plan");
+    expect(f.payloads.some((p) => p.type === "turn.failed")).toBe(false);
+    expect(f.payloads.some((p) => p.type === "turn.completed")).toBe(true);
+    expect(compactions).toBe(1);
+    expect(f.calls.filter((call) => !call.compacting)).toHaveLength(1);
+    expect(
+      f.session.sessionManager
+        .getBranch()
+        .filter(
+          (entry) =>
+            entry.type === "message" &&
+            entry.message.role === "user" &&
+            JSON.stringify(entry.message.content).includes(request),
+        ),
+    ).toHaveLength(1);
     expect(f.session.isCompacting).toBe(false);
     await f.host.setThreadModel(
       "task",
@@ -196,6 +204,27 @@ describe("context recovery through the real Pi session", () => {
     expect(f.payloads.some((p) => p.type === "turn.failed")).toBe(false);
     expect(f.payloads.some((p) => p.type === "turn.completed")).toBe(true);
     expect(f.calls.at(-1)?.model).toBe("large");
+  });
+  it("stops after one compact-and-retry if the provider still rejects context", async () => {
+    const f = await fixture(0);
+    const implementation = f.provider.getMockImplementation()!;
+    let requests = 0;
+    let compactions = 0;
+    f.session.subscribe((event) => {
+      if (event.type === "compaction_start") compactions++;
+    });
+    f.provider.mockImplementation((model, context, options) => {
+      if (f.session.isCompacting)
+        return implementation(model, context, options);
+      requests++;
+      throw new Error("Your input exceeds the context window of this model");
+    });
+    await f.host.prompt("task", "overflow", "x".repeat(600000), "plan");
+    expect(requests).toBe(1);
+    expect(compactions).toBe(1);
+    expect(f.session.isCompacting).toBe(false);
+    expect(f.payloads.some((p) => p.type === "turn.failed")).toBe(true);
+    expect(f.payloads.some((p) => p.type === "turn.completed")).toBe(false);
   });
   it("automatically compacts local overflow and continues the same turn without duplicate user messages", async () => {
     const f = await fixture(420000);

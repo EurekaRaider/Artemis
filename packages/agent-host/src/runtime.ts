@@ -5965,8 +5965,16 @@ export class ArtemisAgentHost {
         ...extensionTools.map((tool) => tool.name),
       ],
     });
-    const previousStopAfterTurn = session.agent.shouldStopAfterTurn;
-    session.agent.shouldStopAfterTurn = async (context, signal) => {
+    const previousFinishTurn = session.agent.finishTurn;
+    session.agent.finishTurn = async (context, signal) => {
+      const decision =
+        (await previousFinishTurn?.(context, signal)) ?? undefined;
+      if (
+        context.message.stopReason === "error" ||
+        context.message.stopReason === "aborted"
+      ) {
+        return decision;
+      }
       const hosted = this.threads.get(request.threadId);
       const turn = hosted?.currentTurnId;
       const key = `${request.threadId}\0${turn}`;
@@ -5978,9 +5986,9 @@ export class ArtemisAgentHost {
             ...queue.followUp,
           );
         }
-        return true;
+        return { action: "end" };
       }
-      return (await previousStopAfterTurn?.(context, signal)) === true;
+      return decision;
     };
     const restoredTopLevelUserTurns = session.messages.filter(
       (message) => message.role === "user",

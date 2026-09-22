@@ -195,7 +195,7 @@ export class ArtemisGateway {
     if (!event) return;
     this.store.transaction(() => {
       this.invalidateGroupRoster(config.id, event.chatId);
-      if (!event.unavailable) return;
+      if (!event.unavailable && !event.joined) return;
       if (event.unavailable === "dissolved") {
         retireGroup(
           this.store,
@@ -209,17 +209,58 @@ export class ArtemisGateway {
         "native-groups",
       )) {
         if (
-          !group.nativeGroup?.enabled ||
+          !group.nativeGroup ||
           event.timestamp < group.nativeGroup.enabledAt ||
           !group.endpoints.some(
             (e) => e.connectionId === config.id && e.id === event.chatId,
           )
         )
           continue;
+        const prior = this.store.get<{
+          unavailable?: string;
+          checkedAt: number;
+        }>("native-group-info", group.id);
+        const recovery =
+          group.nativeGroup.recovery ??
+          (!group.nativeGroup.enabled && prior?.unavailable === "removed"
+            ? { version: 1 as const, removedAt: prior.checkedAt }
+            : undefined);
+        // A manual pause stays paused. Replayed membership events cannot undo a rejoin.
+        if (
+          !group.nativeGroup.enabled &&
+          !recovery &&
+          !this.store
+            .list<{ phase: string; group: CollaborationSpace }>(
+              "native-authorizations",
+            )
+            .some(
+              (operation) =>
+                operation.phase === "prepared" &&
+                operation.group.id === group.id &&
+                operation.group.revision === group.revision,
+            )
+        )
+          continue;
+        if (
+          recovery &&
+          (event.timestamp <= (recovery.rejoinedAt ?? recovery.removedAt) ||
+            (!event.joined && !recovery.rejoinedAt))
+        )
+          continue;
         this.store.put("native-groups", group.id, {
           ...group,
           revision: randomUUID(),
-          nativeGroup: { ...group.nativeGroup, enabled: false },
+          nativeGroup: {
+            ...group.nativeGroup,
+            enabled: false,
+            recovery: event.joined
+              ? {
+                  version: 1,
+                  removedAt: recovery?.removedAt ?? event.timestamp,
+                  rejoinedAt: event.timestamp,
+                }
+              : { version: 1, removedAt: event.timestamp },
+          },
         });
         this.store.put("native-group-info", group.id, {
           unavailable: event.unavailable,

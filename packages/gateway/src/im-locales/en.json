@@ -143,5 +143,6 @@
   "continueExplicit": "In your own direct chat, use /continue <task ID> to explicitly select a desktop task.",
   "selfTasksOnly": "You can only query or stop your own tasks in this conversation.",
   "attachmentSizeLimit": "The attachments exceed the size limit.",
-  "nativePresence": "Artemis availability"
+  "nativePresence": "Artemis availability",
+  "groupRejoined": "The bot has rejoined. In Artemis → Group collaboration, restore authorization and confirm the project and sharing scope. Then resend your task; this message will not execute."
 }

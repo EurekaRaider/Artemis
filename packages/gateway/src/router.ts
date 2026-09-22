@@ -28,6 +28,7 @@ import type { FeishuApprovalCard } from "./feishu-approval.js";
 
 export interface Delivery {
   locale?: AppLocale;
+  groupRecovery?: { groupId: string; rejoinedAt: number };
   security?: {
     deviceId: string;
     projectId: string;
@@ -223,6 +224,10 @@ export class GatewayRouter {
           continue;
         }
         this.store.transaction(() => {
+          if (this.handlePausedGroup(event)) {
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
           const nativeSpace =
             event.conversation.kind === "group"
               ? this.findSpace(event.conversation)
@@ -308,22 +313,6 @@ export class GatewayRouter {
               identities,
               lastSeenAt: this.now(),
             });
-          }
-          const paused = this.store
-            .list<CollaborationSpace>("native-groups")
-            .some(
-              (group) =>
-                group.nativeGroup?.version === 1 &&
-                !group.nativeGroup.enabled &&
-                group.endpoints.some(
-                  (endpoint) =>
-                    imConversationKey(endpoint) ===
-                    imConversationKey(event.conversation),
-                ),
-            );
-          if (paused) {
-            this.store.mark("incoming", item.id, "done");
-            return;
           }
           const space = this.findSpace(event.conversation);
           if (event.conversation.kind === "group" && !space) {
@@ -496,6 +485,81 @@ export class GatewayRouter {
           : undefined,
         "manualOnly",
       ),
+    });
+    return true;
+  }
+  /** Recovery notices are informational; they never enter the device task queue. */
+  private handlePausedGroup(event: ChannelEvent): boolean {
+    if (event.conversation.kind !== "group") return false;
+    const group = this.store
+      .list<CollaborationSpace>("native-groups")
+      .find(
+        (g) =>
+          g.nativeGroup?.version === 1 &&
+          !g.nativeGroup.enabled &&
+          g.endpoints.some(
+            (e) =>
+              imConversationKey(e) === imConversationKey(event.conversation),
+          ),
+      );
+    if (!group) return false;
+    const owner = group.participants[0];
+    if (
+      !owner ||
+      !["feishu", "lark"].includes(owner.identity.channel) ||
+      event.identity.channel !== owner.identity.channel ||
+      event.identity.connectionId !== owner.identity.connectionId ||
+      event.identity.tenantId !== owner.identity.tenantId ||
+      event.identity.appId !== owner.identity.appId ||
+      event.bot ||
+      !event.mentioned ||
+      this.store.get<IdentityBinding>(
+        "identities",
+        imIdentityKey(owner.identity),
+      )?.deviceId !== owner.deviceId ||
+      this.store.get<{ revoked: boolean }>("devices", owner.deviceId)
+        ?.revoked !== false ||
+      this.store.get(
+        "group-denied-senders",
+        JSON.stringify([group.id, imIdentityKey(event.identity)]),
+      )
+    )
+      return true;
+    const native = group.nativeGroup!;
+    const prior = this.store.get<{ unavailable?: string; checkedAt: number }>(
+      "native-group-info",
+      group.id,
+    );
+    let recovery =
+      native.recovery ??
+      (prior?.unavailable === "removed"
+        ? { version: 1 as const, removedAt: prior.checkedAt }
+        : undefined);
+    if (
+      !recovery ||
+      !Number.isFinite(recovery.removedAt) ||
+      event.timestamp <= recovery.removedAt ||
+      event.timestamp < (recovery.rejoinedAt ?? 0) ||
+      event.timestamp > this.now() + 60000
+    )
+      return true;
+    // A fresh authenticated mention also recovers a missed added event or older state.
+    if (!recovery.rejoinedAt) {
+      recovery = { ...recovery, rejoinedAt: event.timestamp };
+      this.store.put("native-groups", group.id, {
+        ...group,
+        revision: randomUUID(),
+        nativeGroup: { ...native, recovery },
+      });
+      this.store.put("native-group-info", group.id, {
+        checkedAt: this.now(),
+        next: 0,
+      });
+    }
+    this.queueDelivery(`group-rejoined:${group.id}:${recovery.rejoinedAt}`, {
+      conversation: event.conversation,
+      groupRecovery: { groupId: group.id, rejoinedAt: recovery.rejoinedAt! },
+      text: imText(this.deviceLocale(owner.deviceId), "groupRejoined"),
     });
     return true;
   }
@@ -708,6 +772,19 @@ export class GatewayRouter {
     });
   }
   canDeliver(delivery: Delivery): boolean {
+    if (delivery.groupRecovery) {
+      const group = this.store.get<CollaborationSpace>(
+        "native-groups",
+        delivery.groupRecovery.groupId,
+      );
+      if (
+        !group?.nativeGroup ||
+        group.nativeGroup.enabled ||
+        group.nativeGroup.recovery?.rejoinedAt !==
+          delivery.groupRecovery.rejoinedAt
+      )
+        return false;
+    }
     // Also suppress presence frames persisted by older versions before restart.
     if (
       delivery.native &&

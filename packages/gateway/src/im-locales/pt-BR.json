@@ -143,5 +143,6 @@
   "continueExplicit": "Na sua própria conversa direta, use /continue <ID da tarefa> para selecionar explicitamente uma tarefa do desktop.",
   "selfTasksOnly": "Você só pode consultar ou parar suas próprias tarefas nesta conversa.",
   "attachmentSizeLimit": "Os anexos excedem o limite de tamanho.",
-  "nativePresence": "Disponibilidade do Artemis"
+  "nativePresence": "Disponibilidade do Artemis",
+  "groupRejoined": "O bot voltou ao grupo. Em Artemis → Colaboração em grupo, restaure a autorização e confirme o projeto e o escopo de compartilhamento. Depois, reenvie a tarefa; esta mensagem não será executada."
 }

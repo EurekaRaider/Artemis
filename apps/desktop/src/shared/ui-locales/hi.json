@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "IM गतिविधि",
   "ImPresence.updated": "अपडेट {{time}}",
   "ImPresence.limited": "अनुरोध सीमा; बाद में पुनः प्रयास",
-  "ImPresence.unknown": "असमर्थित, डिस्कनेक्ट या पुराना; स्थिति अज्ञात"
+  "ImPresence.unknown": "असमर्थित, डिस्कनेक्ट या पुराना; स्थिति अज्ञात",
+  "GroupAuthorization.rejoined": "फिर से शामिल · अनुमति आवश्यक",
+  "GroupAuthorization.removed": "बॉट हटाया गया · सहयोग रुका हुआ"
 }

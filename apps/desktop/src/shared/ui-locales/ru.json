@@ -1534,5 +1534,7 @@
   "ImPresence.platform": "Активность IM",
   "ImPresence.updated": "Обновлено {{time}}",
   "ImPresence.limited": "Лимит запросов; повтор позже",
-  "ImPresence.unknown": "Не поддерживается, отключено или устарело; статус неизвестен"
+  "ImPresence.unknown": "Не поддерживается, отключено или устарело; статус неизвестен",
+  "GroupAuthorization.rejoined": "Снова в группе · требуется разрешение",
+  "GroupAuthorization.removed": "Бот удалён · совместная работа приостановлена"
 }
