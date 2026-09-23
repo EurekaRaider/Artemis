@@ -122,7 +122,7 @@ describe("desktop startup latency guardrails", () => {
       "github.event.pull_request.head.repo.full_name == github.repository",
     );
     expect(visualJob).not.toContain("npm run package:win");
-    expect(gitAttributesSource).toContain("*.css text eol=lf");
+    expect(gitAttributesSource).toContain("* text=auto eol=lf");
   });
 
   it("makes animation, visibility, and explicit theme evidence deterministic", () => {

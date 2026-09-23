@@ -16248,6 +16248,17 @@ function createMainWindow(): BrowserWindow {
                   document.documentElement.dir = 'rtl';
                 }
                 if (view === 'feedback-layout-settings') {
+                  // Compact layouts close the sidebar after the zoom resize;
+                  // wide layouts intentionally keep a manually closed sidebar closed.
+                  if (${smokeWidth / smokeScale <= 1060}) {
+                    for (let attempt = 0; attempt < 100; attempt += 1) {
+                      if (window.innerWidth <= 1060 && document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === 'false') break;
+                      await wait(50);
+                    }
+                    if (window.innerWidth > 1060 || document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') !== 'false') {
+                      throw new Error('Compact settings sidebar did not settle after zoom.');
+                    }
+                  }
                   const activity = [...document.querySelectorAll('.activity-button, .rail-item')].find(
                     (candidate) =>
                       candidate.checkVisibility({ visibilityProperty: true }) &&

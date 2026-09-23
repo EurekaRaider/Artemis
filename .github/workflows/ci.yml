@@ -74,6 +74,33 @@ jobs:
         run: node scripts/test-slack-cli-native.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      - name: Diagnose Windows CLI startup after failure
+        if: failure() && matrix.platform == 'windows-x64'
+        shell: pwsh
+        run: |
+          $binary = 'artifacts/slack-cli/win32-x64/slack.exe'
+          if (-not (Test-Path $binary)) { exit 0 }
+          Get-AuthenticodeSignature $binary | Select-Object Status, StatusMessage | Format-List
+          $stdout = Join-Path $env:RUNNER_TEMP 'slack-version-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'slack-version-stderr.txt'
+          try {
+            $probe = Start-Process -FilePath $binary -ArgumentList '--version' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            Start-Sleep -Seconds 20
+            $probe.Refresh()
+            Write-Host "Slack CLI exited: $($probe.HasExited); CPU seconds: $($probe.TotalProcessorTime.TotalSeconds)"
+            if (-not $probe.HasExited) { Stop-Process -Id $probe.Id -Force }
+            if (Test-Path $stdout) { Get-Content $stdout }
+            if (Test-Path $stderr) { Get-Content $stderr }
+          } catch {
+            Write-Host "Windows CLI diagnostic: $($_.Exception.Message)"
+          }
+          foreach ($log in @('Microsoft-Windows-CodeIntegrity/Operational', 'Microsoft-Windows-Windows Defender/Operational')) {
+            try {
+              Get-WinEvent -FilterHashtable @{ LogName = $log; StartTime = (Get-Date).AddMinutes(-10) } -MaxEvents 10 -ErrorAction Stop |
+                Select-Object TimeCreated, Id, ProviderName, Message | Format-List
+            } catch {
+              Write-Host "No readable recent events in $log."
+            }
 
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
