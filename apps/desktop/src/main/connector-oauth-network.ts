@@ -42,8 +42,116 @@ export function isPublicOAuthAddress(address: string): boolean {
 type Resolver = (
   host: string,
 ) => Promise<Array<{ address: string; family: number }>>;
+const fakeIp = new BlockList();
+fakeIp.addSubnet("198.18.0.0", 15, "ipv4");
+
+// A fixed public bootstrap address avoids the system Fake-IP resolver. TLS still
+// verifies cloudflare-dns.com; no OAuth headers, codes or tokens reach this service.
+async function securePublicLookup(
+  host: string,
+): Promise<Array<{ address: string; family: number }>> {
+  return new Promise((resolve, reject) => {
+    const query = new URL("https://cloudflare-dns.com/dns-query");
+    query.search = new URLSearchParams({ name: host, type: "A" }).toString();
+    const connection = request(
+      query,
+      {
+        headers: { Accept: "application/dns-json" },
+        agent: false,
+        lookup: (_host, options, callback) => {
+          if (options.all)
+            (
+              callback as unknown as (
+                error: null,
+                addresses: Array<{ address: string; family: number }>,
+              ) => void
+            )(null, [{ address: "1.1.1.1", family: 4 }]);
+          else callback(null, "1.1.1.1", 4);
+        },
+      },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.destroy();
+          reject(new Error("Secure OAuth DNS lookup failed."));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        let size = 0;
+        response.on("data", (chunk) => {
+          size += chunk.length;
+          if (size > 65536)
+            response.destroy(
+              new Error("Secure OAuth DNS response is too large."),
+            );
+          else chunks.push(Buffer.from(chunk));
+        });
+        response.on("error", reject);
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+            if (data.Status !== 0 || data.TC || !Array.isArray(data.Answer))
+              throw new Error("Invalid DNS response");
+            const addresses = data.Answer.filter(
+              (answer: { type: number }) => answer.type === 1,
+            ).map((answer: { data: string }) => ({
+              address: answer.data,
+              family: 4,
+            }));
+            if (
+              !addresses.length ||
+              addresses.some(
+                (answer: { address: string }) =>
+                  !isPublicOAuthAddress(answer.address),
+              )
+            )
+              throw new Error("Non-public DNS answer");
+            resolve(addresses);
+          } catch {
+            reject(
+              new Error(
+                "Secure OAuth DNS did not return public network addresses.",
+              ),
+            );
+          }
+        });
+      },
+    );
+    const timeout = setTimeout(
+      () => connection.destroy(new Error("Secure OAuth DNS lookup timed out.")),
+      10000,
+    );
+    connection.on("close", () => clearTimeout(timeout));
+    connection.on("error", reject);
+    connection.end();
+  });
+}
+
+export async function resolveOAuthAddresses(
+  host: string,
+  systemLookup: Resolver = (name) =>
+    dnsLookup(name, { all: true, verbatim: true }),
+  secureLookup: Resolver = securePublicLookup,
+): Promise<Array<{ address: string; family: number }>> {
+  let addresses = await systemLookup(host);
+  const isFake = (value: { address: string }) =>
+    isIP(value.address) === 4 && fakeIp.check(value.address, "ipv4");
+  if (
+    addresses.some(isFake) &&
+    addresses.every(
+      (value) => isFake(value) || isPublicOAuthAddress(value.address),
+    )
+  )
+    addresses = await secureLookup(host);
+  if (
+    !addresses.length ||
+    addresses.some((value) => !isPublicOAuthAddress(value.address))
+  )
+    throw new Error("OAuth connections require public network addresses.");
+  return addresses;
+}
+
 export function createOAuthLookup(
-  resolve: Resolver = (host) => dnsLookup(host, { all: true, verbatim: true }),
+  resolve: Resolver = resolveOAuthAddresses,
 ): LookupFunction {
   return (host, options, callback) => {
     void resolve(host)
@@ -77,19 +185,12 @@ export function createOAuthLookup(
 /** The browser owns its socket; preflight its destination without sending credentials. */
 export async function assertPublicOAuthBrowserUrl(
   value: string,
-  resolve: Resolver = (host) => dnsLookup(host, { all: true, verbatim: true }),
 ): Promise<void> {
   const url = new URL(value);
   url.search = "";
+  // Browser DNS/proxy routing belongs to the user's browser. No host credentials
+  // are sent here; reject unsafe URL forms, not a browser-independent DNS result.
   publicOAuthUrl(url.href);
-  const addresses = await resolve(url.hostname);
-  if (
-    !addresses.length ||
-    addresses.some((address) => !isPublicOAuthAddress(address.address))
-  )
-    throw new Error(
-      "OAuth browser destinations require public network addresses.",
-    );
 }
 
 /** Fetch-compatible transport with DNS checks on the actual TLS socket, no redirects/cookies. */
@@ -109,6 +210,9 @@ export const fetchPublicOAuth: typeof fetch = async (input, init) => {
   if (body && body.length > 1024 * 1024)
     throw new Error("OAuth request is too large.");
   const headers = Object.fromEntries(req.headers.entries());
+  // Raw node:https does not identify the client automatically, unlike fetch.
+  // APIs may require a User-Agent before they consider OAuth credentials.
+  if (!headers["user-agent"]?.trim()) headers["user-agent"] = "Artemis";
   delete headers.host;
   delete headers["content-length"];
   delete headers.connection;

@@ -99,3 +99,40 @@ describe("declarative public OAuth boundary", () => {
     ).not.toBe(connectorBinding(config));
   });
 });
+
+it("allows an explicitly non-confidential native credential only for PKCE", () => {
+  const client = {
+    type: "native-public",
+    clientId: "native-id",
+    clientSecret: "native-compatibility-value",
+  };
+  expect(validate({ ...futureConnector.oauth, client }).oauth?.client).toEqual(
+    client,
+  );
+  expect(() =>
+    validate({
+      ...futureConnector.oauth,
+      client: { ...client, type: "static" },
+    }),
+  ).toThrow();
+  expect(() =>
+    validateConnectorDefinition({
+      ...futureConnector,
+      auth: "device-code",
+      oauth: { ...futureConnector.oauth, client },
+    }),
+  ).toThrow();
+  expect(() =>
+    validateConnectorDefinition({
+      ...futureConnector,
+      auth: "mcp-oauth",
+      oauth: { ...futureConnector.oauth, client },
+    }),
+  ).toThrow();
+  expect(() =>
+    validate({
+      ...futureConnector.oauth,
+      client: { ...client, clientSecret: "" },
+    }),
+  ).toThrow();
+});

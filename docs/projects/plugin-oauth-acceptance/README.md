@@ -62,3 +62,22 @@ PluginShop：
 npm run check
 npm run verify:oauth-contract -- /path/to/Artemis
 ```
+
+## TUN 兼容修复补验（2026-09-23）
+
+用户确认使用 TUN。新增 Fake-IP 的加密 DNS 解析和真实公网 IP 固定连接；取消系统浏览器打开前的宿主 DNS 拦截。保持 TUN 开启，用实际修复后的网络层无凭据访问 Google token 和 GitHub device 端点，两者均返回 HTTP 响应（GET 返回 404 属于端点方法/路由响应，不是授权成功）。此前保留地址拦截已排除。
+
+真实账号授权/刷新仍遵循用户的延期决定。本次不将网络连通性验证记为真实 OAuth 验收。
+
+## 账号授权后的失败定位（2026-09-23）
+
+- GitHub：实际网络层未发送 User-Agent。无凭据 `/user` 对照请求无该头返回 403（响应明确要求 User-Agent），添加该头后返回预期的未登录 401。已为所有宿主 OAuth HTTP 请求补充通用 `User-Agent: Artemis`，不新增平台分支。修复后仍需重新完成真实授权才能证明账号查询和 MCP 均成功。
+- Google：对插件当前公开 client ID 使用故意无效的诊断码、不携带 secret 调用 token 端点，返回 400 / `invalid_request`，错误明确要求 `client_secret`。该注册不满足当前公共客户端交换方式，不能把浏览器回调成功算作授权完成。现有 Google 插件迁移仍为发布阻断项；不得通过恢复宿主/插件内置 secret 绕过，需要兼容注册或开发者后端。宿主已增加固定的具体错误提示，不显示原始服务端错误正文。
+
+## 后续修正：原生公共客户端兼容（用户已批准）
+
+本节取代上述 Google 无 secret 发布条件及禁止任何插件内 client secret 的旧结论。新增仅用于 PKCE 的 `native-public` 声明，允许原生公共客户端可分发兼容参数，继续禁止服务器机密。Gmail/Workspace 升级至 0.3.1，商城沿用原信任密钥重新签名；宿主和插件均需更新后重新连接。
+
+真实 Google token 端点使用故意无效的诊断授权码及刷新令牌，携带对应 Desktop 兼容参数后均返回 `invalid_grant`，不再返回缺少 `client_secret`。这仅证明客户端参数检查通过；真实账号的完整授权、刷新、读写及撤销仍待验收。
+
+离线包：`ArtemisPluginShop-offline-0.3.1.tar.gz`。SHA-256：`021b6cdb18739e64f7257bf3ed63c87b2ac914697ec417c7bc4c5e287d7cb297`。

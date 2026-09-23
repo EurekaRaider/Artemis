@@ -4,6 +4,7 @@ export interface ConnectorOAuth {
   applicationName: string;
   client:
     | { type: "static"; clientId: string }
+    | { type: "native-public"; clientId: string; clientSecret: string }
     | { type: "dynamic" }
     | { type: "metadata"; url: string };
   issuer: string;
@@ -160,16 +161,34 @@ export function validateOAuthConnector(input: unknown): ConnectorDefinition {
     "identity",
     "backend",
   ]);
-  const client = object(v.client, ["type", "clientId", "url"]);
+  const client = object(v.client, ["type", "clientId", "url", "clientSecret"]);
   let registration: ConnectorOAuth["client"];
-  if (client.type === "static" && !client.url)
+  if (
+    client.type === "native-public" &&
+    d.auth === "oauth-pkce" &&
+    client.url === undefined
+  )
+    registration = {
+      type: "native-public",
+      clientId: string(client.clientId, 512),
+      clientSecret: string(client.clientSecret, 2048),
+    };
+  else if (client.clientSecret !== undefined)
+    throw new Error(
+      "Only explicitly non-confidential native PKCE clients may declare a compatibility secret.",
+    );
+  else if (client.type === "static" && !client.url)
     registration = { type: "static", clientId: string(client.clientId, 512) };
   else if (client.type === "dynamic" && !client.clientId && !client.url)
     registration = { type: "dynamic" };
   else if (client.type === "metadata" && !client.clientId)
     registration = { type: "metadata", url: publicOAuthUrl(client.url) };
   else throw new Error("Invalid public OAuth client registration.");
-  if (d.auth !== "mcp-oauth" && registration.type !== "static")
+  if (
+    d.auth !== "mcp-oauth" &&
+    registration.type !== "static" &&
+    registration.type !== "native-public"
+  )
     throw new Error("This flow requires a pre-registered public client.");
   const r = object(v.redirect, ["hostname", "port", "path"]);
   if (

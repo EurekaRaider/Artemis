@@ -214,8 +214,11 @@ until setup and authorization requirements are satisfied.
 </p>
 <p align="center"><sub>Browse plugins, configure their connected accounts, and manage MCP servers and Skills.</sub></p>
 
-See [plugin marketplaces](docs/features/plugin-marketplaces/README.md) and
-[connector architecture and publisher setup](docs/connectors.md).
+Build third-party plugins and your own Git marketplace:
+[English guide](docs/features/plugin-marketplaces/guide-en.md) ·
+[中文开发指南](docs/features/plugin-marketplaces/README.md).
+Covers manifests, Skills, MCP, Connector/OAuth, signing, publishing and updates.
+See also [connector architecture and publisher setup](docs/connectors.md).
 
 ### Parallel Agents
 

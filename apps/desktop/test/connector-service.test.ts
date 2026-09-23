@@ -764,3 +764,107 @@ it("does not start an old authorization after an update during trust verificatio
   await rejected;
   expect(options.openExternal).not.toHaveBeenCalled();
 });
+
+it("explains secret-required registrations without exposing the provider error body", async () => {
+  const { service, options } = await setup();
+  options.openExternal.mockImplementation(async (value) => {
+    const authorization = new URL(value);
+    const callback = new URL(authorization.searchParams.get("redirect_uri")!);
+    callback.search = new URLSearchParams({
+      state: authorization.searchParams.get("state")!,
+      code: "synthetic-code",
+    }).toString();
+    await fetch(callback);
+  });
+  options.fetcher.mockResolvedValue(
+    Response.json(
+      {
+        error: "invalid_request",
+        error_description:
+          "client_secret is missing. sensitive-provider-detail",
+      },
+      { status: 400 },
+    ),
+  );
+  await expect(service.connect({ serverId: google.id })).rejects.toThrow(
+    "This OAuth client requires a client secret. The plugin publisher must declare a non-confidential native client or provide an authorization backend.",
+  );
+  expect(JSON.stringify(await service.list())).not.toContain(
+    "sensitive-provider-detail",
+  );
+  expect(options.connectMcp).not.toHaveBeenCalled();
+});
+
+it("sends native compatibility credentials only to the token endpoint for exchange and refresh", async () => {
+  const config: McpServerConfig = {
+    ...google,
+    connector: {
+      ...futureConnector,
+      oauth: {
+        ...futureConnector.oauth!,
+        client: {
+          type: "native-public",
+          clientId: "native-id",
+          clientSecret: "native-compatibility-value",
+        },
+      },
+    },
+  };
+  const { service, options, vault } = await setup(config);
+  options.openExternal.mockImplementation(async (value) => {
+    expect(value).not.toContain("native-compatibility-value");
+    const authorization = new URL(value);
+    expect(authorization.searchParams.has("client_secret")).toBe(false);
+    expect(authorization.searchParams.get("code_challenge_method")).toBe(
+      "S256",
+    );
+    const callback = new URL(authorization.searchParams.get("redirect_uri")!);
+    callback.search = new URLSearchParams({
+      state: authorization.searchParams.get("state")!,
+      code: "synthetic-code",
+    }).toString();
+    await fetch(callback);
+  });
+  const grants: string[] = [];
+  options.fetcher.mockImplementation(async (input, init) => {
+    if (String(input) === config.connector!.oauth!.tokenEndpoint) {
+      const body = new URLSearchParams(String(init?.body));
+      expect(body.get("client_secret")).toBe("native-compatibility-value");
+      grants.push(body.get("grant_type")!);
+      return Response.json({
+        access_token: "resource-access",
+        refresh_token: "host-only-refresh",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    }
+    expect(String(init?.body)).not.toContain("native-compatibility-value");
+    return Response.json({ id: "test-account", email: "test@example.com" });
+  });
+  await service.connect({ serverId: config.id });
+  await vault.set(config.id, {
+    ...(await vault.get(config.id))!,
+    expiresAt: Date.now() - 1,
+  });
+  const context = await service.context(config);
+  expect(grants).toEqual(["authorization_code", "refresh_token"]);
+  expect(JSON.stringify(context)).not.toContain("native-compatibility-value");
+  expect(context.accessToken).toBe("resource-access");
+  const changed = {
+    ...config,
+    connector: {
+      ...config.connector!,
+      oauth: {
+        ...config.connector!.oauth!,
+        client: {
+          type: "native-public" as const,
+          clientId: "native-id",
+          clientSecret: "rotated-value",
+        },
+      },
+    },
+  };
+  await expect(service.context(changed)).rejects.toThrow(
+    /Connect this account/,
+  );
+});

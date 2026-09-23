@@ -352,6 +352,15 @@ export class ConnectorService {
       throw new ConnectorAuthorizationError(
         "Authorization expired, was denied or revoked. Reconnect this account.",
       );
+    if (
+      ["invalid_request", "invalid_client"].includes(token.error) &&
+      /client_secret.*(?:missing|required)/iu.test(
+        String(token.error_description ?? ""),
+      )
+    )
+      throw new Error(
+        "This OAuth client requires a client secret. The plugin publisher must declare a non-confidential native client or provide an authorization backend.",
+      );
     if (!response.ok || token.error) {
       if (["authorization_pending", "slow_down"].includes(token.error))
         return token;
@@ -389,7 +398,8 @@ export class ConnectorService {
       redirect: "error",
       signal,
     });
-    if (!response.ok) throw new Error("Account verification failed.");
+    if (!response.ok)
+      throw new Error(`Account verification failed (HTTP ${response.status}).`);
     const data = await response.json();
     const field = (paths: string[]) =>
       paths
@@ -469,7 +479,7 @@ export class ConnectorService {
   ): Promise<ConnectorSecret> {
     const d = this.definition(config),
       oauth = this.oauth(config);
-    if (oauth.client.type !== "static")
+    if (oauth.client.type !== "static" && oauth.client.type !== "native-public")
       throw new Error("Missing public client ID.");
     const clientId = oauth.client.clientId;
     const state = randomBytes(32).toString("hex"),
@@ -510,6 +520,9 @@ export class ConnectorService {
         oauth.tokenEndpoint,
         {
           client_id: clientId,
+          ...(oauth.client.type === "native-public"
+            ? { client_secret: oauth.client.clientSecret }
+            : {}),
           redirect_uri: redirect,
           code,
           code_verifier: verifier,
@@ -881,7 +894,10 @@ export class ConnectorService {
         this.refreshControllers.set(config.id, refreshController);
         refresh = (async () => {
           const oauth = this.oauth(config);
-          if (oauth.client.type !== "static")
+          if (
+            oauth.client.type !== "static" &&
+            oauth.client.type !== "native-public"
+          )
             throw new Error("Reconnect this account.");
           const clientId = oauth.client.clientId;
           try {
@@ -889,6 +905,9 @@ export class ConnectorService {
               oauth.tokenEndpoint,
               {
                 client_id: clientId,
+                ...(oauth.client.type === "native-public"
+                  ? { client_secret: oauth.client.clientSecret }
+                  : {}),
                 refresh_token: saved.refreshToken!,
                 grant_type: "refresh_token",
                 ...(oauth.resource ? { resource: oauth.resource } : {}),

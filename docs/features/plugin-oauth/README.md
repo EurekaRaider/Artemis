@@ -1,6 +1,6 @@
 # 插件 OAuth v2
 
-插件声明接入资料，Artemis 按流程执行授权。公开 client ID 可以进入签名插件；client secret、用户令牌、私钥不能进入插件包。必须保管服务器机密的平台应使用开发者后端。
+插件声明接入资料，Artemis 按流程执行授权。公开 client ID 可以进入签名插件；服务器机密、用户令牌、私钥不能进入插件包；仅明确声明为原生公共客户端的可分发兼容参数例外。必须保管服务器机密的平台应使用开发者后端。
 
 ## 声明
 
@@ -8,7 +8,7 @@
 
 - 公共字段：`id`、`provider`、`displayName`、`auth`、`scopes`、`capabilities`。
 - `oauth.applicationName`：注册应用名称。
-- `oauth.client`：`{type:"static",clientId}`、`{type:"dynamic"}` 或 `{type:"metadata",url}`。后两种仅用于 Remote MCP；元数据文档必须预先登记固定本机回调。
+- `oauth.client`：`{type:"static",clientId}`、`{type:"native-public",clientId,clientSecret}`（仅 PKCE）、`{type:"dynamic"}` 或 `{type:"metadata",url}`。后两种仅用于 Remote MCP；元数据文档必须预先登记固定本机回调。
 - `issuer`、`authorizationEndpoint`、`tokenEndpoint`：固定授权方及按用途分离的端点。
 - `redirect`：`hostname` 为 `127.0.0.1` 或 `localhost`；可声明固定 `port` 和 `path`，否则宿主选择端口和连接路径。
 - Device Flow 额外声明 `deviceAuthorizationEndpoint` 和 `verificationOrigins`。
@@ -34,7 +34,7 @@ v1 OAuth 连接只保留用于显示更新提示，旧 OAuth 凭据定向删除�
 
 后端持有上游 secret 和令牌，向 Artemis 暴露公共客户端 Authorization Code + PKCE 或标准 MCP OAuth。后端必须校验 S256、精确回调、一次性 code、client ID、scope 和 resource；自身签发的 token 只能访问声明资源，不得将上游 token 返回 Artemis。后端资源服务验证 issuer、audience、有效期和权限，拒绝另一个资源的 token；刷新令牌轮换及撤销由后端实现。
 
-开发者负责平台注册、回调登记、审核、后端维护和客户端元数据文档托管。Artemis 不部署后端，也不把 secret 作为客户端兼容开关。
+开发者负责平台注册、回调登记、审核、后端维护和客户端元数据文档托管。Artemis 不部署后端；需要保密的客户端凭据必须留在开发者后端。
 
 ## 校验与示例
 
@@ -49,3 +49,19 @@ npm run check
 ```
 
 真实平台及安装包证据见[配对验收](../../projects/plugin-oauth-acceptance/README.md)。本地测试不能替代该验收。
+
+## TUN / Fake-IP 网络
+
+系统浏览器使用自身的代理和 DNS 设置，宿主只校验授权 URL 的 HTTPS、主机名及凭据等格式，不使用宿主 DNS 结果阻止浏览器打开页面。
+
+宿主 HTTPS 请求仍固定已验证的公网地址。如果系统 DNS 返回 TUN 常用的 `198.18.0.0/15` 虚拟地址，使用固定公网入口 `1.1.1.1` 的 Cloudflare DNS-over-HTTPS 查询真实 A 记录，并保持 `cloudflare-dns.com` 的 TLS 校验。只向解析服务发送待访问的主机名，不发送 OAuth 参数、code 或 token。随后连接真实公网 IP，继续按原目标域名验证 TLS。
+
+Fake-IP 本身仍属于禁止连接的地址。内网、loopback、链路本地地址或混合危险结果不会获得兼容放行；加密 DNS 失败时也不会退回连接 Fake-IP。此路径用于兼容 TUN，并不新增显式 HTTP/SOCKS 代理配置功能。
+
+## 原生公共客户端兼容参数
+
+`native-public` 仅用于平台允许原生应用分发的静态客户端参数，例如 Google Desktop 注册的 `client_secret`。发布者必须核实注册类型；声明校验不能证明某个值实际属于公共客户端。禁止借此分发 Web/服务器客户端机密。该参数可从插件包中读取，不能作为客户端身份认证或保密边界。
+
+宿主仅在 PKCE 授权码兑换和刷新时，将此参数发送到声明的令牌端点；不加入浏览器 URL、账户查询或插件运行时认证上下文。S256、state、回调校验、签名验证及端点保护继续生效。参数变化会改变认证指纹，要求重新授权。用户 access/refresh token 仍禁止进入插件包，refresh token 仅由宿主管理。宿主不读取旧客户端资料文件。
+
+依据：[Google 原生应用 OAuth](https://developers.google.com/identity/protocols/oauth2/native-app) 与 [RFC 8252 第 8.5 节](https://www.rfc-editor.org/rfc/rfc8252.html#section-8.5)。

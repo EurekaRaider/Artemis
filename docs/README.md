@@ -16,7 +16,8 @@
 | [im-gateway.md](features/im-gateway/README.md)                   | IM 网关部署与协作(配置、指令、多设备)  |
 | [im-security.md](features/im-security/README.md)                 | IM 安全边界(权限交集、审批、沙箱)      |
 | [attachment-context.md](features/attachment-context/README.md)   | 附件上下文预算与保护                   |
-| [plugin-marketplaces.md](features/plugin-marketplaces/README.md) | GitHub 插件市场设计                    |
+| [插件与 Git 商店开发](features/plugin-marketplaces/README.md) | 第三方插件规范、签名与发布（中文） |
+| [Plugin development guide](features/plugin-marketplaces/guide-en.md) | Plugin and Git marketplace development (English) |
 | [custom-subagents/](features/custom-subagents/README.md)         | 自定义子智能体(索引 / 计划 / 实施状态) |
 
 macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [本机 arm64 发布指南](features/macos-release/README.md)。
