@@ -19,7 +19,7 @@
 | [plugin-marketplaces.md](features/plugin-marketplaces/README.md) | GitHub 插件市场设计                    |
 | [custom-subagents/](features/custom-subagents/README.md)         | 自定义子智能体(索引 / 计划 / 实施状态) |
 
-macOS 发布与证书配置见 [本机 arm64 发布指南](features/macos-release/README.md)。
+macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [本机 arm64 发布指南](features/macos-release/README.md)。
 
 ## projects/ · 进行中专项
 

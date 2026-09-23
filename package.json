@@ -49,6 +49,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "package:mac": "npm run package:mac -w @artemis/desktop",
+    "setup:mac-signing": "npm run setup:mac-signing -w @artemis/desktop",
     "package:mac:arm64": "npm run package:mac:arm64 -w @artemis/desktop",
     "package:mac:x64": "npm run package:mac:x64 -w @artemis/desktop",
     "package:win": "npm run package:win -w @artemis/desktop",
@@ -78,7 +79,16 @@
     "verify:prepush": "node scripts/verify-pre-push.mjs",
     "prepare": "node scripts/install-git-hooks.mjs",
     "verify:slack-cli": "node scripts/verify-slack-cli.mjs",
-    "update:slack-cli": "node scripts/update-slack-cli.mjs"
+    "update:slack-cli": "node scripts/update-slack-cli.mjs",
+    "sign:mac": "npm run sign:mac -w @artemis/desktop",
+    "sign:mac:arm64": "npm run sign:mac:arm64 -w @artemis/desktop",
+    "sign:mac:x64": "npm run sign:mac:x64 -w @artemis/desktop",
+    "notarize:mac": "npm run notarize:mac -w @artemis/desktop",
+    "notarize:mac:arm64": "npm run notarize:mac:arm64 -w @artemis/desktop",
+    "notarize:mac:x64": "npm run notarize:mac:x64 -w @artemis/desktop",
+    "release:mac": "npm run release:mac -w @artemis/desktop",
+    "release:mac:arm64": "npm run release:mac:arm64 -w @artemis/desktop",
+    "release:mac:x64": "npm run release:mac:x64 -w @artemis/desktop"
   },
   "devDependencies": {
     "@electron-internal/extract-zip": "1.0.4",

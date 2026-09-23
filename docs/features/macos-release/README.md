@@ -6,6 +6,116 @@
 
 发布顺序：检查版本和凭据 → 测试、类型检查、构建、格式检查、原生 CLI 与界面验证 → Developer ID 签名 → Apple 公证并将票据附加到应用 → 检查 DMG/ZIP 中的最终应用 → 发布到 ArtemisRelease。缺少证书或任一验证失败都会停止发布。
 
+## 本机一次配置与分阶段打包
+
+在仓库根目录运行 `npm run setup:mac-signing`，选择 Developer ID 证书，输入 Apple 开发者邮箱和 **App 专用密码**。凭据由 Apple 验证后保存到 macOS 钥匙串；非敏感配置保存在 `~/Library/Application Support/Artemis/build/macos-signing.json`，打开新终端后仍然有效，不需要导出 P12 或重复设置环境变量。
+
+| 命令 | 行为 |
+| --- | --- |
+| `npm run package:mac:arm64` | 本地调试工程包，不使用正式签名或公证 |
+| `npm run sign:mac:arm64` | 重新构建并使用 Developer ID 签名，不提交公证 |
+| `npm run notarize:mac:arm64` | 公证现有同版本已签名 `.app`，附加票据后重新生成 DMG、ZIP 和更新元数据；不重新编译源码 |
+| `npm run release:mac:arm64` | 一条龙：构建、签名、公证、附加票据、生成 DMG/ZIP、验证 |
+
+将 `:arm64` 换成 `:x64` 可构建 Intel 版本；去掉架构后缀则处理两种架构。单独公证前必须保留 `apps/desktop/release/mac-arm64/Artemis.app`（Intel 为 `release/mac/Artemis.app`），且版本需与当前源码一致。最终产物位于 `apps/desktop/release/`。这些命令不会上传到 GitHub Releases；只有公证阶段将应用提交到 Apple。
+
+工程打包不加载签名设置；正式流程遇到凭据、签名或公证错误会失败，不会退回工程包。CI 继续使用工作流环境变量，不读取本机配置。已有证书但尚未设置公证凭据时，可以先设置 `CSC_NAME`、`ARTEMIS_UPDATE_OWNER`、`ARTEMIS_UPDATE_REPO` 环境变量运行只签名命令。
+
+### 首次配置
+
+1. 确认钥匙串中有带私钥的 **Developer ID Application** 证书，且已安装 Xcode 命令行工具。
+2. 在 [Apple 账户](https://account.apple.com/) 的“登录和安全 → App 专用密码”生成一个密码；不是 Apple 账号日常登录密码。
+3. 在项目根目录运行：
+
+   ```bash
+   npm run setup:mac-signing
+   ```
+
+4. 只有一张证书时自动选中；有多张时输入编号。输入开发者邮箱，然后在终端的隐藏输入提示中输入 App 专用密码。
+5. 看到“已保存长期配置”即完成。公证 profile 名称固定为 `Artemis-notarization`。账号密码不会写进项目、本机 JSON 或 shell 启动文件。
+
+签名证书由系统钥匙串管理，公证凭据由 `notarytool` 保存到钥匙串。非敏感 JSON 只包含签名身份、公证 profile 名称和更新仓库 `EurekaRaider/ArtemisRelease`。重开终端或更新源码后仍然生效；更换证书、撤销 App 专用密码或换电脑后需重新执行设置。CI 使用单独的 Secrets。
+
+### 流程 A：本地调试
+
+```bash
+npm run package:mac:arm64
+```
+
+它构建工程包，允许本地测试，不读取上述签名配置，不提交 Apple 公证。工程包可能使用 ad-hoc 签名，不代表已经获得 Developer ID 签名或 Apple 公证。项目现有的 Slack CLI 上游版本校验仍需联网。
+
+### 流程 B：签名与公证分开执行
+
+第一步，只签名并生成安装包：
+
+```bash
+npm run sign:mac:arm64
+```
+
+流程为检查签名配置 → 校验 Slack CLI → 编译 → 打包应用与组件 → 使用 Developer ID 签名 → 生成 DMG/ZIP → 验证签名。该步骤明确关闭自动公证，不等待 Apple 审核，也不要求公证凭据可用。macOS 首次使用私钥时可能弹出钥匙串授权窗口。
+
+第二步，准备分发时公证现有签名产物：
+
+```bash
+npm run notarize:mac:arm64
+```
+
+流程为检查公证凭据 → 校验 Slack CLI → 验证 `.app` 签名和版本 → 压缩并提交 Apple → 等待 `Accepted` → 将票据附加到 `.app` → 重新生成包含该应用的 DMG/ZIP 与更新元数据 → 验证签名、公证票据及 Gatekeeper → 生成发布清单。
+
+此步骤不重新编译源码。它读取 `release/mac-arm64/Artemis.app`，不是给任意旧 DMG 加一个标记；没有原始 `.app`、只有工程包、或应用版本与当前 `package.json` 不一致时，先重新运行只签名命令。公证会覆盖同版本的 DMG/ZIP，分发时使用最后生成的文件。两个架构一起公证时，更新元数据会保留两种架构。
+
+### 流程 C：一条龙正式打包
+
+```bash
+npm run release:mac:arm64
+```
+
+该命令重新编译并自动完成签名、公证、票据附加、DMG/ZIP 生成与验证，无需再运行前两条命令。Apple 凭据、签名、公证、Gatekeeper 或 Slack CLI 检查失败都会停止，不会以工程包替代正式包。Apple 处理时间不固定，命令会等待处理结果。
+
+本地这些命令只执行打包及针对产物的检查，不等同于完整 Release CI：正式对外发布前仍需按项目发布要求完成完整测试、原生运行验证和下载安装验证。
+
+### 产物与检查
+
+所有路径均相对项目根目录，版本号由 `apps/desktop/package.json` 决定：
+
+- `apps/desktop/release/mac-arm64/Artemis.app`：应用；Intel 版本位于 `release/mac/`。
+- `apps/desktop/release/Artemis-macOS-arm64-<version>.dmg`：安装镜像。
+- `apps/desktop/release/Artemis-macOS-arm64-<version>.zip`：应用压缩包。
+- `apps/desktop/release/latest-mac.yml`、相关 blockmap 和 `release-manifest.json`：更新信息和校验清单。
+
+公证票据附加在 **应用** 上，DMG 和 ZIP 中包含这个已附加票据的应用；这些命令不会额外为外层 DMG 单独申请公证票据。公证后不要再修改 `.app` 内容，否则需要重新签名、公证。
+
+可手动复核：
+
+```bash
+codesign --verify --deep --strict --verbose=2 apps/desktop/release/mac-arm64/Artemis.app
+codesign -dv --verbose=4 apps/desktop/release/mac-arm64/Artemis.app
+xcrun stapler validate apps/desktop/release/mac-arm64/Artemis.app
+spctl --assess --type execute --verbose=4 apps/desktop/release/mac-arm64/Artemis.app
+```
+
+签名信息应包含 `Authority=Developer ID Application:`、对应 Team ID 和 Hardened Runtime；票据校验成功，Gatekeeper 显示接受。发布后还需在另一台 Mac 通过浏览器下载最终 DMG、拖入 Applications 并启动，不能用移除 quarantine 的方式替代验证。
+
+### 失败与重试
+
+| 情况 | 处理 |
+| --- | --- |
+| 找不到有效签名身份 | 检查登录钥匙串中的证书、私钥及有效期，重新执行 `setup:mac-signing` |
+| 公证 profile 不存在或认证失败 | 重新执行 `setup:mac-signing`，用有效 App 专用密码完成 Apple 校验 |
+| GitHub API 返回 403 | 正式本地命令会尝试复用已有 `gh auth login` 登录；也可在终端提供 `GITHUB_TOKEN`。检查真实错误，不跳过 Slack CLI 门禁 |
+| Apple 返回 `Invalid` | 用下方命令查看提交日志；修复签名或组件问题后重新只签名，再公证 |
+| 网络中断或等待被中止 | 先查看 `notarytool history`；可重跑 `notarize:mac:arm64`，无需重新编译未修改的应用 |
+| 票据附加或 Gatekeeper 验证失败 | 保留报错和提交 ID，排查后重跑独立公证；不要把该次流程当成成功 |
+
+```bash
+xcrun notarytool history --keychain-profile Artemis-notarization
+xcrun notarytool log <提交ID> --keychain-profile Artemis-notarization
+```
+
+配置完成后，日常使用三条命令即可：`sign:mac:arm64`、`notarize:mac:arm64`、`release:mac:arm64`。它们均不发布 GitHub Release，不需要发布仓库写入 Token；正式本地命令读取 GitHub 登录凭据仅用于现有的 Slack CLI 上游校验。
+
+以下步骤供首次申请证书及配置 GitHub Actions 使用。
+
 ## 1. 确认开发者会员和 Team ID
 
 在这台 Mac 的浏览器打开 [Apple Developer 账户](https://developer.apple.com/account/)，使用已生效的开发者会员账号登录。

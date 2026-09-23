@@ -1,4 +1,8 @@
 const platform = process.argv[2];
+const signOnly = platform === "mac" && process.argv[3] === "--sign-only";
+if (process.argv.slice(3).length && (!signOnly || process.argv.length !== 4)) {
+  throw new Error("Only mac supports --sign-only.");
+}
 if (platform !== "win" && platform !== "mac") {
   throw new Error("Usage: validate-release-env.mjs <win|mac>");
 }
@@ -20,11 +24,20 @@ if (platform === "mac") {
   }
 }
 
-requireEnvironment("CSC_LINK");
-requireEnvironment("CSC_KEY_PASSWORD");
+if (platform === "win" || process.env.CSC_LINK?.trim()) {
+  requireEnvironment("CSC_LINK");
+  requireEnvironment("CSC_KEY_PASSWORD");
+} else {
+  requireEnvironment("CSC_NAME");
+}
 if (platform === "win") {
   requireEnvironment("ARTEMIS_WINDOWS_PUBLISHER");
-} else {
+} else if (
+  !signOnly &&
+  (process.env.APPLE_ID?.trim() ||
+    process.env.APPLE_APP_SPECIFIC_PASSWORD?.trim() ||
+    !process.env.APPLE_KEYCHAIN_PROFILE?.trim())
+) {
   requireEnvironment("APPLE_ID");
   requireEnvironment("APPLE_APP_SPECIFIC_PASSWORD");
   requireEnvironment("APPLE_TEAM_ID");

@@ -12,6 +12,7 @@
     "build:renderer-dependencies": "npm run build:ui-libraries --prefix ../..",
     "dev": "npm run build:renderer-dependencies && npm run build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env ARTEMIS_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "package:mac": "node scripts/package-mac-lite.mjs all",
+    "setup:mac-signing": "node scripts/setup-macos-signing.mjs",
     "package:mac:arm64": "node scripts/package-mac-lite.mjs arm64",
     "package:mac:x64": "node scripts/package-mac-lite.mjs x64",
     "package:win": "node scripts/package-windows-lite.mjs",
@@ -38,7 +39,15 @@
     "verify:user-input-multi-ui": "npm run build && node scripts/verify-user-input-multi-ui.mjs",
     "verify:workspace-dock": "npm run build && node scripts/verify-workspace-dock.mjs",
     "test": "node scripts/test-goal-parity-shards.mjs && vitest run --no-file-parallelism",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "sign:mac": "node scripts/package-mac-lite.mjs all --sign-only",
+    "sign:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --sign-only",
+    "sign:mac:x64": "node scripts/package-mac-lite.mjs x64 --sign-only",
+    "notarize:mac": "node scripts/package-mac-lite.mjs all --notarize-only",
+    "notarize:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --notarize-only",
+    "notarize:mac:x64": "node scripts/package-mac-lite.mjs x64 --notarize-only",
+    "release:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --release",
+    "release:mac:x64": "node scripts/package-mac-lite.mjs x64 --release"
   },
   "dependencies": {
     "@artemis/agent-host": "1.6.0",
@@ -91,6 +100,7 @@
     "electron": "43.2.0",
     "electron-builder": "26.16.1",
     "esbuild": "0.28.1",
+    "js-yaml": "4.3.2",
     "jsdom": "^29.1.1",
     "vite": "8.1.5",
     "wait-on": "9.1.0"
