@@ -182,7 +182,7 @@ P12 导出密码、Mac 登录密码、Apple 账号密码是三种不同用途的
 
 ## 6. 私有仓库发布权限
 
-当前 CD 使用内置 `GITHUB_TOKEN`，仅发布 job 授予 `contents: write`。无需 `ARTEMIS_RELEASE_TOKEN`，不向 ArtemisRelease 写入任何产物。应用继续使用公开更新源，不包含私有仓库访问 Token。以后公开发布需单独授权。
+当前 CD 使用内置 `GITHUB_TOKEN`，仅私有 Release 暂存和发布 job 授予 `contents: write`。无需 `ARTEMIS_RELEASE_TOKEN`，不向 ArtemisRelease 写入任何产物。应用继续使用公开更新源，不包含私有仓库访问 Token。以后公开发布需单独授权。
 
 ## 7. 把五项 Apple 凭据放到源码仓库 Secrets
 
@@ -261,7 +261,8 @@ gh workflow run release.yml \
 2. **Release CI**：双平台源码检查、原生 CLI 和界面验证。
 3. **Build and sign macOS arm64** 与 **Notarize and verify macOS arm64**：独立 job 之间保存已签名应用；后者负责公证、原生运行边界和最终 DMG/ZIP 校验。
 4. **Package and verify Windows x64 ZIP**：无签名 ZIP、解压运行及 ACL 验证。
-5. **Publish to private Artemis Release**：上传经过校验的产物。
+5. **Open private draft Release**：在私有仓库创建当前提交的草稿，供签名和公证 job 传递产物。
+6. **Publish to private Artemis Release**：核对两个平台的清单并正式发布，删除草稿中的临时文件。
 
 全部通过后，打开 [Artemis 私有 Releases](https://github.com/EurekaRaider/Artemis/releases)。应包含：
 
@@ -304,15 +305,15 @@ xcrun stapler validate "/Applications/Artemis.app"
 
 Release 等待 macOS arm64 与 Windows x64 的 CI、打包验证全部通过，才向 Artemis 私有仓库 Release 发布。两平台使用独立的产物清单，合并前校验版本、文件集合、大小和 SHA-256。
 
-- macOS：沿用已有 Apple 签名和公证凭据，支持应用内更新。CI 分别执行 `sign:mac:arm64` 和 `notarize:mac:arm64`；公证提交 ID 保存到 `notarization-mac-arm64.json` 并作为独立 CI 证据上传。等待失败时，用相同凭据执行 `xcrun notarytool info <ID>` 或 `log <ID>`。保留同一签名 app 和状态文件，再运行 `npm run notarize:mac:arm64` 可继续等待原提交。
+- macOS：沿用已有 Apple 签名和公证凭据，支持应用内更新。CI 分别执行 `sign:mac:arm64` 和 `notarize:mac:arm64`；公证提交 ID 保存到 `notarization-mac-arm64.json` 并暂存在 Artemis 私有草稿中。等待失败时，用相同凭据执行 `xcrun notarytool info <ID>` 或 `log <ID>`。保留同一签名 app 和状态文件，再运行 `npm run notarize:mac:arm64` 可继续等待原提交。
 - Windows：runner 标签为 `self-hosted, Windows, X64`，需要 Node、PowerShell 7、原生依赖构建工具和可运行 Electron 的桌面会话。`npm run release:win -w @artemis/desktop` 在真实 Windows x64 上生成无签名 ZIP，并验证解压后的程序、原生依赖和 ACL；无需代码签名证书，也不会使用 macOS 签名凭据。
 - Windows 应用启动后以及每小时查询公开 Release，也支持手动检查。只有更高的稳定版本且含对应 Windows ZIP 时才提示；点击下载在浏览器打开 ZIP 链接，不调用自动下载或安装接口。
 - Windows 用户将新版 ZIP 解压到新文件夹，退出旧版后启动新版。不要删除现有用户数据目录；旧 ZIP 版本首次获得更新提示功能仍需手动下载这个版本。
-- Windows 不生成 `latest.yml`；macOS 继续发布 `latest-mac.yml` 等更新元数据。私有源码仓库执行构建，公开发布库只接收校验后的产物。
+- Windows 不生成 `latest.yml`；macOS 继续发布 `latest-mac.yml` 等更新元数据。当前仅私有 Artemis Release 接收校验后的产物。
 
 ### CD 重试与恢复
 
 - 签名使用锁定的 electron-builder 26.16.1 内置有限重试：初次尝试失败后最多重试 3 次，等待 5/10/15 秒，不重复源码编译。
 - 公证等待最多尝试 3 次，每次最多 20 分钟，间隔 15/30 秒；始终使用同一个提交 ID。票据附加最多尝试 3 次。Apple 明确拒绝时不自动重新提交。
-- 签名 job 保存带权限和符号链接的应用归档，公证 job 每次尝试都保存状态文件，保留 7 天。选择 Actions 的 **Re-run failed jobs**，不会重跑已通过的 CI 或签名 job；公证从本次 workflow run 最近的状态恢复，并校验版本及 CDHash。不要选择 **Re-run all jobs**，也不要重新发起 workflow_dispatch，后两者会主动开始新的构建。
+- 签名 job 将带权限和符号链接的应用归档暂存在 Artemis 私有草稿，公证 job 将状态文件暂存在同一草稿；发布前删除两者。选择 Actions 的 **Re-run failed jobs**，不会重跑已通过的 CI 或签名 job；公证从草稿恢复状态，并校验版本及 CDHash。不要选择 **Re-run all jobs**，也不要重新发起 workflow_dispatch，后两者会主动开始新的构建。
 - 提交请求本身不盲目重试：若网络断开且 Apple 没返回 ID，先查 Apple 提交历史确认，避免重复提交。提交 ID 已保存时可通过 `notarytool info/log` 查询。

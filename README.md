@@ -375,10 +375,11 @@ update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
 packaging target.
 
 macOS signing and notarization run in separate jobs. Signing retries at most
-three times; notarization waits and stapling each allow three attempts. Signed
-applications and Apple submission IDs are retained for seven days. Use
-**Re-run failed jobs** to reuse successful CI/signing work and resume the same
-Apple submission. See the [release guide](docs/features/macos-release/README.md).
+three times; notarization waits and stapling each allow three attempts. The
+signed app and Apple submission ID are held in a private draft Release while
+jobs run, then removed before publication. Use **Re-run failed jobs** to reuse
+successful CI/signing work and resume the same Apple submission. See the
+[release guide](docs/features/macos-release/README.md).
 
 Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
