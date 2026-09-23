@@ -131,17 +131,25 @@ export function withCompactionBudget(stream: StreamFunction): StreamFunction {
         message.content[0]?.type === "text"
           ? message.content[0].text
           : undefined;
-      const end = text?.lastIndexOf("</conversation>") ?? -1;
+      // Pi uses XML for history summaries and Markdown for split-turn checkpoints.
+      const prefix = text?.startsWith("# Conversation\n")
+        ? "# Conversation\n"
+        : "<conversation>\n";
+      const separator =
+        prefix === "# Conversation\n"
+          ? "\n\n# Instructions\n"
+          : "</conversation>";
+      const end = text?.lastIndexOf(separator) ?? -1;
       if (
         conversationMessages.length !== 1 ||
-        !text?.startsWith("<conversation>\n") ||
+        !text?.startsWith(prefix) ||
         end < 0
       ) {
         throw new Error(
           "Context compaction request is too large to split safely. Select a larger-context model. Original history is unchanged.",
         );
       }
-      const body = text.slice("<conversation>\n".length, end);
+      const body = text.slice(prefix.length, end);
       const suffix = text.slice(end);
       const withBody = (value: string): TranscriptContext =>
         normalizeContext({
@@ -150,9 +158,7 @@ export function withCompactionBudget(stream: StreamFunction): StreamFunction {
             ...request.messages.filter((entry) => entry.role === "system"),
             {
               role: "user",
-              content: [
-                { type: "text", text: `<conversation>\n${value}${suffix}` },
-              ],
+              content: [{ type: "text", text: `${prefix}${value}${suffix}` }],
               timestamp: message!.timestamp,
             },
           ],

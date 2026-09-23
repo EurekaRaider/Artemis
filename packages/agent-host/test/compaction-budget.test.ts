@@ -56,7 +56,11 @@ function response(
   else stream.push({ type: "done", reason: "stop", message });
   return stream;
 }
-function request() {
+function request(format = "xml") {
+  const prefix =
+    format === "markdown" ? "# Conversation\n" : "<conversation>\n";
+  const separator =
+    format === "markdown" ? "\n\n# Instructions\n" : "</conversation>\n\n";
   return normalizeContext({
     systemPrompt: "Summarize the conversation.",
     messages: [
@@ -65,7 +69,7 @@ function request() {
         content: [
           {
             type: "text",
-            text: `<conversation>\n${"[User]: Keep the decision and completed tool result.\n".repeat(2000)}</conversation>\n\nAdditional focus: preserve file paths and pending work.`,
+            text: `${prefix}${"[User]: Keep the decision and completed tool result.\n".repeat(2000)}${separator}Additional focus: preserve file paths and pending work.`,
           },
         ],
         timestamp: 1,
@@ -86,36 +90,39 @@ describe("bounded Pi compaction", () => {
     expect(result.stopReason).toBe("stop");
     expect(provider.mock.calls.length).toBeGreaterThan(3);
   });
-  it("summarizes oversized history in bounded requests, preserving the original focus and history", async () => {
-    const contexts: Context[] = [];
-    const provider = vi.fn((_model, context, options) => {
-      expect(estimateRequestTokens(model, context)).toBeLessThanOrEqual(
-        inputTokenLimit(model, options?.maxTokens),
+  it.each(["xml", "markdown"])(
+    "summarizes oversized %s history in bounded requests, preserving the original focus and history",
+    async (format) => {
+      const contexts: Context[] = [];
+      const provider = vi.fn((_model, context, options) => {
+        expect(estimateRequestTokens(model, context)).toBeLessThanOrEqual(
+          inputTokenLimit(model, options?.maxTokens),
+        );
+        expect(getCurrentSystemPrompt(context.messages)).toBe(
+          "Summarize the conversation.",
+        );
+        contexts.push(context);
+        return response();
+      });
+      const runtime = withAttachmentContextBudget({
+        streamSimple: provider,
+      } as unknown as ModelRuntime);
+      const context = request(format);
+      const before = JSON.stringify(context);
+      const result = await (
+        await withCompactionBudget(runtime.streamSimple)(model, context, {
+          maxTokens: 800,
+        })
+      ).result();
+      expect(result.stopReason).toBe("stop");
+      expect(contexts.length).toBeGreaterThan(2);
+      expect(JSON.stringify(contexts.at(-1))).toContain(
+        "Additional focus: preserve file paths and pending work.",
       );
-      expect(getCurrentSystemPrompt(context.messages)).toBe(
-        "Summarize the conversation.",
-      );
-      contexts.push(context);
-      return response();
-    });
-    const runtime = withAttachmentContextBudget({
-      streamSimple: provider,
-    } as unknown as ModelRuntime);
-    const context = request();
-    const before = JSON.stringify(context);
-    const result = await (
-      await withCompactionBudget(runtime.streamSimple)(model, context, {
-        maxTokens: 800,
-      })
-    ).result();
-    expect(result.stopReason).toBe("stop");
-    expect(contexts.length).toBeGreaterThan(2);
-    expect(JSON.stringify(contexts.at(-1))).toContain(
-      "Additional focus: preserve file paths and pending work.",
-    );
-    expect(result.usage.input).toBe(contexts.length * 10);
-    expect(JSON.stringify(context)).toBe(before);
-  });
+      expect(result.usage.input).toBe(contexts.length * 10);
+      expect(JSON.stringify(context)).toBe(before);
+    },
+  );
   it("does not commit partial summaries after failure or continue after cancellation", async () => {
     const controller = new AbortController();
     const provider = vi.fn(() => {
