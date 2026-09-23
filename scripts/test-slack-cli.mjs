@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { lockedSlackLicense } from "./slack-cli-package.mjs";
 import {
   assertSlackBinary,
   assertSlackLock,
@@ -55,6 +56,27 @@ const response = (value, status = 200) =>
     status,
   });
 const noSleep = async () => {};
+
+test("locked license survives Windows newline conversion without accepting changed text", async () => {
+  const original = await readFile(
+    new URL("../third-party/slack-cli-LICENSE.txt", import.meta.url),
+  );
+  const expected = JSON.parse(
+    await readFile(new URL("../slack-cli.lock.json", import.meta.url)),
+  ).licenseSha256;
+  const windows = Buffer.from(
+    original.toString("utf8").replaceAll("\n", "\r\n"),
+  );
+  assert.deepEqual(lockedSlackLicense(windows, expected), original);
+  assert.throws(
+    () =>
+      lockedSlackLicense(
+        Buffer.concat([windows, Buffer.from("changed")]),
+        expected,
+      ),
+    /license does not match/u,
+  );
+});
 
 test("the identical latest stable release passes without mutating the lock", () => {
   const pinned = lock(),
@@ -246,7 +268,7 @@ test("CI, both package entry points and final publication enforce the gate", asy
   const workflow = await read(".github/workflows/release.yml");
   assert.match(
     workflow,
-    /node scripts\/verify-slack-cli.mjs\s+gh release create/u,
+    /node scripts\/verify-slack-cli.mjs\s+gh release upload[\s\S]+gh release edit/u,
   );
   assert.doesNotMatch(workflow, /Node.js 24|node-version: 24/u);
   const manifest = JSON.parse(await read("apps/desktop/package.json"));

@@ -29,6 +29,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Normalize reused Windows checkout to LF
+        if: matrix.platform == 'windows-x64'
+        run: git -c core.autocrlf=false checkout-index --force --all
+
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -58,6 +62,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Normalize reused Windows checkout to LF
+        if: matrix.platform == 'windows-x64'
+        run: git -c core.autocrlf=false checkout-index --force --all
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -86,6 +93,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+
+      - name: Normalize reused Windows checkout to LF
+        if: matrix.platform == 'windows-x64'
+        run: git -c core.autocrlf=false checkout-index --force --all
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7

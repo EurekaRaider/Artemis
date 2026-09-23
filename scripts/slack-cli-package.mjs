@@ -26,6 +26,16 @@ export const slackCliStagingRoot = fileURLToPath(
   new URL("../artifacts/slack-cli/", import.meta.url),
 );
 
+export function lockedSlackLicense(bytes, expectedSha256) {
+  if (sha256(bytes) === expectedSha256) return bytes;
+  const normalized = Buffer.from(
+    bytes.toString("utf8").replaceAll("\r\n", "\n"),
+  );
+  if (sha256(normalized) !== expectedSha256)
+    throw new Error("Slack CLI: license does not match the lock.");
+  return normalized;
+}
+
 export async function unpackSlackAsset(asset, bytes, operation) {
   const directory = await mkdtemp(join(tmpdir(), "artemis-slack-cli-"));
   try {
@@ -57,11 +67,12 @@ export async function stageSlackCli(target, lock) {
     await copyFile(file, executable);
     await chmod(executable, 0o755);
   });
-  const license = await readFile(
-    new URL("../third-party/slack-cli-LICENSE.txt", import.meta.url),
+  const license = lockedSlackLicense(
+    await readFile(
+      new URL("../third-party/slack-cli-LICENSE.txt", import.meta.url),
+    ),
+    lock.licenseSha256,
   );
-  if (sha256(license) !== lock.licenseSha256)
-    throw new Error("Slack CLI: license does not match the lock.");
   await writeFile(join(directory, "LICENSE.txt"), license);
   await writeFile(
     join(directory, "slack-cli.lock.json"),
