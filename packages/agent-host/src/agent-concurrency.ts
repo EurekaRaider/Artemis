@@ -2,6 +2,7 @@ export type AgentExecutionKind = "parent" | "child";
 
 interface QueuedExecution {
   kind: AgentExecutionKind;
+  resuming?: boolean;
   schedulingKey: string;
   start(): void;
   reject(error: unknown): void;
@@ -45,8 +46,8 @@ class AgentConcurrencyLeaseImpl implements AgentConcurrencyLease {
     if (!this.held) {
       throw new Error("Agent concurrency lease is not active");
     }
+    this.owner.beginWaiting(this.kind);
     this.releaseIfHeld();
-    this.owner.beginWaiting();
 
     let result: T | undefined;
     let taskError: unknown;
@@ -61,7 +62,7 @@ class AgentConcurrencyLeaseImpl implements AgentConcurrencyLease {
     try {
       await this.owner.reacquire(this);
     } finally {
-      this.owner.endWaiting();
+      this.owner.endWaiting(this.kind);
     }
     if (taskFailed) throw taskError;
     return result as T;
@@ -97,6 +98,7 @@ export class AgentConcurrencyLimiter {
   private active = 0;
   private activeParents = 0;
   private waiting = 0;
+  private waitingParents = 0;
   private readonly queue: QueuedExecution[] = [];
   private lastSchedulingKey: string | undefined;
 
@@ -163,12 +165,16 @@ export class AgentConcurrencyLimiter {
     });
   }
 
-  beginWaiting(): void {
+  beginWaiting(kind: AgentExecutionKind): void {
     this.waiting += 1;
+    if (kind === "parent") this.waitingParents += 1;
   }
 
-  endWaiting(): void {
+  endWaiting(kind: AgentExecutionKind): void {
     this.waiting = Math.max(0, this.waiting - 1);
+    if (kind === "parent")
+      this.waitingParents = Math.max(0, this.waitingParents - 1);
+    this.drain();
   }
 
   release(kind: AgentExecutionKind): void {
@@ -182,6 +188,7 @@ export class AgentConcurrencyLimiter {
       this.enqueue(
         {
           kind: lease.kind,
+          resuming: true,
           schedulingKey: lease.schedulingKey,
           start: () => {
             lease.markHeld();
@@ -216,8 +223,10 @@ export class AgentConcurrencyLimiter {
     this.drain();
   }
 
-  private canRun(kind: AgentExecutionKind): boolean {
-    const rootWaiting = this.queue.some((queued) => queued.kind === "parent");
+  private canRun(kind: AgentExecutionKind, resuming = false): boolean {
+    const rootWaiting =
+      (this.limit > 1 && this.waitingParents > 0) ||
+      this.queue.some((queued) => queued.kind === "parent");
     const preservesRootSlot =
       kind === "parent" ||
       this.activeParents > 0 ||
@@ -225,12 +234,30 @@ export class AgentConcurrencyLimiter {
       this.active < this.limit - 1;
     return (
       this.active < this.limit &&
+      // A wait deadline must return even if every admitted worker stops making
+      // progress. Keep one slot for returning supervisors, including children
+      // supervising a nested team. A one-slot limiter cannot reserve capacity.
+      (resuming ||
+        this.waiting === 0 ||
+        this.limit === 1 ||
+        this.active < this.limit - 1) &&
       preservesRootSlot &&
       (kind === "child" || this.activeParents < this.parentLimit)
     );
   }
 
   private nextRunnableIndex(): number {
+    const returning = this.queue.findIndex(
+      (queued) =>
+        queued.resuming &&
+        queued.kind === "parent" &&
+        this.canRun(queued.kind, true),
+    );
+    if (returning >= 0) return returning;
+    const supervisor = this.queue.findIndex(
+      (queued) => queued.resuming && this.canRun(queued.kind, true),
+    );
+    if (supervisor >= 0) return supervisor;
     const differentKey = this.queue.findIndex(
       (queued) =>
         queued.schedulingKey !== this.lastSchedulingKey &&

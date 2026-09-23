@@ -16,6 +16,79 @@ async function flush(): Promise<void> {
 }
 
 describe("AgentConcurrencyLimiter", () => {
+  it("keeps root recovery available when a nested supervisor resumes first", async () => {
+    const limiter = new AgentConcurrencyLimiter(2, 2);
+    const rootWait = deferred();
+    const nestedWait = deferred();
+    const workerGate = deferred();
+    let rootResumed = false;
+    const root = limiter.run("parent", async (lease) => {
+      await lease.suspend(() => rootWait.promise);
+      rootResumed = true;
+    });
+    const nested = limiter.run("child", async (lease) => {
+      await lease.suspend(() => nestedWait.promise);
+      await workerGate.promise;
+    });
+    const worker = limiter.run("child", () => workerGate.promise);
+    nestedWait.resolve();
+    await flush();
+    rootWait.resolve();
+    await flush();
+    try {
+      expect(rootResumed).toBe(true);
+      expect(limiter.snapshot.active).toBeLessThanOrEqual(2);
+    } finally {
+      workerGate.resolve();
+      await Promise.all([root, nested, worker]);
+    }
+  });
+
+  it("returns supervision after observation expires while children remain stuck", async () => {
+    const limiter = new AgentConcurrencyLimiter(2, 2);
+    const observation = deferred();
+    const children = deferred();
+    let resumed = false;
+    const parent = limiter.run("parent", async (lease) => {
+      await lease.suspend(() => observation.promise);
+      resumed = true;
+    });
+    const workers = Array.from({ length: 3 }, () =>
+      limiter.run("child", () => children.promise),
+    );
+    observation.resolve();
+    await flush();
+    try {
+      expect(resumed).toBe(true);
+      expect(limiter.snapshot.active).toBeLessThanOrEqual(2);
+    } finally {
+      children.resolve();
+      await Promise.all([parent, ...workers]);
+    }
+  });
+
+  it("lets a nested supervisor recover without waiting for its stuck child", async () => {
+    const limiter = new AgentConcurrencyLimiter(2, 2);
+    const observation = deferred();
+    const childGate = deferred();
+    let resumed = false;
+    const supervisor = limiter.run("child", async (lease) => {
+      await lease.suspend(() => observation.promise);
+      resumed = true;
+    });
+    const children = Array.from({ length: 3 }, () =>
+      limiter.run("child", () => childGate.promise),
+    );
+    observation.resolve();
+    await flush();
+    try {
+      expect(resumed).toBe(true);
+    } finally {
+      childGate.resolve();
+      await Promise.all([supervisor, ...children]);
+    }
+  });
+
   it("applies validated runtime limits while preserving one child slot", () => {
     const host = new ArtemisAgentHost(
       { request: async () => ({ approved: false }) },

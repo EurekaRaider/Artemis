@@ -935,6 +935,7 @@ interface ChildAgentExecution extends LaunchChildAgentInput {
   status: ChildAgentPayload["status"];
   controller: AbortController;
   session?: AgentSession;
+  modelStreamWatchdog?: ReturnType<typeof createModelStreamIdleWatchdog>;
   createdAt: number;
   startedAt?: number;
   updatedAt: number;
@@ -966,7 +967,11 @@ interface AgentTeamExecution {
   memberVersions: Map<string, number>;
   observers: Map<
     string,
-    { messageSequence: number; memberVersions: Map<string, number> }
+    {
+      messageSequence: number;
+      memberVersions: Map<string, number>;
+      memberHealth: Map<string, ChildAgentSnapshot["health"]>;
+    }
   >;
   spawnCount: number;
   updatedAt: number;
@@ -980,6 +985,9 @@ export interface AgentTeamSnapshot {
   members: ChildAgentSnapshot[];
   messages: AgentTeamMessagePayload[];
   observationExpired: boolean;
+  snapshotKind: "full" | "delta";
+  blockingAgentIds: string[];
+  observation?: { startedAt: string; observedAt: string; resumedAt?: string };
 }
 
 export interface ChildAgentSnapshot {
@@ -995,6 +1003,7 @@ export interface ChildAgentSnapshot {
   writePaths: string[];
   required: boolean;
   coordinationStatus?: NonNullable<ChildAgentPayload["coordinationStatus"]>;
+  queueReason?: "dependency" | "capacity";
   status: ChildAgentPayload["status"];
   health: "healthy" | "suspect" | "stalled";
   attempt: number;
@@ -1372,6 +1381,22 @@ export class ArtemisAgentHost {
     const hosted = [...this.threads.values()].find(
       (candidate) => candidate.session.sessionId === sessionId,
     );
+    if (!hosted) {
+      for (const thread of this.threads.values()) {
+        const child = [...thread.childAgents.values()].find(
+          (candidate) => candidate.session?.sessionId === sessionId,
+        );
+        if (!child) continue;
+        if (update.phase === "stream-finished")
+          child.modelStreamWatchdog?.resume();
+        else if (
+          update.phase === "stream-started" ||
+          update.phase === "reconnecting"
+        )
+          child.modelStreamWatchdog?.pause();
+        return;
+      }
+    }
     if (!hosted?.currentTurnId) return;
     if (update.phase === "stream-started") {
       // The request watchdog owns stream retries; the turn guard covers gaps outside it.
@@ -1934,6 +1959,16 @@ export class ArtemisAgentHost {
       writePaths: [...child.writePaths],
       required: child.required,
       ...(coordinationStatus ? { coordinationStatus } : {}),
+      ...(child.status === "queued"
+        ? {
+            queueReason: child.dependsOnAgentIds.some((agentId) => {
+              const dependency = hosted.childAgents.get(agentId);
+              return dependency && !isTerminalChildStatus(dependency.status);
+            })
+              ? ("dependency" as const)
+              : ("capacity" as const),
+          }
+        : {}),
       status: child.status,
       health: this.childHealth(child),
       attempt: child.attempt,
@@ -2120,6 +2155,20 @@ export class ArtemisAgentHost {
         .map((child) => this.childSnapshot(hosted, child)),
       messages: messages ?? [...team.messages],
       observationExpired,
+      snapshotKind: memberAgentIds === undefined ? "full" : "delta",
+      blockingAgentIds: [
+        ...new Set([
+          ...team.blockedAgentIds,
+          ...[...team.requiredAgentIds].filter((agentId) => {
+            const status = hosted.childAgents.get(agentId)?.status;
+            return (
+              status === "failed" ||
+              status === "blocked" ||
+              status === "cancelled"
+            );
+          }),
+        ]),
+      ],
     };
   }
 
@@ -2249,7 +2298,6 @@ export class ArtemisAgentHost {
     const message = text.trim();
     if (!message)
       throw new Error("Sub-agent steering message cannot be empty.");
-    child.lastActivityAt = Date.now();
     if (child.status === "queued" || !child.session) {
       child.pendingSteers.push(message);
     } else {
@@ -2280,9 +2328,20 @@ export class ArtemisAgentHost {
     notifyParent = false,
   ): Promise<ChildAgentSnapshot> {
     const { hosted, child } = this.requireChildAgent(threadId, agentId);
-    if (!isTerminalChildStatus(child.status)) {
+    const subtree = [child, ...this.descendantAgents(hosted, agentId)];
+    if (subtree.some((member) => !isTerminalChildStatus(member.status))) {
       this.requestSubtreeCancellation(hosted, child);
-      await this.observeChild(child, CHILD_CONTROL_OBSERVATION_MILLISECONDS);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.all(subtree.map((member) => member.done)),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, CHILD_CONTROL_OBSERVATION_MILLISECONDS);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
     if (notifyParent && hosted.currentTurnId) {
       void hosted.session
@@ -2297,6 +2356,47 @@ export class ArtemisAgentHost {
         )
         .catch(() => undefined);
     }
+    return this.childSnapshot(hosted, child);
+  }
+
+  async takeOverChildAgent(
+    threadId: string,
+    agentId: string,
+    summary: string,
+  ): Promise<ChildAgentSnapshot> {
+    const { hosted, child } = this.requireChildAgent(threadId, agentId);
+    const team = hosted.team;
+    if (!team?.memberAgentIds.includes(agentId)) {
+      throw new Error("Only a current team member can be taken over.");
+    }
+    if (!summary.trim()) throw new Error("A takeover plan is required.");
+    await this.cancelChildAgent(threadId, agentId);
+    if (hosted.team !== team || hosted.currentTurnId !== team.turnId) {
+      throw new Error("The active team changed during cancellation.");
+    }
+    const subtree = [child, ...this.descendantAgents(hosted, agentId)];
+    if (subtree.some((member) => !isTerminalChildStatus(member.status))) {
+      throw new Error(
+        "Cancellation is still pending. Do not write in this subtree's scopes until all members have stopped. Inspect their status before retrying takeover.",
+      );
+    }
+    // Preserve the failed attempts as history; the root now owns their work.
+    for (const member of subtree) {
+      team.requiredAgentIds.delete(member.agentId);
+      team.blockedAgentIds.delete(member.agentId);
+      member.required = false;
+      member.subtreeIntegrated = true;
+      member.subtreeSummary = `Taken over by parent: ${summary.trim()}`;
+      this.emitChild(hosted, member);
+    }
+    await this.sendAgentTeamMessage(
+      threadId,
+      ROOT_AGENT_ID,
+      ROOT_AGENT_ID,
+      "finding",
+      `Parent took over ${agentId} and its subtree after they stopped. Remaining work: ${summary.trim()}`,
+    );
+    this.refreshTeamStatus(hosted);
     return this.childSnapshot(hosted, child);
   }
 
@@ -3003,12 +3103,26 @@ export class ArtemisAgentHost {
     const hosted = this.requireActiveThread(threadId);
     const team = hosted.team;
     if (!team) throw new Error("No active agent team is available.");
+    const startedAt = new Date().toISOString();
+    const currentHealth = () =>
+      new Map(
+        team.memberAgentIds.map((agentId) => [
+          agentId,
+          this.childHealth(hosted.childAgents.get(agentId)!),
+        ]),
+      );
+    const firstObservation = !team.observers.has(observerAgentId);
     const observer = team.observers.get(observerAgentId) ?? {
-      messageSequence: team.messageSequence,
-      memberVersions: new Map(team.memberVersions),
+      messageSequence: 0,
+      memberVersions: new Map<string, number>(),
+      memberHealth: new Map<string, ChildAgentSnapshot["health"]>(),
     };
     team.observers.set(observerAgentId, observer);
-    const unseenSnapshot = (observationExpired: boolean) => {
+    const healthChanged = () =>
+      [...currentHealth()].some(
+        ([agentId, health]) => observer.memberHealth.get(agentId) !== health,
+      );
+    const unseenSnapshot = (observationExpired: boolean, full = false) => {
       const memberAgentIds = team.memberAgentIds.filter(
         (agentId) =>
           (team.memberVersions.get(agentId) ?? 0) !==
@@ -3019,36 +3133,60 @@ export class ArtemisAgentHost {
       );
       observer.messageSequence = team.messageSequence;
       observer.memberVersions = new Map(team.memberVersions);
-      return this.teamSnapshot(
+      observer.memberHealth = currentHealth();
+      const snapshot = this.teamSnapshot(
         hosted,
         observationExpired,
         messages,
-        memberAgentIds,
+        full || observationExpired || team.status !== "running"
+          ? undefined
+          : memberAgentIds,
       );
+      snapshot.observation = {
+        startedAt,
+        observedAt: new Date().toISOString(),
+      };
+      return snapshot;
     };
     if (
+      firstObservation ||
+      healthChanged() ||
       team.status === "blocked" ||
       team.status === "integrating" ||
       team.status === "completed" ||
       team.status === "aborted"
     ) {
+      return unseenSnapshot(false, true);
+    }
+    if (
+      team.messageSequence > observer.messageSequence ||
+      team.memberAgentIds.some(
+        (agentId) =>
+          team.memberVersions.get(agentId) !==
+          observer.memberVersions.get(agentId),
+      )
+    ) {
       return unseenSnapshot(false);
     }
-    const startVersion = team.version;
+    let wake!: () => void;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const changed = new Promise<boolean>((resolve) => {
-      const wake = () => {
-        if (timer) clearTimeout(timer);
-        resolve(true);
-      };
-      team.waiters.add(wake);
-      timer = setTimeout(() => {
-        team.waiters.delete(wake);
-        resolve(false);
-      }, deadlineSeconds * 1_000);
-    });
-    const observedChange = team.version !== startVersion || (await changed);
-    return unseenSnapshot(!observedChange);
+    let healthTimer: ReturnType<typeof setInterval> | undefined;
+    try {
+      const observedChange = await new Promise<boolean>((resolve) => {
+        wake = () => resolve(true);
+        team.waiters.add(wake);
+        timer = setTimeout(() => resolve(false), deadlineSeconds * 1_000);
+        // Health can deteriorate without a new model/tool event.
+        healthTimer = setInterval(() => {
+          if (healthChanged()) wake();
+        }, 1_000);
+      });
+      return unseenSnapshot(!observedChange, healthChanged());
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (healthTimer) clearInterval(healthTimer);
+      team.waiters.delete(wake);
+    }
   }
 
   async sendAgentTeamMessage(
@@ -4511,6 +4649,9 @@ export class ArtemisAgentHost {
           text: JSON.stringify(
             {
               team: snapshot.team,
+              snapshotKind: snapshot.snapshotKind,
+              blockingAgentIds: snapshot.blockingAgentIds,
+              observation: snapshot.observation,
               members: snapshot.members.map((member) => ({
                 agentId: member.agentId,
                 label: member.label,
@@ -4523,10 +4664,15 @@ export class ArtemisAgentHost {
                 dependsOnAgentIds: member.dependsOnAgentIds,
                 required: member.required,
                 coordinationStatus: member.coordinationStatus,
+                queueReason: member.queueReason,
                 status: member.status,
                 health: member.health,
                 attempt: member.attempt,
                 updatedAt: member.updatedAt,
+                lastActivityAt: member.lastActivityAt,
+                elapsedMilliseconds: member.elapsedMilliseconds,
+                currentToolStartedAt: member.currentToolStartedAt,
+                writePaths: member.writePaths,
                 ...(member.currentTool
                   ? { currentTool: member.currentTool }
                   : {}),
@@ -4534,6 +4680,8 @@ export class ArtemisAgentHost {
               })),
               messages: snapshot.messages,
               observationExpired: snapshot.observationExpired,
+              guidance:
+                "A delta contains only changed members; an empty delta does not mean the team is empty. On blocked, suspect, stalled, or repeated no-progress observations, inspect the affected agents and cancel/retry or take over their work instead of repeatedly waiting. Use cancel_agent with take_over_summary to assume responsibility after the subtree stops, complete and verify its work, then finish_team. A cancelling agent may still hold its write scope.",
             },
             null,
             2,
@@ -4600,7 +4748,9 @@ export class ArtemisAgentHost {
               : hosted.childAgents.get(senderAgentId);
           if (
             senderAgentId !== ROOT_AGENT_ID &&
-            (!supervisor || isTerminalChildStatus(supervisor.status))
+            (!supervisor ||
+              supervisor.status === "cancelling" ||
+              isTerminalChildStatus(supervisor.status))
           ) {
             throw new Error("Only an active agent may create child agents.");
           }
@@ -4772,16 +4922,21 @@ export class ArtemisAgentHost {
           },
           { additionalProperties: false },
         ),
-        execute: async (_toolCallId, params) =>
-          teamToolResult(
-            await this.suspendAgentLease(request.threadId, actorAgentId, () =>
+        execute: async (_toolCallId, params) => {
+          const snapshot = await this.suspendAgentLease(
+            request.threadId,
+            actorAgentId,
+            () =>
               this.waitForAgentTeam(
                 request.threadId,
                 actorAgentId,
                 params.deadline_seconds,
               ),
-            ),
-          ),
+          );
+          if (snapshot.observation)
+            snapshot.observation.resumedAt = new Date().toISOString();
+          return teamToolResult(snapshot);
+        },
       });
     const waitTeamTool = createWaitTeamTool(ROOT_AGENT_ID);
 
@@ -4969,15 +5124,26 @@ export class ArtemisAgentHost {
       name: "cancel_agent",
       label: "Stop sub-agent",
       description:
-        "Stop a sub-agent that is stuck, unhealthy, unnecessary, or should be replaced by another approach.",
+        "Stop a sub-agent that is stuck, unhealthy, unnecessary, or should be replaced. The root may provide take_over_summary to assume responsibility for the stopped subtree; this preserves history and removes its required-member blockers. Complete and verify the remaining work before finish_team.",
       parameters: Type.Object(
-        { agent_id: Type.String({ minLength: 1 }) },
+        {
+          agent_id: Type.String({ minLength: 1 }),
+          take_over_summary: Type.Optional(
+            Type.String({ minLength: 1, maxLength: 4 * 1024 }),
+          ),
+        },
         { additionalProperties: false },
       ),
       execute: async (_toolCallId, params) =>
         childToolResult(
-          await this.cancelChildAgent(request.threadId, params.agent_id),
-          "Cancellation was requested. Do not keep waiting for this sub-agent; continue with another approach.",
+          params.take_over_summary
+            ? await this.takeOverChildAgent(
+                request.threadId,
+                params.agent_id,
+                params.take_over_summary,
+              )
+            : await this.cancelChildAgent(request.threadId, params.agent_id),
+          "Inspect the returned status. Do not reuse a cancelling subtree's write scopes. Once it has stopped, retry it or use take_over_summary to take responsibility, complete its work and verify the result before finish_team.",
         ),
     });
 
@@ -5295,8 +5461,8 @@ export class ArtemisAgentHost {
       if (input.required) team.requiredAgentIds.add(agentId);
       delete child.replacesAgentId;
       hosted.childAgents.set(agentId, child);
-      this.emitChild(hosted, child);
       team.status = "running";
+      this.emitChild(hosted, child);
       this.emitTeam(hosted);
 
       const cancellationKey = `${request.threadId}\0${input.turnId}`;
@@ -5305,8 +5471,26 @@ export class ArtemisAgentHost {
         .filter((dependency): dependency is ChildAgentExecution =>
           Boolean(dependency),
         );
-      void Promise.all(dependencies.map((dependency) => dependency.done))
+      const dependenciesReady = new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          controller.signal.removeEventListener("abort", abort);
+          reject(new DOMException("Aborted", "AbortError"));
+        };
+        if (controller.signal.aborted) {
+          abort();
+          return;
+        }
+        controller.signal.addEventListener("abort", abort, { once: true });
+        void Promise.all(
+          dependencies.map((dependency) => dependency.done),
+        ).then(() => {
+          controller.signal.removeEventListener("abort", abort);
+          resolve();
+        });
+      });
+      void dependenciesReady
         .then(async () => {
+          controller.signal.throwIfAborted();
           const failedDependency = dependencies.find(
             (dependency) => dependency.status !== "completed",
           );
@@ -5415,6 +5599,7 @@ export class ArtemisAgentHost {
                     : {}),
                 });
                 await childResourceLoader.reload();
+                controller.signal.throwIfAborted();
                 const modelRuntime = await this.getModelRuntime();
                 const selection = frozenSelection ?? hosted.selection;
                 const catalogModel = selection
@@ -5588,6 +5773,7 @@ export class ArtemisAgentHost {
                       ),
                   );
                 child.session = created.session;
+                controller.signal.throwIfAborted();
                 this.promptCache.registerSession(child.session.sessionId, {
                   scope: "child",
                   priorTopLevelUserTurns: 0,
@@ -5712,7 +5898,25 @@ export class ArtemisAgentHost {
                     ],
                   });
                 }
-                await child.session.prompt(childPrompt);
+                controller.signal.throwIfAborted();
+                const watchdog = createModelStreamIdleWatchdog(
+                  this.modelStreamIdleTimeoutMs,
+                  () => {
+                    void child.session?.abort().catch(() => undefined);
+                  },
+                );
+                const stopWatching = child.session.subscribe(watchdog.observe);
+                child.modelStreamWatchdog = watchdog;
+                try {
+                  await Promise.race([
+                    child.session.prompt(childPrompt),
+                    watchdog.stalled,
+                  ]);
+                } finally {
+                  stopWatching();
+                  watchdog.dispose();
+                  delete child.modelStreamWatchdog;
+                }
                 if (child.error) throw new Error(child.error);
                 if (
                   this.directChildren(hosted, child.agentId).length > 0 &&
