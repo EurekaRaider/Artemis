@@ -92,7 +92,10 @@ export async function verifySlackCliCompatibility(runtime) {
     if (process.platform === "win32") {
       const probe = await exec(
         windowsPowerShell,
-        ["-Command", slackHookCommand(runtime, "manifest")],
+        [
+          "-Command",
+          `${slackHookCommand(runtime, "manifest")} --source=fixture`,
+        ],
         {
           cwd: join(directory, "project"),
           env: slackCliEnvironment({ ...command, args: [] }),
