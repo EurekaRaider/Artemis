@@ -52,9 +52,13 @@ if (windowsZipOnly) {
   artifactNames = names.filter(
     (name) =>
       updateMetadata.includes(name) ||
-      (name.startsWith("Artemis-macOS-") &&
-        name.includes(`-${packageJson.version}.`) &&
-        /\.(?:dmg|zip|blockmap)$/u.test(name)),
+      ["arm64", "x64"].some((arch) =>
+        ["dmg", "zip", "dmg.blockmap", "zip.blockmap"].some(
+          (extension) =>
+            name ===
+            `Artemis-macOS-${arch}-${packageJson.version}.${extension}`,
+        ),
+      ),
   );
 }
 

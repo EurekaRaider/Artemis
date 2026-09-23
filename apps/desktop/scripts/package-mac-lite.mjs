@@ -270,6 +270,12 @@ if (!notarizeOnly) {
       "Artemis.app",
     );
     await notarizeExistingMacApp(appPath, version, packageEnvironment);
+    // Stapling does not necessarily change the app directory mtime used by
+    // electron-builder's archive cache. Always rebuild the pre-notarization ZIP.
+    await rm(
+      join(desktopRoot, "release", `Artemis-macOS-${arch}-${version}.zip`),
+      { force: true },
+    );
     await run(
       process.execPath,
       [
