@@ -237,11 +237,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - name: Normalize reused Windows checkout to LF
-        run: git -c core.autocrlf=false checkout-index --force --all
       - uses: actions/setup-node@v7
         with:
           node-version: 26
+      - name: Normalize reused Windows checkout to LF
+        run: node scripts/normalize-windows-checkout.mjs
       - name: Verify native runner architecture
         run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
       - run: npm ci

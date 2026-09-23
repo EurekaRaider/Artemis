@@ -29,14 +29,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Normalize reused Windows checkout to LF
-        if: matrix.platform == 'windows-x64'
-        run: git -c core.autocrlf=false checkout-index --force --all
-
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
+
+      - name: Normalize reused Windows checkout to LF
+        if: matrix.platform == 'windows-x64'
+        run: node scripts/normalize-windows-checkout.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -62,12 +62,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: Normalize reused Windows checkout to LF
-        if: matrix.platform == 'windows-x64'
-        run: git -c core.autocrlf=false checkout-index --force --all
       - uses: actions/setup-node@v7
         with:
           node-version: 26
+
+      - name: Normalize reused Windows checkout to LF
+        if: matrix.platform == 'windows-x64'
+        run: node scripts/normalize-windows-checkout.mjs
       - run: npm ci
       - name: Verify official native CLI and bundled hooks
         run: node scripts/test-slack-cli-native.mjs
@@ -94,14 +95,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Normalize reused Windows checkout to LF
-        if: matrix.platform == 'windows-x64'
-        run: git -c core.autocrlf=false checkout-index --force --all
-
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
+
+      - name: Normalize reused Windows checkout to LF
+        if: matrix.platform == 'windows-x64'
+        run: node scripts/normalize-windows-checkout.mjs
 
       - name: Install dependencies
         run: npm ci

@@ -119,7 +119,11 @@ export async function verifyPackagedSlackCli(
       const { stdout } = await exec(
         executable,
         ["version", "--skip-update", "--no-color", "--config-dir", config],
-        { timeout: 15000, maxBuffer: 16384, windowsHide: true },
+        {
+          timeout: process.platform === "win32" ? 60000 : 15000,
+          maxBuffer: 16384,
+          windowsHide: true,
+        },
       );
       if (stdout.trim() !== `Using slack v${lock.version}`)
         throw new Error(

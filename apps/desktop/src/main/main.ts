@@ -16160,10 +16160,10 @@ function createMainWindow(): BrowserWindow {
         return;
       }
       window.webContents.setZoomFactor(smokeScale);
-      // Windows virtual displays can clamp the size at construction time.
-      // Resize after creation so screenshot runs exercise the requested viewport.
+      // Windows virtual displays can clamp the size at construction time, and
+      // the native frame otherwise reduces the requested content viewport.
       if (process.platform === "win32" && smokeArtifacts) {
-        window.setSize(smokeWidth, smokeHeight);
+        window.setContentSize(smokeWidth, smokeHeight);
       }
       if (smokeMode && Number.isFinite(requestedSmokeResizeWidth)) {
         window.setSize(
