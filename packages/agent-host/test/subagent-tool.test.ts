@@ -115,6 +115,7 @@ describe("sub-agent control tools", () => {
     const host = new ArtemisAgentHost(
       { request: async () => ({ approved: false }) },
       { emit() {} },
+      { agentDir: join(workspace, "agent") },
     );
     await host.openThread({
       threadId: "thread-wait",
@@ -177,6 +178,7 @@ describe("sub-agent control tools", () => {
     const host = new ArtemisAgentHost(
       { request: async () => ({ approved: false }) },
       { emit() {} },
+      { agentDir: join(workspace, "agent") },
     );
     await host.openThread({
       threadId: "thread-handoff",
@@ -287,6 +289,7 @@ describe("sub-agent control tools", () => {
         },
       },
       { emit() {} },
+      { agentDir: join(workspace, "agent") },
     );
     const sessionFile = SessionManager.create(
       workspace,
@@ -393,6 +396,7 @@ describe("sub-agent control tools", () => {
         },
       },
       { emit() {} },
+      { agentDir: join(workspace, "agent") },
     );
     const sessionFile = SessionManager.create(
       workspace,
@@ -551,6 +555,7 @@ describe("sub-agent control tools", () => {
           payloads.push(payload);
         },
       },
+      { agentDir: join(workspace, "agent") },
     );
     const sessionFile = SessionManager.create(
       workspace,

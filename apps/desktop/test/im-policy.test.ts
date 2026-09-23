@@ -156,13 +156,26 @@ describe("IM policy", () => {
       await writeFile(join(root, "private.txt"), "PRIVATE_SENTINEL");
       await writeFile(join(root, "src", ".env"), "PROTECTED_SENTINEL");
       await writeFile(join(root, "docs", "guide.txt"), "read only");
-      await symlink(join(root, "private.txt"), join(root, "src", "symbol.txt"));
+      let fileSymlinkAvailable = true;
+      try {
+        await symlink(
+          join(root, "private.txt"),
+          join(root, "src", "symbol.txt"),
+        );
+      } catch (error) {
+        if (
+          process.platform !== "win32" ||
+          (error as NodeJS.ErrnoException)?.code !== "EPERM"
+        )
+          throw error;
+        fileSymlinkAvailable = false;
+      }
       await link(join(root, "private.txt"), join(root, "src", "hard.txt"));
       for (const path of [
         "../private.txt",
         "private.txt",
         "src/.env",
-        "src/symbol.txt",
+        ...(fileSymlinkAvailable ? ["src/symbol.txt"] : []),
         "src/hard.txt",
         "src/../private.txt",
         "src\\private.txt",
@@ -172,7 +185,7 @@ describe("IM policy", () => {
         "docs/guide.txt",
         "src/.env",
         "src/hard.txt",
-        "src/symbol.txt",
+        ...(fileSymlinkAvailable ? ["src/symbol.txt"] : []),
       ])
         await expect(
           writeImFile(root, path, "overwrite", scope),

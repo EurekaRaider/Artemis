@@ -38,7 +38,11 @@ it("allows commands in scopes larger than 50,000 entries while preserving link i
     }
     await writeFile(join(root, "secret.txt"), "LARGE_SCOPE_SECRET");
     await link(join(root, "secret.txt"), join(workspace, "bulk", "hard"));
-    await symlink(join(root, "secret.txt"), join(workspace, "bulk", "escape"));
+    if (process.platform !== "win32")
+      await symlink(
+        join(root, "secret.txt"),
+        join(workspace, "bulk", "escape"),
+      );
     const scope = { audience: "owner", readPaths: [], writePaths: ["bulk"] };
     const policy = await validateImShellScope(workspace, scope);
     expect(policy).toEqual({
@@ -172,7 +176,11 @@ describe("remote filesystem policy", () => {
       const workspace = join(root, "project");
       await mkdir(workspace);
       await writeFile(join(root, "secret"), "private");
-      await symlink(root, join(workspace, "escape"));
+      await symlink(
+        root,
+        join(workspace, "escape"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
       await expect(checkedRemotePath(workspace, "../secret")).rejects.toThrow();
       await expect(
         checkedRemotePath(workspace, "escape/secret"),

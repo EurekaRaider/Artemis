@@ -101,6 +101,7 @@ jobs:
             } catch {
               Write-Host "No readable recent events in $log."
             }
+          }
 
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})

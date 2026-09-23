@@ -1140,7 +1140,11 @@ describe("CodexPluginService", () => {
     const external = join(root, "external");
     await mkdir(external);
     await writeFile(join(external, "outside.txt"), "outside");
-    await symlink(external, join(source, "skills", "hello", "linked"));
+    await symlink(
+      external,
+      join(source, "skills", "hello", "linked"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     await expect(
       service.install({ kind: "local", path: source }),
     ).rejects.toThrow("links");

@@ -83,14 +83,17 @@ describe("packaged node-pty runtime", () => {
     });
   });
 
-  it("rejects linked files instead of following them out of the package", async () => {
-    const sourceRoot = await createNodePtyFixture();
-    const linkedFile = join(sourceRoot, "lib", "shared", "linked.js");
-    await mkdir(dirname(linkedFile), { recursive: true });
-    await symlink(join(sourceRoot, "package.json"), linkedFile);
+  it.runIf(process.platform !== "win32")(
+    "rejects linked files instead of following them out of the package",
+    async () => {
+      const sourceRoot = await createNodePtyFixture();
+      const linkedFile = join(sourceRoot, "lib", "shared", "linked.js");
+      await mkdir(dirname(linkedFile), { recursive: true });
+      await symlink(join(sourceRoot, "package.json"), linkedFile);
 
-    await expect(
-      preparePackagedNodePtyRuntime(sourceRoot, "arm64"),
-    ).rejects.toThrow("cannot contain links");
-  });
+      await expect(
+        preparePackagedNodePtyRuntime(sourceRoot, "arm64"),
+      ).rejects.toThrow("cannot contain links");
+    },
+  );
 });

@@ -23,6 +23,7 @@ const { verifyExternalSkinPackage } = await import(
 );
 let rejected = 0;
 let rejectedCli = 0;
+let skippedSymlink = 0;
 
 const canonicalJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const hash = (content) => createHash("sha256").update(content).digest("hex");
@@ -34,12 +35,25 @@ async function writePackage(directory, files) {
   }
 }
 
-async function expectRejected(name, mutate) {
+async function expectRejected(name, mutate, skipUnsupportedSymlink = false) {
   const directory = await mkdtemp(join(tmpdir(), "artemis-skin-negative-"));
   try {
     const files = structuredClone(fixture.stressSkinPackageFiles);
     await writePackage(directory, files);
-    await mutate(directory, files);
+    try {
+      await mutate(directory, files);
+    } catch (error) {
+      if (
+        skipUnsupportedSymlink &&
+        process.platform === "win32" &&
+        error?.code === "EPERM"
+      ) {
+        skippedSymlink += 1;
+        console.log(`${name}: Windows runner cannot create file symlinks.`);
+        return;
+      }
+      throw error;
+    }
     const result = spawnSync(
       process.execPath,
       [verifier, "--package", directory],
@@ -66,7 +80,11 @@ async function expectRootSymlinkRejected() {
     const link = join(parent, "package-link");
     await mkdir(directory);
     await writePackage(directory, fixture.stressSkinPackageFiles);
-    await symlink(directory, link, "dir");
+    await symlink(
+      directory,
+      link,
+      process.platform === "win32" ? "junction" : "dir",
+    );
     const result = spawnSync(process.execPath, [verifier, "--package", link], {
       cwd: root,
       encoding: "utf8",
@@ -183,9 +201,13 @@ await expectRejected("nested directory", async (directory) => {
   await mkdir(join(directory, "assets"));
 });
 
-await expectRejected("symlink entry", async (directory) => {
-  await symlink("manifest.json", join(directory, "manifest-link.json"));
-});
+await expectRejected(
+  "symlink entry",
+  async (directory) => {
+    await symlink("manifest.json", join(directory, "manifest-link.json"));
+  },
+  true,
+);
 
 await expectRootSymlinkRejected();
 
@@ -238,12 +260,12 @@ expectCliRejected(
   "unexpected positional argument",
 );
 
-if (rejected !== 18 || rejectedCli !== 5) {
+if (rejected + skippedSymlink !== 18 || rejectedCli !== 5) {
   throw new Error(
-    `Skin package negative coverage is incomplete: ${rejected}/18 total, ${rejectedCli}/5 CLI`,
+    `Skin package negative coverage is incomplete: ${rejected} rejected, ${skippedSymlink} unavailable symlink fixture, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin package negative verification passed (${rejected}/18 rejected; ${rejectedCli}/5 CLI fixtures; 2/2 deterministic race fixtures)`,
+  `Skin package negative verification passed (${rejected}/18 rejected; ${skippedSymlink} unavailable symlink fixture; ${rejectedCli}/5 CLI fixtures; 2/2 deterministic race fixtures)`,
 );

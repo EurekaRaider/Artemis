@@ -1132,9 +1132,11 @@ await runCase(
   false,
   async (root) => {
     await symlink(
-      "../ui-gallery",
+      process.platform === "win32"
+        ? join(root, "apps/ui-gallery")
+        : "../ui-gallery",
       join(root, "apps/desktop/${projectDir}"),
-      "dir",
+      process.platform === "win32" ? "junction" : "dir",
     );
   },
 );
@@ -1153,9 +1155,11 @@ await runCase(
   false,
   async (root) => {
     await symlink(
-      "../ui-gallery",
+      process.platform === "win32"
+        ? join(root, "apps/ui-gallery")
+        : "../ui-gallery",
       join(root, "apps/desktop/gallery-link"),
-      "dir",
+      process.platform === "win32" ? "junction" : "dir",
     );
   },
 );
@@ -1175,7 +1179,11 @@ await runCase(
   },
   false,
   async (root) => {
-    await symlink(root, join(root, "apps/desktop/repo-link"), "dir");
+    await symlink(
+      root,
+      join(root, "apps/desktop/repo-link"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     const source = join(root, "apps/desktop/repo-link/apps");
     assertFileMatcherOracle(
       source,
