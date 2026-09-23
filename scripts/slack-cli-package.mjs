@@ -114,24 +114,15 @@ export async function verifyPackagedSlackCli(
       throw new Error(
         "Slack CLI: native verification requires the target OS and architecture.",
       );
-    const config = await mkdtemp(join(tmpdir(), "artemis-slack-version-"));
-    try {
-      const { stdout } = await exec(
-        executable,
-        ["version", "--skip-update", "--no-color", "--config-dir", config],
-        {
-          timeout: process.platform === "win32" ? 60000 : 15000,
-          maxBuffer: 16384,
-          windowsHide: true,
-        },
+    const { stdout } = await exec(executable, ["--version"], {
+      timeout: process.platform === "win32" ? 60000 : 15000,
+      maxBuffer: 16384,
+      windowsHide: true,
+    });
+    if (stdout.trim() !== `Using slack v${lock.version}`)
+      throw new Error(
+        "Slack CLI: packaged executable reports the wrong version.",
       );
-      if (stdout.trim() !== `Using slack v${lock.version}`)
-        throw new Error(
-          "Slack CLI: packaged executable reports the wrong version.",
-        );
-    } finally {
-      await rm(config, { recursive: true, force: true });
-    }
   }
   return {
     target,

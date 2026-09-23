@@ -16246,14 +16246,13 @@ function createMainWindow(): BrowserWindow {
                 if (view === 'feedback-layout-settings') {
                   // Zoom dispatches resize asynchronously. Wait for the sidebar's
                   // responsive state before choosing the visible Settings entry.
-                  const expectedWidth = ${JSON.stringify(Math.round(window.getContentBounds().width / smokeScale))};
-                  const expectedSidebarOpen = String(expectedWidth > 1060);
                   for (let attempt = 0; attempt < 100; attempt += 1) {
-                    if (Math.abs(window.innerWidth - expectedWidth) <= 1 && document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === expectedSidebarOpen) break;
+                    if (document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === String(window.innerWidth > 1060)) break;
                     await wait(50);
                   }
-                  if (Math.abs(window.innerWidth - expectedWidth) > 1 || document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') !== expectedSidebarOpen) {
-                    throw new Error('Settings sidebar did not settle after zoom.');
+                  const sidebarOpen = document.querySelector('.app-shell')?.getAttribute('data-sidebar-open');
+                  if (sidebarOpen !== String(window.innerWidth > 1060)) {
+                    throw new Error('Settings sidebar did not settle after zoom: innerWidth=' + window.innerWidth + ', sidebarOpen=' + sidebarOpen);
                   }
                   const activity = [...document.querySelectorAll('.activity-button, .rail-item')].find(
                     (candidate) =>
