@@ -121,7 +121,8 @@ export async function verifyPackagedSlackCli(
     });
     versionCommand.child.stdin.end();
     const { stdout } = await versionCommand;
-    if (stdout.trim() !== `Using slack v${lock.version}`)
+    const name = target.startsWith("win32") ? "slack.exe" : "slack";
+    if (stdout.trim() !== `Using ${name} v${lock.version}`)
       throw new Error(
         "Slack CLI: packaged executable reports the wrong version.",
       );

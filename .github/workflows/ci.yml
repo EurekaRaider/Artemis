@@ -102,6 +102,9 @@ jobs:
               Write-Host "No readable recent events in $log."
             }
           }
+      - name: Compare Windows Node CLI spawn modes after failure
+        if: failure() && matrix.platform == 'windows-x64'
+        run: node scripts/diagnose-slack-windows.mjs
 
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})

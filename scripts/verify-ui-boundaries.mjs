@@ -1497,7 +1497,8 @@ function trustedDesktopComputedImport(
   computedImport,
 ) {
   if (
-    relative(root, file) !== TRUSTED_DESKTOP_COMPUTED_IMPORT ||
+    relative(root, file).split(sep).join("/") !==
+      TRUSTED_DESKTOP_COMPUTED_IMPORT ||
     facts.computedDynamicImports.length !== 1 ||
     computedImport.argument === undefined
   ) {
@@ -1634,7 +1635,9 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       );
     }
   }
-  if (relative(root, file) === "apps/desktop/vite.config.ts") {
+  if (
+    relative(root, file).split(sep).join("/") === "apps/desktop/vite.config.ts"
+  ) {
     violations.push(
       ...(await inspectDesktopViteConfig(root, file, analysisResult)),
     );
