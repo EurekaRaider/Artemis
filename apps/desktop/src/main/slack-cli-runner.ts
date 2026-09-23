@@ -81,7 +81,8 @@ export async function runSlackCli(
       {
         cwd: join(command.directory, "project"),
         env: slackCliEnvironment(command),
-        windowsHide: true,
+        // The official Windows CLI stalls when CREATE_NO_WINDOW is set.
+        windowsHide: process.platform !== "win32",
         stdio: ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
       },

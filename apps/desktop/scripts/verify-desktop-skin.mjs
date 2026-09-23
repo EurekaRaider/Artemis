@@ -2302,30 +2302,45 @@ async function packageAndScan() {
     "cli.js",
   );
   const arch = process.arch === "arm64" ? "--arm64" : "--x64";
-  run(
-    process.execPath,
-    [
-      builder,
-      "--dir",
-      "--mac",
-      arch,
-      "--publish",
-      "never",
-      // Package the same installed runtime used by the smoke checks. Avoid a
-      // second Electron download (and its independent network failure modes).
-      `--config.electronDist=${join(dirname(createRequire(import.meta.url).resolve("electron/package.json")), "dist")}`,
-      `--config.directories.output=${packageOutput}`,
-    ],
-    {
-      cwd: appDirectory,
-      timeout: 600_000,
-      env: {
-        ...process.env,
-        ARTEMIS_PACKAGE_BUILD: "1",
-        CSC_IDENTITY_AUTO_DISCOVERY: "false",
-      },
-    },
-  );
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      run(
+        process.execPath,
+        [
+          builder,
+          "--dir",
+          "--mac",
+          arch,
+          "--publish",
+          "never",
+          // Package the same installed runtime used by the smoke checks. Avoid a
+          // second Electron download (and its independent network failure modes).
+          `--config.electronDist=${join(dirname(createRequire(import.meta.url).resolve("electron/package.json")), "dist")}`,
+          `--config.directories.output=${packageOutput}`,
+        ],
+        {
+          cwd: appDirectory,
+          timeout: 600_000,
+          env: {
+            ...process.env,
+            ARTEMIS_PACKAGE_BUILD: "1",
+            CSC_IDENTITY_AUTO_DISCOVERY: "false",
+          },
+        },
+      );
+      break;
+    } catch (error) {
+      if (
+        attempt === 2 ||
+        !String(error).includes("Slack CLI: cannot confirm upstream")
+      )
+        throw error;
+      console.warn(
+        "Retrying desktop skin packaging after Slack CLI upstream failure.",
+      );
+      await rm(packageOutput, { recursive: true, force: true });
+    }
+  }
   const archivePath = await firstPath(packageOutput, "/app.asar");
   assert(archivePath, "Packaged Electron app.asar was not found.");
   const archiveFindings = desktopSkinAsarLeakage(asar, archivePath);

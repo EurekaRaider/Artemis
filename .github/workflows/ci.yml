@@ -102,10 +102,6 @@ jobs:
               Write-Host "No readable recent events in $log."
             }
           }
-      - name: Compare Windows Node CLI spawn modes after failure
-        if: failure() && matrix.platform == 'windows-x64'
-        run: node scripts/diagnose-slack-windows.mjs
-
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
     if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
@@ -143,6 +139,7 @@ jobs:
         env:
           ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
           ARTEMIS_VISUAL_CONVERGENCE_OUTPUT: ${{ runner.temp }}/artemis-visual-convergence
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Upload visual convergence evidence
         if: always()

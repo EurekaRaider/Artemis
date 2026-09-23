@@ -3,11 +3,12 @@ import {
   mkdir,
   realpath,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FileMatcher } from "app-builder-lib/out/fileMatcher.js";
@@ -209,14 +210,27 @@ async function assertViteOracle(root, inlineConfig, expected) {
       "production",
       false,
     );
-    for (const [name, value] of Object.entries(expected)) {
-      const actual = name === "outDir" ? resolved.build.outDir : resolved[name];
-      if (actual !== value) {
-        throw new Error(
-          `Vite oracle ${name}: expected ${value}, received ${String(actual)}`,
-        );
-      }
-    }
+    const [expectedRoot, actualRoot] = await Promise.all([
+      stat(expected.root),
+      stat(resolved.root),
+    ]);
+    if (
+      expectedRoot.dev !== actualRoot.dev ||
+      expectedRoot.ino !== actualRoot.ino
+    )
+      throw new Error("Vite oracle root resolved outside the fixture.");
+    const expectedPublic = relative(
+      expected.root,
+      expected.publicDir,
+    ).replaceAll("\\", "/");
+    const actualPublic = relative(resolved.root, resolved.publicDir).replaceAll(
+      "\\",
+      "/",
+    );
+    if (actualPublic !== expectedPublic)
+      throw new Error(
+        `Vite oracle publicDir: expected ${expectedPublic}, received ${actualPublic}`,
+      );
   } finally {
     process.chdir(previousDirectory);
   }

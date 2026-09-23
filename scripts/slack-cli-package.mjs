@@ -117,7 +117,7 @@ export async function verifyPackagedSlackCli(
     const versionCommand = exec(executable, ["--version"], {
       timeout: process.platform === "win32" ? 60000 : 15000,
       maxBuffer: 16384,
-      windowsHide: true,
+      windowsHide: process.platform !== "win32",
     });
     versionCommand.child.stdin.end();
     const { stdout } = await versionCommand;
