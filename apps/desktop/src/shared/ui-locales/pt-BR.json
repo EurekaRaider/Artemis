@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "Domínio de autorização",
   "OAuth_resource": "Recurso",
   "OAuth_backend": "Backend do desenvolvedor",
-  "OAuth_updateRequired": "Atualize o plugin e autorize novamente."
+  "OAuth_updateRequired": "Atualize o plugin e autorize novamente.",
+  "Update.manualDownload": "Baixar ZIP no navegador",
+  "Update.manualInstructions": "Baixe e extraia o novo ZIP em uma nova pasta. Feche o Artemis antes de iniciar a nova versão. Preserve seus dados: não exclua a pasta Artemis em %APPDATA%."
 }

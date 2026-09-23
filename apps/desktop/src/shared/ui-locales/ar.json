@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "نطاق التفويض",
   "OAuth_resource": "المورد",
   "OAuth_backend": "خادم المطوّر",
-  "OAuth_updateRequired": "حدّث الإضافة ثم أعد التفويض."
+  "OAuth_updateRequired": "حدّث الإضافة ثم أعد التفويض.",
+  "Update.manualDownload": "تنزيل ZIP في المتصفح",
+  "Update.manualInstructions": "نزّل ملف ZIP الجديد واستخرجه في مجلد جديد. أغلق Artemis قبل تشغيل الإصدار الجديد. احتفظ ببيانات المستخدم ولا تحذف مجلد Artemis في %APPDATA%."
 }

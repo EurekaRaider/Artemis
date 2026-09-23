@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "Домен авторизации",
   "OAuth_resource": "Ресурс",
   "OAuth_backend": "Сервер разработчика",
-  "OAuth_updateRequired": "Обновите плагин и выполните авторизацию заново."
+  "OAuth_updateRequired": "Обновите плагин и выполните авторизацию заново.",
+  "Update.manualDownload": "Скачать ZIP в браузере",
+  "Update.manualInstructions": "Скачайте и распакуйте новый ZIP в новую папку. Закройте Artemis перед запуском новой версии. Сохраните данные пользователя: не удаляйте папку Artemis в %APPDATA%."
 }

@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "授权域名",
   "OAuth_resource": "授权资源",
   "OAuth_backend": "开发者后端",
-  "OAuth_updateRequired": "请更新插件并重新授权。"
+  "OAuth_updateRequired": "请更新插件并重新授权。",
+  "Update.manualDownload": "在浏览器中下载 ZIP",
+  "Update.manualInstructions": "下载新版 ZIP 并解压到新文件夹，退出 Artemis 后再启动新版。请保留现有用户数据，不要删除 %APPDATA% 中的 Artemis 文件夹。"
 }

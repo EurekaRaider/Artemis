@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "授權網域",
   "OAuth_resource": "授權資源",
   "OAuth_backend": "開發者後端",
-  "OAuth_updateRequired": "請更新外掛並重新授權。"
+  "OAuth_updateRequired": "請更新外掛並重新授權。",
+  "Update.manualDownload": "在瀏覽器中下載 ZIP",
+  "Update.manualInstructions": "下載新版 ZIP 並解壓縮至新資料夾，結束 Artemis 後再啟動新版。請保留現有使用者資料，不要刪除 %APPDATA% 中的 Artemis 資料夾。"
 }

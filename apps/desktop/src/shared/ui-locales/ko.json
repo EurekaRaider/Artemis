@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "인증 도메인",
   "OAuth_resource": "리소스",
   "OAuth_backend": "개발자 백엔드",
-  "OAuth_updateRequired": "플러그인을 업데이트하고 다시 인증하세요."
+  "OAuth_updateRequired": "플러그인을 업데이트하고 다시 인증하세요.",
+  "Update.manualDownload": "브라우저에서 ZIP 다운로드",
+  "Update.manualInstructions": "새 ZIP을 다운로드하여 새 폴더에 압축을 풀고 Artemis를 종료한 뒤 새 버전을 실행하세요. 사용자 데이터를 유지하고 %APPDATA%의 Artemis 폴더를 삭제하지 마세요."
 }

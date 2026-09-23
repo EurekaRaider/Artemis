@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "发布版本标签，必须与 package.json 一致，例如 v1.6.0"
+        description: "发布版本标签，必须与 package.json 一致，例如 v1.6.1"
         required: true
         type: string
 
@@ -12,12 +12,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-macos-arm64
+  group: release-desktop
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Validate release version and credentials
+    name: Validate release version and signing credentials
     if: github.event.repository.private
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 10
@@ -43,14 +43,8 @@ jobs:
             exit 1
           fi
 
-      - name: Check signing credentials and release repository access
-        run: |
-          node apps/desktop/scripts/validate-release-env.mjs mac
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo "ARTEMIS_RELEASE_TOKEN is required to publish to ArtemisRelease." >&2
-            exit 1
-          fi
-          gh api repos/EurekaRaider/ArtemisRelease --silent
+      - name: Check signing credentials
+        run: node apps/desktop/scripts/validate-release-env.mjs mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -59,15 +53,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
           ARTEMIS_UPDATE_REPO: ArtemisRelease
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
 
   ci:
     name: Release CI
     needs: prepare
     uses: ./.github/workflows/ci.yml
 
-  package-macos:
-    name: Sign and notarize macOS arm64
+  sign-macos:
+    name: Build and sign macOS arm64
     needs: ci
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 180
@@ -89,10 +82,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Package signed and notarized macOS arm64 DMG and ZIP
+      - name: Package and sign macOS arm64 DMG and ZIP
         run: |
           node apps/desktop/scripts/validate-release-env.mjs mac
-          npm run package:mac:arm64 -w @artemis/desktop -- --release
+          npm run sign:mac:arm64 -w @artemis/desktop
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -102,6 +95,72 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
           ARTEMIS_UPDATE_REPO: ArtemisRelease
+
+      # electron-builder 26.16.1 retries osx-sign three times (5/10/15 seconds).
+      - name: Archive signed app and native verification modules
+        run: tar -czf signed-macos-arm64.tar.gz apps/desktop/release/mac-arm64 packages/platform/dist packages/protocol/dist
+
+      - name: Preserve signed app for independent notarization retries
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-macos-arm64
+          path: signed-macos-arm64.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  package-macos:
+    name: Notarize and verify macOS arm64
+    needs: sign-macos
+    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: signed-macos-arm64
+          path: signed-input
+      - name: Restore signed app without rebuilding or signing
+        run: tar -xzf signed-input/signed-macos-arm64.tar.gz
+      - name: Restore prior Apple submission from this workflow run
+        if: github.run_attempt > 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[] | select(.expired == false) | .name' > "$RUNNER_TEMP/notarization-artifacts.txt"
+          state_name="$( { grep '^notarization-state-macos-arm64-' "$RUNNER_TEMP/notarization-artifacts.txt" || true; } | sort -V | tail -1)"
+          if [[ -n "$state_name" ]]; then
+            gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$state_name" --dir apps/desktop/release
+          fi
+
+      - name: Notarize signed app and rebuild stapled archives
+        run: npm run notarize:mac:arm64 -w @artemis/desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ARTEMIS_UPDATE_OWNER: EurekaRaider
+          ARTEMIS_UPDATE_REPO: ArtemisRelease
+
+      - name: Save notarization submission evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notarization-state-macos-arm64-${{ github.run_attempt }}
+          path: apps/desktop/release/notarization-*.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Verify signature, notarization, native PTY, Seatbelt and rollback
         run: npm run verify:mac-native -w @artemis/desktop
@@ -152,9 +211,41 @@ jobs:
           compression-level: 0
           retention-days: 7
 
+  package-windows:
+    name: Package and verify Windows x64 ZIP
+    needs: ci
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - name: Verify native runner architecture
+        run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
+      - run: npm ci
+      - name: Build and verify unsigned Windows ZIP
+        run: npm run release:win -w @artemis/desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTEMIS_REQUIRE_SIGNATURE: "0"
+      - name: Upload verified Windows ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-windows-x64
+          path: |
+            apps/desktop/release/Artemis-Windows-x64-*.zip
+            apps/desktop/release/release-manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
   publish:
-    name: Publish to ArtemisRelease
-    needs: package-macos
+    name: Publish to private Artemis Release
+    needs: [package-macos, package-windows]
+    permissions:
+      contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 15
     steps:
@@ -164,62 +255,40 @@ jobs:
       - name: Download verified release artifacts
         uses: actions/download-artifact@v8
         with:
-          name: release-macos-arm64
-          path: release-assets
+          pattern: release-*
+          path: release-inputs
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
 
-      - name: Verify complete macOS arm64 release set
-        shell: bash
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          test -f "release-assets/Artemis-macOS-arm64-$version.dmg"
-          test -f "release-assets/Artemis-macOS-arm64-$version.zip"
-          node --input-type=module <<'NODE'
-          import { createHash } from 'node:crypto';
-          import { readFileSync, readdirSync } from 'node:fs';
-          const manifest = JSON.parse(readFileSync('release-assets/release-manifest.json', 'utf8'));
-          const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
-          if (manifest.version !== version) throw new Error('Release manifest version mismatch');
-          if (!manifest.artifacts.some(({ name }) => /^(latest|alpha|beta)-mac\.yml$/.test(name))) {
-            throw new Error('macOS update metadata is missing');
-          }
-          const expected = new Set(['release-manifest.json']);
-          for (const artifact of manifest.artifacts) {
-            if (!/^(Artemis-macOS-arm64-[^/]+\.(dmg|zip|blockmap)|(latest|alpha|beta)-mac\.yml)$/.test(artifact.name)) {
-              throw new Error('Unexpected release artifact');
-            }
-            const bytes = readFileSync(`release-assets/${artifact.name}`);
-            if (bytes.length !== artifact.size || createHash('sha256').update(bytes).digest('hex') !== artifact.sha256) {
-              throw new Error(`Release artifact integrity failed: ${artifact.name}`);
-            }
-            expected.add(artifact.name);
-          }
-          if (readdirSync('release-assets').some(name => !expected.has(name))) {
-            throw new Error('Unlisted release artifact');
-          }
-          NODE
+      - name: Install release verification dependencies
+        run: npm ci --ignore-scripts
 
-      - name: Publish release and macOS arm64 packages
+      - name: Verify and combine both platform release sets
+        run: node scripts/collect-release-assets.mjs release-inputs release-assets
+
+      - name: Publish verified macOS and Windows packages
         env:
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           cat > "$RUNNER_TEMP/artemis-release-notes.md" <<EOF
-          macOS Apple Silicon（arm64）版本。
+          macOS Apple Silicon（arm64）：Developer ID 签名、公证，支持应用内更新。
+          Windows x64：无签名 ZIP，应用提示新版本后手动下载替换。
 
-          应用已通过 Developer ID 签名、Apple 公证及最终 DMG/ZIP 内应用校验。
+          Windows：将 ZIP 解压到新文件夹，退出旧版后再启动新版。保留用户数据，不要删除 %APPDATA% 中的 Artemis 文件夹。
 
           源码版本：\`$GITHUB_SHA\`。
           EOF
           node scripts/verify-slack-cli.mjs
           gh release create "$RELEASE_TAG" release-assets/* \
-            --repo EurekaRaider/ArtemisRelease \
-            --target main \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
             --title "Artemis $RELEASE_TAG" \
+            --draft \
             --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false

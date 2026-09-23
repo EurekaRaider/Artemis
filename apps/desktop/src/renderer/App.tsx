@@ -5813,15 +5813,21 @@ export function App() {
             </span>
             {runtimeSettings?.update.availableVersion && (
               <button
-                className={`update-btn ${runtimeSettings.update.state}`}
+                className={
+                  runtimeSettings.update.state === "downloaded"
+                    ? "update-btn downloaded"
+                    : "update-btn"
+                }
                 type="button"
                 aria-label={uiText(
                   locale,
                   runtimeSettings.update.state === "downloaded"
                     ? "Update.install"
-                    : "Update.download",
+                    : runtimeSettings.update.manualUpdate
+                      ? "Update.manualDownload"
+                      : "Update.download",
                 )}
-                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.install" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
+                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.install" : runtimeSettings.update.manualUpdate ? "Update.manualDownload" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
                 disabled={
                   installingUpdate ||
                   ["checking", "downloading"].includes(
@@ -5830,7 +5836,13 @@ export function App() {
                 }
                 onClick={async () => {
                   try {
-                    if (runtimeSettings.update.state === "downloaded") {
+                    if (runtimeSettings.update.manualDownloadUrl) {
+                      window.open(
+                        runtimeSettings.update.manualDownloadUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    } else if (runtimeSettings.update.state === "downloaded") {
                       setInstallingUpdate(true);
                       await window.artemis.installUpdate();
                     } else {

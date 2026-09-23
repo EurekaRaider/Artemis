@@ -24,9 +24,9 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 430000,
+      "desktopCssBytes": 435000,
       "desktopJsBytes": 4500000,
-      "desktopLargestJsBytes": 1962000,
+      "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
       "galleryJsBytes": 372500,
       "uiCssBytes": 153000
@@ -205,6 +205,18 @@
       "previousDesktopJsMaximumBytes": 3575000,
       "desktopJsMaximumBytes": 4500000,
       "reason": "User requested sufficient headroom for ongoing development. The Node 24 clean-checkout pre-push production build measures 3644743 bytes of desktop JavaScript. A 4500000-byte hard ceiling reserves 855257 bytes (23.5% above the measured bundle). The largest-chunk, CSS, gallery, shared UI, startup and workload budgets remain unchanged."
+    },
+    {
+      "date": "2026-09-23",
+      "measurementHead": "6cd562b4eb7fd8119171c92e6b07b2a361dc055a",
+      "measuredBaselineDesktopCssBytes": 430951,
+      "measuredBaselineDesktopLargestJsBytes": 1965576,
+      "measuredDesktopLargestJsBytes": 1969749,
+      "previousDesktopCssMaximumBytes": 430000,
+      "desktopCssMaximumBytes": 435000,
+      "previousDesktopLargestJsMaximumBytes": 1962000,
+      "desktopLargestJsMaximumBytes": 1975000,
+      "reason": "A separate HEAD renderer build already exceeds both prior limits. Windows manual-update instructions in all 14 locales add 4173 bytes to the largest chunk; CSS is unchanged. Align these two ceilings with measured artifacts and small headroom. Total JS, startup, gallery and shared UI budgets remain unchanged."
     }
   ],
   "startupBudgetRevisions": [

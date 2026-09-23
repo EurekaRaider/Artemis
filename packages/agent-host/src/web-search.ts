@@ -1,3 +1,6 @@
+import { setTimeout as delay } from "node:timers/promises";
+import { EnvHttpProxyAgent } from "undici";
+
 const SEARCH_ENGINE = "DuckDuckGo HTML";
 const SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
 const MAXIMUM_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -26,6 +29,7 @@ export interface NativeWebSearchSource {
 
 interface NativeWebSearchDependencies {
   fetch?: typeof globalThis.fetch;
+  wait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 }
 
 interface SearchResult {
@@ -280,31 +284,11 @@ export async function runNativeWebSearch(
   const requestSignal = signal
     ? AbortSignal.any([signal, timeoutSignal])
     : timeoutSignal;
-  const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
-  let response: Response;
-  try {
-    response = await fetchImplementation(searchUrl, {
-      method: "GET",
-      headers: {
-        accept: "text/html,application/xhtml+xml",
-        "user-agent": "Artemis Desktop Web Search",
-      },
-      credentials: "omit",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
-      signal: requestSignal,
-    });
-  } catch (error) {
-    if (requestSignal.aborted) throw error;
-    throw new Error(
-      `Artemis web search could not reach the anonymous search service: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!response.ok) {
-    throw new Error(
-      `The anonymous search service failed with HTTP ${response.status}.`,
-    );
-  }
+  const response = await fetchSearchResponse(
+    searchUrl,
+    requestSignal,
+    dependencies,
+  );
   const contentType = response.headers.get("content-type");
   if (
     contentType &&
@@ -329,4 +313,101 @@ export async function runNativeWebSearch(
     searchUrl: searchUrl.toString(),
     sources: results.map(({ title, url }) => ({ title, url })),
   };
+}
+
+// Shared only by search requests; never changes the model provider dispatcher.
+let searchProxy: EnvHttpProxyAgent | undefined;
+function searchDispatcher(): EnvHttpProxyAgent | undefined {
+  if (
+    !["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"].some(
+      (key) => process.env[key],
+    )
+  )
+    return undefined;
+  return (searchProxy ??= new EnvHttpProxyAgent());
+}
+
+function networkFailure(error: unknown): string {
+  const code = (error as { cause?: { code?: unknown } })?.cause?.code;
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return "DNS lookup failed";
+  if (typeof code === "string" && /CERT|TLS|SSL/.test(code))
+    return "TLS verification or handshake failed";
+  if (code === "ECONNREFUSED")
+    return "connection refused (check the network or proxy)";
+  if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT")
+    return "connection timed out";
+  return "network connection failed (check connectivity and HTTP(S)_PROXY settings)";
+}
+
+async function fetchSearchResponse(
+  initialUrl: URL,
+  signal: AbortSignal,
+  dependencies: NativeWebSearchDependencies,
+): Promise<Response> {
+  const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
+  const dispatcher = dependencies.fetch ? undefined : searchDispatcher();
+  const wait =
+    dependencies.wait ??
+    ((milliseconds: number, signal: AbortSignal) =>
+      delay(milliseconds, undefined, { signal }));
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let url = initialUrl;
+    for (let redirects = 0; ; redirects++) {
+      signal.throwIfAborted();
+      let response: Response;
+      try {
+        response = await fetchImplementation(url, {
+          method: "GET",
+          headers: {
+            accept: "text/html,application/xhtml+xml",
+            "user-agent": "Artemis Desktop Web Search",
+          },
+          credentials: "omit",
+          redirect: "manual",
+          referrerPolicy: "no-referrer",
+          signal,
+          ...(dispatcher ? { dispatcher } : {}),
+        });
+      } catch (error) {
+        signal.throwIfAborted();
+        if (attempt === 0) break;
+        // Never include raw errors: proxy URLs can contain credentials.
+        throw new Error(
+          `Artemis web search could not reach the anonymous search service: ${networkFailure(error)}.`,
+        );
+      }
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get("location");
+        await response.body?.cancel();
+        if (!location || redirects >= 3)
+          throw new Error("Search redirect limit or missing location.");
+        const target = new URL(location, url);
+        if (
+          target.protocol !== "https:" ||
+          target.port ||
+          target.username ||
+          target.password ||
+          ![
+            "html.duckduckgo.com",
+            "duckduckgo.com",
+            "www.duckduckgo.com",
+          ].includes(target.hostname)
+        )
+          throw new Error("Search redirect target is not allowed.");
+        url = target;
+        continue;
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        if (attempt === 0 && [500, 502, 503, 504].includes(response.status))
+          break;
+        throw new Error(
+          `The anonymous search service failed with HTTP ${response.status}.`,
+        );
+      }
+      return response;
+    }
+    await wait(1_000, signal);
+  }
+  throw new Error("Search retry budget exhausted.");
 }

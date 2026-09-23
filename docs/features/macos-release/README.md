@@ -1,12 +1,12 @@
 # macOS arm64 本机发布与 Apple 签名、公证
 
-本机逐步操作、上传草稿并发布到 ArtemisRelease，请看 [手动发布操作指南](manual-release.md)。
+本机签名操作见下文；[手动公开发布操作指南](manual-release.md) 仅供后续明确要求发布到 ArtemisRelease 时使用，当前 CD 不执行公开发布。
 
-源码仓库为私有的 `EurekaRaider/Artemis`。安装包发布到公开的 [EurekaRaider/ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases)。当前只发布 macOS Apple Silicon（arm64）。
+源码仓库为私有的 `EurekaRaider/Artemis`。CD 安装包仅发布到私有 [EurekaRaider/Artemis Releases](https://github.com/EurekaRaider/Artemis/releases)，包含 macOS arm64 和 Windows x64。公开更新源仍为 ArtemisRelease，私有 Release 不触发普通用户更新。
 
-只有手动启动 **Release** 才运行完整 CI/CD。推送、PR、创建标签，以及本地 pre-push 都不会自动启动完整检查。CI 工作流由 Release 调用；独立 PR 审核也改为手动运行。
+推送 main、同仓库 PR 和手动启动 CI 会运行 macOS arm64 / Windows x64 检查；正式签名、打包和发布仍需手动启动 **Release**。Release 也会调用双平台 CI；独立 PR 审核保持手动运行。
 
-发布顺序：检查版本和凭据 → 测试、类型检查、构建、格式检查、原生 CLI 与界面验证 → Developer ID 签名 → Apple 公证并将票据附加到应用 → 检查 DMG/ZIP 中的最终应用 → 发布到 ArtemisRelease。缺少证书或任一验证失败都会停止发布。
+发布顺序：检查版本和凭据 → 测试、类型检查、构建、格式检查、原生 CLI 与界面验证 → Developer ID 签名 → Apple 公证并将票据附加到应用 → 检查 DMG/ZIP 中的最终应用 → 发布到 Artemis 私有仓库 Release。缺少证书或任一验证失败都会停止发布。
 
 ## 本机一次配置与分阶段打包
 
@@ -180,21 +180,11 @@ P12 导出密码、Mac 登录密码、Apple 账号密码是三种不同用途的
 
 参考：[Apple App 专用密码说明](https://support.apple.com/zh-cn/102654)。
 
-## 6. 准备发布库专用 Token
+## 6. 私有仓库发布权限
 
-源码仓库的默认 `GITHUB_TOKEN` 只服务于当前仓库；跨仓库发布需要额外凭据。
+当前 CD 使用内置 `GITHUB_TOKEN`，仅发布 job 授予 `contents: write`。无需 `ARTEMIS_RELEASE_TOKEN`，不向 ArtemisRelease 写入任何产物。应用继续使用公开更新源，不包含私有仓库访问 Token。以后公开发布需单独授权。
 
-1. 使用拥有 `EurekaRaider/ArtemisRelease` 的 GitHub 账号登录。
-2. 打开 [Fine-grained personal access tokens](https://github.com/settings/personal-access-tokens)。
-3. 点击 **Generate new token**，名称可填 `Artemis Release Publisher`。
-4. Resource owner 选择 `EurekaRaider`。
-5. Repository access 选择 **Only select repositories**，只勾选 `ArtemisRelease`。
-6. Repository permissions 中设置 **Contents: Read and write**；Metadata 保持默认只读。
-7. 按维护周期设置有效期，生成后复制 Token，保存为后续的 `ARTEMIS_RELEASE_TOKEN`。
-
-如果当前登录账号无法选择这个资源所有者，请切换到发布库拥有者账号。这个 Token 不需要源码仓库的写入权限。
-
-## 7. 把六项凭据放到源码仓库 Secrets
+## 7. 把五项 Apple 凭据放到源码仓库 Secrets
 
 打开 [Artemis 的 Actions Secrets](https://github.com/EurekaRaider/Artemis/settings/secrets/actions)。位置是：
 
@@ -209,7 +199,6 @@ P12 导出密码、Mac 登录密码、Apple 账号密码是三种不同用途的
 | `APPLE_ID` | Apple Developer 会员账号的登录邮箱 |
 | `APPLE_APP_SPECIFIC_PASSWORD` | 第 5 步生成的 App 专用密码 |
 | `APPLE_TEAM_ID` | 第 1 步记下的 10 位 Team ID |
-| `ARTEMIS_RELEASE_TOKEN` | 第 6 步生成的发布库专用 Token |
 
 填写 `CSC_LINK` 前，在这台 Mac 的终端执行：
 
@@ -219,7 +208,7 @@ base64 -i "$HOME/Desktop/Artemis-Developer-ID.p12" | tr -d '\n' | pbcopy
 
 命令不会把证书打印在终端，编码内容会进入剪贴板。回到 GitHub 新建 `CSC_LINK`，在 Secret 框中按 `Command + V`，然后 Add secret。这里填写的是完整 Base64 内容，不是文件名或本机路径。
 
-逐项添加其余五个 Secret。保存后 GitHub 不再显示值，这是正常行为；填错时通过 Update secret 更新。不要把证书内容、密码或 Token 发到聊天中。
+逐项添加其余四个 Secret。保存后 GitHub 不再显示值，这是正常行为；填错时通过 Update secret 更新。不要把证书内容、密码或 Token 发到聊天中。
 
 参考：[GitHub Secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)、[electron-builder CI 签名配置](https://github.com/electron-userland/electron-builder/blob/master/website/docs/features/github-actions.md)。本仓库使用的五个 Apple 变量名以本表为准。
 
@@ -244,12 +233,12 @@ cd "$HOME/actions-runner/artemis-macos-arm64"
 
 ## 9. 只有需要发布时才启动 Release
 
-先把待发布的源码和工作流提交、推送到源码仓库的 `main`。普通推送不会自动运行 CI。
+先把待发布的源码和工作流提交、推送到源码仓库的 `main`。推送 main 或创建同仓库 PR 会运行 macOS arm64 / Windows x64 CI；正式发布仍需手动启动 Release。
 
 1. 打开 [Artemis Release 工作流](https://github.com/EurekaRaider/Artemis/actions/workflows/release.yml)。
 2. 点击 **Run workflow**。
 3. 选择 `main`。
-4. 在 `release_tag` 填入版本，例如 `v1.6.0`。它必须等于根目录 `package.json` 的版本加上 `v` 前缀，且不能与已发布版本重复。
+4. 在 `release_tag` 填入版本，例如 `v1.6.1`。它必须等于根目录 `package.json` 的版本加上 `v` 前缀，且不能与已发布版本重复。
 5. 点击绿色 **Run workflow**，这是本次正式发布的启动操作。
 
 也可以在源码项目根目录用命令启动：
@@ -262,24 +251,27 @@ gh workflow run release.yml \
   -f release_tag="$artemis_release_tag"
 ```
 
-不需要通过推送标签来启动发布。工作流成功后会在公开发布库创建对应标签和 Release。
+不需要通过推送标签来启动发布。工作流成功后会在 Artemis 私有仓库创建对应源码提交的标签和 Release。
 
 ## 10. 查看执行结果和安装包
 
 在源码仓库 Actions 中查看这次 Release：
 
-1. **Validate release version and credentials**：版本、Apple 凭据、发布 Token 检查。
-2. **Release CI**：完整源码检查、arm64 原生 CLI 和界面验证。
-3. **Sign and notarize macOS arm64**：签名、公证、原生运行边界和最终 DMG/ZIP 校验。
-4. **Publish to ArtemisRelease**：上传经过校验的产物。
+1. **Validate release version and signing credentials**：版本、Apple 凭据检查。
+2. **Release CI**：双平台源码检查、原生 CLI 和界面验证。
+3. **Build and sign macOS arm64** 与 **Notarize and verify macOS arm64**：独立 job 之间保存已签名应用；后者负责公证、原生运行边界和最终 DMG/ZIP 校验。
+4. **Package and verify Windows x64 ZIP**：无签名 ZIP、解压运行及 ACL 验证。
+5. **Publish to private Artemis Release**：上传经过校验的产物。
 
-全部通过后，打开 [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)。应包含：
+全部通过后，打开 [Artemis 私有 Releases](https://github.com/EurekaRaider/Artemis/releases)。应包含：
+
+- Windows x64 无签名 ZIP（`Artemis-Windows-x64-<version>.zip`）。
 
 - `Artemis-macOS-arm64-版本.dmg`
 - `Artemis-macOS-arm64-版本.zip`
 - 更新元数据、构建生成的 blockmap 和校验清单。
 
-发布库不接收源码检出内容；GitHub 自动生成的 Source code 归档只对应发布库自身的 README 等文件。
+产物和 GitHub 自动生成的源码归档均受 Artemis 私有仓库的访问权限保护。
 
 从 Release 下载 DMG，拖入“应用程序”，再检查最终安装的应用：
 
@@ -302,8 +294,25 @@ xcrun stapler validate "/Applications/Artemis.app"
 | Apple 验证失败 | 核对开发者邮箱、Team ID、App 专用密码。 |
 | 公证等待时间较长 | 查看打包步骤中的 Apple 提交状态；只有 Accepted 并通过票据验证后才能发布。 |
 | Apple 公证被拒绝 | 根据本次提交日志定位具体文件；不要关闭公证或改为临时签名绕过。 |
-| 上传 Release 返回 403/404 | 检查 `ARTEMIS_RELEASE_TOKEN` 的有效期、资源所有者、目标仓库和 Contents 写权限。 |
+| 上传 Release 返回 403/404 | 检查 Artemis 仓库 Actions 权限与发布 job 的 `contents: write`；当前不使用跨仓库 Token。 |
 | Job 一直等待 runner | 检查本机是否在线、登录、唤醒以及 runner 的标签与服务状态。 |
 | 已存在相同版本 | 正常提升项目版本后再发布，避免覆盖用户已经下载的产物。 |
 
 更改 Apple 主密码会使已有 App 专用密码失效；此时重新生成并更新 `APPLE_APP_SPECIFIC_PASSWORD`。证书和 Token 到期前也应更新。
+
+## 双平台发布与 Windows 手动更新
+
+Release 等待 macOS arm64 与 Windows x64 的 CI、打包验证全部通过，才向 Artemis 私有仓库 Release 发布。两平台使用独立的产物清单，合并前校验版本、文件集合、大小和 SHA-256。
+
+- macOS：沿用已有 Apple 签名和公证凭据，支持应用内更新。CI 分别执行 `sign:mac:arm64` 和 `notarize:mac:arm64`；公证提交 ID 保存到 `notarization-mac-arm64.json` 并作为独立 CI 证据上传。等待失败时，用相同凭据执行 `xcrun notarytool info <ID>` 或 `log <ID>`。保留同一签名 app 和状态文件，再运行 `npm run notarize:mac:arm64` 可继续等待原提交。
+- Windows：runner 标签为 `self-hosted, Windows, X64`，需要 Node、PowerShell 7、原生依赖构建工具和可运行 Electron 的桌面会话。`npm run release:win -w @artemis/desktop` 在真实 Windows x64 上生成无签名 ZIP，并验证解压后的程序、原生依赖和 ACL；无需代码签名证书，也不会使用 macOS 签名凭据。
+- Windows 应用启动后以及每小时查询公开 Release，也支持手动检查。只有更高的稳定版本且含对应 Windows ZIP 时才提示；点击下载在浏览器打开 ZIP 链接，不调用自动下载或安装接口。
+- Windows 用户将新版 ZIP 解压到新文件夹，退出旧版后启动新版。不要删除现有用户数据目录；旧 ZIP 版本首次获得更新提示功能仍需手动下载这个版本。
+- Windows 不生成 `latest.yml`；macOS 继续发布 `latest-mac.yml` 等更新元数据。私有源码仓库执行构建，公开发布库只接收校验后的产物。
+
+### CD 重试与恢复
+
+- 签名使用锁定的 electron-builder 26.16.1 内置有限重试：初次尝试失败后最多重试 3 次，等待 5/10/15 秒，不重复源码编译。
+- 公证等待最多尝试 3 次，每次最多 20 分钟，间隔 15/30 秒；始终使用同一个提交 ID。票据附加最多尝试 3 次。Apple 明确拒绝时不自动重新提交。
+- 签名 job 保存带权限和符号链接的应用归档，公证 job 每次尝试都保存状态文件，保留 7 天。选择 Actions 的 **Re-run failed jobs**，不会重跑已通过的 CI 或签名 job；公证从本次 workflow run 最近的状态恢复，并校验版本及 CDHash。不要选择 **Re-run all jobs**，也不要重新发起 workflow_dispatch，后两者会主动开始新的构建。
+- 提交请求本身不盲目重试：若网络断开且 Apple 没返回 ID，先查 Apple 提交历史确认，避免重复提交。提交 ID 已保存时可通过 `notarytool info/log` 查询。

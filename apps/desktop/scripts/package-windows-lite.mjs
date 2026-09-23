@@ -9,7 +9,7 @@ const workspaceRoot = join(desktopRoot, "..", "..");
 const release = process.argv.includes("--release");
 
 if (release && (process.platform !== "win32" || process.arch !== "x64")) {
-  throw new Error("A signed Windows release requires a real Windows x64 host.");
+  throw new Error("A Windows ZIP release requires a real Windows x64 host.");
 }
 
 function run(command, args, environment = process.env, cwd = desktopRoot) {
@@ -38,6 +38,11 @@ if (!npmCli) throw new Error("Run this script through npm.");
 const packageEnvironment = {
   ...process.env,
   ARTEMIS_PACKAGE_BUILD: "1",
+  CSC_IDENTITY_AUTO_DISCOVERY: "false",
+  CSC_LINK: "",
+  CSC_KEY_PASSWORD: "",
+  WIN_CSC_LINK: "",
+  WIN_CSC_KEY_PASSWORD: "",
 };
 
 await verifySlackCliRelease();
@@ -52,7 +57,7 @@ await run(process.execPath, [npmCli, "run", "build"], packageEnvironment);
 
 const builderArgs = [];
 if (release) {
-  builderArgs.push("--config", "scripts/release-builder.config.cjs");
+  builderArgs.push("--config", "scripts/windows-zip-builder.config.cjs");
 }
 builderArgs.push("--win", "zip", "--x64", "--publish", "never");
 await run(

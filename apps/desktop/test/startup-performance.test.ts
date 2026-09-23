@@ -99,7 +99,7 @@ describe("desktop startup latency guardrails", () => {
     );
   });
 
-  it("pins release visual convergence to the source head on the private macOS arm64 runner", () => {
+  it("pins dual-platform visual convergence to the source head on private runners", () => {
     const visualJob = ciWorkflowSource.slice(
       ciWorkflowSource.indexOf("visual-convergence-electron:"),
     );
@@ -110,12 +110,16 @@ describe("desktop startup latency guardrails", () => {
       `ARTEMIS_EXPECTED_HEAD: \${{ ${exactSourceHead} }}`,
     );
     expect(visualJob).toContain(
-      "runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]",
+      "runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]",
     );
     expect(visualJob).toContain("github.event.repository.private");
     expect(ciWorkflowSource).toContain("workflow_call:");
-    expect(ciWorkflowSource).not.toMatch(
-      /^  (push|pull_request|workflow_dispatch):/mu,
+    expect(visualJob).toContain("runner: [self-hosted, Windows, X64]");
+    expect(visualJob).toContain("runs-on: ${{ matrix.runner }}");
+    expect(ciWorkflowSource).toMatch(/^  push:/mu);
+    expect(ciWorkflowSource).toMatch(/^  pull_request:/mu);
+    expect(ciWorkflowSource).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository",
     );
     expect(visualJob).not.toContain("npm run package:win");
     expect(gitAttributesSource).toContain("*.css text eol=lf");

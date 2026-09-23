@@ -1,3 +1,4 @@
+import { checkWindowsRelease } from "./windows-release-check.js";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 
@@ -36,6 +37,8 @@ export interface ReleaseUpdateStatus {
     | "error";
   currentVersion: string;
   availableVersion?: string;
+  manualDownloadUrl?: string;
+  manualUpdate?: boolean;
   completedVersion?: string;
   progress?: number;
   rollbackAvailable: boolean;
@@ -105,6 +108,7 @@ export class ReleaseUpdateManager {
     private readonly environment: UpdateFeedEnvironment,
     private readonly onStatus: (status: ReleaseUpdateStatus) => void,
     private readonly packagedUpdateConfigPath?: string,
+    private readonly checkWindows = checkWindowsRelease,
   ) {
     this.status = {
       state: "disabled",
@@ -118,9 +122,8 @@ export class ReleaseUpdateManager {
     this.initialized = true;
     if (this.platform === "win32") {
       this.update({
-        state: "disabled",
-        message:
-          "Windows ZIP builds use manual updates. Download and extract the new ZIP to update Artemis.",
+        state: this.isPackaged ? "idle" : "disabled",
+        manualUpdate: true,
       });
       return;
     }
@@ -242,11 +245,41 @@ export class ReleaseUpdateManager {
       )
     )
       return this.getStatus();
+    if (this.platform === "win32") {
+      this.update({
+        state: "checking",
+        message: undefined,
+        availableVersion: undefined,
+        manualDownloadUrl: undefined,
+      });
+      try {
+        const release = await this.checkWindows(
+          this.currentVersion,
+          this.environment.ARTEMIS_UPDATE_OWNER ?? "EurekaRaider",
+          this.environment.ARTEMIS_UPDATE_REPO ?? "ArtemisRelease",
+        );
+        this.update({
+          state: release ? "available" : "idle",
+          availableVersion: release?.version,
+          manualDownloadUrl: release?.downloadUrl,
+        });
+      } catch {
+        this.update({
+          state: "error",
+          message: "Could not check Windows releases. Please try again later.",
+        });
+      }
+      return this.getStatus();
+    }
     await this.updater.checkForUpdates();
     return this.getStatus();
   }
 
   async download(): Promise<ReleaseUpdateStatus> {
+    if (this.platform === "win32")
+      throw new Error(
+        "Windows ZIP updates must be downloaded in the browser and replaced manually.",
+      );
     if (
       !this.status.availableVersion ||
       !["available", "error"].includes(this.status.state)
@@ -267,6 +300,8 @@ export class ReleaseUpdateManager {
   }
 
   async install(): Promise<void> {
+    if (this.platform === "win32")
+      throw new Error("Windows ZIP updates must be installed manually.");
     if (this.status.state !== "downloaded" || !this.downloadedVersion) {
       throw new Error("No verified update is ready to install");
     }

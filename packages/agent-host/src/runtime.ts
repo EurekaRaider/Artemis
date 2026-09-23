@@ -1,3 +1,4 @@
+import { withToolHistory } from "./tool-history.js";
 import type { CustomAgentTaskInvocation } from "@artemis/protocol";
 import { assertCustomAgentContext } from "./custom-agent-context.js";
 import { createAttachmentTools } from "./attachment-tools.js";
@@ -1590,7 +1591,7 @@ export class ArtemisAgentHost {
       registerArtemisBuiltinModels(runtime);
       return withConnectionRecovery(
         withPromptCacheController(
-          withAttachmentContextBudget(runtime),
+          withToolHistory(withAttachmentContextBudget(runtime)),
           this.promptCache,
         ),
         (sessionId, update) => this.handleConnectionRecovery(sessionId, update),

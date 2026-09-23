@@ -477,6 +477,8 @@ export interface ReleaseUpdateStatus {
     | "error";
   currentVersion: string;
   availableVersion?: string;
+  manualDownloadUrl?: string;
+  manualUpdate?: boolean;
   completedVersion?: string;
   progress?: number;
   rollbackAvailable: boolean;

@@ -2,15 +2,27 @@ name: CI
 
 on:
   workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
 
 jobs:
   verify:
-    name: Test, typecheck, build and format
-    if: github.event.repository.private
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    name: Test, typecheck, build and format (${{ matrix.platform }})
+    if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+          - platform: windows-x64
+            runner: [self-hosted, Windows, X64]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
 
     steps:
@@ -33,9 +45,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   slack-cli-native:
-    name: Slack CLI native compatibility (macOS arm64)
-    if: github.event.repository.private
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    name: Slack CLI native compatibility (${{ matrix.platform }})
+    if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+          - platform: windows-x64
+            runner: [self-hosted, Windows, X64]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -50,9 +70,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   visual-convergence-electron:
-    name: Visual convergence (macOS arm64)
-    if: github.event.repository.private
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    name: Visual convergence (${{ matrix.platform }})
+    if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+          - platform: windows-x64
+            runner: [self-hosted, Windows, X64]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
 
     steps:
@@ -80,6 +108,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: visual-convergence-macos-arm64
+          name: visual-convergence-${{ matrix.platform }}
           path: ${{ runner.temp }}/artemis-visual-convergence
           if-no-files-found: error

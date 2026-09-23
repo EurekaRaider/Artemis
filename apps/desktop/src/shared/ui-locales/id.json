@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "Domain otorisasi",
   "OAuth_resource": "Sumber daya",
   "OAuth_backend": "Backend pengembang",
-  "OAuth_updateRequired": "Perbarui plugin dan lakukan otorisasi ulang."
+  "OAuth_updateRequired": "Perbarui plugin dan lakukan otorisasi ulang.",
+  "Update.manualDownload": "Unduh ZIP di browser",
+  "Update.manualInstructions": "Unduh dan ekstrak ZIP baru ke folder baru. Tutup Artemis sebelum menjalankan versi baru. Simpan data pengguna Anda; jangan hapus folder Artemis di %APPDATA%."
 }

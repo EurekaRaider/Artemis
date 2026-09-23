@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "Dominio de autorización",
   "OAuth_resource": "Recurso",
   "OAuth_backend": "Backend del desarrollador",
-  "OAuth_updateRequired": "Actualiza el complemento y vuelve a autorizarlo."
+  "OAuth_updateRequired": "Actualiza el complemento y vuelve a autorizarlo.",
+  "Update.manualDownload": "Descargar ZIP en el navegador",
+  "Update.manualInstructions": "Descarga y extrae el nuevo ZIP en una carpeta nueva. Cierra Artemis antes de iniciar la nueva versión. Conserva tus datos: no elimines la carpeta Artemis en %APPDATA%."
 }

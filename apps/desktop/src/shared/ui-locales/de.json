@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "Autorisierungsdomain",
   "OAuth_resource": "Ressource",
   "OAuth_backend": "Entwickler-Backend",
-  "OAuth_updateRequired": "Plugin aktualisieren und erneut autorisieren."
+  "OAuth_updateRequired": "Plugin aktualisieren und erneut autorisieren.",
+  "Update.manualDownload": "ZIP im Browser herunterladen",
+  "Update.manualInstructions": "Laden Sie die neue ZIP-Datei herunter und entpacken Sie sie in einen neuen Ordner. Beenden Sie Artemis, bevor Sie die neue Version starten. Löschen Sie nicht den Artemis-Ordner in %APPDATA%; er enthält Ihre Benutzerdaten."
 }

@@ -1993,6 +1993,14 @@ export function SettingsPanel({
                               disabled={busy}
                               onClick={() =>
                                 void run(async () => {
+                                  if (settings.update.manualDownloadUrl) {
+                                    window.open(
+                                      settings.update.manualDownloadUrl,
+                                      "_blank",
+                                      "noopener,noreferrer",
+                                    );
+                                    return;
+                                  }
                                   const update =
                                     await window.artemis.downloadUpdate();
                                   setSettings((current) =>
@@ -2001,7 +2009,12 @@ export function SettingsPanel({
                                 })
                               }
                             >
-                              {uiText(locale, "Update.download")}
+                              {uiText(
+                                locale,
+                                settings.update.manualUpdate
+                                  ? "Update.manualDownload"
+                                  : "Update.download",
+                              )}
                             </Button>
                           )}
                         {settings.update.state === "downloaded" && (
@@ -2016,6 +2029,11 @@ export function SettingsPanel({
                         )}
                       </span>
                     </SettingsRow>
+                    {settings.update.manualUpdate && (
+                      <InlineNotice tone="neutral">
+                        {uiText(locale, "Update.manualInstructions")}
+                      </InlineNotice>
+                    )}
                     {settings.update.state === "downloading" && (
                       <div className="sidebar-update-progress">
                         <progress

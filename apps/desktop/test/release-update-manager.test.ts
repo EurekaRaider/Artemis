@@ -248,9 +248,58 @@ describe("ReleaseUpdateManager", () => {
 
     expect(updater.feed).toBeUndefined();
     expect(manager.getStatus()).toMatchObject({
-      state: "disabled",
-      message: expect.stringContaining("manual updates"),
+      state: "idle",
+      manualUpdate: true,
     });
+  });
+
+  it("checks Windows periodically, exposes a manual link and never downloads or installs", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-updater-"));
+    temporaryDirectories.push(directory);
+    const updater = new FakeUpdater();
+    const checkWindows = vi.fn().mockResolvedValue({
+      version: "1.1.0",
+      downloadUrl: "https://github.com/example/release.zip",
+    });
+    const manager = new ReleaseUpdateManager(
+      updater,
+      new UpdateRecoveryStore(
+        join(directory, "state.json"),
+        join(directory, "artifacts"),
+      ),
+      "1.0.0",
+      true,
+      "win32",
+      "",
+      "",
+      {},
+      () => {},
+      undefined,
+      checkWindows,
+    );
+    await manager.initialize();
+    vi.useFakeTimers();
+    manager.startAutomaticChecks(vi.fn());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(manager.getStatus()).toMatchObject({
+      state: "available",
+      manualUpdate: true,
+      availableVersion: "1.1.0",
+      manualDownloadUrl: "https://github.com/example/release.zip",
+    });
+    await expect(manager.download()).rejects.toThrow("manually");
+    await expect(manager.install()).rejects.toThrow("manually");
+    checkWindows.mockRejectedValueOnce(new Error("offline"));
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    expect(manager.getStatus().state).toBe("error");
+    expect(manager.getStatus().manualDownloadUrl).toBeUndefined();
+    checkWindows.mockResolvedValueOnce(undefined);
+    await manager.check();
+    expect(manager.getStatus().state).toBe("idle");
+    manager.stopAutomaticChecks();
+    expect(updater.checkForUpdates).not.toHaveBeenCalled();
+    expect(updater.downloadUpdate).not.toHaveBeenCalled();
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
   });
 
   it("refuses an insecure generic update feed", async () => {

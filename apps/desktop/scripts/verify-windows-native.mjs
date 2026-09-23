@@ -200,35 +200,15 @@ try {
     }
   }
 
-  const signtoolPath =
-    process.env.ARTEMIS_SIGNTOOL ??
-    join(
-      process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)",
-      "Windows Kits",
-      "10",
-      "App Certification Kit",
-      "signtool.exe",
-    );
-  if (!existsSync(signtoolPath)) {
-    throw new Error(`Windows SDK signtool was not found: ${signtoolPath}`);
-  }
-  const signatureResult = spawnSync(
-    signtoolPath,
-    ["verify", "/pa", "/all", "/v", extractedExecutablePath],
-    { encoding: "utf8" },
+  // Built-in Authenticode inspection also works on runners without the signing SDK.
+  const signature = JSON.parse(
+    powershell(
+      "Get-AuthenticodeSignature -LiteralPath $env:ARTEMIS_SIGNATURE_PATH | Select-Object @{Name='Status';Expression={$_.Status.ToString()}} | ConvertTo-Json -Compress",
+      { ARTEMIS_SIGNATURE_PATH: extractedExecutablePath },
+    ),
   );
-  const signatureOutput =
-    `${signatureResult.stdout ?? ""}\n${signatureResult.stderr ?? ""}`.trim();
-  const signature = {
-    Status:
-      signatureResult.status === 0
-        ? "Valid"
-        : /no signature found/iu.test(signatureOutput)
-          ? "NotSigned"
-          : "Invalid",
-  };
-  if (signature.Status === "Invalid") {
-    throw new Error(`Authenticode verification failed:\n${signatureOutput}`);
+  if (!["Valid", "NotSigned"].includes(signature.Status)) {
+    throw new Error(`Authenticode verification failed: ${signature.Status}`);
   }
   if (
     process.env.ARTEMIS_REQUIRE_SIGNATURE === "1" &&

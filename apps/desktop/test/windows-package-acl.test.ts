@@ -79,11 +79,15 @@ describe("Windows ZIP package and AppContainer ACL", () => {
 
   it("smoke-tests the final extracted ZIP and its effective ACLs on Windows", () => {
     expect(packageJson.scripts?.["release:win"]).toContain(
-      "cross-env ARTEMIS_REQUIRE_SIGNATURE=1 npm run verify:win-native",
+      "npm run verify:win-native",
     );
     expect(packageJson.scripts?.["release:win"]).toContain(
       "node scripts/finalize-release.mjs --windows-zip",
     );
+    expect(packageJson.scripts?.["release:win"]).not.toMatch(
+      /validate-release-env|ARTEMIS_REQUIRE_SIGNATURE=1/,
+    );
+
     expect(existsSync(nativeVerifierPath)).toBe(true);
     const finalizer = readFileSync(releaseFinalizerPath, "utf8");
     expect(finalizer).toContain("distribution: windowsZipOnly");

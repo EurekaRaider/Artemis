@@ -1,3 +1,4 @@
+import { EnvHttpProxyAgent, getGlobalDispatcher } from "undici";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -169,7 +170,7 @@ describe("native web search", () => {
     expect(init).toMatchObject({
       method: "GET",
       credentials: "omit",
-      redirect: "error",
+      redirect: "manual",
       referrerPolicy: "no-referrer",
     });
     expect(result.engine).toBe("DuckDuckGo HTML");
@@ -302,6 +303,100 @@ describe("native web search", () => {
     ).rejects.toThrow("unrecognized response");
   });
 
+  it.each([
+    "http://html.duckduckgo.com/html/",
+    "https://localhost/",
+    "https://evil.test/",
+    "https://user:secret@html.duckduckgo.com/",
+    "https://html.duckduckgo.com:444/",
+  ])("rejects an unsafe redirect %s before following", async (location) => {
+    const fetchSearch = vi.fn(
+      async () => new Response(null, { status: 302, headers: { location } }),
+    );
+    await expect(
+      runNativeWebSearch({ query: "test" }, undefined, { fetch: fetchSearch }),
+    ).rejects.toThrow("redirect");
+    expect(fetchSearch).toHaveBeenCalledTimes(1);
+  });
+  it("follows only bounded search-service redirects", async () => {
+    const fetchSearch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: "/html/?q=test" },
+        }),
+      )
+      .mockResolvedValue(
+        htmlResponse('<div class="no-results">No results.</div>'),
+      );
+    await runNativeWebSearch({ query: "test" }, undefined, {
+      fetch: fetchSearch,
+    });
+    expect(fetchSearch).toHaveBeenCalledTimes(2);
+    const loop = vi.fn(
+      async () =>
+        new Response(null, { status: 302, headers: { location: "/html/" } }),
+    );
+    await expect(
+      runNativeWebSearch({ query: "test" }, undefined, { fetch: loop }),
+    ).rejects.toThrow("redirect");
+    expect(loop).toHaveBeenCalledTimes(4);
+  });
+  it("retries transient failures once and sanitizes network diagnostics", async () => {
+    const fetchSearch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValue(
+        htmlResponse('<div class="no-results">No results.</div>'),
+      );
+    await runNativeWebSearch({ query: "test" }, undefined, {
+      fetch: fetchSearch,
+      wait: async () => {},
+    });
+    expect(fetchSearch).toHaveBeenCalledTimes(2);
+    const failure = new Error("https://user:password@proxy.test");
+    Object.assign(failure, { cause: { code: "ENOTFOUND" } });
+    await expect(
+      runNativeWebSearch({ query: "test" }, undefined, {
+        fetch: vi.fn().mockRejectedValue(failure),
+        wait: async () => {},
+      }),
+    ).rejects.toThrow("DNS");
+  });
+  it("does not retry cancellation or anti-bot responses", async () => {
+    const controller = new AbortController();
+    const fetchSearch = vi.fn(async () => {
+      controller.abort();
+      throw controller.signal.reason;
+    });
+    await expect(
+      runNativeWebSearch({ query: "test" }, controller.signal, {
+        fetch: fetchSearch,
+      }),
+    ).rejects.toThrow();
+    expect(fetchSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses an environment proxy only for search, without replacing the global dispatcher", async () => {
+    const globalDispatcher = getGlobalDispatcher();
+    vi.stubEnv("HTTPS_PROXY", "http://127.0.0.1:54321");
+    vi.stubEnv("NO_PROXY", "localhost");
+    const fetchSearch = vi.fn(async () =>
+      htmlResponse('<div class="no-results">No results.</div>'),
+    );
+    vi.stubGlobal("fetch", fetchSearch);
+    try {
+      await runNativeWebSearch({ query: "test" });
+      expect((fetchSearch.mock.calls[0] as any)[1].dispatcher).toBeInstanceOf(
+        EnvHttpProxyAgent,
+      );
+      expect(getGlobalDispatcher()).toBe(globalDispatcher);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
+  });
   it("rejects an empty query before making a network request", async () => {
     const fetchSearch = vi.fn();
     await expect(

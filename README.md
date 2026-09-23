@@ -59,9 +59,10 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> macOS Apple Silicon releases are signed with **Apple Developer ID**.
-> Download from [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases)
-> and see the [platform and installation notes](#platform-support).
+> Version **1.6.1** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> CD publishes only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases).
+> Repository access is required; public publication is a separate, manual decision.
+> See the [platform and installation notes](#platform-support).
 
 ### Run from source
 
@@ -338,8 +339,9 @@ npm run format:check
 boundary and performance contracts. For native visual verification, run
 `npm run verify:screenshot-matrix`.
 
-The **Release** workflow runs CI checks for formatting, tests, types, builds and
-the production dependency audit, plus native macOS arm64 verification. Local
+CI runs on pushes to `main`, same-repository pull requests and manual dispatches.
+The **Release** workflow also requires CI on macOS arm64 and Windows x64, covering
+formatting, tests, types, builds, the production dependency audit and native checks. Local
 source checks do not establish native release acceptance on another platform.
 
 ### Package the desktop
@@ -358,26 +360,39 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.0` local packaging configuration produces:
+The `1.6.1` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.0.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.0.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.0.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.1.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.1.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.1.dmg` and `.zip`   |
 
-Releases are started manually through **Release** and published to
-[ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases) after
-source and native arm64 checks, Developer ID signing, Apple notarization,
-stapling and final DMG/ZIP verification. The current release workflow publishes
-macOS arm64 packages and update metadata. See the
-[macOS release guide](docs/features/macos-release/README.md) for details.
+Releases are started manually through **Release**, using tag `v1.6.1`, and
+published only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases)
+after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
+update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
+packaging target.
+
+macOS signing and notarization run in separate jobs. Signing retries at most
+three times; notarization waits and stapling each allow three attempts. Signed
+applications and Apple submission IDs are retained for seven days. Use
+**Re-run failed jobs** to reuse successful CI/signing work and resume the same
+Apple submission. See the [release guide](docs/features/macos-release/README.md).
+
+Windows checks for new public versions and opens the ZIP download in a browser;
+users replace the application manually. macOS retains in-app updates. Both use
+the public ArtemisRelease update source, so these private CD releases do not
+notify ordinary users. No private repository token is bundled in the app.
+
+Version 1.6.1 also repairs tool-call/result pairing in model request history and
+adds proxy support, bounded retries and safer redirect handling to web search.
 
 ### Platform support
 
 | Target                | Implementation                                                    | Distribution                                     |
 | --------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| **Windows 11 x64**     | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Local builds; native release validation required |
+| **Windows 11 x64**     | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Unsigned ZIP through private CD; manual updates |
 | **macOS 14+ arm64**    | Seatbelt, hardened runtime and DMG/ZIP                             | Releases signed with Apple Developer ID          |
 | **macOS 14+ x64**      | Separate DMG/ZIP builds                                            | Local builds; native release validation required |
 | Windows ARM64 / Linux | Not currently supported                                           | —                                                |
@@ -389,10 +404,11 @@ macOS arm64 packages and update metadata. See the
 from Applications. For ZIP downloads, extract the archive and move
 `Artemis.app` to Applications before launching.
 
-**Windows local builds:** fully extract the ZIP into a user-owned directory and run
+**Windows ZIP builds:** fully extract the ZIP into a user-owned directory and run
 `Artemis.exe`. Avoid running inside the archive or from a protected location
 such as `Program Files`. Updates are manual: close Artemis, extract the new ZIP
-into a new directory and launch the new executable.
+into a new directory and launch the new executable. Preserve the Artemis data
+folder under `%APPDATA%`. Windows packages do not require a signing certificate.
 
 </details>
 

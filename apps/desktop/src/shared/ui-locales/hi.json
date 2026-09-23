@@ -1596,5 +1596,7 @@
   "OAuth_authorizationDomain": "प्राधिकरण डोमेन",
   "OAuth_resource": "संसाधन",
   "OAuth_backend": "डेवलपर बैकएंड",
-  "OAuth_updateRequired": "प्लगइन अपडेट करें और फिर से अधिकृत करें।"
+  "OAuth_updateRequired": "प्लगइन अपडेट करें और फिर से अधिकृत करें।",
+  "Update.manualDownload": "ब्राउज़र में ZIP डाउनलोड करें",
+  "Update.manualInstructions": "नया ZIP डाउनलोड करके नए फ़ोल्डर में निकालें। नया संस्करण शुरू करने से पहले Artemis बंद करें। अपना डेटा सुरक्षित रखें; %APPDATA% में Artemis फ़ोल्डर न हटाएँ।"
 }
