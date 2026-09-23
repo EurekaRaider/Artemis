@@ -343,6 +343,20 @@ export function runRemoteShell(
         } catch {
           child.kill("SIGKILL");
         }
+      } else if (child.pid && launch.implementation === "desktop-user") {
+        const killer = spawn(
+          join(
+            process.env.SystemRoot ?? "C:\\Windows",
+            "System32",
+            "taskkill.exe",
+          ),
+          ["/pid", String(child.pid), "/T", "/F"],
+          { windowsHide: true, stdio: "ignore" },
+        );
+        killer.once("error", () => child.kill("SIGKILL"));
+        killer.once("exit", (code) => {
+          if (code !== 0) child.kill("SIGKILL");
+        });
       } else child.kill("SIGKILL");
     };
     const timer = setTimeout(stop, timeoutSeconds * 1000);

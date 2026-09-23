@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "복사됨",
   "ImSlackAutoSetup.privacy": "인증 정보는 이 기기에 암호화하여 저장",
   "ImSlackAutoSetup.nameTaken": "같은 이름의 봇이 이미 있습니다. 중복 생성을 방지하려면 다른 이름을 사용하세요.",
-  "ImSlackAutoSetup.manageApps": "Slack 앱 관리"
+  "ImSlackAutoSetup.manageApps": "Slack 앱 관리",
+  "GroupAuthorization.localAccess": "로컬 컴퓨터 접근 권한",
+  "GroupAuthorization.localAccessHint": "이 그룹의 {{bot}}에만 적용됩니다.",
+  "GroupAuthorization.projectLocal": "프로젝트 범위 (기본값)",
+  "GroupAuthorization.projectLocalHint": "이 그룹에 허용된 파일과 폴더에만 접근합니다.",
+  "GroupAuthorization.fullLocal": "전체 로컬 접근",
+  "GroupAuthorization.fullLocalHint": "현재 시스템 사용자 권한으로 파일, 명령, 네트워크를 사용합니다.",
+  "GroupAuthorization.fullLocalRisk": "전체 접근은 컴퓨터 전체에 영향을 줄 수 있습니다",
+  "GroupAuthorization.fullLocalFiles": "프로젝트 외부 파일을 읽고 수정하거나 삭제할 수 있습니다.",
+  "GroupAuthorization.fullLocalMessages": "그룹 메시지나 다른 Agent의 잘못된 지시로 데이터 손실 또는 민감 정보 유출이 발생할 수 있습니다.",
+  "GroupAuthorization.fullLocalTrust": "신뢰하는 구성원에게만 허용하세요. 관리자 권한을 부여하지는 않습니다.",
+  "GroupAuthorization.fullLocalScope": "프로젝트 폴더 제한은 해제되지만 구성원 권한 제한은 유지됩니다.",
+  "GroupAuthorization.fullLocalSharing": "작업과 결과 전송은 개별 승인이나 데스크톱 검토 없이 자동으로 진행됩니다. 민감한 정보가 그룹이나 외부 서비스로 직접 전송될 수 있습니다.",
+  "GroupAuthorization.confirmFullLocal": "위험을 이해하며 이 Agent에 로컬 사용자 권한과 위 공유 범위를 허용합니다.",
+  "GroupAuthorization.submitFullLocal": "확인하고 전체 접근 활성화"
 }

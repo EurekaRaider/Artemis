@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "कॉपी किया गया",
   "ImSlackAutoSetup.privacy": "क्रेडेंशियल इस डिवाइस पर एन्क्रिप्टेड हैं",
   "ImSlackAutoSetup.nameTaken": "इस नाम का बॉट पहले से मौजूद है। डुप्लिकेट बनाने से बचने के लिए दूसरा नाम चुनें।",
-  "ImSlackAutoSetup.manageApps": "Slack ऐप प्रबंधित करें"
+  "ImSlackAutoSetup.manageApps": "Slack ऐप प्रबंधित करें",
+  "GroupAuthorization.localAccess": "स्थानीय कंप्यूटर की पहुँच",
+  "GroupAuthorization.localAccessHint": "केवल इस समूह में {{bot}} पर लागू।",
+  "GroupAuthorization.projectLocal": "प्रोजेक्ट का दायरा (डिफ़ॉल्ट)",
+  "GroupAuthorization.projectLocalHint": "केवल इस समूह के लिए अधिकृत फ़ाइलें और फ़ोल्डर।",
+  "GroupAuthorization.fullLocal": "पूर्ण स्थानीय पहुँच",
+  "GroupAuthorization.fullLocalHint": "फ़ाइलों, कमांड और नेटवर्क के लिए वर्तमान सिस्टम उपयोगकर्ता की अनुमतियाँ।",
+  "GroupAuthorization.fullLocalRisk": "पूर्ण पहुँच पूरे कंप्यूटर को प्रभावित कर सकती है",
+  "GroupAuthorization.fullLocalFiles": "प्रोजेक्ट से बाहर की फ़ाइलें पढ़ी, बदली या मिटाई जा सकती हैं।",
+  "GroupAuthorization.fullLocalMessages": "समूह या अन्य Agent के गलत निर्देशों से डेटा हानि या संवेदनशील जानकारी लीक हो सकती है।",
+  "GroupAuthorization.fullLocalTrust": "केवल विश्वसनीय सदस्यों को दें। यह व्यवस्थापक अधिकार नहीं देता।",
+  "GroupAuthorization.fullLocalScope": "प्रोजेक्ट फ़ोल्डर की सीमाएँ हटेंगी; अधिकृत सदस्यों के प्रतिबंध बने रहेंगे।",
+  "GroupAuthorization.fullLocalSharing": "कार्रवाइयाँ और परिणाम भेजना अपने आप होगा, हर कार्रवाई की अनुमति या डेस्कटॉप समीक्षा की प्रतीक्षा नहीं होगी। संवेदनशील जानकारी सीधे समूह या बाहरी सेवाओं को भेजी जा सकती है।",
+  "GroupAuthorization.confirmFullLocal": "मैं जोखिम समझता हूँ और इस Agent को स्थानीय उपयोगकर्ता अनुमतियाँ तथा ऊपर दिया साझा दायरा देता हूँ।",
+  "GroupAuthorization.submitFullLocal": "पुष्टि करके पूर्ण पहुँच चालू करें"
 }

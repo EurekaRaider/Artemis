@@ -26,6 +26,7 @@ import {
   Pause,
   Plus,
   ShieldCheck,
+  Warning,
   UsersThree,
   User,
   X,
@@ -226,6 +227,26 @@ export function GroupCollaborationPanel({
       pending.state !== "complete" &&
       draft?.supersedes !== pending.command.operationId);
   const active = draft?.grant;
+  const localScope = active?.security?.scopes[0];
+  const fullLocal = localScope?.localAccess === "full";
+  const confirmationControl = draft && command && (
+    <Checkbox
+      label={t(
+        fullLocal && draft.intent !== "pause"
+          ? "GroupAuthorization.confirmFullLocal"
+          : "GroupAuthorization.confirmSharing",
+      )}
+      checked={draft.confirmation === command.confirmationFingerprint}
+      disabled={locked || conflict || !validCommand}
+      onCheckedChange={(checked) =>
+        setDraft({
+          ...draft,
+          confirmation: checked ? command.confirmationFingerprint : "",
+          dirty: true,
+        })
+      }
+    />
+  );
   const policyChanged =
     !!draft?.editPolicy &&
     JSON.stringify(imProjectPolicy(draft.grant)) !==
@@ -363,8 +384,8 @@ export function GroupCollaborationPanel({
         <Select
           label={t("ImSettingsPanel.message143")}
           labelVisibility="visible"
-          disabled={locked}
-          value={active.approval}
+          disabled={locked || fullLocal}
+          value={fullLocal ? "automatic" : active.approval}
           options={[
             { value: "ask", label: t("ImSettingsPanel.message144") },
             { value: "automatic", label: t("ImSettingsPanel.message145") },
@@ -373,7 +394,7 @@ export function GroupCollaborationPanel({
             edit({ approval: value as typeof active.approval })
           }
         />
-        {active.mode === "execute" && (
+        {active.mode === "execute" && !fullLocal && (
           <>
             <Checkbox
               label={t("ImSettingsPanel.message147")}
@@ -651,23 +672,32 @@ export function GroupCollaborationPanel({
               )?.name ?? t("GroupAuthorization.nameUnavailable")}
             </p>
           )}
-          {policySummary(grant, true)}
+          {policySummary(
+            scope?.localAccess === "full" && grant
+              ? { ...grant, approval: "automatic" }
+              : grant,
+            true,
+          )}
           {scope && (
             <dl className="im-group-summary">
               <dt>{t("GroupAuthorization.readScope")}</dt>
               <dd>
-                {scope.readPaths.length
-                  ? scope.readPaths.join(" · ")
-                  : t("ImDataPermissions.projectScope")}
+                {scope.localAccess === "full"
+                  ? t("GroupAuthorization.fullLocal")
+                  : scope.readPaths.length
+                    ? scope.readPaths.join(" · ")
+                    : t("ImDataPermissions.projectScope")}
               </dd>
               <dt>{t("GroupAuthorization.writeScope")}</dt>
               <dd>
                 {grant?.mode !== "execute"
                   ? t("GroupAuthorization.denied")
-                  : scope.writeMode === "project"
-                    ? t("ImDataPermissions.message14")
-                    : scope.writePaths.join(" · ") ||
-                      t("GroupAuthorization.denied")}
+                  : scope.localAccess === "full"
+                    ? t("GroupAuthorization.fullLocal")
+                    : scope.writeMode === "project"
+                      ? t("ImDataPermissions.message14")
+                      : scope.writePaths.join(" · ") ||
+                        t("GroupAuthorization.denied")}
               </dd>
             </dl>
           )}
@@ -1218,31 +1248,140 @@ export function GroupCollaborationPanel({
                         <dt>{t("GroupAuthorization.sharedPolicy")}</dt>
                         <dd className="im-group-editable-policy">
                           {draft.intent === "pause"
-                            ? policySummary(active)
+                            ? policySummary(
+                                fullLocal
+                                  ? { ...active, approval: "automatic" }
+                                  : active,
+                              )
                             : policyFields()}
                         </dd>
                         {draft.intent === "pause" && (
                           <>
                             <dt>{t("GroupAuthorization.readScope")}</dt>
                             <dd>
-                              {command.scope.readMode === "selected" ||
-                              command.scope.readPaths.length
-                                ? command.scope.readPaths.join(" · ")
-                                : t("ImDataPermissions.projectScope")}
+                              {fullLocal
+                                ? t("GroupAuthorization.fullLocal")
+                                : command.scope.readMode === "selected" ||
+                                    command.scope.readPaths.length
+                                  ? command.scope.readPaths.join(" · ")
+                                  : t("ImDataPermissions.projectScope")}
                             </dd>
                             <dt>{t("GroupAuthorization.writeScope")}</dt>
                             <dd>
                               {active.mode !== "execute"
                                 ? t("GroupAuthorization.denied")
-                                : command.scope.writeMode === "project"
-                                  ? t("ImDataPermissions.projectScope")
-                                  : command.scope.writePaths.join(" · ") ||
-                                    t("GroupAuthorization.denied")}
+                                : fullLocal
+                                  ? t("GroupAuthorization.fullLocal")
+                                  : command.scope.writeMode === "project"
+                                    ? t("ImDataPermissions.projectScope")
+                                    : command.scope.writePaths.join(" · ") ||
+                                      t("GroupAuthorization.denied")}
                             </dd>
                           </>
                         )}
                       </dl>
-                      {draft.intent !== "pause" && (
+                      {draft.intent !== "pause" && localScope && (
+                        <fieldset className="im-local-access" disabled={locked}>
+                          <legend>{t("GroupAuthorization.localAccess")}</legend>
+                          <p className="im-local-access-hint">
+                            {t("GroupAuthorization.localAccessHint", {
+                              bot: botName(draft.target!),
+                            })}
+                          </p>
+                          {(["project", "full"] as const).map((access) => (
+                            <label
+                              className="im-local-access-option"
+                              data-selected={
+                                (localScope.localAccess ?? "project") === access
+                              }
+                              data-access={access}
+                              key={access}
+                            >
+                              <input
+                                type="radio"
+                                name="im-local-access"
+                                value={access}
+                                checked={
+                                  (localScope.localAccess ?? "project") ===
+                                  access
+                                }
+                                onChange={() =>
+                                  change({
+                                    grant: {
+                                      ...active,
+                                      security: {
+                                        ...active.security!,
+                                        scopes: [
+                                          {
+                                            ...localScope,
+                                            localAccess: access,
+                                          },
+                                        ],
+                                      },
+                                    },
+                                  })
+                                }
+                              />
+                              <span>
+                                <strong>
+                                  {t(
+                                    access === "full"
+                                      ? "GroupAuthorization.fullLocal"
+                                      : "GroupAuthorization.projectLocal",
+                                  )}
+                                </strong>
+                                <span>
+                                  {t(
+                                    access === "full"
+                                      ? "GroupAuthorization.fullLocalHint"
+                                      : "GroupAuthorization.projectLocalHint",
+                                  )}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                          {fullLocal && (
+                            <>
+                              <div
+                                className="im-local-access-warning"
+                                role="alert"
+                              >
+                                <Warning
+                                  size={24}
+                                  weight="fill"
+                                  aria-hidden="true"
+                                />
+                                <div>
+                                  <strong>
+                                    {t("GroupAuthorization.fullLocalRisk")}
+                                  </strong>
+                                  <ul>
+                                    <li>
+                                      {t("GroupAuthorization.fullLocalFiles")}
+                                    </li>
+                                    <li>
+                                      {t(
+                                        "GroupAuthorization.fullLocalMessages",
+                                      )}
+                                    </li>
+                                    <li>
+                                      {t("GroupAuthorization.fullLocalSharing")}
+                                    </li>
+                                    <li>
+                                      {t("GroupAuthorization.fullLocalTrust")}
+                                    </li>
+                                  </ul>
+                                </div>
+                              </div>
+                              <p className="im-local-access-hint">
+                                {t("GroupAuthorization.fullLocalScope")}
+                              </p>
+                              {confirmationControl}
+                            </>
+                          )}
+                        </fieldset>
+                      )}
+                      {draft.intent !== "pause" && !fullLocal && (
                         <ImDataPermissions
                           key={draft.projectId}
                           grant={active}
@@ -1279,7 +1418,9 @@ export function GroupCollaborationPanel({
                           </dd>
                         </dl>
                       </div>
-                      <p>{t("GroupAuthorization.futureFiles")}</p>
+                      {!fullLocal && (
+                        <p>{t("GroupAuthorization.futureFiles")}</p>
+                      )}
                       {policyChanged && affected.length > 0 && (
                         <InlineNotice tone="warning">
                           <p>{t("GroupAuthorization.policyImpact")}</p>
@@ -1359,22 +1500,8 @@ export function GroupCollaborationPanel({
                             })}
                           </InlineNotice>
                         )}
-                      <Checkbox
-                        label={t("GroupAuthorization.confirmSharing")}
-                        checked={
-                          draft.confirmation === command.confirmationFingerprint
-                        }
-                        disabled={locked || conflict || !validCommand}
-                        onCheckedChange={(checked) =>
-                          setDraft({
-                            ...draft,
-                            confirmation: checked
-                              ? command.confirmationFingerprint
-                              : "",
-                            dirty: true,
-                          })
-                        }
-                      />
+                      {(!fullLocal || draft.intent === "pause") &&
+                        confirmationControl}
                     </>
                   )}
                 </div>
@@ -1426,7 +1553,11 @@ export function GroupCollaborationPanel({
                       }
                       onClick={() => void submit()}
                     >
-                      {t("GroupAuthorization.submit")}
+                      {t(
+                        fullLocal && draft.intent !== "pause"
+                          ? "GroupAuthorization.submitFullLocal"
+                          : "GroupAuthorization.submit",
+                      )}
                     </Button>
                   )}
                 </footer>

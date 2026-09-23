@@ -771,3 +771,42 @@ it.each([false, true])(
       );
   },
 );
+
+it("shows full-local risk inline and clears confirmation whenever access changes", async () => {
+  const f = multiBotFixture();
+  render(<GroupCollaborationPanel {...f.props} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /研发群/ }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Jupiter" })).getByRole(
+      "button",
+      { name: "编辑授权" },
+    ),
+  );
+  expect(screen.getByRole("radio", { name: /限定项目范围/ })).toBeChecked();
+  await user.click(screen.getByRole("radio", { name: /完整本机权限/ }));
+  expect(screen.getByText("仅对当前群中的 Jupiter 生效。")).toBeInTheDocument();
+  const approval = screen.getByRole("button", { name: /执行审批/ });
+  expect(approval).toBeDisabled();
+  expect(approval).toHaveTextContent("授权范围内自动执行");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "完整权限可能影响整台电脑",
+  );
+  expect(
+    screen.getByText(
+      "操作和结果发送将自动进行，不再逐次审批或等待桌面审阅；可能直接向群内或外部服务发送敏感信息。",
+    ),
+  ).toBeInTheDocument();
+  const submit = screen.getByRole("button", { name: "确认并启用完整权限" });
+  expect(submit).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: /我理解风险/ }));
+  expect(submit).toBeEnabled();
+  await user.click(screen.getByRole("radio", { name: /限定项目范围/ }));
+  await user.click(screen.getByRole("radio", { name: /完整本机权限/ }));
+  expect(
+    screen.getByRole("checkbox", { name: /我理解风险/ }),
+  ).not.toBeChecked();
+  expect(
+    screen.getByRole("button", { name: "确认并启用完整权限" }),
+  ).toBeDisabled();
+});

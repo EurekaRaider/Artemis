@@ -116,6 +116,10 @@ export function draftAuthorizationCommand(
     ),
     ...(draft.editPolicy ? { policy: imProjectPolicy(grant) } : {}),
     scope: { ...grant.security!.scopes[0]!, confirmedAt: draft.confirmedAt },
+    ...(grant.security!.scopes[0]!.localAccess === "full" &&
+    draft.intent !== "pause"
+      ? { fullAccessConfirmed: true }
+      : {}),
     enableService: draft.intent !== "pause",
     confirmationFingerprint: "",
   };

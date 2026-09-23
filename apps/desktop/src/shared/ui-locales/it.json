@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "Copiato",
   "ImSlackAutoSetup.privacy": "Credenziali crittografate su questo dispositivo",
   "ImSlackAutoSetup.nameTaken": "Esiste già un bot con questo nome. Scegline un altro per evitare di creare un duplicato.",
-  "ImSlackAutoSetup.manageApps": "Gestisci le app Slack"
+  "ImSlackAutoSetup.manageApps": "Gestisci le app Slack",
+  "GroupAuthorization.localAccess": "Accesso al computer locale",
+  "GroupAuthorization.localAccessHint": "Si applica solo a {{bot}} in questo gruppo.",
+  "GroupAuthorization.projectLocal": "Ambito del progetto (predefinito)",
+  "GroupAuthorization.projectLocalHint": "Solo file e cartelle autorizzati per questo gruppo.",
+  "GroupAuthorization.fullLocal": "Accesso locale completo",
+  "GroupAuthorization.fullLocalHint": "Usa i permessi dell’utente di sistema per file, comandi e rete.",
+  "GroupAuthorization.fullLocalRisk": "L’accesso completo può interessare tutto il computer",
+  "GroupAuthorization.fullLocalFiles": "Può leggere, modificare o eliminare file esterni al progetto.",
+  "GroupAuthorization.fullLocalMessages": "Istruzioni errate del gruppo o di altri agenti possono causare perdita di dati o divulgazione di informazioni sensibili.",
+  "GroupAuthorization.fullLocalTrust": "Consenti solo a membri fidati. Non concede privilegi di amministratore.",
+  "GroupAuthorization.fullLocalScope": "I limiti della cartella del progetto vengono rimossi; restano le restrizioni sui membri autorizzati.",
+  "GroupAuthorization.fullLocalSharing": "Le operazioni e l’invio dei risultati sono automatici, senza approvazione individuale o revisione sul desktop. Informazioni sensibili possono essere inviate direttamente al gruppo o a servizi esterni.",
+  "GroupAuthorization.confirmFullLocal": "Comprendo i rischi e autorizzo questo Agent a usare i miei permessi locali e l’ambito di condivisione sopra indicato.",
+  "GroupAuthorization.submitFullLocal": "Conferma e attiva accesso completo"
 }

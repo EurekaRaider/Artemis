@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "Disalin",
   "ImSlackAutoSetup.privacy": "Kredensial dienkripsi di perangkat ini",
   "ImSlackAutoSetup.nameTaken": "Bot dengan nama ini sudah ada. Pilih nama lain agar tidak membuat duplikat.",
-  "ImSlackAutoSetup.manageApps": "Kelola aplikasi Slack"
+  "ImSlackAutoSetup.manageApps": "Kelola aplikasi Slack",
+  "GroupAuthorization.localAccess": "Akses komputer lokal",
+  "GroupAuthorization.localAccessHint": "Hanya berlaku untuk {{bot}} di grup ini.",
+  "GroupAuthorization.projectLocal": "Lingkup proyek (bawaan)",
+  "GroupAuthorization.projectLocalHint": "Hanya file dan folder yang diizinkan untuk grup ini.",
+  "GroupAuthorization.fullLocal": "Akses lokal penuh",
+  "GroupAuthorization.fullLocalHint": "Gunakan izin pengguna sistem saat ini untuk file, perintah, dan jaringan.",
+  "GroupAuthorization.fullLocalRisk": "Akses penuh dapat memengaruhi seluruh komputer",
+  "GroupAuthorization.fullLocalFiles": "Dapat membaca, mengubah, atau menghapus file di luar proyek.",
+  "GroupAuthorization.fullLocalMessages": "Instruksi yang salah dari grup atau Agent lain dapat menyebabkan kehilangan data atau kebocoran informasi sensitif.",
+  "GroupAuthorization.fullLocalTrust": "Berikan hanya kepada anggota tepercaya. Tidak memberikan hak administrator.",
+  "GroupAuthorization.fullLocalScope": "Batas folder proyek dihapus; pembatasan anggota yang diizinkan tetap berlaku.",
+  "GroupAuthorization.fullLocalSharing": "Operasi dan pengiriman hasil berjalan otomatis tanpa persetujuan per operasi atau peninjauan di desktop. Informasi sensitif dapat dikirim langsung ke grup atau layanan eksternal.",
+  "GroupAuthorization.confirmFullLocal": "Saya memahami risikonya dan mengizinkan Agent ini memakai izin pengguna lokal serta lingkup berbagi di atas.",
+  "GroupAuthorization.submitFullLocal": "Konfirmasi dan aktifkan akses penuh"
 }

@@ -192,6 +192,7 @@ export const imAuthorizationCommandSchema = z
       })
       .optional(),
     scope: imDataScopeSchema,
+    fullAccessConfirmed: z.boolean().optional(),
     enableService: z.boolean(),
     confirmationFingerprint: z.string().min(1).max(65536),
   })

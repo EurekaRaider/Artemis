@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "已复制",
   "ImSlackAutoSetup.privacy": "凭据加密保存在本机",
   "ImSlackAutoSetup.nameTaken": "已有同名机器人，请换个名字，避免重复创建。",
-  "ImSlackAutoSetup.manageApps": "打开 Slack 应用管理"
+  "ImSlackAutoSetup.manageApps": "打开 Slack 应用管理",
+  "GroupAuthorization.localAccess": "本机访问权限",
+  "GroupAuthorization.localAccessHint": "仅对当前群中的 {{bot}} 生效。",
+  "GroupAuthorization.projectLocal": "限定项目范围（默认）",
+  "GroupAuthorization.projectLocalHint": "仅访问此群已授权的文件与目录。",
+  "GroupAuthorization.fullLocal": "完整本机权限",
+  "GroupAuthorization.fullLocalHint": "使用当前系统用户权限访问文件、执行命令和联网。",
+  "GroupAuthorization.fullLocalRisk": "完整权限可能影响整台电脑",
+  "GroupAuthorization.fullLocalFiles": "可读取、修改或删除项目外文件。",
+  "GroupAuthorization.fullLocalMessages": "群消息或其他 Agent 的错误指令可能导致数据丢失或敏感信息泄露。",
+  "GroupAuthorization.fullLocalTrust": "仅向可信成员开放；不代表管理员权限。",
+  "GroupAuthorization.fullLocalScope": "文件访问不再受项目目录限制；已授权成员限制仍然有效。",
+  "GroupAuthorization.fullLocalSharing": "操作和结果发送将自动进行，不再逐次审批或等待桌面审阅；可能直接向群内或外部服务发送敏感信息。",
+  "GroupAuthorization.confirmFullLocal": "我理解风险，并允许此 Agent 使用本机用户权限及上述分享范围。",
+  "GroupAuthorization.submitFullLocal": "确认并启用完整权限"
 }

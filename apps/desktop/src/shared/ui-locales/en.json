@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "Copied",
   "ImSlackAutoSetup.privacy": "Credentials encrypted on this device",
   "ImSlackAutoSetup.nameTaken": "A bot with this name already exists. Choose another name to avoid creating a duplicate.",
-  "ImSlackAutoSetup.manageApps": "Manage Slack apps"
+  "ImSlackAutoSetup.manageApps": "Manage Slack apps",
+  "GroupAuthorization.localAccess": "Local computer access",
+  "GroupAuthorization.localAccessHint": "Applies only to {{bot}} in this group.",
+  "GroupAuthorization.projectLocal": "Project scope (default)",
+  "GroupAuthorization.projectLocalHint": "Access only files and folders authorized for this group.",
+  "GroupAuthorization.fullLocal": "Full local access",
+  "GroupAuthorization.fullLocalHint": "Use the current system user’s permissions for files, commands and network access.",
+  "GroupAuthorization.fullLocalRisk": "Full access can affect the entire computer",
+  "GroupAuthorization.fullLocalFiles": "Can read, modify or delete files outside the project.",
+  "GroupAuthorization.fullLocalMessages": "Incorrect instructions from group messages or other agents may cause data loss or expose sensitive information.",
+  "GroupAuthorization.fullLocalTrust": "Grant only to trusted members. This does not grant administrator privileges.",
+  "GroupAuthorization.fullLocalScope": "Project folder limits no longer apply; authorized member restrictions still apply.",
+  "GroupAuthorization.fullLocalSharing": "Operations and result delivery run automatically, without per-operation approval or desktop review. Sensitive information may be sent directly to the group or external services.",
+  "GroupAuthorization.confirmFullLocal": "I understand the risks and authorize this Agent to use my local user permissions and the sharing scope above.",
+  "GroupAuthorization.submitFullLocal": "Confirm and enable full access"
 }

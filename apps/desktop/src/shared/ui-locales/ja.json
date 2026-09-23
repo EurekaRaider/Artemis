@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "コピー済み",
   "ImSlackAutoSetup.privacy": "認証情報はこの端末で暗号化して保存",
   "ImSlackAutoSetup.nameTaken": "同じ名前のボットがすでに存在します。重複を避けるため、別の名前を設定してください。",
-  "ImSlackAutoSetup.manageApps": "Slack アプリを管理"
+  "ImSlackAutoSetup.manageApps": "Slack アプリを管理",
+  "GroupAuthorization.localAccess": "ローカルアクセス権限",
+  "GroupAuthorization.localAccessHint": "このグループの {{bot}} のみに適用されます。",
+  "GroupAuthorization.projectLocal": "プロジェクト内（既定）",
+  "GroupAuthorization.projectLocalHint": "このグループに許可されたファイルとフォルダーのみ。",
+  "GroupAuthorization.fullLocal": "完全なローカルアクセス",
+  "GroupAuthorization.fullLocalHint": "現在のユーザー権限でファイル、コマンド、ネットワークを使用します。",
+  "GroupAuthorization.fullLocalRisk": "完全なアクセスはコンピューター全体に影響します",
+  "GroupAuthorization.fullLocalFiles": "プロジェクト外のファイルを読み取り、変更、削除できます。",
+  "GroupAuthorization.fullLocalMessages": "グループや他の Agent の誤った指示により、データの消失や機密情報の漏洩が起こり得ます。",
+  "GroupAuthorization.fullLocalTrust": "信頼できるメンバーにのみ許可してください。管理者権限は付与されません。",
+  "GroupAuthorization.fullLocalScope": "プロジェクトの範囲制限は解除されますが、メンバーの認可は維持されます。",
+  "GroupAuthorization.fullLocalSharing": "操作と結果の送信は、操作ごとの承認やデスクトップでのレビューを待たずに自動で行われます。機密情報がグループや外部サービスに直接送信される可能性があります。",
+  "GroupAuthorization.confirmFullLocal": "リスクを理解し、この Agent にローカルユーザー権限と上記の共有範囲を許可します。",
+  "GroupAuthorization.submitFullLocal": "確認して完全なアクセスを有効化"
 }

@@ -3643,7 +3643,7 @@ export class ArtemisAgentHost {
       return result.data;
     };
     const remoteTools = request.remoteExecution
-      ? createRemoteTools(invokeRemoteOperation)
+      ? createRemoteTools(invokeRemoteOperation, request.remoteExecution)
       : request.groupCollaboration
         ? createRemoteTools(invokeRemoteOperation).filter(
             (tool) =>
@@ -5643,6 +5643,7 @@ export class ArtemisAgentHost {
                             path,
                           ])[0]!,
                         ),
+                      request.remoteExecution,
                     )
                   : [];
                 const childOfficeDocumentTool = createOfficeDocumentTool(

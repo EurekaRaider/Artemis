@@ -58,6 +58,8 @@ export const imDataScopeSchema = z
     revision: z.string().min(1).max(256).optional(),
     contextRevision: z.string().min(1).max(256).optional(),
     confirmedAt: z.number().int().nonnegative().optional(),
+    // Omission preserves the existing project sandbox. This is audience-local.
+    localAccess: z.enum(["project", "full"]).optional(),
     readMode: z.enum(["project", "selected"]).optional(),
     writeMode: z.enum(["project", "selected"]).optional(),
     spaceRevision: z.string().min(1).max(256).optional(),

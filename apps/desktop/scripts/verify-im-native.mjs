@@ -353,6 +353,54 @@ try {
         Buffer.from(capture.split(",")[1], "base64"),
       );
       checks.push({ theme, width, height, zoom, geometry });
+      // Full access is a per-group draft choice, never a settings-wide toggle.
+      await click(
+        "document.querySelector('input[name=im-local-access][value=full]')",
+      );
+      assert.equal(
+        await app.page.evaluate(`(${button("确认并启用完整权限")}).disabled`),
+        true,
+      );
+      assert.equal(
+        await app.page.evaluate(
+          "document.querySelector('.im-local-access-warning').getAttribute('role')",
+        ),
+        "alert",
+      );
+      await app.page.evaluate(
+        "document.querySelector('.im-local-access-warning').scrollIntoView({block:'center'})",
+      );
+      const fullGeometry = await app.page.evaluate(
+        "(()=>{const b=document.querySelector('.im-group-body'),w=document.querySelector('.im-local-access-warning');return {overflow:b.scrollWidth>b.clientWidth,warning:w.innerText}})()",
+      );
+      assert.equal(fullGeometry.overflow, false);
+      assert.ok(fullGeometry.warning.includes("完整权限可能影响整台电脑"));
+      assert.ok(fullGeometry.warning.includes("不再逐次审批或等待桌面审阅"));
+      await app.page.evaluate(
+        "new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))",
+      );
+      const fullCapture = await app.main.evaluate(
+        `(async()=>(await ${app.windowExpression}.webContents.capturePage()).toDataURL())()`,
+      );
+      await writeFile(
+        join(output, `full-${theme}-${width}-${zoom}.png`),
+        Buffer.from(fullCapture.split(",")[1], "base64"),
+      );
+      await click(
+        "document.querySelector('.im-group-body input[type=checkbox]')",
+      );
+      assert.equal(
+        await app.page.evaluate(`(${button("确认并启用完整权限")}).disabled`),
+        false,
+      );
+      await click(
+        "document.querySelector('input[name=im-local-access][value=project]')",
+      );
+      assert.equal(
+        await app.page.evaluate(`(${button("确认并应用")}).disabled`),
+        true,
+      );
+      checks.push({ theme, width, height, zoom, fullLocal: fullGeometry });
     }
   }
   // Escape keeps the dirty draft in the same shell; returning restores it.

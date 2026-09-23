@@ -1571,5 +1571,19 @@
   "ImSlackAutoSetup.copied": "تم النسخ",
   "ImSlackAutoSetup.privacy": "بيانات الاعتماد مشفّرة على هذا الجهاز",
   "ImSlackAutoSetup.nameTaken": "يوجد روبوت بهذا الاسم بالفعل. اختر اسمًا آخر لتجنب إنشاء نسخة مكررة.",
-  "ImSlackAutoSetup.manageApps": "إدارة تطبيقات Slack"
+  "ImSlackAutoSetup.manageApps": "إدارة تطبيقات Slack",
+  "GroupAuthorization.localAccess": "الوصول إلى الكمبيوتر المحلي",
+  "GroupAuthorization.localAccessHint": "ينطبق فقط على {{bot}} في هذه المجموعة.",
+  "GroupAuthorization.projectLocal": "نطاق المشروع (الافتراضي)",
+  "GroupAuthorization.projectLocalHint": "الملفات والمجلدات المصرح بها لهذه المجموعة فقط.",
+  "GroupAuthorization.fullLocal": "وصول محلي كامل",
+  "GroupAuthorization.fullLocalHint": "استخدام أذونات مستخدم النظام الحالي للملفات والأوامر والشبكة.",
+  "GroupAuthorization.fullLocalRisk": "قد يؤثر الوصول الكامل على الكمبيوتر بأكمله",
+  "GroupAuthorization.fullLocalFiles": "يمكن قراءة الملفات خارج المشروع وتعديلها أو حذفها.",
+  "GroupAuthorization.fullLocalMessages": "قد تؤدي تعليمات خاطئة من المجموعة أو وكلاء آخرين إلى فقدان البيانات أو تسريب معلومات حساسة.",
+  "GroupAuthorization.fullLocalTrust": "امنحه للأعضاء الموثوقين فقط. لا يمنح صلاحيات المسؤول.",
+  "GroupAuthorization.fullLocalScope": "تُرفع حدود مجلد المشروع وتبقى قيود الأعضاء المصرح لهم.",
+  "GroupAuthorization.fullLocalSharing": "تُنفّذ العمليات وتُرسل النتائج تلقائيًا دون موافقة لكل عملية أو مراجعة على سطح المكتب. قد تُرسل معلومات حساسة مباشرةً إلى المجموعة أو الخدمات الخارجية.",
+  "GroupAuthorization.confirmFullLocal": "أفهم المخاطر وأسمح لهذا Agent باستخدام أذونات المستخدم المحلي ونطاق المشاركة أعلاه.",
+  "GroupAuthorization.submitFullLocal": "تأكيد وتفعيل الوصول الكامل"
 }

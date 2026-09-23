@@ -15,6 +15,11 @@ import {
   fetchFeishuBotInfo,
   pollFeishuScan,
 } from "./feishu-register.js";
+import {
+  buildLocalImShellLaunch,
+  readLocalImFile,
+  writeLocalImFile,
+} from "./im-local-access.js";
 import { WindowsImFiles, runWindowsImShell } from "./im-windows-files.js";
 import {
   IM_AUTHORIZATION_VERSION,
@@ -1574,6 +1579,17 @@ export class ImService {
   }
   async save(input: unknown): Promise<ImStatus> {
     const baseline = JSON.stringify(this.config);
+    for (const grant of imSettingsSchema.parse(input).grants) {
+      for (const scope of grant.security?.scopes ?? []) {
+        const old = this.config.grants
+          .find((g) => g.projectId === grant.projectId)
+          ?.security?.scopes.find((s) => s.audience === scope.audience);
+        if (scope.localAccess === "full" && old?.localAccess !== "full")
+          throw new Error(
+            "Use confirmed group authorization to enable full local access.",
+          );
+      }
+    }
     if (
       this.get("migrations", "authorization-v1") &&
       JSON.stringify(imSettingsSchema.parse(input).grants) !==
@@ -1627,6 +1643,7 @@ export class ImService {
         grant.groups.length > 0 &&
         grant.mode === "execute" &&
         grant.shell &&
+        grant.security?.scopes.some((scope) => scope.localAccess !== "full") &&
         process.platform === "darwin"
       )
         await this.checkSandbox(
@@ -1678,6 +1695,7 @@ export class ImService {
       const semantic = (scope: import("@artemis/protocol").ImDataScope) =>
         JSON.stringify({
           audience: scope.audience,
+          localAccess: scope.localAccess ?? "project",
           spaceRevision: scope.spaceRevision,
           readPaths: [...scope.readPaths].sort(),
           writePaths: [...scope.writePaths].sort(),
@@ -1692,7 +1710,7 @@ export class ImService {
         const confirmedAt = imScopeConfirmation(grant.security, scope);
         if (!allowed.has(scope.audience))
           throw new Error("数据范围引用了未授权的协作空间。");
-        if (!scope.filePaths) {
+        if (!scope.filePaths && scope.localAccess !== "full") {
           scope.filePaths = [];
           for (const path of scope.readPaths) {
             const full = await checkedRemotePath(
@@ -1718,6 +1736,7 @@ export class ImService {
         const retainsReadableData =
           old &&
           previous?.security &&
+          (old.localAccess ?? "project") === (scope.localAccess ?? "project") &&
           old.spaceRevision === scope.spaceRevision &&
           (!scope.readPaths.length ||
             (old.readPaths.length > 0 &&
@@ -1995,6 +2014,14 @@ export class ImService {
     raw: ImAuthorizationCommand,
   ): Promise<ImAuthorizationOperation> {
     const command = imAuthorizationCommandSchema.parse(raw);
+    if (
+      command.intent !== "pause" &&
+      command.scope.localAccess === "full" &&
+      command.fullAccessConfirmed !== true
+    )
+      throw new Error(
+        "Explicit confirmation is required for full local access.",
+      );
     if (command.confirmationFingerprint !== imAuthorizationFingerprint(command))
       throw new Error("The authorization summary changed. Confirm it again.");
     let operation = this.get<ImAuthorizationOperation>(
@@ -2523,7 +2550,7 @@ export class ImService {
       const binding = this.get<Binding>("bindings", action.threadId);
       if (!binding) throw new Error("请先选择新的受限会话。");
       this.checkContext(binding);
-      if (inspectImOutbound(action.text))
+      if (!this.fullLocalAccess(binding) && inspectImOutbound(action.text))
         throw new Error("交接文字包含待审内容，请修改后重试。");
       await this.ops.start(
         action.threadId,
@@ -2764,6 +2791,14 @@ export class ImService {
       return { allowed: action.allowed };
     }
     if (action.action === "authorize-native-group") {
+      if (
+        action.grant.security?.scopes.some(
+          (scope) => scope.localAccess === "full",
+        )
+      )
+        throw new Error(
+          "Use confirmed group authorization to enable full local access.",
+        );
       if (!this.usesLocalGateway())
         throw new Error("原生群需要本机独立接入。请先启用内置服务。");
       if (
@@ -2997,7 +3032,9 @@ export class ImService {
         return previous;
       }
       if (action.destination === "group") {
-        const reason = inspectImOutbound(action.text);
+        const reason = this.fullLocalAccess(binding)
+          ? undefined
+          : inspectImOutbound(action.text);
         if (reason) throw new Error(reason);
         const message = {
           parentThreadId: action.threadId,
@@ -3178,6 +3215,18 @@ export class ImService {
       }),
     };
   }
+  private fullLocalAccess(
+    binding: Binding,
+    grant = this.checkContext(binding),
+  ): boolean {
+    const scope = grant.security?.scopes.find(
+      (scope) => scope.audience === binding.security?.audience,
+    );
+    return (
+      scope?.localAccess === "full" &&
+      !!imScopeConfirmation(grant.security, scope)
+    );
+  }
   private grant(binding: Binding) {
     const grant = this.checkContext(binding);
     if (this.leaseUntil <= Date.now())
@@ -3204,7 +3253,9 @@ export class ImService {
       )
         throw new Error("协作空间共享范围已改变，请重新发起任务。");
     }
-    return grant;
+    return this.fullLocalAccess(binding, grant)
+      ? { ...grant, approval: "automatic" as const }
+      : grant;
   }
   hasBinding(threadId: string): boolean {
     return !!this.get<Binding>("bindings", threadId);
@@ -3232,16 +3283,20 @@ export class ImService {
               ? dataScope
               : {
                   ...dataScope,
+                  localAccess: "project" as const,
                   writePaths: [],
                   writeMode: "selected" as const,
                 },
           }
         : {}),
-      network: grant?.network ?? false,
+      network:
+        dataScope?.localAccess === "full" && executionConfirmed
+          ? true
+          : (grant?.network ?? false),
       shell:
         executionConfirmed &&
-        this.scopedExecutionSupported &&
-        (grant?.shell ?? false),
+        (dataScope?.localAccess === "full" ||
+          (this.scopedExecutionSupported && (grant?.shell ?? false))),
       ...(binding.security ? { security: binding.security } : {}),
     };
   }
@@ -3402,6 +3457,7 @@ export class ImService {
         "subscriptions",
         "progress-time",
         "permission-blocks",
+        "full-local-output",
       ])
         this.remove(namespace, threadId);
       this.db
@@ -3438,12 +3494,19 @@ export class ImService {
       this.authorizeThread(threadId, mode);
       return current;
     }
-    if (operation.action === "read")
+    const scope = requireImScope(
+      current,
+      imAudience(binding.request.conversation),
+    );
+    const fullLocal =
+      scope.localAccess === "full" &&
+      !!imScopeConfirmation(current.security, scope);
+    if (operation.action === "read" && !fullLocal)
       authorizeImReadPath(
         requireImScope(current, imAudience(binding.request.conversation)),
         operation.path,
       );
-    if (operation.action === "write")
+    if (operation.action === "write" && !fullLocal)
       authorizeImPath(
         requireImScope(
           current,
@@ -3453,13 +3516,17 @@ export class ImService {
         operation.path,
         true,
       );
-    if (operation.action === "shell")
+    if (operation.action === "shell" || operation.action === "write")
       requireImScope(
         current,
         imAudience(binding.request.conversation),
         "write",
       );
-    if (operation.action === "shell" && !this.scopedExecutionSupported)
+    if (
+      operation.action === "shell" &&
+      !fullLocal &&
+      !this.scopedExecutionSupported
+    )
       throw new Error("此平台尚不能强制执行细粒度 IM 命令范围。");
     if (binding.targetDeviceIds && operation.action === "collaborate") {
       const command = operation.command;
@@ -3508,7 +3575,7 @@ export class ImService {
       throw new Error(
         "Plan and Review cannot execute or publish remote operations.",
       );
-    if (operation.action === "shell" && !grant.shell)
+    if (operation.action === "shell" && !fullLocal && !grant.shell)
       throw new Error("Remote shell is not authorized.");
     return grant;
   }
@@ -3623,6 +3690,23 @@ export class ImService {
     if (!binding.projectId)
       throw new Error("临时任务不提供远程工具；需要文件或协作请在项目中发起。");
     const grant = this.authorizeOperation(threadId, operation, mode, turnId);
+    const revision = this.get<Binding>("bindings", threadId)?.security
+      ?.revision;
+    const assertCurrent = () => {
+      const current = this.authorizeOperation(
+        threadId,
+        operation,
+        mode,
+        turnId,
+      );
+      if (
+        this.get<Binding>("bindings", threadId)?.security?.revision !== revision
+      )
+        throw new Error(
+          "Authorization changed during the operation. Retry with the current scope.",
+        );
+      return current;
+    };
     if (operation.action === "participants") {
       const group = this.groupContext(binding);
       return {
@@ -3686,7 +3770,9 @@ export class ImService {
         operation.command.action === "delegate-many"
           ? (operation.command.assignments?.map((a) => a.text).join("\n") ?? "")
           : operation.command.text;
-      const reason = inspectImOutbound(text);
+      const reason = this.fullLocalAccess(binding)
+        ? undefined
+        : inspectImOutbound(text);
       if (reason) throw new Error(reason);
       this.checkContext(binding);
       if (operation.command.action === "wait")
@@ -3859,11 +3945,32 @@ export class ImService {
     const project = this.ops.projects().find((p) => p.id === binding.projectId);
     if (!project) throw new Error("Project no longer exists.");
     const workspace = await realpath(project.path);
-    this.authorizeOperation(threadId, operation, mode, turnId);
+    assertCurrent();
     const scope = requireImScope(
       grant,
       imAudience(binding.request.conversation),
     );
+    const fullLocal =
+      scope.localAccess === "full" &&
+      !!imScopeConfirmation(grant.security, scope);
+    if (fullLocal && operation.action === "read") {
+      const result = await readLocalImFile(workspace, operation.path);
+      assertCurrent();
+      return result;
+    }
+    if (fullLocal && operation.action === "write") {
+      this.put("operations", receiptKey, { state: "started", operation });
+      await writeLocalImFile(
+        workspace,
+        operation.path,
+        operation.content,
+        () => assertCurrent(),
+        operation.expectedHash,
+      );
+      const result = { output: "File written.", exitCode: 0, cancelled: false };
+      this.put("operations", receiptKey, { state: "done", operation, result });
+      return result;
+    }
     if (operation.action === "read") {
       const readPath = authorizeImReadPath(scope, operation.path);
       const projected = imProjectedDirectory(scope, readPath);
@@ -3881,7 +3988,7 @@ export class ImService {
               workspace,
               operation.path,
               scope,
-              () => this.authorizeOperation(threadId, operation, mode, turnId),
+              () => assertCurrent(),
             ),
           };
         }
@@ -3898,7 +4005,7 @@ export class ImService {
           new AbortController().signal,
           10,
         );
-        this.authorizeOperation(threadId, operation, mode, turnId);
+        assertCurrent();
         if (result.exitCode !== 0) {
           if (/Permission denied|Operation not permitted/iu.test(result.output))
             throw new ImPermissionError(
@@ -3924,15 +4031,15 @@ export class ImService {
             /* Protected or linked children are not part of the listing. */
           }
         }
-        this.authorizeOperation(threadId, operation, mode, turnId);
+        assertCurrent();
         return { entries };
       }
       const bytes = this.windowsFiles
         ? await this.windowsFiles.read(workspace, operation.path, scope, () =>
-            this.authorizeOperation(threadId, operation, mode, turnId),
+            assertCurrent(),
           )
         : await readImFile(workspace, operation.path, scope);
-      this.authorizeOperation(threadId, operation, mode, turnId);
+      assertCurrent();
       return {
         output: bytes.toString("utf8"),
         contentHash: imContentHash(bytes),
@@ -3952,15 +4059,17 @@ export class ImService {
         operation.path,
         operation.content,
         scope,
-        () => this.authorizeOperation(threadId, operation, mode, turnId),
+        () => assertCurrent(),
         operation.expectedHash,
       );
       const result = { output: "File written.", exitCode: 0, cancelled: false };
       this.put("operations", receiptKey, { state: "done", operation, result });
       return result;
     }
-    const shellLinkPolicy = await validateImShellScope(workspace, scope);
-    this.authorizeOperation(threadId, operation, mode, turnId);
+    const shellLinkPolicy = fullLocal
+      ? undefined
+      : await validateImShellScope(workspace, scope);
+    assertCurrent();
     const command = operation.command;
     const controller = new AbortController();
     const set = this.controllers.get(threadId) ?? new Set<AbortController>();
@@ -3977,11 +4086,17 @@ export class ImService {
     let runtime: Awaited<ReturnType<typeof prepareImShellRuntime>> | undefined;
     try {
       runtime =
-        process.platform === "darwin"
+        !fullLocal && process.platform === "darwin"
           ? await prepareImShellRuntime()
           : undefined;
-      const result =
-        this.windowsFiles && this.windowsHelper
+      assertCurrent();
+      const result = fullLocal
+        ? await runRemoteShell(
+            buildLocalImShellLaunch(workspace, command),
+            controller.signal,
+            operation.timeoutSeconds,
+          )
+        : this.windowsFiles && this.windowsHelper
           ? await runWindowsImShell({
               workspace,
               helper: this.windowsHelper,
@@ -3991,7 +4106,7 @@ export class ImService {
               signal: controller.signal,
               timeoutSeconds: operation.timeoutSeconds,
               assertCurrent: () => {
-                this.authorizeOperation(threadId, operation, mode, turnId);
+                assertCurrent();
               },
             })
           : await runRemoteShell(
@@ -4151,7 +4266,9 @@ export class ImService {
       }
       if (binding.security) {
         reply.security = this.deliverySecurity(binding.security);
-        const reason = inspectImOutbound(reply.text);
+        const reason = this.fullLocalAccess(binding)
+          ? undefined
+          : inspectImOutbound(reply.text);
         if (reason) {
           this.holdOutbound(binding, "reply", reply, reason, reply.id);
           this.put("outbox", `${reply.id}:held`, {
@@ -4617,8 +4734,9 @@ export class ImService {
           : {}),
       };
       const text = bytes.toString("utf8");
-      const reason =
-        text.includes("\u0000") || !Buffer.from(text).equals(bytes)
+      const reason = this.fullLocalAccess(binding)
+        ? undefined
+        : text.includes("\u0000") || !Buffer.from(text).equals(bytes)
           ? this.text("binaryFileReview", request)
           : inspectImOutbound(text);
       if (binding.security && reason) {
@@ -5720,6 +5838,24 @@ export class ImService {
           });
           this.remove("outbound-bodies", candidate.id);
           this.remove("outbox", candidate.id);
+          continue;
+        }
+        if (candidate.state === "pending") {
+          const binding = this.get<Binding>("bindings", candidate.threadId);
+          try {
+            if (binding && this.fullLocalAccess(binding)) {
+              // Recover results held by older builds, only under the same live
+              // scope, recipient, content hash and expiry checked by the journal.
+              await this.resolveOutbound(
+                candidate.id,
+                candidate.contentHash,
+                true,
+              );
+              this.remove("outbox", `${candidate.id}:held`);
+            }
+          } catch {
+            // Preserve the journal for transport retry or explicit scope expiry.
+          }
           continue;
         }
         if (candidate.state === "sending") {
