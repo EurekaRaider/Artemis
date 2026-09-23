@@ -460,6 +460,82 @@ describe("Select", () => {
     expect(filterSelectOptions(OPTIONS, "not present")).toEqual([]);
   });
 
+  it("ranks visible names before hidden metadata and fuzzy matches", () => {
+    const options = [
+      {
+        value: "research",
+        label: "Deep Research",
+        searchText: "google research",
+      },
+      { value: "fuzzy", label: "Great Powerful Tool" },
+      { value: "contains", label: "Hosted GPT" },
+      { value: "prefix", label: "GPT-6 Sol" },
+      { value: "exact", label: "GPT" },
+      { value: "gemini", label: "Gemini 2.5 Pro" },
+    ];
+    const values = (query: string) =>
+      filterSelectOptions(options, query).map(({ value }) => value);
+    expect(values("G")).toEqual([
+      "fuzzy",
+      "prefix",
+      "exact",
+      "gemini",
+      "contains",
+      "research",
+    ]);
+    expect(values("ＧＰＴ")).toEqual(["exact", "prefix", "contains", "fuzzy"]);
+    expect(values("google")).toEqual(["research"]);
+    expect(values("  ")).toEqual(options.map(({ value }) => value));
+    expect(options[0]?.value).toBe("research");
+  });
+
+  it("ranks normalized phrases and supports terms across name and metadata", () => {
+    const options = [
+      { value: "hosted", label: "Hosted GPT-6 Sol", searchText: "openai" },
+      { value: "sol", label: "GPT-6 Sol", searchText: "openai" },
+      { value: "luna", label: "GPT-6 Luna", searchText: "openai" },
+    ];
+    expect(
+      filterSelectOptions(options, "gpt 6 sol").map(({ value }) => value),
+    ).toEqual(["sol", "hosted"]);
+    expect(
+      filterSelectOptions(options, "openai luna").map(({ value }) => value),
+    ).toEqual(["luna"]);
+    expect(
+      filterSelectOptions([{ value: "cafe", label: "Café" }], "café"),
+    ).toHaveLength(1);
+  });
+
+  it("activates the best search match and commits it with Enter", async () => {
+    const onValueChange = vi.fn();
+    render(
+      <Select
+        label="Model"
+        value="research"
+        onValueChange={onValueChange}
+        searchPlaceholder="Search models"
+        options={[
+          { value: "research", label: "Deep Research", searchText: "google" },
+          { value: "gemini", label: "Gemini 2.5 Pro" },
+          { value: "gpt", label: "GPT-6 Sol" },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Model/ }));
+    const search = screen.getByRole("combobox", { name: "Search models" });
+    fireEvent.change(search, { target: { value: "G" } });
+    expect(screen.getAllByRole("option")[0]?.textContent).toContain("Gemini");
+    expect(screen.getAllByRole("option")[0]?.getAttribute("data-active")).toBe(
+      "true",
+    );
+    fireEvent.change(search, { target: { value: "GPT" } });
+    expect(screen.getAllByRole("option")[0]?.textContent).toContain(
+      "GPT-6 Sol",
+    );
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onValueChange).toHaveBeenCalledWith("gpt");
+  });
+
   it("renders stable listbox anatomy and selects once with keyboard", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

@@ -833,25 +833,41 @@ export function filterSelectOptions<Value extends string>(
   const terms = query
     .normalize("NFKD")
     .toLocaleLowerCase()
+    .replace(/\p{Mark}/gu, "")
     .split(/[^\p{Letter}\p{Number}]+/u)
     .map(compact)
     .filter(Boolean);
   if (terms.length === 0) return [...options];
-  return options.filter((option) => {
+  const phrase = terms.join("");
+  const ranked = options.map((option) => {
+    const label = compact(option.label);
     const text = compact(
-      option.searchText ?? `${option.label} ${option.value}`,
+      `${option.label} ${option.searchText ?? option.value}`,
     );
-    return terms.every((term) => {
-      if (text.includes(term)) return true;
-      let index = 0;
-      for (const character of term) {
-        index = text.indexOf(character, index);
-        if (index < 0) return false;
-        index += 1;
-      }
-      return true;
-    });
+    // Visible names outrank provider/ID metadata; fuzzy matches come last.
+    let rank: number;
+    if (label === phrase) rank = 0;
+    else if (label.startsWith(phrase)) rank = 1;
+    else if (terms.every((term) => label.includes(term))) rank = 2;
+    else if (terms.every((term) => text.includes(term))) rank = 3;
+    else {
+      const matches = terms.every((term) => {
+        let index = 0;
+        for (const character of term) {
+          index = text.indexOf(character, index);
+          if (index < 0) return false;
+          index += 1;
+        }
+        return true;
+      });
+      rank = matches ? 4 : -1;
+    }
+    return { option, rank };
   });
+  return ranked
+    .filter(({ rank }) => rank >= 0)
+    .sort((left, right) => left.rank - right.rank)
+    .map(({ option }) => option);
 }
 
 export interface SelectProps<Value extends string> {
