@@ -140,3 +140,23 @@ describe("MCP OAuth", () => {
     }
   });
 });
+
+it("rejects an authorization response from another issuer", async () => {
+  const callback = await startMcpOAuthCallback(
+    "issuer-bound",
+    (state) => state === "bound-state",
+    undefined,
+    { hostname: "127.0.0.1" },
+    "https://issuer.example.com/",
+  );
+  const rejected = expect(callback.authorizationCode).rejects.toThrow();
+  try {
+    const response = await fetch(
+      `${callback.redirectUrl}?state=bound-state&code=private&iss=https%3A%2F%2Fattacker.example.com`,
+    );
+    expect(response.status).toBe(400);
+    await rejected;
+  } finally {
+    await callback.close();
+  }
+});

@@ -1586,8 +1586,15 @@
   "GroupAuthorization.fullLocalSharing": "Le operazioni e l’invio dei risultati sono automatici, senza approvazione individuale o revisione sul desktop. Informazioni sensibili possono essere inviate direttamente al gruppo o a servizi esterni.",
   "GroupAuthorization.confirmFullLocal": "Comprendo i rischi e autorizzo questo Agent a usare i miei permessi locali e l’ambito di condivisione sopra indicato.",
   "GroupAuthorization.submitFullLocal": "Conferma e attiva accesso completo",
+  "Update.install": "Installa aggiornamento",
   "Update.download": "Scarica aggiornamento",
   "Update.downloaded": "Download completato — riavvia per installare",
   "Update.completed": "Aggiornato alla v{{version}}",
-  "Update.installing": "Installazione aggiornamento…"
+  "Update.installing": "Installazione aggiornamento…",
+  "OAuth_application": "Applicazione",
+  "OAuth_publisher": "Origine editore",
+  "OAuth_authorizationDomain": "Dominio di autorizzazione",
+  "OAuth_resource": "Risorsa",
+  "OAuth_backend": "Backend dello sviluppatore",
+  "OAuth_updateRequired": "Aggiorna il plugin e autorizzalo di nuovo."
 }

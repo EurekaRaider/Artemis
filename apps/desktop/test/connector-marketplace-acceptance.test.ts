@@ -9,7 +9,7 @@ import { McpConfigStore } from "../src/main/mcp-config-store.js";
 // All installation data is isolated; this never opens or authorizes an account.
 const archive = process.env.ARTEMIS_CONNECTOR_MARKETPLACE_ARCHIVE;
 it.skipIf(!archive)(
-  "installs and verifies all ten connectors from the paired signed offline package",
+  "installs and verifies all listed connectors from the paired signed offline package",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "artemis-shop-acceptance-"));
     try {
@@ -36,7 +36,7 @@ it.skipIf(!archive)(
       const market = (
         await service.listMarketplaces(source.id)
       ).marketplaces.find((entry) => entry.sourceId === source.id)!.marketplace;
-      expect(market.plugins).toHaveLength(10);
+      expect(market.plugins).toHaveLength(5);
       for (const plugin of market.plugins) {
         expect(
           plugin.installable,
@@ -48,16 +48,18 @@ it.skipIf(!archive)(
         await service.install(plugin.source);
       }
       const configs = await mcpStore.list();
-      expect(configs).toHaveLength(10);
+      expect(configs).toHaveLength(5);
       expect(new Set(configs.map((config) => config.connector!.id)).size).toBe(
-        10,
+        5,
       );
       for (const config of configs) {
         expect(config.enabled).toBe(false);
-        expect(config.connector?.version).toBe(1);
+        expect(config.connector?.version).toBe(
+          ["qq-mail", "figma"].includes(config.connector!.id) ? 1 : 2,
+        );
         await service.assertConnectorTrusted(config);
       }
-      expect(await service.listInstalled()).toHaveLength(10);
+      expect(await service.listInstalled()).toHaveLength(5);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

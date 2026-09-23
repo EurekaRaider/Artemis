@@ -1,3 +1,8 @@
+import {
+  futureConnector,
+  futureRemoteConnector,
+  futureOwner,
+} from "./fixtures/connector-oauth.js";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,19 +32,7 @@ const google: McpServerConfig = {
   envVars: [],
   allowNetwork: true,
   workspacePath: "/tmp",
-  connector: {
-    version: 1,
-    id: "gmail",
-    provider: "google",
-    displayName: "Gmail",
-    auth: "oauth-pkce",
-    scopes: [
-      "openid",
-      "email",
-      "profile",
-      "https://www.googleapis.com/auth/gmail.modify",
-    ],
-  },
+  connector: futureConnector,
 };
 const qq: McpServerConfig = {
   ...google,
@@ -69,11 +62,10 @@ async function setup(config: McpServerConfig = google) {
   );
   const options = {
     vault,
-    clients: { version: 1 as const, google: { clientId: "public-id" } },
     openExternal: vi.fn(async (_url: string) => {}),
     fetcher: vi.fn<typeof fetch>(),
     configs: async () => [config],
-    assertTrusted: vi.fn(async () => {}),
+    assertTrusted: vi.fn(async () => futureOwner),
     connectMcp: vi.fn(async () => {}),
     disconnectMcp: vi.fn(async () => {}),
     checkMailbox: vi.fn(async () => {}),
@@ -86,7 +78,7 @@ describe("connector credential and execution boundary", () => {
     let challenge = "";
     options.openExternal.mockImplementation(async (value) => {
       const url = new URL(value);
-      expect(url.origin).toBe("https://accounts.google.com");
+      expect(url.origin).toBe("https://identity.example.com");
       expect(url.searchParams.get("code_challenge_method")).toBe("S256");
       challenge = url.searchParams.get("code_challenge")!;
       const redirect = new URL(url.searchParams.get("redirect_uri")!);
@@ -106,6 +98,7 @@ describe("connector credential and execution boundary", () => {
             .digest("base64url"),
         ).toBe(challenge);
         return Response.json({
+          token_type: "Bearer",
           access_token: "private-access",
           refresh_token: "private-refresh",
           expires_in: 3600,
@@ -113,7 +106,7 @@ describe("connector credential and execution boundary", () => {
         });
       }
       return Response.json({
-        sub: "verified-subject",
+        id: "verified-subject",
         email: "demo@example.test",
         email_verified: true,
       });
@@ -139,6 +132,7 @@ describe("connector credential and execution boundary", () => {
     });
     options.fetcher.mockResolvedValue(
       Response.json({
+        token_type: "Bearer",
         access_token: "private-access",
         refresh_token: "private-refresh",
         scope: "openid email profile",
@@ -174,14 +168,7 @@ describe("connector credential and execution boundary", () => {
       enabled: false,
       url: "https://mcp.notion.com/mcp",
       auth: "oauth",
-      connector: {
-        version: 1,
-        id: "notion",
-        provider: "notion",
-        displayName: "Notion",
-        auth: "mcp-oauth",
-        scopes: [],
-      },
+      connector: futureRemoteConnector,
     };
     const { options, vault } = await setup(notion);
     const service = new ConnectorService({
@@ -189,8 +176,8 @@ describe("connector credential and execution boundary", () => {
       connectMcp: async (_config, authentication) => {
         if (authentication?.authorizationCode) {
           await authentication.oauthProvider!.saveTokens!({
+            token_type: "Bearer",
             access_token: "private-mcp",
-            token_type: "bearer",
             refresh_token: "private-refresh",
           });
         }
@@ -205,8 +192,8 @@ describe("connector credential and execution boundary", () => {
     await service.disconnect("notion");
     await expect(
       auth!.oauthProvider!.saveTokens!({
+        token_type: "Bearer",
         access_token: "late-token",
-        token_type: "bearer",
       }),
     ).rejects.toThrow(/disconnected/);
     expect(await vault.get("notion")).toBeUndefined();
@@ -242,14 +229,7 @@ describe("connector credential and execution boundary", () => {
       enabled: false,
       transport: "streamable-http",
       url: "https://mcp.notion.com/mcp",
-      connector: {
-        version: 1,
-        id: "notion",
-        provider: "notion",
-        displayName: "Notion",
-        auth: "mcp-oauth",
-        scopes: [],
-      },
+      connector: futureRemoteConnector,
     };
     const { options, vault } = await setup(notion);
     let save!: () => Promise<void>;
@@ -259,8 +239,8 @@ describe("connector credential and execution boundary", () => {
       connectMcp: async (_config, auth) => {
         save = async () => {
           await auth!.oauthProvider!.saveTokens!({
+            token_type: "Bearer",
             access_token: "late-private-token",
-            token_type: "bearer",
           });
         };
         await new Promise<void>((resolve) => {
@@ -317,7 +297,7 @@ describe("connector credential and execution boundary", () => {
   it("rejects credential reuse after configuration or scope tampering", async () => {
     const { service, vault } = await setup();
     await vault.set("gmail", {
-      binding: connectorBinding(google),
+      binding: connectorBinding(google, futureOwner),
       accessToken: "private-access",
     });
     await expect(
@@ -333,7 +313,7 @@ describe("connector credential and execution boundary", () => {
   it("coalesces refreshes and retains credentials after a network error", async () => {
     const { service, vault, options } = await setup();
     const secret = {
-      binding: connectorBinding(google),
+      binding: connectorBinding(google, futureOwner),
       accessToken: "expired-token",
       refreshToken: "private-refresh",
       expiresAt: 1,
@@ -344,6 +324,7 @@ describe("connector credential and execution boundary", () => {
     expect(await vault.get("gmail")).toEqual(secret);
     options.fetcher.mockResolvedValue(
       Response.json({
+        token_type: "Bearer",
         access_token: "renewed-token",
         refresh_token: "rotated-refresh",
         expires_in: 3600,
@@ -361,7 +342,7 @@ describe("connector credential and execution boundary", () => {
   it("revocation requires reconnect and never returns an expired token", async () => {
     const { service, vault, options } = await setup();
     await vault.set("gmail", {
-      binding: connectorBinding(google),
+      binding: connectorBinding(google, futureOwner),
       refreshToken: "private-refresh",
     });
     options.fetcher.mockResolvedValue(
@@ -374,7 +355,7 @@ describe("connector credential and execution boundary", () => {
   it("discarding an in-flight refresh cannot resurrect a disconnected connection", async () => {
     const { service, vault, options } = await setup();
     await vault.set("gmail", {
-      binding: connectorBinding(google),
+      binding: connectorBinding(google, futureOwner),
       refreshToken: "private-refresh",
     });
     let finish!: (response: Response) => void;
@@ -388,7 +369,7 @@ describe("connector credential and execution boundary", () => {
     const rejected = expect(pending).rejects.toThrow(/disconnected/);
     await vi.waitFor(() => expect(options.fetcher).toHaveBeenCalled());
     await service.disconnect("gmail");
-    finish(Response.json({ access_token: "late-token" }));
+    finish(Response.json({ token_type: "Bearer", access_token: "late-token" }));
     await rejected;
     expect(await vault.get("gmail")).toBeUndefined();
   });
@@ -432,4 +413,354 @@ describe("connector credential and execution boundary", () => {
       ).every(Boolean),
     ).toBe(true);
   });
+});
+
+it("cleans only known legacy OAuth credentials and preserves QQ Mail", async () => {
+  const legacy = {
+    ...google,
+    connector: {
+      version: 1,
+      id: "gmail",
+      provider: "google",
+      displayName: "Gmail",
+      auth: "oauth-pkce",
+      scopes: [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/gmail.modify",
+      ],
+    },
+  } as McpServerConfig;
+  const { options, vault } = await setup(legacy);
+  options.configs = async () => [legacy, qq];
+  const service = new ConnectorService(options);
+  await vault.set(legacy.id, { binding: "old", refreshToken: "obsolete" });
+  await vault.set(qq.id, {
+    binding: connectorBinding(qq),
+    appPassword: "abcdefghijklmnop",
+  });
+  await service.migrateLegacyConnections();
+  expect(await vault.get(legacy.id)).toBeUndefined();
+  expect((await vault.get(qq.id))?.appPassword).toBe("abcdefghijklmnop");
+  await expect(service.connect({ serverId: legacy.id })).rejects.toThrow(
+    /Update the plugin/,
+  );
+});
+
+it("rejects credential reuse after signing identity changes", async () => {
+  const { options, vault, service } = await setup();
+  await vault.set(google.id, {
+    binding: connectorBinding(google, futureOwner),
+    accessToken: "old-access",
+  });
+  options.assertTrusted.mockResolvedValue({
+    ...futureOwner,
+    signingKeyFingerprint: "different-signer",
+  });
+  await expect(service.context(google)).rejects.toThrow(/Connect this account/);
+});
+
+it("preserves the pre-v2 QQ credential binding byte-for-byte", () => {
+  const old = createHash("sha256")
+    .update(
+      JSON.stringify({
+        id: qq.id,
+        connector: qq.connector,
+        transport: qq.transport,
+        target:
+          qq.transport === "stdio"
+            ? [qq.command, qq.args, qq.env, qq.envVars, qq.workspacePath]
+            : qq.url,
+      }),
+    )
+    .digest("hex");
+  expect(connectorBinding(qq)).toBe(old);
+});
+
+it("completes device authorization with an independent backend token and resource binding", async () => {
+  const config: McpServerConfig = {
+    ...google,
+    connector: {
+      ...futureConnector,
+      auth: "device-code",
+      oauth: {
+        ...futureConnector.oauth!,
+        deviceAuthorizationEndpoint: "https://identity.example.com/device",
+        verificationOrigins: ["https://identity.example.com/"],
+        backend: {
+          operator: "Test backend",
+          url: "https://identity.example.com/",
+        },
+      },
+    },
+  };
+  const { service, options, vault } = await setup(config);
+  options.fetcher.mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.endsWith("/device"))
+      return Response.json({
+        device_code: "private-device",
+        user_code: "ABCD-EFGH",
+        verification_uri: "https://identity.example.com/activate",
+        expires_in: 60,
+        interval: 1,
+      });
+    if (url.endsWith("/token")) {
+      const body = new URLSearchParams(String(init?.body));
+      expect(body.get("resource")).toBe("https://api.example.com/");
+      expect(body.get("client_secret")).toBeNull();
+      return Response.json({
+        token_type: "Bearer",
+        access_token: "backend-resource-token",
+        expires_in: 120,
+        scope: "records.read",
+      });
+    }
+    return Response.json({ id: "test-account", email: "test@example.com" });
+  });
+  await expect(service.connect({ serverId: config.id })).resolves.toMatchObject(
+    { state: "connected" },
+  );
+  expect(options.openExternal).toHaveBeenCalledWith(
+    "https://identity.example.com/activate",
+    expect.any(AbortSignal),
+  );
+  expect((await vault.get(config.id))?.expiresAt).toBeGreaterThan(Date.now());
+  expect((await service.context(config)).accessToken).toBe(
+    "backend-resource-token",
+  );
+  const changed = {
+    ...config,
+    connector: {
+      ...config.connector!,
+      oauth: {
+        ...config.connector!.oauth!,
+        resource: "https://other.example.com/",
+      },
+    },
+  };
+  await expect(service.context(changed)).rejects.toThrow(
+    /Connect this account/,
+  );
+}, 10000);
+
+it("rejects a device verification address outside the declared authorization origin", async () => {
+  const config: McpServerConfig = {
+    ...google,
+    connector: {
+      ...futureConnector,
+      auth: "device-code",
+      oauth: {
+        ...futureConnector.oauth!,
+        deviceAuthorizationEndpoint: "https://identity.example.com/device",
+        verificationOrigins: ["https://identity.example.com/"],
+      },
+    },
+  };
+  const { service, options } = await setup(config);
+  options.fetcher.mockResolvedValue(
+    Response.json({
+      device_code: "private-device",
+      user_code: "CODE",
+      verification_uri: "https://attacker.example.com/activate",
+    }),
+  );
+  await expect(service.connect({ serverId: config.id })).rejects.toThrow(
+    /Invalid device/,
+  );
+  expect(options.openExternal).not.toHaveBeenCalled();
+});
+
+it("restricts remote discovery, registration, and credential destinations independently", async () => {
+  const config: McpServerConfig = {
+    id: "notion",
+    name: "Remote",
+    transport: "streamable-http",
+    enabled: false,
+    url: futureRemoteConnector.oauth!.mcpEndpoint!,
+    connector: futureRemoteConnector,
+  };
+  const { service, options, vault } = await setup(config);
+  await vault.set(config.id, {
+    binding: connectorBinding(config, futureOwner),
+    oauth: {
+      redirectUrl: "http://127.0.0.1:12345/callback",
+      tokens: { token_type: "Bearer", access_token: "private" },
+    },
+  });
+  const authentication = await service.authentication(config);
+  const request = authentication!.fetch!;
+  const discovery = config.connector!.oauth!.discoveryUrls![0]!;
+  await expect(
+    request(discovery, { headers: { authorization: "Bearer private" } }),
+  ).rejects.toThrow(/Credentials/);
+  await expect(
+    request(discovery, { method: "POST", body: "code=private" }),
+  ).rejects.toThrow(/read-only/);
+  await expect(request("https://attacker.example.com/token")).rejects.toThrow(
+    /Untrusted/,
+  );
+  expect(options.fetcher).not.toHaveBeenCalled();
+  options.fetcher.mockResolvedValueOnce(
+    Response.json({ issuer: "https://attacker.example.com/" }),
+  );
+  await expect(request(discovery)).rejects.toThrow(/issuer changed/);
+  options.fetcher.mockResolvedValueOnce(
+    new Response(null, {
+      status: 302,
+      headers: { location: "https://attacker.example.com/" },
+    }),
+  );
+  await expect(request(discovery)).rejects.toThrow(/redirects/);
+  options.fetcher.mockResolvedValueOnce(
+    Response.json(
+      {
+        error: "invalid_grant",
+        error_description: "private-code private-refresh private-verifier",
+      },
+      { status: 400 },
+    ),
+  );
+  const rejected = await request(config.connector!.oauth!.tokenEndpoint, {
+    method: "POST",
+    body: "grant_type=authorization_code",
+  });
+  expect(await rejected.text()).not.toContain("private-");
+});
+
+it.each(["static", "dynamic", "metadata"] as const)(
+  "uses the MCP SDK with %s public registration and resource-bound code exchange",
+  async (mode) => {
+    const { auth } = await import("@modelcontextprotocol/sdk/client/auth.js");
+    const oauth = {
+      ...futureRemoteConnector.oauth!,
+      discoveryUrls: [
+        "https://mcp.notion.com/.well-known/oauth-protected-resource/mcp",
+        "https://identity.example.com/.well-known/oauth-authorization-server",
+      ],
+      client:
+        mode === "static"
+          ? { type: "static" as const, clientId: "registered-public-client" }
+          : mode === "dynamic"
+            ? { type: "dynamic" as const }
+            : {
+                type: "metadata" as const,
+                url: "https://client.example.com/oauth.json",
+              },
+      redirect:
+        mode === "metadata"
+          ? { hostname: "127.0.0.1" as const, port: 43829, path: "/callback" }
+          : { hostname: "127.0.0.1" as const },
+    };
+    const config: McpServerConfig = {
+      id: "notion",
+      name: "Remote",
+      transport: "streamable-http",
+      enabled: false,
+      url: oauth.mcpEndpoint!,
+      connector: { ...futureRemoteConnector, oauth },
+    };
+    const { service, options, vault } = await setup(config);
+    options.openExternal.mockImplementation(async (value) => {
+      const url = new URL(value);
+      expect(url.searchParams.get("resource")).toBe(oauth.resource);
+      const callback = new URL(url.searchParams.get("redirect_uri")!);
+      callback.search = new URLSearchParams({
+        state: url.searchParams.get("state")!,
+        code: "private-code",
+        iss: oauth.issuer,
+      }).toString();
+      await fetch(callback);
+    });
+    let registrations = 0;
+    options.fetcher.mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      if (request.url.includes("oauth-protected-resource"))
+        return Response.json({
+          resource: oauth.resource,
+          authorization_servers: [oauth.issuer],
+        });
+      if (request.url.includes("oauth-authorization-server"))
+        return Response.json({
+          issuer: oauth.issuer,
+          authorization_endpoint: oauth.authorizationEndpoint,
+          token_endpoint: oauth.tokenEndpoint,
+          registration_endpoint: oauth.registrationEndpoint,
+          response_types_supported: ["code"],
+          code_challenge_methods_supported: ["S256"],
+          token_endpoint_auth_methods_supported: ["none"],
+          client_id_metadata_document_supported: true,
+        });
+      if (request.url === oauth.registrationEndpoint) {
+        registrations++;
+        return Response.json(
+          {
+            ...(await request.json()),
+            client_id: "dynamic-public-client",
+            token_endpoint_auth_method: "none",
+          },
+          { status: 201 },
+        );
+      }
+      if (request.url === oauth.tokenEndpoint) {
+        const body = new URLSearchParams(await request.text());
+        expect(body.get("resource")).toBe(oauth.resource);
+        expect(body.get("client_secret")).toBeNull();
+        expect(body.get("code_verifier")).toBeTruthy();
+        return Response.json({
+          token_type: "Bearer",
+          access_token: "remote-resource-access",
+          refresh_token: "host-only-remote-refresh",
+          expires_in: 3600,
+        });
+      }
+      throw new Error("Unexpected OAuth endpoint");
+    });
+    options.connectMcp.mockImplementation(async (_config, authentication) => {
+      if (!authentication?.authorizationCode) return;
+      const provider = authentication.oauthProvider!;
+      expect(
+        await auth(provider, {
+          serverUrl: oauth.mcpEndpoint!,
+          fetchFn: authentication.fetch!,
+        }),
+      ).toBe("REDIRECT");
+      const code = await authentication.authorizationCode;
+      expect(
+        await auth(provider, {
+          serverUrl: oauth.mcpEndpoint!,
+          fetchFn: authentication.fetch!,
+          authorizationCode: code,
+        }),
+      ).toBe("AUTHORIZED");
+    });
+    await service.connect({ serverId: config.id });
+    expect(registrations).toBe(mode === "dynamic" ? 1 : 0);
+    expect((await vault.get(config.id))?.oauth?.tokens?.access_token).toBe(
+      "remote-resource-access",
+    );
+    expect(JSON.stringify(await service.list())).not.toContain(
+      "host-only-remote-refresh",
+    );
+  },
+);
+
+it("does not start an old authorization after an update during trust verification", async () => {
+  const { service, options } = await setup();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  options.assertTrusted.mockImplementationOnce(async () => {
+    await gate;
+    return futureOwner;
+  });
+  const pending = service.connect({ serverId: google.id });
+  const rejected = expect(pending).rejects.toThrow(/configuration changed/);
+  await vi.waitFor(() => expect(options.assertTrusted).toHaveBeenCalled());
+  service.invalidate(google.id);
+  release();
+  await rejected;
+  expect(options.openExternal).not.toHaveBeenCalled();
 });

@@ -41,3 +41,6 @@ macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [
 
 - [ui-prototype/](ui-prototype/README.md) — 静态原型(自带 README、工具与契约)
 - [images/](images/) / [diagrams/](diagrams/) / [scripts/](scripts/) — 图片、图源、配套脚本
+
+- [插件 OAuth v2](features/plugin-oauth/README.md)：声明、授权边界和开发者后端协议。
+- [插件 OAuth 配对验收](projects/plugin-oauth-acceptance/README.md)：本地、真实账号和安装包验证记录。

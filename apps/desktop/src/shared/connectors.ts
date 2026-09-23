@@ -1,17 +1,13 @@
-export type ConnectorProvider =
-  | "google"
-  | "microsoft"
-  | "github"
-  | "qq"
-  | "figma"
-  | "notion"
-  | "linear"
-  | "atlassian"
-  | "slack";
+import {
+  validateOAuthConnector,
+  type ConnectorOAuth,
+} from "./connector-oauth.js";
+export type ConnectorProvider = string;
 export type ConnectorAuth =
   "oauth-pkce" | "device-code" | "app-password" | "mcp-oauth" | "none";
 export interface ConnectorDefinition {
-  version: 1;
+  version: 1 | 2;
+  oauth?: ConnectorOAuth;
   id: string;
   provider: ConnectorProvider;
   displayName: string;
@@ -135,6 +131,7 @@ export function validateConnectorDefinition(
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new Error("Connector declaration is invalid.");
   const v = input as Record<string, unknown>;
+  if (v.version === 2) return validateOAuthConnector(input);
   if (
     Object.keys(v).some(
       (k) =>
@@ -241,7 +238,19 @@ export function assertConnectorTransport(
   transport: string,
   url?: string,
 ): void {
-  const profile = profiles[definition.provider];
+  if (definition.version === 2) {
+    const endpoint = definition.oauth?.mcpEndpoint;
+    if (
+      endpoint
+        ? transport !== "streamable-http" || url !== endpoint
+        : transport !== "stdio"
+    )
+      throw new Error(
+        "Connector transport does not match its declared resource.",
+      );
+    return;
+  }
+  const profile = profiles[definition.provider]!;
   if (
     profile.endpoint
       ? transport !== "streamable-http" || url !== profile.endpoint

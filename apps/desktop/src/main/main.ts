@@ -262,7 +262,8 @@ import { McpOAuthStore } from "./mcp-oauth-store.js";
 import { McpSecretStore } from "./mcp-secret-store.js";
 import { ResourceCatalogService } from "./resource-catalog.js";
 import { CodexPluginService } from "./codex-plugin-service.js";
-import { ConnectorService, loadConnectorClients } from "./connector-service.js";
+import { assertPublicOAuthBrowserUrl } from "./connector-oauth-network.js";
+import { ConnectorService, connectorBinding } from "./connector-service.js";
 import { ConnectorVault } from "./connector-vault.js";
 import {
   CONNECTOR_AUTH_META,
@@ -1167,12 +1168,6 @@ function bundledArtifactPluginsPath(): string {
     : join(app.getAppPath(), "resources", "bundled-artifact-plugins");
 }
 
-function connectorClientsPath(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, "resources", "connector-clients.json")
-    : join(app.getAppPath(), "resources", "connector-clients.json");
-}
-
 function codexPrimaryRuntimePath(): string | undefined {
   const configured = process.env.ARTEMIS_CODEX_RUNTIME_ROOT;
   if (configured && isAbsolute(configured)) return configured;
@@ -2000,7 +1995,10 @@ async function reconcileManagedPluginSkills(
 async function disconnectMcpServers(serverIds: string[]): Promise<void> {
   if (!mcpClientManager) throw new Error("MCP service is not ready.");
   await Promise.all(
-    serverIds.map((serverId) => mcpClientManager!.disconnect(serverId)),
+    serverIds.map((serverId) => {
+      connectorService?.invalidate(serverId);
+      return mcpClientManager!.disconnect(serverId);
+    }),
   );
 }
 
@@ -2082,6 +2080,12 @@ async function cleanupRemovedMcpAuthentication(
   for (const previous of before) {
     if (!scopedIds.has(previous.id)) continue;
     const current = after.find((candidate) => candidate.id === previous.id);
+    if (
+      previous.connector &&
+      (!current?.connector ||
+        connectorBinding(previous) !== connectorBinding(current))
+    )
+      await connectorService?.disconnect(previous.id);
     if (
       !current ||
       current.transport !== previous.transport ||
@@ -21462,14 +21466,16 @@ app
         join(app.getPath("userData"), "connector-credentials-v1.json"),
         safeStorage,
       ),
-      clients: await loadConnectorClients(connectorClientsPath()),
-      openExternal: (url) => shell.openExternal(url),
-      fetcher: (url, init) => net.fetch(url.toString(), init),
+      openExternal: async (url, signal) => {
+        await assertPublicOAuthBrowserUrl(url);
+        signal?.throwIfAborted();
+        await shell.openExternal(url);
+      },
       configs: async () => (await mcpConfigStore?.list()) ?? [],
       assertTrusted: async (config) => {
         if (!codexPluginService)
           throw new Error("Plugin service is not ready.");
-        await codexPluginService.assertConnectorTrusted(config);
+        return codexPluginService.assertConnectorTrusted(config);
       },
       connectMcp: async (config, authentication) => {
         if (!mcpClientManager) throw new Error("MCP service is not ready.");
@@ -21508,6 +21514,7 @@ app
           );
       },
     });
+    await connectorService.migrateLegacyConnections();
     mcpClientManager = new McpClientManager(
       process.platform,
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
@@ -21552,6 +21559,14 @@ app
       new UpdateRecoveryStore(
         join(updateRecoveryRoot, "state.json"),
         join(updateRecoveryRoot, "artifacts"),
+        process.platform === "darwin"
+          ? join(
+              app.getPath("home"),
+              "Library",
+              "Caches",
+              "@artemisdesktop-updater",
+            )
+          : undefined,
       ),
       app.getVersion(),
       app.isPackaged,
@@ -21692,22 +21707,15 @@ app
       void releaseUpdateReady
         .then(async () => {
           await releaseUpdateManager?.markHealthy();
-          if (
-            app.isPackaged &&
-            releaseUpdateManager?.getStatus().state !== "disabled"
-          ) {
-            setTimeout(() => {
-              void releaseUpdateManager?.check().catch((error) => {
-                diagnosticBundleService?.record({
-                  source: "main",
-                  severity: "warning",
-                  message: `Background update check failed: ${
-                    error instanceof Error ? error.message : String(error)
-                  }`,
-                });
-              });
-            }, 5_000);
-          }
+          releaseUpdateManager?.startAutomaticChecks((error) => {
+            diagnosticBundleService?.record({
+              source: "main",
+              severity: "warning",
+              message: `Background update check failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            });
+          });
         })
         .catch(() => undefined);
     });
@@ -21734,6 +21742,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  releaseUpdateManager?.stopAutomaticChecks();
   shuttingDown = true;
   sleepPrevention.dispose();
   imService?.stop();

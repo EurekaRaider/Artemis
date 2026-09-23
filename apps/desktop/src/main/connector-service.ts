@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import type { McpServerConfig } from "../shared/api.js";
 import {
@@ -16,45 +15,25 @@ import {
   startMcpOAuthCallback,
 } from "./mcp-oauth-provider.js";
 import type { McpConnectionAuthentication } from "./mcp-client-manager.js";
+import {
+  connectorSecurityContract,
+  canonicalConnectorJson,
+  type ConnectorOAuth,
+} from "../shared/connector-oauth.js";
+import { fetchPublicOAuth } from "./connector-oauth-network.js";
 import type { McpOAuthRecord } from "./mcp-oauth-store.js";
-export interface ConnectorClients {
-  version: 1;
-  google?: { clientId: string; clientSecret?: string };
-  microsoft?: { clientId: string };
-  github?: { clientId: string };
-  slack?: { clientId: string };
-}
-export async function loadConnectorClients(
-  path: string,
-): Promise<ConnectorClients> {
-  try {
-    const data = JSON.parse(await readFile(path, "utf8"));
-    if (data.version !== 1)
-      throw new Error("Connector client configuration is invalid.");
-    for (const provider of ["google", "microsoft", "github", "slack"]) {
-      if (
-        data[provider] &&
-        (typeof data[provider].clientId !== "string" ||
-          !data[provider].clientId.trim())
-      )
-        throw new Error("Connector client ID is invalid.");
-      if (provider !== "google" && data[provider]?.clientSecret)
-        throw new Error(
-          "Confidential client secrets cannot be bundled in a desktop app.",
-        );
-    }
-    return data;
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return { version: 1 };
-    throw e;
-  }
-}
-export function connectorBinding(config: McpServerConfig): string {
+export function connectorBinding(
+  config: McpServerConfig,
+  owner?: ConnectorOwner,
+): string {
   return createHash("sha256")
     .update(
-      JSON.stringify({
+      (config.connector?.version === 2
+        ? canonicalConnectorJson
+        : JSON.stringify)({
         id: config.id,
-        connector: config.connector,
+        ...(config.connector?.version === 2 ? { owner } : {}),
+        connector: connectorSecurityContract(config.connector),
         transport: config.transport,
         target:
           config.transport === "stdio"
@@ -70,13 +49,17 @@ export function connectorBinding(config: McpServerConfig): string {
     )
     .digest("hex");
 }
+export interface ConnectorOwner {
+  pluginId: string;
+  signingKeyFingerprint: string;
+  marketplaceUrl: string;
+}
 interface ConnectorServiceOptions {
   vault: ConnectorVault;
-  clients: ConnectorClients;
-  openExternal(url: string): Promise<void>;
+  openExternal(url: string, signal?: AbortSignal): Promise<void>;
   fetcher?: typeof fetch;
   configs(): Promise<McpServerConfig[]>;
-  assertTrusted(config: McpServerConfig): Promise<void>;
+  assertTrusted(config: McpServerConfig): Promise<ConnectorOwner | void>;
   connectMcp(
     config: McpServerConfig,
     authentication?: McpConnectionAuthentication,
@@ -90,12 +73,14 @@ interface ConnectorServiceOptions {
 class ConnectorAuthorizationError extends Error {}
 export class ConnectorService {
   private readonly pending = new Map<string, AbortController>();
+  private readonly pendingGroups = new Map<string, string>();
   private readonly generation = new Map<string, number>();
   private readonly states = new Map<string, ConnectorConnection>();
+  private readonly refreshControllers = new Map<string, AbortController>();
   private readonly refreshing = new Map<string, Promise<ConnectorSecret>>();
   private readonly fetcher: typeof fetch;
   constructor(private readonly options: ConnectorServiceOptions) {
-    this.fetcher = options.fetcher ?? fetch;
+    this.fetcher = options.fetcher ?? fetchPublicOAuth;
   }
   private definition(config: McpServerConfig): ConnectorDefinition {
     const definition = validateConnectorDefinition(config.connector);
@@ -115,9 +100,37 @@ export class ConnectorService {
     await this.options.assertTrusted(config);
     return config;
   }
+  private async binding(config: McpServerConfig): Promise<string> {
+    const owner = await this.options.assertTrusted(config);
+    if (config.connector?.version === 2 && !owner)
+      throw new Error("OAuth requires a verified plugin owner.");
+    return connectorBinding(config, owner || undefined);
+  }
+  private oauth(config: McpServerConfig): ConnectorOAuth {
+    const d = this.definition(config);
+    if (d.version !== 2 || !d.oauth)
+      throw new ConnectorAuthorizationError(
+        "Update the plugin and authorize again.",
+      );
+    return d.oauth;
+  }
   private async secret(config: McpServerConfig) {
     const secret = await this.options.vault.get(config.id);
-    return secret?.binding === connectorBinding(config) ? secret : undefined;
+    return secret?.binding === (await this.binding(config))
+      ? secret
+      : undefined;
+  }
+  async migrateLegacyConnections(): Promise<void> {
+    for (const config of await this.options.configs()) {
+      const d = config.connector;
+      if (
+        d?.version === 1 &&
+        ["oauth-pkce", "device-code", "mcp-oauth"].includes(d.auth)
+      ) {
+        this.invalidate(config.id);
+        await this.options.vault.set(config.id, undefined);
+      }
+    }
   }
   async list(): Promise<ConnectorConnection[]> {
     return Promise.all(
@@ -125,6 +138,16 @@ export class ConnectorService {
         .filter((c) => c.connector)
         .map(async (config) => {
           const definition = this.definition(config);
+          if (
+            definition.version === 1 &&
+            ["oauth-pkce", "device-code", "mcp-oauth"].includes(definition.auth)
+          )
+            return {
+              id: config.id,
+              definition,
+              state: "authorization-required" as const,
+              error: "Update the plugin and authorize again.",
+            };
           const transient = this.states.get(config.id);
           if (transient) return structuredClone(transient);
           const secret = await this.secret(config);
@@ -140,9 +163,16 @@ export class ConnectorService {
   cancel(id: string): void {
     this.pending.get(id)?.abort();
   }
-  async disconnect(id: string): Promise<void> {
+  invalidate(id: string): void {
     this.cancel(id);
     this.generation.set(id, (this.generation.get(id) ?? 0) + 1);
+    this.states.delete(id);
+    this.refreshControllers.get(id)?.abort();
+    this.refreshControllers.delete(id);
+    this.refreshing.delete(id);
+  }
+  async disconnect(id: string): Promise<void> {
+    this.invalidate(id);
     await this.options.disconnectMcp(id);
     await this.options.vault.set(id, undefined);
     this.states.delete(id);
@@ -167,40 +197,34 @@ export class ConnectorService {
     }
   }
   async connect(input: ConnectorConnectInput): Promise<ConnectorConnection> {
+    const initialGeneration = this.generation.get(input.serverId) ?? 0;
     const config = await this.config(input.serverId),
       definition = this.definition(config),
       id = config.id;
-    if (
-      definition.provider === "google" &&
-      (await this.options.configs()).some(
-        (c) => c.connector?.provider === "google" && this.pending.has(c.id),
-      )
-    )
-      throw new Error("Finish the current Google authorization first.");
     if (this.pending.has(id))
       throw new Error("Connector authorization is already running.");
-    const configs = await this.options.configs();
-    for (const other of configs) {
-      if (
-        other.id !== id &&
-        other.connector?.id === definition.id &&
-        (this.pending.has(other.id) || (await this.secret(other)))
-      )
-        throw new Error(
-          "Disconnect the existing connection for this service first.",
-        );
-    }
-    // Recheck after asynchronous preflight, immediately before reserving the
-    // authorization slot. Concurrent IPC requests must not open two flows.
+    if (["oauth-pkce", "device-code", "mcp-oauth"].includes(definition.auth))
+      this.oauth(config);
+    const binding = await this.binding(config);
+    const owner = await this.options.assertTrusted(config);
+    const group = definition.oauth?.identity?.group;
+    const groupKey =
+      group && owner
+        ? canonicalConnectorJson([
+            owner.marketplaceUrl,
+            owner.signingKeyFingerprint,
+            definition.oauth!.issuer,
+            group,
+          ])
+        : undefined;
+    if ((this.generation.get(id) ?? 0) !== initialGeneration)
+      throw new Error(
+        "Connector configuration changed during authorization setup.",
+      );
+    // Recheck after asynchronous trust checks, before reserving the flow.
     if (
       this.pending.has(id) ||
-      configs.some(
-        (other) =>
-          this.pending.has(other.id) &&
-          (other.connector?.id === definition.id ||
-            (definition.provider === "google" &&
-              other.connector?.provider === "google")),
-      )
+      (groupKey && [...this.pendingGroups.values()].includes(groupKey))
     )
       throw new Error("Connector authorization is already running.");
     if (!this.options.vault.encryptionAvailable)
@@ -211,10 +235,10 @@ export class ConnectorService {
       AbortSignal.timeout(300000),
     ]);
     this.pending.set(id, controller);
+    if (groupKey) this.pendingGroups.set(id, groupKey);
     const revision = (this.generation.get(id) ?? 0) + 1;
     this.generation.set(id, revision);
     this.states.set(id, { id, definition, state: "connecting" });
-    const binding = connectorBinding(config);
     let saved = false;
     try {
       let secret: ConnectorSecret;
@@ -242,7 +266,18 @@ export class ConnectorService {
         secret = { binding, account: email, appPassword: password };
       } else if (definition.auth === "mcp-oauth") {
         await this.authorizeRemote(config, signal, revision);
-        secret = { ...(await this.secret(config)), binding };
+        const remote = await this.secret(config);
+        if (!remote?.oauth?.tokens)
+          throw new ConnectorAuthorizationError(
+            "Authorization did not return a token.",
+          );
+        const identity = await this.identity(
+          config,
+          remote.oauth.tokens.access_token,
+          signal,
+        );
+        await this.accountGroup(config, identity.subject);
+        secret = { ...remote, ...identity, binding };
       } else {
         await this.options.connectMcp(config);
         secret = { binding };
@@ -291,16 +326,11 @@ export class ConnectorService {
       }
       throw e;
     } finally {
-      if (this.pending.get(id) === controller) this.pending.delete(id);
+      if (this.pending.get(id) === controller) {
+        this.pending.delete(id);
+        this.pendingGroups.delete(id);
+      }
     }
-  }
-  private client(provider: "google" | "microsoft" | "github") {
-    const client = this.options.clients[provider];
-    if (!client)
-      throw new Error(
-        `This Artemis build has no ${provider} public client configuration.`,
-      );
-    return client;
   }
   private async token(
     url: string,
@@ -329,20 +359,29 @@ export class ConnectorService {
         `Authorization service rejected the request (${response.status}).`,
       );
     }
+    if (
+      parameters.grant_type &&
+      (typeof token.access_token !== "string" ||
+        !token.access_token ||
+        typeof token.token_type !== "string" ||
+        token.token_type.toLowerCase() !== "bearer" ||
+        (token.refresh_token !== undefined &&
+          typeof token.refresh_token !== "string") ||
+        (token.expires_in !== undefined &&
+          (!Number.isFinite(Number(token.expires_in)) ||
+            Number(token.expires_in) <= 0)))
+    )
+      throw new ConnectorAuthorizationError("Invalid OAuth token response.");
     return token;
   }
   private async identity(
-    provider: string,
+    config: McpServerConfig,
     accessToken: string,
     signal: AbortSignal,
   ) {
-    const url =
-      provider === "google"
-        ? "https://openidconnect.googleapis.com/v1/userinfo"
-        : provider === "microsoft"
-          ? "https://graph.microsoft.com/v1.0/me?$select=id,mail,userPrincipalName"
-          : "https://api.github.com/user";
-    const response = await this.fetcher(url, {
+    const identity = this.oauth(config).identity;
+    if (!identity) return {};
+    const response = await this.fetcher(identity.endpoint, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
@@ -350,31 +389,97 @@ export class ConnectorService {
       redirect: "error",
       signal,
     });
-    if (!response.ok)
-      throw new Error(`Account verification failed (${response.status}).`);
+    if (!response.ok) throw new Error("Account verification failed.");
     const data = await response.json();
-    const subject = String(data.sub ?? data.id ?? ""),
-      account = data.email ?? data.mail ?? data.userPrincipalName ?? data.login;
+    const field = (paths: string[]) =>
+      paths
+        .map((path) =>
+          path
+            .split(".")
+            .reduce(
+              (v, key) => (v && Object.hasOwn(v, key) ? v[key] : undefined),
+              data,
+            ),
+        )
+        .find(
+          (v) => (typeof v === "string" && v.length) || typeof v === "number",
+        );
+    const subject = field(identity.subject),
+      account = field(identity.account);
     if (
-      !subject ||
-      typeof account !== "string" ||
-      (provider === "google" && data.email_verified !== true)
+      subject === undefined ||
+      account === undefined ||
+      Object.entries(identity.requiredClaims ?? {}).some(
+        ([k, v]) => data[k] !== v,
+      )
     )
       throw new Error("Account identity could not be verified.");
-    return { subject, account };
+    return { subject: String(subject), account: String(account) };
+  }
+  private grantedScopes(
+    config: McpServerConfig,
+    scope: unknown,
+    fallback?: string[],
+  ): string[] {
+    const d = this.definition(config),
+      oauth = this.oauth(config);
+    const scopes =
+      scope === undefined
+        ? (fallback ?? d.scopes)
+        : String(scope)
+            .split(/[ ,]+/)
+            .filter(Boolean)
+            .map((s) => oauth.scopeAliases?.[s] ?? s);
+    if (oauth.requiredScopes.some((s) => !scopes.includes(s)))
+      throw new ConnectorAuthorizationError(
+        "Required permissions were not granted.",
+      );
+    return scopes;
+  }
+  private async accountGroup(config: McpServerConfig, subject?: string) {
+    const oauth = this.oauth(config),
+      group = oauth.identity?.group;
+    if (!group || !subject) return;
+    const owner = await this.options.assertTrusted(config);
+    for (const other of await this.options.configs()) {
+      if (
+        other.id === config.id ||
+        other.connector?.oauth?.identity?.group !== group ||
+        other.connector.oauth.issuer !== oauth.issuer
+      )
+        continue;
+      const siblingOwner = await this.options.assertTrusted(other);
+      if (
+        !owner ||
+        !siblingOwner ||
+        owner.signingKeyFingerprint !== siblingOwner.signingKeyFingerprint ||
+        owner.marketplaceUrl !== siblingOwner.marketplaceUrl
+      )
+        continue;
+      const sibling = await this.secret(other);
+      if (sibling?.subject && sibling.subject !== subject)
+        throw new ConnectorAuthorizationError(
+          "Use the same account for this plugin group, or disconnect the other connection first.",
+        );
+    }
   }
   private async authorizeDesktop(
     config: McpServerConfig,
     signal: AbortSignal,
   ): Promise<ConnectorSecret> {
     const d = this.definition(config),
-      provider = d.provider as "google" | "microsoft",
-      client = this.client(provider);
+      oauth = this.oauth(config);
+    if (oauth.client.type !== "static")
+      throw new Error("Missing public client ID.");
+    const clientId = oauth.client.clientId;
     const state = randomBytes(32).toString("hex"),
       verifier = randomBytes(48).toString("base64url");
     const callback = await startMcpOAuthCallback(
-      provider === "microsoft" ? "microsoft" : config.id,
+      config.id,
       (value) => value === state,
+      undefined,
+      oauth.redirect,
+      oauth.issuer,
     );
     void callback.authorizationCode.catch(() => {});
     const cancel = () => {
@@ -383,17 +488,11 @@ export class ConnectorService {
     signal.addEventListener("abort", cancel, { once: true });
     try {
       signal.throwIfAborted();
-      const redirect =
-        provider === "microsoft"
-          ? callback.redirectUrl.replace("127.0.0.1", "localhost")
-          : callback.redirectUrl;
-      const url = new URL(
-        provider === "google"
-          ? "https://accounts.google.com/o/oauth2/v2/auth"
-          : "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-      );
+      const redirect = callback.redirectUrl;
+      const url = new URL(oauth.authorizationEndpoint);
       url.search = new URLSearchParams({
-        client_id: client.clientId,
+        ...oauth.authorizationParameters,
+        client_id: clientId,
         redirect_uri: redirect,
         response_type: "code",
         scope: d.scopes.join(" "),
@@ -402,72 +501,35 @@ export class ConnectorService {
           .update(verifier)
           .digest("base64url"),
         code_challenge_method: "S256",
-        ...(provider === "google"
-          ? {
-              access_type: "offline",
-              prompt: "consent",
-              include_granted_scopes: "false",
-            }
-          : {}),
+        ...(oauth.resource ? { resource: oauth.resource } : {}),
       }).toString();
-      await this.options.openExternal(url.href);
+      await this.options.openExternal(url.href, signal);
       const code = await callback.authorizationCode;
       signal.throwIfAborted();
       const token = await this.token(
-        provider === "google"
-          ? "https://oauth2.googleapis.com/token"
-          : "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        oauth.tokenEndpoint,
         {
-          client_id: client.clientId,
-          ...("clientSecret" in client && client.clientSecret
-            ? { client_secret: client.clientSecret }
-            : {}),
+          client_id: clientId,
           redirect_uri: redirect,
           code,
           code_verifier: verifier,
           grant_type: "authorization_code",
+          ...(oauth.resource ? { resource: oauth.resource } : {}),
         },
         signal,
       );
-      if (!token.access_token || !token.refresh_token)
+      if (
+        !token.access_token ||
+        (oauth.offlineRequired && !token.refresh_token)
+      )
         throw new ConnectorAuthorizationError(
           "Offline authorization was not granted.",
         );
-      const scopes = String(token.scope ?? "")
-        .split(/\s+/)
-        .map((s) =>
-          s === "https://www.googleapis.com/auth/userinfo.email"
-            ? "email"
-            : s === "https://www.googleapis.com/auth/userinfo.profile"
-              ? "profile"
-              : s,
-        );
-      if (
-        d.scopes
-          .filter((s) => !["openid", "profile", "offline_access"].includes(s))
-          .some((s) => !scopes.includes(s))
-      )
-        throw new ConnectorAuthorizationError(
-          "Required permissions were not granted.",
-        );
-      const identity = await this.identity(
-        provider,
-        token.access_token,
-        signal,
-      );
-      if (provider === "google") {
-        for (const sibling of (await this.options.configs()).filter(
-          (c) => c.id !== config.id && c.connector?.provider === "google",
-        )) {
-          const existing = await this.secret(sibling);
-          if (existing?.subject && existing.subject !== identity.subject)
-            throw new ConnectorAuthorizationError(
-              "Use the same Google account for Gmail and Workspace, or disconnect the other connection first.",
-            );
-        }
-      }
+      const scopes = this.grantedScopes(config, token.scope);
+      const identity = await this.identity(config, token.access_token, signal);
+      await this.accountGroup(config, identity.subject);
       return {
-        binding: connectorBinding(config),
+        binding: await this.binding(config),
         ...identity,
         scopes,
         accessToken: token.access_token,
@@ -483,19 +545,31 @@ export class ConnectorService {
     config: McpServerConfig,
     signal: AbortSignal,
   ): Promise<ConnectorSecret> {
-    const client = this.client("github"),
+    const oauth = this.oauth(config),
       definition = this.definition(config);
+    if (oauth.client.type !== "static")
+      throw new Error("Missing public client ID.");
+    const clientId = oauth.client.clientId;
     const device = await this.token(
-      "https://github.com/login/device/code",
-      { client_id: client.clientId, scope: definition.scopes.join(" ") },
+      oauth.deviceAuthorizationEndpoint!,
+      {
+        client_id: clientId,
+        scope: definition.scopes.join(" "),
+        ...(oauth.resource ? { resource: oauth.resource } : {}),
+      },
       signal,
     );
+    signal.throwIfAborted();
     if (
-      device.verification_uri !== "https://github.com/login/device" ||
+      !oauth.verificationOrigins?.includes(
+        new URL(String(device.verification_uri)).origin + "/",
+      ) ||
+      new URL(String(device.verification_uri)).username ||
+      new URL(String(device.verification_uri)).password ||
       !device.device_code ||
       !device.user_code
     )
-      throw new Error("Invalid GitHub device authorization response.");
+      throw new Error("Invalid device authorization response.");
     this.states.set(config.id, {
       id: config.id,
       definition,
@@ -503,16 +577,17 @@ export class ConnectorService {
       userCode: device.user_code,
       verificationUri: device.verification_uri,
     });
-    await this.options.openExternal(device.verification_uri);
+    await this.options.openExternal(device.verification_uri, signal);
     let interval = Math.max(5, Number(device.interval) || 5);
     const deadline =
       Date.now() + Math.min(900, Number(device.expires_in) || 900) * 1000;
     while (Date.now() < deadline) {
       await delay(interval * 1000, undefined, { signal });
       const token = await this.token(
-        "https://github.com/login/oauth/access_token",
+        oauth.tokenEndpoint,
         {
-          client_id: client.clientId,
+          client_id: clientId,
+          ...(oauth.resource ? { resource: oauth.resource } : {}),
           device_code: device.device_code,
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
         },
@@ -525,43 +600,37 @@ export class ConnectorService {
       if (token.error === "authorization_pending") continue;
       if (!token.access_token)
         throw new ConnectorAuthorizationError(
-          "GitHub authorization did not return a token.",
+          "Authorization did not return a token.",
         );
-      const scopes = String(token.scope ?? "").split(/[ ,]+/);
-      if (
-        definition.scopes.some(
-          (s) =>
-            !scopes.includes(s) &&
-            !(s === "public_repo" && scopes.includes("repo")),
-        )
-      )
-        throw new ConnectorAuthorizationError(
-          "Required GitHub permissions were not granted.",
-        );
+      const scopes = this.grantedScopes(config, token.scope);
+      const identity = await this.identity(config, token.access_token, signal);
+      await this.accountGroup(config, identity.subject);
       return {
-        binding: connectorBinding(config),
-        ...(await this.identity("github", token.access_token, signal)),
+        binding: await this.binding(config),
+        ...identity,
         accessToken: token.access_token,
         ...(token.refresh_token
           ? {
               refreshToken: token.refresh_token,
-              expiresAt: Date.now() + Number(token.expires_in ?? 28800) * 1000,
             }
+          : {}),
+        ...(token.expires_in !== undefined
+          ? { expiresAt: Date.now() + Number(token.expires_in) * 1000 }
           : {}),
         scopes,
       };
     }
     throw new ConnectorAuthorizationError(
-      "GitHub authorization expired. Connect again.",
+      "Device authorization expired. Connect again.",
     );
   }
   private oauthStore(
     config: McpServerConfig,
     revision: number,
     signal?: AbortSignal,
+    binding = connectorBinding(config),
   ) {
-    const id = config.id,
-      binding = connectorBinding(config);
+    const id = config.id;
     return {
       get: async (_id: string) => (await this.secret(config))?.oauth ?? {},
       update: async (
@@ -593,20 +662,14 @@ export class ConnectorService {
     revision: number,
   ) {
     let provider: SecureMcpOAuthProvider | undefined;
-    const slack =
-      config.connector!.provider === "slack"
-        ? this.options.clients.slack
-        : undefined;
-    if (config.connector!.provider === "slack" && !slack)
-      throw new Error(
-        "This Artemis build has no Slack public client configuration.",
-      );
+    const oauth = this.oauth(config);
+    const binding = await this.binding(config);
     const callback = await startMcpOAuthCallback(
       config.id,
       (state) => provider?.matchesState(state) ?? false,
-      config.connector!.provider === "slack"
-        ? "http://localhost:43827/mcp-oauth/slack"
-        : undefined,
+      undefined,
+      oauth.redirect,
+      oauth.issuer,
     );
     void callback.authorizationCode.catch(() => {});
     const cancel = () => {
@@ -618,7 +681,7 @@ export class ConnectorService {
       await this.options.vault.set(
         config.id,
         {
-          binding: connectorBinding(config),
+          binding: await this.binding(config),
           oauth: { redirectUrl: callback.redirectUrl },
         },
         () => this.generation.get(config.id) === revision && !signal.aborted,
@@ -626,14 +689,12 @@ export class ConnectorService {
       provider = new SecureMcpOAuthProvider(
         config.id,
         callback.redirectUrl,
-        this.oauthStore(config, revision, signal),
+        this.oauthStore(config, revision, signal, binding),
         (url) => {
           this.assertRemoteUrl(config, url);
-          return this.options.openExternal(url.href);
+          return this.options.openExternal(url.href, signal);
         },
-        slack
-          ? { clientId: slack.clientId, scopes: config.connector!.scopes }
-          : undefined,
+        this.registration(config),
       );
       await this.options.connectMcp(config, {
         oauthProvider: provider,
@@ -646,49 +707,164 @@ export class ConnectorService {
       await callback.close();
     }
   }
-  private assertRemoteUrl(config: McpServerConfig, url: URL) {
-    const hosts: Record<string, string[]> = {
-      notion: ["mcp.notion.com", "api.notion.com"],
-      linear: ["mcp.linear.app", "linear.app", "api.linear.app"],
-      atlassian: [
-        "mcp.atlassian.com",
-        "auth.atlassian.com",
-        "api.atlassian.com",
-      ],
-      slack: ["mcp.slack.com", "slack.com"],
-      github: ["api.githubcopilot.com"],
+  private registration(config: McpServerConfig) {
+    const oauth = this.oauth(config);
+    return {
+      ...(oauth.client.type === "static"
+        ? { clientId: oauth.client.clientId }
+        : {}),
+      scopes: config.connector!.scopes,
+      oauth,
     };
+  }
+  private assertRemoteUrl(config: McpServerConfig, url: URL) {
+    const oauth = this.oauth(config);
     if (
-      url.protocol !== "https:" ||
+      url.origin !== new URL(oauth.authorizationEndpoint).origin ||
+      url.pathname !== new URL(oauth.authorizationEndpoint).pathname ||
+      url.hash ||
       url.username ||
-      url.password ||
-      url.port ||
-      !hosts[config.connector!.provider]?.includes(url.hostname)
+      url.password
     )
       throw new Error("Untrusted connector authorization endpoint.");
+    const scopes = (url.searchParams.get("scope") ?? "")
+      .split(/\s+/)
+      .filter(Boolean);
+    if (scopes.some((s) => !config.connector!.scopes.includes(s)))
+      throw new Error("Authorization requested undeclared scopes.");
   }
   private remoteFetch(config: McpServerConfig): typeof fetch {
     return async (input, init) => {
-      const url = new URL(
-        input instanceof Request ? input.url : input.toString(),
-      );
-      this.assertRemoteUrl(config, url);
-      const headers = new Headers(
-        init?.headers ?? (input instanceof Request ? input.headers : undefined),
-      );
-      if (config.connector!.provider === "github") {
-        const context = await this.context(config);
-        if (!context.accessToken)
-          throw new ConnectorAuthorizationError("Reconnect GitHub.");
-        headers.set("Authorization", `Bearer ${context.accessToken}`);
+      const request = new Request(input, init),
+        url = new URL(request.url),
+        oauth = this.oauth(config);
+      const allowed = [
+        oauth.tokenEndpoint,
+        oauth.registrationEndpoint,
+        oauth.mcpEndpoint,
+        ...(oauth.discoveryUrls ?? []),
+      ].filter(Boolean);
+      if (!allowed.includes(url.href))
+        throw new Error("Untrusted connector authorization endpoint.");
+      if (
+        request.headers.has("authorization") &&
+        url.href !== oauth.mcpEndpoint
+      )
+        throw new Error("Credentials cannot be sent to a discovery endpoint.");
+      if (
+        (oauth.discoveryUrls ?? []).includes(url.href) &&
+        request.method !== "GET"
+      )
+        throw new Error("Discovery requests must be read-only.");
+      if (
+        url.href === oauth.registrationEndpoint &&
+        (oauth.client.type !== "dynamic" || request.method !== "POST")
+      )
+        throw new Error("Unexpected client registration.");
+      if (url.href === oauth.tokenEndpoint && request.method !== "POST")
+        throw new Error("Invalid token request.");
+      if (request.method === "POST" && url.href === oauth.tokenEndpoint) {
+        const parameters = new URLSearchParams(await request.clone().text());
+        if (
+          parameters.has("client_secret") ||
+          parameters.has("client_assertion")
+        )
+          throw new Error("Confidential clients require a developer backend.");
       }
-      return this.fetcher(input, { ...init, headers, redirect: "error" });
+      if (
+        config.connector!.auth !== "mcp-oauth" &&
+        url.href === oauth.mcpEndpoint
+      ) {
+        const context = await this.context(config);
+        request.headers.set("Authorization", `Bearer ${context.accessToken}`);
+      }
+      const response = await this.fetcher(request, { redirect: "error" });
+      if (response.status >= 300 && response.status < 400)
+        throw new Error("OAuth redirects are forbidden.");
+      if (
+        url.href === oauth.tokenEndpoint ||
+        url.href === oauth.registrationEndpoint
+      ) {
+        const data = await response.json().catch(() => {
+          throw new Error("Invalid OAuth service response.");
+        });
+        if (!response.ok || data.error) {
+          const errors = [
+            "invalid_request",
+            "invalid_client",
+            "invalid_grant",
+            "unauthorized_client",
+            "unsupported_grant_type",
+            "invalid_scope",
+            "access_denied",
+            "temporarily_unavailable",
+            "server_error",
+          ];
+          return Response.json(
+            {
+              error: errors.includes(data.error) ? data.error : "server_error",
+              error_description:
+                "OAuth service rejected the request. Reconnect or contact the plugin publisher.",
+            },
+            { status: response.ok ? 400 : response.status },
+          );
+        }
+        return Response.json(data, { status: response.status });
+      }
+      if ((oauth.discoveryUrls ?? []).includes(url.href) && response.ok) {
+        const metadata = await response.clone().json();
+        if (metadata.issuer && new URL(metadata.issuer).href !== oauth.issuer)
+          throw new Error("Authorization issuer changed.");
+        if (
+          metadata.authorization_servers &&
+          (metadata.authorization_servers.length !== 1 ||
+            new URL(metadata.authorization_servers[0]).href !== oauth.issuer)
+        )
+          throw new Error("Untrusted authorization server discovery.");
+        if (metadata.resource && metadata.resource !== oauth.resource)
+          throw new Error("OAuth resource changed.");
+        for (const [key, expected] of [
+          ["authorization_endpoint", oauth.authorizationEndpoint],
+          ["token_endpoint", oauth.tokenEndpoint],
+          ["registration_endpoint", oauth.registrationEndpoint],
+        ]) {
+          if (metadata[key!] && metadata[key!] !== expected)
+            throw new Error("OAuth metadata endpoint changed.");
+        }
+        if (
+          metadata.authorization_endpoint &&
+          !metadata.code_challenge_methods_supported?.includes("S256")
+        )
+          throw new Error("OAuth server must support PKCE S256.");
+        if (
+          metadata.token_endpoint_auth_methods_supported &&
+          !metadata.token_endpoint_auth_methods_supported.includes("none")
+        )
+          throw new Error(
+            "Confidential OAuth servers require a developer backend.",
+          );
+        if (metadata.scopes_supported)
+          metadata.scopes_supported = config.connector!.scopes;
+        const headers = new Headers(response.headers);
+        headers.delete("content-length");
+        headers.delete("content-encoding");
+        return Response.json(metadata, {
+          status: response.status,
+          headers,
+        });
+      }
+      return response;
     };
   }
   async context(config: McpServerConfig): Promise<ConnectorAuthContext> {
+    const initialGeneration = this.generation.get(config.id) ?? 0;
     await this.options.assertTrusted(config);
     const definition = this.definition(config);
+    if (["oauth-pkce", "device-code", "mcp-oauth"].includes(definition.auth))
+      this.oauth(config);
     let secret = await this.secret(config);
+    if ((this.generation.get(config.id) ?? 0) !== initialGeneration)
+      throw new Error("Connector was disconnected.");
     if (!secret)
       throw new ConnectorAuthorizationError(
         "Connect this account before using its tools.",
@@ -701,25 +877,26 @@ export class ConnectorService {
       if (!refresh) {
         const revision = this.generation.get(config.id) ?? 0,
           saved = secret;
+        const refreshController = new AbortController();
+        this.refreshControllers.set(config.id, refreshController);
         refresh = (async () => {
-          const provider = definition.provider as
-              "google" | "microsoft" | "github",
-            client = this.client(provider);
+          const oauth = this.oauth(config);
+          if (oauth.client.type !== "static")
+            throw new Error("Reconnect this account.");
+          const clientId = oauth.client.clientId;
           try {
             const token = await this.token(
-              provider === "google"
-                ? "https://oauth2.googleapis.com/token"
-                : provider === "github"
-                  ? "https://github.com/login/oauth/access_token"
-                  : "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+              oauth.tokenEndpoint,
               {
-                client_id: client.clientId,
-                ...("clientSecret" in client && client.clientSecret
-                  ? { client_secret: client.clientSecret }
-                  : {}),
+                client_id: clientId,
                 refresh_token: saved.refreshToken!,
                 grant_type: "refresh_token",
+                ...(oauth.resource ? { resource: oauth.resource } : {}),
               },
+              AbortSignal.any([
+                refreshController.signal,
+                AbortSignal.timeout(30000),
+              ]),
             );
             if (!token.access_token)
               throw new ConnectorAuthorizationError(
@@ -729,6 +906,7 @@ export class ConnectorService {
               throw new Error("Connector was disconnected.");
             const next = {
               ...saved,
+              scopes: this.grantedScopes(config, token.scope, saved.scopes),
               accessToken: token.access_token,
               refreshToken: token.refresh_token ?? saved.refreshToken,
               expiresAt: Date.now() + Number(token.expires_in ?? 3600) * 1000,
@@ -761,13 +939,21 @@ export class ConnectorService {
         this.refreshing.set(config.id, refresh);
         void refresh
           .finally(() => {
-            if (this.refreshing.get(config.id) === refresh)
+            if (this.refreshing.get(config.id) === refresh) {
               this.refreshing.delete(config.id);
+              this.refreshControllers.delete(config.id);
+            }
           })
           .catch(() => {});
       }
       secret = await refresh;
     }
+    if ((this.generation.get(config.id) ?? 0) !== initialGeneration)
+      throw new Error("Connector was disconnected.");
+    if (secret.expiresAt && secret.expiresAt <= Date.now())
+      throw new ConnectorAuthorizationError(
+        "Authorization expired. Reconnect this account.",
+      );
     return {
       version: 1,
       provider: definition.provider,
@@ -786,27 +972,26 @@ export class ConnectorService {
       const secret = await this.secret(config);
       if (!secret?.oauth?.tokens)
         throw new ConnectorAuthorizationError("Reconnect this account.");
-      const slack =
-        definition.provider === "slack"
-          ? this.options.clients.slack
-          : undefined;
       return {
         fetch: this.remoteFetch(config),
         oauthProvider: new SecureMcpOAuthProvider(
           config.id,
           secret.oauth.redirectUrl!,
-          this.oauthStore(config, this.generation.get(config.id) ?? 0),
+          this.oauthStore(
+            config,
+            this.generation.get(config.id) ?? 0,
+            undefined,
+            await this.binding(config),
+          ),
           () => {
             throw new ConnectorAuthorizationError("Reconnect this account.");
           },
-          slack
-            ? { clientId: slack.clientId, scopes: definition.scopes }
-            : undefined,
+          this.registration(config),
         ),
       };
     }
     const context = await this.context(config);
-    return definition.provider === "github" && context.accessToken
+    return config.transport === "streamable-http" && context.accessToken
       ? { bearerToken: context.accessToken, fetch: this.remoteFetch(config) }
       : undefined;
   }

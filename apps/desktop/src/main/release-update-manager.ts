@@ -91,6 +91,8 @@ export class ReleaseUpdateManager {
   private downloadedVersion: string | undefined;
   private initialized = false;
   private installedVersion: string | undefined;
+  private initialCheckTimer: ReturnType<typeof setTimeout> | undefined;
+  private periodicCheckTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     private readonly updater: UpdaterAdapter,
@@ -206,6 +208,33 @@ export class ReleaseUpdateManager {
     return structuredClone(this.status);
   }
 
+  startAutomaticChecks(onError: (error: unknown) => void): void {
+    if (
+      !this.isPackaged ||
+      this.status.state === "disabled" ||
+      this.initialCheckTimer ||
+      this.periodicCheckTimer
+    )
+      return;
+    const check = () => {
+      void this.check().catch(onError);
+    };
+    this.initialCheckTimer = setTimeout(() => {
+      this.initialCheckTimer = undefined;
+      check();
+      this.periodicCheckTimer = setInterval(check, 60 * 60 * 1_000);
+      this.periodicCheckTimer.unref();
+    }, 5_000);
+    this.initialCheckTimer.unref();
+  }
+
+  stopAutomaticChecks(): void {
+    clearTimeout(this.initialCheckTimer);
+    clearInterval(this.periodicCheckTimer);
+    this.initialCheckTimer = undefined;
+    this.periodicCheckTimer = undefined;
+  }
+
   async check(): Promise<ReleaseUpdateStatus> {
     if (
       ["disabled", "checking", "downloading", "downloaded"].includes(
@@ -256,6 +285,11 @@ export class ReleaseUpdateManager {
       rollbackAvailable: await this.recovery.rollbackAvailable(
         this.currentVersion,
       ),
+    });
+    // Cleanup is retried on the next healthy startup if a cache file is locked.
+    // It must not turn a successful installation into an update error.
+    await this.recovery.cleanupInstalledUpdate().catch((error: unknown) => {
+      console.warn("Could not clean installed update cache", error);
     });
   }
 

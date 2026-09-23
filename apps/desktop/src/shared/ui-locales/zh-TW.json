@@ -1586,8 +1586,15 @@
   "GroupAuthorization.fullLocalSharing": "操作與結果傳送將自動進行，不再逐次核准或等待桌面審閱；可能直接向群組或外部服務傳送敏感資訊。",
   "GroupAuthorization.confirmFullLocal": "我理解風險，並允許此 Agent 使用本機使用者權限及上述分享範圍。",
   "GroupAuthorization.submitFullLocal": "確認並啟用完整權限",
+  "Update.install": "安裝更新",
   "Update.download": "下載更新",
   "Update.downloaded": "下載完成，重新啟動安裝",
   "Update.completed": "已更新至 v{{version}}",
-  "Update.installing": "正在安裝更新…"
+  "Update.installing": "正在安裝更新…",
+  "OAuth_application": "應用程式",
+  "OAuth_publisher": "發布者來源",
+  "OAuth_authorizationDomain": "授權網域",
+  "OAuth_resource": "授權資源",
+  "OAuth_backend": "開發者後端",
+  "OAuth_updateRequired": "請更新外掛並重新授權。"
 }

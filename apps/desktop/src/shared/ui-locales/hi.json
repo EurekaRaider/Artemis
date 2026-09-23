@@ -1586,8 +1586,15 @@
   "GroupAuthorization.fullLocalSharing": "कार्रवाइयाँ और परिणाम भेजना अपने आप होगा, हर कार्रवाई की अनुमति या डेस्कटॉप समीक्षा की प्रतीक्षा नहीं होगी। संवेदनशील जानकारी सीधे समूह या बाहरी सेवाओं को भेजी जा सकती है।",
   "GroupAuthorization.confirmFullLocal": "मैं जोखिम समझता हूँ और इस Agent को स्थानीय उपयोगकर्ता अनुमतियाँ तथा ऊपर दिया साझा दायरा देता हूँ।",
   "GroupAuthorization.submitFullLocal": "पुष्टि करके पूर्ण पहुँच चालू करें",
+  "Update.install": "अपडेट इंस्टॉल करें",
   "Update.download": "अपडेट डाउनलोड करें",
   "Update.downloaded": "डाउनलोड पूरा — इंस्टॉल करने के लिए पुनः शुरू करें",
   "Update.completed": "v{{version}} में अपडेट हो गया",
-  "Update.installing": "अपडेट इंस्टॉल हो रहा है…"
+  "Update.installing": "अपडेट इंस्टॉल हो रहा है…",
+  "OAuth_application": "ऐप",
+  "OAuth_publisher": "प्रकाशक का स्रोत",
+  "OAuth_authorizationDomain": "प्राधिकरण डोमेन",
+  "OAuth_resource": "संसाधन",
+  "OAuth_backend": "डेवलपर बैकएंड",
+  "OAuth_updateRequired": "प्लगइन अपडेट करें और फिर से अधिकृत करें।"
 }

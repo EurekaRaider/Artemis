@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { SafeStorageAdapter } from "./encrypted-settings-store.js";
 import type { McpOAuthRecord } from "./mcp-oauth-store.js";
@@ -100,6 +100,12 @@ export class ConnectorVault {
           JSON.stringify({ version: 1, kind: "artemis-connectors", records }),
           { mode: 0o600 },
         );
+        if (!valid()) {
+          await rm(temporary, { force: true });
+          throw new Error(
+            "Connector was disconnected or authorization cancelled.",
+          );
+        }
         await rename(temporary, this.path);
       });
     this.tail = task.catch(() => {});

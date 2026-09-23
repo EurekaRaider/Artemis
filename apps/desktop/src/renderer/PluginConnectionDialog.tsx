@@ -30,7 +30,8 @@ export function PluginConnectionDialog({
     | "mcpServerIds"
     | "iconDataUrl"
     | "brandColor"
-  >;
+  > &
+    Partial<Pick<InstalledCodexPlugin, "source">>;
   closeLabel: string;
   onClose(): void;
   locale: AppLocale;
@@ -164,6 +165,9 @@ export function PluginConnectionDialog({
             const busy =
               pending === d.serverId || connection?.state === "connecting";
             const state = connection?.state ?? "disconnected";
+            const legacyOAuth =
+              d.version === 1 &&
+              ["oauth-pkce", "device-code", "mcp-oauth"].includes(d.auth);
             return (
               <section key={d.serverId} className="plugin-connection-entry">
                 <div>
@@ -188,6 +192,48 @@ export function PluginConnectionDialog({
                     <p className="plugin-connection-account">
                       {connection.account}
                     </p>
+                  )}
+                  {d.oauth && (
+                    <div className="plugin-connection-capabilities">
+                      <p>
+                        {uiText(locale, "OAuth_application")}:{" "}
+                        {d.oauth.applicationName}
+                      </p>
+                      {plugin.source?.kind === "git" && (
+                        <p>
+                          {uiText(locale, "OAuth_publisher")}:{" "}
+                          {plugin.source.marketplaceUrl}
+                        </p>
+                      )}
+                      <p>
+                        {uiText(locale, "OAuth_authorizationDomain")}:{" "}
+                        {new URL(d.oauth.authorizationEndpoint).hostname}
+                      </p>
+                      {d.oauth.resource && (
+                        <p>
+                          {uiText(locale, "OAuth_resource")}: {d.oauth.resource}
+                        </p>
+                      )}
+                      <ul>
+                        {d.scopes.map((scope) => (
+                          <li key={scope}>
+                            {d.oauth?.scopeDescriptions?.[scope] ?? scope}
+                          </li>
+                        ))}
+                      </ul>
+                      {d.oauth.backend && (
+                        <p>
+                          {uiText(locale, "OAuth_backend")}:{" "}
+                          {d.oauth.backend.operator} ·{" "}
+                          {new URL(d.oauth.backend.url).hostname}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {legacyOAuth && (
+                    <InlineNotice tone="warning">
+                      {uiText(locale, "OAuth_updateRequired")}
+                    </InlineNotice>
                   )}
                   {d.capabilities?.length ? (
                     <div className="plugin-connection-capabilities">
@@ -302,6 +348,7 @@ export function PluginConnectionDialog({
                     <Button
                       disabled={
                         !!pending ||
+                        legacyOAuth ||
                         (d.provider === "qq" &&
                           (!email.trim() || !password.trim()))
                       }

@@ -1,3 +1,4 @@
+import type { ConnectorOAuth } from "../shared/connector-oauth.js";
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -19,8 +20,29 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
     private readonly callbackUrl: string,
     private readonly store: Pick<McpOAuthStore, "get" | "update" | "delete">,
     private readonly onRedirect: (url: URL) => void | Promise<void>,
-    private readonly registration?: { clientId: string; scopes: string[] },
-  ) {}
+    private readonly registration?: {
+      clientId?: string;
+      scopes: string[];
+      oauth?: ConnectorOAuth;
+    },
+  ) {
+    const resource = registration?.oauth?.resource;
+    if (resource)
+      this.validateResourceURL = async (_serverUrl, discovered) => {
+        if (discovered && discovered !== resource)
+          throw new Error("OAuth resource changed.");
+        return new URL(resource);
+      };
+    if (registration?.oauth?.client.type === "metadata")
+      this.clientMetadataUrl = registration.oauth.client.url;
+  }
+
+  clientMetadataUrl?: string;
+
+  validateResourceURL?: (
+    serverUrl: string | URL,
+    resource?: string,
+  ) => Promise<URL | undefined>;
 
   get redirectUrl(): string {
     return this.callbackUrl;
@@ -28,7 +50,8 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
 
   get clientMetadata(): OAuthClientMetadata {
     return {
-      client_name: "Artemis Desktop",
+      client_name:
+        this.registration?.oauth?.applicationName ?? "Artemis Desktop",
       ...(this.registration?.scopes.length
         ? { scope: this.registration.scopes.join(" ") }
         : {}),
@@ -48,7 +71,7 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-    if (this.registration)
+    if (this.registration?.clientId)
       return { client_id: this.registration.clientId, ...this.clientMetadata };
     return (await this.store.get(this.serverId)).clientInformation;
   }
@@ -56,6 +79,23 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   async saveClientInformation(
     clientInformation: OAuthClientInformationMixed,
   ): Promise<void> {
+    if (
+      this.registration?.oauth &&
+      (clientInformation.client_secret ||
+        ("token_endpoint_auth_method" in clientInformation &&
+          clientInformation.token_endpoint_auth_method &&
+          clientInformation.token_endpoint_auth_method !== "none"))
+    )
+      throw new Error(
+        "Confidential OAuth clients require a developer backend.",
+      );
+    if (
+      this.registration?.oauth?.client.type === "metadata" &&
+      clientInformation.client_id !== this.registration.oauth.client.url
+    )
+      throw new Error(
+        "Client metadata registration cannot fall back to dynamic registration.",
+      );
     await this.store.update(this.serverId, (current) => ({
       ...current,
       redirectUrl: this.callbackUrl,
@@ -68,6 +108,20 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
+    const oauth = this.registration?.oauth;
+    if (oauth) {
+      if (
+        !tokens.access_token ||
+        tokens.token_type.toLowerCase() !== "bearer" ||
+        (oauth.offlineRequired && !tokens.refresh_token)
+      )
+        throw new Error("Invalid OAuth token response.");
+      const scopes = (tokens.scope ?? this.registration!.scopes.join(" "))
+        .split(/\s+/)
+        .map((s) => oauth.scopeAliases?.[s] ?? s);
+      if (oauth.requiredScopes.some((s) => !scopes.includes(s)))
+        throw new Error("Required permissions were not granted.");
+    }
     await this.store.update(this.serverId, (current) => ({
       ...current,
       redirectUrl: this.callbackUrl,
@@ -76,6 +130,20 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   }
 
   redirectToAuthorization(authorizationUrl: URL): void | Promise<void> {
+    const oauth = this.registration?.oauth;
+    if (oauth) {
+      if (
+        authorizationUrl.searchParams.get("redirect_uri") !==
+          this.callbackUrl ||
+        authorizationUrl.searchParams.get("state") !== this.oauthState ||
+        authorizationUrl.searchParams.get("code_challenge_method") !== "S256"
+      )
+        throw new Error("OAuth transaction changed.");
+      for (const [key, value] of Object.entries(
+        oauth.authorizationParameters ?? {},
+      ))
+        authorizationUrl.searchParams.set(key, value);
+    }
     return this.onRedirect(authorizationUrl);
   }
 
@@ -130,8 +198,16 @@ export async function startMcpOAuthCallback(
   serverId: string,
   stateMatches: (state: string | null) => boolean,
   fixedRedirect?: string,
+  redirect?: ConnectorOAuth["redirect"],
+  expectedIssuer?: string,
 ): Promise<McpOAuthCallback> {
-  const fixed = fixedRedirect ? new URL(fixedRedirect) : undefined;
+  const fixed = fixedRedirect
+    ? new URL(fixedRedirect)
+    : redirect?.port
+      ? new URL(
+          `http://${redirect.hostname}:${redirect.port}${redirect.path ?? `/mcp-oauth/${encodeURIComponent(serverId)}`}`,
+        )
+      : undefined;
   if (
     fixed &&
     (fixed.protocol !== "http:" ||
@@ -144,7 +220,9 @@ export async function startMcpOAuthCallback(
   )
     throw new Error("Desktop OAuth requires an exact loopback redirect.");
   const callbackPath =
-    fixed?.pathname ?? `/mcp-oauth/${encodeURIComponent(serverId)}`;
+    fixed?.pathname ??
+    redirect?.path ??
+    `/mcp-oauth/${encodeURIComponent(serverId)}`;
   let resolveCode!: (code: string) => void;
   let rejectCode!: (error: Error) => void;
   let settled = false;
@@ -176,7 +254,15 @@ export async function startMcpOAuthCallback(
     }
     const error = url.searchParams.get("error");
     const code = url.searchParams.get("code");
-    if (!stateMatches(url.searchParams.get("state"))) {
+    const issuer = url.searchParams.get("iss");
+    let issuerMatches = true;
+    try {
+      if (expectedIssuer && issuer)
+        issuerMatches = new URL(issuer).href === new URL(expectedIssuer).href;
+    } catch {
+      issuerMatches = false;
+    }
+    if (!stateMatches(url.searchParams.get("state")) || !issuerMatches) {
       finish(400, "Authorization state did not match.", response);
       if (!settled) {
         settled = true;
@@ -230,7 +316,7 @@ export async function startMcpOAuthCallback(
   return {
     redirectUrl:
       fixed?.href ??
-      `http://127.0.0.1:${address.port.toString()}${callbackPath}`,
+      `http://${redirect?.hostname ?? "127.0.0.1"}:${address.port.toString()}${callbackPath}`,
     authorizationCode,
     async close() {
       clearTimeout(timeout);

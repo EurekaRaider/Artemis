@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
   copyFile,
   mkdir,
@@ -21,6 +23,8 @@ interface RecoveryState {
   lastHealthyVersion?: string;
   lastHealthyArtifact?: string;
   artifacts: Record<string, string>;
+  downloadCaches?: Record<string, { file: string; sha512: string }>;
+  cleanupVersions?: string[];
   pending?: PendingUpdate;
 }
 
@@ -36,12 +40,24 @@ function validateVersion(value: string): string {
   return value;
 }
 
+async function fileHash(path: string): Promise<string | undefined> {
+  try {
+    const hash = createHash("sha512");
+    for await (const chunk of createReadStream(path)) hash.update(chunk);
+    return hash.digest("base64");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
 export class UpdateRecoveryStore {
   private state: RecoveryState | undefined;
 
   constructor(
     private readonly statePath: string,
     private readonly artifactRoot: string,
+    private readonly updaterCacheRoot?: string,
   ) {}
 
   async recordDownloaded(version: string, sourcePath: string): Promise<string> {
@@ -52,6 +68,14 @@ export class UpdateRecoveryStore {
     await copyFile(sourcePath, destinationPath);
     const state = await this.load();
     state.artifacts[safeVersion] = destinationPath;
+    // Only electron-updater's pending directory contains disposable downloads.
+    if (basename(dirname(sourcePath)) === "pending") {
+      const sha512 = await fileHash(destinationPath);
+      if (sha512) {
+        state.downloadCaches ??= {};
+        state.downloadCaches[safeVersion] = { file: sourcePath, sha512 };
+      }
+    }
     await this.save(state);
     return destinationPath;
   }
@@ -109,9 +133,71 @@ export class UpdateRecoveryStore {
     state.lastHealthyVersion = current;
     const artifact = state.artifacts[current];
     if (artifact) state.lastHealthyArtifact = artifact;
-    if (state.pending?.targetVersion === current) delete state.pending;
+    if (state.pending?.targetVersion === current) {
+      state.cleanupVersions = [
+        ...new Set([
+          ...(state.cleanupVersions ?? []),
+          ...Object.keys(state.artifacts),
+        ]),
+      ];
+      delete state.pending;
+    }
     await this.save(state);
     return markerPath;
+  }
+
+  async cleanupInstalledUpdate(): Promise<void> {
+    const state = await this.load();
+    for (const version of [...(state.cleanupVersions ?? [])]) {
+      if (state.pending?.targetVersion === version) continue;
+      const artifact = state.artifacts[version];
+      // Releases before cache tracking still have a verified recovery copy.
+      const cache =
+        state.downloadCaches?.[version] ??
+        (this.updaterCacheRoot && artifact
+          ? {
+              file: join(this.updaterCacheRoot, "pending", basename(artifact)),
+              sha512: await fileHash(artifact),
+            }
+          : undefined);
+      if (cache?.sha512 && basename(dirname(cache.file)) === "pending") {
+        const pendingDirectory = dirname(cache.file);
+        for (const path of [
+          cache.file,
+          join(dirname(pendingDirectory), "update.zip"),
+        ]) {
+          // A later download may already have reused the cache location.
+          if ((await fileHash(path)) === cache.sha512)
+            await rm(path, { force: true });
+        }
+        const metadataPath = join(pendingDirectory, "update-info.json");
+        try {
+          const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as {
+            sha512?: string;
+          };
+          if (metadata.sha512 === cache.sha512)
+            await rm(metadataPath, { force: true });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        delete state.downloadCaches?.[version];
+      }
+      if (version !== state.lastHealthyVersion) {
+        await rm(join(this.artifactRoot, validateVersion(version)), {
+          recursive: true,
+          force: true,
+        });
+        delete state.artifacts[version];
+        await rm(
+          join(this.artifactRoot, `healthy-${validateVersion(version)}.marker`),
+          { force: true },
+        );
+      }
+      state.cleanupVersions = (state.cleanupVersions ?? []).filter(
+        (item) => item !== version,
+      );
+      await this.save(state);
+    }
   }
 
   async rollbackAvailable(currentVersion: string): Promise<boolean> {

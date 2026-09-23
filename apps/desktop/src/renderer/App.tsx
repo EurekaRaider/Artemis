@@ -5818,10 +5818,10 @@ export function App() {
                 aria-label={uiText(
                   locale,
                   runtimeSettings.update.state === "downloaded"
-                    ? "Update.downloaded"
+                    ? "Update.install"
                     : "Update.download",
                 )}
-                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.downloaded" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
+                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.install" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
                 disabled={
                   installingUpdate ||
                   ["checking", "downloading"].includes(
@@ -5854,17 +5854,24 @@ export function App() {
                   }
                 }}
               >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 5v14m-6-6 6 6 6-6" />
-                </svg>
+                {runtimeSettings.update.state === "downloaded" ? (
+                  uiText(
+                    locale,
+                    installingUpdate ? "Update.installing" : "Update.install",
+                  )
+                ) : (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 5v14m-6-6 6 6 6-6" />
+                  </svg>
+                )}
               </button>
             )}
             {(runtimeSettings?.update.state === "downloading" ||

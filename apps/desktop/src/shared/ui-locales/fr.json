@@ -1586,8 +1586,15 @@
   "GroupAuthorization.fullLocalSharing": "Les opérations et l’envoi des résultats sont automatiques, sans approbation individuelle ni examen sur le bureau. Des informations sensibles peuvent être envoyées directement au groupe ou à des services externes.",
   "GroupAuthorization.confirmFullLocal": "Je comprends les risques et autorise cet Agent à utiliser mes droits locaux et le périmètre de partage ci-dessus.",
   "GroupAuthorization.submitFullLocal": "Confirmer et activer l’accès complet",
+  "Update.install": "Installer la mise à jour",
   "Update.download": "Télécharger la mise à jour",
   "Update.downloaded": "Téléchargement terminé — redémarrer pour installer",
   "Update.completed": "Mise à jour vers v{{version}} effectuée",
-  "Update.installing": "Installation de la mise à jour…"
+  "Update.installing": "Installation de la mise à jour…",
+  "OAuth_application": "Application",
+  "OAuth_publisher": "Source de l’éditeur",
+  "OAuth_authorizationDomain": "Domaine d’autorisation",
+  "OAuth_resource": "Ressource",
+  "OAuth_backend": "Backend du développeur",
+  "OAuth_updateRequired": "Mettez à jour le plugin et autorisez-le à nouveau."
 }

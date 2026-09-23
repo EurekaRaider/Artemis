@@ -1,5 +1,7 @@
 # macOS arm64 本机发布与 Apple 签名、公证
 
+本机逐步操作、上传草稿并发布到 ArtemisRelease，请看 [手动发布操作指南](manual-release.md)。
+
 源码仓库为私有的 `EurekaRaider/Artemis`。安装包发布到公开的 [EurekaRaider/ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases)。当前只发布 macOS Apple Silicon（arm64）。
 
 只有手动启动 **Release** 才运行完整 CI/CD。推送、PR、创建标签，以及本地 pre-push 都不会自动启动完整检查。CI 工作流由 Release 调用；独立 PR 审核也改为手动运行。

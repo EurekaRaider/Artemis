@@ -1,4 +1,9 @@
 import {
+  connectorSecurityContract,
+  canonicalConnectorJson,
+} from "../shared/connector-oauth.js";
+import type { ConnectorOwner } from "./connector-service.js";
+import {
   parsePluginLocalizations,
   type PluginLocalizations,
 } from "../shared/plugin-localization.js";
@@ -2177,7 +2182,9 @@ export class CodexPluginService {
     );
   }
 
-  async assertConnectorTrusted(config: McpServerConfig): Promise<void> {
+  async assertConnectorTrusted(
+    config: McpServerConfig,
+  ): Promise<ConnectorOwner | void> {
     if (!config.connector) return;
     const store = await this.loadStore();
     const owner = store.plugins.find((plugin) =>
@@ -2231,6 +2238,11 @@ export class CodexPluginService {
         "The plugin signature or content digest no longer matches.",
       );
     }
+    return {
+      pluginId: owner.id,
+      marketplaceUrl: url,
+      signingKeyFingerprint: source.signingKeyFingerprint,
+    };
   }
 
   private async exclusive<T>(task: () => Promise<T>): Promise<T> {
@@ -3200,14 +3212,19 @@ export class CodexPluginService {
     current: McpServerConfig | undefined,
   ): McpServerConfig {
     if (!current || current.transport !== next.transport) return next;
-    if (JSON.stringify(next.connector) !== JSON.stringify(current.connector))
+    if (
+      canonicalConnectorJson(connectorSecurityContract(next.connector)) !==
+      canonicalConnectorJson(connectorSecurityContract(current.connector))
+    )
       return next;
     if (next.transport === "stdio" && current.transport === "stdio") {
       const scopesExpanded = Boolean(
         next.connector &&
         (!current.connector ||
-          JSON.stringify(next.connector) !==
-            JSON.stringify(current.connector) ||
+          canonicalConnectorJson(connectorSecurityContract(next.connector)) !==
+            canonicalConnectorJson(
+              connectorSecurityContract(current.connector),
+            ) ||
           next.connector.scopes.some(
             (scope) => !current.connector?.scopes.includes(scope),
           )),

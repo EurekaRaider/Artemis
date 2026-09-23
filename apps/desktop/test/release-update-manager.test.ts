@@ -14,6 +14,7 @@ import { UpdateRecoveryStore } from "../src/main/update-recovery-store.js";
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -36,6 +37,52 @@ class FakeUpdater extends EventEmitter implements UpdaterAdapter {
 }
 
 describe("ReleaseUpdateManager", () => {
+  it("checks after five seconds and hourly without downloading, survives errors and stops on quit", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-updater-"));
+    temporaryDirectories.push(directory);
+    const updater = new FakeUpdater();
+    const manager = new ReleaseUpdateManager(
+      updater,
+      new UpdateRecoveryStore(
+        join(directory, "state.json"),
+        join(directory, "artifacts"),
+      ),
+      "1.0.0",
+      true,
+      "darwin",
+      "/tmp/rollback.sh",
+      "/Applications/Artemis.app",
+      { ARTEMIS_UPDATE_OWNER: "example", ARTEMIS_UPDATE_REPO: "Artemis" },
+      () => {},
+    );
+    await manager.initialize();
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    manager.startAutomaticChecks(onError);
+    manager.startAutomaticChecks(onError);
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(updater.checkForUpdates).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1);
+    updater.checkForUpdates.mockRejectedValueOnce(new Error("Offline"));
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    expect(onError).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(3);
+    updater.emit("update-available", { version: "1.1.0" });
+    expect(updater.downloadUpdate).not.toHaveBeenCalled();
+    updater.emit("download-progress", { percent: 50 });
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(3);
+    manager.stopAutomaticChecks();
+    updater.emit("update-not-available");
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(3);
+    manager.startAutomaticChecks(onError);
+    manager.stopAutomaticChecks();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(3);
+  });
   it.each([
     { packaged: true, configExists: true, state: "idle" },
     { packaged: true, configExists: false, state: "disabled" },
@@ -160,11 +207,18 @@ describe("ReleaseUpdateManager", () => {
     const manager = makeManager();
     await manager.initialize();
     expect(manager.getStatus().completedVersion).toBeUndefined();
+    const cleanup = vi.spyOn(recovery, "cleanupInstalledUpdate");
+    cleanup.mockRejectedValueOnce(new Error("Cache is locked"));
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
     await manager.markHealthy();
     expect(manager.getStatus().completedVersion).toBe("1.1.0");
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(warning).toHaveBeenCalled();
+    warning.mockRestore();
     const nextLaunch = makeManager();
     await nextLaunch.initialize();
     await nextLaunch.markHealthy();
+    expect(cleanup).toHaveBeenCalledTimes(2);
     expect(nextLaunch.getStatus().completedVersion).toBeUndefined();
   });
 

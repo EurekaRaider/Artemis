@@ -1586,8 +1586,15 @@
   "GroupAuthorization.fullLocalSharing": "Operasi dan pengiriman hasil berjalan otomatis tanpa persetujuan per operasi atau peninjauan di desktop. Informasi sensitif dapat dikirim langsung ke grup atau layanan eksternal.",
   "GroupAuthorization.confirmFullLocal": "Saya memahami risikonya dan mengizinkan Agent ini memakai izin pengguna lokal serta lingkup berbagi di atas.",
   "GroupAuthorization.submitFullLocal": "Konfirmasi dan aktifkan akses penuh",
+  "Update.install": "Instal pembaruan",
   "Update.download": "Unduh pembaruan",
   "Update.downloaded": "Unduhan selesai — mulai ulang untuk memasang",
   "Update.completed": "Diperbarui ke v{{version}}",
-  "Update.installing": "Memasang pembaruan…"
+  "Update.installing": "Memasang pembaruan…",
+  "OAuth_application": "Aplikasi",
+  "OAuth_publisher": "Sumber penerbit",
+  "OAuth_authorizationDomain": "Domain otorisasi",
+  "OAuth_resource": "Sumber daya",
+  "OAuth_backend": "Backend pengembang",
+  "OAuth_updateRequired": "Perbarui plugin dan lakukan otorisasi ulang."
 }

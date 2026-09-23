@@ -121,7 +121,7 @@
         "filter": [
           "**/*",
           "!*oauth-client.json",
-          "!connector-clients.example.json"
+          "!connector-clients*.json"
         ]
       }
     ],

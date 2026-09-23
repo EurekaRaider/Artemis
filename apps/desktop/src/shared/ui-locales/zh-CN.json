@@ -1586,8 +1586,15 @@
   "GroupAuthorization.fullLocalSharing": "操作和结果发送将自动进行，不再逐次审批或等待桌面审阅；可能直接向群内或外部服务发送敏感信息。",
   "GroupAuthorization.confirmFullLocal": "我理解风险，并允许此 Agent 使用本机用户权限及上述分享范围。",
   "GroupAuthorization.submitFullLocal": "确认并启用完整权限",
+  "Update.install": "安装更新",
   "Update.download": "下载更新",
   "Update.downloaded": "下载完成，重启安装",
   "Update.completed": "已更新至 v{{version}}",
-  "Update.installing": "正在安装更新…"
+  "Update.installing": "正在安装更新…",
+  "OAuth_application": "应用",
+  "OAuth_publisher": "发布者来源",
+  "OAuth_authorizationDomain": "授权域名",
+  "OAuth_resource": "授权资源",
+  "OAuth_backend": "开发者后端",
+  "OAuth_updateRequired": "请更新插件并重新授权。"
 }

@@ -450,7 +450,10 @@ describe("CodexPluginService", () => {
     });
     await expect(
       service.assertConnectorTrusted(config!),
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({
+      signingKeyFingerprint: firstKey.fingerprint,
+      marketplaceUrl: "https://github.com/acme/signed-tools.git",
+    });
     await expect(
       service.assertConnectorTrusted({
         ...config!,
@@ -1874,3 +1877,177 @@ describe("plugin localization persistence", () => {
     ).toBe("更新した説明");
   });
 });
+
+it("loads a newly signed provider after the OAuth host was bundled, and retains only valid credentials across restart and updates", async () => {
+  const { build } = await import("esbuild");
+  const { createRequire } = await import("node:module");
+  const { futureConnector } = await import("./fixtures/connector-oauth.js");
+  const root = await temporaryRoot();
+  const frozen = join(root, "frozen-host.cjs");
+  await build({
+    entryPoints: [
+      fileURLToPath(
+        new URL("../src/main/connector-service.ts", import.meta.url),
+      ),
+    ],
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    outfile: frozen,
+  });
+  const originalHash = createHash("sha256")
+    .update(await readFile(frozen))
+    .digest("hex");
+  const { ConnectorService } = createRequire(import.meta.url)(frozen);
+  const { ConnectorVault } = await import("../src/main/connector-vault.js");
+  const repository = join(root, "repository");
+  await writeMarketplaceRepository(repository, {
+    name: "signed-tools",
+    displayName: "Signed Tools",
+  });
+  await build({
+    stdin: {
+      contents: `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+      import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+      const server = new McpServer({name:"new-signed-platform",version:"1.0.0"});
+      server.registerTool("read_records", {description:"Read synthetic records",inputSchema:{}}, async (_args, extra) => {
+        const context=extra._meta?.["com.artemis.connector/auth"];
+        if(context?.accessToken!=="resource-access" || context?.refreshToken) throw new Error("Invalid private authorization context");
+        return {content:[{type:"text",text:"synthetic-record"}]};
+      });
+      await server.connect(new StdioServerTransport());`,
+      resolveDir: fileURLToPath(new URL("../../..", import.meta.url)),
+    },
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: join(repository, "plugins/demo-tools/mcp/server.mjs"),
+  });
+  const declaration = structuredClone(futureConnector);
+  declaration.provider = "new-platform-after-host-build";
+  declaration.scopes = ["new-records.read"];
+  declaration.oauth!.requiredScopes = declaration.scopes;
+  const manifest = join(repository, "plugins/demo-tools/.mcp.json");
+  const saveManifest = async () =>
+    writeFile(
+      manifest,
+      JSON.stringify({
+        mcpServers: {
+          future: {
+            type: "stdio",
+            command: "${ARTEMIS_NODE}",
+            args: ["${PLUGIN_ROOT}/mcp/server.mjs"],
+            "x-artemis": { connector: declaration },
+          },
+        },
+      }),
+    );
+  await saveManifest();
+  const key = await signMarketplaceRepository(repository);
+  const { service: plugins, mcpStore } = createService(root, {
+    cloneRepository: (_url, destination) =>
+      cp(repository, destination, { recursive: true }),
+  });
+  const market = await plugins.addMarketplace(
+    "acme/signed-tools",
+    undefined,
+    key.fingerprint,
+  );
+  const preview = market.marketplaces[0]!.marketplace.plugins[0]!;
+  const installed = await plugins.install(preview.source);
+  const config = (await mcpStore.list())[0]!;
+  const vault = new ConnectorVault(join(root, "credentials.json"), {
+    isEncryptionAvailable: () => true,
+    encryptString: (value) => Buffer.from(value),
+    decryptString: (value) => value.toString(),
+  });
+  const options = {
+    vault,
+    configs: () => mcpStore.list(),
+    assertTrusted: (c: McpServerConfig) => plugins.assertConnectorTrusted(c),
+    openExternal: async (value: string) => {
+      const auth = new URL(value);
+      const callback = new URL(auth.searchParams.get("redirect_uri")!);
+      callback.search = new URLSearchParams({
+        code: "synthetic-code",
+        state: auth.searchParams.get("state")!,
+      }).toString();
+      await fetch(callback);
+    },
+    fetcher: async (input: string | URL | Request) =>
+      String(input).endsWith("/token")
+        ? Response.json({
+            access_token: "resource-access",
+            refresh_token: "host-private-refresh",
+            token_type: "Bearer",
+            expires_in: 3600,
+          })
+        : Response.json({ id: "account", email: "synthetic@example.com" }),
+    connectMcp: async () => {},
+    disconnectMcp: async () => {},
+    checkMailbox: async () => {},
+  };
+  const host = new ConnectorService(options);
+  await host.connect({ serverId: config.id });
+  expect((await host.context(config)).accessToken).toBe("resource-access");
+  expect((await host.context(config)).refreshToken).toBeUndefined();
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { StdioClientTransport } =
+    await import("@modelcontextprotocol/sdk/client/stdio.js");
+  if (config.transport !== "stdio") throw new Error("Expected local adapter");
+  const client = new Client({ name: "frozen-host-test", version: "1.0.0" });
+  await client.connect(
+    new StdioClientTransport({
+      command: process.execPath,
+      args: config.args,
+      env: { HOME: root, PATH: process.env.PATH ?? "" },
+    }),
+  );
+  try {
+    const result = await client.callTool({
+      name: "read_records",
+      arguments: {},
+      _meta: { "com.artemis.connector/auth": await host.context(config) },
+    });
+    expect(result.content).toEqual([
+      { type: "text", text: "synthetic-record" },
+    ]);
+  } finally {
+    await client.close();
+  }
+
+  await vault.set(config.id, {
+    ...(await vault.get(config.id))!,
+    expiresAt: Date.now() - 1,
+  });
+  await host.context(config);
+  const restarted = new ConnectorService(options);
+  expect((await restarted.context(config)).accessToken).toBe("resource-access");
+  declaration.displayName = "New display text";
+  await saveManifest();
+  await signMarketplaceRepository(repository, key.privateKey);
+  host.invalidate(config.id);
+  await plugins.update(installed.plugin.id);
+  const updated = (await mcpStore.list())[0]!;
+  expect((await restarted.context(updated)).accessToken).toBe(
+    "resource-access",
+  );
+  declaration.oauth!.client = {
+    type: "static",
+    clientId: "different-registration",
+  };
+  await saveManifest();
+  await signMarketplaceRepository(repository, key.privateKey);
+  host.invalidate(config.id);
+  await plugins.update(installed.plugin.id);
+  await expect(restarted.context((await mcpStore.list())[0]!)).rejects.toThrow(
+    /Connect this account/,
+  );
+  await restarted.disconnect(config.id);
+  expect(await vault.get(config.id)).toBeUndefined();
+  expect(
+    createHash("sha256")
+      .update(await readFile(frozen))
+      .digest("hex"),
+  ).toBe(originalHash);
+}, 30000);

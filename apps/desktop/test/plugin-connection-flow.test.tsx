@@ -199,6 +199,7 @@ it("keeps account actions scoped to the shown connector and refreshes their actu
   const user = userEvent.setup();
   const github: ConnectorCatalogEntry = {
     ...definition,
+    version: 2,
     id: "github",
     displayName: "GitHub",
     provider: "github",
@@ -371,4 +372,29 @@ it("updates an open connection dialog for every Artemis locale without reconnect
   expect(listDefinitions).toHaveBeenCalledOnce();
   expect(connect).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
+});
+
+it("requires legacy OAuth plugins to update before authorizing", async () => {
+  const legacy: ConnectorCatalogEntry = {
+    ...definition,
+    provider: "github",
+    auth: "device-code",
+  };
+  stubWindowArtemis({
+    listConnectorDefinitions: async () => [legacy],
+    listConnectorConnections: async () => [],
+  });
+  render(
+    <PluginConnectionDialog
+      locale="en"
+      plugin={installed}
+      closeLabel="Close"
+      onClose={() => {}}
+      onChanged={async () => {}}
+    />,
+  );
+  expect(
+    await screen.findByText("Update the plugin and authorize again."),
+  ).toBeVisible();
+  expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
 });

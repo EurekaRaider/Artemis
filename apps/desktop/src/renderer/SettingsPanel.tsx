@@ -2011,7 +2011,7 @@ export function SettingsPanel({
                               void run(() => window.artemis.installUpdate())
                             }
                           >
-                            {t.installUpdate}
+                            {uiText(locale, "Update.install")}
                           </Button>
                         )}
                       </span>
