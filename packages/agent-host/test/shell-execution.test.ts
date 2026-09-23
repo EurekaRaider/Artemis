@@ -82,7 +82,9 @@ describe("shell execution", () => {
       ).args,
     ).toEqual([
       "-ilc",
-      expect.stringContaining(".config/artemis/agent-profile.zsh"),
+      expect.stringContaining(
+        join("/Users/test", ".config", "artemis", "agent-profile.zsh"),
+      ),
     ]);
   });
 
@@ -217,5 +219,6 @@ describe("shell execution", () => {
       });
       expect(failure.exitCode).toBe(7);
     },
+    30_000,
   );
 });

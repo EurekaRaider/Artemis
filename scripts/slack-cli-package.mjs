@@ -114,11 +114,13 @@ export async function verifyPackagedSlackCli(
       throw new Error(
         "Slack CLI: native verification requires the target OS and architecture.",
       );
-    const { stdout } = await exec(executable, ["--version"], {
+    const versionCommand = exec(executable, ["--version"], {
       timeout: process.platform === "win32" ? 60000 : 15000,
       maxBuffer: 16384,
       windowsHide: true,
     });
+    versionCommand.child.stdin.end();
+    const { stdout } = await versionCommand;
     if (stdout.trim() !== `Using slack v${lock.version}`)
       throw new Error(
         "Slack CLI: packaged executable reports the wrong version.",

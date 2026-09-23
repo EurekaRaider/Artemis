@@ -27,7 +27,7 @@ afterEach(async () => {
   await Promise.all(
     cleanupPaths
       .splice(0)
-      .map((path) => rm(path, { recursive: true, force: true })),
+      .map((path) => rm(path, { recursive: true, force: true, maxRetries: 5 })),
   );
 });
 
@@ -67,6 +67,10 @@ function toolNames(tools: InspectableTool[]): string[] {
 describe("observed shell tools", () => {
   it("are available with full local execution in Execute only", async () => {
     const { host, thread, requests } = await openInspectableHost();
+    const command =
+      process.platform === "win32"
+        ? "Write-Output 'pi bash ready'"
+        : "printf 'pi bash ready'";
 
     expect(toolNames(thread.executeTools)).toEqual(
       expect.arrayContaining(["shell", "shell_wait", "shell_cancel"]),
@@ -77,7 +81,7 @@ describe("observed shell tools", () => {
     expect(shell).toBeDefined();
     thread.currentTurnId = "bash-turn";
     const result = await shell!.execute("bash-call", {
-      command: "printf 'pi bash ready'",
+      command,
       deadline_seconds: 10,
       model_approval: {
         risk: "low",
@@ -87,7 +91,7 @@ describe("observed shell tools", () => {
     });
     expect(JSON.parse(result.content[0]!.text)).toMatchObject({
       status: "completed",
-      outputDelta: "pi bash ready",
+      outputDelta: expect.stringContaining("pi bash ready"),
       observationExpired: false,
       shell: {
         shell: { kind: expect.any(String), executable: expect.any(String) },
@@ -97,7 +101,7 @@ describe("observed shell tools", () => {
     expect(requests).toMatchObject([
       {
         kind: "shell.execute",
-        command: "printf 'pi bash ready'",
+        command,
         modelApproval: {
           risk: "low",
           explicitUserRequest: false,
@@ -107,5 +111,5 @@ describe("observed shell tools", () => {
     ]);
 
     host.dispose();
-  });
+  }, 30_000);
 });

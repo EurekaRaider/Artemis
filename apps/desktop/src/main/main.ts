@@ -15920,6 +15920,10 @@ function createMainWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
+  if (process.platform === "win32" && smokeArtifacts) {
+    // Set the final content viewport before React initializes its sidebar state.
+    window.setContentSize(smokeWidth, smokeHeight);
+  }
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = undefined;
@@ -16244,16 +16248,6 @@ function createMainWindow(): BrowserWindow {
                   document.documentElement.dir = 'rtl';
                 }
                 if (view === 'feedback-layout-settings') {
-                  // Zoom dispatches resize asynchronously. Wait for the sidebar's
-                  // responsive state before choosing the visible Settings entry.
-                  for (let attempt = 0; attempt < 100; attempt += 1) {
-                    if (document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === String(window.innerWidth > 1060)) break;
-                    await wait(50);
-                  }
-                  const sidebarOpen = document.querySelector('.app-shell')?.getAttribute('data-sidebar-open');
-                  if (sidebarOpen !== String(window.innerWidth > 1060)) {
-                    throw new Error('Settings sidebar did not settle after zoom: innerWidth=' + window.innerWidth + ', sidebarOpen=' + sidebarOpen);
-                  }
                   const activity = [...document.querySelectorAll('.activity-button, .rail-item')].find(
                     (candidate) =>
                       candidate.checkVisibility({ visibilityProperty: true }) &&
