@@ -96,7 +96,11 @@ describe("durable active-turn recovery", () => {
       ],
       { encoding: "utf8", timeout: 10000 },
     );
-    expect(child.signal, child.stderr).toBe("SIGKILL");
+    if (process.platform === "win32") {
+      expect(child.status, child.stderr).not.toBe(0);
+    } else {
+      expect(child.signal, child.stderr).toBe("SIGKILL");
+    }
     const reopened = new AppStore(path);
     reopened.recoverInterruptedThreads();
     expect(reopened.getTurnCheckpoint("task")).toEqual(checkpoint);

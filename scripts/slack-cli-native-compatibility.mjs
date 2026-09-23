@@ -47,6 +47,13 @@ export async function verifySlackCliCompatibility(runtime) {
     appToken: "xapp-native-fixture",
     botToken: "xoxb-native-fixture",
   };
+  const windowsPowerShell = join(
+    process.env.SystemRoot ?? "C:\\Windows",
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
   let received;
   const server = createServer({ allowHalfOpen: true }, (socket) => {
     let input = "";
@@ -84,13 +91,7 @@ export async function verifySlackCliCompatibility(runtime) {
     const command = { runtime, directory, signal: AbortSignal.timeout(60000) };
     if (process.platform === "win32") {
       const probe = await exec(
-        join(
-          process.env.SystemRoot ?? "C:\\Windows",
-          "System32",
-          "WindowsPowerShell",
-          "v1.0",
-          "powershell.exe",
-        ),
+        windowsPowerShell,
         ["-Command", slackHookCommand(runtime, "manifest")],
         {
           cwd: join(directory, "project"),
@@ -144,8 +145,10 @@ export async function verifySlackCliCompatibility(runtime) {
       server.listen(0, "127.0.0.1", resolve);
     });
     const result = await exec(
-      runtime.nodeExecutable,
-      [runtime.hook, "deploy"],
+      process.platform === "win32" ? windowsPowerShell : runtime.nodeExecutable,
+      process.platform === "win32"
+        ? ["-Command", slackHookCommand(runtime, "deploy")]
+        : [runtime.hook, "deploy"],
       {
         env: {
           ...slackCliEnvironment({
@@ -158,7 +161,7 @@ export async function verifySlackCliCompatibility(runtime) {
         },
         cwd: join(directory, "project"),
         timeout: 15000,
-        windowsHide: true,
+        windowsHide: process.platform !== "win32",
       },
     );
     assert.equal(

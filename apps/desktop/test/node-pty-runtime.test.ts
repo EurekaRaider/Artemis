@@ -43,45 +43,54 @@ async function createNodePtyFixture() {
 }
 
 describe("packaged node-pty runtime", () => {
-  it("copies only the selected Darwin runtime into a private disposable root", async () => {
-    const sourceRoot = await createNodePtyFixture();
-    const runtime = await preparePackagedNodePtyRuntime(sourceRoot, "arm64");
-    cleanup.push(runtime.moduleRoot);
+  const macIt = it.runIf(process.platform === "darwin");
+  macIt(
+    "copies only the selected Darwin runtime into a private disposable root",
+    async () => {
+      const sourceRoot = await createNodePtyFixture();
+      const runtime = await preparePackagedNodePtyRuntime(sourceRoot, "arm64");
+      cleanup.push(runtime.moduleRoot);
 
-    expect((await stat(runtime.moduleRoot)).mode & 0o777).toBe(0o700);
-    expect(
-      await readFile(join(runtime.moduleRoot, "lib", "index.js"), "utf8"),
-    ).toBe("exports.spawn = 1;");
-    expect(
-      await readFile(
-        join(runtime.moduleRoot, "prebuilds", "darwin-arm64", "pty.node"),
-        "utf8",
-      ),
-    ).toBe("native-fixture");
-    expect(
-      (
-        await stat(
-          join(runtime.moduleRoot, "prebuilds", "darwin-arm64", "spawn-helper"),
-        )
-      ).mode & 0o777,
-    ).toBe(0o755);
-    await expect(
-      lstat(join(runtime.moduleRoot, "prebuilds", "darwin-x64")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-    expect(
-      (
-        await stat(
-          join(sourceRoot, "prebuilds", "darwin-arm64", "spawn-helper"),
-        )
-      ).mode & 0o777,
-    ).toBe(0o644);
+      expect((await stat(runtime.moduleRoot)).mode & 0o777).toBe(0o700);
+      expect(
+        await readFile(join(runtime.moduleRoot, "lib", "index.js"), "utf8"),
+      ).toBe("exports.spawn = 1;");
+      expect(
+        await readFile(
+          join(runtime.moduleRoot, "prebuilds", "darwin-arm64", "pty.node"),
+          "utf8",
+        ),
+      ).toBe("native-fixture");
+      expect(
+        (
+          await stat(
+            join(
+              runtime.moduleRoot,
+              "prebuilds",
+              "darwin-arm64",
+              "spawn-helper",
+            ),
+          )
+        ).mode & 0o777,
+      ).toBe(0o755);
+      await expect(
+        lstat(join(runtime.moduleRoot, "prebuilds", "darwin-x64")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      expect(
+        (
+          await stat(
+            join(sourceRoot, "prebuilds", "darwin-arm64", "spawn-helper"),
+          )
+        ).mode & 0o777,
+      ).toBe(0o644);
 
-    await runtime.dispose();
-    await runtime.dispose();
-    await expect(lstat(runtime.moduleRoot)).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-  });
+      await runtime.dispose();
+      await runtime.dispose();
+      await expect(lstat(runtime.moduleRoot)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    },
+  );
 
   it.runIf(process.platform !== "win32")(
     "rejects linked files instead of following them out of the package",

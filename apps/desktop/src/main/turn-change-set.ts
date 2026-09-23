@@ -337,23 +337,22 @@ function changedSnapshotEntries(
   });
 }
 
-function normalizeSnapshotDiff(
-  text: string,
-  beforePath: string,
-  afterPath: string,
-): string {
-  const beforePrefix = normalizedPath(beforePath).replace(/^\/+/, "");
-  const afterPrefix = normalizedPath(afterPath).replace(/^\/+/, "");
+function normalizeSnapshotDiff(text: string): string {
   return text
-    .replaceAll(`a/${beforePrefix}/`, "a/")
-    .replaceAll(`b/${beforePrefix}/`, "b/")
-    .replaceAll(`a/${afterPrefix}/`, "a/")
-    .replaceAll(`b/${afterPrefix}/`, "b/");
+    .split("\n")
+    .map((line) =>
+      /^(?:diff --git |--- |\+\+\+ |Binary files )/u.test(line)
+        ? line
+            .replaceAll("a/before/", "a/")
+            .replaceAll("b/before/", "b/")
+            .replaceAll("a/after/", "a/")
+            .replaceAll("b/after/", "b/")
+        : line,
+    )
+    .join("\n");
 }
 
 async function snapshotDiff(snapshotPath: string): Promise<string> {
-  const beforePath = join(snapshotPath, "before");
-  const afterPath = join(snapshotPath, "after");
   const raw = await runGit(
     snapshotPath,
     [
@@ -366,12 +365,12 @@ async function snapshotDiff(snapshotPath: string): Promise<string> {
       "--no-renames",
       "--unified=3",
       "--",
-      beforePath,
-      afterPath,
+      "before",
+      "after",
     ],
     [0, 1],
   );
-  return normalizeSnapshotDiff(raw, beforePath, afterPath);
+  return normalizeSnapshotDiff(raw);
 }
 
 function payloadFromRecord(

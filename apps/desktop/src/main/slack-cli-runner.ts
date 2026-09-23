@@ -61,7 +61,12 @@ export function slackHookCommand(
     process.platform === "win32"
       ? `'${text.replaceAll("'", "''")}'`
       : `'${text.replaceAll("'", "'\\''")}'`;
-  return `${process.platform === "win32" ? "& " : ""}${quote(runtime.nodeExecutable)} ${quote(runtime.hook)} ${operation}`;
+  if (process.platform === "win32") {
+    if (operation === "manifest")
+      return "Get-Content -Raw -Encoding UTF8 manifest.json";
+    return `$process = Start-Process -FilePath ${quote(runtime.nodeExecutable)} -ArgumentList ${quote(`"${runtime.hook}" deploy`)} -PassThru -Wait; exit $process.ExitCode`;
+  }
+  return `${quote(runtime.nodeExecutable)} ${quote(runtime.hook)} ${operation}`;
 }
 
 export async function runSlackCli(

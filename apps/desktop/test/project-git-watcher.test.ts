@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { join, resolve } from "node:path";
 import type { WebContents } from "electron";
 import type { ProjectGitInfo } from "../src/shared/api.js";
 const mocks = vi.hoisted(() => ({
@@ -24,8 +25,8 @@ vi.mock("node:fs", () => ({
 vi.mock("../src/main/git-branches.js", () => ({
   gitRepositoryWatchPaths: async (root: string) => ({
     root,
-    gitDirectory: root + "/.git",
-    commonDirectory: root + "/.git",
+    gitDirectory: join(root, ".git"),
+    commonDirectory: join(root, ".git"),
   }),
   gitRepositoryMetadataSignature: mocks.metadata,
   inspectGitBranches: mocks.inspect,
@@ -57,11 +58,11 @@ it("rebinds the same task to each new checkout and closes old subscriptions", as
   const old = [...mocks.watches];
   await ensureProjectGitWatcher(sender, "p", "t", "/worktree", info);
   expect(old.every((w) => w.close.mock.calls.length === 1)).toBe(true);
-  const current = mocks.watches.find((w) => w.path === "/worktree")!;
+  const current = mocks.watches.find((w) => w.path === resolve("/worktree"))!;
   expect(current).toBeDefined();
   current.listener("change", "file.ts");
   await vi.advanceTimersByTimeAsync(1000);
-  expect(mocks.inspect).toHaveBeenCalledWith("/worktree");
+  expect(mocks.inspect).toHaveBeenCalledWith(resolve("/worktree"));
   expect(sender.send).toHaveBeenCalledTimes(1);
   await ensureProjectGitWatcher(sender, "p", "t", "/local", info);
   expect(current.close).toHaveBeenCalledOnce();
@@ -88,7 +89,9 @@ it("does not swallow metadata changes arriving during an inspection", async () =
   await vi.advanceTimersByTimeAsync(1000);
   vi.mocked(sender.send).mockClear();
   mocks.inspect.mockClear();
-  const metadata = mocks.watches.find((w) => w.path === "/local/.git")!;
+  const metadata = mocks.watches.find(
+    (w) => w.path === join(resolve("/local"), ".git"),
+  )!;
   mocks.metadata.mockResolvedValue("branch-b");
   mocks.inspect
     .mockImplementationOnce(async () => {

@@ -224,6 +224,7 @@ describe("TerminalService", () => {
       "darwin",
       { onData: vi.fn(), onExit: vi.fn() },
       factory,
+      () => ({ kind: "zsh", executable: "/bin/zsh" }),
     );
     const firstDescriptor = service.open({
       threadId: "thread-1",
@@ -257,6 +258,7 @@ describe("TerminalService", () => {
       "darwin",
       { onData: vi.fn(), onExit: vi.fn() },
       () => fake,
+      () => ({ kind: "zsh", executable: "/bin/zsh" }),
     );
     const descriptor = service.open({
       threadId: "thread-1",

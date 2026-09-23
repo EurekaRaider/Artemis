@@ -967,8 +967,8 @@ describe("CodexPluginService", () => {
       env: {},
       envVars: ["API_TOKEN"],
     });
-    expect(local?.args[0]).toContain(
-      join("codex-plugins", installed.plugin.id, "mcp", "server.mjs"),
+    expect(local?.args[0]?.replaceAll("\\", "/")).toContain(
+      ["codex-plugins", installed.plugin.id, "mcp", "server.mjs"].join("/"),
     );
     expect(
       servers.find(

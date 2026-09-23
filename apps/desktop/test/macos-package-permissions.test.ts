@@ -48,57 +48,64 @@ async function createReadOnlySpawnHelpers(nodePtyRoot: string) {
 }
 
 describe("macOS node-pty package permissions", () => {
-  it("restores the executable bit on every packaged spawn helper", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "artemis-node-pty-"));
-    cleanup.push(directory);
-    const helpers = await createReadOnlySpawnHelpers(directory);
+  const macIt = it.runIf(process.platform === "darwin");
+  macIt(
+    "restores the executable bit on every packaged spawn helper",
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "artemis-node-pty-"));
+      cleanup.push(directory);
+      const helpers = await createReadOnlySpawnHelpers(directory);
 
-    await ensureNodePtySpawnHelpersExecutable(directory);
+      await ensureNodePtySpawnHelpersExecutable(directory);
 
-    for (const helper of helpers) {
-      expect((await stat(helper)).mode & 0o777).toBe(0o755);
-    }
-  });
+      for (const helper of helpers) {
+        expect((await stat(helper)).mode & 0o777).toBe(0o755);
+      }
+    },
+  );
 
-  it("runs the permission repair against the unpacked macOS app", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "artemis-macos-package-"));
-    cleanup.push(directory);
-    const nodePtyRoot = join(
-      directory,
-      "Artemis.app",
-      "Contents",
-      "Resources",
-      "app.asar.unpacked",
-      "node_modules",
-      "node-pty",
-    );
-    const helpers = await createReadOnlySpawnHelpers(nodePtyRoot);
-    const asarInput = join(directory, "asar-input");
-    await mkdir(join(asarInput, "dist-electron"), { recursive: true });
-    await writeFile(
-      join(asarInput, "dist-electron", "main.js"),
-      "console.log('fixture');",
-    );
-    await createPackage(
-      asarInput,
-      join(directory, "Artemis.app", "Contents", "Resources", "app.asar"),
-    );
-    const afterPack = require(afterPackPath).default as (context: {
-      electronPlatformName: string;
-      appOutDir: string;
-      packager: { appInfo: { productFilename: string } };
-    }) => Promise<void>;
+  macIt(
+    "runs the permission repair against the unpacked macOS app",
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "artemis-macos-package-"));
+      cleanup.push(directory);
+      const nodePtyRoot = join(
+        directory,
+        "Artemis.app",
+        "Contents",
+        "Resources",
+        "app.asar.unpacked",
+        "node_modules",
+        "node-pty",
+      );
+      const helpers = await createReadOnlySpawnHelpers(nodePtyRoot);
+      const asarInput = join(directory, "asar-input");
+      await mkdir(join(asarInput, "dist-electron"), { recursive: true });
+      await writeFile(
+        join(asarInput, "dist-electron", "main.js"),
+        "console.log('fixture');",
+      );
+      await createPackage(
+        asarInput,
+        join(directory, "Artemis.app", "Contents", "Resources", "app.asar"),
+      );
+      const afterPack = require(afterPackPath).default as (context: {
+        electronPlatformName: string;
+        appOutDir: string;
+        packager: { appInfo: { productFilename: string } };
+      }) => Promise<void>;
 
-    await afterPack({
-      electronPlatformName: "darwin",
-      appOutDir: directory,
-      packager: { appInfo: { productFilename: "Artemis" } },
-    });
+      await afterPack({
+        electronPlatformName: "darwin",
+        appOutDir: directory,
+        packager: { appInfo: { productFilename: "Artemis" } },
+      });
 
-    for (const helper of helpers) {
-      expect((await stat(helper)).mode & 0o777).toBe(0o755);
-    }
-  });
+      for (const helper of helpers) {
+        expect((await stat(helper)).mode & 0o777).toBe(0o755);
+      }
+    },
+  );
 
   it("repairs node-pty before starting a development or production build", () => {
     const source = require("node:fs").readFileSync(buildElectronPath, "utf8");

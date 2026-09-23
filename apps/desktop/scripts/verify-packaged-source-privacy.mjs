@@ -71,7 +71,7 @@ export async function verifyPackagedSourcePrivacy(context) {
   ];
 
   for (const entry of archiveEntries) {
-    if (!bundledJavaScriptPattern.test(entry)) continue;
+    if (!bundledJavaScriptPattern.test(normalizedPath(entry))) continue;
     const source = extractFile(archivePath, normalizedPath(entry)).toString(
       "utf8",
     );
