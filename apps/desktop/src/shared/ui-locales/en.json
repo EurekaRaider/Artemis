@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "Project folder limits no longer apply; authorized member restrictions still apply.",
   "GroupAuthorization.fullLocalSharing": "Operations and result delivery run automatically, without per-operation approval or desktop review. Sensitive information may be sent directly to the group or external services.",
   "GroupAuthorization.confirmFullLocal": "I understand the risks and authorize this Agent to use my local user permissions and the sharing scope above.",
-  "GroupAuthorization.submitFullLocal": "Confirm and enable full access"
+  "GroupAuthorization.submitFullLocal": "Confirm and enable full access",
+  "Update.download": "Download update",
+  "Update.downloaded": "Download complete — restart to install",
+  "Update.completed": "Updated to v{{version}}",
+  "Update.installing": "Installing update…"
 }

@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "檔案存取不再受專案目錄限制；已授權成員限制仍然有效。",
   "GroupAuthorization.fullLocalSharing": "操作與結果傳送將自動進行，不再逐次核准或等待桌面審閱；可能直接向群組或外部服務傳送敏感資訊。",
   "GroupAuthorization.confirmFullLocal": "我理解風險，並允許此 Agent 使用本機使用者權限及上述分享範圍。",
-  "GroupAuthorization.submitFullLocal": "確認並啟用完整權限"
+  "GroupAuthorization.submitFullLocal": "確認並啟用完整權限",
+  "Update.download": "下載更新",
+  "Update.downloaded": "下載完成，重新啟動安裝",
+  "Update.completed": "已更新至 v{{version}}",
+  "Update.installing": "正在安裝更新…"
 }

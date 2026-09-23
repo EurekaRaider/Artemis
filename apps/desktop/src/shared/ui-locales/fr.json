@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "Les limites du dossier projet sont levées ; les restrictions des membres autorisés restent actives.",
   "GroupAuthorization.fullLocalSharing": "Les opérations et l’envoi des résultats sont automatiques, sans approbation individuelle ni examen sur le bureau. Des informations sensibles peuvent être envoyées directement au groupe ou à des services externes.",
   "GroupAuthorization.confirmFullLocal": "Je comprends les risques et autorise cet Agent à utiliser mes droits locaux et le périmètre de partage ci-dessus.",
-  "GroupAuthorization.submitFullLocal": "Confirmer et activer l’accès complet"
+  "GroupAuthorization.submitFullLocal": "Confirmer et activer l’accès complet",
+  "Update.download": "Télécharger la mise à jour",
+  "Update.downloaded": "Téléchargement terminé — redémarrer pour installer",
+  "Update.completed": "Mise à jour vers v{{version}} effectuée",
+  "Update.installing": "Installation de la mise à jour…"
 }

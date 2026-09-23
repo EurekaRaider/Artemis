@@ -1028,6 +1028,8 @@ export function App() {
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>("agent");
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsSnapshot>();
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const announcedUpdate = useRef<string | undefined>(undefined);
   const [pendingModelSelection, setPendingModelSelection] =
     useState<ModelSelection>();
   const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
@@ -1526,6 +1528,21 @@ export function App() {
 
   const locale: Locale = snapshot?.locale ?? "en";
   const t = appCopy(locale);
+  useEffect(
+    () =>
+      window.artemis.onUpdateStatus((update) => {
+        setRuntimeSettings((current) =>
+          current ? { ...current, update } : current,
+        );
+      }),
+    [],
+  );
+  useEffect(() => {
+    const version = runtimeSettings?.update.completedVersion;
+    if (!version || announcedUpdate.current === version) return;
+    announcedUpdate.current = version;
+    setToast(uiText(locale, "Update.completed", { version }));
+  }, [runtimeSettings?.update.completedVersion, locale, setToast]);
   const username = snapshot?.userName ?? t.local;
   const localeRef = useRef(locale);
   localeRef.current = locale;
@@ -5798,17 +5815,26 @@ export function App() {
               <button
                 className={`update-btn ${runtimeSettings.update.state}`}
                 type="button"
-                aria-label={`${t.currentVersion} ${runtimeSettings.update.availableVersion}`}
-                title={`${runtimeSettings.update.availableVersion} · ${statusText(locale, runtimeSettings.update.state)}`}
-                disabled={["checking", "downloading"].includes(
-                  runtimeSettings.update.state,
+                aria-label={uiText(
+                  locale,
+                  runtimeSettings.update.state === "downloaded"
+                    ? "Update.downloaded"
+                    : "Update.download",
                 )}
+                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.downloaded" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
+                disabled={
+                  installingUpdate ||
+                  ["checking", "downloading"].includes(
+                    runtimeSettings.update.state,
+                  )
+                }
                 onClick={async () => {
                   try {
                     if (runtimeSettings.update.state === "downloaded") {
+                      setInstallingUpdate(true);
                       await window.artemis.installUpdate();
                     } else {
-                      const update = await window.artemis.checkForUpdates();
+                      const update = await window.artemis.downloadUpdate();
                       setRuntimeSettings((current) =>
                         current ? { ...current, update } : current,
                       );
@@ -5819,6 +5845,7 @@ export function App() {
                         });
                     }
                   } catch (error) {
+                    setInstallingUpdate(false);
                     setToast({
                       error: true,
                       message:
@@ -5827,8 +5854,47 @@ export function App() {
                   }
                 }}
               >
-                <ArtemisIcon name="download" />
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 5v14m-6-6 6 6 6-6" />
+                </svg>
               </button>
+            )}
+            {(runtimeSettings?.update.state === "downloading" ||
+              runtimeSettings?.update.state === "downloaded") && (
+              <div className="sidebar-update-progress">
+                {runtimeSettings.update.state === "downloading" ? (
+                  <>
+                    <span>
+                      {statusText(locale, "downloading")}{" "}
+                      <span>
+                        {Math.round(runtimeSettings.update.progress ?? 0)}%
+                      </span>
+                    </span>
+                    <progress
+                      aria-label={statusText(locale, "downloading")}
+                      max={100}
+                      value={runtimeSettings.update.progress ?? 0}
+                    />
+                  </>
+                ) : (
+                  <span role="status">
+                    {uiText(
+                      locale,
+                      installingUpdate
+                        ? "Update.installing"
+                        : "Update.downloaded",
+                    )}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         }

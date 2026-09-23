@@ -132,7 +132,9 @@ function modelFormState(settings: SettingsSnapshot | undefined): {
   return {
     contextWindow: String(
       Math.min(
-        saved?.contextWindow ?? selected?.contextWindow ?? settings.contextWindow,
+        saved?.contextWindow ??
+          selected?.contextWindow ??
+          settings.contextWindow,
         selected?.contextWindow ?? settings.contextWindow,
       ),
     ),
@@ -413,7 +415,10 @@ export function SettingsPanel({
     );
     setContextWindow(
       String(
-        Math.min(saved?.contextWindow ?? model.contextWindow, model.contextWindow),
+        Math.min(
+          saved?.contextWindow ?? model.contextWindow,
+          model.contextWindow,
+        ),
       ),
     );
   }
@@ -1980,6 +1985,25 @@ export function SettingsPanel({
                         >
                           {t.checkUpdates}
                         </Button>
+                        {settings.update.availableVersion &&
+                          ["available", "error"].includes(
+                            settings.update.state,
+                          ) && (
+                            <Button
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  const update =
+                                    await window.artemis.downloadUpdate();
+                                  setSettings((current) =>
+                                    current ? { ...current, update } : current,
+                                  );
+                                })
+                              }
+                            >
+                              {uiText(locale, "Update.download")}
+                            </Button>
+                          )}
                         {settings.update.state === "downloaded" && (
                           <Button
                             disabled={busy}
@@ -1992,6 +2016,27 @@ export function SettingsPanel({
                         )}
                       </span>
                     </SettingsRow>
+                    {settings.update.state === "downloading" && (
+                      <div className="sidebar-update-progress">
+                        <progress
+                          aria-label={statusText(locale, "downloading")}
+                          max={100}
+                          value={settings.update.progress ?? 0}
+                        />
+                      </div>
+                    )}
+                    {settings.update.state === "downloaded" && (
+                      <InlineNotice tone="success">
+                        {uiText(locale, "Update.downloaded")}
+                      </InlineNotice>
+                    )}
+                    {settings.update.completedVersion && (
+                      <InlineNotice tone="success">
+                        {uiText(locale, "Update.completed", {
+                          version: settings.update.completedVersion,
+                        })}
+                      </InlineNotice>
+                    )}
                     {settings.update.rollbackAvailable && (
                       <InlineNotice
                         className="settings-security"

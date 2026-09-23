@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "Batas folder proyek dihapus; pembatasan anggota yang diizinkan tetap berlaku.",
   "GroupAuthorization.fullLocalSharing": "Operasi dan pengiriman hasil berjalan otomatis tanpa persetujuan per operasi atau peninjauan di desktop. Informasi sensitif dapat dikirim langsung ke grup atau layanan eksternal.",
   "GroupAuthorization.confirmFullLocal": "Saya memahami risikonya dan mengizinkan Agent ini memakai izin pengguna lokal serta lingkup berbagi di atas.",
-  "GroupAuthorization.submitFullLocal": "Konfirmasi dan aktifkan akses penuh"
+  "GroupAuthorization.submitFullLocal": "Konfirmasi dan aktifkan akses penuh",
+  "Update.download": "Unduh pembaruan",
+  "Update.downloaded": "Unduhan selesai — mulai ulang untuk memasang",
+  "Update.completed": "Diperbarui ke v{{version}}",
+  "Update.installing": "Memasang pembaruan…"
 }

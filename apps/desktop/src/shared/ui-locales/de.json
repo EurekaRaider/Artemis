@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "Projektordnergrenzen entfallen; Einschränkungen für autorisierte Mitglieder bleiben bestehen.",
   "GroupAuthorization.fullLocalSharing": "Aktionen und Ergebnisversand erfolgen automatisch, ohne einzelne Freigaben oder Desktop-Prüfung. Vertrauliche Informationen können direkt an die Gruppe oder externe Dienste gesendet werden.",
   "GroupAuthorization.confirmFullLocal": "Ich verstehe die Risiken und erlaube diesem Agent meine lokalen Benutzerrechte und den oben genannten Freigabebereich.",
-  "GroupAuthorization.submitFullLocal": "Bestätigen und Vollzugriff aktivieren"
+  "GroupAuthorization.submitFullLocal": "Bestätigen und Vollzugriff aktivieren",
+  "Update.download": "Update herunterladen",
+  "Update.downloaded": "Download abgeschlossen — zur Installation neu starten",
+  "Update.completed": "Auf v{{version}} aktualisiert",
+  "Update.installing": "Update wird installiert…"
 }

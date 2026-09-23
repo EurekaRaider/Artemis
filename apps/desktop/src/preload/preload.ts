@@ -415,6 +415,7 @@ const api: ArtemisApi = {
   removeTrustedExtension: (extensionId) =>
     ipcRenderer.invoke(IPC.extensionRemove, extensionId),
   checkForUpdates: () => ipcRenderer.invoke(IPC.updateCheck),
+  downloadUpdate: () => ipcRenderer.invoke(IPC.updateDownload),
   installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),
   exportDiagnostics: () => ipcRenderer.invoke(IPC.diagnosticsExport),
   reportRendererError: (diagnostic) =>

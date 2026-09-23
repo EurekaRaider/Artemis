@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,6 +27,7 @@ class FakeUpdater extends EventEmitter implements UpdaterAdapter {
   allowDowngrade = true;
   feed: Record<string, unknown> | undefined;
   checkForUpdates = vi.fn(async () => undefined);
+  downloadUpdate = vi.fn(async () => undefined);
   quitAndInstall = vi.fn();
 
   setFeedURL(options: any): void {
@@ -35,9 +36,55 @@ class FakeUpdater extends EventEmitter implements UpdaterAdapter {
 }
 
 describe("ReleaseUpdateManager", () => {
+  it.each([
+    { packaged: true, configExists: true, state: "idle" },
+    { packaged: true, configExists: false, state: "disabled" },
+    { packaged: false, configExists: true, state: "disabled" },
+  ])(
+    "uses the bundled feed only in configured packaged builds: %j",
+    async ({ packaged, configExists, state }) => {
+      const directory = await mkdtemp(join(tmpdir(), "artemis-updater-"));
+      temporaryDirectories.push(directory);
+      const configPath = join(directory, "app-update.yml");
+      if (configExists)
+        await writeFile(
+          configPath,
+          "provider: github\nowner: example\nrepo: Artemis\n",
+        );
+      const updater = new FakeUpdater();
+      const manager = new ReleaseUpdateManager(
+        updater,
+        new UpdateRecoveryStore(
+          join(directory, "state.json"),
+          join(directory, "artifacts"),
+        ),
+        "1.0.0",
+        packaged,
+        "darwin",
+        "/tmp/rollback.sh",
+        "/Applications/Artemis.app",
+        {},
+        () => {},
+        configPath,
+      );
+      await manager.initialize();
+      await manager.check();
+      expect(manager.getStatus().state).toBe(state);
+      expect(updater.feed).toBeUndefined();
+      expect(updater.checkForUpdates).toHaveBeenCalledTimes(
+        state === "idle" ? 1 : 0,
+      );
+    },
+  );
+
   it("configures a macOS feed with download-only installation semantics", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-updater-"));
     temporaryDirectories.push(directory);
+    const configPath = join(directory, "app-update.yml");
+    await writeFile(
+      configPath,
+      "provider: github\nowner: bundled\nrepo: feed\n",
+    );
     const updater = new FakeUpdater();
     const manager = new ReleaseUpdateManager(
       updater,
@@ -55,6 +102,7 @@ describe("ReleaseUpdateManager", () => {
         ARTEMIS_UPDATE_REPO: "Artemis",
       },
       () => {},
+      configPath,
     );
 
     await manager.initialize();
@@ -64,9 +112,60 @@ describe("ReleaseUpdateManager", () => {
       owner: "example",
       repo: "Artemis",
     });
-    expect(updater.autoDownload).toBe(true);
+    expect(updater.autoDownload).toBe(false);
     expect(updater.autoInstallOnAppQuit).toBe(false);
     expect(updater.allowDowngrade).toBe(false);
+    await expect(manager.download()).rejects.toThrow("No update");
+    updater.emit("update-available", { version: "1.1.0" });
+    expect(manager.getStatus().state).toBe("available");
+    expect(updater.downloadUpdate).not.toHaveBeenCalled();
+    await manager.download();
+    expect(updater.downloadUpdate).toHaveBeenCalledTimes(1);
+    expect(manager.getStatus().state).toBe("downloading");
+    updater.emit("download-progress", {
+      percent: 42,
+      transferred: 42,
+      total: 100,
+    });
+    expect(manager.getStatus().progress).toBe(42);
+    await manager.check();
+    expect(updater.checkForUpdates).not.toHaveBeenCalled();
+    await expect(manager.download()).rejects.toThrow("No update");
+    expect(updater.downloadUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("announces completion only after the installed version starts successfully", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-updater-"));
+    temporaryDirectories.push(directory);
+    const recovery = new UpdateRecoveryStore(
+      join(directory, "state.json"),
+      join(directory, "artifacts"),
+    );
+    const artifact = join(directory, "update.zip");
+    await writeFile(artifact, "test update");
+    await recovery.recordDownloaded("1.1.0", artifact);
+    await recovery.prepareInstall("1.0.0", "1.1.0");
+    const makeManager = () =>
+      new ReleaseUpdateManager(
+        new FakeUpdater(),
+        recovery,
+        "1.1.0",
+        true,
+        "darwin",
+        "/tmp/rollback.sh",
+        "/Applications/Artemis.app",
+        { ARTEMIS_UPDATE_OWNER: "example", ARTEMIS_UPDATE_REPO: "Artemis" },
+        () => {},
+      );
+    const manager = makeManager();
+    await manager.initialize();
+    expect(manager.getStatus().completedVersion).toBeUndefined();
+    await manager.markHealthy();
+    expect(manager.getStatus().completedVersion).toBe("1.1.0");
+    const nextLaunch = makeManager();
+    await nextLaunch.initialize();
+    await nextLaunch.markHealthy();
+    expect(nextLaunch.getStatus().completedVersion).toBeUndefined();
   });
 
   it("uses manual updates for Windows ZIP builds even when a feed is configured", async () => {

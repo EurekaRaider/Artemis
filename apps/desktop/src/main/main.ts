@@ -7171,6 +7171,11 @@ function registerIpc(): void {
     await releaseUpdateReady;
     return releaseUpdateManager.check();
   });
+  ipcMain.handle(IPC.updateDownload, async () => {
+    if (!releaseUpdateManager) throw new Error("Update service is not ready.");
+    await releaseUpdateReady;
+    return releaseUpdateManager.download();
+  });
   ipcMain.handle(IPC.updateInstall, async () => {
     if (!releaseUpdateManager) {
       throw new Error("Update service is not ready.");
@@ -21576,6 +21581,7 @@ app
       (status) => {
         mainWindow?.webContents.send(IPC.updateStatus, status);
       },
+      join(process.resourcesPath, "app-update.yml"),
     );
     terminalService = new TerminalService(process.platform, {
       onData(terminalId, data) {

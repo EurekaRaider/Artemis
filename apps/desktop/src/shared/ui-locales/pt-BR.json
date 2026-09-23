@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "Os limites da pasta do projeto são removidos; as restrições de membros autorizados permanecem.",
   "GroupAuthorization.fullLocalSharing": "As operações e o envio dos resultados são automáticos, sem aprovação individual ou revisão no desktop. Informações sensíveis podem ser enviadas diretamente ao grupo ou a serviços externos.",
   "GroupAuthorization.confirmFullLocal": "Entendo os riscos e autorizo este Agent a usar minhas permissões locais e o escopo de compartilhamento acima.",
-  "GroupAuthorization.submitFullLocal": "Confirmar e ativar acesso completo"
+  "GroupAuthorization.submitFullLocal": "Confirmar e ativar acesso completo",
+  "Update.download": "Baixar atualização",
+  "Update.downloaded": "Download concluído — reinicie para instalar",
+  "Update.completed": "Atualizado para v{{version}}",
+  "Update.installing": "Instalando atualização…"
 }

@@ -1585,5 +1585,9 @@
   "GroupAuthorization.fullLocalScope": "تُرفع حدود مجلد المشروع وتبقى قيود الأعضاء المصرح لهم.",
   "GroupAuthorization.fullLocalSharing": "تُنفّذ العمليات وتُرسل النتائج تلقائيًا دون موافقة لكل عملية أو مراجعة على سطح المكتب. قد تُرسل معلومات حساسة مباشرةً إلى المجموعة أو الخدمات الخارجية.",
   "GroupAuthorization.confirmFullLocal": "أفهم المخاطر وأسمح لهذا Agent باستخدام أذونات المستخدم المحلي ونطاق المشاركة أعلاه.",
-  "GroupAuthorization.submitFullLocal": "تأكيد وتفعيل الوصول الكامل"
+  "GroupAuthorization.submitFullLocal": "تأكيد وتفعيل الوصول الكامل",
+  "Update.download": "تنزيل التحديث",
+  "Update.downloaded": "اكتمل التنزيل — أعد التشغيل للتثبيت",
+  "Update.completed": "تم التحديث إلى v{{version}}",
+  "Update.installing": "جارٍ تثبيت التحديث…"
 }

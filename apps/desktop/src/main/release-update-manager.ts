@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 
 import type { UpdateRecoveryStore } from "./update-recovery-store.js";
 
@@ -19,6 +20,7 @@ export interface UpdaterAdapter {
   allowDowngrade: boolean;
   setFeedURL(options: any): void;
   checkForUpdates(): Promise<unknown>;
+  downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
   on(event: string, listener: (...args: any[]) => void): this;
 }
@@ -34,6 +36,7 @@ export interface ReleaseUpdateStatus {
     | "error";
   currentVersion: string;
   availableVersion?: string;
+  completedVersion?: string;
   progress?: number;
   rollbackAvailable: boolean;
   message?: string;
@@ -87,6 +90,7 @@ export class ReleaseUpdateManager {
   private status: ReleaseUpdateStatus;
   private downloadedVersion: string | undefined;
   private initialized = false;
+  private installedVersion: string | undefined;
 
   constructor(
     private readonly updater: UpdaterAdapter,
@@ -98,6 +102,7 @@ export class ReleaseUpdateManager {
     private readonly applicationPath: string,
     private readonly environment: UpdateFeedEnvironment,
     private readonly onStatus: (status: ReleaseUpdateStatus) => void,
+    private readonly packagedUpdateConfigPath?: string,
   ) {
     this.status = {
       state: "disabled",
@@ -118,6 +123,7 @@ export class ReleaseUpdateManager {
       return;
     }
     const startup = await this.recovery.beginStartup(this.currentVersion);
+    if (startup) this.installedVersion = this.currentVersion;
     if (startup?.pending.previousArtifact) {
       this.launchRollbackWatchdog(
         startup.healthMarkerPath,
@@ -125,7 +131,11 @@ export class ReleaseUpdateManager {
       );
     }
     const feed = this.isPackaged ? resolveFeed(this.environment) : undefined;
-    if (!feed) {
+    const hasPackagedFeed =
+      this.isPackaged &&
+      this.packagedUpdateConfigPath !== undefined &&
+      existsSync(this.packagedUpdateConfigPath);
+    if (!feed && !hasPackagedFeed) {
       this.update({
         state: "disabled",
         message: this.isPackaged
@@ -135,10 +145,11 @@ export class ReleaseUpdateManager {
       return;
     }
 
-    this.updater.autoDownload = true;
+    this.updater.autoDownload = false;
     this.updater.autoInstallOnAppQuit = false;
     this.updater.allowDowngrade = false;
-    this.updater.setFeedURL(feed);
+    // Without an override, electron-updater reads the signed bundle's app-update.yml.
+    if (feed) this.updater.setFeedURL(feed);
     this.updater.on("checking-for-update", () => {
       this.update({
         state: "checking",
@@ -196,8 +207,33 @@ export class ReleaseUpdateManager {
   }
 
   async check(): Promise<ReleaseUpdateStatus> {
-    if (this.status.state === "disabled") return this.getStatus();
+    if (
+      ["disabled", "checking", "downloading", "downloaded"].includes(
+        this.status.state,
+      )
+    )
+      return this.getStatus();
     await this.updater.checkForUpdates();
+    return this.getStatus();
+  }
+
+  async download(): Promise<ReleaseUpdateStatus> {
+    if (
+      !this.status.availableVersion ||
+      !["available", "error"].includes(this.status.state)
+    ) {
+      throw new Error("No update is available to download");
+    }
+    this.update({ state: "downloading", progress: 0, message: undefined });
+    try {
+      await this.updater.downloadUpdate();
+    } catch (error) {
+      this.update({
+        state: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
     return this.getStatus();
   }
 
@@ -216,6 +252,7 @@ export class ReleaseUpdateManager {
     if (this.platform === "win32") return;
     await this.recovery.markHealthy(this.currentVersion);
     this.update({
+      completedVersion: this.installedVersion,
       rollbackAvailable: await this.recovery.rollbackAvailable(
         this.currentVersion,
       ),

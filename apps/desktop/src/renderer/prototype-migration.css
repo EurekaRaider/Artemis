@@ -251,14 +251,16 @@
   white-space: nowrap;
 }
 .update-btn {
-  inline-size: 24px;
-  block-size: 24px;
+  inline-size: 20px;
+  block-size: 20px;
   display: grid;
   place-items: center;
   flex: none;
   border-radius: 50%;
-  color: var(--accent-text);
-  background: var(--accent);
+  color: #3b9cff;
+  background: transparent;
+  border: 1.5px solid currentColor;
+  padding: 2px;
   cursor: pointer;
 }
 .update-btn svg {
@@ -268,6 +270,42 @@
 .update-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.update-btn:focus-visible {
+  outline: 2px solid #3b9cff;
+  outline-offset: 3px;
+}
+.sidebar-footer:has(.sidebar-update-progress) {
+  flex-wrap: wrap;
+  height: auto;
+}
+.sidebar-update-progress {
+  flex: 0 0 100%;
+  display: grid;
+  gap: 5px;
+  padding-block: 4px 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sidebar-update-progress > span {
+  display: flex;
+  justify-content: space-between;
+}
+.sidebar-update-progress progress {
+  appearance: none;
+  inline-size: 100%;
+  block-size: 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: var(--artemis-color-border-subtle);
+}
+.sidebar-update-progress progress::-webkit-progress-bar {
+  background: var(--artemis-color-border-subtle);
+}
+.sidebar-update-progress progress::-webkit-progress-value {
+  background: #3b9cff;
+  border-radius: 4px;
 }
 .sidebar-rail {
   display: flex;

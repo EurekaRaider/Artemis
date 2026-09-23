@@ -477,6 +477,7 @@ export interface ReleaseUpdateStatus {
     | "error";
   currentVersion: string;
   availableVersion?: string;
+  completedVersion?: string;
   progress?: number;
   rollbackAvailable: boolean;
   message?: string;
@@ -1173,6 +1174,7 @@ export interface ArtemisApi {
   ): Promise<SettingsSnapshot>;
   removeTrustedExtension(extensionId: string): Promise<SettingsSnapshot>;
   checkForUpdates(): Promise<ReleaseUpdateStatus>;
+  downloadUpdate(): Promise<ReleaseUpdateStatus>;
   installUpdate(): Promise<void>;
   exportDiagnostics(): Promise<string | undefined>;
   reportRendererError(diagnostic: RendererDiagnostic): void;
@@ -1362,6 +1364,7 @@ export const IPC = {
   extensionNetwork: "artemis:extension-network",
   extensionRemove: "artemis:extension-remove",
   updateCheck: "artemis:update-check",
+  updateDownload: "artemis:update-download",
   updateInstall: "artemis:update-install",
   customAgentsGet: "artemis:custom-agents-get",
   customAgentsCreate: "artemis:custom-agents-create",
