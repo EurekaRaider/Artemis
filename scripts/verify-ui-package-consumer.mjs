@@ -1,11 +1,18 @@
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npm = process.platform === "win32" ? process.execPath : "npm";
+const npmArguments =
+  process.platform === "win32"
+    ? [
+        process.env.npm_execpath ??
+          join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
+      ]
+    : [];
 const consumer = await mkdtemp(join(tmpdir(), "artemis-ui-consumer-"));
 
 function run(command, args, cwd = root) {
@@ -19,14 +26,28 @@ function run(command, args, cwd = root) {
   });
   if (result.status !== 0) {
     throw new Error(
-      `${command} ${args.join(" ")} failed with ${String(result.status)}\n${result.stdout}${result.stderr}`,
+      `${command} ${args.join(" ")} failed with ${String(result.status)}: ${result.error?.message ?? ""}\n${result.stdout ?? ""}${result.stderr ?? ""}`,
     );
   }
   return result.stdout.trim();
 }
 
+function runNpm(args, cwd = root) {
+  return run(npm, [...npmArguments, ...args], cwd);
+}
+
+function runEsbuild(args, cwd = consumer) {
+  return process.platform === "win32"
+    ? run(
+        process.execPath,
+        [join(root, "node_modules/esbuild/bin/esbuild"), ...args],
+        cwd,
+      )
+    : run(join(root, "node_modules/.bin/esbuild"), args, cwd);
+}
+
 async function pack(packagePath, auditPublicFiles) {
-  const output = run(npm, [
+  const output = runNpm([
     "pack",
     "--json",
     "--pack-destination",
@@ -133,8 +154,7 @@ try {
     `${JSON.stringify({ name: "artemis-ui-consumer", private: true, type: "module" }, null, 2)}\n`,
     "utf8",
   );
-  run(
-    npm,
+  runNpm(
     [
       "install",
       "--offline",
@@ -344,7 +364,11 @@ void mcp;
     )}\n`,
     "utf8",
   );
-  run(join(root, "node_modules/.bin/tsc"), ["-p", "tsconfig.json"], consumer);
+  run(
+    process.execPath,
+    [join(root, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"],
+    consumer,
+  );
 
   await writeFile(
     join(consumer, "consumer.mjs"),
@@ -494,15 +518,14 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     "utf8",
   );
   run(process.execPath, ["data-consumer.mjs"], consumer);
-  run(npm, ["ls", "--all", "react", "react-dom"], consumer);
+  runNpm(["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
     join(consumer, "tree-shake.ts"),
     `import { createElement } from "react";\nimport { Button } from "@artemis/ui/actions";\nexport const TreeShakeButton = () => createElement(Button, { label: "Action tree-shaken" }, "Action");\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "tree-shake.ts",
       "--bundle",
@@ -539,8 +562,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { TextField } from "@artemis/ui/forms";\nexport const TreeShakeTextField = () => createElement(TextField, { label: "Form tree-shaken", defaultValue: "value" });\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "form-tree-shake.ts",
       "--bundle",
@@ -578,8 +600,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { Tabs } from "@artemis/ui/navigation";\nexport const TreeShakeTabs = () => createElement(Tabs, { label: "Navigation tree-shaken", value: "one", onValueChange() {}, options: [{ id: "one-tab", panelId: "one-panel", value: "one", label: "One" }] });\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "navigation-tree-shake.ts",
       "--bundle",
@@ -609,8 +630,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { InlineNotice } from "@artemis/ui/feedback";\nexport const TreeShakeNotice = () => createElement(InlineNotice, null, "Notice");\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "feedback-tree-shake.ts",
       "--bundle",
@@ -643,8 +663,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { PanelHeader } from "@artemis/ui/layout";\nexport const TreeShakePanelHeader = () => createElement(PanelHeader, { title: "Panel" });\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "layout-tree-shake.ts",
       "--bundle",
@@ -675,8 +694,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { TurnStatus } from "@artemis/ui/patterns";\nexport const TreeShakeTurnStatus = () => createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" });\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "pattern-tree-shake.ts",
       "--bundle",
@@ -707,8 +725,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { ConversationMessage } from "@artemis/ui/conversation";\nexport const TreeShakeMessage = () => createElement(ConversationMessage, { kind: "assistant" }, "Reply");\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "conversation-tree-shake.ts",
       "--bundle",
@@ -745,8 +762,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { ComposerSurface } from "@artemis/ui/surfaces";\nexport const TreeShakeComposer = () => createElement(ComposerSurface, { label: "Composer" }, "Prompt");\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "surface-tree-shake.ts",
       "--bundle",
@@ -782,8 +798,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { TerminalSurface } from "@artemis/ui/professional";\nexport const TreeShakeTerminal = () => createElement(TerminalSurface, { label: "Terminal", state: "ready" }, "Terminal");\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "professional-tree-shake.ts",
       "--bundle",
@@ -820,8 +835,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { ManagementCard } from "@artemis/ui/management";\nexport const TreeShakeManagementCard = () => createElement(ManagementCard, null, "Card");\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "management-tree-shake.ts",
       "--bundle",
@@ -859,8 +873,7 @@ if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract i
     `import { createElement } from "react";\nimport { DataStat } from "@artemis/ui/data";\nexport const TreeShakeDataStat = () => createElement(DataStat, { label: "Tokens", value: "1" });\n`,
     "utf8",
   );
-  run(
-    join(root, "node_modules/.bin/esbuild"),
+  runEsbuild(
     [
       "data-tree-shake.ts",
       "--bundle",

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -75,14 +82,48 @@ export async function verifySlackCliCompatibility(runtime) {
       }),
     );
     const command = { runtime, directory, signal: AbortSignal.timeout(60000) };
+    if (process.platform === "win32") {
+      const probe = await exec(
+        join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "powershell.exe",
+        ),
+        ["-Command", slackHookCommand(runtime, "manifest")],
+        {
+          cwd: join(directory, "project"),
+          env: slackCliEnvironment({ ...command, args: [] }),
+          encoding: "buffer",
+          timeout: 15000,
+        },
+      );
+      let actualManifest;
+      try {
+        actualManifest = JSON.parse(probe.stdout.toString("utf8"));
+      } catch {
+        throw new Error(
+          `Native Windows manifest hook emitted invalid JSON (first bytes: ${probe.stdout.subarray(0, 24).toString("hex")}).`,
+        );
+      }
+      assert.deepEqual(actualManifest, JSON.parse(manifest));
+    }
     const info = await runSlackCli({
       ...command,
       args: ["manifest", "info", "--source", "local"],
     });
+    let debugLog = "";
+    if (info.code !== 0 && process.platform === "win32") {
+      const logs = join(directory, "config", "logs");
+      const latest = (await readdir(logs).catch(() => [])).sort().at(-1);
+      if (latest)
+        debugLog = (await readFile(join(logs, latest), "utf8")).slice(-4000);
+    }
     assert.equal(
       info.code,
       0,
-      `Native CLI manifest hook failed: ${info.output}`,
+      `Native CLI manifest hook failed: ${info.output}\n${debugLog}`,
     );
     assert.deepEqual(JSON.parse(info.output.trim()), JSON.parse(manifest));
     const login = await runSlackCli({

@@ -5748,6 +5748,7 @@ export class ArtemisAgentHost {
                   : childTools;
                 const created = await createAgentSession({
                   cwd: request.workspacePath,
+                  agentDir: this.agentDir,
                   sessionManager: omitReasoningFromSession(
                     SessionManager.inMemory(request.workspacePath),
                   ),
@@ -6094,6 +6095,7 @@ export class ArtemisAgentHost {
     await resourceLoader.reload();
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
+      agentDir: this.agentDir,
       sessionManager,
       modelRuntime,
       ...(selectedModel ? { model: selectedModel } : {}),
