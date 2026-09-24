@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       release_sha:
-        description: "已有完整 CI 通过的源码提交；留空则运行本次发布 CI"
+        description: "沿用已通过 CI 的提交（或仅含发布流程修复的后续提交）；留空则运行本次发布 CI"
         required: false
         type: string
       ci_run_id:
@@ -36,6 +36,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_sha || github.sha }}
+          fetch-depth: 0
 
       - name: Verify previous CI before reusing it
         if: inputs.release_sha != '' || inputs.ci_run_id != ''
@@ -49,8 +50,16 @@ jobs:
           verified="$(gh run view "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --json headSha,conclusion,workflowName \
             --jq '[.headSha, .conclusion, .workflowName] | join(" ")')"
-          test "$verified" = "$RELEASE_SHA success CI"
+          read -r ci_sha ci_conclusion ci_workflow <<< "$verified"
+          test "$ci_conclusion $ci_workflow" = "success CI"
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git merge-base --is-ancestor "$ci_sha" "$RELEASE_SHA"
+          while IFS= read -r changed; do
+            case "$changed" in
+              .github/workflows/release.yml|apps/desktop/scripts/verify-packaged-source-privacy.mjs) ;;
+              *) echo "CI does not cover changed path: $changed" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$ci_sha" "$RELEASE_SHA")
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7

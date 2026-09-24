@@ -72,9 +72,10 @@ export async function verifyPackagedSourcePrivacy(context) {
 
   for (const entry of archiveEntries) {
     if (!bundledJavaScriptPattern.test(normalizedPath(entry))) continue;
-    const source = extractFile(archivePath, normalizedPath(entry)).toString(
-      "utf8",
-    );
+    const source = extractFile(
+      archivePath,
+      normalizedPath(entry).split("/").join(sep),
+    ).toString("utf8");
     if (sourceMapReferencePattern.test(source)) {
       forbidden.push(`app.asar/${normalizedPath(entry)} (sourceMappingURL)`);
     }
