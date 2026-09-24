@@ -236,10 +236,11 @@ public static class ArtemisNativeSandbox
     private const uint DUPLICATE_SAME_ACCESS = 0x00000002;
     private const uint DACL_SECURITY_INFORMATION = 0x00000004;
     private const int ERROR_INSUFFICIENT_BUFFER = 122;
-    // Only the noninteractive session objects needed to initialize user32.
-    // These masks exclude clipboard, screen, hooks, and desktop switching.
+    // The sandbox receives only service station read and private desktop use.
+    // Its ACEs exclude clipboard, screen, hooks, and desktop switching.
     private const int WINSTA_SANDBOX_ACCESS = 0x20123;
-    private const int DESKTOP_SANDBOX_ACCESS = 0x20043;
+    private const uint DESKTOP_PRIVATE_ACCESS = 0x000F01FF;
+    private const int DESKTOP_SANDBOX_ACCESS = 0x200C3;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
@@ -262,6 +263,15 @@ public static class ArtemisNativeSandbox
     {
         public IntPtr Sid;
         public uint Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SECURITY_ATTRIBUTES
+    {
+        public uint nLength;
+        public IntPtr lpSecurityDescriptor;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool bInheritHandle;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -503,14 +513,16 @@ public static class ArtemisNativeSandbox
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
-
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetProcessWindowStation();
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateDesktop(
+        string name, string device, IntPtr devmode, uint flags,
+        uint access, ref SECURITY_ATTRIBUTES attributes);
+
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr GetThreadDesktop(uint threadId);
+    private static extern bool CloseDesktop(IntPtr desktop);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetUserObjectInformation(
@@ -565,6 +577,45 @@ public static class ArtemisNativeSandbox
             handle, 2, name, (uint)(name.Capacity * 2), out needed))
             ThrowLastError("GetUserObjectInformation(name)");
         return name.ToString();
+    }
+
+    private static IntPtr CreatePrivateSandboxDesktop(
+        string name, SecurityIdentifier sid)
+    {
+        var owner = WindowsIdentity.GetCurrent().User;
+        if (owner == null)
+            throw new InvalidOperationException(
+                "The service user SID is unavailable.");
+        var descriptor = new RawSecurityDescriptor(
+            "O:" + owner.Value + "G:" + owner.Value +
+            "D:(A;;0x" +
+                DESKTOP_PRIVATE_ACCESS.ToString("X") +
+                ";;;" + owner.Value + ")" +
+            "(A;;0x" +
+                DESKTOP_SANDBOX_ACCESS.ToString("X") +
+                ";;;" + sid.Value + ")" +
+            "S:(ML;;NW;;;LW)");
+        var bytes = new byte[descriptor.BinaryLength];
+        descriptor.GetBinaryForm(bytes, 0);
+        var buffer = Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            Marshal.Copy(bytes, 0, buffer, bytes.Length);
+            var attributes = new SECURITY_ATTRIBUTES
+            {
+                nLength = (uint)Marshal.SizeOf(
+                    typeof(SECURITY_ATTRIBUTES)),
+                lpSecurityDescriptor = buffer,
+                bInheritHandle = false
+            };
+            var desktop = CreateDesktop(
+                name, null, IntPtr.Zero, 0,
+                DESKTOP_PRIVATE_ACCESS, ref attributes);
+            if (desktop == IntPtr.Zero)
+                ThrowLastError("CreateDesktop(private sandbox)");
+            return desktop;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
     }
 
     private static void DiagnoseSandboxToken(
@@ -685,25 +736,23 @@ public static class ArtemisNativeSandbox
         private readonly SecurityIdentifier sid;
         public readonly string Name;
         private bool stationGranted;
-        private bool desktopGranted;
 
         public SessionDesktopAccess(SecurityIdentifier sid)
         {
             this.sid = sid;
             station = GetProcessWindowStation();
-            desktop = GetThreadDesktop(GetCurrentThreadId());
-            if (station == IntPtr.Zero || desktop == IntPtr.Zero)
-                ThrowLastError("GetProcessWindowStation/GetThreadDesktop");
-            Name = UserObjectName(station) + "\\" +
-                UserObjectName(desktop);
+            if (station == IntPtr.Zero)
+                ThrowLastError("GetProcessWindowStation");
+            var desktopName = "ArtemisSandbox-" +
+                Guid.NewGuid().ToString("N");
+            Name = UserObjectName(station) + "\\" + desktopName;
             UpdateSessionObjectAccess(
                 station, sid, WINSTA_SANDBOX_ACCESS, true);
             stationGranted = true;
             try
             {
-                UpdateSessionObjectAccess(
-                    desktop, sid, DESKTOP_SANDBOX_ACCESS, true);
-                desktopGranted = true;
+                desktop = CreatePrivateSandboxDesktop(
+                    desktopName, sid);
             }
             catch
             {
@@ -717,9 +766,8 @@ public static class ArtemisNativeSandbox
         {
             try
             {
-                if (desktopGranted)
-                    UpdateSessionObjectAccess(
-                        desktop, sid, DESKTOP_SANDBOX_ACCESS, false);
+                if (desktop != IntPtr.Zero)
+                    CloseDesktop(desktop);
             }
             finally
             {
