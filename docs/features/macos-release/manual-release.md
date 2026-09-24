@@ -67,7 +67,7 @@ gh release list --repo EurekaRaider/ArtemisRelease --limit 10
 如需统一升版，在根目录执行以下代码，随后检查差异并提交版本变更：
 
 ```bash
-export ARTEMIS_RELEASE_VERSION=1.6.2 # 改成此次实际版本
+export ARTEMIS_RELEASE_VERSION=1.6.3 # 改成此次实际版本
 node --input-type=module <<'NODE'
 import fs from 'node:fs';
 const root = JSON.parse(fs.readFileSync('package.json', 'utf8'));

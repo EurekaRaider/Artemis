@@ -1319,7 +1319,11 @@ describe("renderer layout contract", () => {
     expect(modelPickerSource).toContain(
       'className="model-picker-options-heading"',
     );
-    expect(modelPickerSource).not.toContain("{model.providerId}");
+    // Provider metadata belongs in the hover title, not the visible option label.
+    expect(modelPickerSource).toContain("title={`${model.name}");
+    expect(modelPickerSource.replace(/title=\{`[^`]*`\}/gu, "")).not.toContain(
+      "{model.providerId}",
+    );
     expect(modelPickerSource).not.toContain("setSettingsOpen(true)");
     expect(appSource).toContain("thinkingLevelsForModel(activeModel)");
     expect(appSource).toContain("runtimeSettings.addedModels.map");
