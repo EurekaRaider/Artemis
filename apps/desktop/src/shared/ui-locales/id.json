@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "Argumen",
   "McpServerEditor_labels.addArgument": "Tambahkan argumen",
   "McpServerEditor_labels.environmentVariables": "Variabel lingkungan",
+  "McpServerEditor_labels.encryptedEnvironment": "Variabel lingkungan terenkripsi",
   "McpServerEditor_labels.environmentKey": "Kunci",
   "McpServerEditor_labels.environmentValue": "Nilai",
   "McpServerEditor_labels.addEnvironment": "Tambahkan variabel lingkungan",

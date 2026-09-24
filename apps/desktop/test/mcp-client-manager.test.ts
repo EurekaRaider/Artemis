@@ -599,6 +599,75 @@ afterEach(() => {
 });
 
 describe("McpClientManager", () => {
+  it("publishes connection lifecycle and ignores closure of replaced clients", async () => {
+    const closed: Array<() => void> = [];
+    const factory = vi.fn(async (): Promise<McpConnection> => ({
+      listTools: async () => ({ tools: [] }),
+      callTool: async () => ({}),
+      close: async () => {},
+      onClose: (listener) => {
+        closed.push(listener);
+      },
+    }));
+    const manager = new McpClientManager(process.platform, undefined, factory);
+    const states: string[] = [];
+    const unsubscribe = manager.onStatusChange((status) =>
+      states.push(status.state),
+    );
+    await manager.connect(config);
+    closed[0]!();
+    expect(manager.status([config])[0]?.state).toBe("failed");
+    expect(manager.status([config])[0]?.error).toContain("connection closed");
+    await manager.connect(config);
+    closed[0]!();
+    expect(manager.status([config])[0]?.state).toBe("connected");
+    expect(states).toEqual([
+      "connecting",
+      "connected",
+      "failed",
+      "disconnected",
+      "connecting",
+      "connected",
+    ]);
+    unsubscribe();
+    await manager.dispose();
+    closed[1]!();
+    expect(manager.status([config])[0]?.state).toBe("disconnected");
+  });
+
+  it("recreates a closed workspace connection without reopening the task", async () => {
+    const closed: Array<() => void> = [];
+    const factory = vi.fn(async (): Promise<McpConnection> => ({
+      listTools: async () => ({ tools: [{ name: "echo", inputSchema: {} }] }),
+      callTool: async () => ({ content: [{ type: "text", text: "ok" }] }),
+      close: async () => {},
+      onClose: (listener) => {
+        closed.push(listener);
+      },
+    }));
+    const manager = new McpClientManager(process.platform, undefined, factory);
+    const stdio: McpServerConfig = {
+      id: "scoped",
+      name: "Scoped",
+      transport: "stdio",
+      enabled: true,
+      command: "node",
+      args: [],
+      env: {},
+      envVars: [],
+      workspacePath: "/runtime",
+      allowNetwork: false,
+    };
+    await manager.connect(stdio);
+    await manager.call(stdio.id, "echo", {}, "/task");
+    closed[1]!();
+    expect(manager.status([stdio])[0]?.state).toBe("failed");
+    await manager.call(stdio.id, "echo", {}, "/task");
+    expect(factory).toHaveBeenCalledTimes(3);
+    expect(manager.status([stdio])[0]?.state).toBe("connected");
+    await manager.dispose();
+  });
+
   it.each([
     {
       command: "npx",

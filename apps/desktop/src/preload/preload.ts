@@ -313,8 +313,8 @@ const api: ArtemisApi = {
   scanConfigurationImports: () => ipcRenderer.invoke(IPC.settingsImportScan),
   importConfiguration: (request) =>
     ipcRenderer.invoke(IPC.settingsImportApply, request),
-  saveMcpServer: (config, bearerToken) =>
-    ipcRenderer.invoke(IPC.mcpServerSave, config, bearerToken),
+  saveMcpServer: (config, bearerToken, credentialEnv) =>
+    ipcRenderer.invoke(IPC.mcpServerSave, config, bearerToken, credentialEnv),
   setMcpServerEnabled: (serverId, enabled) =>
     ipcRenderer.invoke(IPC.mcpServerEnable, serverId, enabled),
   reconnectMcpServer: (serverId) =>
@@ -420,6 +420,14 @@ const api: ArtemisApi = {
   exportDiagnostics: () => ipcRenderer.invoke(IPC.diagnosticsExport),
   reportRendererError: (diagnostic) =>
     ipcRenderer.send(IPC.diagnosticsRendererError, diagnostic),
+  onMcpServerStatus(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: Parameters<typeof listener>[0],
+    ) => listener(value);
+    ipcRenderer.on(IPC.mcpServerStatus, handler);
+    return () => ipcRenderer.removeListener(IPC.mcpServerStatus, handler);
+  },
   onResourceInstallProgress(listener) {
     const handler = (
       _event: Electron.IpcRendererEvent,

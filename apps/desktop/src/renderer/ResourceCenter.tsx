@@ -240,6 +240,8 @@ export function ResourceCenter({
   const [installProgress, setInstallProgress] =
     useState<ResourceInstallProgress>();
   const [busyId, setBusyId] = useState<string>();
+  const [pendingMcpIds, setPendingMcpIds] = useState<Set<string>>(new Set());
+  const pendingMcpIdsRef = useRef(new Set<string>());
   const [operationPending, setOperationPending] = useState(false);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -295,6 +297,18 @@ export function ResourceCenter({
       mounted = false;
     };
   }, []);
+
+  useEffect(
+    () =>
+      window.artemis.onMcpServerStatus?.((status) => {
+        setMcpServers((current) =>
+          current.map((server) =>
+            server.config.id === status.config.id ? status : server,
+          ),
+        );
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (settings) setMcpServers(settings.mcpServers);
@@ -738,7 +752,9 @@ export function ResourceCenter({
   }
 
   async function setMcpEnabled(serverId: string, enabled: boolean) {
-    setBusyId(serverId);
+    if (pendingMcpIdsRef.current.has(serverId)) return;
+    pendingMcpIdsRef.current.add(serverId);
+    setPendingMcpIds(new Set(pendingMcpIdsRef.current));
     setMessage(undefined);
     try {
       const next = await window.artemis.setMcpServerEnabled(serverId, enabled);
@@ -747,7 +763,8 @@ export function ResourceCenter({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
-      setBusyId(undefined);
+      pendingMcpIdsRef.current.delete(serverId);
+      setPendingMcpIds(new Set(pendingMcpIdsRef.current));
     }
   }
 
@@ -2733,6 +2750,7 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
+                          pendingMcpIds.has(server.config.id) ||
                           managedMcpIds.has(server.config.id)
                         }
                         icon={<TrashIcon />}
@@ -2748,28 +2766,24 @@ export function ResourceCenter({
                         variant="quiet"
                       />
                       <Switch
-                        checked={server.state === "connected"}
+                        checked={server.config.enabled}
                         className="resource-switch"
                         disabled={
-                          operationPending || busyId === server.config.id
+                          operationPending ||
+                          busyId === server.config.id ||
+                          pendingMcpIds.has(server.config.id)
                         }
-                        label={
-                          server.state === "connected" ? t.enabled : t.disabled
-                        }
+                        label={server.config.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          runResourceOperation(() =>
-                            setMcpEnabled(server.config.id, enabled),
-                          )
+                          void setMcpEnabled(server.config.id, enabled)
                         }
-                        title={
-                          server.state === "connected" ? t.enabled : t.disabled
-                        }
+                        title={server.config.enabled ? t.enabled : t.disabled}
                       />
                     </div>
                   }
                   className="resource-management-row"
-                  description={`${owner ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}`}
+                  description={`${owner ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}${server.error ? ` · ${server.error}` : ""}`}
                   key={server.config.id}
                   leading={
                     <ResourceAvatar

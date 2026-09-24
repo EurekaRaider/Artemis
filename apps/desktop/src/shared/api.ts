@@ -1079,6 +1079,7 @@ export interface ArtemisApi {
   saveMcpServer(
     config: McpServerConfig,
     bearerToken?: string,
+    credentialEnv?: Record<string, string>,
   ): Promise<SettingsSnapshot>;
   setMcpServerEnabled(
     serverId: string,
@@ -1180,6 +1181,7 @@ export interface ArtemisApi {
   installUpdate(): Promise<void>;
   exportDiagnostics(): Promise<string | undefined>;
   reportRendererError(diagnostic: RendererDiagnostic): void;
+  onMcpServerStatus(listener: (status: McpServerStatus) => void): () => void;
   onResourceInstallProgress(
     listener: (progress: ResourceInstallProgress) => void,
   ): () => void;
@@ -1315,6 +1317,7 @@ export const IPC = {
   settingsGlobalAgentsSave: "artemis:settings-global-agents-save",
   settingsImportScan: "artemis:settings-import-scan",
   settingsImportApply: "artemis:settings-import-apply",
+  mcpServerStatus: "artemis:mcp-server-status",
   mcpServerSave: "artemis:mcp-server-save",
   mcpServerEnable: "artemis:mcp-server-enable",
   mcpServerReconnect: "artemis:mcp-server-reconnect",

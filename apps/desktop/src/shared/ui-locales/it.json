@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "Argomenti",
   "McpServerEditor_labels.addArgument": "Aggiungi argomento",
   "McpServerEditor_labels.environmentVariables": "Variabili d’ambiente",
+  "McpServerEditor_labels.encryptedEnvironment": "Variabili d’ambiente crittografate",
   "McpServerEditor_labels.environmentKey": "Chiave",
   "McpServerEditor_labels.environmentValue": "Valore",
   "McpServerEditor_labels.addEnvironment": "Aggiungi variabile d’ambiente",

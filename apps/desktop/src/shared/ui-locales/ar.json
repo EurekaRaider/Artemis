@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "الوسائط",
   "McpServerEditor_labels.addArgument": "إضافة وسيط",
   "McpServerEditor_labels.environmentVariables": "متغيرات البيئة",
+  "McpServerEditor_labels.encryptedEnvironment": "متغيرات البيئة المشفرة",
   "McpServerEditor_labels.environmentKey": "المفتاح",
   "McpServerEditor_labels.environmentValue": "القيمة",
   "McpServerEditor_labels.addEnvironment": "إضافة متغير بيئة",

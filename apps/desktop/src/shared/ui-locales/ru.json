@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "Аргументы",
   "McpServerEditor_labels.addArgument": "Добавить аргумент",
   "McpServerEditor_labels.environmentVariables": "Переменные среды",
+  "McpServerEditor_labels.encryptedEnvironment": "Зашифрованные переменные окружения",
   "McpServerEditor_labels.environmentKey": "Ключ",
   "McpServerEditor_labels.environmentValue": "Значение",
   "McpServerEditor_labels.addEnvironment": "Добавить переменную среды",

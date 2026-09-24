@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "आर्ग्युमेंट",
   "McpServerEditor_labels.addArgument": "आर्ग्युमेंट जोड़ें",
   "McpServerEditor_labels.environmentVariables": "परिवेश चर",
+  "McpServerEditor_labels.encryptedEnvironment": "एन्क्रिप्ट किए गए पर्यावरण चर",
   "McpServerEditor_labels.environmentKey": "कुंजी",
   "McpServerEditor_labels.environmentValue": "वैल्यू",
   "McpServerEditor_labels.addEnvironment": "परिवेश चर जोड़ें",

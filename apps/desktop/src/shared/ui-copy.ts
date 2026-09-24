@@ -978,6 +978,10 @@ export const UI_COPY = {
       locale,
       "McpServerEditor_labels.environmentVariables",
     ),
+    encryptedEnvironment: uiText(
+      locale,
+      "McpServerEditor_labels.encryptedEnvironment",
+    ),
     environmentKey: uiText(locale, "McpServerEditor_labels.environmentKey"),
     environmentValue: uiText(locale, "McpServerEditor_labels.environmentValue"),
     addEnvironment: uiText(locale, "McpServerEditor_labels.addEnvironment"),

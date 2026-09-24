@@ -2396,15 +2396,15 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("<Tabs");
   });
 
-  it("renders disconnected MCP servers with their switches off", () => {
+  it("renders MCP switches from configuration independently of connection status", () => {
     const mcpStart = resourceCenterSource.indexOf('managementTab === "mcp" &&');
     const mcpEnd = resourceCenterSource.indexOf(
       'managementTab === "skills" &&',
       mcpStart,
     );
     const mcpSection = resourceCenterSource.slice(mcpStart, mcpEnd);
-    expect(mcpSection).toContain('checked={server.state === "connected"}');
-    expect(mcpSection).not.toContain("checked={server.config.enabled}");
+    expect(mcpSection).toContain("checked={server.config.enabled}");
+    expect(mcpSection).not.toContain('checked={server.state === "connected"}');
   });
 
   it("keeps configuration import source checkboxes compact", () => {

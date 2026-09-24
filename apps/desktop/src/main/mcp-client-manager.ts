@@ -61,6 +61,7 @@ interface McpCallResult {
 }
 
 export interface McpConnection {
+  onClose?(listener: () => void): void;
   listTools(): Promise<{ tools: McpTool[] }>;
   callTool(input: {
     name: string;
@@ -956,6 +957,23 @@ export class McpClientManager {
   private readonly scoped = new Map<string, Promise<ActiveConnection>>();
   private readonly statuses = new Map<string, McpServerStatus>();
 
+  private readonly statusListeners = new Set<
+    (status: McpServerStatus) => void
+  >();
+
+  onStatusChange(listener: (status: McpServerStatus) => void): () => void {
+    this.statusListeners.add(listener);
+    return () => {
+      this.statusListeners.delete(listener);
+    };
+  }
+
+  private publishStatus(serverId: string, status: McpServerStatus): void {
+    this.statuses.set(serverId, status);
+    for (const listener of this.statusListeners)
+      listener(structuredClone(status));
+  }
+
   constructor(
     private readonly platform: NodeJS.Platform,
     private readonly windowsHelperPath: string | undefined,
@@ -1310,6 +1328,10 @@ export class McpClientManager {
         }
       }
       return {
+        onClose(listener) {
+          client.onclose = listener;
+          if (!client.transport) listener();
+        },
         async listTools() {
           const result = await client.listTools();
           return {
@@ -1490,7 +1512,7 @@ export class McpClientManager {
       typeof authentication === "string"
         ? { bearerToken: authentication }
         : authentication;
-    this.statuses.set(config.id, {
+    this.publishStatus(config.id, {
       config: structuredClone(config),
       state: resolvedAuthentication?.authorizationCode
         ? "authorizing"
@@ -1528,8 +1550,18 @@ export class McpClientManager {
         state: "connected",
         tools: structuredClone(tools),
       };
-      this.statuses.set(config.id, status);
-      return status;
+      this.publishStatus(config.id, status);
+      client.onClose?.(() => {
+        if (this.active.get(config.id)?.client !== client) return;
+        this.publishStatus(config.id, {
+          config: structuredClone(config),
+          state: "failed",
+          tools: [],
+          error:
+            "MCP connection closed. Reconnect using Test connection in the server editor.",
+        });
+      });
+      return this.statuses.get(config.id)!;
     } catch (error) {
       const status: McpServerStatus = {
         config: structuredClone(config),
@@ -1546,7 +1578,7 @@ export class McpClientManager {
             }),
         tools: [],
       };
-      this.statuses.set(config.id, status);
+      this.publishStatus(config.id, status);
       return status;
     }
   }
@@ -1572,7 +1604,7 @@ export class McpClientManager {
     );
     const current = this.statuses.get(serverId);
     if (current) {
-      this.statuses.set(serverId, {
+      this.publishStatus(serverId, {
         config: current.config,
         state: "disconnected",
         tools: [],
@@ -1602,13 +1634,24 @@ export class McpClientManager {
     if (!connection.tools.some((tool) => tool.toolName === toolName)) {
       throw new Error("MCP tool is not advertised by the scoped server");
     }
-    return formatMcpResult(
+    const result = formatMcpResult(
       await connection.client.callTool({
         name: toolName,
         arguments: argumentsValue,
         ...(privateMetadata ? { _meta: privateMetadata } : {}),
       }),
     );
+    if (
+      this.active.get(serverId) === active &&
+      this.statuses.get(serverId)?.state === "failed"
+    ) {
+      this.publishStatus(serverId, {
+        config: structuredClone(active.config),
+        state: "connected",
+        tools: structuredClone(active.tools),
+      });
+    }
+    return result;
   }
 
   private async scopedConnection(
@@ -1656,6 +1699,17 @@ export class McpClientManager {
           readOnly: Boolean(tool.annotations?.readOnlyHint),
           destructive: Boolean(tool.annotations?.destructiveHint),
         }));
+        client.onClose?.(() => {
+          if (this.scoped.get(key) !== pending) return;
+          this.scoped.delete(key);
+          this.publishStatus(active.config.id, {
+            config: structuredClone(active.config),
+            state: "failed",
+            tools: [],
+            error:
+              "MCP workspace connection closed. The next tool call will reconnect.",
+          });
+        });
         return {
           config: active.config,
           ...(active.authentication
@@ -1685,14 +1739,13 @@ export class McpClientManager {
   }
 
   status(configs: McpServerConfig[]): McpServerStatus[] {
-    return configs.map(
-      (config) =>
-        this.statuses.get(config.id) ?? {
-          config: structuredClone(config),
-          state: "disconnected",
-          tools: [],
-        },
-    );
+    return configs.map((config) => ({
+      ...(this.statuses.get(config.id) ?? {
+        state: "disconnected" as const,
+        tools: [],
+      }),
+      config: structuredClone(config),
+    }));
   }
 
   async dispose(): Promise<void> {

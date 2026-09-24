@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -99,5 +100,78 @@ describe("Installed plugin toggle", () => {
     await waitFor(() =>
       expect(screen.getByRole("switch", { name: "Disabled" })).toBeDisabled(),
     );
+  });
+});
+
+describe("MCP configuration toggles", () => {
+  it("shows enabled failed servers and keeps independent pending rows locked", async () => {
+    const servers = ["first", "second"].map((id) => ({
+      config: {
+        id,
+        name: id,
+        transport: "streamable-http",
+        enabled: true,
+        url: "https://example.test/mcp",
+        auth: "none",
+      },
+      state: "failed",
+      error: "Synthetic startup failure",
+      tools: [],
+    }));
+    const finish: Array<() => void> = [];
+    const setEnabled = vi.fn(
+      (id: string, enabled: boolean) =>
+        new Promise((resolve) => {
+          finish.push(() =>
+            resolve({
+              mcpServers: servers.map((server) =>
+                server.config.id === id
+                  ? { ...server, config: { ...server.config, enabled } }
+                  : server,
+              ),
+            }),
+          );
+        }),
+    );
+    stubWindowArtemis({
+      listMcpServers: async () => servers,
+      listCodexPlugins: async () => [],
+      listInstalledSkills: async () => [],
+      getCodexPluginMarketplaces: async () => ({
+        sources: [],
+        marketplaces: [],
+        errors: [],
+        selectedView: "local",
+      }),
+      loadCodexRuntimeMarketplace: async () => undefined,
+      onResourceInstallProgress: () => () => {},
+      setMcpServerEnabled: setEnabled,
+    });
+    render(
+      <ResourceCenter
+        locale="en"
+        onConfirm={async () => true}
+        onSettingsChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Manage installed capabilities" }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "MCP" }));
+    const toggles = await screen.findAllByRole("switch");
+    expect(toggles[0]).toBeChecked();
+    expect(toggles[1]).toBeChecked();
+    fireEvent.click(toggles[0]!);
+    expect(toggles[0]).toBeDisabled();
+    expect(toggles[1]).toBeEnabled();
+    fireEvent.click(toggles[1]!);
+    expect(setEnabled).toHaveBeenCalledTimes(2);
+    expect(toggles[0]).toBeDisabled();
+    expect(toggles[1]).toBeDisabled();
+    await act(async () => finish[0]!());
+    expect(toggles[0]).toBeEnabled();
+    expect(toggles[1]).toBeDisabled();
+    await act(async () => finish[1]!());
+    expect(toggles[1]).toBeEnabled();
   });
 });

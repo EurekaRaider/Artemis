@@ -792,3 +792,51 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     await waitFor(() => expect(handlers.onRemoved).toHaveBeenCalledTimes(1));
   });
 });
+
+it("sends credential values separately from persisted MCP configuration", async () => {
+  const { api } = renderEditor({ server: stdioServer });
+  fireEvent.click(
+    screen.getByRole("button", { name: "+ Encrypted environment variables" }),
+  );
+  fireEvent.change(
+    screen.getByRole("textbox", {
+      name: "Key (Encrypted environment variables) 1",
+    }),
+    { target: { value: "CONTEXT7_API_KEY" } },
+  );
+  fireEvent.change(
+    screen.getByLabelText("Value (Encrypted environment variables) 1"),
+    { target: { value: "synthetic-secret" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: labels.save }));
+  await waitFor(() => expect(api.saveMcpServer).toHaveBeenCalled());
+  const [config, , secrets] = api.saveMcpServer.mock.calls[0]!;
+  expect(config.credentialEnvVars).toEqual(["CONTEXT7_API_KEY"]);
+  expect(JSON.stringify(config)).not.toContain("synthetic-secret");
+  expect(secrets).toEqual({ CONTEXT7_API_KEY: "synthetic-secret" });
+});
+
+it("retains saved credential bindings without sending blank replacement secrets", async () => {
+  const secured: McpServerStatus = {
+    ...stdioServer,
+    config: {
+      ...stdioServer.config,
+      credentialEnvVars: ["CONTEXT7_API_KEY"],
+    } as McpServerStatus["config"],
+  };
+  const { api } = renderEditor({ server: secured });
+  expect(
+    screen.getByLabelText("Value (Encrypted environment variables) 1"),
+  ).toHaveValue("");
+  expect(
+    screen.getByRole("button", { name: "+ Encrypted environment variables" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("textbox", { name: labels.launchCommand }),
+  ).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: labels.save }));
+  await waitFor(() => expect(api.saveMcpServer).toHaveBeenCalled());
+  const [config, , secrets] = api.saveMcpServer.mock.calls[0]!;
+  expect(config.credentialEnvVars).toEqual(["CONTEXT7_API_KEY"]);
+  expect(secrets).toBeUndefined();
+});

@@ -69,7 +69,7 @@ function credentialBinding(config: McpServerConfig): string | undefined {
   return undefined;
 }
 
-function assertCredentialTargetUnchanged(
+export function assertCredentialTargetUnchanged(
   previous: McpServerConfig,
   next: McpServerConfig,
 ): void {

@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "Argumentos",
   "McpServerEditor_labels.addArgument": "Añadir argumento",
   "McpServerEditor_labels.environmentVariables": "Variables de entorno",
+  "McpServerEditor_labels.encryptedEnvironment": "Variables de entorno cifradas",
   "McpServerEditor_labels.environmentKey": "Clave",
   "McpServerEditor_labels.environmentValue": "Valor",
   "McpServerEditor_labels.addEnvironment": "Añadir variable de entorno",

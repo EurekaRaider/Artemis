@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "引数",
   "McpServerEditor_labels.addArgument": "引数を追加",
   "McpServerEditor_labels.environmentVariables": "環境変数",
+  "McpServerEditor_labels.encryptedEnvironment": "暗号化された環境変数",
   "McpServerEditor_labels.environmentKey": "キー",
   "McpServerEditor_labels.environmentValue": "値",
   "McpServerEditor_labels.addEnvironment": "環境変数を追加",

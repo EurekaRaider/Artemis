@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "인수",
   "McpServerEditor_labels.addArgument": "인수 추가",
   "McpServerEditor_labels.environmentVariables": "환경 변수",
+  "McpServerEditor_labels.encryptedEnvironment": "암호화된 환경 변수",
   "McpServerEditor_labels.environmentKey": "키",
   "McpServerEditor_labels.environmentValue": "값",
   "McpServerEditor_labels.addEnvironment": "환경 변수 추가",

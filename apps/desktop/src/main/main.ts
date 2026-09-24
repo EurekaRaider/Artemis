@@ -246,7 +246,11 @@ import type {
   McpConnectionAuthentication,
   McpConnectOptions,
 } from "./mcp-client-manager.js";
-import { McpConfigStore } from "./mcp-config-store.js";
+import {
+  McpConfigStore,
+  validateMcpServerConfig,
+  assertCredentialTargetUnchanged,
+} from "./mcp-config-store.js";
 import { importMcpServers } from "./mcp-import.js";
 import {
   customModelThinkingLevels,
@@ -2159,6 +2163,7 @@ async function saveMcpConfiguration(
   bearerToken?: string,
   connectionOptions?: McpConnectOptions,
   rejectConnectionFailure = false,
+  credentialEnv?: Record<string, string>,
 ): Promise<SettingsSnapshot> {
   if (!mcpConfigStore || !mcpClientManager || !settingsStore) {
     throw new Error("MCP service is not ready.");
@@ -2167,7 +2172,23 @@ async function saveMcpConfiguration(
   const existing = (await mcpConfigStore.list()).find(
     (server) => server.id === input.id,
   );
-  let config = structuredClone(input);
+  let config = validateMcpServerConfig(input);
+  if (existing) assertCredentialTargetUnchanged(existing, config);
+  if (credentialEnv && Object.keys(credentialEnv).length > 0) {
+    if (config.transport !== "stdio" || !mcpSecretStore)
+      throw new Error("MCP credential service is unavailable.");
+    const names = config.credentialEnvVars ?? [];
+    if (Object.keys(credentialEnv).some((name) => !names.includes(name)))
+      throw new Error("MCP credential variable is not declared.");
+    const stored = await mcpSecretStore.get(config.id);
+    const env = { ...stored.env, ...credentialEnv };
+    if (names.some((name) => !env[name]))
+      throw new Error("MCP credential value is required.");
+    await mcpSecretStore.set(config.id, {
+      env: Object.fromEntries(names.map((name) => [name, env[name]!])),
+      headers: stored.headers,
+    });
+  }
   if (
     config.transport === "streamable-http" &&
     config.auth === "bearer" &&
@@ -7909,6 +7930,7 @@ function registerIpc(): void {
       _event,
       input: McpServerConfig,
       bearerToken?: string,
+      credentialEnv?: Record<string, string>,
     ): Promise<SettingsSnapshot> => {
       if (
         smokeMode &&
@@ -7932,9 +7954,16 @@ function registerIpc(): void {
         await mcpConfigStore.upsert(input);
         return getSettingsSnapshot();
       }
-      return saveMcpConfiguration(input, bearerToken);
+      return saveMcpConfiguration(
+        input,
+        bearerToken,
+        undefined,
+        false,
+        credentialEnv,
+      );
     },
   );
+  let mcpEnableQueue: Promise<unknown> = Promise.resolve();
   ipcMain.handle(
     IPC.mcpServerEnable,
     async (
@@ -7942,15 +7971,19 @@ function registerIpc(): void {
       serverId: string,
       enabled: boolean,
     ): Promise<SettingsSnapshot> => {
-      if (!mcpConfigStore) {
-        throw new Error("MCP service is not ready.");
-      }
-      const config = (await mcpConfigStore.list()).find(
-        (server) => server.id === serverId,
-      );
-      if (!config) throw new Error("MCP server not found.");
-      if (enabled) await ensureConnectorReady(config);
-      return saveMcpConfiguration({ ...config, enabled: Boolean(enabled) });
+      const operation = mcpEnableQueue.then(async () => {
+        if (!mcpConfigStore) {
+          throw new Error("MCP service is not ready.");
+        }
+        const config = (await mcpConfigStore.list()).find(
+          (server) => server.id === serverId,
+        );
+        if (!config) throw new Error("MCP server not found.");
+        if (enabled) await ensureConnectorReady(config);
+        return saveMcpConfiguration({ ...config, enabled: Boolean(enabled) });
+      });
+      mcpEnableQueue = operation.catch(() => undefined);
+      return operation;
     },
   );
   ipcMain.handle(
@@ -21528,6 +21561,10 @@ app
       process.platform,
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
     );
+    mcpClientManager.onStatusChange((status) => {
+      if (!mainWindow?.isDestroyed())
+        mainWindow?.webContents.send(IPC.mcpServerStatus, status);
+    });
     resourceCatalogService = new ResourceCatalogService(
       join(app.getPath("home"), ".pi", "agent", "skills"),
     );

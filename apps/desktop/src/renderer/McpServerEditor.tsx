@@ -137,6 +137,14 @@ export function McpServerEditor({
       ? entries.map(([key, value]) => ({ key, value }))
       : [{ key: "", value: "" }];
   });
+  const [credentialEnvironment, setCredentialEnvironment] = useState<
+    Array<{ key: string; value: string }>
+  >(() =>
+    server?.config.transport === "stdio" &&
+    server.config.credentialEnvVars?.length
+      ? server.config.credentialEnvVars.map((key) => ({ key, value: "" }))
+      : [],
+  );
   const [environmentVariables, setEnvironmentVariables] = useState(
     server?.config.transport === "stdio" && server.config.envVars.length
       ? server.config.envVars
@@ -206,6 +214,13 @@ export function McpServerEditor({
           ? (server.config.auth ?? "none")
           : "none") &&
       bearer === "" &&
+      credentialEnvironment.every((entry) => !entry.value) &&
+      sameStringList(
+        credentialEnvironment.map((entry) => entry.key).filter(Boolean),
+        server.config.transport === "stdio"
+          ? (server.config.credentialEnvVars ?? [])
+          : [],
+      ) &&
       (server.config.transport !== "stdio" ||
         (sameStringList(argumentsList, server.config.args) &&
           sameEnvironmentDraft(
@@ -324,10 +339,9 @@ export function McpServerEditor({
             .map((entry) => [entry.key, entry.value]),
         ),
         envVars: environmentVariables.filter((name) => name.trim()),
-        credentialEnvVars:
-          server?.config.transport === "stdio"
-            ? (server.config.credentialEnvVars ?? [])
-            : [],
+        credentialEnvVars: credentialEnvironment
+          .map((entry) => entry.key.trim())
+          .filter(Boolean),
         workspacePath: workspace,
         allowNetwork: mcpFullAccess || mcpAllowNetwork,
         fullAccess: mcpFullAccess,
@@ -350,6 +364,16 @@ export function McpServerEditor({
       await window.artemis.saveMcpServer(
         config,
         auth === "bearer" ? bearer || undefined : undefined,
+        ...(transport === "stdio" &&
+        credentialEnvironment.some((entry) => entry.value)
+          ? [
+              Object.fromEntries(
+                credentialEnvironment
+                  .filter((entry) => entry.key.trim() && entry.value)
+                  .map((entry) => [entry.key.trim(), entry.value]),
+              ),
+            ]
+          : []),
       ),
     );
   }
@@ -549,6 +573,72 @@ export function McpServerEditor({
                 {t.registryCredentialsHint}
               </InlineNotice>
             )}
+            <ManagementCard className="mcp-editor-card">
+              <strong>{t.encryptedEnvironment}</strong>
+              <div className="mcp-dynamic-list">
+                {credentialEnvironment.map((entry, index) => (
+                  <div
+                    className="mcp-environment-row"
+                    key={`credential-${index}`}
+                  >
+                    <TextField
+                      disabled={busy || locksCredentialTarget}
+                      label={`${t.environmentKey} (${t.encryptedEnvironment}) ${index + 1}`}
+                      labelVisibility="hidden"
+                      placeholder={t.environmentKey}
+                      value={entry.key}
+                      onValueChange={(key) =>
+                        setCredentialEnvironment((current) =>
+                          current.map((value, i) =>
+                            i === index ? { ...value, key } : value,
+                          ),
+                        )
+                      }
+                    />
+                    <TextField
+                      disabled={busy}
+                      type="password"
+                      label={`${t.environmentValue} (${t.encryptedEnvironment}) ${index + 1}`}
+                      labelVisibility="hidden"
+                      placeholder={t.environmentValue}
+                      value={entry.value}
+                      onValueChange={(next) =>
+                        setCredentialEnvironment((current) =>
+                          current.map((value, i) =>
+                            i === index ? { ...value, value: next } : value,
+                          ),
+                        )
+                      }
+                    />
+                    <IconButton
+                      disabled={busy || locksCredentialTarget}
+                      className="mcp-remove-row"
+                      icon="×"
+                      label={`${t.delete} (${t.encryptedEnvironment}) ${index + 1}`}
+                      variant="danger"
+                      onClick={() =>
+                        setCredentialEnvironment((current) =>
+                          current.filter((_, i) => i !== index),
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+                <Button
+                  disabled={busy || locksCredentialTarget}
+                  className="mcp-add-row"
+                  variant="secondary"
+                  onClick={() =>
+                    setCredentialEnvironment((current) => [
+                      ...current,
+                      { key: "", value: "" },
+                    ])
+                  }
+                >
+                  + {t.encryptedEnvironment}
+                </Button>
+              </div>
+            </ManagementCard>
             <ManagementCard className="mcp-editor-card">
               <strong>{t.environmentVariables}</strong>
               <div className="mcp-dynamic-list">

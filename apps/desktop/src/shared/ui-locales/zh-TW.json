@@ -905,6 +905,7 @@
   "McpServerEditor_labels.arguments": "參數",
   "McpServerEditor_labels.addArgument": "新增參數",
   "McpServerEditor_labels.environmentVariables": "環境變量",
+  "McpServerEditor_labels.encryptedEnvironment": "加密環境變數",
   "McpServerEditor_labels.environmentKey": "鍵",
   "McpServerEditor_labels.environmentValue": "值",
   "McpServerEditor_labels.addEnvironment": "新增環境變量",
