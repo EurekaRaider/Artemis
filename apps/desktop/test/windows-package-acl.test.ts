@@ -111,11 +111,11 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(source).not.toMatch(/installerPath|uninstallerPath|\/S/gu);
   });
 
-  it("grants only non-inheriting ancestor metadata access for non-system drives", () => {
+  it("grants only non-inheriting ancestor metadata access for classic fallback", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
     const setup = readFileSync(sandboxSetupPath, "utf8");
 
-    expect(helper).toContain("$requiresClassicAppContainer");
+    expect(helper).toContain("$needsClassicAncestorAccess");
     expect(helper).toContain("Test-AppContainerAncestorAccess");
     expect(helper).toContain(
       "$accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)",

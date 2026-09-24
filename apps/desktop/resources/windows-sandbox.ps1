@@ -212,6 +212,7 @@ $nativeSource = @'
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -233,6 +234,12 @@ public static class ArtemisNativeSandbox
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
     private const uint JOB_TEARDOWN_TIMEOUT_MS = 10000;
     private const uint DUPLICATE_SAME_ACCESS = 0x00000002;
+    private const uint DACL_SECURITY_INFORMATION = 0x00000004;
+    private const int ERROR_INSUFFICIENT_BUFFER = 122;
+    // Only the noninteractive session objects needed to initialize user32.
+    // These masks exclude clipboard, screen, hooks, and desktop switching.
+    private const int WINSTA_SANDBOX_ACCESS = 0x0023;
+    private const int DESKTOP_SANDBOX_ACCESS = 0x0043;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
@@ -497,6 +504,29 @@ public static class ArtemisNativeSandbox
     private static extern bool CloseHandle(IntPtr handle);
 
     [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr GetProcessWindowStation();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr GetThreadDesktop(uint threadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetUserObjectSecurity(
+        IntPtr handle,
+        ref uint information,
+        byte[] descriptor,
+        uint length,
+        out uint needed);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetUserObjectSecurity(
+        IntPtr handle,
+        ref uint information,
+        byte[] descriptor);
+
+    [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr memory);
 
     [DllImport("advapi32.dll", SetLastError = true)]
@@ -508,6 +538,132 @@ public static class ArtemisNativeSandbox
         throw new InvalidOperationException(
             operation + " failed: " + error + " (" +
             new Win32Exception(error).Message + ")");
+    }
+
+    private static void UpdateSessionObjectAccess(
+        IntPtr handle,
+        SecurityIdentifier sid,
+        int rights,
+        bool grant)
+    {
+        using (var mutex = new Mutex(
+            false,
+            @"Local\ArtemisSandboxSessionAcl"))
+        {
+            try { mutex.WaitOne(); }
+            catch (AbandonedMutexException) { }
+            try
+            {
+                var information = DACL_SECURITY_INFORMATION;
+                uint needed;
+                GetUserObjectSecurity(
+                    handle, ref information, null, 0, out needed);
+                if (needed == 0 ||
+                    Marshal.GetLastWin32Error() !=
+                        ERROR_INSUFFICIENT_BUFFER)
+                    ThrowLastError("GetUserObjectSecurity(size)");
+                var bytes = new byte[needed];
+                if (!GetUserObjectSecurity(
+                    handle, ref information, bytes,
+                    (uint)bytes.Length, out needed))
+                    ThrowLastError("GetUserObjectSecurity");
+                var descriptor = new RawSecurityDescriptor(bytes, 0);
+                var acl = descriptor.DiscretionaryAcl;
+                if (acl == null)
+                    throw new InvalidOperationException(
+                        "Session desktop has no access control list.");
+                if (grant)
+                {
+                    acl.InsertAce(acl.Count, new CommonAce(
+                        AceFlags.None,
+                        AceQualifier.AccessAllowed,
+                        rights,
+                        sid,
+                        false,
+                        null));
+                }
+                else
+                {
+                    for (var index = acl.Count - 1; index >= 0;
+                        index--)
+                    {
+                        var ace = acl[index] as CommonAce;
+                        if (ace != null &&
+                            ace.AceQualifier ==
+                                AceQualifier.AccessAllowed &&
+                            ace.AccessMask == rights &&
+                            ace.SecurityIdentifier.Equals(sid))
+                            acl.RemoveAce(index);
+                    }
+                }
+                descriptor.DiscretionaryAcl = acl;
+                var updated = new byte[descriptor.BinaryLength];
+                descriptor.GetBinaryForm(updated, 0);
+                if (!SetUserObjectSecurity(
+                    handle, ref information, updated))
+                    ThrowLastError("SetUserObjectSecurity");
+            }
+            finally { mutex.ReleaseMutex(); }
+        }
+    }
+
+    private sealed class SessionDesktopAccess : IDisposable
+    {
+        private readonly IntPtr station;
+        private readonly IntPtr desktop;
+        private readonly SecurityIdentifier sid;
+        private bool stationGranted;
+        private bool desktopGranted;
+
+        public SessionDesktopAccess(SecurityIdentifier sid)
+        {
+            this.sid = sid;
+            station = GetProcessWindowStation();
+            desktop = GetThreadDesktop(GetCurrentThreadId());
+            if (station == IntPtr.Zero || desktop == IntPtr.Zero)
+                ThrowLastError("GetProcessWindowStation/GetThreadDesktop");
+            UpdateSessionObjectAccess(
+                station, sid, WINSTA_SANDBOX_ACCESS, true);
+            stationGranted = true;
+            try
+            {
+                UpdateSessionObjectAccess(
+                    desktop, sid, DESKTOP_SANDBOX_ACCESS, true);
+                desktopGranted = true;
+            }
+            catch
+            {
+                UpdateSessionObjectAccess(
+                    station, sid, WINSTA_SANDBOX_ACCESS, false);
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (desktopGranted)
+                    UpdateSessionObjectAccess(
+                        desktop, sid, DESKTOP_SANDBOX_ACCESS, false);
+            }
+            finally
+            {
+                if (stationGranted)
+                    UpdateSessionObjectAccess(
+                        station, sid, WINSTA_SANDBOX_ACCESS, false);
+            }
+        }
+    }
+
+    private static SessionDesktopAccess GrantServiceDesktop(
+        SecurityIdentifier sid)
+    {
+        // Service session 0 does not give AppContainer processes the desktop
+        // access that interactive sessions normally provide.
+        return Process.GetCurrentProcess().SessionId == 0
+            ? new SessionDesktopAccess(sid)
+            : null;
     }
 
     private static void TerminateAndDrainJob(IntPtr job)
@@ -722,6 +878,8 @@ public static class ArtemisNativeSandbox
         IntPtr module = IntPtr.Zero;
         IntPtr specification = IntPtr.Zero;
         IntPtr job = IntPtr.Zero;
+        IntPtr sessionSid = IntPtr.Zero;
+        SessionDesktopAccess sessionDesktop = null;
         var process = new PROCESS_INFORMATION();
 
         try
@@ -763,6 +921,15 @@ public static class ArtemisNativeSandbox
                 commandLine.Append(' ').Append(Quote(argument));
 
             PreserveHostAccess(hostAccessPath);
+            if (Process.GetCurrentProcess().SessionId == 0)
+            {
+                var hr = DeriveAppContainerSidFromAppContainerName(
+                    identity, out sessionSid);
+                if (hr != 0)
+                    Marshal.ThrowExceptionForHR(hr);
+                sessionDesktop = GrantServiceDesktop(
+                    new SecurityIdentifier(sessionSid));
+            }
             if (!createProcess(
                 executable,
                 commandLine,
@@ -818,6 +985,7 @@ public static class ArtemisNativeSandbox
         finally
         {
             Exception jobDrainError = null;
+            Exception sessionCleanupError = null;
             if (process.hThread != IntPtr.Zero)
                 CloseHandle(process.hThread);
             if (process.hProcess != IntPtr.Zero)
@@ -841,9 +1009,18 @@ public static class ArtemisNativeSandbox
                 Marshal.FreeHGlobal(specification);
             if (module != IntPtr.Zero)
                 FreeLibrary(module);
+            if (sessionDesktop != null)
+            {
+                try { sessionDesktop.Dispose(); }
+                catch (Exception error) { sessionCleanupError = error; }
+            }
+            if (sessionSid != IntPtr.Zero)
+                FreeSid(sessionSid);
             DeleteAppContainerProfile(identity);
             if (jobDrainError != null)
                 throw jobDrainError;
+            if (sessionCleanupError != null)
+                throw sessionCleanupError;
         }
     }
 
@@ -869,6 +1046,7 @@ public static class ArtemisNativeSandbox
         IntPtr standardInput = IntPtr.Zero;
         IntPtr standardOutput = IntPtr.Zero;
         IntPtr standardError = IntPtr.Zero;
+        SessionDesktopAccess sessionDesktop = null;
         var process = new PROCESS_INFORMATION();
         var grants = new List<Tuple<string, FileSystemAccessRule>>();
 
@@ -892,6 +1070,7 @@ public static class ArtemisNativeSandbox
 
             PreserveHostAccess(hostAccessPath);
             var sid = new SecurityIdentifier(appContainerSid);
+            sessionDesktop = GrantServiceDesktop(sid);
             var writablePathSet = new HashSet<string>(
                 writablePaths,
                 StringComparer.OrdinalIgnoreCase);
@@ -1108,6 +1287,7 @@ public static class ArtemisNativeSandbox
         finally
         {
             Exception jobDrainError = null;
+            Exception sessionCleanupError = null;
             if (process.hThread != IntPtr.Zero)
                 CloseHandle(process.hThread);
             if (process.hProcess != IntPtr.Zero)
@@ -1162,11 +1342,18 @@ public static class ArtemisNativeSandbox
                     // even if best-effort ACL cleanup is interrupted.
                 }
             }
+            if (sessionDesktop != null)
+            {
+                try { sessionDesktop.Dispose(); }
+                catch (Exception error) { sessionCleanupError = error; }
+            }
             if (appContainerSid != IntPtr.Zero)
                 FreeSid(appContainerSid);
             DeleteAppContainerProfile(identity);
             if (jobDrainError != null)
                 throw jobDrainError;
+            if (sessionCleanupError != null)
+                throw sessionCleanupError;
         }
     }
 }
@@ -1202,74 +1389,103 @@ finally {
   }
 }
 Write-SandboxDiagnostic 'native helper compiled'
+Write-SandboxDiagnostic "profile identity: $Identity"
 $workspaceRoot = [System.IO.Path]::GetPathRoot($workspace)
 $systemRoot = [System.IO.Path]::GetPathRoot(
   [System.Environment]::SystemDirectory
 )
-$requiresClassicAppContainer = -not $workspaceRoot.Equals(
+$needsClassicAncestorAccess = -not $workspaceRoot.Equals(
   $systemRoot,
   [System.StringComparison]::OrdinalIgnoreCase
 )
-if ($requiresClassicAppContainer) {
-  $traverseSid = [System.Security.Principal.SecurityIdentifier]::new(
-    [ArtemisNativeSandbox]::CapabilitySid(
-      'artemisWorkspaceTraverse'
-    )
-  )
-  $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
-  $ancestors = @(
-    $accessPaths |
-      ForEach-Object { Get-AncestorDirectories $_ } |
-      Sort-Object -Unique
-  )
-  $missingTraverse = @(
-    $ancestors | Where-Object {
-      -not (Test-AppContainerAncestorAccess $_ $traverseSid)
-    }
-  )
-  if ($missingTraverse.Count -gt 0) {
-    $setupPath = Join-Path $PSScriptRoot 'windows-sandbox-setup.ps1'
-    if (-not [System.IO.File]::Exists($setupPath)) {
-      throw "Windows sandbox setup helper does not exist: $setupPath"
-    }
-    $pathsBase64 = [System.Convert]::ToBase64String(
-      [System.Text.Encoding]::UTF8.GetBytes(
-        ($missingTraverse | ConvertTo-Json -Compress)
+function Initialize-ClassicAppContainerAncestors {
+  if ($needsClassicAncestorAccess) {
+    $traverseSid = [System.Security.Principal.SecurityIdentifier]::new(
+      [ArtemisNativeSandbox]::CapabilitySid(
+        'artemisWorkspaceTraverse'
       )
     )
-    $escapedSetupPath = $setupPath.Replace("'", "''")
-    $setupCommand = "& '$escapedSetupPath' -PathsBase64 '$pathsBase64'"
-    $encodedSetupCommand = [System.Convert]::ToBase64String(
-      [System.Text.Encoding]::Unicode.GetBytes($setupCommand)
+    $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
+    $ancestors = @(
+      $accessPaths |
+        ForEach-Object { Get-AncestorDirectories $_ } |
+        Sort-Object -Unique
     )
-    $setupProcess = Start-Process `
-      -FilePath 'powershell.exe' `
-      -ArgumentList @(
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-EncodedCommand',
-        $encodedSetupCommand
-      ) `
-      -Verb RunAs `
-      -WindowStyle Hidden `
-      -Wait `
-      -PassThru
-    if ($setupProcess.ExitCode -ne 0) {
-      throw "Windows sandbox setup failed with exit code $($setupProcess.ExitCode)"
-    }
-    foreach ($ancestor in $ancestors) {
-      if (-not (Test-AppContainerAncestorAccess $ancestor $traverseSid)) {
-        throw "Windows sandbox setup did not grant ancestor access: $ancestor"
+    $missingTraverse = @(
+      $ancestors | Where-Object {
+        -not (Test-AppContainerAncestorAccess $_ $traverseSid)
+      }
+    )
+    if ($missingTraverse.Count -gt 0) {
+      $setupPath = Join-Path $PSScriptRoot 'windows-sandbox-setup.ps1'
+      if (-not [System.IO.File]::Exists($setupPath)) {
+        throw "Windows sandbox setup helper does not exist: $setupPath"
+      }
+      $pathsBase64 = [System.Convert]::ToBase64String(
+        [System.Text.Encoding]::UTF8.GetBytes(
+          ($missingTraverse | ConvertTo-Json -Compress)
+        )
+      )
+      $escapedSetupPath = $setupPath.Replace("'", "''")
+      $setupCommand = "& '$escapedSetupPath' -PathsBase64 '$pathsBase64'"
+      $encodedSetupCommand = [System.Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($setupCommand)
+      )
+      $setupProcess = Start-Process `
+        -FilePath 'powershell.exe' `
+        -ArgumentList @(
+          '-NoLogo',
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-EncodedCommand',
+          $encodedSetupCommand
+        ) `
+        -Verb RunAs `
+        -WindowStyle Hidden `
+        -Wait `
+        -PassThru
+      if ($setupProcess.ExitCode -ne 0) {
+        throw "Windows sandbox setup failed with exit code $($setupProcess.ExitCode)"
+      }
+      foreach ($ancestor in $ancestors) {
+        if (-not (Test-AppContainerAncestorAccess $ancestor $traverseSid)) {
+          throw "Windows sandbox setup did not grant ancestor access: $ancestor"
+        }
       }
     }
   }
 }
 
-if ($requiresClassicAppContainer) {
-  Write-SandboxDiagnostic 'launching classic AppContainer'
+# SandboxSpec accepts fully qualified paths on any volume. Use classic
+# AppContainer only when the experimental API is unavailable.
+$useClassicAppContainer = $false
+try {
+  Write-SandboxDiagnostic 'launching experimental AppContainer'
+  $exitCode = [ArtemisNativeSandbox]::Launch(
+    $Identity,
+    $workingDirectory,
+    $hostAccess,
+    $Executable,
+    $commandArguments,
+    $sandboxSpecification
+  )
+}
+catch {
+  $experimentalFailure = $_.Exception.ToString()
+  $experimentalSandboxUnavailable =
+    ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: (?:120|126)') -or
+    ($experimentalFailure -match 'Experimental_CreateProcessInSandbox failed: 120') -or
+    ($experimentalFailure -match 'Windows CreateProcessInSandbox is unavailable')
+  if (-not $experimentalSandboxUnavailable) {
+    throw
+  }
+  $useClassicAppContainer = $true
+}
+if ($useClassicAppContainer) {
+  Initialize-ClassicAppContainerAncestors
+  Write-SandboxDiagnostic 'falling back to classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
     $Identity,
     $workspace,
@@ -1281,41 +1497,6 @@ if ($requiresClassicAppContainer) {
     $readOnlyPaths,
     ($NetworkPolicy -eq 'allow')
   )
-}
-else {
-  try {
-    Write-SandboxDiagnostic 'launching experimental AppContainer'
-    $exitCode = [ArtemisNativeSandbox]::Launch(
-      $Identity,
-      $workingDirectory,
-      $hostAccess,
-      $Executable,
-      $commandArguments,
-      $sandboxSpecification
-    )
-  }
-  catch {
-    $experimentalFailure = $_.Exception.ToString()
-    $experimentalSandboxUnavailable =
-      ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: (?:120|126)') -or
-      ($experimentalFailure -match 'Experimental_CreateProcessInSandbox failed: 120') -or
-      ($experimentalFailure -match 'Windows CreateProcessInSandbox is unavailable')
-    if (-not $experimentalSandboxUnavailable) {
-      throw
-    }
-    Write-SandboxDiagnostic 'falling back to classic AppContainer'
-    $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
-      $Identity,
-      $workspace,
-      $workingDirectory,
-      $hostAccess,
-      $Executable,
-      $commandArguments,
-      $writablePaths,
-      $readOnlyPaths,
-      ($NetworkPolicy -eq 'allow')
-    )
-  }
 }
 Write-SandboxDiagnostic 'sandbox child exited'
 exit $exitCode

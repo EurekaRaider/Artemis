@@ -1730,7 +1730,7 @@ lines.on("line", async (line) => {
       const fixturePath = join(workspacePath, "hanging-server.mjs");
       const fixtureStartedPath = join(workspacePath, ".fixture-started.json");
       const serverId = "hanging-appcontainer";
-      const identity = `Artemis.Mcp.${serverId}`;
+      let identity: string | undefined;
       await writeFile(
         fixturePath,
         `import { writeFile } from "node:fs/promises";
@@ -1780,13 +1780,17 @@ setInterval(() => undefined, 1_000);
         );
         expect(status.state).toBe("failed");
         expect(status.error).toContain("hanging AppContainer fixture started");
+        identity = status.error?.match(
+          /Artemis Windows sandbox stage: profile identity: (Artemis\.Mcp\.[A-Za-z0-9._-]+)/u,
+        )?.[1];
+        expect(identity).toBeDefined();
         const fixtureProcesses = JSON.parse(
           await readFile(fixtureStartedPath, "utf8"),
         ) as WindowsFixtureProcesses;
         expect(windowsProcessStatus(fixtureProcesses.pid)).toBe("exited");
         expect(windowsProcessStatus(fixtureProcesses.ppid)).toBe("exited");
 
-        const cleanupProbe = probeWindowsAppContainerCleanup(identity);
+        const cleanupProbe = probeWindowsAppContainerCleanup(identity!);
         expect(cleanupProbe.profileWasAbsent).toBe(true);
         expect(cleanupProbe.deleteResult).toBe(0);
         for (const path of [
@@ -1804,7 +1808,7 @@ setInterval(() => undefined, 1_000);
         testFailure = error;
       }
 
-      if (testFailure) {
+      if (testFailure && identity) {
         try {
           probeWindowsAppContainerCleanup(identity);
         } catch {
