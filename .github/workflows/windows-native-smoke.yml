@@ -31,3 +31,4 @@ jobs:
         run: npx vitest run --no-file-parallelism apps/desktop/test/im-windows-files.test.ts apps/desktop/test/mcp-client-manager.test.ts apps/desktop/test/trusted-extension-manager.integration.test.ts
         env:
           ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1"
+          ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTIC_CLASSIC: "1"

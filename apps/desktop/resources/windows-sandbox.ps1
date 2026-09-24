@@ -1589,31 +1589,38 @@ function Initialize-ClassicAppContainerAncestors {
 
 # SandboxSpec accepts fully qualified paths on any volume. Use classic
 # AppContainer only when the experimental API is unavailable.
-$useClassicAppContainer = $false
-try {
-  Write-SandboxDiagnostic 'launching experimental AppContainer'
-  $exitCode = [ArtemisNativeSandbox]::Launch(
-    $Identity,
-    $workingDirectory,
-    $hostAccess,
-    $Executable,
-    $commandArguments,
-    $sandboxSpecification
-  )
-}
-catch {
-  $experimentalFailure = $_.Exception.ToString()
-  $experimentalSandboxUnavailable =
-    ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: (?:120|126)') -or
-    ($experimentalFailure -match 'Experimental_CreateProcessInSandbox failed: 120') -or
-    ($experimentalFailure -match 'Windows CreateProcessInSandbox is unavailable')
-  if (-not $experimentalSandboxUnavailable) {
-    throw
+$diagnosticClassic =
+  ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS -eq '1') -and
+  ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTIC_CLASSIC -eq '1')
+$useClassicAppContainer = $diagnosticClassic
+if (-not $useClassicAppContainer) {
+  try {
+    Write-SandboxDiagnostic 'launching experimental AppContainer'
+    $exitCode = [ArtemisNativeSandbox]::Launch(
+      $Identity,
+      $workingDirectory,
+      $hostAccess,
+      $Executable,
+      $commandArguments,
+      $sandboxSpecification
+    )
   }
-  $useClassicAppContainer = $true
+  catch {
+    $experimentalFailure = $_.Exception.ToString()
+    $experimentalSandboxUnavailable =
+      ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: (?:120|126)') -or
+      ($experimentalFailure -match 'Experimental_CreateProcessInSandbox failed: 120') -or
+      ($experimentalFailure -match 'Windows CreateProcessInSandbox is unavailable')
+    if (-not $experimentalSandboxUnavailable) {
+      throw
+    }
+    $useClassicAppContainer = $true
+  }
 }
 if ($useClassicAppContainer) {
-  Initialize-ClassicAppContainerAncestors
+  if (-not $diagnosticClassic) {
+    Initialize-ClassicAppContainerAncestors
+  }
   Write-SandboxDiagnostic 'falling back to classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
     $Identity,
