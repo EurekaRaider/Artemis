@@ -21,7 +21,8 @@ jobs:
           - platform: macos-arm64
             runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
           - platform: windows-x64
-            runner: [self-hosted, Windows, X64]
+            # AppContainer integration runs in a fresh Windows user environment.
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
 

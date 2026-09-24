@@ -343,6 +343,9 @@ CI runs on pushes to `main`, same-repository pull requests and manual dispatches
 The **Release** workflow also requires CI on macOS arm64 and Windows x64, covering
 formatting, tests, types, builds, the production dependency audit and native checks. Local
 source checks do not establish native release acceptance on another platform.
+Windows AppContainer integration and final ZIP verification run on a fresh
+`windows-2025` runner; the self-hosted Windows runner still checks native visual
+behavior and Slack CLI compatibility.
 
 ### Package the desktop
 
