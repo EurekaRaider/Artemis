@@ -284,6 +284,7 @@ function resolveMcpSandboxPolicy(
   platform: NodeJS.Platform,
   homePath: string,
   runtimeDirectory: string,
+  pluginReadOnlyPaths: readonly string[],
 ): SandboxPolicy {
   return {
     workspacePath: canonicalExistingPath(
@@ -293,7 +294,12 @@ function resolveMcpSandboxPolicy(
     mode: "execute",
     network: config.allowNetwork ? "allow" : "deny",
     writablePaths: [canonicalExistingPath(platform, runtimeDirectory)],
-    readOnlyPaths: commandReadOnlyPaths(platform, command, homePath),
+    readOnlyPaths: [
+      ...commandReadOnlyPaths(platform, command, homePath),
+      ...pluginReadOnlyPaths.map((path) =>
+        canonicalExistingPath(platform, path),
+      ),
+    ],
   };
 }
 
@@ -1204,6 +1210,8 @@ export class McpClientManager {
             ),
           };
         }
+        const pluginReadOnlyPaths =
+          await this.pluginRuntimeReadOnlyPaths(config);
         const buildLaunch = (sandboxCommand: SandboxCommand) => {
           if (config.fullAccess) return buildDesktopUserLaunch(sandboxCommand);
           const policy = resolveMcpSandboxPolicy(
@@ -1213,6 +1221,7 @@ export class McpClientManager {
             this.platform,
             process.env.HOME ?? homedir(),
             runtimeDirectory,
+            pluginReadOnlyPaths,
           );
           if (this.platform === "darwin") {
             return buildSeatbeltLaunch(sandboxCommand, policy);
@@ -1370,6 +1379,10 @@ export class McpClientManager {
       };
     },
     private readonly startupTimeoutMs = MCP_STARTUP_TIMEOUT_MS,
+    // Host-owned installed-plugin resolver; never populated from MCP manifests.
+    private readonly pluginRuntimeReadOnlyPaths: (
+      config: McpServerConfig,
+    ) => Promise<readonly string[]> = async () => [],
   ) {}
 
   private withStartupDeadline<T>(

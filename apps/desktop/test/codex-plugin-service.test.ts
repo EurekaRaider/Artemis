@@ -10,6 +10,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   readdir,
   rm,
   symlink,
@@ -270,6 +271,35 @@ function stableObject(value: unknown): unknown {
 }
 
 describe("CodexPluginService", () => {
+  it("grants runtime reads only to the unchanged installed MCP owner", async () => {
+    const root = await temporaryRoot();
+    const source = join(root, "source");
+    await writePlugin(source);
+    const { service, mcpStore } = createService(root);
+    const preview = await service.inspectLocal(source);
+    const { plugin } = await service.install(preview.source);
+    const config = (await mcpStore.list()).find(
+      (server) => server.transport === "stdio",
+    )!;
+    const pluginDirectory = join(root, "user-data", "codex-plugins", plugin.id);
+    expect(await service.mcpRuntimeReadOnlyPaths(config)).toEqual([
+      await realpath(pluginDirectory),
+    ]);
+    expect(
+      await service.mcpRuntimeReadOnlyPaths({ ...config, id: "unowned" }),
+    ).toEqual([]);
+    await expect(
+      service.mcpRuntimeReadOnlyPaths({
+        ...config,
+        args: ["/unrelated/server.mjs"],
+      } as McpServerConfig),
+    ).rejects.toThrow(/configuration changed/);
+    await writeFile(join(pluginDirectory, "mcp", "server.mjs"), "modified");
+    await expect(service.mcpRuntimeReadOnlyPaths(config)).rejects.toThrow(
+      /contents changed/,
+    );
+  });
+
   it("replaces an intact historical plugin whose rejected connection was removed from the runtime", async () => {
     const root = await temporaryRoot(),
       repository = join(root, "repository");

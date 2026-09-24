@@ -1,4 +1,11 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,6 +65,111 @@ describe("bounded workspace read", () => {
         expect(result.details.nextOffset).toBe(16384);
         expect(JSON.stringify(result.content).length).toBeLessThan(20000);
       }
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("reads only active skill resources and revokes access when the catalog changes", async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-skill-read-")),
+    );
+    roots.push(root);
+    const workspace = join(root, "workspace");
+    const skill = join(root, "skills", "github");
+    const sibling = join(root, "skills", "github-other");
+    for (const directory of [workspace, skill, sibling])
+      await mkdir(directory, { recursive: true });
+    await writeFile(join(skill, "SKILL.md"), "GitHub instructions");
+    await writeFile(join(skill, "reference.md"), "reference");
+    await writeFile(join(sibling, "SKILL.md"), "disabled");
+    await writeFile(join(root, "secret.txt"), "private");
+    await symlink(root, join(skill, "escape"), "junction");
+    let active = [skill];
+    const tool = createWorkspaceReadTool(workspace, () => active);
+    for (const name of ["SKILL.md", "reference.md"]) {
+      expect(
+        (await tool.execute("read", { path: join(skill, name) })).content[0],
+      ).toMatchObject({ type: "text" });
+    }
+    for (const path of [
+      join(sibling, "SKILL.md"),
+      join(root, "secret.txt"),
+      join(skill, "escape", "secret.txt"),
+      join(skill, "..", "..", "secret.txt"),
+    ]) {
+      await expect(tool.execute("read", { path })).rejects.toThrow();
+    }
+    const alias = join(root, "skill-alias");
+    await symlink(skill, alias, "junction");
+    expect(
+      (await tool.execute("read", { path: join(alias, "SKILL.md") }))
+        .content[0],
+    ).toMatchObject({ text: "GitHub instructions" });
+    active = [];
+    await expect(
+      tool.execute("read", { path: join(skill, "SKILL.md") }),
+    ).rejects.toThrow();
+  });
+
+  it("uses the host catalog for installed skills and respects disabled skills after refresh", async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-host-skill-")),
+    );
+    roots.push(root);
+    const workspace = join(root, "workspace");
+    const agentDir = join(root, "agent");
+    const skillDir = join(agentDir, "skills", "github");
+    await mkdir(workspace, { recursive: true });
+    await mkdir(skillDir, { recursive: true });
+    const skillPath = join(skillDir, "SKILL.md");
+    await writeFile(
+      skillPath,
+      "---\nname: github\ndescription: GitHub test skill\n---\nRead reference.md.",
+    );
+    await writeFile(join(skillDir, "reference.md"), "plugin reference");
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          throw new Error("No broker calls expected");
+        },
+      },
+      { emit() {} },
+      { agentDir },
+    );
+    try {
+      await host.openThread({
+        threadId: "skill-test",
+        workspacePath: workspace,
+        target: "local",
+      });
+      const thread = (
+        host as unknown as {
+          threads: Map<
+            string,
+            {
+              delegatedTools: ReturnType<typeof createWorkspaceReadTool>[];
+              executeTools: ReturnType<typeof createWorkspaceReadTool>[];
+            }
+          >;
+        }
+      ).threads.get("skill-test")!;
+      for (const tools of [thread.delegatedTools, thread.executeTools]) {
+        const read = tools.find((tool) => tool.name === "read")!;
+        expect(
+          (await read.execute("read", { path: skillPath })).content[0],
+        ).toMatchObject({ text: expect.stringContaining("Read reference.md") });
+        expect(
+          (await read.execute("read", { path: join(skillDir, "reference.md") }))
+            .content[0],
+        ).toMatchObject({ text: "plugin reference" });
+      }
+      await host.configure({
+        credentials: {},
+        disabledSkillFiles: [skillPath],
+      });
+      const read = thread.executeTools.find((tool) => tool.name === "read")!;
+      await expect(read.execute("read", { path: skillPath })).rejects.toThrow();
     } finally {
       host.dispose();
     }

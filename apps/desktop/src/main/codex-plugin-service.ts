@@ -2182,6 +2182,37 @@ export class CodexPluginService {
     );
   }
 
+  async mcpRuntimeReadOnlyPaths(config: McpServerConfig): Promise<string[]> {
+    if (config.transport !== "stdio") return [];
+    const owner = (await this.loadStore()).plugins.find((plugin) =>
+      plugin.mcpServers.some((server) => server.id === config.id),
+    );
+    if (!owner) return [];
+    const server = owner.mcpServers.find(
+      (candidate) => candidate.id === config.id,
+    )!;
+    if (server.structuralHash !== mcpStructuralHash(config)) {
+      throw new Error(
+        "Installed plugin MCP configuration changed. Reinstall the plugin before connecting.",
+      );
+    }
+    const root = await canonicalDirectory(
+      join(this.options.pluginsRoot, owner.id),
+      this.options.pluginsRoot,
+    );
+    const files = await collectFiles(root, {
+      maximumFiles: MAX_PLUGIN_FILES,
+      maximumFileBytes: MAX_PLUGIN_FILE_BYTES,
+      maximumBytes: MAX_PLUGIN_BYTES,
+    });
+    if (collectedHash(files) !== owner.contentHash) {
+      throw new Error(
+        "Installed plugin contents changed. Update the plugin and reconnect.",
+      );
+    }
+    return [root];
+  }
+
   async assertConnectorTrusted(
     config: McpServerConfig,
   ): Promise<ConnectorOwner | void> {

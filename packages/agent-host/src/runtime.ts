@@ -33,7 +33,7 @@ import {
 import type { TurnRecovery } from "@artemis/protocol";
 import { existsSync } from "node:fs";
 import { createWorkspaceReadTool } from "./workspace-read-tool.js";
-import { join, relative, resolve, sep, isAbsolute } from "node:path";
+import { dirname, join, relative, resolve, sep, isAbsolute } from "node:path";
 
 import {
   DefaultResourceLoader,
@@ -3701,7 +3701,9 @@ export class ArtemisAgentHost {
       return result.data;
     };
     const attachmentTools = createAttachmentTools(invokeAttachmentOperation);
-    const readTool = createWorkspaceReadTool(request.workspacePath);
+    const readTool = createWorkspaceReadTool(request.workspacePath, () =>
+      resourceLoader.getSkills().skills.map((skill) => dirname(skill.filePath)),
+    );
 
     const webSearchTool = defineTool({
       name: "web_search",
@@ -5696,7 +5698,11 @@ export class ArtemisAgentHost {
                     invokeAttachmentOperation(operation, child.session),
                   ),
                   ...childRemoteTools,
-                  readTool,
+                  createWorkspaceReadTool(request.workspacePath, () =>
+                    childResourceLoader
+                      .getSkills()
+                      .skills.map((skill) => dirname(skill.filePath)),
+                  ),
                   webSearchTool,
                   ...(allowToolClass("filesystem-write")
                     ? [childWriteTool, childOfficeDocumentTool]

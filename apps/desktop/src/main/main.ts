@@ -21560,6 +21560,13 @@ app
     mcpClientManager = new McpClientManager(
       process.platform,
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
+      undefined,
+      undefined,
+      async (config) => {
+        if (!codexPluginService)
+          throw new Error("Plugin service is not ready.");
+        return codexPluginService.mcpRuntimeReadOnlyPaths(config);
+      },
     );
     mcpClientManager.onStatusChange((status) => {
       if (!mainWindow?.isDestroyed())
