@@ -21,7 +21,7 @@ jobs:
           - platform: macos-arm64
             runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
           - platform: windows-x64
-            runner: [self-hosted, Windows, X64, ArtemisRunnerWin]
+            runner: [self-hosted, Windows, X64]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
 
