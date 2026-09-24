@@ -323,26 +323,53 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ARTEMIS_REQUIRE_SIGNATURE: "0"
-      - name: Prepare verified Windows ZIP for transfer
+      - name: Upload verified Windows ZIP directly to private draft
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
+          $ErrorActionPreference = 'Stop'
+          $version = node -p "require('./package.json').version"
+          $zipPath = "apps/desktop/release/Artemis-Windows-x64-$version.zip"
+          $manifestPath = 'apps/desktop/release/release-manifest-windows-x64.json'
           Copy-Item apps/desktop/release/release-manifest.json apps/desktop/release/release-manifest-windows-x64.json
-      - name: Transfer verified Windows ZIP to publish job
-        uses: actions/upload-artifact@v6
-        with:
-          name: release-windows-x64
-          path: |
-            apps/desktop/release/Artemis-Windows-x64-*.zip
-            apps/desktop/release/release-manifest-windows-x64.json
-          if-no-files-found: error
-          compression-level: 0
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $repositoryUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
+          $releases = @(Invoke-RestMethod -Method Get -Uri "$repositoryUri/releases?per_page=100" -Headers $headers)
+          $matches = @($releases | Where-Object { $_.tag_name -ceq $env:RELEASE_TAG })
+          if ($matches.Count -ne 1) { throw "Expected one private draft for $env:RELEASE_TAG, found $($matches.Count)" }
+          $release = $matches[0]
+          if (-not $release.draft -or $release.target_commitish -cne $env:RELEASE_SHA) {
+            throw "Release draft does not target $env:RELEASE_SHA"
+          }
+          $uploadUrl = $release.upload_url -replace '\{.*$', ''
+          foreach ($path in @($zipPath, $manifestPath)) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Missing verified release asset: $path" }
+            $name = Split-Path $path -Leaf
+            foreach ($asset in @($release.assets)) {
+              if ($asset.name -ceq $name) {
+                Invoke-RestMethod -Method Delete -Uri "$repositoryUri/releases/assets/$($asset.id)" -Headers $headers
+              }
+            }
+            $assetUri = "${uploadUrl}?name=$([System.Uri]::EscapeDataString($name))"
+            $contentType = if ($name.EndsWith('.zip')) { 'application/zip' } else { 'application/json' }
+            $uploaded = Invoke-RestMethod -Method Post -Uri $assetUri -Headers $headers -ContentType $contentType -InFile (Resolve-Path $path)
+            if ($uploaded.name -cne $name -or $uploaded.size -ne (Get-Item $path).Length) {
+              throw "Uploaded release asset does not match $path"
+            }
+          }
 
   publish:
     name: Publish to private Artemis Release
     needs: [package-macos, package-windows]
     if: always() && needs.package-macos.result == 'success' && needs.package-windows.result == 'success'
     permissions:
-      actions: read
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 15
@@ -358,18 +385,14 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
-          mkdir -p release-inputs/release-macos-arm64
+          mkdir -p release-inputs/release-macos-arm64 release-inputs/release-windows-x64
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern 'Artemis-macOS-arm64-*' --pattern '*-mac.yml' \
             --pattern release-manifest-macos-arm64.json --dir release-inputs/release-macos-arm64
           mv release-inputs/release-macos-arm64/release-manifest-macos-arm64.json release-inputs/release-macos-arm64/release-manifest.json
-      - name: Download verified Windows ZIP from this workflow run
-        uses: actions/download-artifact@v6
-        with:
-          name: release-windows-x64
-          path: release-inputs/release-windows-x64
-      - name: Normalize Windows manifest filename
-        run: |
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'Artemis-Windows-x64-*.zip' --pattern release-manifest-windows-x64.json \
+            --dir release-inputs/release-windows-x64
           mv release-inputs/release-windows-x64/release-manifest-windows-x64.json release-inputs/release-windows-x64/release-manifest.json
 
       - name: Set up Node.js 26
@@ -400,9 +423,9 @@ jobs:
           源码版本：\`$RELEASE_SHA\`。
           EOF
           node scripts/verify-slack-cli.mjs
-          gh release upload "$RELEASE_TAG" release-assets/Artemis-Windows-x64-*.zip --repo "$GITHUB_REPOSITORY" --clobber
           gh release upload "$RELEASE_TAG" release-assets/release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
           gh release delete-asset "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --yes
           gh release delete-asset "$RELEASE_TAG" notarization-mac-arm64.json --repo "$GITHUB_REPOSITORY" --yes
           gh release delete-asset "$RELEASE_TAG" release-manifest-macos-arm64.json --repo "$GITHUB_REPOSITORY" --yes
+          gh release delete-asset "$RELEASE_TAG" release-manifest-windows-x64.json --repo "$GITHUB_REPOSITORY" --yes
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
