@@ -249,4 +249,26 @@ describe("sandbox execution contracts", () => {
     expect(denied.includes(Buffer.from("internetClient"))).toBe(false);
     expect(allowed.includes(Buffer.from("internetClient"))).toBe(true);
   });
+
+  it("grants review mode read access to a Windows workspace on another drive", () => {
+    const launch = buildWindowsAppContainerLaunch(
+      {
+        executable: "C:\\Windows\\System32\\cmd.exe",
+        args: [],
+        cwd: "D:\\repo",
+      },
+      { workspacePath: "D:\\repo", mode: "review", network: "deny" },
+      { helperPath: resolve("resources/windows-sandbox.ps1") },
+    );
+    const writable =
+      launch.args[launch.args.indexOf("-WritablePathsBase64") + 1];
+    const readable =
+      launch.args[launch.args.indexOf("-ReadOnlyPathsBase64") + 1];
+    expect(
+      JSON.parse(Buffer.from(writable, "base64").toString("utf8")),
+    ).toEqual([]);
+    expect(
+      JSON.parse(Buffer.from(readable, "base64").toString("utf8")),
+    ).toEqual(["D:\\repo"]);
+  });
 });

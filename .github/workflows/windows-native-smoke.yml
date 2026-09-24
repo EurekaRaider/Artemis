@@ -1,0 +1,26 @@
+name: Windows native sandbox smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    if: github.event.repository.private
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: node scripts/normalize-windows-checkout.mjs
+      - run: npm ci
+      - run: npm run build:core
+      - run: npm run build:electron -w @artemis/desktop
+      - name: Verify native Windows isolation
+        run: npx vitest run --no-file-parallelism apps/desktop/test/im-windows-files.test.ts apps/desktop/test/mcp-client-manager.test.ts apps/desktop/test/trusted-extension-manager.integration.test.ts
+        env:
+          ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1"

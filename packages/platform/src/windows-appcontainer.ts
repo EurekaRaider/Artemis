@@ -27,6 +27,12 @@ export function buildWindowsAppContainerLaunch(
   }
 
   const policy = normalizeSandboxPolicy(policyInput);
+  const readOnlyPathList = [
+    ...(policy.writablePaths?.includes(policy.workspacePath)
+      ? []
+      : [policy.workspacePath]),
+    ...(policy.readOnlyPaths ?? []),
+  ];
   const encodedArguments = Buffer.from(
     JSON.stringify(command.args),
     "utf8",
@@ -36,12 +42,12 @@ export function buildWindowsAppContainerLaunch(
     "utf8",
   ).toString("base64");
   const readOnlyPaths = Buffer.from(
-    JSON.stringify(policy.readOnlyPaths ?? []),
+    JSON.stringify(readOnlyPathList),
     "utf8",
   ).toString("base64");
   const sandboxSpecification = encodeWindowsSandboxSpecification({
     writablePaths: policy.writablePaths ?? [],
-    readOnlyPaths: policy.readOnlyPaths ?? [],
+    readOnlyPaths: readOnlyPathList,
     allowNetwork: policy.network === "allow",
   }).toString("base64");
 

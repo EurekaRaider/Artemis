@@ -238,8 +238,8 @@ public static class ArtemisNativeSandbox
     private const int ERROR_INSUFFICIENT_BUFFER = 122;
     // Only the noninteractive session objects needed to initialize user32.
     // These masks exclude clipboard, screen, hooks, and desktop switching.
-    private const int WINSTA_SANDBOX_ACCESS = 0x0023;
-    private const int DESKTOP_SANDBOX_ACCESS = 0x0043;
+    private const int WINSTA_SANDBOX_ACCESS = 0x20123;
+    private const int DESKTOP_SANDBOX_ACCESS = 0x20043;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
@@ -1498,5 +1498,5 @@ if ($useClassicAppContainer) {
     ($NetworkPolicy -eq 'allow')
   )
 }
-Write-SandboxDiagnostic 'sandbox child exited'
+Write-SandboxDiagnostic "sandbox child exited: $exitCode"
 exit $exitCode
