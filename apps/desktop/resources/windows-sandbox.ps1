@@ -540,6 +540,15 @@ public static class ArtemisNativeSandbox
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool FreeSid(IntPtr sid);
 
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(
+        IntPtr process, uint desiredAccess, out IntPtr token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(
+        IntPtr token, int informationClass, IntPtr information,
+        uint length, out uint needed);
+
     private static void ThrowLastError(string operation)
     {
         var error = Marshal.GetLastWin32Error();
@@ -556,6 +565,50 @@ public static class ArtemisNativeSandbox
             handle, 2, name, (uint)(name.Capacity * 2), out needed))
             ThrowLastError("GetUserObjectInformation(name)");
         return name.ToString();
+    }
+
+    private static void DiagnoseSandboxToken(
+        IntPtr process, IntPtr expectedSid, string desktopName)
+    {
+        if (Environment.GetEnvironmentVariable(
+            "ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS") != "1")
+            return;
+        IntPtr token = IntPtr.Zero;
+        IntPtr information = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(process, 0x0008, out token))
+                ThrowLastError("OpenProcessToken");
+            uint needed;
+            GetTokenInformation(token, 31, IntPtr.Zero, 0,
+                out needed);
+            if (needed < IntPtr.Size)
+                ThrowLastError("GetTokenInformation(size)");
+            information = Marshal.AllocHGlobal((int)needed);
+            if (!GetTokenInformation(token, 31, information,
+                needed, out needed))
+                ThrowLastError("GetTokenInformation");
+            var actualSid = Marshal.ReadIntPtr(information);
+            Console.Error.WriteLine(
+                "Artemis Windows sandbox stage: service desktop=" +
+                desktopName + ", child AppContainer SID matches=" +
+                (actualSid != IntPtr.Zero &&
+                 new SecurityIdentifier(actualSid).Equals(
+                     new SecurityIdentifier(expectedSid))));
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine(
+                "Artemis Windows sandbox stage: token diagnostic=" +
+                error.Message);
+        }
+        finally
+        {
+            if (information != IntPtr.Zero)
+                Marshal.FreeHGlobal(information);
+            if (token != IntPtr.Zero)
+                CloseHandle(token);
+        }
     }
 
     private static void UpdateSessionObjectAccess(
@@ -967,6 +1020,10 @@ public static class ArtemisNativeSandbox
                 (uint)sandboxSpecification.Length,
                 out process))
                 ThrowLastError("Experimental_CreateProcessInSandbox");
+            if (sessionDesktop != null)
+                DiagnoseSandboxToken(
+                    process.hProcess, sessionSid,
+                    sessionDesktop.Name);
 
             job = CreateJobObject(IntPtr.Zero, null);
             if (job == IntPtr.Zero)
