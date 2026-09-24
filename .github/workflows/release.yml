@@ -15,6 +15,10 @@ on:
         description: "release_sha 对应的成功 CI 运行 ID"
         required: false
         type: string
+      reuse_macos_run_id:
+        description: "复用此发布运行中已签名、公证且验证通过的 macOS 产物"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -60,6 +64,25 @@ jobs:
               *) echo "CI does not cover changed path: $changed" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only "$ci_sha" "$RELEASE_SHA")
+
+      - name: Verify completed macOS package before reusing it
+        if: inputs.reuse_macos_run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MACOS_RUN_ID: ${{ inputs.reuse_macos_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          [[ "$MACOS_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          verified="$(gh run view "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json jobs --jq '[.jobs[] | select(.name == "Notarize and verify macOS arm64" and .conclusion == "success")] | length')"
+          test "$verified" = 1
+          assets="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          version="${RELEASE_TAG#v}"
+          for name in "Artemis-macOS-arm64-$version.dmg" "Artemis-macOS-arm64-$version.zip" release-manifest-macos-arm64.json; do
+            grep -Fxq "$name" <<< "$assets"
+          done
+          grep -Eq '^(latest|alpha|beta)-mac.yml$' <<< "$assets"
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
@@ -127,7 +150,7 @@ jobs:
   sign-macos:
     name: Build and sign macOS arm64
     needs: stage-release
-    if: always() && needs.stage-release.result == 'success'
+    if: always() && needs.stage-release.result == 'success' && inputs.reuse_macos_run_id == ''
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 180
     permissions:
@@ -178,7 +201,7 @@ jobs:
   package-macos:
     name: Notarize and verify macOS arm64
     needs: sign-macos
-    if: always() && needs.sign-macos.result == 'success'
+    if: always() && needs.sign-macos.result == 'success' && inputs.reuse_macos_run_id == ''
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 120
     permissions:
@@ -315,7 +338,7 @@ jobs:
   publish:
     name: Publish to private Artemis Release
     needs: [package-macos, package-windows]
-    if: always() && needs.package-macos.result == 'success' && needs.package-windows.result == 'success'
+    if: always() && needs.package-windows.result == 'success' && (needs.package-macos.result == 'success' || (inputs.reuse_macos_run_id != '' && needs.package-macos.result == 'skipped'))
     permissions:
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
