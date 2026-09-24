@@ -1,4 +1,4 @@
-# PR 手动审核 — GitHub Actions 云端执行，不依赖桌面端
+# PR 手动审核 — 在自托管 macOS runner 上执行
 # 用法：复制到目标仓库 .github/workflows/pr-auto-review.yml
 # 准备：目标仓库 Settings → Secrets and variables → Actions 添加 ZAI_API_KEY
 #       （z.ai 中国区 Coding Plan 改用 ZAI_CODING_CN_API_KEY，并同步改下方 env 变量名）
@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   review:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 15
     env:
       PI_MODEL: glm-5.3 # 可选：glm-5.2 / glm-5.2-highspeed / glm-5.3 / glm-4.7

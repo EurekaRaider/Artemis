@@ -1587,12 +1587,11 @@ function Initialize-ClassicAppContainerAncestors {
   }
 }
 
-# SandboxSpec accepts fully qualified paths on any volume. Use classic
-# AppContainer only when the experimental API is unavailable.
-$diagnosticClassic =
-  ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS -eq '1') -and
-  ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTIC_CLASSIC -eq '1')
-$useClassicAppContainer = $diagnosticClassic
+# Windows 11 25H2 can create an experimental AppContainer without applying
+# its filesystem grants. Keep filesystem policy enforced by classic ACLs.
+$versionInfo = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$windowsBuild = [int]$versionInfo.CurrentBuildNumber
+$useClassicAppContainer = ($windowsBuild -ge 26200) -and ($windowsBuild -lt 26600)
 if (-not $useClassicAppContainer) {
   try {
     Write-SandboxDiagnostic 'launching experimental AppContainer'
@@ -1618,7 +1617,9 @@ if (-not $useClassicAppContainer) {
   }
 }
 if ($useClassicAppContainer) {
-  if (-not $diagnosticClassic) {
+  # Services cannot display UAC. The classic launcher grants access only to
+  # the requested paths and fails closed if their existing ancestors block it.
+  if ([System.Diagnostics.Process]::GetCurrentProcess().SessionId -ne 0) {
     Initialize-ClassicAppContainerAncestors
   }
   Write-SandboxDiagnostic 'falling back to classic AppContainer'
