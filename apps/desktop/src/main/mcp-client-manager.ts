@@ -1207,7 +1207,8 @@ export class McpClientManager {
                 helperPath: this.windowsHelperPath,
                 hostAccessPath: runtimeDirectory,
                 hostTempPath: tmpdir(),
-                identity: `Artemis.Mcp.${safeToolSegment(config.id)}.${randomUUID().replaceAll("-", "")}`,
+                // CreateAppContainerProfile limits the complete name to 64 characters.
+                identity: `Artemis.Mcp.${safeToolSegment(config.id).slice(0, 19)}.${randomUUID().replaceAll("-", "")}`,
                 runtimePath: runtimeDirectory,
               },
             );
