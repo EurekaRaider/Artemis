@@ -1,10 +1,13 @@
+import {
+  reportChannelDrop,
+  validateChannelEvent,
+} from "./channel-diagnostics.js";
 import { imText, type ImMessageKey } from "./im-localization.js";
 import { decodeNativeEnvelope } from "./native-protocol.js";
 import { formatSlackMarkdown, slackMarkdownSections } from "./slack-format.js";
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import {
-  channelEventSchema,
   type AppLocale,
   type ChannelEvent,
   type ImConversation,
@@ -210,8 +213,11 @@ export function normalizeSlack(
       };
     },
   );
-  if (!text && !attachments.length) return undefined;
-  const result = channelEventSchema.safeParse({
+  if (!text && !attachments.length) {
+    reportChannelDrop("slack", event.type, "empty-message");
+    return undefined;
+  }
+  return validateChannelEvent("slack", event.type, {
     version: 1,
     messageId: payload.event_id,
     identity: {
@@ -233,7 +239,6 @@ export function normalizeSlack(
     ...(string(event.thread_ts) ? { replyTo: event.thread_ts } : {}),
     attachments,
   });
-  return result.success ? result.data : undefined;
 }
 
 export class SlackAdapter implements ChannelAdapter {

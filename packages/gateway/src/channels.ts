@@ -1,3 +1,7 @@
+import {
+  reportChannelDrop,
+  validateChannelEvent,
+} from "./channel-diagnostics.js";
 import { imText } from "./im-localization.js";
 import {
   feishuNativeLink,
@@ -10,7 +14,6 @@ import type { IncomingHttpHeaders } from "node:http";
 import WebSocket from "ws";
 import { z } from "zod";
 import {
-  channelEventSchema,
   type ChannelEvent,
   type ImConversation,
   type ImReply,
@@ -280,6 +283,7 @@ export function normalizeWecom(
         url: string(item.url),
         ...(string(item.aeskey) ? { decryptionKey: string(item.aeskey) } : {}),
       });
+    else reportChannelDrop("wecom", body.msgtype, "missing-resource");
   };
   if (body.msgtype === "image") add("image", body.image);
   if (body.msgtype === "file") add("file", body.file);
@@ -287,17 +291,21 @@ export function normalizeWecom(
     for (const item of Array.isArray(record(body.mixed).msg_item)
       ? body.mixed.msg_item
       : []) {
-      if (item.msgtype === "text")
-        text += `\n${string(record(item.text).content)}`;
-      if (item.msgtype === "image") add("image", item.image);
+      const entry = record(item);
+      if (entry.msgtype === "text")
+        text += `\n${string(record(entry.text).content)}`;
+      if (entry.msgtype === "image") add("image", entry.image);
     }
   if (body.msgtype === "event") {
     const event = record(body.event);
     if (event.eventtype !== "template_card_event") return undefined;
     text = string(event.event_key);
   }
-  if (!text && !attachments.length) return undefined;
-  const result = channelEventSchema.safeParse({
+  if (!text.trim() && !attachments.length) {
+    reportChannelDrop("wecom", body.msgtype, "empty-message");
+    return undefined;
+  }
+  return validateChannelEvent("wecom", body.msgtype, {
     version: 1,
     messageId: string(body.msgid),
     identity: {
@@ -312,7 +320,10 @@ export function normalizeWecom(
       id: body.chattype === "group" ? string(body.chatid) : from.userid,
       kind: body.chattype === "group" ? "group" : "direct",
     },
-    text: text.replace(/^@\S+\s*/u, "").trim(),
+    text: text
+      .trim()
+      .replace(/^@\S+\s*/u, "")
+      .trim(),
     timestamp:
       Number(body.create_time) > 0
         ? Number(body.create_time) * 1000
@@ -321,7 +332,6 @@ export function normalizeWecom(
     bot: false,
     attachments,
   });
-  return result.success ? result.data : undefined;
 }
 
 export function verifyFeishu(
@@ -387,8 +397,15 @@ export function normalizeFeishu(
     header = record(data.header),
     event = record(data.event),
     message = record(event.message),
-    sender = record(event.sender),
-    content = parseObject(string(message.content));
+    sender = record(event.sender);
+  if (header.event_type !== "im.message.receive_v1") return undefined;
+  let content: Record<string, any>;
+  try {
+    content = record(JSON.parse(string(message.content)));
+  } catch {
+    reportChannelDrop("feishu", message.message_type, "invalid-content");
+    return undefined;
+  }
   let text = string(content.text),
     messageId = string(message.message_id),
     userId = string(record(sender.sender_id).open_id),
@@ -440,7 +457,6 @@ export function normalizeFeishu(
         })
       : value;
   // Card actions use the issued-card identity and single-use receiver, never arbitrary commands.
-  if (header.event_type !== "im.message.receive_v1") return undefined;
   const attachments: ChannelEvent["attachments"] = [];
   const nativeLinks: string[] = [];
   if (message.message_type === "post") {
@@ -468,13 +484,18 @@ export function normalizeFeishu(
                 name: `image-${attachments.length + 1}.png`,
                 resourceId: node.image_key,
               });
-            if (node.tag === "at")
+            if (node.tag === "at") {
+              const key = string(node.user_id);
+              const reference = replacements.get(key);
+              const userId = reference?.userId ?? key;
               return renderMention(
-                string(node.user_id),
-                string(node.user_name) ||
-                  mentions.find((item) => item.userId === node.user_id)?.name ||
+                userId,
+                reference?.name ||
+                  string(node.user_name) ||
+                  mentions.find((item) => item.userId === userId)?.name ||
                   "",
               );
+            }
             if (node.tag === "a") {
               const native = feishuNativeLink(
                 string(node.href),
@@ -525,7 +546,11 @@ export function normalizeFeishu(
       name: string(content.file_name) || "attachment",
       resourceId: content.file_key,
     });
-  const result = channelEventSchema.safeParse({
+  if (!text.trim() && !attachments.length) {
+    reportChannelDrop("feishu", message.message_type, "empty-message");
+    return undefined;
+  }
+  return validateChannelEvent("feishu", message.message_type, {
     version: 1,
     messageId,
     identity: {
@@ -548,7 +573,6 @@ export function normalizeFeishu(
     ...(string(message.parent_id) ? { replyTo: message.parent_id } : {}),
     attachments,
   });
-  return result.success ? result.data : undefined;
 }
 
 export async function boundedResponse(response: Response): Promise<Buffer> {
