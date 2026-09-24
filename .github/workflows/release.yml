@@ -230,8 +230,7 @@ jobs:
   package-windows:
     name: Package and verify Windows x64 ZIP
     needs: stage-release
-    # The final ZIP verification reruns native AppContainer integration.
-    runs-on: windows-2025
+    runs-on: [self-hosted, Windows, X64, ArtemisRunnerWin]
     timeout-minutes: 90
     permissions:
       contents: write

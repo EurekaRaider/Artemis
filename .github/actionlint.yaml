@@ -1,3 +1,4 @@
 self-hosted-runner:
   labels:
     - artemis-macos-arm64
+    - ArtemisRunnerWin

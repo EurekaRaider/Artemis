@@ -21,8 +21,7 @@ jobs:
           - platform: macos-arm64
             runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
           - platform: windows-x64
-            # AppContainer integration runs in a fresh Windows user environment.
-            runner: windows-2025
+            runner: [self-hosted, Windows, X64, ArtemisRunnerWin]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
 
@@ -38,6 +37,19 @@ jobs:
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
         run: node scripts/normalize-windows-checkout.mjs
+
+      - name: Report Windows sandbox runner context
+        if: matrix.platform == 'windows-x64'
+        shell: pwsh
+        run: |
+          $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+          $driveRoot = [System.IO.Path]::GetPathRoot($env:GITHUB_WORKSPACE)
+          Write-Host "Runner account: $($identity.Name)"
+          Write-Host "Runner session: $((Get-Process -Id $PID).SessionId)"
+          Write-Host "Workspace drive: $driveRoot"
+          Write-Host "Temporary drive: $([System.IO.Path]::GetPathRoot($env:TEMP))"
+          Write-Host 'Workspace drive ACL:'
+          & icacls.exe $driveRoot
 
       - name: Install dependencies
         run: npm ci
