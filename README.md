@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.2** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.3** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases).
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -362,15 +362,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.2` local packaging configuration produces:
+The `1.6.3` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.2.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.2.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.2.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.3.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.3.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.3.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.2`, and
+Releases are started manually through **Release**, using tag `v1.6.3`, and
 published only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -387,6 +387,18 @@ Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source, so these private CD releases do not
 notify ordinary users. No private repository token is bundled in the app.
+
+Version 1.6.3 restores plugin icons in conversation history immediately after
+restart, without requiring the skill menu to be opened. Saved DeepSeek Flash
+model IDs remain selectable and callable after catalog updates; compatibility
+labels are compact, with full IDs available on hover and long labels truncated
+inside their selection highlight.
+
+Feishu rich-text group messages now resolve mention placeholders before routing,
+so addressed text-and-image messages enter the queue together. Gateway regression
+tests cover group multimodal ingestion for Feishu, WeCom and Slack, and malformed
+messages produce diagnostics without logging message contents or credentials.
+These tests do not substitute for live-provider end-to-end verification.
 
 Version 1.6.2 fixes MCP switches to reflect saved enablement independently of
 connection health. Each server has its own pending toggle state, and connection
