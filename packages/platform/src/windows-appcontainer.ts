@@ -28,10 +28,12 @@ export function buildWindowsAppContainerLaunch(
 
   const policy = normalizeSandboxPolicy(policyInput);
   const readOnlyPathList = [
-    ...(policy.writablePaths?.includes(policy.workspacePath)
-      ? []
-      : [policy.workspacePath]),
-    ...(policy.readOnlyPaths ?? []),
+    ...new Set([
+      ...(policy.writablePaths?.includes(policy.workspacePath)
+        ? []
+        : [policy.workspacePath]),
+      ...(policy.readOnlyPaths ?? []),
+    ]),
   ];
   const encodedArguments = Buffer.from(
     JSON.stringify(command.args),

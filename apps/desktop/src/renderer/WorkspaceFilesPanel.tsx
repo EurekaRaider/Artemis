@@ -260,6 +260,7 @@ export function WorkspaceFilesPanel({
     setChildrenByDirectory({});
     setExpanded(new Set());
     setSelectedFile(undefined);
+    setImageFailed(false);
     setDraft("");
     setSaveState("idle");
     setSaveError(undefined);
@@ -277,6 +278,7 @@ export function WorkspaceFilesPanel({
       .readWorkspaceFile(threadId, selectedPath)
       .then((file) => {
         if (activeThreadId.current !== requestedThreadId) return;
+        setImageFailed(false);
         setSelectedFile(file);
         setDraft(file.content ?? "");
         setSaveState("idle");
@@ -314,6 +316,7 @@ export function WorkspaceFilesPanel({
     void window.artemis
       .readWorkspaceFile(threadId, entry.path)
       .then((file) => {
+        setImageFailed(false);
         setSelectedFile(file);
         setDraft(file.content ?? "");
         setSaveState("idle");
@@ -357,9 +360,6 @@ export function WorkspaceFilesPanel({
     setExpanded(new Set());
     void loadDirectory("");
   };
-  useEffect(() => {
-    setImageFailed(false);
-  }, [selectedFile?.path, selectedFile?.preview?.data]);
   const imageSelected = selectedFile?.preview?.mimeType.startsWith("image/");
   const markdownSelected =
     selectedFile !== undefined &&
