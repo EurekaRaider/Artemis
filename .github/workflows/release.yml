@@ -7,9 +7,18 @@ on:
         description: "发布版本标签，必须与 package.json 一致，例如 v1.6.1"
         required: true
         type: string
+      release_sha:
+        description: "已有完整 CI 通过的源码提交；留空则运行本次发布 CI"
+        required: false
+        type: string
+      ci_run_id:
+        description: "release_sha 对应的成功 CI 运行 ID"
+        required: false
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: release-desktop
@@ -25,6 +34,23 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+
+      - name: Verify previous CI before reusing it
+        if: inputs.release_sha != '' || inputs.ci_run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+        run: |
+          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ && "$CI_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          verified="$(gh run view "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json headSha,conclusion,workflowName \
+            --jq '[.headSha, .conclusion, .workflowName] | join(" ")')"
+          test "$verified" = "$RELEASE_SHA success CI"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
@@ -56,11 +82,13 @@ jobs:
   ci:
     name: Release CI
     needs: prepare
+    if: inputs.release_sha == ''
     uses: ./.github/workflows/ci.yml
 
   stage-release:
     name: Open private draft Release
-    needs: ci
+    needs: [prepare, ci]
+    if: always() && needs.prepare.result == 'success' && (needs.ci.result == 'success' || (inputs.release_sha != '' && needs.ci.result == 'skipped'))
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     permissions:
       contents: write
@@ -71,19 +99,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
           existing="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --json targetCommitish,isDraft \
             --jq '[.targetCommitish, (.isDraft | tostring)] | join(" ")' 2>/dev/null || true)"
           if [[ -n "$existing" ]]; then
-            if [[ "$existing" != "$GITHUB_SHA true" ]]; then
+            if [[ "$existing" != "$RELEASE_SHA true" ]]; then
               echo "Existing release must be a draft for this exact commit: $existing" >&2
               exit 1
             fi
           else
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Artemis $RELEASE_TAG" \
-              --draft --notes "Private staging release for $GITHUB_SHA."
+              --target "$RELEASE_SHA" --title "Artemis $RELEASE_TAG" \
+              --draft --notes "Private staging release for $RELEASE_SHA."
           fi
 
   sign-macos:
@@ -97,6 +126,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
 
       - name: Verify native runner architecture
         shell: bash
@@ -143,6 +174,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -241,6 +274,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -275,6 +310,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
 
       - name: Download verified release artifacts
         env:
@@ -308,6 +345,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         shell: bash
         run: |
           cat > "$RUNNER_TEMP/artemis-release-notes.md" <<EOF
@@ -316,7 +354,7 @@ jobs:
 
           Windows：将 ZIP 解压到新文件夹，退出旧版后再启动新版。保留用户数据，不要删除 %APPDATA% 中的 Artemis 文件夹。
 
-          源码版本：\`$GITHUB_SHA\`。
+          源码版本：\`$RELEASE_SHA\`。
           EOF
           node scripts/verify-slack-cli.mjs
           gh release upload "$RELEASE_TAG" release-assets/release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
