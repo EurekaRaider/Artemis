@@ -43,9 +43,15 @@ async function runFixture(results) {
   const stderr = [];
   const stdout = [];
   const status = await runProductionAudit({
-    run: (_command, arguments_, options) => {
+    command: "node.exe",
+    npmCliPath: "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+    run: (command, arguments_, options) => {
       calls += 1;
-      assert.deepEqual(arguments_, auditArguments);
+      assert.equal(command, "node.exe");
+      assert.deepEqual(arguments_, [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        ...auditArguments,
+      ]);
       assert.equal(options.timeout, 315_000);
       return results[Math.min(calls - 1, results.length - 1)];
     },

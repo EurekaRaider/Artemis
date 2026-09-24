@@ -44,14 +44,19 @@ const delay = (milliseconds) =>
 
 export async function runProductionAudit({
   attempts = maximumAttempts,
-  command = process.platform === "win32" ? "npm.cmd" : "npm",
+  command = process.execPath,
+  npmCliPath = process.env.npm_execpath,
   run = spawnSync,
   wait = delay,
   writeStderr = (value) => process.stderr.write(value),
   writeStdout = (value) => process.stdout.write(value),
 } = {}) {
+  if (!npmCliPath) {
+    writeStderr("Production dependency audit requires npm_execpath.\n");
+    return 1;
+  }
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const result = run(command, auditArguments, {
+    const result = run(command, [npmCliPath, ...auditArguments], {
       encoding: "utf8",
       maxBuffer: 10 * 1024 * 1024,
       timeout: fetchTimeoutMs + 15_000,
