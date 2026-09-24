@@ -24,6 +24,26 @@ function model(
 }
 
 describe("visible model catalog", () => {
+  it("keeps previously added DeepSeek IDs visible with current Flash capabilities", async () => {
+    const models = filterVisibleModels(await loadBundledModelCatalog());
+    for (const modelId of [
+      "deepseek-v4-flash",
+      "deepseek-v4-flash-vision-exp",
+    ]) {
+      expect(
+        models.find(
+          (model) =>
+            model.providerId === "deepseek" && model.modelId === modelId,
+        ),
+      ).toMatchObject({
+        name: `DeepSeek V4.1 Flash (${modelId})`,
+        contextWindow: 1_000_000,
+        reasoning: true,
+        thinkingLevels: ["off", "low", "high", "max"],
+      });
+    }
+  });
+
   it("uses the configured custom-model reasoning ceiling with a high default", () => {
     expect(customModelThinkingLevels({ reasoning: true })).toEqual([
       "off",

@@ -7,6 +7,21 @@ import {
 } from "../src/builtin-models.js";
 
 describe("Artemis built-in model additions", () => {
+  it("keeps saved DeepSeek Flash aliases callable after catalog upgrades", async () => {
+    const runtime = await ModelRuntime.create({
+      modelsPath: null,
+      allowModelNetwork: false,
+    });
+    registerArtemisBuiltinModels(runtime);
+    registerArtemisBuiltinModels(runtime);
+    const models = runtime.getModels("deepseek");
+    const current = models.find((model) => model.id === "deepseek-flash")!;
+    for (const id of ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]) {
+      expect(models.filter((model) => model.id === id)).toEqual([
+        { ...current, id, name: `${current.name} (${id})` },
+      ]);
+    }
+  });
   it("registers GLM-5.3-Flash as a callable multimodal Z.AI model", async () => {
     const runtime = await ModelRuntime.create({
       modelsPath: null,

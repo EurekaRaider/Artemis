@@ -13,6 +13,16 @@ export function withArtemisBuiltinModels(
   providerId: string,
   models: readonly Model<Api>[],
 ): readonly Model<Api>[] {
+  // DeepSeek still accepts these saved IDs, but Pi now lists only deepseek-flash.
+  // Keep aliases in both the settings catalog and the callable runtime registry.
+  if (providerId === "deepseek") {
+    const base = models.find((model) => model.id === "deepseek-flash");
+    if (!base) return models;
+    const aliases = ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]
+      .filter((id) => !models.some((model) => model.id === id))
+      .map((id) => ({ ...base, id, name: `${base.name} (${id})` }));
+    return aliases.length ? [...models, ...aliases] : models;
+  }
   if (
     !GLM_5_3_FLASH_PROVIDER_IDS.some((candidate) => candidate === providerId) ||
     models.some((model) => model.id === GLM_5_3_FLASH_MODEL_ID)
@@ -68,7 +78,7 @@ function providerWithArtemisBuiltinModels(provider: Provider): Provider {
 export function registerArtemisBuiltinModels(
   runtime: Pick<ModelRuntime, "getProvider" | "registerNativeProvider">,
 ): void {
-  for (const providerId of GLM_5_3_FLASH_PROVIDER_IDS) {
+  for (const providerId of [...GLM_5_3_FLASH_PROVIDER_IDS, "deepseek"]) {
     const provider = runtime.getProvider(providerId);
     if (!provider) continue;
     const models = provider.getModels();
