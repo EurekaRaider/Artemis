@@ -814,6 +814,7 @@ export function SearchField({
 }
 
 export interface SelectOption<Value extends string> {
+  readonly title?: string | undefined;
   readonly value: Value;
   readonly label: string;
   readonly searchText?: string | undefined;
@@ -1269,6 +1270,7 @@ export function Select<Value extends string>({
                       if (enabledIndex >= 0) setActiveIndex(enabledIndex);
                     }}
                     role="option"
+                    title={option.title}
                   >
                     <span aria-hidden="true" data-part="check">
                       {option.value === value ? "✓" : ""}

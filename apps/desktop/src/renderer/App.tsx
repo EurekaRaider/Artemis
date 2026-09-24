@@ -3027,6 +3027,17 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    // History capability icons need plugin metadata before the skill menu opens.
+    void window.artemis
+      .listCodexPlugins()
+      .then((plugins) => {
+        if (mounted) setInstalledPlugins(plugins);
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      });
     performance.mark?.("artemis:snapshot-request");
     void window.artemis.getSnapshot().then((value) => {
       if (!mounted) return;
@@ -8361,6 +8372,8 @@ export function App() {
                                                 void switchComposerModel(model)
                                               }
                                               role="menuitemradio"
+                                              title={`${model.name}
+${model.providerId} · ${model.modelId}`}
                                               type="button"
                                             >
                                               <span>

@@ -347,6 +347,8 @@ export function SettingsPanel({
         value: modelKey(model.providerId, model.modelId),
         label,
         searchText: `${model.providerId} ${model.name} ${model.modelId}`,
+        title: `${model.name}
+${model.providerId} · ${model.modelId}`,
       };
     });
   }, [models]);
@@ -972,6 +974,7 @@ export function SettingsPanel({
                           }
                           onValueChange={selectModel}
                           noResultsLabel={t.modelSearchEmpty}
+                          className="model-catalog-select"
                           options={modelOptions}
                           searchPlaceholder={t.modelSearch}
                           value={selectedModel}

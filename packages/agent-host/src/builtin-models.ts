@@ -20,7 +20,11 @@ export function withArtemisBuiltinModels(
     if (!base) return models;
     const aliases = ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]
       .filter((id) => !models.some((model) => model.id === id))
-      .map((id) => ({ ...base, id, name: `${base.name} (${id})` }));
+      .map((id) => ({
+        ...base,
+        id,
+        name: `${base.name} (${id === "deepseek-v4-flash" ? "V4 alias" : "Vision alias"})`,
+      }));
     return aliases.length ? [...models, ...aliases] : models;
   }
   if (

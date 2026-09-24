@@ -18,7 +18,11 @@ describe("Artemis built-in model additions", () => {
     const current = models.find((model) => model.id === "deepseek-flash")!;
     for (const id of ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]) {
       expect(models.filter((model) => model.id === id)).toEqual([
-        { ...current, id, name: `${current.name} (${id})` },
+        {
+          ...current,
+          id,
+          name: `${current.name} (${id === "deepseek-v4-flash" ? "V4 alias" : "Vision alias"})`,
+        },
       ]);
     }
   });

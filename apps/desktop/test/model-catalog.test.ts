@@ -36,7 +36,7 @@ describe("visible model catalog", () => {
             model.providerId === "deepseek" && model.modelId === modelId,
         ),
       ).toMatchObject({
-        name: `DeepSeek V4.1 Flash (${modelId})`,
+        name: `DeepSeek V4.1 Flash (${modelId === "deepseek-v4-flash" ? "V4 alias" : "Vision alias"})`,
         contextWindow: 1_000_000,
         reasoning: true,
         thinkingLevels: ["off", "low", "high", "max"],

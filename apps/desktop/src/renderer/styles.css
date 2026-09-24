@@ -5806,7 +5806,20 @@ button.environment-row:disabled {
   outline: 0;
 }
 
+/* Keep long model labels inside their option's highlight. */
+.model-catalog-select [data-part="option"] > span:last-child,
+.model-picker-options > button > span {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.model-catalog-select [data-part="option"] > span:last-child {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .model-picker-options > button strong {
+  display: block;
   font-size: var(--composer-menu-label-size);
   font-weight: 480;
   overflow: hidden;
