@@ -1,12 +1,16 @@
 import { mkdtemp, mkdir, realpath, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { verifyPackagedSlackCli } from "../../../scripts/slack-cli-package.mjs";
 import { verifyPackagedSlackCliCompatibility } from "../../../scripts/slack-cli-native-compatibility.mjs";
+import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs";
 
 import { spawn as spawnPty } from "node-pty";
 import { buildSeatbeltLaunch } from "../../../packages/platform/dist/index.js";
+
+const require = createRequire(import.meta.url);
 
 if (process.platform !== "darwin") {
   throw new Error("macOS native verification must run on a real macOS host");
@@ -132,6 +136,9 @@ try {
       cwd: workspacePath,
     },
     { workspacePath, mode: "execute", network: "deny" },
+  );
+  await ensureNodePtySpawnHelpersExecutable(
+    dirname(dirname(require.resolve("node-pty"))),
   );
   const ptyOutput = await new Promise((resolvePromise, reject) => {
     const pty = spawnPty(ptyLaunch.executable, ptyLaunch.args, {

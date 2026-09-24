@@ -323,22 +323,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ARTEMIS_REQUIRE_SIGNATURE: "0"
-      - name: Upload verified Windows ZIP
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
+      - name: Prepare verified Windows ZIP for transfer
         shell: pwsh
         run: |
-          $version = node -p "require('./package.json').version"
-          $zip = "apps/desktop/release/Artemis-Windows-x64-$version.zip"
           Copy-Item apps/desktop/release/release-manifest.json apps/desktop/release/release-manifest-windows-x64.json
-          gh release upload $env:RELEASE_TAG $zip apps/desktop/release/release-manifest-windows-x64.json --repo $env:GITHUB_REPOSITORY --clobber
+      - name: Transfer verified Windows ZIP to publish job
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-windows-x64
+          path: |
+            apps/desktop/release/Artemis-Windows-x64-*.zip
+            apps/desktop/release/release-manifest-windows-x64.json
+          if-no-files-found: error
+          compression-level: 0
 
   publish:
     name: Publish to private Artemis Release
     needs: [package-macos, package-windows]
     if: always() && needs.package-macos.result == 'success' && needs.package-windows.result == 'success'
     permissions:
+      actions: read
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 15
@@ -354,14 +358,18 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
-          mkdir -p release-inputs/release-macos-arm64 release-inputs/release-windows-x64
+          mkdir -p release-inputs/release-macos-arm64
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern 'Artemis-macOS-arm64-*' --pattern '*-mac.yml' \
             --pattern release-manifest-macos-arm64.json --dir release-inputs/release-macos-arm64
           mv release-inputs/release-macos-arm64/release-manifest-macos-arm64.json release-inputs/release-macos-arm64/release-manifest.json
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'Artemis-Windows-x64-*' --pattern release-manifest-windows-x64.json \
-            --dir release-inputs/release-windows-x64
+      - name: Download verified Windows ZIP from this workflow run
+        uses: actions/download-artifact@v6
+        with:
+          name: release-windows-x64
+          path: release-inputs/release-windows-x64
+      - name: Normalize Windows manifest filename
+        run: |
           mv release-inputs/release-windows-x64/release-manifest-windows-x64.json release-inputs/release-windows-x64/release-manifest.json
 
       - name: Set up Node.js 26
@@ -392,9 +400,9 @@ jobs:
           源码版本：\`$RELEASE_SHA\`。
           EOF
           node scripts/verify-slack-cli.mjs
+          gh release upload "$RELEASE_TAG" release-assets/Artemis-Windows-x64-*.zip --repo "$GITHUB_REPOSITORY" --clobber
           gh release upload "$RELEASE_TAG" release-assets/release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
           gh release delete-asset "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --yes
           gh release delete-asset "$RELEASE_TAG" notarization-mac-arm64.json --repo "$GITHUB_REPOSITORY" --yes
           gh release delete-asset "$RELEASE_TAG" release-manifest-macos-arm64.json --repo "$GITHUB_REPOSITORY" --yes
-          gh release delete-asset "$RELEASE_TAG" release-manifest-windows-x64.json --repo "$GITHUB_REPOSITORY" --yes
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
