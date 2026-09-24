@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -64,8 +64,8 @@ if (!architectures.split(/\s+/u).includes(process.arch)) {
   throw new Error(`Packaged app does not contain ${process.arch}`);
 }
 
-const temporaryRoot = await mkdtemp(
-  join(tmpdir(), "artemis-native-validation-"),
+const temporaryRoot = await realpath(
+  await mkdtemp(join(tmpdir(), "artemis-native-validation-")),
 );
 try {
   const workspacePath = join(temporaryRoot, "workspace");
