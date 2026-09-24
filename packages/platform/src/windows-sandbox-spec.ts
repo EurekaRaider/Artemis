@@ -29,8 +29,12 @@ export function encodeWindowsSandboxSpecification(
   const capabilities = input.allowNetwork
     ? builder.createString("internetClient")
     : 0;
-  const writablePaths = createStringVector(builder, input.writablePaths);
-  const readOnlyPaths = createStringVector(builder, input.readOnlyPaths);
+  const writablePaths = input.writablePaths.length
+    ? createStringVector(builder, input.writablePaths)
+    : 0;
+  const readOnlyPaths = input.readOnlyPaths.length
+    ? createStringVector(builder, input.readOnlyPaths)
+    : 0;
 
   builder.startObject(9);
   builder.addFieldOffset(0, version, 0);
@@ -39,8 +43,8 @@ export function encodeWindowsSandboxSpecification(
   if (capabilities !== 0) {
     builder.addFieldOffset(5, capabilities, 0);
   }
-  builder.addFieldOffset(6, writablePaths, 0);
-  builder.addFieldOffset(7, readOnlyPaths, 0);
+  if (writablePaths) builder.addFieldOffset(6, writablePaths, 0);
+  if (readOnlyPaths) builder.addFieldOffset(7, readOnlyPaths, 0);
   const root = builder.endObject();
   builder.finish(root, "SBOX");
 

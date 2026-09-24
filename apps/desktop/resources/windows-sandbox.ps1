@@ -512,6 +512,14 @@ public static class ArtemisNativeSandbox
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetThreadDesktop(uint threadId);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetUserObjectInformation(
+        IntPtr handle,
+        int index,
+        StringBuilder value,
+        uint length,
+        out uint needed);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetUserObjectSecurity(
         IntPtr handle,
@@ -538,6 +546,16 @@ public static class ArtemisNativeSandbox
         throw new InvalidOperationException(
             operation + " failed: " + error + " (" +
             new Win32Exception(error).Message + ")");
+    }
+
+    private static string UserObjectName(IntPtr handle)
+    {
+        var name = new StringBuilder(256);
+        uint needed;
+        if (!GetUserObjectInformation(
+            handle, 2, name, (uint)(name.Capacity * 2), out needed))
+            ThrowLastError("GetUserObjectInformation(name)");
+        return name.ToString();
     }
 
     private static void UpdateSessionObjectAccess(
@@ -612,6 +630,7 @@ public static class ArtemisNativeSandbox
         private readonly IntPtr station;
         private readonly IntPtr desktop;
         private readonly SecurityIdentifier sid;
+        public readonly string Name;
         private bool stationGranted;
         private bool desktopGranted;
 
@@ -622,6 +641,8 @@ public static class ArtemisNativeSandbox
             desktop = GetThreadDesktop(GetCurrentThreadId());
             if (station == IntPtr.Zero || desktop == IntPtr.Zero)
                 ThrowLastError("GetProcessWindowStation/GetThreadDesktop");
+            Name = UserObjectName(station) + "\\" +
+                UserObjectName(desktop);
             UpdateSessionObjectAccess(
                 station, sid, WINSTA_SANDBOX_ACCESS, true);
             stationGranted = true;
@@ -929,6 +950,7 @@ public static class ArtemisNativeSandbox
                     Marshal.ThrowExceptionForHR(hr);
                 sessionDesktop = GrantServiceDesktop(
                     new SecurityIdentifier(sessionSid));
+                startup.lpDesktop = sessionDesktop.Name;
             }
             if (!createProcess(
                 executable,
@@ -1218,6 +1240,8 @@ public static class ArtemisNativeSandbox
                 standardOutput;
             startup.StartupInfo.hStdError =
                 standardError;
+            if (sessionDesktop != null)
+                startup.StartupInfo.lpDesktop = sessionDesktop.Name;
             startup.AttributeList = attributeList;
 
             var commandLine = new StringBuilder(Quote(executable));

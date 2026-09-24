@@ -16,6 +16,13 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
+      - name: Record native host version
+        shell: pwsh
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "Windows: $($os.Caption) $($os.Version)"
+          $runnerProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+          Write-Host "Session: $($runnerProcess.SessionId)"
       - run: node scripts/normalize-windows-checkout.mjs
       - run: npm ci
       - run: npm run build:core
