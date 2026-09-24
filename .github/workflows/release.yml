@@ -72,9 +72,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          existing="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '[.target_commitish, (.draft | tostring)] | join(" ")' 2>/dev/null || true)"
+          existing="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json targetCommitish,isDraft \
+            --jq '[.targetCommitish, (.isDraft | tostring)] | join(" ")' 2>/dev/null || true)"
           if [[ -n "$existing" ]]; then
-            test "$existing" = "$GITHUB_SHA true"
+            if [[ "$existing" != "$GITHUB_SHA true" ]]; then
+              echo "Existing release must be a draft for this exact commit: $existing" >&2
+              exit 1
+            fi
           else
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" --title "Artemis $RELEASE_TAG" \
