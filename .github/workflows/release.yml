@@ -34,6 +34,9 @@ jobs:
     if: github.event.repository.private
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
 
     steps:
       - name: Check out repository
@@ -196,8 +199,8 @@ jobs:
 
   package-macos:
     name: Notarize and verify macOS arm64
-    needs: sign-macos
-    if: always() && (needs.sign-macos.result == 'success' || (inputs.reuse_signed_macos_run_id != '' && needs.sign-macos.result == 'skipped'))
+    needs: [stage-release, sign-macos]
+    if: always() && needs.stage-release.result == 'success' && (needs.sign-macos.result == 'success' || (inputs.reuse_signed_macos_run_id != '' && needs.sign-macos.result == 'skipped'))
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 120
     permissions:
