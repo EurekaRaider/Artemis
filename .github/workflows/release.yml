@@ -118,6 +118,7 @@ jobs:
   sign-macos:
     name: Build and sign macOS arm64
     needs: stage-release
+    if: always() && needs.stage-release.result == 'success'
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 180
     permissions:
@@ -168,6 +169,7 @@ jobs:
   package-macos:
     name: Notarize and verify macOS arm64
     needs: sign-macos
+    if: always() && needs.sign-macos.result == 'success'
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 120
     permissions:
@@ -268,6 +270,7 @@ jobs:
   package-windows:
     name: Package and verify Windows x64 ZIP
     needs: stage-release
+    if: always() && needs.stage-release.result == 'success'
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 90
     permissions:
@@ -303,6 +306,7 @@ jobs:
   publish:
     name: Publish to private Artemis Release
     needs: [package-macos, package-windows]
+    if: always() && needs.package-macos.result == 'success' && needs.package-windows.result == 'success'
     permissions:
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
