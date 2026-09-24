@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.1** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.2** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases).
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -362,15 +362,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.1` local packaging configuration produces:
+The `1.6.2` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.1.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.1.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.1.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.2.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.2.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.2.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.1`, and
+Releases are started manually through **Release**, using tag `v1.6.2`, and
 published only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -388,8 +388,18 @@ users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source, so these private CD releases do not
 notify ordinary users. No private repository token is bundled in the app.
 
-Version 1.6.1 also repairs tool-call/result pairing in model request history and
-adds proxy support, bounded retries and safer redirect handling to web search.
+Version 1.6.2 fixes MCP switches to reflect saved enablement independently of
+connection health. Each server has its own pending toggle state, and connection
+changes and failure details appear in the resource list. Closed workspace MCP
+connections are recreated on the next tool call; **Test connection** reconnects
+an existing server without creating a new task.
+
+The MCP editor now supports encrypted environment variables alongside ordinary
+values and environment passthrough. Secret values are stored using OS encryption
+and kept out of `mcp.json`; leaving an existing secret value blank preserves it.
+macOS stdio servers retain private writable HOME, temporary and npm cache
+folders. The search proxy, bounded retry and restricted redirect handling from
+1.6.1 remain in place.
 
 ### Platform support
 

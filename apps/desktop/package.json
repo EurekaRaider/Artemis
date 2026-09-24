@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -50,13 +50,13 @@
     "release:mac:x64": "node scripts/package-mac-lite.mjs x64 --release"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.6.1",
-    "@artemis/gateway": "1.6.1",
-    "@artemis/platform": "1.6.1",
-    "@artemis/protocol": "1.6.1",
-    "@artemis/theme-artemis": "1.6.1",
-    "@artemis/theme-contract": "1.6.1",
-    "@artemis/ui": "1.6.1",
+    "@artemis/agent-host": "1.6.2",
+    "@artemis/gateway": "1.6.2",
+    "@artemis/platform": "1.6.2",
+    "@artemis/protocol": "1.6.2",
+    "@artemis/theme-artemis": "1.6.2",
+    "@artemis/theme-contract": "1.6.2",
+    "@artemis/ui": "1.6.2",
     "@earendil-works/pi-ai": "0.87.1",
     "@earendil-works/pi-coding-agent": "0.87.1",
     "@js-temporal/polyfill": "^0.5.1",
