@@ -19,6 +19,10 @@ on:
         description: "复用此发布运行中已签名的 macOS 应用，重新执行公证和验证"
         required: false
         type: string
+      reuse_verified_macos_run_id:
+        description: "复用此发布运行中已公证和验证的 macOS 最终产物"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -83,6 +87,25 @@ jobs:
           assets="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
           grep -Fxq signed-macos-arm64.tar.gz <<< "$assets"
 
+      - name: Verify completed macOS package before reusing it
+        if: inputs.reuse_verified_macos_run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MACOS_RUN_ID: ${{ inputs.reuse_verified_macos_run_id }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+        run: |
+          [[ "$MACOS_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          verified="$(gh run view "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json headSha,workflowName,jobs \
+            --jq '[.headSha, .workflowName, ([.jobs[] | select(.name == "Notarize and verify macOS arm64" and .conclusion == "success")] | length)] | join(" ")')"
+          read -r mac_sha workflow_name job_count <<< "$verified"
+          test "$workflow_name $job_count" = "Release 1"
+          git merge-base --is-ancestor "$mac_sha" "$RELEASE_SHA"
+          while IFS= read -r changed; do
+            test "$changed" = .github/workflows/release.yml || exit 1
+          done < <(git diff --name-only "$mac_sha" "$RELEASE_SHA")
+
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -121,6 +144,8 @@ jobs:
     needs: [prepare, ci]
     if: always() && needs.prepare.result == 'success' && (needs.ci.result == 'success' || (inputs.release_sha != '' && needs.ci.result == 'skipped'))
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    outputs:
+      release-id: ${{ steps.metadata.outputs.release-id }}
     permissions:
       contents: write
     timeout-minutes: 10
@@ -145,6 +170,18 @@ jobs:
               --target "$RELEASE_SHA" --title "Artemis $RELEASE_TAG" \
               --draft --notes "Private staging release for $RELEASE_SHA."
           fi
+      - name: Provide draft Release ID to Windows runner
+        id: metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+        run: |
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$RELEASE_TAG\" and .draft and .target_commitish == \"$RELEASE_SHA\") | .id")"
+          [[ "$release_id" =~ ^[0-9]+$ ]] || exit 1
+          echo "release-id=$release_id" >> "$GITHUB_OUTPUT"
 
   sign-macos:
     name: Build and sign macOS arm64
@@ -200,7 +237,7 @@ jobs:
   package-macos:
     name: Notarize and verify macOS arm64
     needs: [stage-release, sign-macos]
-    if: always() && needs.stage-release.result == 'success' && (needs.sign-macos.result == 'success' || (inputs.reuse_signed_macos_run_id != '' && needs.sign-macos.result == 'skipped'))
+    if: always() && needs.stage-release.result == 'success' && inputs.reuse_verified_macos_run_id == '' && (needs.sign-macos.result == 'success' || (inputs.reuse_signed_macos_run_id != '' && needs.sign-macos.result == 'skipped'))
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
     timeout-minutes: 120
     permissions:
@@ -329,6 +366,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+          RELEASE_ID: ${{ needs.stage-release.outputs.release-id }}
         run: |
           $ErrorActionPreference = 'Stop'
           $version = node -p "require('./package.json').version"
@@ -341,11 +379,9 @@ jobs:
             'X-GitHub-Api-Version' = '2022-11-28'
           }
           $repositoryUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
-          $releases = @(Invoke-RestMethod -Method Get -Uri "$repositoryUri/releases?per_page=100" -Headers $headers)
-          $matches = @($releases | Where-Object { $_.tag_name -ceq $env:RELEASE_TAG })
-          if ($matches.Count -ne 1) { throw "Expected one private draft for $env:RELEASE_TAG, found $($matches.Count)" }
-          $release = $matches[0]
-          if (-not $release.draft -or $release.target_commitish -cne $env:RELEASE_SHA) {
+          if ($env:RELEASE_ID -notmatch '^[0-9]+$') { throw 'Draft Release ID is missing' }
+          $release = Invoke-RestMethod -Method Get -Uri "$repositoryUri/releases/$env:RELEASE_ID" -Headers $headers
+          if ($release.tag_name -cne $env:RELEASE_TAG -or -not $release.draft -or $release.target_commitish -cne $env:RELEASE_SHA) {
             throw "Release draft does not target $env:RELEASE_SHA"
           }
           $uploadUrl = $release.upload_url -replace '\{.*$', ''
@@ -368,7 +404,7 @@ jobs:
   publish:
     name: Publish to private Artemis Release
     needs: [package-macos, package-windows]
-    if: always() && needs.package-macos.result == 'success' && needs.package-windows.result == 'success'
+    if: always() && (needs.package-macos.result == 'success' || (inputs.reuse_verified_macos_run_id != '' && needs.package-macos.result == 'skipped')) && needs.package-windows.result == 'success'
     permissions:
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
