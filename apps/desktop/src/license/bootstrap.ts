@@ -1,3 +1,4 @@
+import { ensureWindowsPackageAccess } from "../main/windows-package-access.js";
 import {
   app,
   BrowserWindow,
@@ -8,7 +9,7 @@ import {
   protocol,
   safeStorage,
 } from "electron";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import publicKeys from "../../license-public-keys.json";
 import { readDeviceCode } from "./device.js";
@@ -46,6 +47,17 @@ else
   void app
     .whenReady()
     .then(async () => {
+      if (app.isPackaged && process.platform === "win32") {
+        await ensureWindowsPackageAccess({
+          applicationRoot: dirname(process.execPath),
+          applicationVersion: app.getVersion(),
+          markerPath: join(
+            app.getPath("userData"),
+            "windows-package-access.json",
+          ),
+        });
+      }
+
       let licenseWindow: BrowserWindow | undefined;
       let running = false;
       let restarting = false;

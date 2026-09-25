@@ -1,7 +1,8 @@
+import { verifyPackagedLicense } from "./verify-packaged-license.mjs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { verifyPackagedSlackCli } from "../../../scripts/slack-cli-package.mjs";
@@ -220,26 +221,14 @@ try {
   async function smokeExecutable(path, name) {
     const screenshotPath = join(temporaryDirectory, `${name}.png`);
     const userDataPath = join(temporaryDirectory, `${name}-user-data`);
-    run(path, [`--user-data-dir=${userDataPath}`], {
-      cwd: dirname(path),
-      env: {
-        ...process.env,
-        ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
-      },
-      timeout: 45_000,
-    });
-    const screenshot = await readFile(screenshotPath);
-    if ((await stat(screenshotPath)).size < 10_000) {
-      throw new Error("Packaged renderer screenshot is unexpectedly small");
-    }
-    return createHash("sha256").update(screenshot).digest("hex");
+    return verifyPackagedLicense(path, userDataPath, screenshotPath);
   }
 
-  const unpackedScreenshotSha256 = await smokeExecutable(
+  const unpackedActivation = await smokeExecutable(
     unpackedExecutablePath,
     "win-unpacked",
   );
-  const extractedScreenshotSha256 = await smokeExecutable(
+  const extractedActivation = await smokeExecutable(
     extractedExecutablePath,
     "zip-extracted",
   );
@@ -258,8 +247,8 @@ try {
         signature,
         bundledPlugins: ["documents", "pdf", "presentations", "spreadsheets"],
         externalDocumentToolchainEmbedded: false,
-        unpackedScreenshotSha256,
-        extractedScreenshotSha256,
+        unpackedActivation,
+        extractedActivation,
         zipSmoke: true,
         appContainerAcl: true,
       },

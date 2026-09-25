@@ -311,7 +311,6 @@ import { ReleaseUpdateManager } from "./release-update-manager.js";
 import { TrustedExtensionManager } from "./trusted-extension-manager.js";
 import { TrustedExtensionStore } from "./trusted-extension-store.js";
 import { UpdateRecoveryStore } from "./update-recovery-store.js";
-import { ensureWindowsPackageAccess } from "./windows-package-access.js";
 import {
   listWorkspaceDirectory,
   readWorkspaceFile,
@@ -21171,16 +21170,6 @@ app
   .then(async () => {
     markStartupStage("app-ready");
     applyMacDockIcon();
-    if (app.isPackaged && process.platform === "win32") {
-      await ensureWindowsPackageAccess({
-        applicationRoot: dirname(process.execPath),
-        applicationVersion: app.getVersion(),
-        markerPath: join(
-          app.getPath("userData"),
-          "windows-package-access.json",
-        ),
-      });
-    }
     const platform = getPlatformContract();
     if (!platform.supported) {
       dialog.showErrorBox(

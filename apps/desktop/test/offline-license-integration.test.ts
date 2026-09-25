@@ -171,6 +171,10 @@ describe("issuer, persistence and runtime authorization", () => {
       new URL("../src/license/bootstrap.ts", import.meta.url),
       "utf8",
     );
+    expect(bootstrap.indexOf("await ensureWindowsPackageAccess(")).toBeLessThan(
+      bootstrap.indexOf("new LicenseService("),
+    );
+    expect(source).not.toContain("await ensureWindowsPackageAccess(");
     expect(bootstrap.indexOf("service.assertValid()")).toBeLessThan(
       bootstrap.indexOf('import("../main/main.js")'),
     );
