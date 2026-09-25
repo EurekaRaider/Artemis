@@ -408,7 +408,7 @@ jobs:
     permissions:
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
