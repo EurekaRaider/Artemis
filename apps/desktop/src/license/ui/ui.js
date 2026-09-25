@@ -17,6 +17,11 @@ const localeNames = {
   id: "Bahasa Indonesia",
 };
 function resolveLocale(value) {
+  value = (value ?? "").trim().replaceAll("_", "-");
+  value =
+    Object.keys(messages).find(
+      (key) => key.toLowerCase() === value.toLowerCase(),
+    ) ?? value.toLowerCase();
   if (messages[value]) return value;
   if (/^zh-(TW|HK|MO|Hant)/i.test(value)) return "zh-TW";
   if (/^zh\b/i.test(value)) return "zh-CN";
@@ -29,7 +34,10 @@ try {
 } catch {
   /* System language remains available when storage is disabled. */
 }
-let locale = resolveLocale(saved || navigator.language);
+const systemLanguage = new URLSearchParams(location.search).get(
+  "systemLanguage",
+);
+let locale = resolveLocale(saved || systemLanguage || "en");
 let current;
 let statusKey = "loading";
 function render() {

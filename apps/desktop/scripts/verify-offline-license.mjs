@@ -65,6 +65,7 @@ import { readDeviceCode } from ${JSON.stringify(join(desktop, "src/license/devic
 import { protectedLicenseStorage } from ${JSON.stringify(join(desktop, "src/license/storage.ts"))};
 app.setPath("userData", ${JSON.stringify(join(stage, "profile"))});
 app.relaunch = () => {};
+app.getPreferredSystemLanguages = () => ${JSON.stringify(process.argv.includes("--unsupported-language") ? ["nl-NL", "ja-JP"] : ["ja-JP", "en-US"])};
 const proof = { storage: "ephemeral-aes-fixture", mode: ${JSON.stringify(mode)}, locked: false, invalidRejected: false, entered: false, expired: false };
 const deadline = setTimeout(() => { writeFileSync(${JSON.stringify(report)}, JSON.stringify(proof)); app.exit(2); }, 60000);
 let issuedAt = 0;
@@ -74,6 +75,8 @@ app.on("browser-window-created", (_event, window) => {
       const initial = await window.webContents.executeJavaScript("window.license.status()");
       if (initial.state !== "unlicensed") throw new Error("Expected locked startup: " + initial.state);
       proof.locked = true;
+      proof.defaultLanguage = await window.webContents.executeJavaScript("document.documentElement.lang");
+      if (proof.defaultLanguage !== ${JSON.stringify(process.argv.includes("--unsupported-language") ? "en" : "ja")}) throw new Error("Incorrect OS language default: " + proof.defaultLanguage);
       proof.languages = await window.webContents.executeJavaScript("(async () => { const selector = document.getElementById('language'); const locales = Array.from(selector.options, option => option.value); if (locales.length !== 14) throw new Error('Missing activation languages'); for (const locale of locales) { selector.value = locale; selector.dispatchEvent(new Event('change')); if (document.documentElement.lang !== locale || !document.querySelector('h1').textContent) throw new Error('Language switch failed'); } selector.value = 'en'; selector.dispatchEvent(new Event('change')); return locales; })()");
       proof.invalidRejected = await window.webContents.executeJavaScript("window.license.activate('invalid').then(() => false, () => true)");
       await window.webContents.executeJavaScript("(async () => { await document.fonts.ready; await new Promise(requestAnimationFrame); document.getElementById('device').value = 'AM1-' + '0'.repeat(64); await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); })()");

@@ -9,9 +9,9 @@ const script = readFileSync(new URL("ui.js", directory), "utf8").replace(
   'import { messages } from "./locales.js";',
   `const messages = ${JSON.stringify(messages)};`,
 );
-async function page(saved?: string) {
+async function page(saved?: string, systemLanguage = "en-US") {
   const dom = new JSDOM(html, {
-    url: "https://license.test",
+    url: `https://license.test?systemLanguage=${encodeURIComponent(systemLanguage)}`,
     runScripts: "outside-only",
   });
   const window = dom.window;
@@ -35,6 +35,47 @@ async function page(saved?: string) {
   return dom;
 }
 describe("offline activation language selection", () => {
+  it.each([
+    ["en-GB", "en"],
+    ["zh-Hans-CN", "zh-CN"],
+    ["zh-Hant-HK", "zh-TW"],
+    ["ja-JP", "ja"],
+    ["ko-KR", "ko"],
+    ["es-419", "es"],
+    ["fr-CA", "fr"],
+    ["de-DE", "de"],
+    ["pt-PT", "pt-BR"],
+    ["it-IT", "it"],
+    ["ru-RU", "ru"],
+    ["ar-SA", "ar"],
+    ["hi-IN", "hi"],
+    ["id-ID", "id"],
+    ["nl-NL", "en"],
+    ["", "en"],
+    ["FR_ca", "fr"],
+  ])(
+    "defaults OS language %s to %s even when Chromium uses English",
+    async (systemLanguage, expected) => {
+      const dom = await page(undefined, systemLanguage);
+      try {
+        expect(dom.window.document.documentElement.lang).toBe(expected);
+        expect(
+          dom.window.document.querySelector<HTMLSelectElement>("#language")!
+            .value,
+        ).toBe(expected);
+      } finally {
+        dom.window.close();
+      }
+    },
+  );
+  it("keeps a manually saved choice ahead of the OS default", async () => {
+    const dom = await page("de", "ja-JP");
+    try {
+      expect(dom.window.document.documentElement.lang).toBe("de");
+    } finally {
+      dom.window.close();
+    }
+  });
   it("translates every supported language, errors, dates and title without losing user input", async () => {
     const dom = await page("zh-CN");
     try {

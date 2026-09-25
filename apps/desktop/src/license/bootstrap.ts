@@ -238,7 +238,8 @@ else
           height: 660,
           minWidth: 480,
           minHeight: 560,
-          title: "Artemis · 离线激活",
+          title: "Artemis",
+          show: false,
           autoHideMenuBar: true,
           webPreferences: {
             preload: join(import.meta.dirname, "license-preload.cjs"),
@@ -254,11 +255,17 @@ else
         licenseWindow.webContents.on("will-navigate", (event) =>
           event.preventDefault(),
         );
+        licenseWindow.once("ready-to-show", () => licenseWindow?.show());
         licenseWindow.on("closed", () => {
           if (!running) app.quit();
         });
         await licenseWindow.loadFile(
           join(import.meta.dirname, "license-ui", "index.html"),
+          {
+            query: {
+              systemLanguage: app.getPreferredSystemLanguages()[0] ?? "en",
+            },
+          },
         );
       }
     })
