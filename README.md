@@ -387,7 +387,8 @@ Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
 
-Version 1.6.4 adds offline device-bound licensing. The private license issuer is
+Version 1.6.4 adds offline device-bound licensing with a persistent 14-language
+activation-page selector. The private license issuer is
 never included in client packages or public release assets. See the
 [offline licensing guide](docs/offline-licensing.md).
 

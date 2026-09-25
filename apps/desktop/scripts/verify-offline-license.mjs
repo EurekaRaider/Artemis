@@ -64,6 +64,7 @@ app.on("browser-window-created", (_event, window) => {
       const initial = await window.webContents.executeJavaScript("window.license.status()");
       if (initial.state !== "unlicensed") throw new Error("Expected locked startup: " + initial.state);
       proof.locked = true;
+      proof.languages = await window.webContents.executeJavaScript("(async () => { const selector = document.getElementById('language'); const locales = Array.from(selector.options, option => option.value); if (locales.length !== 14) throw new Error('Missing activation languages'); for (const locale of locales) { selector.value = locale; selector.dispatchEvent(new Event('change')); if (document.documentElement.lang !== locale || !document.querySelector('h1').textContent) throw new Error('Language switch failed'); } selector.value = 'en'; selector.dispatchEvent(new Event('change')); return locales; })()");
       proof.invalidRejected = await window.webContents.executeJavaScript("window.license.activate('invalid').then(() => false, () => true)");
       await window.webContents.executeJavaScript("(async () => { await document.fonts.ready; await new Promise(requestAnimationFrame); document.getElementById('device').value = 'AM1-' + '0'.repeat(64); await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); })()");
       const image = await window.webContents.capturePage();

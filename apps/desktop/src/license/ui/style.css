@@ -127,3 +127,48 @@ code {
 p {
   overflow-wrap: anywhere;
 }
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+header .brand {
+  margin: 0;
+}
+.language-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: #abb3be;
+}
+.language-picker select {
+  width: auto;
+  max-width: 180px;
+  padding: 7px 9px;
+}
+select:focus-visible {
+  outline: 2px solid #8eb8e2;
+  outline-offset: 3px;
+}
+#device,
+#token,
+#recovery {
+  direction: ltr;
+  text-align: start;
+}
+form .row {
+  flex-wrap: wrap;
+}
+@media (max-width: 520px) {
+  main {
+    padding: 24px;
+  }
+  .language-picker {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+}

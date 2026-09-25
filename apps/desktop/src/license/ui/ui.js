@@ -1,27 +1,76 @@
+import { messages } from "./locales.js";
 const $ = (id) => document.getElementById(id);
-const messages = {
-  revalidation_required:
-    "上次运行的授权检查未通过，请重新输入有效注册码进行验证。",
-  issuer_unconfigured:
-    "此构建尚未配置签发公钥。请先从注册机导出公钥配置并重新构建 Artemis。",
-  unlicensed: "尚未激活，请输入注册码。",
-  valid: "验证成功，正在进入…",
-  expired: "注册码已过期，请申请新的注册码。",
-  not_yet_valid: "注册码尚未生效，请检查系统时间。",
-  invalid_license: "注册码格式或签名无效。",
-  device_mismatch: "注册码属于另一台电脑。",
-  clock_error: "检测到系统时间回拨，请校正时间或申请恢复凭证。",
-  storage_error: "无法读取或保存受保护授权，请检查系统安全存储或申请恢复。",
-  device_unavailable: "无法读取可靠的机器标识，不能激活。",
-  invalid_recovery: "恢复凭证无效、已使用或已过期。",
+const localeNames = {
+  en: "English",
+  "zh-CN": "简体中文",
+  "zh-TW": "繁體中文",
+  ja: "日本語",
+  ko: "한국어",
+  es: "Español",
+  fr: "Français",
+  de: "Deutsch",
+  "pt-BR": "Português (Brasil)",
+  it: "Italiano",
+  ru: "Русский",
+  ar: "العربية",
+  hi: "हिन्दी",
+  id: "Bahasa Indonesia",
+};
+function resolveLocale(value) {
+  if (messages[value]) return value;
+  if (/^zh-(TW|HK|MO|Hant)/i.test(value)) return "zh-TW";
+  if (/^zh\b/i.test(value)) return "zh-CN";
+  if (/^pt\b/i.test(value)) return "pt-BR";
+  return messages[value?.split("-")[0]] ? value.split("-")[0] : "en";
+}
+let saved;
+try {
+  saved = localStorage.getItem("artemis-license-language");
+} catch {
+  /* System language remains available when storage is disabled. */
+}
+let locale = resolveLocale(saved || navigator.language);
+let current;
+let statusKey = "loading";
+function render() {
+  const copy = messages[locale];
+  document.documentElement.lang = locale;
+  document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+  document.title = `Artemis · ${copy.title}`;
+  $("language").value = locale;
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = copy[element.dataset.i18n];
+  });
+  $("token").placeholder = copy.placeholder;
+  $("status").textContent = copy[statusKey] ?? copy.failure;
+  $("expiry").textContent = current?.expiresAt
+    ? copy.expiry.replace(
+        "{date}",
+        new Date(current.expiresAt).toLocaleString(locale),
+      )
+    : "";
+}
+for (const [value, label] of Object.entries(localeNames)) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  $("language").append(option);
+}
+$("language").onchange = () => {
+  locale = resolveLocale($("language").value);
+  try {
+    localStorage.setItem("artemis-license-language", locale);
+  } catch {
+    /* Language selection still works for this window. */
+  }
+  render();
 };
 function show(value) {
   if (!value) return;
-  $("device").value = value.device;
-  $("status").textContent = messages[value.state] ?? "授权验证失败。";
-  $("expiry").textContent = value.expiresAt
-    ? `授权截止：${new Date(value.expiresAt).toLocaleString()}（本机时区）`
-    : "";
+  current = value;
+  $("device").value = value.device ?? "";
+  statusKey = value.state;
+  render();
 }
 async function run(action) {
   document.querySelectorAll("button").forEach((b) => (b.disabled = true));
@@ -29,12 +78,11 @@ async function run(action) {
     const result = await action();
     if (result?.state) show(result);
   } catch (error) {
-    const key = Object.keys(messages).find((key) =>
-      String(error).includes(key),
-    );
-    $("status").textContent = key
-      ? messages[key]
-      : "操作失败，请检查输入和系统安全存储。";
+    statusKey =
+      Object.keys(messages.en).find(
+        (key) => key.includes("_") && String(error).includes(key),
+      ) ?? "failure";
+    render();
   } finally {
     document.querySelectorAll("button").forEach((b) => (b.disabled = false));
   }
@@ -46,16 +94,19 @@ $("activate").onsubmit = (e) => {
 $("copy").onclick = () =>
   run(async () => {
     await window.license.copyDevice();
-    $("status").textContent = "机器码已复制。";
+    statusKey = "copied";
+    render();
   });
 $("import").onclick = () => run(() => window.license.importFile());
 $("request").onclick = () =>
   run(async () => {
     await window.license.recovery();
-    $("status").textContent = "恢复请求已复制，请发送给授权签发者。";
+    statusKey = "requested";
+    render();
   });
 $("recover").onclick = () =>
   run(() => window.license.recover($("recovery").value));
 $("quit").onclick = () => window.license.quit();
+render();
 void run(() => window.license.status());
 window.license.onStatus(show);
