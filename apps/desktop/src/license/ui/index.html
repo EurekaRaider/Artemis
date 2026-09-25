@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'"
+    />
+    <title>Artemis · 离线激活</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <div class="brand">ARTEMIS</div>
+      <h1>激活你的工作空间</h1>
+      <p class="muted">将机器码发送给授权签发者，取得此电脑专用的注册码。</p>
+      <label for="device">本机机器码</label>
+      <div class="row">
+        <input id="device" readonly /><button id="copy" type="button">
+          复制
+        </button>
+      </div>
+      <form id="activate">
+        <label for="token">注册码</label
+        ><textarea
+          id="token"
+          rows="4"
+          maxlength="16384"
+          required
+          placeholder="粘贴 ART1.… 注册码"
+        ></textarea>
+        <div class="row">
+          <button class="primary" type="submit">验证并进入</button
+          ><button id="import" type="button">导入许可证文件</button>
+        </div>
+      </form>
+      <p id="status" role="status" aria-live="polite">正在读取授权状态…</p>
+      <p id="expiry" class="muted"></p>
+      <details>
+        <summary>系统时间异常或授权存储损坏</summary>
+        <p class="muted">
+          先校正电脑时间。仍不能恢复时，复制恢复请求给签发者；恢复凭证不会延长授权期限。
+        </p>
+        <button id="request" type="button">复制恢复请求</button
+        ><label for="recovery">恢复凭证</label
+        ><textarea id="recovery" rows="2" maxlength="16384"></textarea
+        ><button id="recover" type="button">验证恢复凭证</button>
+      </details>
+      <footer>
+        此注册码仅限本机，有效期内无需联网。<button id="quit" type="button">
+          退出
+        </button>
+      </footer>
+    </main>
+    <script src="ui.js"></script>
+  </body>
+</html>

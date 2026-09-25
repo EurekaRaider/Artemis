@@ -59,8 +59,8 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.3** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
-> CD publishes only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases).
+> Version **1.6.4** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
 
@@ -362,16 +362,16 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.3` local packaging configuration produces:
+The `1.6.4` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.3.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.3.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.3.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.4.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.4.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.4.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.3`, and
-published only to the private [Artemis Releases](https://github.com/EurekaRaider/Artemis/releases)
+Releases are started manually through **Release**, using tag `v1.6.4`, and
+published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
 packaging target.
@@ -379,14 +379,17 @@ packaging target.
 macOS signing and notarization run in separate jobs. Signing retries at most
 three times; notarization waits and stapling each allow three attempts. The
 signed app and Apple submission ID are held in a private draft Release while
-jobs run, then removed before publication. Use **Re-run failed jobs** to reuse
+jobs run; these staging files remain private and are never copied to the public Release. Use **Re-run failed jobs** to reuse
 successful CI/signing work and resume the same Apple submission. See the
 [release guide](docs/features/macos-release/README.md).
 
 Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
-the public ArtemisRelease update source, so these private CD releases do not
-notify ordinary users. No private repository token is bundled in the app.
+the public ArtemisRelease update source. No private repository token is bundled in the app.
+
+Version 1.6.4 adds offline device-bound licensing. The private license issuer is
+never included in client packages or public release assets. See the
+[offline licensing guide](docs/offline-licensing.md).
 
 Version 1.6.3 restores plugin icons in conversation history immediately after
 restart, without requiring the skill menu to be opened. Saved DeepSeek Flash
@@ -417,7 +420,7 @@ folders. The search proxy, bounded retry and restricted redirect handling from
 
 | Target                | Implementation                                                    | Distribution                                     |
 | --------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| **Windows 11 x64**     | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Unsigned ZIP through private CD; manual updates |
+| **Windows 11 x64**     | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Unsigned ZIP through public Release; manual updates |
 | **macOS 14+ arm64**    | Seatbelt, hardened runtime and DMG/ZIP                             | Releases signed with Apple Developer ID          |
 | **macOS 14+ x64**      | Separate DMG/ZIP builds                                            | Local builds; native release validation required |
 | Windows ARM64 / Linux | Not currently supported                                           | —                                                |

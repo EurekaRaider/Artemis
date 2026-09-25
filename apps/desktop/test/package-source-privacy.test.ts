@@ -154,3 +154,24 @@ describe("packaged source privacy", () => {
     expect((failure as Error).message).toContain("source.ts");
   });
 });
+
+it("rejects a license issuer accidentally included in client resources", async () => {
+  const root = await createPackagedFixture(
+    { "dist-electron/main.js": "export {};" },
+    {
+      "license-issuer/dist/main.cjs": "issuer fixture",
+    },
+  );
+  await expect(
+    verifyPackagedSourcePrivacy(packageContext(root)),
+  ).rejects.toThrow("license-issuer");
+});
+
+it("rejects ephemeral license signing material in bundled test fixtures", async () => {
+  const root = await createPackagedFixture({
+    "dist-electron/main.js": "// artemis-visual-license-fixture",
+  });
+  await expect(
+    verifyPackagedSourcePrivacy(packageContext(root)),
+  ).rejects.toThrow("private license fixture");
+});

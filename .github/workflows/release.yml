@@ -402,7 +402,7 @@ jobs:
           }
 
   publish:
-    name: Publish to private Artemis Release
+    name: Publish client artifacts to ArtemisRelease
     needs: [package-macos, package-windows]
     if: always() && (needs.package-macos.result == 'success' || (inputs.reuse_verified_macos_run_id != '' && needs.package-macos.result == 'skipped')) && needs.package-windows.result == 'success'
     permissions:
@@ -444,7 +444,7 @@ jobs:
 
       - name: Publish verified macOS and Windows packages
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
@@ -458,10 +458,18 @@ jobs:
 
           源码版本：\`$RELEASE_SHA\`。
           EOF
+          target_repo=EurekaRaider/ArtemisRelease
+          existing="$(gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if [[ -z "$existing" ]]; then
+            gh release create "$RELEASE_TAG" --repo "$target_repo" --title "Artemis $RELEASE_TAG" --draft --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
+          elif [[ "$existing" != true ]]; then
+            echo "Refusing to overwrite an existing public release." >&2
+            exit 1
+          fi
+          # Only the validated allowlist is uploaded; never mirror the private source repository.
           node scripts/verify-slack-cli.mjs
-          gh release upload "$RELEASE_TAG" release-assets/release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
-          gh release delete-asset "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --yes
-          gh release delete-asset "$RELEASE_TAG" notarization-mac-arm64.json --repo "$GITHUB_REPOSITORY" --yes
-          gh release delete-asset "$RELEASE_TAG" release-manifest-macos-arm64.json --repo "$GITHUB_REPOSITORY" --yes
-          gh release delete-asset "$RELEASE_TAG" release-manifest-windows-x64.json --repo "$GITHUB_REPOSITORY" --yes
-          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
+          gh release upload "$RELEASE_TAG" release-assets/* --repo "$target_repo" --clobber
+          gh release view "$RELEASE_TAG" --repo "$target_repo" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/artemis-uploaded-assets.txt"
+          (cd release-assets && printf '%s\n' *) | sort > "$RUNNER_TEMP/artemis-expected-assets.txt"
+          diff -u "$RUNNER_TEMP/artemis-expected-assets.txt" "$RUNNER_TEMP/artemis-uploaded-assets.txt"
+          gh release edit "$RELEASE_TAG" --repo "$target_repo" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false

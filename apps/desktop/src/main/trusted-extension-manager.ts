@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { dirname, relative, resolve } from "node:path";
 
@@ -124,6 +124,14 @@ function formatResult(result: ExecutionResult): {
 
 export class TrustedExtensionManager {
   private statuses = new Map<string, TrustedExtensionStatus>();
+  private children = new Set<ChildProcess>();
+  private disposed = false;
+
+  dispose(): void {
+    this.disposed = true;
+    for (const child of this.children) child.kill("SIGKILL");
+    this.children.clear();
+  }
 
   constructor(
     private readonly platform: NodeJS.Platform,
@@ -142,6 +150,7 @@ export class TrustedExtensionManager {
     workspacePath?: string,
     localFullAccess = false,
   ): Promise<TrustedExtensionStatus[]> {
+    if (this.disposed) throw new Error("Trusted extensions are stopped");
     this.statuses.clear();
     for (const config of configs) {
       if (!config.enabled) {
@@ -219,6 +228,7 @@ export class TrustedExtensionManager {
     mode: RunMode,
     localFullAccess = false,
   ): Promise<{ output: string; isError: boolean }> {
+    if (this.disposed) throw new Error("Trusted extensions are stopped");
     if (mode !== "execute") {
       throw new Error(
         "Trusted extensions cannot execute in Plan or Review mode",
@@ -262,6 +272,8 @@ export class TrustedExtensionManager {
     mode: RunMode,
     localFullAccess: boolean,
   ): Promise<unknown> {
+    if (this.disposed)
+      return Promise.reject(new Error("Trusted extensions are stopped"));
     const command = {
       executable: process.execPath,
       args: [
@@ -314,6 +326,7 @@ export class TrustedExtensionManager {
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
       });
+      this.children.add(child);
       let stdout = "";
       let stderr = "";
       let oversized = false;
@@ -337,10 +350,12 @@ export class TrustedExtensionManager {
         }
       });
       child.on("error", (error) => {
+        this.children.delete(child);
         clearTimeout(timeout);
         reject(error);
       });
       child.on("exit", () => {
+        this.children.delete(child);
         clearTimeout(timeout);
         if (oversized) {
           reject(new Error("Trusted extension process output exceeds 4 MiB"));

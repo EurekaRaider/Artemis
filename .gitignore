@@ -26,3 +26,6 @@ apps/desktop/resources/google-oauth-client.json
 /MGSuite-slides-read-bug-report.md
 
 apps/desktop/resources/connector-clients.json
+
+# Default offline issuer private-key exports must never be committed.
+artemis-signing-key*.pem

@@ -16,8 +16,9 @@ export function forbiddenPackagedSourcePaths(paths) {
     .map(normalizedPath)
     .filter((path) => {
       const lowerPath = path.toLowerCase();
-      return forbiddenSourceSuffixes.some((suffix) =>
-        lowerPath.endsWith(suffix),
+      return (
+        /license[- _]issuer|artemis-signing-key/.test(lowerPath) ||
+        forbiddenSourceSuffixes.some((suffix) => lowerPath.endsWith(suffix))
       );
     })
     .sort();
@@ -76,6 +77,15 @@ export async function verifyPackagedSourcePrivacy(context) {
       archivePath,
       normalizedPath(entry).split("/").join(sep),
     ).toString("utf8");
+    if (
+      /artemis-visual-license-fixture|BEGIN (?:ENCRYPTED )?PRIVATE KEY/.test(
+        source,
+      )
+    ) {
+      forbidden.push(
+        `app.asar/${normalizedPath(entry)} (private license fixture)`,
+      );
+    }
     if (sourceMapReferencePattern.test(source)) {
       forbidden.push(`app.asar/${normalizedPath(entry)} (sourceMappingURL)`);
     }

@@ -1,3 +1,10 @@
+import {
+  assertLicense,
+  canRunLicensed,
+  licensedIpc as ipcMain,
+  setLicenseShutdown,
+  suppressLicenseResume,
+} from "../license/runtime.js";
 import { imText } from "@artemis/gateway";
 import { ImPermissionError, imRequiresApproval } from "./im-policy.js";
 import { ThreadHistoryService } from "./thread-history-service.js";
@@ -57,7 +64,6 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
-  ipcMain,
   Menu,
   nativeImage,
   nativeTheme,
@@ -65,7 +71,6 @@ import {
   net,
   Notification,
   safeStorage,
-  protocol,
   session as electronSession,
   shell,
   type MenuItemConstructorOptions,
@@ -392,10 +397,6 @@ import {
 const { autoUpdater } = electronUpdater;
 const smokeMode = Boolean(process.env.ARTEMIS_SMOKE_SCREENSHOT);
 const execFileAsync = promisify(execFile);
-
-if (smokeMode) {
-  app.disableHardwareAcceleration();
-}
 
 interface PendingApproval {
   workerRequestId: string;
@@ -1093,17 +1094,6 @@ function currentLocale(): AppLocale {
   return resolvedLocalePreference;
 }
 
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: WORKSPACE_PDF_SCHEME,
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      stream: true,
-    },
-  },
-]);
 const workspacePdfPreview = new WorkspacePdfPreview(async (threadId, path) => {
   const thread = store?.getThread(threadId);
   if (!thread || thread.archived) throw new Error("Active task not found.");
@@ -1338,6 +1328,7 @@ function agentProcessHandlers(): AgentProcessHandlers {
 }
 
 function createAgentHostProcess(): AgentProcess {
+  assertLicense();
   const codexRuntimeRoot = codexPrimaryRuntimePath();
   return new AgentProcess(
     join(import.meta.dirname, "agent-worker.js"),
@@ -2674,7 +2665,7 @@ function scheduleGoalContinuation(
   scheduledGoalContinuations.add(threadId);
   setTimeout(() => {
     scheduledGoalContinuations.delete(threadId);
-    if (!store || !agentProcess) return;
+    if (!store || !agentProcess || !canRunLicensed()) return;
     const thread = store.getThread(threadId);
     if (
       !thread ||
@@ -3624,6 +3615,7 @@ async function executeApprovedShell(
   request: Extract<BrokerExecutionRequest, { kind: "shell.execute" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess) return;
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
@@ -3804,6 +3796,7 @@ async function executeApprovedLocalFile(
   request: LocalFileBrokerRequest,
   resolution: ApprovalResolution,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess) return;
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
@@ -4049,7 +4042,7 @@ async function handleBrokerRequest(
   workerRequestId: string,
   request: BrokerExecutionRequest,
 ): Promise<void> {
-  if (!agentProcess || !store) {
+  if (!canRunLicensed() || !agentProcess || !store) {
     return;
   }
   if (imService?.hasBinding(request.threadId)) {
@@ -5181,6 +5174,7 @@ async function executeApprovedWrite(
   request: Extract<BrokerExecutionRequest, { kind: "workspace.write" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess) {
     return;
   }
@@ -5233,6 +5227,7 @@ async function executeApprovedOffice(
   resolution: ApprovalResolution,
   emitApprovalResolution: boolean,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess) return;
   if (emitApprovalResolution) {
     emitPayload(request.threadId, request.turnId, {
@@ -5282,6 +5277,7 @@ async function executeApprovedMcp(
   request: Extract<BrokerExecutionRequest, { kind: "mcp.call" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess || !mcpClientManager) return;
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
@@ -5335,6 +5331,7 @@ async function executeApprovedExtension(
   request: Extract<BrokerExecutionRequest, { kind: "extension.call" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess || !trustedExtensionManager) return;
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
@@ -5374,6 +5371,7 @@ async function executeApprovedRemote(
   request: Extract<BrokerExecutionRequest, { kind: "remote.operation" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
+  if (!canRunLicensed()) return;
   if (!agentProcess || !imService) return;
   try {
     if (
@@ -5527,6 +5525,7 @@ async function createTaskThread(
   title?: string,
   taskId?: string,
 ): Promise<Thread | undefined> {
+  assertLicense();
   if (!store) {
     throw new Error("Application store is not ready.");
   }
@@ -5658,6 +5657,7 @@ async function startTaskTurnUnchecked(
     afterCompaction?: boolean;
   } = {},
 ): Promise<StartTurnResult> {
+  assertLicense();
   const mainReceivedAt = Date.now();
   const source = options.source ?? "user";
   if (agentHostRestart) await agentHostRestart;
@@ -6114,6 +6114,7 @@ function dispatchCheckpoint(
 }
 
 async function resumeInterruptedTurns(): Promise<void> {
+  if (suppressLicenseResume() || !canRunLicensed()) return;
   for (const [threadId, turnId] of [...activeTurns]) {
     const thread = store?.getThread(threadId);
     const checkpoint = store?.getTurnCheckpoint(threadId);
@@ -16173,7 +16174,7 @@ function createMainWindow(): BrowserWindow {
         pendingNotificationThreadId = undefined;
         window.webContents.send(IPC.automationThreadOpen, target);
       }
-      if (!smokeMode) {
+      if (!smokeMode && !suppressLicenseResume()) {
         for (const thread of store?.listThreads() ?? []) {
           if (thread.goal?.status === "active") {
             scheduleGoalContinuation(thread.id, thread.goal.goalId);
@@ -21440,6 +21441,7 @@ app
         nodeExecutable: process.execPath,
       },
     );
+    assertLicense();
     imService.start();
     sleepPrevention.setEnabled(await settingsStore.preventSleepPreference());
     const systemMemory = process.getSystemMemoryInfo();
@@ -21696,6 +21698,7 @@ app
       onEvent: publishAutomationEvent,
       notify: automationRunNotification,
       launch: async (automation, run, linkThread) => {
+        assertLicense();
         const scheduledLabel = new Intl.DateTimeFormat(currentLocale(), {
           dateStyle: "short",
           timeStyle: "short",
@@ -21755,6 +21758,7 @@ app
         });
       },
     );
+    assertLicense();
     automationScheduler.start();
     mainWindow.webContents.once("did-finish-load", () => {
       void releaseUpdateReady
@@ -21812,6 +21816,7 @@ app.on("before-quit", () => {
   automationScheduler?.stop();
   stopAgentCapacityMonitoring();
   terminalService?.dispose();
+  trustedExtensionManager?.dispose();
   if (packagedNodePtyRuntimeReady) {
     void packagedNodePtyRuntimeReady.then(
       () => packagedNodePtyRuntime?.dispose(),
@@ -21819,6 +21824,22 @@ app.on("before-quit", () => {
     );
   }
   void mcpClientManager?.dispose();
+  agentProcess?.dispose();
+});
+
+setLicenseShutdown(async () => {
+  shuttingDown = true;
+  imService?.stop();
+  automationScheduler?.stop();
+  terminalService?.dispose();
+  trustedExtensionManager?.dispose();
+  const cancellations = [...activeTurns.keys()].map((threadId) =>
+    agentProcess?.request(
+      { type: "turn.cancel", requestId: randomUUID(), threadId },
+      2000,
+    ),
+  );
+  await Promise.allSettled([...cancellations, mcpClientManager?.dispose()]);
   agentProcess?.dispose();
 });
 

@@ -2,7 +2,13 @@ import { spawnSync } from "node:child_process";
 
 // Shared by the Release workflow and the optional manual pre-push check.
 // npm test builds the production bundles before running tests and artifact checks.
-const commands = ["verify:slack-cli", "format:check", "test", "typecheck"];
+const commands = [
+  "verify:slack-cli",
+  "format:check",
+  "test",
+  "typecheck",
+  "typecheck:license-issuer",
+];
 if (process.env.ARTEMIS_SKIP_PRODUCTION_AUDIT !== "true") {
   commands.push("audit:production");
 }

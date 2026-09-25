@@ -87,3 +87,20 @@ it("blocks publication for tampered or missing Windows artifacts", async () => {
     collectReleaseAssets(root, join(root, "output"), "1.6.0"),
   ).rejects.toThrow();
 });
+
+it("rejects license issuer artifacts before creating public output", async () => {
+  const root = await fixture();
+  const directory = join(root, "release-windows-x64");
+  const path = join(directory, "release-manifest.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  manifest.artifacts.push({
+    name: "Artemis-License-Issuer.zip",
+    size: 0,
+    sha256: "",
+  });
+  await writeFile(path, JSON.stringify(manifest));
+  await expect(
+    collectReleaseAssets(root, join(root, "output"), "1.6.0"),
+  ).rejects.toThrow("Unexpected or duplicate release artifact");
+  await expect(readdir(join(root, "output"))).rejects.toThrow();
+});

@@ -141,6 +141,9 @@ jobs:
           ARTEMIS_VISUAL_CONVERGENCE_OUTPUT: ${{ runner.temp }}/artemis-visual-convergence
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Verify offline license activation and expiry in Electron
+        run: npm run verify:license-native
+
       - name: Upload visual convergence evidence
         if: always()
         continue-on-error: true

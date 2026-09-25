@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -88,7 +88,15 @@
     "notarize:mac:x64": "npm run notarize:mac:x64 -w @artemis/desktop",
     "release:mac": "npm run release:mac -w @artemis/desktop",
     "release:mac:arm64": "npm run release:mac:arm64 -w @artemis/desktop",
-    "release:mac:x64": "npm run release:mac:x64 -w @artemis/desktop"
+    "release:mac:x64": "npm run release:mac:x64 -w @artemis/desktop",
+    "build:license-issuer": "node apps/license-issuer/build.mjs",
+    "license-issuer": "npm run build:license-issuer && electron apps/license-issuer",
+    "package:license-issuer:mac": "npm run build:license-issuer && node apps/license-issuer/package.mjs --mac",
+    "package:license-issuer:win": "npm run build:license-issuer && node apps/license-issuer/package.mjs --win",
+    "test:license": "vitest run apps/desktop/test/offline-license*.test.ts",
+    "typecheck:license-issuer": "tsc -p apps/license-issuer/tsconfig.json --noEmit",
+    "verify:license-native": "npm run build && node apps/desktop/scripts/verify-offline-license.mjs && node apps/desktop/scripts/verify-offline-license.mjs --full-app",
+    "verify:license-issuer": "npm run build:license-issuer && node apps/license-issuer/verify-ui.mjs"
   },
   "devDependencies": {
     "@electron-internal/extract-zip": "1.0.4",
