@@ -1,3 +1,4 @@
+import { licenseTestStoragePlugin } from "./license-test-storage.mjs";
 import { build } from "esbuild";
 import { generateKeyPairSync } from "node:crypto";
 import {
@@ -32,12 +33,20 @@ try {
   await cp(join(desktop, "dist-electron"), join(stage, "dist-electron"), {
     recursive: true,
   });
-  await symlink(join(desktop, "build"), join(stage, "build"), "dir");
-  await symlink(join(desktop, "resources"), join(stage, "resources"), "dir");
+  await symlink(
+    join(desktop, "build"),
+    join(stage, "build"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
+  await symlink(
+    join(desktop, "resources"),
+    join(stage, "resources"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
   await symlink(
     join(desktop, "dist-renderer"),
     join(stage, "dist-renderer"),
-    "dir",
+    process.platform === "win32" ? "junction" : "dir",
   );
   await writeFile(
     join(stage, "package.json"),
@@ -53,9 +62,10 @@ import { app, BrowserWindow, safeStorage } from "electron";
 import { sign } from "node:crypto";
 import { writeFileSync, readFileSync } from "node:fs";
 import { readDeviceCode } from ${JSON.stringify(join(desktop, "src/license/device.ts"))};
+import { protectedLicenseStorage } from ${JSON.stringify(join(desktop, "src/license/storage.ts"))};
 app.setPath("userData", ${JSON.stringify(join(stage, "profile"))});
 app.relaunch = () => {};
-const proof = { mode: ${JSON.stringify(mode)}, locked: false, invalidRejected: false, entered: false, expired: false };
+const proof = { storage: "ephemeral-aes-fixture", mode: ${JSON.stringify(mode)}, locked: false, invalidRejected: false, entered: false, expired: false };
 const deadline = setTimeout(() => { writeFileSync(${JSON.stringify(report)}, JSON.stringify(proof)); app.exit(2); }, 60000);
 let issuedAt = 0;
 app.on("browser-window-created", (_event, window) => {
@@ -80,7 +90,7 @@ app.on("browser-window-created", (_event, window) => {
 app.on("before-quit", () => {
   clearTimeout(deadline);
   if (${mode === "expiry"}) {
-    const saved = JSON.parse(safeStorage.decryptString(readFileSync(${JSON.stringify(join(stage, "profile/license/state.bin"))})));
+    const saved = protectedLicenseStorage(${JSON.stringify(join(stage, "profile/license/state.bin"))}).read();
     proof.expired = saved.interrupted && Date.now() >= issuedAt + 2500;
   }
   writeFileSync(${JSON.stringify(report)}, JSON.stringify(proof, null, 2));
@@ -108,6 +118,7 @@ await import(${JSON.stringify(join(desktop, "src/license/bootstrap.ts"))});
       "puppeteer",
     ],
     plugins: [
+      licenseTestStoragePlugin(),
       {
         name: "isolated-fixture-only",
         setup(builder) {

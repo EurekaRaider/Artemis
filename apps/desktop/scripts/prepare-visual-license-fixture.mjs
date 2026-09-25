@@ -1,3 +1,4 @@
+import { licenseTestStoragePlugin } from "./license-test-storage.mjs";
 import { build } from "esbuild";
 import { generateKeyPairSync } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
@@ -38,6 +39,7 @@ export async function prepareVisualLicenseFixture() {
       "puppeteer",
     ],
     plugins: [
+      licenseTestStoragePlugin(),
       {
         name: "artemis-visual-license-fixture",
         setup(builder) {
