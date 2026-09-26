@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AppLocale, HookCatalog } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { Button } from "@artemis/ui/actions";
 import { hookText } from "../shared/hooks-copy.js";
 import { uiText } from "../shared/ui-text.js";
@@ -39,11 +40,21 @@ export function HookTaskNotice({
     };
   }, [threadId, projectId, mode]);
   const pending =
-    catalog?.hooks.filter((h) => h.status === "pending").length ?? 0;
+    catalog?.hooks.filter(
+      (h) =>
+        h.status === "pending" &&
+        (threadId || projectId || h.source !== "project"),
+    ).length ?? 0;
   const latest = threadId ? catalog?.records.at(-1) : undefined;
-  if (!pending && !latest) return null;
+  if (
+    mode !== "execute" ||
+    catalog?.remote ||
+    (!pending && latest?.status !== "failed" && latest?.status !== "running")
+  )
+    return null;
   return (
-    <div className="sandbox-notice" role="status">
+    <div className="hook-task-notice" role="status">
+      <ArtemisIcon name="hooks" />
       <span>
         {pending
           ? mode === "execute" && !catalog?.remote
@@ -51,7 +62,12 @@ export function HookTaskNotice({
             : uiText(locale, "Hooks.skipped")
           : `${latest!.event} · ${hookText(locale, `Hooks.${latest!.status}`)}`}
       </span>
-      <Button onClick={(event) => onReview(event.currentTarget)}>
+      <Button
+        className="hook-task-review"
+        variant="quiet"
+        size="compact"
+        onClick={(event) => onReview(event.currentTarget)}
+      >
         {uiText(locale, "Hooks.review")}
       </Button>
     </div>

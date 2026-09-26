@@ -1630,12 +1630,13 @@ export class CodexPluginService {
   }
 
   async hookSources(): Promise<
-    Array<{ id: string; root: string; contentHash: string }>
+    Array<{ id: string; name: string; root: string; contentHash: string }>
   > {
     const plugins = (await this.loadStore()).plugins;
     return plugins.map((plugin) => ({
       id: plugin.id,
       root: join(this.options.pluginsRoot, plugin.id),
+      name: plugin.displayName || plugin.name,
       contentHash: plugin.contentHash,
     }));
   }

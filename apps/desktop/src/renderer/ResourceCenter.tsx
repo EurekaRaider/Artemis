@@ -1211,6 +1211,7 @@ export function ResourceCenter({
       brandColor: bundled?.brandColor ?? plugin.brandColor,
       iconDataUrl: bundled?.iconDataUrl ?? plugin.iconDataUrl,
       pluginName: plugin.name,
+      iconKey: plugin.hasHooks ? ("hook-plugin" as const) : undefined,
     };
   }
 
@@ -1728,6 +1729,7 @@ export function ResourceCenter({
           <ResourceAvatar
             brandColor={plugin.brandColor}
             iconDataUrl={plugin.iconDataUrl}
+            iconKey={plugin.hasHooks ? "hook-plugin" : undefined}
             kind="plugin"
             name={plugin.name}
           />
@@ -1756,7 +1758,9 @@ export function ResourceCenter({
           >
             {installed && plugin.hasHooks && onReviewHooks && (
               <Button
-                variant="secondary"
+                variant="quiet"
+                size="compact"
+                icon={<ArtemisIcon name="hooks" />}
                 onClick={(event) =>
                   onReviewHooks(plugin.id, event.currentTarget)
                 }
@@ -2469,6 +2473,8 @@ export function ResourceCenter({
                       {plugin.hasHooks && onReviewHooks && (
                         <Button
                           variant="quiet"
+                          size="compact"
+                          icon={<ArtemisIcon name="hooks" />}
                           onClick={(event) =>
                             onReviewHooks(plugin.id, event.currentTarget)
                           }
@@ -2542,6 +2548,7 @@ export function ResourceCenter({
                     <ResourceAvatar
                       brandColor={visual.brandColor}
                       iconDataUrl={visual.iconDataUrl}
+                      iconKey={visual.iconKey}
                       kind="plugin"
                       name={plugin.name}
                     />

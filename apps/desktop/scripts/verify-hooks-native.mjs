@@ -101,13 +101,17 @@ app.on('browser-window-created', (_event, window) => {
    await click('button','Settings');
    await until('Boolean(Array.from(document.querySelectorAll("[role=tab]")).find(e=>(e.getAttribute("aria-label")??e.textContent.trim())==="Hooks"))');
    await click('[role=tab]','Hooks');
-   await until('Boolean(document.querySelector(".hook-review-card input[type=checkbox]"))');
-   assert.equal(await evaluate('document.querySelector(".hook-review-card input[type=checkbox]").checked'),false);
-   await evaluate('document.querySelector(".hook-review-card input[type=checkbox]").click(); true');
+   await until('Boolean(document.querySelector(".hooks-row input[type=checkbox]"))');
+   assert.equal(await evaluate('document.querySelector(".hooks-row input[type=checkbox]").checked'),false);
+   await evaluate('document.querySelector(".hooks-row input[type=checkbox]").click(); true');
+   await click('button','Review hooks (1)');
    await until('Boolean(Array.from(document.querySelectorAll("button")).find(e=>e.textContent.includes("Trust and enable")))');
    await evaluate('Array.from(document.querySelectorAll("button")).find(e=>e.textContent.includes("Trust and enable")).click(); true');
    await until('window.artemis.listHooks('+query+').then(c=>c.hooks.some(h=>h.id==='+JSON.stringify(hook.id)+'&&h.status==="trusted"))');
    proof.checks.push('explicit-ui-trust');
+   await until('!document.querySelector(".hooks-dialog") && Boolean(document.querySelector(".hooks-row input[role=switch]:checked"))');
+   window.show();window.focus();
+   await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
    const shot = await window.webContents.capturePage();
    await writeFile(${JSON.stringify(join(output, `${process.platform}-${process.arch}.png`))}, shot.toPNG());
    const service = new HooksService(${JSON.stringify(join(profile, "hooks"))},join(homedir(),'.artemis'));
@@ -121,6 +125,9 @@ app.on('browser-window-created', (_event, window) => {
    assert.equal(service.records()[0].status,'success');
    assert.match(service.records()[0].output,/native-hook-accepted/);
    proof.checks.push('native-command-executed','plan-review-im-zero-executions');
+   await until('Boolean(document.querySelector(".hooks-row button:not(:disabled)"))');
+   await click('.hooks-row button','Review hooks');
+   await until('Boolean(Array.from(document.querySelectorAll("button")).find(e=>e.textContent.trim()==="Revoke trust"))');
    await click('button','Revoke trust');
    await until('window.artemis.listHooks('+query+').then(c=>c.hooks.some(h=>h.id==='+JSON.stringify(hook.id)+'&&h.status==="pending"))');
    proof.checks.push('ui-revoke');
@@ -138,7 +145,14 @@ await import(${JSON.stringify(pathToFileURL(join(desktop, "dist-electron/main.js
 );
 const restore = await prepareVisualLicenseFixture();
 try {
-  const env = { ...process.env, ARTEMIS_SMOKE_LOCALE: "en" };
+  const isolatedHome = join(stage, "home");
+  await mkdir(isolatedHome, { recursive: true });
+  const env = {
+    ...process.env,
+    HOME: isolatedHome,
+    USERPROFILE: isolatedHome,
+    ARTEMIS_SMOKE_LOCALE: "en",
+  };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(createRequire(import.meta.url)("electron"), [entry], {
     cwd: desktop,

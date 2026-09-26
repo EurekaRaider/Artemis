@@ -25,6 +25,7 @@ export interface HookDefinition {
   statusMessage?: string;
   source: "user" | "project" | "plugin";
   sourceId: string;
+  sourceName?: string;
   sourcePath: string;
   description: string;
   scripts: Array<{ path: string; hash: string }>;

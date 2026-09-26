@@ -870,7 +870,7 @@ ${model.providerId} · ${model.modelId}`,
                   },
                   {
                     id: "settings-tab-hooks-button",
-                    icon: <ArtemisIcon name="approval" />,
+                    icon: <ArtemisIcon name="hooks" />,
                     label: uiText(locale, "Hooks.title"),
                     panelId: "settings-tab-hooks",
                     value: "hooks",

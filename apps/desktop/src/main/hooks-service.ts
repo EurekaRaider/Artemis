@@ -28,6 +28,7 @@ export interface HookContext {
 }
 export interface HookPluginSource {
   id: string;
+  name?: string;
   root: string;
   contentHash: string;
 }
@@ -47,6 +48,7 @@ interface Source {
   value?: unknown;
   error?: string;
   digest?: string;
+  name?: string;
 }
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -218,6 +220,7 @@ export class HooksService {
             root,
             path: `${root}#${index}`,
             digest: plugin.contentHash,
+            ...(plugin.name ? { name: plugin.name } : {}),
           };
           if (typeof entry === "string") {
             const path = resolve(root, entry);
@@ -365,6 +368,7 @@ export class HooksService {
                     : "",
                 source: source.kind,
                 sourceId: source.id,
+                ...(source.name ? { sourceName: source.name } : {}),
                 sourcePath: source.path,
                 scripts,
                 scope:

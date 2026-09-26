@@ -6293,7 +6293,12 @@ export function App() {
                               openSettings("hooks", event.currentTarget);
                             }}
                           >
-                            {uiText(locale, "Hooks.title")}
+                            <ArtemisIcon
+                              name="hooks"
+                              width={16}
+                              height={16}
+                            />
+                            <span>{uiText(locale, "Hooks.title")}</span>
                           </button>
                           <button
                             disabled={

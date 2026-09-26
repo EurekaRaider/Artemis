@@ -1,6 +1,11 @@
 import type { AppLocale } from "@artemis/protocol";
 const resources = {
   ja: {
+    "Hooks.summary": "ローカルプロジェクトで実行するスクリプトを確認します。",
+    "Hooks.emptyHint":
+      "ユーザーまたはプロジェクトに hooks.json を追加するか、フック付きプラグインをインストールしてください。",
+    "Hooks.close": "閉じる",
+    "Hooks.cwd": "作業ディレクトリ",
     "Hooks.title": "フック",
     "Hooks.review": "フックを確認",
     "Hooks.trust": "信頼して有効化",
@@ -43,6 +48,11 @@ const resources = {
     "Hooks.cancelled": "キャンセル済み",
   },
   de: {
+    "Hooks.summary": "Skripte vor der Ausführung in lokalen Projekten prüfen.",
+    "Hooks.emptyHint":
+      "hooks.json im Benutzer- oder Projektordner hinzufügen oder ein Plugin mit Hooks installieren.",
+    "Hooks.close": "Schließen",
+    "Hooks.cwd": "Arbeitsverzeichnis",
     "Hooks.title": "Hooks",
     "Hooks.review": "Hooks prüfen",
     "Hooks.trust": "Vertrauen und aktivieren",
@@ -86,6 +96,11 @@ const resources = {
     "Hooks.cancelled": "Abgebrochen",
   },
   ru: {
+    "Hooks.summary": "Проверьте скрипты перед запуском в локальных проектах.",
+    "Hooks.emptyHint":
+      "Добавьте hooks.json в папку пользователя или проекта либо установите плагин с хуками.",
+    "Hooks.close": "Закрыть",
+    "Hooks.cwd": "Рабочая папка",
     "Hooks.title": "Хуки",
     "Hooks.review": "Проверить хуки",
     "Hooks.trust": "Доверять и включить",
@@ -128,6 +143,10 @@ const resources = {
     "Hooks.cancelled": "Отменено",
   },
   "zh-CN": {
+    "Hooks.summary": "审核在本地项目中运行的自动化脚本。",
+    "Hooks.emptyHint": "在用户或项目目录添加 hooks.json，或安装带钩子的插件。",
+    "Hooks.close": "关闭",
+    "Hooks.cwd": "工作目录",
     "Hooks.title": "钩子",
     "Hooks.review": "审核钩子",
     "Hooks.trust": "信任并启用",
@@ -167,6 +186,11 @@ const resources = {
     "Hooks.cancelled": "已取消",
   },
   en: {
+    "Hooks.summary": "Review scripts before they run in your local projects.",
+    "Hooks.emptyHint":
+      "Add hooks.json to your user or project directory, or install a plugin with hooks.",
+    "Hooks.close": "Close",
+    "Hooks.cwd": "Working directory",
     "Hooks.title": "Hooks",
     "Hooks.review": "Review hooks",
     "Hooks.trust": "Trust and enable",
@@ -209,6 +233,12 @@ const resources = {
     "Hooks.cancelled": "Cancelled",
   },
   it: {
+    "Hooks.summary":
+      "Esamina gli script prima di eseguirli nei progetti locali.",
+    "Hooks.emptyHint":
+      "Aggiungi hooks.json alla cartella utente o del progetto, oppure installa un plugin con hook.",
+    "Hooks.close": "Chiudi",
+    "Hooks.cwd": "Cartella di lavoro",
     "Hooks.title": "Hook",
     "Hooks.review": "Esamina hook",
     "Hooks.trust": "Considera attendibile e attiva",
@@ -252,6 +282,12 @@ const resources = {
     "Hooks.cancelled": "Annullato",
   },
   fr: {
+    "Hooks.summary":
+      "Examinez les scripts avant leur exécution dans vos projets locaux.",
+    "Hooks.emptyHint":
+      "Ajoutez hooks.json au dossier utilisateur ou au projet, ou installez une extension avec des hooks.",
+    "Hooks.close": "Fermer",
+    "Hooks.cwd": "Dossier de travail",
     "Hooks.title": "Hooks",
     "Hooks.review": "Examiner les hooks",
     "Hooks.trust": "Autoriser et activer",
@@ -295,6 +331,12 @@ const resources = {
     "Hooks.cancelled": "Annulé",
   },
   hi: {
+    "Hooks.summary":
+      "स्थानीय प्रोजेक्ट में चलाने से पहले स्क्रिप्ट की समीक्षा करें।",
+    "Hooks.emptyHint":
+      "उपयोगकर्ता या प्रोजेक्ट फ़ोल्डर में hooks.json जोड़ें या हुक वाला प्लगइन इंस्टॉल करें।",
+    "Hooks.close": "बंद करें",
+    "Hooks.cwd": "कार्य फ़ोल्डर",
     "Hooks.title": "हुक",
     "Hooks.review": "हुक की समीक्षा करें",
     "Hooks.trust": "भरोसा करें और चालू करें",
@@ -337,6 +379,11 @@ const resources = {
     "Hooks.cancelled": "रद्द",
   },
   "pt-BR": {
+    "Hooks.summary": "Revise os scripts antes da execução em projetos locais.",
+    "Hooks.emptyHint":
+      "Adicione hooks.json à pasta do usuário ou projeto, ou instale um plugin com hooks.",
+    "Hooks.close": "Fechar",
+    "Hooks.cwd": "Diretório de trabalho",
     "Hooks.title": "Hooks",
     "Hooks.review": "Revisar hooks",
     "Hooks.trust": "Confiar e ativar",
@@ -380,6 +427,11 @@ const resources = {
     "Hooks.cancelled": "Cancelado",
   },
   ko: {
+    "Hooks.summary": "로컬 프로젝트에서 실행할 스크립트를 검토하세요.",
+    "Hooks.emptyHint":
+      "사용자 또는 프로젝트 폴더에 hooks.json을 추가하거나 훅이 있는 플러그인을 설치하세요.",
+    "Hooks.close": "닫기",
+    "Hooks.cwd": "작업 디렉터리",
     "Hooks.title": "훅",
     "Hooks.review": "훅 검토",
     "Hooks.trust": "신뢰 및 활성화",
@@ -422,6 +474,11 @@ const resources = {
     "Hooks.cancelled": "취소됨",
   },
   "zh-TW": {
+    "Hooks.summary": "審核在本機專案中執行的自動化指令碼。",
+    "Hooks.emptyHint":
+      "在使用者或專案目錄新增 hooks.json，或安裝含鉤子的外掛。",
+    "Hooks.close": "關閉",
+    "Hooks.cwd": "工作目錄",
     "Hooks.title": "鉤子",
     "Hooks.review": "審核鉤子",
     "Hooks.trust": "信任並啟用",
@@ -461,6 +518,11 @@ const resources = {
     "Hooks.cancelled": "已取消",
   },
   id: {
+    "Hooks.summary": "Tinjau skrip sebelum dijalankan di proyek lokal.",
+    "Hooks.emptyHint":
+      "Tambahkan hooks.json ke folder pengguna atau proyek, atau pasang plugin dengan hook.",
+    "Hooks.close": "Tutup",
+    "Hooks.cwd": "Direktori kerja",
     "Hooks.title": "Hook",
     "Hooks.review": "Tinjau hook",
     "Hooks.trust": "Percayai dan aktifkan",
@@ -504,6 +566,12 @@ const resources = {
     "Hooks.cancelled": "Dibatalkan",
   },
   es: {
+    "Hooks.summary":
+      "Revisa los scripts antes de ejecutarlos en proyectos locales.",
+    "Hooks.emptyHint":
+      "Añade hooks.json al directorio de usuario o proyecto, o instala un complemento con hooks.",
+    "Hooks.close": "Cerrar",
+    "Hooks.cwd": "Directorio de trabajo",
     "Hooks.title": "Hooks",
     "Hooks.review": "Revisar hooks",
     "Hooks.trust": "Confiar y activar",
@@ -547,6 +615,11 @@ const resources = {
     "Hooks.cancelled": "Cancelado",
   },
   ar: {
+    "Hooks.summary": "راجع البرامج النصية قبل تشغيلها في مشاريعك المحلية.",
+    "Hooks.emptyHint":
+      "أضف hooks.json إلى مجلد المستخدم أو المشروع، أو ثبّت إضافة تحتوي على خطافات.",
+    "Hooks.close": "إغلاق",
+    "Hooks.cwd": "مجلد العمل",
     "Hooks.title": "الخطافات",
     "Hooks.review": "مراجعة الخطافات",
     "Hooks.trust": "الوثوق والتفعيل",
