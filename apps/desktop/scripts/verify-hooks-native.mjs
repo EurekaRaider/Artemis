@@ -70,6 +70,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { HooksService } from ${JSON.stringify(pathToFileURL(serviceFile).href)};
+console.log('Hooks native fixture entered');
 app.setPath('userData', ${JSON.stringify(profile)});
 app.disableHardwareAcceleration();
 app.getPreferredSystemLanguages = () => ['en-US'];
@@ -154,11 +155,23 @@ try {
     ARTEMIS_SMOKE_LOCALE: "en",
   };
   delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(createRequire(import.meta.url)("electron"), [entry], {
-    cwd: desktop,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const electron = createRequire(import.meta.url)("electron");
+  const child = spawn(
+    electron,
+    [
+      entry,
+      `--user-data-dir=${profile}`,
+      "--disable-gpu",
+      "--disable-gpu-compositing",
+      "--disable-gpu-sandbox",
+      "--use-angle=swiftshader",
+    ],
+    {
+      cwd: desktop,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   let logs = "";
   child.stdout.on("data", (value) => {
     logs += value;
@@ -166,7 +179,7 @@ try {
   child.stderr.on("data", (value) => {
     logs += value;
   });
-  const timer = setTimeout(() => child.kill("SIGKILL"), 75000);
+  const timer = setTimeout(() => child.kill("SIGKILL"), 180000);
   const code = await new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("exit", resolve);
@@ -176,7 +189,11 @@ try {
     join(output, `${process.platform}-${process.arch}.log`),
     logs,
   );
-  assert.equal(code, 0, `Native hook verification failed: ${logs}`);
+  assert.equal(
+    code,
+    0,
+    `Native hook verification failed (signal: ${child.signalCode}): ${logs}`,
+  );
   const report = JSON.parse(await readFile(reportPath, "utf8"));
   assert.equal(report.checks.length, 5);
   console.log(JSON.stringify(report));

@@ -201,6 +201,7 @@ jobs:
         run: npm run package:mac
       - name: Upload native acceptance evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: hooks-native-${{ matrix.platform }}
