@@ -95,14 +95,12 @@ it("shows stale approval changes and preserves review errors", async () => {
 });
 it("keeps review details out of the list and returns focus when closing the dialog", async () => {
   stubWindowArtemis({
-    listHooks: vi
-      .fn()
-      .mockResolvedValue({
-        hooks: [hook],
-        workspacePath: "/project",
-        projectId: "project",
-        records: [],
-      }),
+    listHooks: vi.fn().mockResolvedValue({
+      hooks: [hook],
+      workspacePath: "/project",
+      projectId: "project",
+      records: [],
+    }),
   });
   render(
     <HooksSettingsSection
