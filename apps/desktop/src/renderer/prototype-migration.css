@@ -1190,3 +1190,27 @@ body:has(.app-shell[data-platform="darwin"]),
 .nested-project.dragging .project-select {
   cursor: grabbing;
 }
+
+/* Hook review keeps commands readable without expanding the settings surface. */
+.hook-review-card {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle, #8884);
+  min-width: 0;
+}
+.hook-review-card pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow: auto;
+}
+.hook-review-card dd {
+  margin-inline-start: 0;
+  overflow-wrap: anywhere;
+}
+.hook-review-card dt {
+  margin-top: 8px;
+  font-weight: 600;
+}
+.hook-review-card details {
+  margin-block: 8px;
+}

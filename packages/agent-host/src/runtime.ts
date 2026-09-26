@@ -1,3 +1,4 @@
+import { createHooksBridge } from "./hooks-bridge.js";
 import { withToolHistory } from "./tool-history.js";
 import type { CustomAgentTaskInvocation } from "@artemis/protocol";
 import { assertCustomAgentContext } from "./custom-agent-context.js";
@@ -5592,10 +5593,27 @@ export class ArtemisAgentHost {
                     `## Dedicated instructions (custom sub-agent "${frozenSnapshot.definitionName}", revision ${frozenSnapshot.definitionRevision})\n${frozenSnapshot.instructions}`,
                   ];
                 }
+                const childHooksBridge = createHooksBridge({
+                  enabled: () => this.configuration.hooksEnabled === true,
+                  broker: this.broker,
+                  threadId: request.threadId,
+                  cwd: request.workspacePath,
+                  actorId: agentId,
+                  remote: Boolean(request.remoteExecution),
+                  mode: () => input.mode,
+                  turnId: () => hosted.currentTurnId,
+                  canContinue: () =>
+                    !controller.signal.aborted &&
+                    Boolean(hosted.currentTurnId) &&
+                    !this.cancelledTurns.has(
+                      `${request.threadId}\0${hosted.currentTurnId}`,
+                    ),
+                });
                 const childResourceLoader = new DefaultResourceLoader({
                   cwd: request.workspacePath,
                   agentDir: this.agentDir,
                   noExtensions: true,
+                  extensionFactories: [childHooksBridge.factory],
                   ...childOverrides,
                   ...(request.remoteExecution
                     ? remoteResourceOverrides(request.remoteExecution)
@@ -5782,6 +5800,7 @@ export class ArtemisAgentHost {
                       ),
                   );
                 child.session = created.session;
+                childHooksBridge.installFinish(created.session);
                 controller.signal.throwIfAborted();
                 this.promptCache.registerSession(child.session.sessionId, {
                   scope: "child",
@@ -6075,10 +6094,30 @@ export class ArtemisAgentHost {
           request.contextWindow ?? this.configuration.contextWindow,
         )
       : undefined;
+    const hooksBridge = createHooksBridge({
+      enabled: () => this.configuration.hooksEnabled === true,
+      broker: this.broker,
+      threadId: request.threadId,
+      cwd: request.workspacePath,
+      remote: Boolean(request.remoteExecution),
+      resumed: Boolean(request.sessionFile),
+      mode: () => this.threads.get(request.threadId)?.currentMode ?? "plan",
+      turnId: () => this.threads.get(request.threadId)?.currentTurnId,
+      canContinue: () => {
+        const turn = this.threads.get(request.threadId)?.currentTurnId;
+        const key = `${request.threadId}\0${turn}`;
+        return (
+          Boolean(turn) &&
+          !this.cancelledTurns.has(key) &&
+          !this.parkedDelegationTurns.has(key)
+        );
+      },
+    });
     const resourceLoader = new DefaultResourceLoader({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
       noExtensions: true,
+      extensionFactories: [hooksBridge.factory],
       ...createResourceOverrides(() => {
         const opened = this.threads.get(request.threadId);
         const threadSelection = opened?.selection ?? selection;
@@ -6204,6 +6243,7 @@ export class ArtemisAgentHost {
       }
       return decision;
     };
+    hooksBridge.installFinish(session);
     const restoredTopLevelUserTurns = session.messages.filter(
       (message) => message.role === "user",
     ).length;
@@ -6784,7 +6824,11 @@ export class ArtemisAgentHost {
     await hosted.session.abort();
   }
 
-  async compact(threadId: string, customInstructions?: string): Promise<void> {
+  async compact(
+    threadId: string,
+    customInstructions?: string,
+    mode: RunMode = "plan",
+  ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
       throw new Error(`Thread is not open: ${threadId}`);
@@ -6797,6 +6841,7 @@ export class ArtemisAgentHost {
     }
 
     hosted.compacting = true;
+    hosted.currentMode = mode;
     try {
       await this.concurrency.run("parent", async () => {
         if (hosted.currentTurnId) {
@@ -6814,6 +6859,7 @@ export class ArtemisAgentHost {
       });
     } finally {
       hosted.compacting = false;
+      hosted.currentMode = undefined;
     }
   }
 

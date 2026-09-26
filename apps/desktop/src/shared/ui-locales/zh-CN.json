@@ -1599,5 +1599,9 @@
   "OAuth_backend": "开发者后端",
   "OAuth_updateRequired": "请更新插件并重新授权。",
   "Update.manualDownload": "在浏览器中下载 ZIP",
-  "Update.manualInstructions": "下载新版 ZIP 并解压到新文件夹，退出 Artemis 后再启动新版。请保留现有用户数据，不要删除 %APPDATA% 中的 Artemis 文件夹。"
+  "Update.manualInstructions": "下载新版 ZIP 并解压到新文件夹，退出 Artemis 后再启动新版。请保留现有用户数据，不要删除 %APPDATA% 中的 Artemis 文件夹。",
+  "Hooks.title": "钩子",
+  "Hooks.review": "审核钩子",
+  "Hooks.pendingNotice": "有 {{count}} 个钩子待审核。这些钩子尚未启用。",
+  "Hooks.skipped": "Plan／Review 和 IM 任务不运行命令钩子。"
 }

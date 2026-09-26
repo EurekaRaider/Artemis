@@ -1599,5 +1599,9 @@
   "OAuth_backend": "開発者のバックエンド",
   "OAuth_updateRequired": "プラグインを更新して再認証してください。",
   "Update.manualDownload": "ブラウザーで ZIP をダウンロード",
-  "Update.manualInstructions": "新しい ZIP をダウンロードして新しいフォルダーに展開し、Artemis を終了してから新版を起動してください。ユーザーデータを保持し、%APPDATA% の Artemis フォルダーを削除しないでください。"
+  "Update.manualInstructions": "新しい ZIP をダウンロードして新しいフォルダーに展開し、Artemis を終了してから新版を起動してください。ユーザーデータを保持し、%APPDATA% の Artemis フォルダーを削除しないでください。",
+  "Hooks.title": "フック",
+  "Hooks.review": "フックを確認",
+  "Hooks.pendingNotice": "{{count}} 件のフックが確認待ちです。まだ有効ではありません。",
+  "Hooks.skipped": "Plan／Review と IM タスクではコマンドフックを実行しません。"
 }

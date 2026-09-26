@@ -1599,5 +1599,9 @@
   "OAuth_backend": "Backend do desenvolvedor",
   "OAuth_updateRequired": "Atualize o plugin e autorize novamente.",
   "Update.manualDownload": "Baixar ZIP no navegador",
-  "Update.manualInstructions": "Baixe e extraia o novo ZIP em uma nova pasta. Feche o Artemis antes de iniciar a nova versão. Preserve seus dados: não exclua a pasta Artemis em %APPDATA%."
+  "Update.manualInstructions": "Baixe e extraia o novo ZIP em uma nova pasta. Feche o Artemis antes de iniciar a nova versão. Preserve seus dados: não exclua a pasta Artemis em %APPDATA%.",
+  "Hooks.title": "Hooks",
+  "Hooks.review": "Revisar hooks",
+  "Hooks.pendingNotice": "{{count}} hooks precisam de revisão. Eles ainda não estão ativados.",
+  "Hooks.skipped": "Hooks de comando não são executados em tarefas Plan, Review ou IM."
 }

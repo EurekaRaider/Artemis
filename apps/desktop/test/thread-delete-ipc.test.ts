@@ -28,6 +28,7 @@ function fixture(temporary = false) {
   };
   const removeWorkspace = vi.fn();
   const scope = {
+    endHookSession: vi.fn(async () => {}),
     attachmentStore: () => ({ deleteThread: vi.fn() }),
     attachmentScope: (id: string) => id,
     ipcMain: {

@@ -1599,5 +1599,9 @@
   "OAuth_backend": "개발자 백엔드",
   "OAuth_updateRequired": "플러그인을 업데이트하고 다시 인증하세요.",
   "Update.manualDownload": "브라우저에서 ZIP 다운로드",
-  "Update.manualInstructions": "새 ZIP을 다운로드하여 새 폴더에 압축을 풀고 Artemis를 종료한 뒤 새 버전을 실행하세요. 사용자 데이터를 유지하고 %APPDATA%의 Artemis 폴더를 삭제하지 마세요."
+  "Update.manualInstructions": "새 ZIP을 다운로드하여 새 폴더에 압축을 풀고 Artemis를 종료한 뒤 새 버전을 실행하세요. 사용자 데이터를 유지하고 %APPDATA%의 Artemis 폴더를 삭제하지 마세요.",
+  "Hooks.title": "훅",
+  "Hooks.review": "훅 검토",
+  "Hooks.pendingNotice": "{{count}}개의 훅을 검토해야 합니다. 아직 활성화되지 않았습니다.",
+  "Hooks.skipped": "Plan／Review 및 IM 작업에서는 명령 훅을 실행하지 않습니다."
 }

@@ -9,6 +9,12 @@ import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
+  listHooks: (query) => ipcRenderer.invoke(IPC.hooksList, query),
+  trustHooks: (query, reviewed, scope) =>
+    ipcRenderer.invoke(IPC.hooksTrust, query, reviewed, scope),
+  changeHook: (query, id, action) =>
+    ipcRenderer.invoke(IPC.hooksChange, query, id, action),
+  inspectHook: (query, id) => ipcRenderer.invoke(IPC.hooksInspect, query, id),
   reportTaskView: (input) => ipcRenderer.send(IPC.taskView, input),
   onThreadTitleUpdated(listener) {
     const handler = (
