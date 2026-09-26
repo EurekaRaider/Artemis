@@ -192,10 +192,10 @@ describe("ReleaseUpdateManager", () => {
     await writeFile(artifact, "test update");
     await recovery.recordDownloaded("1.1.0", artifact);
     await recovery.prepareInstall("1.0.0", "1.1.0");
-    const makeManager = () =>
+    const makeManager = (store = recovery) =>
       new ReleaseUpdateManager(
         new FakeUpdater(),
-        recovery,
+        store,
         "1.1.0",
         true,
         "darwin",
@@ -220,6 +220,15 @@ describe("ReleaseUpdateManager", () => {
     await nextLaunch.markHealthy();
     expect(cleanup).toHaveBeenCalledTimes(2);
     expect(nextLaunch.getStatus().completedVersion).toBeUndefined();
+    const coldLaunch = makeManager(
+      new UpdateRecoveryStore(
+        join(directory, "state.json"),
+        join(directory, "artifacts"),
+      ),
+    );
+    await coldLaunch.initialize();
+    await coldLaunch.markHealthy();
+    expect(coldLaunch.getStatus().completedVersion).toBeUndefined();
   });
 
   it("uses manual updates for Windows ZIP builds even when a feed is configured", async () => {

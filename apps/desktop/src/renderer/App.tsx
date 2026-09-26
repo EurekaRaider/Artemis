@@ -1,3 +1,4 @@
+import { claimUpdateAnnouncement } from "./update-announcement.js";
 import type { HookQuery } from "@artemis/protocol";
 import { imUserMessageText } from "./im-user-message.js";
 import { UserInputCard } from "./UserInputCard.js";
@@ -1548,7 +1549,9 @@ export function App() {
     const version = runtimeSettings?.update.completedVersion;
     if (!version || announcedUpdate.current === version) return;
     announcedUpdate.current = version;
-    setToast(uiText(locale, "Update.completed", { version }));
+    if (claimUpdateAnnouncement(version)) {
+      setToast(uiText(locale, "Update.completed", { version }));
+    }
   }, [runtimeSettings?.update.completedVersion, locale, setToast]);
   const username = snapshot?.userName ?? t.local;
   const localeRef = useRef(locale);

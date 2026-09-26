@@ -1975,7 +1975,7 @@ ${model.providerId} · ${model.modelId}`,
                     </Button>
                   </ManagementSection>
                   <ManagementSection
-                    className="settings-section"
+                    className="settings-section settings-updates"
                     title={t.updates}
                   >
                     <SettingsRow
@@ -1993,9 +1993,10 @@ ${model.providerId} · ${model.modelId}`,
                         </>
                       }
                     >
-                      <span>
+                      <span className="settings-update-actions">
                         <Button
-                          variant="primary"
+                          className="settings-check-update"
+                          variant="secondary"
                           disabled={
                             busy ||
                             settings.update.state === "disabled" ||
@@ -2012,6 +2013,7 @@ ${model.providerId} · ${model.modelId}`,
                             })
                           }
                         >
+                          <ArtemisIcon name="refresh" />
                           {t.checkUpdates}
                         </Button>
                         {settings.update.availableVersion &&

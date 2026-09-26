@@ -152,6 +152,7 @@ export function HooksSettingsSection({
         <div className="hooks-toolbar">
           <Select
             label={t("Hooks.project")}
+            labelVisibility="visible"
             value={projectId}
             onValueChange={setProjectId}
             options={[
@@ -164,6 +165,7 @@ export function HooksSettingsSection({
           />
           <Select
             label={t("Hooks.filter")}
+            labelVisibility="visible"
             value={filter}
             onValueChange={setFilter}
             options={[
@@ -188,6 +190,7 @@ export function HooksSettingsSection({
         {!catalog && !error && <LoadingState label={t("Hooks.title")} />}
         {catalog && !visible.length && (
           <EmptyState
+            className="hooks-empty"
             icon={<ArtemisIcon name="hooks" />}
             title={t("Hooks.empty")}
             description={t("Hooks.emptyHint")}
@@ -269,7 +272,10 @@ export function HooksSettingsSection({
             </Button>
           </div>
         )}
-        <p className="hooks-help">{t("Hooks.skipped")}</p>
+        <p className="hooks-help hooks-policy">
+          <ArtemisIcon name="lock" />
+          <span>{t("Hooks.skipped")}</span>
+        </p>
         {!!catalog?.records.length && (
           <details className="hooks-disclosure">
             <summary>

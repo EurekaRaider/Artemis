@@ -417,6 +417,14 @@
 .composer > [data-part="context"] {
   background: var(--artemis-color-surface-composer-head);
 }
+[data-theme="dark"] .composer-context-trigger {
+  background: transparent;
+  border-color: transparent;
+}
+[data-theme="dark"] .composer-context-trigger:hover,
+[data-theme="dark"] .composer-context-trigger[aria-expanded="true"] {
+  background: var(--hover);
+}
 .composer-context-row {
   display: flex;
   align-items: center;
@@ -1214,9 +1222,69 @@ body:has(.app-shell[data-platform="darwin"]),
 }
 .hooks-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 12px;
-  margin: 12px 0 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.6fr);
+  gap: 16px;
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--artemis-color-surface-composer-head);
+}
+.hooks-empty {
+  align-content: center;
+  gap: 10px;
+  min-height: 200px;
+  padding: 32px 24px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+}
+.hooks-empty > [data-part="icon"] {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  background: var(--hover);
+}
+.hooks-empty > [data-part="description"] {
+  max-width: 440px;
+  line-height: 1.7;
+}
+.hooks-policy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.hooks-policy > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+}
+.settings-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.settings-check-update {
+  gap: 8px;
+  min-height: 34px;
+  padding-inline: 12px;
+  border-radius: 10px;
+}
+.settings-check-update > svg {
+  width: 15px;
+  height: 15px;
+}
+.settings-updates
+  > [data-part="content"]
+  > [data-artemis-component="inline-notice"],
+.settings-updates > [data-part="content"] > .sidebar-update-progress {
+  margin-top: 16px;
 }
 .hooks-list {
   min-width: 0;
