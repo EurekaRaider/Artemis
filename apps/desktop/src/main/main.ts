@@ -1349,10 +1349,19 @@ async function hookContext(query: HookQuery): Promise<HookContext> {
       threadId: thread.id,
       mode: thread.mode,
       remote: Boolean(imService?.hasBinding(thread.id)),
-      isCurrent: () =>
-        store?.getThread(thread.id)?.mode === "execute" &&
-        !imService?.hasBinding(thread.id) &&
-        !cancellingTurns.has(thread.id),
+      isCurrent: () => {
+        if (
+          store?.getThread(thread.id)?.mode !== "execute" ||
+          cancellingTurns.has(thread.id)
+        )
+          return false;
+        try {
+          imService?.authorizeThread(thread.id, "execute");
+          return true;
+        } catch {
+          return false;
+        }
+      },
     };
   }
   if (query.projectId) {
@@ -1411,8 +1420,7 @@ async function contextForHook(
 async function hookPermission(
   request: BrokerExecutionRequest,
 ): Promise<"allow" | "deny" | undefined> {
-  if (request.mode !== "execute" || imService?.hasBinding(request.threadId))
-    return;
+  if (request.mode !== "execute") return;
   try {
     const context = await hookContext({ threadId: request.threadId });
     if (
@@ -4236,12 +4244,11 @@ async function handleBrokerRequest(
     try {
       const context = await hookContext({ threadId: request.threadId });
       if (
-        context.remote ||
         context.mode !== "execute" ||
         request.mode !== "execute" ||
         cancellingTurns.has(request.threadId)
       )
-        throw new Error("Hooks require a local Execute task");
+        throw new Error("Hooks require an active Execute task");
       if (
         !conversationWorkspaceMatches(
           context.workspacePath,
@@ -4249,6 +4256,7 @@ async function handleBrokerRequest(
         )
       )
         throw new Error("Hook workspace mismatch");
+      imService?.authorizeThread(request.threadId, request.mode);
       const goal = store.getThread(request.threadId)?.goal;
       if (
         ["Stop", "SubagentStop"].includes(request.invocation.hook_event_name) &&

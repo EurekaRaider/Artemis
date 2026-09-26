@@ -5599,7 +5599,6 @@ export class ArtemisAgentHost {
                   threadId: request.threadId,
                   cwd: request.workspacePath,
                   actorId: agentId,
-                  remote: Boolean(request.remoteExecution),
                   mode: () => input.mode,
                   turnId: () => hosted.currentTurnId,
                   canContinue: () =>
@@ -6099,7 +6098,15 @@ export class ArtemisAgentHost {
       broker: this.broker,
       threadId: request.threadId,
       cwd: request.workspacePath,
-      remote: Boolean(request.remoteExecution),
+      onPromptBlocked: (message) => {
+        const turnId = this.threads.get(request.threadId)?.currentTurnId;
+        if (turnId)
+          this.sink.emit(request.threadId, turnId, {
+            type: "turn.failed",
+            code: "HOOK_PROMPT_BLOCKED",
+            message,
+          });
+      },
       resumed: Boolean(request.sessionFile),
       mode: () => this.threads.get(request.threadId)?.currentMode ?? "plan",
       turnId: () => this.threads.get(request.threadId)?.currentTurnId,

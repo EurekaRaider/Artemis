@@ -56,7 +56,7 @@ it("does not run discovered hooks until the exact definition is trusted", async 
   await f.service.run(f.context, f.input);
   expect(f.service.records()[0]?.status).toBe("success");
 });
-it("never starts a trusted command in Plan, Review, or remote tasks", async () => {
+it("never starts a trusted command in Plan or Review, including IM tasks", async () => {
   const f = await fixture();
   const [hook] = await f.service.list(f.context);
   await f.service.trust(
@@ -67,7 +67,8 @@ it("never starts a trusted command in Plan, Review, or remote tasks", async () =
   for (const context of [
     { ...f.context, mode: "plan" as const },
     { ...f.context, mode: "review" as const },
-    { ...f.context, remote: true },
+    { ...f.context, mode: "plan" as const, remote: true },
+    { ...f.context, mode: "review" as const, remote: true },
   ])
     await f.service.run(context, f.input);
   expect(f.service.records()).toHaveLength(0);
@@ -354,4 +355,23 @@ it("isolates an invalid plugin source while keeping other hooks reviewable", asy
     status: "pending",
   });
   expect(service.records()).toEqual([]);
+});
+
+it("applies normal trust and revocation rules to IM Execute hooks", async () => {
+  const f = await fixture();
+  const context = { ...f.context, remote: true };
+  expect(await f.service.run(context, f.input)).toEqual({});
+  expect(f.service.records()).toHaveLength(0);
+  const [hook] = await f.service.list(context);
+  await f.service.trust(
+    context,
+    [{ id: hook!.id, hash: hook!.hash }],
+    "project",
+  );
+  await f.service.run(context, f.input);
+  expect(f.service.records()).toHaveLength(1);
+  expect(f.service.records()[0]?.status).toBe("success");
+  await f.service.change(context, hook!.id, "revoke");
+  await f.service.run(context, f.input);
+  expect(f.service.records()).toHaveLength(1);
 });

@@ -16,11 +16,11 @@ interface HookBridgeOptions {
   broker: AgentBroker;
   threadId: string;
   cwd: string;
-  remote: boolean;
   enabled(): boolean;
   mode(): RunMode;
   turnId(): string | undefined;
   canContinue(): boolean;
+  onPromptBlocked?(reason: string): void;
   actorId?: string;
   resumed?: boolean;
 }
@@ -37,8 +37,7 @@ export function createHooksBridge(options: HookBridgeOptions) {
     event: HookEvent,
     fields: Partial<HookInvocation> = {},
   ): Promise<HookResult> => {
-    if (!options.enabled() || options.remote || options.mode() !== "execute")
-      return {};
+    if (!options.enabled() || options.mode() !== "execute") return {};
     const turnId = options.turnId();
     const invocation: HookInvocation = {
       version: 1,
@@ -72,13 +71,7 @@ export function createHooksBridge(options: HookBridgeOptions) {
   };
   const factory: ExtensionFactory = (pi) => {
     pi.on("before_agent_start", async () => {
-      if (
-        !options.enabled() ||
-        options.remote ||
-        options.mode() !== "execute" ||
-        started
-      )
-        return;
+      if (!options.enabled() || options.mode() !== "execute" || started) return;
       started = true;
       const result = await run(
         options.actorId ? "SubagentStart" : "SessionStart",
@@ -97,7 +90,11 @@ export function createHooksBridge(options: HookBridgeOptions) {
     pi.on("input", async (event) => {
       // Hook continuation is queued directly in Pi and is not another user submission.
       const result = await run("UserPromptSubmit", { prompt: event.text });
-      if (result.blocked) return { action: "handled" };
+      if (result.blocked) {
+        if (!event.streamingBehavior)
+          options.onPromptBlocked?.(result.reason ?? "Prompt blocked by hook.");
+        return { action: "handled" };
+      }
       if (result.context)
         pi.sendMessage(
           {
@@ -232,7 +229,6 @@ export function createHooksBridge(options: HookBridgeOptions) {
         signal?.aborted ||
         !options.canContinue() ||
         options.mode() !== "execute" ||
-        options.remote ||
         context.message.stopReason !== "stop" ||
         context.toolResults.length ||
         session.pendingMessageCount

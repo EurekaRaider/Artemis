@@ -33,8 +33,7 @@ const resources = {
       "このフックはエージェントのツール権限要求を許可または拒否できます。",
     "Hooks.pendingNotice":
       "{{count}} 件のフックが確認待ちです。まだ有効ではありません。",
-    "Hooks.skipped":
-      "Plan／Review と IM タスクではコマンドフックを実行しません。",
+    "Hooks.skipped": "Plan／Review タスクではコマンドフックを実行しません。",
     "Hooks.inspect": "表示",
     "Hooks.scope": "承認の適用範囲",
     "Hooks.select": "承認するフックを選択してください。自動選択は行いません。",
@@ -81,7 +80,7 @@ const resources = {
     "Hooks.pendingNotice":
       "{{count}} Hooks müssen geprüft werden. Sie sind noch nicht aktiviert.",
     "Hooks.skipped":
-      "Befehls-Hooks laufen nicht in Plan-, Review- oder IM-Aufgaben.",
+      "Befehls-Hooks laufen nicht in Plan- oder Review-Aufgaben.",
     "Hooks.inspect": "Ansehen",
     "Hooks.scope": "Geltungsbereich",
     "Hooks.select":
@@ -128,8 +127,7 @@ const resources = {
       "Этот хук может разрешать или отклонять запросы прав инструментов агента.",
     "Hooks.pendingNotice":
       "{{count}} хуков требуют проверки. Они ещё не включены.",
-    "Hooks.skipped":
-      "Командные хуки не запускаются в задачах Plan, Review и IM.",
+    "Hooks.skipped": "Командные хуки не запускаются в задачах Plan и Review.",
     "Hooks.inspect": "Просмотр",
     "Hooks.scope": "Область разрешения",
     "Hooks.select": "Выберите хуки для разрешения; автоматического выбора нет.",
@@ -172,7 +170,7 @@ const resources = {
       "此钩子将以当前桌面用户权限运行，可访问本机文件和网络，不会自动获取管理员权限。",
     "Hooks.permissionHook": "此钩子可以允许或拒绝 Agent 工具的权限请求。",
     "Hooks.pendingNotice": "有 {{count}} 个钩子待审核。这些钩子尚未启用。",
-    "Hooks.skipped": "Plan／Review 和 IM 任务不运行命令钩子。",
+    "Hooks.skipped": "Plan／Review 任务不运行命令钩子。",
     "Hooks.inspect": "查看",
     "Hooks.scope": "授权范围",
     "Hooks.select": "勾选要授权的钩子；不会自动全选。",
@@ -218,7 +216,7 @@ const resources = {
       "This hook can approve or deny agent tool permission requests.",
     "Hooks.pendingNotice":
       "{{count}} hooks need review. These hooks are not enabled.",
-    "Hooks.skipped": "Command hooks do not run in Plan, Review, or IM tasks.",
+    "Hooks.skipped": "Command hooks do not run in Plan or Review tasks.",
     "Hooks.inspect": "Inspect",
     "Hooks.scope": "Authorization scope",
     "Hooks.select":
@@ -267,7 +265,7 @@ const resources = {
     "Hooks.pendingNotice":
       "{{count}} hook richiedono una verifica. Non sono ancora attivi.",
     "Hooks.skipped":
-      "Gli hook di comando non vengono eseguiti nelle attività Plan, Review o IM.",
+      "Gli hook di comando non vengono eseguiti nelle attività Plan o Review.",
     "Hooks.inspect": "Esamina",
     "Hooks.scope": "Ambito dell’autorizzazione",
     "Hooks.select":
@@ -316,7 +314,7 @@ const resources = {
     "Hooks.pendingNotice":
       "{{count}} hooks sont à examiner. Ils ne sont pas encore activés.",
     "Hooks.skipped":
-      "Les hooks de commande ne s’exécutent pas dans les tâches Plan, Review ou IM.",
+      "Les hooks de commande ne s’exécutent pas dans les tâches Plan ou Review.",
     "Hooks.inspect": "Inspecter",
     "Hooks.scope": "Portée de l’autorisation",
     "Hooks.select":
@@ -364,7 +362,7 @@ const resources = {
       "यह हुक एजेंट टूल की अनुमति के अनुरोध स्वीकार या अस्वीकार कर सकता है।",
     "Hooks.pendingNotice":
       "{{count}} हुक की समीक्षा आवश्यक है। ये अभी चालू नहीं हैं।",
-    "Hooks.skipped": "Plan, Review और IM कार्यों में कमांड हुक नहीं चलते।",
+    "Hooks.skipped": "Plan और Review कार्यों में कमांड हुक नहीं चलते।",
     "Hooks.inspect": "देखें",
     "Hooks.scope": "अनुमति का दायरा",
     "Hooks.select":
@@ -412,7 +410,7 @@ const resources = {
     "Hooks.pendingNotice":
       "{{count}} hooks precisam de revisão. Eles ainda não estão ativados.",
     "Hooks.skipped":
-      "Hooks de comando não são executados em tarefas Plan, Review ou IM.",
+      "Hooks de comando não são executados em tarefas Plan ou Review.",
     "Hooks.inspect": "Inspecionar",
     "Hooks.scope": "Escopo da autorização",
     "Hooks.select":
@@ -459,8 +457,7 @@ const resources = {
       "이 훅은 에이전트 도구의 권한 요청을 허용하거나 거부할 수 있습니다.",
     "Hooks.pendingNotice":
       "{{count}}개의 훅을 검토해야 합니다. 아직 활성화되지 않았습니다.",
-    "Hooks.skipped":
-      "Plan／Review 및 IM 작업에서는 명령 훅을 실행하지 않습니다.",
+    "Hooks.skipped": "Plan／Review 작업에서는 명령 훅을 실행하지 않습니다.",
     "Hooks.inspect": "보기",
     "Hooks.scope": "승인 범위",
     "Hooks.select": "승인할 훅을 선택하세요. 자동으로 선택되지 않습니다.",
@@ -504,7 +501,7 @@ const resources = {
       "此鉤子將以目前桌面使用者權限執行，可存取本機檔案和網路，不會自動取得管理員權限。",
     "Hooks.permissionHook": "此鉤子可以允許或拒絕 Agent 工具的權限請求。",
     "Hooks.pendingNotice": "有 {{count}} 個鉤子待審核。這些鉤子尚未啟用。",
-    "Hooks.skipped": "Plan／Review 和 IM 任務不執行命令鉤子。",
+    "Hooks.skipped": "Plan／Review 任務不執行命令鉤子。",
     "Hooks.inspect": "檢視",
     "Hooks.scope": "授權範圍",
     "Hooks.select": "勾選要授權的鉤子；不會自動全選。",
@@ -551,7 +548,7 @@ const resources = {
     "Hooks.pendingNotice":
       "{{count}} hook perlu ditinjau. Hook tersebut belum aktif.",
     "Hooks.skipped":
-      "Hook perintah tidak berjalan dalam tugas Plan, Review, atau IM.",
+      "Hook perintah tidak berjalan dalam tugas Plan atau Review.",
     "Hooks.inspect": "Periksa",
     "Hooks.scope": "Cakupan izin",
     "Hooks.select":
@@ -600,7 +597,7 @@ const resources = {
     "Hooks.pendingNotice":
       "{{count}} hooks requieren revisión. Todavía no están activados.",
     "Hooks.skipped":
-      "Los hooks de comandos no se ejecutan en tareas Plan, Review o IM.",
+      "Los hooks de comandos no se ejecutan en tareas Plan o Review.",
     "Hooks.inspect": "Inspeccionar",
     "Hooks.scope": "Ámbito de autorización",
     "Hooks.select":
@@ -647,7 +644,7 @@ const resources = {
       "يمكن لهذا الخطاف السماح بطلبات أذونات أدوات الوكيل أو رفضها.",
     "Hooks.pendingNotice":
       "هناك {{count}} خطافات تحتاج إلى مراجعة. لم يتم تفعيلها بعد.",
-    "Hooks.skipped": "لا تعمل خطافات الأوامر في مهام Plan أو Review أو IM.",
+    "Hooks.skipped": "لا تعمل خطافات الأوامر في مهام Plan أو Review.",
     "Hooks.inspect": "فحص",
     "Hooks.scope": "نطاق التفويض",
     "Hooks.select":

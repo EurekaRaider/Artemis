@@ -166,6 +166,8 @@ export interface ImTaskOperations {
   ready(): boolean;
 }
 interface Binding {
+  /** Persisted history remains visible but cannot be delivered under a renewed grant. */
+  renewedAfterSequence?: number;
   executionStarted?: boolean;
   /** Original requester; later group messages cannot acquire task control. */
   controllerIdentity?: string;
@@ -924,7 +926,7 @@ export class ImService {
         throw new Error("当前群组分享范围尚未确认，请在桌面检查授权。");
       if (space.revision !== binding.security?.spaceRevision)
         throw new Error(
-          "旧任务保存的分享范围版本已失效，不能直接继续或发送旧结果。请使用当前授权发起新请求。",
+          "旧任务保存的群组分享范围版本与当前已确认版本不同。请在桌面按当前授权发送新消息；旧操作和旧结果不会自动恢复。",
         );
     }
     const current = this.secureContext(binding);
@@ -3308,7 +3310,7 @@ export class ImService {
     const thread = this.ops.thread(threadId);
     if (!thread || busy(thread))
       throw new Error("Cannot change execution context during an active turn.");
-    if (binding.targetDeviceIds) {
+    if (binding.request.conversation.kind === "group") {
       await this.refreshConnection();
       const request = remoteInvocationSchema.parse(
         await (
@@ -3318,6 +3320,7 @@ export class ImService {
         ).json(),
       );
       binding = { ...this.get<Binding>("bindings", threadId)!, request };
+      binding = await this.renewGroupTurn(binding);
     }
     this.checkContext(binding);
     binding = {
@@ -3329,6 +3332,61 @@ export class ImService {
     this.put("local-turns", turnId, threadId);
     for (const action of this.list<PendingAction>("actions"))
       if (action.threadId === threadId) this.remove("actions", action.token);
+  }
+
+  private async renewGroupTurn(binding: Binding): Promise<Binding> {
+    const threadId = binding.threadId;
+    const next = {
+      ...binding,
+      security: this.secureContext(binding, "desktop"),
+    };
+    this.grant(next);
+    const assertIdle = () => {
+      const thread = this.ops.thread(threadId);
+      if (!thread || busy(thread))
+        throw new Error(
+          "Cannot change execution context during an active turn.",
+        );
+    };
+    assertIdle();
+    this.cancelOperations(threadId);
+    // Reopening lets the agent host select the session for the current readable
+    // scope. Audience changes and narrowed scopes must not reuse old history.
+    await this.ops.close(threadId);
+    assertIdle();
+    this.grant(next);
+    if (this.delegationSecurity(binding) === this.delegationSecurity(next))
+      return next;
+    for (const wait of this.delegationWaits.active(threadId))
+      for (const task of wait.tasks)
+        await this.cancelDelegationTask(threadId, task.id, false);
+    this.remove("suspended-bindings", threadId);
+    this.remove("delegation-resumed", threadId);
+    for (const action of this.list<PendingAction>("actions"))
+      if (action.threadId === threadId) this.remove("actions", action.token);
+    for (const candidate of this.list<ImOutboundCandidate>(
+      "outbound-candidates",
+    )) {
+      if (
+        candidate.threadId !== threadId ||
+        !["pending", "sending"].includes(candidate.state)
+      )
+        continue;
+      this.put("outbound-candidates", candidate.id, {
+        ...candidate,
+        state: "expired",
+      });
+      this.remove("outbound-bodies", candidate.id);
+    }
+    for (const reply of this.list<ImReply>("outbox"))
+      if (reply.taskId === threadId) this.remove("outbox", reply.id);
+    next.renewedAfterSequence = this.ops
+      .events(threadId)
+      .reduce(
+        (sequence, event) => Math.max(sequence, event.seq),
+        binding.renewedAfterSequence ?? 0,
+      );
+    return next;
   }
 
   reserveStart(
@@ -5192,6 +5250,9 @@ export class ImService {
           }
         : {}),
       ...(priorTargets ? { targetDeviceIds: priorTargets } : {}),
+      ...(priorBinding?.renewedAfterSequence !== undefined
+        ? { renewedAfterSequence: priorBinding.renewedAfterSequence }
+        : {}),
       ...(priorBinding?.executionStarted ? { executionStarted: true } : {}),
     };
     if (projectId && !isImOwnerDirectRequest(request))
@@ -5364,6 +5425,11 @@ export class ImService {
   }
   private observeGroupActivity(event: AgentEvent): void {
     const binding = this.get<Binding>("bindings", event.threadId);
+    if (
+      binding?.renewedAfterSequence !== undefined &&
+      event.seq <= binding.renewedAfterSequence
+    )
+      return;
     if (binding?.parentThreadId && !this.get("group-observed", event.eventId)) {
       const p = event.payload;
       const phase =
@@ -5392,6 +5458,11 @@ export class ImService {
   }
   private observeEvent(event: AgentEvent): void {
     const binding = this.get<Binding>("bindings", event.threadId);
+    if (
+      binding?.renewedAfterSequence !== undefined &&
+      event.seq <= binding.renewedAfterSequence
+    )
+      return;
     if (
       binding?.parentThreadId &&
       [

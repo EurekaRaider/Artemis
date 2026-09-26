@@ -10,22 +10,27 @@ const catalog = {
   projectId: "project",
   workspacePath: "/project",
 };
-it("uses a quiet actionable status instead of a sandbox warning", async () => {
-  stubWindowArtemis({ listHooks: vi.fn().mockResolvedValue(catalog) });
-  render(
-    <HookTaskNotice
-      locale="zh-CN"
-      projectId="project"
-      mode="execute"
-      onReview={() => {}}
-    />,
-  );
-  expect(await screen.findByRole("status")).toHaveProperty(
-    "className",
-    "hook-task-notice",
-  );
-  expect(screen.getByRole("button", { name: "审核钩子" })).toBeTruthy();
-});
+it.each([false, true])(
+  "shows hook review for Execute tasks (IM: %s)",
+  async (remote) => {
+    stubWindowArtemis({
+      listHooks: vi.fn().mockResolvedValue({ ...catalog, remote }),
+    });
+    render(
+      <HookTaskNotice
+        locale="zh-CN"
+        projectId="project"
+        mode="execute"
+        onReview={() => {}}
+      />,
+    );
+    expect(await screen.findByRole("status")).toHaveProperty(
+      "className",
+      "hook-task-notice",
+    );
+    expect(screen.getByRole("button", { name: "审核钩子" })).toBeTruthy();
+  },
+);
 it.each(["plan", "review"])(
   "keeps %s composer free of inapplicable hook reminders",
   async (mode) => {

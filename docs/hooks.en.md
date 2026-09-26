@@ -14,7 +14,7 @@ User hooks apply to all local projects. Project hooks apply only to their projec
 
 Trust and bounded execution history are stored in the application data directory, not in the repository. Definition changes, managed script changes and plugin content changes invalidate approval. Arbitrary external script dependencies and interpreters are not content-locked: review them yourself. Symlinks in managed script trees are rejected. Script inspection is bounded to 30 text files of at most 64 KiB each; file hashes show the full monitored set.
 
-Plan, Review and IM tasks never execute command hooks, even when trusted. Local interactive tasks, local automations and their subagents use the same hooks. Switching between tasks does not end a session.
+Plan and Review skip command hooks and continue the conversation normally. In Execute, local interactive tasks, IM direct and group chats, automations and their subagents use the same hook trust rules; IM tasks must still pass current conversation authorization checks. With no configured or trusted hooks, the prompt continues. A submission hook that blocks an initial prompt reports a failure reason. Switching between tasks does not end a session.
 
 ## Configuration and command protocol
 

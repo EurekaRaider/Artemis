@@ -48,7 +48,6 @@ export function HookTaskNotice({
   const latest = threadId ? catalog?.records.at(-1) : undefined;
   if (
     mode !== "execute" ||
-    catalog?.remote ||
     (!pending && latest?.status !== "failed" && latest?.status !== "running")
   )
     return null;
@@ -57,9 +56,7 @@ export function HookTaskNotice({
       <ArtemisIcon name="hooks" />
       <span>
         {pending
-          ? mode === "execute" && !catalog?.remote
-            ? uiText(locale, "Hooks.pendingNotice", { count: pending })
-            : uiText(locale, "Hooks.skipped")
+          ? uiText(locale, "Hooks.pendingNotice", { count: pending })
           : `${latest!.event} · ${hookText(locale, `Hooks.${latest!.status}`)}`}
       </span>
       <Button

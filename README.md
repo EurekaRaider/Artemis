@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.6** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.7** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -223,7 +223,7 @@ See also [connector architecture and publisher setup](docs/connectors.md).
 
 ### Lifecycle hooks
 
-Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust and run only for local Execute tasks. See the [English guide](docs/hooks.en.md), [中文开发指南](docs/hooks.md), and [examples](docs/examples/hooks/hooks.json).
+Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Execute mode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan and Review skip hooks and continue normally. See the [English guide](docs/hooks.en.md), [中文开发指南](docs/hooks.md), and [examples](docs/examples/hooks/hooks.json).
 
 ### Parallel Agents
 
@@ -366,15 +366,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.6` local packaging configuration produces:
+The `1.6.7` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.6.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.6.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.6.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.7.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.7.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.7.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.6`, and
+Releases are started manually through **Release**, using tag `v1.6.7`, and
 published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -391,10 +391,15 @@ Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
 
-Version 1.6.6 adds lifecycle hooks with explicit, content-bound trust and desktop
-review in Settings → Hooks. User, project and plugin hooks run only for local
-Execute tasks after approval. This release also fixes update recovery cleanup
-timing and cache removal.
+Version 1.6.7 extends trusted lifecycle hooks to authorized IM Execute tasks,
+reports the reason when a hook blocks an initial prompt, and lets Plan and Review
+continue without running hooks. Group tasks can resume under the current confirmed
+sharing scope while expired actions and queued results stay invalidated. Update
+announcements appear once per version, with refined download and settings controls.
+
+Version 1.6.6 introduced lifecycle hooks with explicit, content-bound trust and
+desktop review in Settings → Hooks, and fixed update recovery cleanup timing and
+cache removal.
 
 Version 1.6.5 makes offline activation default to the operating system’s primary
 language, with English fallback when it is not one of the 14 supported languages.

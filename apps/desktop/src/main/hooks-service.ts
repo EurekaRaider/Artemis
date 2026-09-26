@@ -564,11 +564,7 @@ export class HooksService {
     };
   }
   async run(context: HookContext, input: HookInvocation): Promise<HookResult> {
-    if (
-      context.mode !== "execute" ||
-      context.remote ||
-      context.isCurrent?.() === false
-    )
+    if (context.mode !== "execute" || context.isCurrent?.() === false)
       return {};
     const hooks = (await this.list(context)).filter(
       (h) =>
