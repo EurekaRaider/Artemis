@@ -315,16 +315,16 @@ export class ReleaseUpdateManager {
   async markHealthy(): Promise<void> {
     if (this.platform === "win32") return;
     await this.recovery.markHealthy(this.currentVersion);
+    // Cleanup is retried on the next healthy startup if a cache file is locked.
+    // It must not turn a successful installation into an update error.
+    await this.recovery.cleanupInstalledUpdate().catch((error: unknown) => {
+      console.warn("Could not clean installed update cache", error);
+    });
     this.update({
       completedVersion: this.installedVersion,
       rollbackAvailable: await this.recovery.rollbackAvailable(
         this.currentVersion,
       ),
-    });
-    // Cleanup is retried on the next healthy startup if a cache file is locked.
-    // It must not turn a successful installation into an update error.
-    await this.recovery.cleanupInstalledUpdate().catch((error: unknown) => {
-      console.warn("Could not clean installed update cache", error);
     });
   }
 

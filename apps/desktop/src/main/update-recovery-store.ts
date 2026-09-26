@@ -142,14 +142,21 @@ export class UpdateRecoveryStore {
       ];
       delete state.pending;
     }
+    // Also collect the recovery package retained by older releases.
+    if (artifact) {
+      state.cleanupVersions = [
+        ...new Set([...(state.cleanupVersions ?? []), current]),
+      ];
+    }
     await this.save(state);
     return markerPath;
   }
 
   async cleanupInstalledUpdate(): Promise<void> {
     const state = await this.load();
+    // Keep rollback artifacts until the pending installation is healthy.
+    if (state.pending) return;
     for (const version of [...(state.cleanupVersions ?? [])]) {
-      if (state.pending?.targetVersion === version) continue;
       const artifact = state.artifacts[version];
       // Releases before cache tracking still have a verified recovery copy.
       const cache =
@@ -182,12 +189,15 @@ export class UpdateRecoveryStore {
         }
         delete state.downloadCaches?.[version];
       }
+      await rm(join(this.artifactRoot, validateVersion(version)), {
+        recursive: true,
+        force: true,
+      });
+      delete state.artifacts[version];
+      if (state.lastHealthyArtifact === artifact)
+        delete state.lastHealthyArtifact;
+      // The active watchdog still needs the successful startup marker.
       if (version !== state.lastHealthyVersion) {
-        await rm(join(this.artifactRoot, validateVersion(version)), {
-          recursive: true,
-          force: true,
-        });
-        delete state.artifacts[version];
         await rm(
           join(this.artifactRoot, `healthy-${validateVersion(version)}.marker`),
           { force: true },

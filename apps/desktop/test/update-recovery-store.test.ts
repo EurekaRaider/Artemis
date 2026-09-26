@@ -52,12 +52,12 @@ describe("UpdateRecoveryStore", () => {
     await store.markHealthy("1.1.0");
     await store.cleanupInstalledUpdate();
     await expect(readFile(metadata)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await store.rollbackAvailable("1.1.0")).toBe(true);
+    expect(await store.rollbackAvailable("1.1.0")).toBe(false);
     expect(
       JSON.parse(await readFile(statePath, "utf8")).cleanupVersions,
     ).toEqual([]);
   });
-  it("cleans successful update caches, keeps one recovery package and leaves history intact", async () => {
+  it("cleans successful update caches and all recovery packages while leaving history intact", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-update-"));
     temporaryDirectories.push(directory);
     const pending = join(directory, "cache", "pending");
@@ -89,15 +89,21 @@ describe("UpdateRecoveryStore", () => {
       old,
       next,
       oldRecovery,
+      newRecovery,
       join(directory, "cache", "update.zip"),
     ]) {
       await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
     }
-    expect(await readFile(newRecovery, "utf8")).toBe("new");
+    expect(
+      await readFile(
+        join(directory, "artifacts", "healthy-1.1.0.marker"),
+        "utf8",
+      ),
+    ).not.toBe("");
     expect(await readFile(join(directory, "history.sqlite"), "utf8")).toBe(
       "history",
     );
-    expect(await store.rollbackAvailable("1.1.0")).toBe(true);
+    expect(await store.rollbackAvailable("1.1.0")).toBe(false);
     await makeStore().cleanupInstalledUpdate();
   });
 
@@ -133,7 +139,7 @@ describe("UpdateRecoveryStore", () => {
       JSON.parse(await readFile(join(pending, "update-info.json"), "utf8")),
     ).toEqual({ sha512: "newer" });
   });
-  it("retains the last healthy installer and arms rollback before the next update", async () => {
+  it("removes a healthy installer on ordinary startup before the next update", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-update-"));
     temporaryDirectories.push(directory);
     const artifact = join(directory, "Artemis-1.1.0.exe");
@@ -145,6 +151,12 @@ describe("UpdateRecoveryStore", () => {
 
     await store.recordDownloaded("1.1.0", artifact);
     await store.markHealthy("1.1.0");
+    await store.cleanupInstalledUpdate();
+    const state = JSON.parse(
+      await readFile(join(directory, "state.json"), "utf8"),
+    );
+    expect(state.artifacts).toEqual({});
+    expect(state.lastHealthyArtifact).toBeUndefined();
     const nextArtifact = join(directory, "Artemis-1.2.0.exe");
     await writeFile(nextArtifact, "next-installer", "utf8");
     await store.recordDownloaded("1.2.0", nextArtifact);
@@ -154,7 +166,15 @@ describe("UpdateRecoveryStore", () => {
       previousVersion: "1.1.0",
       targetVersion: "1.2.0",
     });
-    expect(pending.previousArtifact).toContain("1.1.0");
+    expect(pending.previousArtifact).toBeUndefined();
+    await store.markHealthy("1.1.0");
+    await store.cleanupInstalledUpdate();
+    expect(
+      await readFile(
+        join(directory, "artifacts", "1.2.0", "Artemis-1.2.0.exe"),
+        "utf8",
+      ),
+    ).toBe("next-installer");
   });
 
   it("keeps an update pending until the new version writes its health marker", async () => {
