@@ -89,6 +89,8 @@ export interface ExtensionRuntimeTool {
 }
 
 export interface AgentRuntimeConfiguration {
+  /** Desktop host supplies the trusted command-hook broker. */
+  hooksEnabled?: boolean;
   credentials: Record<string, RuntimeCredential>;
   shell?: ShellRuntimeConfiguration;
   providers?: ProviderConnection[];
@@ -202,6 +204,7 @@ export type AgentHostCommand =
     }
   | {
       type: "thread.compact";
+      mode?: RunMode;
       requestId: string;
       threadId: string;
       instructions?: string;
@@ -325,6 +328,15 @@ export interface AttachmentOperation {
 }
 
 export type BrokerExecutionRequest =
+  | {
+      kind: "hook.run";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      mode: RunMode;
+      workspacePath: string;
+      invocation: import("./hooks.js").HookInvocation;
+    }
   | {
       kind: "attachment.read";
       approvalId: string;

@@ -1,3 +1,4 @@
+import type { HookQuery } from "@artemis/protocol";
 import { imUserMessageText } from "./im-user-message.js";
 import { UserInputCard } from "./UserInputCard.js";
 import {
@@ -331,7 +332,7 @@ type Locale = AppLocale;
 type ModelPickerSection = "model" | "thinking";
 type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
-type SettingsEntryTab = "general" | "maintenance";
+type SettingsEntryTab = "general" | "maintenance" | "hooks";
 type ConfirmationTone = "default" | "danger";
 type ToastContent = string | { error: true; message: string };
 
@@ -434,6 +435,11 @@ const loadTerminalPanel = () => import("./TerminalPanel.js");
 const loadTokenUsagePage = () => import("./TokenUsagePage.js");
 const AutomationPage = lazy(() =>
   loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
+);
+const HookTaskNotice = lazy(() =>
+  import("./HookTaskNotice.js").then((module) => ({
+    default: module.HookTaskNotice,
+  })),
 );
 const ResourceCenter = lazy(() =>
   loadResourceCenter().then((module) => ({ default: module.ResourceCenter })),
@@ -1160,6 +1166,7 @@ export function App() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hooksQuery, setHooksQuery] = useState<HookQuery>({});
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
   const [sidebarOpen, setSidebarOpen] = useState(
     () => window.innerWidth > 1060,
@@ -6280,6 +6287,16 @@ export function App() {
                       {projectMenuId === project.id && (
                         <div className="project-menu">
                           <button
+                            onClick={(event) => {
+                              setHooksQuery({ projectId: project.id });
+                              setProjectMenuId(undefined);
+                              openSettings("hooks", event.currentTarget);
+                            }}
+                          >
+                            <ArtemisIcon name="hooks" width={16} height={16} />
+                            <span>{uiText(locale, "Hooks.title")}</span>
+                          </button>
+                          <button
                             disabled={
                               hasActiveTask ||
                               !snapshot.threads.some(
@@ -6947,6 +6964,13 @@ export function App() {
           <Suspense fallback={<div className="view-loading">…</div>}>
             <ResourceCenter
               locale={locale}
+              onReviewHooks={(pluginId, trigger) => {
+                setHooksQuery({
+                  pluginId,
+                  ...(activeProjectId ? { projectId: activeProjectId } : {}),
+                });
+                openSettings("hooks", trigger);
+              }}
               onConfirm={requestConfirmation}
               onSettingsChange={(value) => {
                 setRuntimeSettings(value);
@@ -7365,6 +7389,29 @@ export function App() {
                 {!activeThread?.archived && !retiredGroup && (
                   <div className="composer-wrap">
                     {turnFailureBanner}
+                    <Suspense fallback={null}>
+                      <HookTaskNotice
+                        locale={locale}
+                        {...(activeThreadId
+                          ? { threadId: activeThreadId }
+                          : {})}
+                        {...(activeProjectId
+                          ? { projectId: activeProjectId }
+                          : {})}
+                        mode={mode}
+                        onReview={(trigger) => {
+                          setHooksQuery({
+                            ...(activeThreadId
+                              ? { threadId: activeThreadId }
+                              : {}),
+                            ...(activeProjectId
+                              ? { projectId: activeProjectId }
+                              : {}),
+                          });
+                          openSettings("hooks", trigger);
+                        }}
+                      />
+                    </Suspense>
                     {permissionBlock && (
                       <div className="sandbox-notice" role="status">
                         <span>{permissionBlock}</span>
@@ -9513,6 +9560,7 @@ ${model.providerId} · ${model.modelId}`}
             username={username}
             initialSettings={runtimeSettings}
             initialTab={settingsTab}
+            hooksQuery={hooksQuery}
             locale={locale}
             projects={projects}
             onClose={() => setSettingsOpen(false)}

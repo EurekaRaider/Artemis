@@ -32,6 +32,7 @@ export const RESOURCE_ICON_NAMES = [
   "filesystem",
   "git-branch",
   "github",
+  "hook-plugin",
   "image",
   "lightbulb",
   "lightning",
@@ -208,6 +209,25 @@ export function ResourceArtwork({ icon }: { icon: ResourceIconName }) {
   const paint = `url(#${gradientId})`;
   const artwork = (() => {
     switch (icon) {
+      case "hook-plugin":
+        return (
+          <>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+                <stop stopColor="#c4b5fd" />
+                <stop offset="1" stopColor="#8b5cf6" />
+              </linearGradient>
+            </defs>
+            <path d="m40 7 9 9-9 9-9-9 9-9Z" fill={paint} />
+            <path
+              d="M40 25v17a13 13 0 0 1-26 0v-8l8 8M14 25h13"
+              stroke={paint}
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </>
+        );
       case "lightbulb":
         return (
           <>

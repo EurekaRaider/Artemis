@@ -1599,5 +1599,9 @@
   "OAuth_backend": "Developer backend",
   "OAuth_updateRequired": "Update the plugin and authorize again.",
   "Update.manualDownload": "Download ZIP in browser",
-  "Update.manualInstructions": "Download and extract the new ZIP to a new folder. Quit Artemis before switching to the new version. Keep your existing user data; do not delete the Artemis folder in %APPDATA%."
+  "Update.manualInstructions": "Download and extract the new ZIP to a new folder. Quit Artemis before switching to the new version. Keep your existing user data; do not delete the Artemis folder in %APPDATA%.",
+  "Hooks.title": "Hooks",
+  "Hooks.review": "Review hooks",
+  "Hooks.pendingNotice": "{{count}} hooks need review. These hooks are not enabled.",
+  "Hooks.skipped": "Command hooks do not run in Plan, Review, or IM tasks."
 }

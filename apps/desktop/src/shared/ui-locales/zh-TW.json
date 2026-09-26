@@ -1599,5 +1599,9 @@
   "OAuth_backend": "開發者後端",
   "OAuth_updateRequired": "請更新外掛並重新授權。",
   "Update.manualDownload": "在瀏覽器中下載 ZIP",
-  "Update.manualInstructions": "下載新版 ZIP 並解壓縮至新資料夾，結束 Artemis 後再啟動新版。請保留現有使用者資料，不要刪除 %APPDATA% 中的 Artemis 資料夾。"
+  "Update.manualInstructions": "下載新版 ZIP 並解壓縮至新資料夾，結束 Artemis 後再啟動新版。請保留現有使用者資料，不要刪除 %APPDATA% 中的 Artemis 資料夾。",
+  "Hooks.title": "鉤子",
+  "Hooks.review": "審核鉤子",
+  "Hooks.pendingNotice": "有 {{count}} 個鉤子待審核。這些鉤子尚未啟用。",
+  "Hooks.skipped": "Plan／Review 和 IM 任務不執行命令鉤子。"
 }

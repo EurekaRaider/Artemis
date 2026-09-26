@@ -948,7 +948,8 @@ describe("CodexPluginService", () => {
       version: "1.0.0",
       installed: false,
       installable: true,
-      unsupported: ["Hooks"],
+      unsupported: [],
+      hasHooks: true,
     });
     expect(preview.skills).toEqual([
       expect.objectContaining({ name: "hello-plugin" }),

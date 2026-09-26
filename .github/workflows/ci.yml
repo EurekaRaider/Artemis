@@ -3,6 +3,11 @@ name: CI
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      hooks_only:
+        description: Run native Hooks acceptance and engineering package checks
+        type: boolean
+        default: false
   push:
     branches: [main]
   pull_request:
@@ -13,7 +18,7 @@ permissions:
 jobs:
   verify:
     name: Test, typecheck, build and format (${{ matrix.platform }})
-    if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event.repository.private && !inputs.hooks_only && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +54,7 @@ jobs:
 
   slack-cli-native:
     name: Slack CLI native compatibility (${{ matrix.platform }})
-    if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event.repository.private && !inputs.hooks_only && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix:
@@ -104,7 +109,7 @@ jobs:
           }
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
-    if: github.event.repository.private && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event.repository.private && !inputs.hooks_only && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix:
@@ -153,3 +158,53 @@ jobs:
           path: ${{ runner.temp }}/artemis-visual-convergence
           if-no-files-found: error
           retention-days: 1
+
+  hooks-native:
+    name: Hooks native acceptance (${{ matrix.platform }})
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    if: github.event.repository.private && inputs.hooks_only
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+          - platform: windows-x64
+            runner: [self-hosted, Windows, X64]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Normalize Windows checkout
+        if: matrix.platform == 'windows-x64'
+        run: node scripts/normalize-windows-checkout.mjs
+      - run: npm ci
+      - run: npm run build
+      - name: Native service, lifecycle and trust UI tests
+        run: npx vitest run apps/desktop/test/hooks-service.test.ts packages/agent-host/test/hooks-bridge.test.ts apps/desktop/test/hooks-settings.test.tsx
+        env:
+          NODE_OPTIONS: --no-experimental-webstorage
+      - name: Exercise desktop trust and real command execution
+        run: node apps/desktop/scripts/verify-hooks-native.mjs
+      - name: Package Windows engineering artifact
+        if: matrix.platform == 'windows-x64'
+        run: npm run package:win
+      - name: Verify Windows artifact, ACLs and packaged activation boundary
+        if: matrix.platform == 'windows-x64'
+        run: npm run verify:win-native -w @artemis/desktop
+      - name: Package macOS engineering artifacts
+        if: matrix.platform == 'macos-arm64'
+        run: npm run package:mac
+      - name: Upload native acceptance evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v6
+        with:
+          name: hooks-native-${{ matrix.platform }}
+          path: artifacts/hooks-native
+          if-no-files-found: warn
+          retention-days: 7

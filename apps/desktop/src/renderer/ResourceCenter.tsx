@@ -64,6 +64,7 @@ import {
 } from "./resource-icons.js";
 
 interface ResourceCenterProps {
+  onReviewHooks?(pluginId: string, trigger: HTMLButtonElement): void;
   locale: AppLocale;
   settings?: SettingsSnapshot;
   onConfirm(
@@ -188,6 +189,7 @@ const FEATURED_PLUGINS = [
 ];
 
 export function ResourceCenter({
+  onReviewHooks,
   locale,
   settings,
   onConfirm,
@@ -1209,6 +1211,7 @@ export function ResourceCenter({
       brandColor: bundled?.brandColor ?? plugin.brandColor,
       iconDataUrl: bundled?.iconDataUrl ?? plugin.iconDataUrl,
       pluginName: plugin.name,
+      iconKey: plugin.hasHooks ? ("hook-plugin" as const) : undefined,
     };
   }
 
@@ -1251,6 +1254,7 @@ export function ResourceCenter({
 
   function pluginIsEnabled(plugin: InstalledCodexPlugin): boolean {
     return (
+      (plugin.hasHooks && plugin.hooksEnabled !== false) ||
       plugin.skillNames.some((name) => enabledSkillNames.has(name)) ||
       plugin.mcpServerIds.some((id) => enabledMcpIds.has(id))
     );
@@ -1725,6 +1729,7 @@ export function ResourceCenter({
           <ResourceAvatar
             brandColor={plugin.brandColor}
             iconDataUrl={plugin.iconDataUrl}
+            iconKey={plugin.hasHooks ? "hook-plugin" : undefined}
             kind="plugin"
             name={plugin.name}
           />
@@ -1751,6 +1756,18 @@ export function ResourceCenter({
             className="plugin-market-card-actions"
             data-installed={installed && Boolean(installedPlugin)}
           >
+            {installed && plugin.hasHooks && onReviewHooks && (
+              <Button
+                variant="quiet"
+                size="compact"
+                icon={<ArtemisIcon name="hooks" />}
+                onClick={(event) =>
+                  onReviewHooks(plugin.id, event.currentTarget)
+                }
+              >
+                {uiText(locale, "Hooks.title")}
+              </Button>
+            )}
             {installed && installedPlugin ? (
               <>
                 {pluginHasConnection(installedPlugin) && (
@@ -2453,6 +2470,19 @@ export function ResourceCenter({
                 <ManagementRow
                   actions={
                     <div className="resource-row-actions">
+                      {plugin.hasHooks && onReviewHooks && (
+                        <Button
+                          variant="quiet"
+                          size="compact"
+                          icon={<ArtemisIcon name="hooks" />}
+                          onClick={(event) =>
+                            onReviewHooks(plugin.id, event.currentTarget)
+                          }
+                        >
+                          {uiText(locale, "Hooks.title")}
+                        </Button>
+                      )}
+
                       {pluginHasConnection(plugin) && (
                         <Button
                           variant="quiet"
@@ -2518,6 +2548,7 @@ export function ResourceCenter({
                     <ResourceAvatar
                       brandColor={visual.brandColor}
                       iconDataUrl={visual.iconDataUrl}
+                      iconKey={visual.iconKey}
                       kind="plugin"
                       name={plugin.name}
                     />

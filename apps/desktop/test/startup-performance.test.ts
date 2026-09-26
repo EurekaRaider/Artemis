@@ -102,6 +102,7 @@ describe("desktop startup latency guardrails", () => {
   it("pins dual-platform visual convergence to the source head on private runners", () => {
     const visualJob = ciWorkflowSource.slice(
       ciWorkflowSource.indexOf("visual-convergence-electron:"),
+      ciWorkflowSource.indexOf("\n  hooks-native:"),
     );
     const exactSourceHead = "github.sha";
 

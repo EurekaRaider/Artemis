@@ -1599,5 +1599,9 @@
   "OAuth_backend": "डेवलपर बैकएंड",
   "OAuth_updateRequired": "प्लगइन अपडेट करें और फिर से अधिकृत करें।",
   "Update.manualDownload": "ब्राउज़र में ZIP डाउनलोड करें",
-  "Update.manualInstructions": "नया ZIP डाउनलोड करके नए फ़ोल्डर में निकालें। नया संस्करण शुरू करने से पहले Artemis बंद करें। अपना डेटा सुरक्षित रखें; %APPDATA% में Artemis फ़ोल्डर न हटाएँ।"
+  "Update.manualInstructions": "नया ZIP डाउनलोड करके नए फ़ोल्डर में निकालें। नया संस्करण शुरू करने से पहले Artemis बंद करें। अपना डेटा सुरक्षित रखें; %APPDATA% में Artemis फ़ोल्डर न हटाएँ।",
+  "Hooks.title": "हुक",
+  "Hooks.review": "हुक की समीक्षा करें",
+  "Hooks.pendingNotice": "{{count}} हुक की समीक्षा आवश्यक है। ये अभी चालू नहीं हैं।",
+  "Hooks.skipped": "Plan, Review और IM कार्यों में कमांड हुक नहीं चलते।"
 }

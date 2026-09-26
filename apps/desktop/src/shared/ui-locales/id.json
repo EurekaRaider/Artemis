@@ -1599,5 +1599,9 @@
   "OAuth_backend": "Backend pengembang",
   "OAuth_updateRequired": "Perbarui plugin dan lakukan otorisasi ulang.",
   "Update.manualDownload": "Unduh ZIP di browser",
-  "Update.manualInstructions": "Unduh dan ekstrak ZIP baru ke folder baru. Tutup Artemis sebelum menjalankan versi baru. Simpan data pengguna Anda; jangan hapus folder Artemis di %APPDATA%."
+  "Update.manualInstructions": "Unduh dan ekstrak ZIP baru ke folder baru. Tutup Artemis sebelum menjalankan versi baru. Simpan data pengguna Anda; jangan hapus folder Artemis di %APPDATA%.",
+  "Hooks.title": "Hook",
+  "Hooks.review": "Tinjau hook",
+  "Hooks.pendingNotice": "{{count}} hook perlu ditinjau. Hook tersebut belum aktif.",
+  "Hooks.skipped": "Hook perintah tidak berjalan dalam tugas Plan, Review, atau IM."
 }

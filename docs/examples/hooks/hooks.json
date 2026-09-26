@@ -1,0 +1,39 @@
+{
+  "description": "Artemis lifecycle hook examples. Review before enabling.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .artemis/hooks/prompt-check.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|write|local_file_write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .artemis/hooks/protect-files.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .artemis/hooks/check-completion.mjs",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

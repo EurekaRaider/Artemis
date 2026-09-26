@@ -221,6 +221,10 @@ Build third-party plugins and your own Git marketplace:
 Covers manifests, Skills, MCP, Connector/OAuth, signing, publishing and updates.
 See also [connector architecture and publisher setup](docs/connectors.md).
 
+### Lifecycle hooks
+
+Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust and run only for local Execute tasks. See the [English guide](docs/hooks.en.md), [中文开发指南](docs/hooks.md), and [examples](docs/examples/hooks/hooks.json).
+
 ### Parallel Agents
 
 Split independent work across Pi-backed child sessions while the parent remains

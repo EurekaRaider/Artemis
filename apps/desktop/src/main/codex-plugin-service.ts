@@ -128,6 +128,7 @@ interface ParsedMcpServer {
 }
 
 interface ParsedPlugin {
+  hasHooks?: boolean;
   localizations?: PluginLocalizations;
   root: string;
   id: string;
@@ -160,6 +161,7 @@ interface StoredMcpServer {
 }
 
 interface StoredPlugin {
+  hasHooks?: boolean;
   localizations?: PluginLocalizations;
   id: string;
   name: string;
@@ -1605,6 +1607,8 @@ function validateStoredPlugin(value: unknown): StoredPlugin {
       ? (input.mcpPreviews as CodexPluginPreview["mcpServers"])
       : [],
     appPreviews,
+    hasHooks:
+      input.hasHooks === true || strings(input.unsupported).includes("Hooks"),
     unsupported: strings(input.unsupported),
     warnings: strings(input.warnings),
   };
@@ -1623,6 +1627,18 @@ export class CodexPluginService {
       options.cloneRepository ??
       ((url, destination) =>
         defaultDownloadRepository(url, destination, fetcher));
+  }
+
+  async hookSources(): Promise<
+    Array<{ id: string; name: string; root: string; contentHash: string }>
+  > {
+    const plugins = (await this.loadStore()).plugins;
+    return plugins.map((plugin) => ({
+      id: plugin.id,
+      root: join(this.options.pluginsRoot, plugin.id),
+      name: plugin.displayName || plugin.name,
+      contentHash: plugin.contentHash,
+    }));
   }
 
   async listInstalled(): Promise<InstalledCodexPlugin[]> {
@@ -2934,6 +2950,7 @@ export class CodexPluginService {
     const warnings: string[] = [];
     if (!manifest?.version)
       warnings.push("Plugin manifest has no version; 0.0.0 was used.");
+    let hasHooks = false;
     const unsupported: string[] = [];
     const apps = await rejectedLegacyConnectors(root, manifest);
     const iconDataUrl = await readPluginIcon(
@@ -2945,7 +2962,10 @@ export class CodexPluginService {
       (await exists(join(root, "hooks", "hooks.json"))) ||
       (await exists(join(root, "hooks.json")))
     ) {
-      unsupported.push("Hooks");
+      hasHooks = true;
+      warnings.push(
+        "Command hooks require separate review and trust in Settings → Hooks.",
+      );
     }
     for (const [field, label] of [
       ["commands", "Commands"],
@@ -3056,6 +3076,7 @@ export class CodexPluginService {
       ...(brandColor ? { brandColor } : {}),
       ...(iconDataUrl ? { iconDataUrl } : {}),
       source,
+      hasHooks,
       skills,
       mcpServers,
       apps,
@@ -3092,7 +3113,8 @@ export class CodexPluginService {
           parsed.apps,
           parsed.mcpServers,
         ).length === 0 &&
-        (parsed.skills.length > 0 ||
+        (parsed.hasHooks ||
+          parsed.skills.length > 0 ||
           parsed.mcpServers.some((server) => server.importable) ||
           parsed.apps.some((connector) => connector.url)),
       skills: parsed.skills.map((skill) => ({
@@ -3101,6 +3123,7 @@ export class CodexPluginService {
       })),
       mcpServers: parsed.mcpServers.map(previewMcp),
       apps: structuredClone(parsed.apps),
+      hasHooks: parsed.hasHooks ?? false,
       unsupported: [...parsed.unsupported],
       warnings: [...parsed.warnings],
     };
@@ -3145,7 +3168,8 @@ export class CodexPluginService {
       skills: structuredClone(plugin.skillPreviews),
       mcpServers: structuredClone(plugin.mcpPreviews),
       apps: structuredClone(plugin.appPreviews),
-      unsupported: [...plugin.unsupported],
+      hasHooks: plugin.hasHooks ?? plugin.unsupported.includes("Hooks"),
+      unsupported: plugin.unsupported.filter((value) => value !== "Hooks"),
       warnings: [...plugin.warnings],
       contentHash: plugin.contentHash,
       installedAt: plugin.installedAt,
@@ -3465,6 +3489,7 @@ export class CodexPluginService {
       })),
       mcpPreviews: parsed.mcpServers.map(previewMcp),
       appPreviews: structuredClone(parsed.apps),
+      hasHooks: parsed.hasHooks ?? false,
       unsupported: [...parsed.unsupported],
       warnings: [...parsed.warnings],
     };

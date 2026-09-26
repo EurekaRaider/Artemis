@@ -42,6 +42,8 @@ export const ARTEMIS_ICON_NAMES = [
   "mode",
   "usage",
   "automation",
+  "hooks",
+  "hook-plugin",
   "resource",
   "settings",
   "gear",
@@ -304,6 +306,18 @@ const ARTEMIS_ICON_GLYPHS = {
       {" "}
       <circle cx="12" cy="12" r="8"></circle>
       <path d="M12 7.5V12l3 2"></path>{" "}
+    </>
+  ),
+  hooks: (
+    <>
+      <circle cx="15" cy="5" r="2" />
+      <path d="M15 7v9a5 5 0 0 1-10 0v-3l3 3M5 10h5" />
+    </>
+  ),
+  "hook-plugin": (
+    <>
+      <path d="m15 3 3 3-3 3-3-3 3-3Z" />
+      <path d="M15 9v7a5 5 0 0 1-10 0v-3l3 3M5 10h5" />
     </>
   ),
   resource: (

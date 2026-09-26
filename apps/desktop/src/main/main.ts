@@ -1,3 +1,6 @@
+import { HooksService, type HookContext } from "./hooks-service.js";
+import { homedir as hookHomeDir } from "node:os";
+import type { HookQuery, HookInvocation } from "@artemis/protocol";
 import {
   assertLicense,
   canRunLicensed,
@@ -1326,6 +1329,148 @@ function agentProcessHandlers(): AgentProcessHandlers {
   };
 }
 
+let hooksService: HooksService | undefined;
+function getHooksService(): HooksService {
+  return (hooksService ??= new HooksService(
+    join(app.getPath("userData"), "hooks"),
+    join(hookHomeDir(), ".artemis"),
+    () => codexPluginService?.hookSources() ?? Promise.resolve([]),
+  ));
+}
+async function hookContext(query: HookQuery): Promise<HookContext> {
+  if (!store) throw new Error("Application is not ready");
+  if (query.threadId) {
+    const thread = store.getThread(query.threadId);
+    if (!thread) throw new Error("Task not found");
+    const context = await resolveThreadWorkspace(thread);
+    return {
+      projectId: context.project.id,
+      workspacePath: context.workspacePath,
+      threadId: thread.id,
+      mode: thread.mode,
+      remote: Boolean(imService?.hasBinding(thread.id)),
+      isCurrent: () =>
+        store?.getThread(thread.id)?.mode === "execute" &&
+        !imService?.hasBinding(thread.id) &&
+        !cancellingTurns.has(thread.id),
+    };
+  }
+  if (query.projectId) {
+    const project = store.getProject(query.projectId);
+    if (!project) throw new Error("Project not found");
+    return { projectId: project.id, workspacePath: project.path };
+  }
+  return { projectId: "user", workspacePath: hookHomeDir() };
+}
+async function hookCatalog(query: HookQuery) {
+  const context = await hookContext(query);
+  let hooks = await getHooksService().list(context);
+  if (!query.projectId && !query.threadId && store) {
+    const contract = getPlatformContract();
+    const projects = store.snapshot(
+      currentLocale(),
+      currentPlatform(),
+      {
+        available: contract.sandbox.available,
+        implementation: contract.sandbox.implementation,
+      },
+      { includeEvents: false },
+    ).projects;
+    for (const project of projects) {
+      const scoped = await getHooksService().list({
+        projectId: project.id,
+        workspacePath: project.path,
+      });
+      hooks.push(...scoped.filter((hook) => hook.source === "project"));
+    }
+  }
+  if (query.pluginId)
+    hooks = hooks.filter(
+      (hook) => hook.source === "plugin" && hook.sourceId === query.pluginId,
+    );
+  return {
+    hooks,
+    remote: context.remote === true,
+    workspacePath: context.workspacePath,
+    projectId: context.projectId,
+    records: getHooksService().records(query.threadId),
+  };
+}
+async function contextForHook(
+  query: HookQuery,
+  id: string,
+): Promise<HookContext> {
+  const hook = (await hookCatalog(query)).hooks.find(
+    (value) => value.id === id,
+  );
+  if (!hook) throw new Error("Hook no longer exists");
+  return hook.source === "project" && !query.threadId
+    ? hookContext({ projectId: hook.sourceId })
+    : hookContext(query);
+}
+async function hookPermission(
+  request: BrokerExecutionRequest,
+): Promise<"allow" | "deny" | undefined> {
+  if (request.mode !== "execute" || imService?.hasBinding(request.threadId))
+    return;
+  try {
+    const context = await hookContext({ threadId: request.threadId });
+    if (
+      context.mode !== "execute" ||
+      activeTurns.get(request.threadId) !== request.turnId ||
+      cancellingTurns.has(request.threadId)
+    )
+      return "deny";
+    const toolName =
+      request.kind === "shell.execute"
+        ? "Bash"
+        : request.kind === "workspace.write"
+          ? "Write"
+          : "toolName" in request
+            ? request.toolName
+            : request.kind;
+    const result = await getHooksService().run(context, {
+      version: 1,
+      hook_event_name: "PermissionRequest",
+      session_id: request.threadId,
+      turn_id: request.turnId,
+      cwd: context.workspacePath,
+      permission_mode: "execute",
+      tool_name: toolName,
+      tool_input:
+        "arguments" in request
+          ? request.arguments
+          : "command" in request
+            ? { command: request.command }
+            : request,
+    });
+    if (result.blocked) return "deny";
+    return result.permission;
+  } catch {
+    return;
+  }
+}
+
+async function endHookSession(threadId: string): Promise<void> {
+  try {
+    const context = await hookContext({ threadId });
+    await getHooksService().run(context, {
+      version: 1,
+      hook_event_name: "SessionEnd",
+      session_id: threadId,
+      cwd: context.workspacePath,
+      permission_mode: context.mode ?? "plan",
+      reason: "other",
+    });
+  } catch (error) {
+    diagnosticBundleService?.record({
+      source: "main",
+      severity: "error",
+      message: `SessionEnd failed: ${String(error)}`,
+    });
+  }
+}
+
 function createAgentHostProcess(): AgentProcess {
   assertLicense();
   const codexRuntimeRoot = codexPrimaryRuntimePath();
@@ -1480,6 +1625,7 @@ async function applyAgentRuntime(
   if (globalInstructionsStore) {
     resolved.globalAgents = await globalInstructionsStore.snapshot();
   }
+  resolved.hooksEnabled = true;
   resolved.mcpTools = mcpClientManager?.tools() ?? [];
   resolved.extensionTools = trustedExtensionManager?.tools() ?? [];
   // Full custom sub-agent definitions (including dedicated instructions)
@@ -1940,6 +2086,18 @@ async function installedSkillsWithState(): Promise<InstalledSkill[]> {
   }));
 }
 
+async function pluginsWithHookState(): Promise<InstalledCodexPlugin[]> {
+  const plugins = (await codexPluginService?.listInstalled()) ?? [];
+  return Promise.all(
+    plugins.map(async (plugin) => ({
+      ...plugin,
+      ...(plugin.hasHooks
+        ? { hooksEnabled: await getHooksService().pluginEnabled(plugin.id) }
+        : {}),
+    })),
+  );
+}
+
 async function codexPluginMutationResult(
   warnings: string[],
 ): Promise<CodexPluginMutationResult> {
@@ -1947,7 +2105,7 @@ async function codexPluginMutationResult(
     throw new Error("Plugin service is not ready.");
   }
   return {
-    plugins: await codexPluginService.listInstalled(),
+    plugins: await pluginsWithHookState(),
     skills: await installedSkillsWithState(),
     settings: await getSettingsSnapshot(),
     warnings,
@@ -3746,6 +3904,21 @@ async function handleShellBrokerRequest(
     return;
   }
 
+  const hookDecision = await hookPermission(request);
+  if (hookDecision === "deny") {
+    rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
+    return;
+  }
+  if (hookDecision === "allow") {
+    await executeApprovedShell(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    });
+    return;
+  }
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom" && decision.outcome === "ask"
@@ -3934,6 +4107,21 @@ async function handleLocalFileBrokerRequest(
     return;
   }
 
+  const hookDecision = await hookPermission(request);
+  if (hookDecision === "deny") {
+    rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
+    return;
+  }
+  if (hookDecision === "allow") {
+    await executeApprovedLocalFile(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    });
+    return;
+  }
   const nonce = randomUUID();
   const allowedScopes = conversationApprovalScopes(thread, [
     "once",
@@ -4042,6 +4230,62 @@ async function handleBrokerRequest(
   request: BrokerExecutionRequest,
 ): Promise<void> {
   if (!canRunLicensed() || !agentProcess || !store) {
+    return;
+  }
+  if (request.kind === "hook.run") {
+    try {
+      const context = await hookContext({ threadId: request.threadId });
+      if (
+        context.remote ||
+        context.mode !== "execute" ||
+        request.mode !== "execute" ||
+        cancellingTurns.has(request.threadId)
+      )
+        throw new Error("Hooks require a local Execute task");
+      if (
+        !conversationWorkspaceMatches(
+          context.workspacePath,
+          request.workspacePath,
+        )
+      )
+        throw new Error("Hook workspace mismatch");
+      const goal = store.getThread(request.threadId)?.goal;
+      if (
+        ["Stop", "SubagentStop"].includes(request.invocation.hook_event_name) &&
+        goal?.status === "budgetLimited"
+      )
+        throw new Error("Goal token budget exhausted");
+      const activeTurn = activeTurns.get(request.threadId);
+      if (activeTurn && activeTurn !== request.turnId)
+        throw new Error("Stale hook invocation");
+      if (
+        !activeTurn &&
+        !["PreCompact", "PostCompact", "SessionStart"].includes(
+          request.invocation.hook_event_name,
+        )
+      )
+        throw new Error("Hook requires an active turn");
+      const data = await getHooksService().run(context, {
+        ...request.invocation,
+        session_id: request.threadId,
+        cwd: context.workspacePath,
+        permission_mode: "execute",
+      });
+      agentProcess.post({
+        type: "broker.resolve",
+        requestId: workerRequestId,
+        resolution: {
+          approvalId: request.approvalId,
+          nonce: randomUUID(),
+          approved: true,
+          scope: "once",
+          source: "policy",
+        },
+        result: data,
+      });
+    } catch (error) {
+      rejectBrokerRequest(workerRequestId, request, String(error));
+    }
     return;
   }
   if (imService?.hasBinding(request.threadId)) {
@@ -4330,6 +4574,21 @@ async function handleBrokerRequest(
     return;
   }
 
+  const hookDecision = await hookPermission(request);
+  if (hookDecision === "deny") {
+    rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
+    return;
+  }
+  if (hookDecision === "allow") {
+    await executeApprovedWrite(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    });
+    return;
+  }
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
@@ -4777,6 +5036,26 @@ async function handleOfficeDocumentBrokerRequest(
     return;
   }
 
+  const hookDecision = await hookPermission(request);
+  if (hookDecision === "deny") {
+    rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
+    return;
+  }
+  if (hookDecision === "allow") {
+    await executeApprovedOffice(
+      workerRequestId,
+      request,
+      {
+        approvalId: request.approvalId,
+        nonce: randomUUID(),
+        approved: true,
+        scope: "once",
+        source: "policy",
+      },
+      false,
+    );
+    return;
+  }
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
@@ -4967,6 +5246,21 @@ async function handleMcpBrokerRequest(
     return;
   }
 
+  const hookDecision = await hookPermission(request);
+  if (hookDecision === "deny") {
+    rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
+    return;
+  }
+  if (hookDecision === "allow") {
+    await executeApprovedMcp(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    });
+    return;
+  }
   const nonce = randomUUID();
   const allowedScopes = conversationApprovalScopes(
     thread,
@@ -5116,6 +5410,21 @@ async function handleExtensionBrokerRequest(
     return;
   }
 
+  const hookDecision = await hookPermission(request);
+  if (hookDecision === "deny") {
+    rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
+    return;
+  }
+  if (hookDecision === "allow") {
+    await executeApprovedExtension(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    });
+    return;
+  }
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
@@ -6716,6 +7025,7 @@ async function cancelLocalTaskTurn(threadId: string): Promise<void> {
     (pending) => pending.request.threadId === thread.id,
   );
   cancellingTurns.add(thread.id);
+  hooksService?.cancelThread(thread.id);
   // Persist the user's Stop before awaiting the worker, including during restart.
   store.clearTurnCheckpoint(thread.id, turnId);
   for (const cancelled of cancelledApprovals) {
@@ -6833,6 +7143,65 @@ async function cancelRunningGoalContinuation(threadId: string): Promise<void> {
 }
 
 function registerIpc(): void {
+  ipcMain.handle(IPC.hooksList, async (_event, query: HookQuery = {}) =>
+    hookCatalog(query),
+  );
+  ipcMain.handle(
+    IPC.hooksTrust,
+    async (
+      _event,
+      query: HookQuery,
+      reviewed: Array<{ id: string; hash: string }>,
+      scope: "all" | "project",
+    ) => {
+      if (
+        !Array.isArray(reviewed) ||
+        reviewed.length > 200 ||
+        !["all", "project"].includes(scope)
+      )
+        throw new Error("Invalid hook trust request");
+      // Validate every reviewed hash before committing any trust in a multi-project batch.
+      const catalog = await hookCatalog(query);
+      for (const review of reviewed)
+        if (
+          !catalog.hooks.some(
+            (h) =>
+              h.id === review.id &&
+              h.hash === review.hash &&
+              h.status !== "invalid",
+          )
+        )
+          throw new Error("Hook changed since review");
+      for (const review of reviewed)
+        await getHooksService().trust(
+          await contextForHook(query, review.id),
+          [review],
+          scope,
+        );
+    },
+  );
+  ipcMain.handle(
+    IPC.hooksChange,
+    async (
+      _event,
+      query: HookQuery,
+      id: string,
+      action: "enable" | "disable" | "revoke",
+    ) => {
+      if (!["enable", "disable", "revoke"].includes(action))
+        throw new Error("Invalid hook action");
+      await getHooksService().change(
+        await contextForHook(query, id),
+        id,
+        action,
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.hooksInspect,
+    async (_event, query: HookQuery, id: string) =>
+      getHooksService().inspect(await contextForHook(query, id), id),
+  );
   ipcMain.on(IPC.taskView, (event, input: unknown) => {
     if (
       shuttingDown ||
@@ -8406,7 +8775,7 @@ function registerIpc(): void {
       if (!codexPluginService) {
         throw new Error("Plugin service is not ready.");
       }
-      return codexPluginService.listInstalled();
+      return pluginsWithHookState();
     },
   );
   ipcMain.handle(
@@ -8920,6 +9289,8 @@ function registerIpc(): void {
           await ensureConnectorReady(config);
         }
       }
+      if (!enabledInput)
+        await getHooksService().setPluginEnabled(pluginId, false);
       await resetAgentThreadsForToolChange();
       await disconnectMcpServers(existing.mcpServerIds);
       try {
@@ -8937,6 +9308,7 @@ function registerIpc(): void {
           );
         }
         await applyAgentRuntime();
+        await getHooksService().setPluginEnabled(pluginId, enabledInput);
         return codexPluginMutationResult([]);
       } catch (error) {
         for (const skill of ownedSkills) {
@@ -8970,6 +9342,7 @@ function registerIpc(): void {
       const pluginId = String(pluginIdInput ?? "").trim();
       const existing = await codexPluginService.installedById(pluginId);
       if (!existing) throw new Error("Installed plugin was not found.");
+      await getHooksService().removePlugin(pluginId);
       const before = await mcpConfigStore.list();
       const scopedIds = new Set(existing.mcpServerIds);
       await resetAgentThreadsForToolChange();
@@ -9942,6 +10315,7 @@ function registerIpc(): void {
         );
       }
       if (command.archived && openedThreads.has(thread.id)) {
+        await endHookSession(command.threadId);
         await agentProcess.request({
           type: "thread.close",
           requestId: randomUUID(),
@@ -9980,6 +10354,7 @@ function registerIpc(): void {
           "Wait for context compaction before deleting this task.",
         );
       }
+      if (openedThreads.has(threadId)) await endHookSession(threadId);
       if (!thread.projectId) {
         if (openedThreads.has(threadId)) {
           if (!agentProcess?.available) {
@@ -10284,6 +10659,7 @@ function registerIpc(): void {
         await openAgentThread(thread);
         await agentProcess.request({
           type: "thread.compact",
+          mode: thread.mode,
           requestId: randomUUID(),
           threadId: thread.id,
           ...(command.instructions
@@ -21787,7 +22163,24 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
+let endingHookSessions = false;
+let hookSessionsEnded = false;
+app.on("before-quit", (event) => {
+  if (!hookSessionsEnded && openedThreads.size && canRunLicensed()) {
+    event.preventDefault();
+    if (!endingHookSessions) {
+      endingHookSessions = true;
+      shuttingDown = true;
+      hooksService?.dispose();
+      void Promise.allSettled(
+        [...openedThreads].map((id) => endHookSession(id)),
+      ).finally(() => {
+        hookSessionsEnded = true;
+        app.quit();
+      });
+    }
+    return;
+  }
   releaseUpdateManager?.stopAutomaticChecks();
   shuttingDown = true;
   sleepPrevention.dispose();
@@ -21806,6 +22199,7 @@ app.on("before-quit", () => {
   stopAgentCapacityMonitoring();
   terminalService?.dispose();
   trustedExtensionManager?.dispose();
+  hooksService?.dispose();
   if (packagedNodePtyRuntimeReady) {
     void packagedNodePtyRuntimeReady.then(
       () => packagedNodePtyRuntime?.dispose(),
@@ -21822,6 +22216,7 @@ setLicenseShutdown(async () => {
   automationScheduler?.stop();
   terminalService?.dispose();
   trustedExtensionManager?.dispose();
+  hooksService?.dispose();
   const cancellations = [...activeTurns.keys()].map((threadId) =>
     agentProcess?.request(
       { type: "turn.cancel", requestId: randomUUID(), threadId },

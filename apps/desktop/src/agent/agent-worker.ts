@@ -158,7 +158,11 @@ async function handle(command: AgentHostCommand): Promise<void> {
         );
         break;
       case "thread.compact":
-        await host.compact(command.threadId, command.instructions);
+        await host.compact(
+          command.threadId,
+          command.instructions,
+          command.mode,
+        );
         break;
       case "turn.prompt": {
         send({

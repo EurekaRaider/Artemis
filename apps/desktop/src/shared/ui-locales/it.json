@@ -1599,5 +1599,9 @@
   "OAuth_backend": "Backend dello sviluppatore",
   "OAuth_updateRequired": "Aggiorna il plugin e autorizzalo di nuovo.",
   "Update.manualDownload": "Scarica ZIP nel browser",
-  "Update.manualInstructions": "Scarica ed estrai il nuovo ZIP in una nuova cartella. Chiudi Artemis prima di avviare la nuova versione. Conserva i dati utente: non eliminare la cartella Artemis in %APPDATA%."
+  "Update.manualInstructions": "Scarica ed estrai il nuovo ZIP in una nuova cartella. Chiudi Artemis prima di avviare la nuova versione. Conserva i dati utente: non eliminare la cartella Artemis in %APPDATA%.",
+  "Hooks.title": "Hook",
+  "Hooks.review": "Esamina hook",
+  "Hooks.pendingNotice": "{{count}} hook richiedono una verifica. Non sono ancora attivi.",
+  "Hooks.skipped": "Gli hook di comando non vengono eseguiti nelle attività Plan, Review o IM."
 }

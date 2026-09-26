@@ -1,3 +1,5 @@
+import { HooksSettingsSection } from "./HooksSettingsSection.js";
+import type { HookQuery } from "@artemis/protocol";
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
@@ -62,6 +64,7 @@ interface SettingsPanelProps {
   username?: string;
   initialSettings?: SettingsSnapshot | undefined;
   initialTab?: SettingsTab;
+  hooksQuery?: HookQuery;
   locale: AppLocale;
   /** Project list for scoped custom sub-agent definitions (D#152). */
   projects?: ReadonlyArray<{ id: string; name: string }> | undefined;
@@ -88,7 +91,13 @@ type ProviderThinkingLevel = NonNullable<
 >;
 
 type SettingsTab =
-  "general" | "providers" | "agents" | "im" | "capabilities" | "maintenance";
+  | "general"
+  | "providers"
+  | "agents"
+  | "im"
+  | "capabilities"
+  | "maintenance"
+  | "hooks";
 
 function modelKey(providerId: string, modelId: string): string {
   return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
@@ -172,6 +181,7 @@ export function SettingsPanel({
   username = "Artemis",
   initialSettings,
   initialTab = "general",
+  hooksQuery,
   locale,
   projects = [],
   onClose,
@@ -774,6 +784,7 @@ ${model.providerId} · ${model.modelId}`,
   }
 
   const activeTabLabel: Record<SettingsTab, string> = {
+    hooks: uiText(locale, "Hooks.title"),
     general: t.tabGeneral,
     providers: t.tabProviders,
     agents: t.tabAgents,
@@ -858,6 +869,13 @@ ${model.providerId} · ${model.modelId}`,
                     value: "capabilities",
                   },
                   {
+                    id: "settings-tab-hooks-button",
+                    icon: <ArtemisIcon name="hooks" />,
+                    label: uiText(locale, "Hooks.title"),
+                    panelId: "settings-tab-hooks",
+                    value: "hooks",
+                  },
+                  {
                     id: "settings-tab-maintenance-button",
                     icon: <ArtemisIcon name="refresh" />,
                     label: t.tabMaintenance,
@@ -882,6 +900,7 @@ ${model.providerId} · ${model.modelId}`,
                 "im",
                 "capabilities",
                 "maintenance",
+                "hooks",
               ] as const
             )
               .filter((tab) => tab !== activeTab)
@@ -913,6 +932,13 @@ ${model.providerId} · ${model.modelId}`,
               id={`settings-tab-${activeTab}`}
               role="tabpanel"
             >
+              {activeTab === "hooks" && (
+                <HooksSettingsSection
+                  locale={locale}
+                  projects={projects}
+                  {...(hooksQuery ? { initialQuery: hooksQuery } : {})}
+                />
+              )}
               {activeTab === "providers" && (
                 <>
                   <Tabs<"builtin" | "custom">

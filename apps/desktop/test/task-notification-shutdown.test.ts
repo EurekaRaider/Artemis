@@ -59,6 +59,7 @@ describe("task notification shutdown", () => {
       "store",
       `
       let shuttingDown = false;
+      const hookSessionsEnded = true, hooksService = undefined;
       const imService = undefined, automationScheduler = undefined, terminalService = undefined;
       const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
       const mcpClientManager = undefined, agentProcess = undefined;

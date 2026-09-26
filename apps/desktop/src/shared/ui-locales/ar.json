@@ -1599,5 +1599,9 @@
   "OAuth_backend": "خادم المطوّر",
   "OAuth_updateRequired": "حدّث الإضافة ثم أعد التفويض.",
   "Update.manualDownload": "تنزيل ZIP في المتصفح",
-  "Update.manualInstructions": "نزّل ملف ZIP الجديد واستخرجه في مجلد جديد. أغلق Artemis قبل تشغيل الإصدار الجديد. احتفظ ببيانات المستخدم ولا تحذف مجلد Artemis في %APPDATA%."
+  "Update.manualInstructions": "نزّل ملف ZIP الجديد واستخرجه في مجلد جديد. أغلق Artemis قبل تشغيل الإصدار الجديد. احتفظ ببيانات المستخدم ولا تحذف مجلد Artemis في %APPDATA%.",
+  "Hooks.title": "الخطافات",
+  "Hooks.review": "مراجعة الخطافات",
+  "Hooks.pendingNotice": "هناك {{count}} خطافات تحتاج إلى مراجعة. لم يتم تفعيلها بعد.",
+  "Hooks.skipped": "لا تعمل خطافات الأوامر في مهام Plan أو Review أو IM."
 }

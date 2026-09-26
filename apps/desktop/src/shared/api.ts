@@ -651,6 +651,7 @@ export interface CodexPluginAppPreview {
 }
 
 export interface CodexPluginPreview {
+  hasHooks?: boolean;
   localizations?: PluginLocalizations;
   id: string;
   name: string;
@@ -672,6 +673,7 @@ export interface CodexPluginPreview {
 }
 
 export interface InstalledCodexPlugin extends CodexPluginPreview {
+  hooksEnabled?: boolean;
   contentHash: string;
   installedAt: string;
   updatedAt: string;
@@ -834,6 +836,27 @@ export interface AttachmentImportResult {
 export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
+  listHooks(
+    query: import("@artemis/protocol").HookQuery,
+  ): Promise<import("@artemis/protocol").HookCatalog>;
+  trustHooks(
+    query: import("@artemis/protocol").HookQuery,
+    reviewed: Array<{ id: string; hash: string }>,
+    scope: "project" | "all",
+  ): Promise<void>;
+  changeHook(
+    query: import("@artemis/protocol").HookQuery,
+    id: string,
+    action: "enable" | "disable" | "revoke",
+  ): Promise<void>;
+  inspectHook(
+    query: import("@artemis/protocol").HookQuery,
+    id: string,
+  ): Promise<{
+    configuration: string;
+    scripts: Array<{ path: string; content: string }>;
+  }>;
+
   reportTaskView(input: { threadId?: string; seenSeq?: number }): void;
   onThreadTitleUpdated(
     listener: (thread: Pick<Thread, "id" | "title">) => void,
@@ -1197,6 +1220,11 @@ export interface ArtemisApi {
 }
 
 export const IPC = {
+  hooksList: "artemis:hooks-list",
+  hooksTrust: "artemis:hooks-trust",
+  hooksChange: "artemis:hooks-change",
+  hooksInspect: "artemis:hooks-inspect",
+
   taskView: "artemis:task-view",
   threadTitleUpdated: "artemis:thread-title-updated",
   imTaskCreated: "artemis:im-task-created",
