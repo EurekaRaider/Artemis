@@ -1287,7 +1287,7 @@ body:has(.app-shell[data-platform="darwin"]),
   > [data-part="content"]
   > [data-artemis-component="inline-notice"],
 .settings-updates > [data-part="content"] > .sidebar-update-progress {
-  margin-top: 16px;
+  margin-top: var(--artemis-space-4);
 }
 .hooks-list {
   min-width: 0;
