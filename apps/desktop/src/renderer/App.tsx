@@ -5902,7 +5902,8 @@ export function App() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M12 5v14m-6-6 6 6 6-6" />
+                    <path d="M12 4v12m-4-4 4 4 4-4" />
+                    <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
                   </svg>
                 )}
               </button>

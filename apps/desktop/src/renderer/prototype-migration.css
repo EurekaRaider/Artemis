@@ -257,11 +257,14 @@
   place-items: center;
   flex: none;
   border-radius: 50%;
-  color: #3b9cff;
-  background: transparent;
-  border: 1.5px solid currentColor;
-  padding: 2px;
+  color: #fff;
+  background: #3a83f7;
+  border: 0;
+  padding: 0;
   cursor: pointer;
+}
+.update-btn:hover:not(:disabled) {
+  background: #3075e5;
 }
 .update-btn.downloaded {
   inline-size: auto;
@@ -280,15 +283,15 @@
   background: #1265b8;
 }
 .update-btn svg {
-  inline-size: 13px;
-  block-size: 13px;
+  inline-size: 12px;
+  block-size: 12px;
 }
 .update-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .update-btn:focus-visible {
-  outline: 2px solid #3b9cff;
+  outline: 2px solid #3a83f7;
   outline-offset: 3px;
 }
 .sidebar-footer:has(.sidebar-update-progress) {
