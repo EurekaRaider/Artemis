@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 435000,
+      "desktopCssBytes": 440000,
       "desktopJsBytes": 4500000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -217,6 +217,14 @@
       "previousDesktopLargestJsMaximumBytes": 1962000,
       "desktopLargestJsMaximumBytes": 1975000,
       "reason": "A separate HEAD renderer build already exceeds both prior limits. Windows manual-update instructions in all 14 locales add 4173 bytes to the largest chunk; CSS is unchanged. Align these two ceilings with measured artifacts and small headroom. Total JS, startup, gallery and shared UI budgets remain unchanged."
+    },
+    {
+      "date": "2026-09-26",
+      "measurementHead": "24bb7cb853d22429499f5911b442d080b33176db",
+      "measuredDesktopCssBytes": 435895,
+      "previousDesktopCssMaximumBytes": 435000,
+      "desktopCssMaximumBytes": 440000,
+      "reason": "The production build includes the new Hooks settings, update controls and trusted-hook notices. Its CSS measures 435895 bytes, 895 bytes over the previous ceiling. Reserve 4105 bytes (less than 1%) above this measured bundle. JavaScript, shared UI, gallery, startup timing and workload budgets remain unchanged."
     }
   ],
   "startupBudgetRevisions": [
