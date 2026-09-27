@@ -197,6 +197,8 @@ describe("OfficeDocumentService", () => {
         code: "ENOENT",
       });
     },
+    // First PDF parser load plus filesystem round trips can exceed 5 seconds on CI.
+    30_000,
   );
 
   it("modifies an exact Excel cell without evaluating formulas", async () => {

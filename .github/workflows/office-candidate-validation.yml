@@ -5,15 +5,15 @@ on:
     inputs:
       candidate_key:
         description: Cache key of the already built candidate
-        default: office-candidate-win-x64-4b76657e37100c76920b0eeb0c887ece5fad2025-36316427002-1
+        default: office-candidate-win-x64-f49232f414e5f653cfd6c1e2c4476c05cca409c6-36321959853-1
         type: string
       candidate_commit:
         description: Expected candidate build commit
-        default: 4b76657e37100c76920b0eeb0c887ece5fad2025
+        default: f49232f414e5f653cfd6c1e2c4476c05cca409c6
         type: string
       candidate_sha256:
         description: Expected SHA-256 of the candidate ZIP
-        default: 28b6afb0015ddb296e56ea4bc3c548503614829ad0879d6b9e241bd9c69e8551
+        default: 198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47
         type: string
   push:
     branches: [codex/office-workbench]
@@ -29,9 +29,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CANDIDATE_KEY: ${{ inputs.candidate_key || 'office-candidate-win-x64-4b76657e37100c76920b0eeb0c887ece5fad2025-36316427002-1' }}
-  CANDIDATE_COMMIT: ${{ inputs.candidate_commit || '4b76657e37100c76920b0eeb0c887ece5fad2025' }}
-  CANDIDATE_SHA256: ${{ inputs.candidate_sha256 || '28b6afb0015ddb296e56ea4bc3c548503614829ad0879d6b9e241bd9c69e8551' }}
+  CANDIDATE_KEY: ${{ inputs.candidate_key || 'office-candidate-win-x64-f49232f414e5f653cfd6c1e2c4476c05cca409c6-36321959853-1' }}
+  CANDIDATE_COMMIT: ${{ inputs.candidate_commit || 'f49232f414e5f653cfd6c1e2c4476c05cca409c6' }}
+  CANDIDATE_SHA256: ${{ inputs.candidate_sha256 || '198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47' }}
 
 jobs:
   accept:
@@ -76,6 +76,10 @@ jobs:
           call npm run build:ui-libraries
           if errorlevel 1 exit /b 1
           node scripts/office/build-candidate-verifier.mjs
+      - name: Verify Office policy, recovery, startup and installation
+        run: node node_modules/vitest/vitest.mjs run --no-file-parallelism apps/desktop/test/office-document-service.test.ts apps/desktop/test/office-session-service.test.ts apps/desktop/test/office-uno-engine.test.ts apps/desktop/test/capability-pack-service.test.ts packages/protocol/test/artifact.test.ts
+        env:
+          NODE_OPTIONS: --no-experimental-webstorage
       - name: Fetch the fixed public corpus
         run: node scripts/office/fetch-corpus.mjs
       - name: Accept under a temporary ordinary user on the hosted runner
