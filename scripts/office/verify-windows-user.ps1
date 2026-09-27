@@ -40,7 +40,8 @@ $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Expected an ordinary user token' }
-$localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+$localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData, [Environment+SpecialFolderOption]::Create)
+if (-not $localData) { throw 'The ordinary user has no local application data directory' }
 $payload = Join-Path $localData 'Artemis\capability-packs\office-core\1.0.0\payload'
 New-Item $payload -ItemType Directory -Force | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'runtime') (Join-Path $payload 'runtime') -Recurse

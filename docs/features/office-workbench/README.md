@@ -41,7 +41,9 @@ v2 操作使用预期版本和唯一操作 ID。当前操作支持 Writer 段落
 - `build-bridge.mjs` 编译自有 C++ UNO 辅助程序；macOS 使用私有构建工具副本修复 SDK 工具加载路径，不修改上游运行时。
 - `probe-native.mjs` 验证打开、局部修改、内存渲染、保存副本和重开；其成功不代表格式保真通过。
 - `verify-preview.mjs` 使用合成 IPC 与真实 PDF.js/Electron 验证画面变更、过期结果抑制、批注版本和窄窗口布局。
-- `.github/workflows/office-native-validation.yml` 是手动原生验证流，覆盖 macOS arm64 与 Windows x64；不是能力包发布流。
+- `.github/workflows/office-native-validation.yml` 提供手动原生验证，并在 `codex/office-workbench` 的相关文件推送后自动运行 Windows x64 验收；不会发布能力包。构建输入缓存每次复用前重新校验摘要，下载中断支持有限次数的续传或重新下载。
+- `verify-windows-user.ps1` 仅在临时 GitHub 托管 Windows runner 中创建普通用户，从该用户的应用数据目录启动工程运行时，并使用中文文档路径运行同一批样本。它记录实际用户令牌和 ACL，不能替代正式能力包的签名、安装和权限验收。
+- 验收保留失败报告。Artifact 存储不可用时，`emit-ci-evidence.mjs` 将限定范围的合成预览和公开样本结果压缩到 CI 日志；`collect-ci-evidence.mjs` 校验路径、大小及 SHA-256 后恢复到新目录，不导出引擎用户配置。
 - 主程序 Release 流仅运行 `verify-catalog.mjs`，读取已有清单并校验兼容性、签名和已发布资产。它不构建、签名、公证或上传运行时；空目录保留 Lite。
 
 独立运行时的正式签名、公证、发行流程及验收条件见[发布约定](../../projects/office-workbench/README.md#发布前流程)。
