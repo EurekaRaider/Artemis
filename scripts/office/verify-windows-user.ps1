@@ -36,7 +36,9 @@ try {
   New-Item (Join-Path $probeStage 'evidence') -ItemType Directory | Out-Null
   $probeWorker = Join-Path $probeStage 'worker.ps1'
   @'
+param([string]$Commit)
 $ErrorActionPreference = 'Stop'
+$env:GITHUB_SHA = $Commit
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Expected an ordinary user token' }
@@ -53,7 +55,7 @@ $office = Join-Path $payload 'runtime\program\soffice.exe'
 $bridge = Join-Path $payload 'office-bridge.exe'
 $proof = [ordered]@{
   schemaVersion=1; administrator=$false; userSid=$identity.User.Value
-  payload=$payload; workspace=$workspace; localApplicationData=$localData
+  payload=$payload; workspace=$workspace; localApplicationData=$localData; userProfile=$env:USERPROFILE
   finalCapabilityPackage=$false; releaseAccepted=$false
   acl=@((Get-Acl $payload).Sddl, (Get-Acl $office).Sddl, (Get-Acl $bridge).Sddl)
 }
@@ -65,7 +67,9 @@ $proof | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $output 'identity.json
 exit $code
 '@ | Set-Content $probeWorker -Encoding utf8BOM
   $credential = [PSCredential]::new("$env:COMPUTERNAME\$probeUserName", $probePassword)
-  $probeProcess = Start-Process -FilePath (Get-Command powershell.exe).Source -Credential $credential -LoadUserProfile -WorkingDirectory $probeStage -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$probeWorker`"") -RedirectStandardOutput (Join-Path $probeStage 'stdout.log') -RedirectStandardError (Join-Path $probeStage 'stderr.log') -PassThru
+  # Let CreateProcessWithLogonW create the new user's environment instead of
+  # forwarding runneradmin's USERPROFILE, APPDATA and temporary directories.
+  $probeProcess = Start-Process -FilePath (Get-Command powershell.exe).Source -Credential $credential -LoadUserProfile -UseNewEnvironment -WorkingDirectory $probeStage -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$probeWorker`"", '-Commit', $env:GITHUB_SHA) -RedirectStandardOutput (Join-Path $probeStage 'stdout.log') -RedirectStandardError (Join-Path $probeStage 'stderr.log') -PassThru
   if (-not $probeProcess.WaitForExit(300000)) { throw 'Ordinary-user native probe timed out' }
   $probeProcess.Refresh()
   if ($probeProcess.ExitCode -ne 0) { throw "Ordinary-user probe exited $($probeProcess.ExitCode); see its preserved evidence" }
