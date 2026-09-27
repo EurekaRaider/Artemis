@@ -66,6 +66,15 @@ describe("artifact projection", () => {
         session: { ...session, sessionId: "other", sequence: 4 },
       }),
     ).toBe(state);
+    const gap = reduceArtifactEvent(state, event(8, 7));
+    expect(
+      restoreArtifactSnapshot(gap, {
+        session: event(7, 6).session,
+        targets: [],
+        sheets: [],
+        warnings: [],
+      }),
+    ).toBe(gap);
   });
   it("separates disk, draft and preview versions", () => {
     expect(
@@ -118,5 +127,16 @@ describe("artifact projection", () => {
         values: [[1], [2, 3]],
       }).success,
     ).toBe(false);
+  });
+  it("bounds object edits and rejects arbitrary native properties", () => {
+    const change = { type: "move-object", page: 1, object: 0, x: 1200, y: 800 };
+    expect(artifactOperationSchema.safeParse(change).success).toBe(true);
+    for (const invalid of [
+      { ...change, x: Infinity },
+      { ...change, path: Array(17).fill(0) },
+      { ...change, property: "MacroExecutionMode" },
+      { ...change, page: 0 },
+    ])
+      expect(artifactOperationSchema.safeParse(invalid).success).toBe(false);
   });
 });

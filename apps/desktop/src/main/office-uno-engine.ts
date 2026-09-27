@@ -53,8 +53,16 @@ export async function verifyOfficeNative(
     throw new Error("Office runtime platform is unsupported");
   // Values travel as process environment, never interpolated into PowerShell source.
   const script =
-    "$ErrorActionPreference='Stop'; $s=Get-AuthenticodeSignature -LiteralPath $env:ARTEMIS_OFFICE_VERIFY_PATH; if($s.Status -ne 'Valid' -or $s.SignerCertificate.Thumbprint -ne $env:ARTEMIS_OFFICE_VERIFY_SIGNER){throw 'Office runtime signature mismatch'}";
-  for (const path of [manifest.entrypoint, manifest.officeExecutable]) {
+    "$ErrorActionPreference='Stop'; $s=Get-AuthenticodeSignature -LiteralPath $env:ARTEMIS_OFFICE_VERIFY_PATH; if($env:ARTEMIS_OFFICE_VERIFY_SIGNER -eq 'unsigned'){if($s.Status -ne 'NotSigned'){throw 'Office runtime signature mismatch'}} elseif($s.Status -ne 'Valid' -or $s.SignerCertificate.Thumbprint -ne $env:ARTEMIS_OFFICE_VERIFY_SIGNER){throw 'Office runtime signature mismatch'}";
+  // Null is an explicit publisher-signed inventory policy for an unsigned EXE.
+  // Package signature, every file digest and the final installed path are still verified.
+  const binaries =
+    manifest.native.windows ??
+    [manifest.entrypoint, manifest.officeExecutable].map((path) => ({
+      path,
+      signer: manifest.native.signer,
+    }));
+  for (const { path, signer } of binaries) {
     await runFile(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-Command", script],
@@ -64,7 +72,7 @@ export async function verifyOfficeNative(
         env: {
           ...process.env,
           ARTEMIS_OFFICE_VERIFY_PATH: join(directory, path),
-          ARTEMIS_OFFICE_VERIFY_SIGNER: manifest.native.signer,
+          ARTEMIS_OFFICE_VERIFY_SIGNER: signer ?? "unsigned",
         },
       },
     );

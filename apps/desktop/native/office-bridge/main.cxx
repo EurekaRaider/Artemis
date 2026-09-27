@@ -2,19 +2,30 @@
 // Artemis-owned UNO bridge. One process owns one live document; stdout is JSONL.
 #include <cppuhelper/bootstrap.hxx>
 #include <com/sun/star/beans/PropertyValue.hpp>
+#include <com/sun/star/beans/XPropertySet.hpp>
 #include <com/sun/star/bridge/XUnoUrlResolver.hpp>
 #include <com/sun/star/container/XEnumerationAccess.hpp>
 #include <com/sun/star/container/XEnumeration.hpp>
 #include <com/sun/star/drawing/XDrawPagesSupplier.hpp>
 #include <com/sun/star/drawing/XDrawPage.hpp>
+#include <com/sun/star/drawing/XShape.hpp>
+#include <com/sun/star/drawing/XShapes.hpp>
 #include <com/sun/star/frame/XComponentLoader.hpp>
 #include <com/sun/star/frame/XStorable.hpp>
 #include <com/sun/star/lang/XComponent.hpp>
+#include <com/sun/star/lang/XMultiServiceFactory.hpp>
 #include <com/sun/star/sheet/XSpreadsheetDocument.hpp>
 #include <com/sun/star/sheet/XSpreadsheet.hpp>
+#include <com/sun/star/sheet/XCellRangeData.hpp>
+#include <com/sun/star/sheet/XCellRangeFormula.hpp>
+#include <com/sun/star/sheet/XDataPilotTablesSupplier.hpp>
+#include <com/sun/star/sheet/XDataPilotTable.hpp>
+#include <com/sun/star/table/XTable.hpp>
 #include <com/sun/star/text/XTextDocument.hpp>
 #include <com/sun/star/text/XTextRange.hpp>
 #include <com/sun/star/text/XTextCursor.hpp>
+#include <com/sun/star/text/XTextTable.hpp>
+#include <com/sun/star/text/XTextFramesSupplier.hpp>
 #include <com/sun/star/uno/XComponentContext.hpp>
 #include <osl/file.hxx>
 #include <nlohmann/json.hpp>
@@ -22,6 +33,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 namespace css = com::sun::star;
 using css::uno::Reference;
@@ -54,27 +66,94 @@ static void advance(const Reference<css::text::XTextCursor>& cursor, int count, 
     }
 }
 
+#include "smartart.hxx"
+
 class Document {
     Reference<css::lang::XComponent> component;
     std::string format;
+    SmartArtText smartArt;
 
-    std::vector<Reference<css::text::XTextRange>> paragraphs() {
-        Reference<css::text::XTextDocument> document(component, UNO_QUERY_THROW);
-        Reference<css::container::XEnumerationAccess> access(document->getText(), UNO_QUERY_THROW);
+    void collectParagraphs(const Reference<css::text::XText>& text, std::vector<Reference<css::text::XTextRange>>& result, int depth = 0) {
+        if (depth > 16) throw std::runtime_error("Document exceeds table nesting limit");
+        Reference<css::container::XEnumerationAccess> access(text, UNO_QUERY_THROW);
         auto enumeration = access->createEnumeration();
-        std::vector<Reference<css::text::XTextRange>> result;
         while (enumeration->hasMoreElements()) {
-            Reference<css::text::XTextRange> paragraph(enumeration->nextElement(), UNO_QUERY);
-            if (paragraph.is()) result.push_back(paragraph);
+            auto item = enumeration->nextElement();
+            Reference<css::text::XTextTable> table(item, UNO_QUERY);
+            if (table.is()) {
+                for (const auto& name : table->getCellNames())
+                    collectParagraphs(Reference<css::text::XText>(table->getCellByName(name), UNO_QUERY_THROW), result, depth + 1);
+            } else {
+                Reference<css::text::XTextRange> paragraph(item, UNO_QUERY);
+                if (paragraph.is()) result.push_back(paragraph);
+            }
             if (result.size() > 20000) throw std::runtime_error("Document exceeds current paragraph selection limit");
         }
+    }
+    std::vector<Reference<css::text::XTextRange>> paragraphs() {
+        Reference<css::text::XTextDocument> document(component, UNO_QUERY_THROW);
+        std::vector<Reference<css::text::XTextRange>> result;
+        collectParagraphs(document->getText(), result);
+        Reference<css::text::XTextFramesSupplier> frames(component, UNO_QUERY);
+        if (frames.is()) for (const auto& name : frames->getTextFrames()->getElementNames())
+            collectParagraphs(Reference<css::text::XText>(frames->getTextFrames()->getByName(name), UNO_QUERY_THROW), result);
         return result;
     }
     Reference<css::sheet::XSpreadsheet> sheet(const std::string& name) {
         Reference<css::sheet::XSpreadsheetDocument> document(component, UNO_QUERY_THROW);
         return Reference<css::sheet::XSpreadsheet>(document->getSheets()->getByName(u(name)), UNO_QUERY_THROW);
     }
+    std::vector<css::table::CellRangeAddress> pivots(const Reference<css::sheet::XSpreadsheet>& current) {
+        Reference<css::sheet::XDataPilotTablesSupplier> supplier(current, UNO_QUERY_THROW);
+        auto tables = supplier->getDataPilotTables();
+        std::vector<css::table::CellRangeAddress> result;
+        for (const auto& name : tables->getElementNames())
+            result.push_back(Reference<css::sheet::XDataPilotTable>(tables->getByName(name), UNO_QUERY_THROW)->getOutputRange());
+        return result;
+    }
+    static bool overlaps(const css::table::CellRangeAddress& range, int row, int column, int rows = 1, int columns = 1) {
+        return row <= range.EndRow && row + rows - 1 >= range.StartRow && column <= range.EndColumn && column + columns - 1 >= range.StartColumn;
+    }
+    Reference<css::drawing::XShape> shape(const json& change) {
+        Reference<css::drawing::XDrawPagesSupplier> supplier(component, UNO_QUERY_THROW);
+        Reference<css::drawing::XShapes> page(supplier->getDrawPages()->getByIndex(change.at("page").get<int>() - 1), UNO_QUERY_THROW);
+        Reference<css::drawing::XShape> result(page->getByIndex(change.at("object")), UNO_QUERY_THROW);
+        if (change.contains("path")) for (const auto& index : change.at("path"))
+            result.set(Reference<css::drawing::XShapes>(result, UNO_QUERY_THROW)->getByIndex(index), UNO_QUERY_THROW);
+        return result;
+    }
+    Reference<css::table::XTable> shapeTable(const Reference<css::drawing::XShape>& value) {
+        Reference<css::beans::XPropertySet> properties(value, UNO_QUERY_THROW);
+        if (!properties->getPropertySetInfo()->hasPropertyByName(u("Model"))) return {};
+        return Reference<css::table::XTable>(properties->getPropertyValue(u("Model")), UNO_QUERY);
+    }
+    void collectShapes(const Reference<css::drawing::XShape>& value, const json& selection, json& targets) {
+        if (targets.size() >= 20000) throw std::runtime_error("Document exceeds object selection limit");
+        auto position = value->getPosition(); auto size = value->getSize();
+        Reference<css::text::XTextRange> text(value, UNO_QUERY);
+        targets.push_back({{"selection", selection}, {"text", text.is() ? s(text->getString()) : ""}, {"editable", text.is()}, {"bounds", {{"x", position.X}, {"y", position.Y}, {"width", size.Width}, {"height", size.Height}}}});
+        auto table = shapeTable(value);
+        if (table.is()) {
+            if (table->getRows()->getCount() > 1000 || table->getColumns()->getCount() > 256) throw std::runtime_error("Shape table exceeds selection limit");
+            for (int row = 0; row < table->getRows()->getCount(); row++) for (int column = 0; column < table->getColumns()->getCount(); column++) {
+                auto cellSelection = selection;
+                cellSelection["cell"] = {{"row", row}, {"column", column}};
+                Reference<css::text::XTextRange> cell(table->getCellByPosition(column, row), UNO_QUERY_THROW);
+                targets.push_back({{"selection", cellSelection}, {"text", s(cell->getString())}, {"editable", true}});
+                if (targets.size() > 20000) throw std::runtime_error("Document exceeds object selection limit");
+            }
+        }
+        Reference<css::drawing::XShapes> children(value, UNO_QUERY);
+        if (children.is()) for (int i = 0; i < children->getCount(); i++) {
+            auto nested = selection;
+            if (!nested.contains("path")) nested["path"] = json::array();
+            if (nested["path"].size() >= 16) throw std::runtime_error("Shape exceeds nesting limit");
+            nested["path"].push_back(i);
+            collectShapes(Reference<css::drawing::XShape>(children->getByIndex(i), UNO_QUERY_THROW), nested, targets);
+        }
+    }
 public:
+    explicit Document(const Reference<css::uno::XComponentContext>& context) : smartArt(context) {}
     void open(const Reference<css::frame::XComponentLoader>& loader, const json& input) {
         if (component.is()) throw std::runtime_error("Document already open");
         format = input.at("format").get<std::string>();
@@ -85,6 +164,7 @@ public:
         });
         component = loader->loadComponentFromURL(url(input.at("path")), u("_blank"), 0, options);
         if (!component.is()) throw std::runtime_error("LibreOffice could not load this document");
+        smartArt.open(input.at("path"));
     }
     json snapshot() {
         if (!component.is()) throw std::runtime_error("No live document");
@@ -101,8 +181,7 @@ public:
             for (sal_Int32 p = 0; p < pages->getCount(); ++p) {
                 Reference<css::drawing::XDrawPage> page(pages->getByIndex(p), UNO_QUERY_THROW);
                 for (sal_Int32 i = 0; i < page->getCount(); ++i) {
-                    Reference<css::text::XTextRange> text(page->getByIndex(i), UNO_QUERY);
-                    if (text.is()) result["targets"].push_back({{"selection", {{"kind", "object"}, {"page", p + 1}, {"index", i}}}, {"text", s(text->getString())}});
+                    collectShapes(Reference<css::drawing::XShape>(page->getByIndex(i), UNO_QUERY_THROW), {{"kind", "object"}, {"page", p + 1}, {"index", i}}, result["targets"]);
                 }
             }
         } else {
@@ -111,11 +190,20 @@ public:
                 result["sheets"].push_back(s(name));
                 auto current = sheet(s(name));
                 // The PDF is the full native render. These cells are selection targets only.
-                for (int row = 0; row < 50; row++) for (int column = 0; column < 26; column++) {
-                    auto cell = current->getCellByPosition(column, row);
-                    Reference<css::text::XTextRange> text(cell, UNO_QUERY_THROW);
-                    auto value = text->getString();
-                    if (!value.isEmpty()) result["targets"].push_back({{"selection", {{"kind", "cells"}, {"sheet", s(name)}, {"range", std::string(1, 'A' + column) + std::to_string(row + 1)}}}, {"text", s(value)}});
+                // Two bulk UNO calls replace thousands of cross-process cell/property calls.
+                auto range = current->getCellRangeByPosition(0, 0, 25, 49);
+                auto values = Reference<css::sheet::XCellRangeData>(range, UNO_QUERY_THROW)->getDataArray();
+                auto formulas = Reference<css::sheet::XCellRangeFormula>(range, UNO_QUERY_THROW)->getFormulaArray();
+                auto outputs = pivots(current);
+                for (int row = 0; row < values.getLength(); row++) for (int column = 0; column < values[row].getLength(); column++) {
+                    OUString text; double number;
+                    if (values[row][column] >>= text) { if (text.isEmpty() && formulas[row][column].isEmpty()) continue; }
+                    else if (values[row][column] >>= number) text = OUString::number(number);
+                    else continue;
+                    auto target = json{{"selection", {{"kind", "cells"}, {"sheet", s(name)}, {"range", std::string(1, 'A' + column) + std::to_string(row + 1)}}}, {"text", s(text)}, {"editable", std::none_of(outputs.begin(), outputs.end(), [&](const auto& output) { return overlaps(output, row, column); })}};
+                    if (formulas[row][column].startsWith(u("="))) target["formula"] = s(formulas[row][column]);
+                    result["targets"].push_back(target);
+                    if (result["targets"].size() > 20000) throw std::runtime_error("Document exceeds cell selection limit");
                 }
             }
             result["warnings"].push_back("Cell selection index covers A1:Z50 per sheet; the native PDF includes the document's configured print areas.");
@@ -135,13 +223,40 @@ public:
             advance(cursor, start, false); advance(cursor, end - start, true);
             cursor->setString(u(change.at("text")));
         } else if (type == "set-object-text" && format == "powerpoint") {
+            auto value = shape(change);
+            Reference<css::text::XTextRange> text(value, UNO_QUERY);
+            if (change.contains("cell")) {
+                auto table = shapeTable(value);
+                if (!table.is()) throw std::runtime_error("Object is not a table");
+                text.set(table->getCellByPosition(change["cell"]["column"], change["cell"]["row"]), UNO_QUERY_THROW);
+            }
+            if (!text.is()) throw std::runtime_error("Object has no editable text");
+            if (change.contains("path") && !change.at("path").empty()) {
+                auto root = change; root.erase("path");
+                Reference<css::container::XNamed> named(shape(root), UNO_QUERY_THROW);
+                smartArt.prepare(named->getName(), s(text->getString()), change.at("text"));
+            }
+            auto cursor = text->getText()->createTextCursor();
+            cursor->gotoStart(false); cursor->gotoEnd(true);
+            cursor->setString(u(change.at("text")));
+        } else if (type == "move-object" && format == "powerpoint") {
+            shape(change)->setPosition(css::awt::Point(change.at("x"), change.at("y")));
+        } else if (type == "insert-slide-text" && format == "powerpoint") {
             Reference<css::drawing::XDrawPagesSupplier> supplier(component, UNO_QUERY_THROW);
-            Reference<css::drawing::XDrawPage> page(supplier->getDrawPages()->getByIndex(change.at("page").get<int>() - 1), UNO_QUERY_THROW);
-            Reference<css::text::XTextRange> text(page->getByIndex(change.at("object")), UNO_QUERY_THROW);
-            text->setString(u(change.at("text")));
+            Reference<css::drawing::XShapes> page(supplier->getDrawPages()->getByIndex(change.at("page").get<int>() - 1), UNO_QUERY_THROW);
+            if (page->getCount() != change.at("object").get<int>()) throw std::runtime_error("Slide object list changed; read a fresh snapshot");
+            Reference<css::lang::XMultiServiceFactory> factory(component, UNO_QUERY_THROW);
+            Reference<css::drawing::XShape> value(factory->createInstance(u("com.sun.star.drawing.TextShape")), UNO_QUERY_THROW);
+            page->add(value);
+            value->setPosition(css::awt::Point(change.at("x"), change.at("y")));
+            value->setSize(css::awt::Size(change.at("width"), change.at("height")));
+            Reference<css::text::XTextRange>(value, UNO_QUERY_THROW)->setString(u(change.at("text")));
         } else if ((type == "set-cells" || type == "set-formula") && format == "excel") {
             auto current = sheet(change.at("sheet"));
             int row = change.at("row").get<int>() - 1, column = change.at("column").get<int>() - 1;
+            for (const auto& output : pivots(current))
+                if (overlaps(output, row, column, type == "set-cells" ? change.at("values").size() : 1, type == "set-cells" ? change.at("values")[0].size() : 1))
+                    throw std::runtime_error("Pivot result cells are derived; edit the pivot source data instead");
             if (type == "set-formula") {
                 current->getCellByPosition(column, row)->setFormula(u(change.at("formula")));
             } else {
@@ -160,6 +275,7 @@ public:
         Reference<css::frame::XStorable> storable(component, UNO_QUERY_THROW);
         const char* filter = pdf ? (format == "word" ? "writer_pdf_Export" : format == "excel" ? "calc_pdf_Export" : "impress_pdf_Export") : (format == "word" ? "Office Open XML Text" : format == "excel" ? "Calc MS Excel 2007 XML" : "Impress MS PowerPoint 2007 XML");
         storable->storeToURL(url(path), props({ prop("FilterName", u(filter)), prop("Overwrite", true) }));
+        if (!pdf && format == "powerpoint") smartArt.save(path);
     }
     void close() { if (component.is()) { component->dispose(); component.clear(); } }
 };
@@ -175,7 +291,7 @@ int main(int argc, char** argv) {
             catch (const css::uno::Exception&) { if (i == 149) throw; std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
         }
         Reference<css::frame::XComponentLoader> loader(remote->getServiceManager()->createInstanceWithContext(u("com.sun.star.frame.Desktop"), remote), UNO_QUERY_THROW);
-        Document document;
+        Document document(remote);
         std::string line;
         while (std::getline(std::cin, line)) {
             json response;

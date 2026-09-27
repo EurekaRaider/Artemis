@@ -1,5 +1,9 @@
 import { claimUpdateAnnouncement } from "./update-announcement.js";
 import type { HookQuery } from "@artemis/protocol";
+import {
+  restoreArtifactSnapshot,
+  type ArtifactSnapshot,
+} from "@artemis/protocol";
 import { imUserMessageText } from "./im-user-message.js";
 import { UserInputCard } from "./UserInputCard.js";
 import {
@@ -1539,6 +1543,24 @@ export function App() {
       }
     >(),
   );
+  const [officeSnapshots, setOfficeSnapshots] = useState<
+    Record<string, ArtifactSnapshot>
+  >({});
+  const recoverOfficeSnapshot = useCallback((next: ArtifactSnapshot) => {
+    setOfficeSnapshots((current) => {
+      if (
+        (current[next.session.sessionId]?.session.sequence ?? -1) >=
+        next.session.sequence
+      )
+        return current;
+      return Object.fromEntries([
+        ...Object.entries(current)
+          .filter(([id]) => id !== next.session.sessionId)
+          .slice(-19),
+        [next.session.sessionId, next],
+      ]);
+    });
+  }, []);
   // Highest turn count ever derived per thread. Cross-switch cache pollution
   // can shrink a derivation below what this thread already rendered; the
   // memo re-derives from raw inputs whenever that watermark is exceeded.
@@ -3808,6 +3830,22 @@ export function App() {
       activeThread.id,
       Math.max(turnWatermark, guardedState.order.length),
     );
+    for (const recovered of Object.values(officeSnapshots)) {
+      const id = recovered.session.sessionId;
+      const current = guardedState.artifacts?.[id];
+      if (
+        current?.needsSnapshot &&
+        recovered.session.sequence >= current.session.sequence
+      ) {
+        guardedState = {
+          ...guardedState,
+          artifacts: {
+            ...guardedState.artifacts,
+            [id]: restoreArtifactSnapshot(current, recovered),
+          },
+        };
+      }
+    }
     threadStateCache.current.delete(activeThread.id);
     threadStateCache.current.set(activeThread.id, {
       ...(activeHistory ? { history: activeHistory } : {}),
@@ -3861,6 +3899,7 @@ export function App() {
   }, [
     activeEvents,
     activeHistory,
+    officeSnapshots,
     activeThread?.id,
     activeThread?.mode,
     liveChildActivities,
@@ -9455,6 +9494,7 @@ ${model.providerId} · ${model.modelId}`}
                                   threadState.artifacts[tab.artifactSessionId]!
                                 }
                                 locale={locale}
+                                onSnapshot={recoverOfficeSnapshot}
                                 onAnnotate={(annotation) =>
                                   setPrompt(
                                     (current) =>

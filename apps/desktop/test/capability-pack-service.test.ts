@@ -168,6 +168,41 @@ describe("host capability packs", () => {
       ),
     ).toThrow();
   });
+  it("accepts an explicitly unsigned Windows binary only inside the signed inventory", () => {
+    const manifest = signed(zip(), {
+      platform: "win32",
+      arch: "x64",
+      native: {
+        signer: "inventory",
+        notarization: "not-applicable",
+        windows: [{ path: "runtime/bridge", signer: null }],
+      },
+    });
+    const windows = { ...target, platform: "win32", arch: "x64" };
+    expect(
+      verifyCapabilityManifest(manifest, windows).native.windows?.[0]?.signer,
+    ).toBeNull();
+    expect(() =>
+      verifyCapabilityManifest(
+        { ...manifest, native: { ...manifest.native, windows: [] } },
+        windows,
+      ),
+    ).toThrow();
+    expect(() =>
+      verifyCapabilityManifest(
+        signed(zip(), {
+          platform: "win32",
+          arch: "x64",
+          native: {
+            signer: "inventory",
+            notarization: "not-applicable",
+            windows: [{ path: "runtime/other.exe", signer: null }],
+          },
+        }),
+        windows,
+      ),
+    ).toThrow();
+  });
   it("installs offline through the same verifier and reuses the verified cache", async () => {
     const f = await fixture();
     await f.service.install(f.manifest, f.path);
@@ -235,6 +270,31 @@ describe("host capability packs", () => {
     await f.service.install(f.manifest, f.path);
     const repaired = await f.service.acquire();
     repaired.release();
+  });
+  it("repairs a damaged receipt only after the last session releases it", async () => {
+    const f = await fixture();
+    await f.service.install(f.manifest, f.path);
+    const lease = await f.service.acquire();
+    await writeFile(
+      join(f.root, "packs/office-core/1.0.0/manifest.json"),
+      "{broken",
+    );
+    await expect(f.service.install(f.manifest, f.path)).rejects.toThrow(
+      "in use",
+    );
+    lease.release();
+    await f.service.install(f.manifest, f.path);
+    const repaired = await f.service.acquire();
+    repaired.release();
+  });
+  it("can reinstall after a torn activation receipt without trusting it", async () => {
+    const f = await fixture();
+    await f.service.install(f.manifest, f.path);
+    await writeFile(join(f.root, "packs/active.json"), "{broken");
+    expect((await f.service.status()).activeVersion).toBeUndefined();
+    await expect(f.service.acquire()).rejects.toThrow("not installed");
+    await f.service.install(f.manifest, f.path);
+    expect((await f.service.status()).activeVersion).toBe("1.0.0");
   });
   it("rejects unsigned extra executables in an installed payload", async () => {
     const f = await fixture();

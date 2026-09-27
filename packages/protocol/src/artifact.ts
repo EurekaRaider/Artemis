@@ -5,6 +5,18 @@ export const ARTIFACT_PROTOCOL_VERSION = 1 as const;
 const id = z.string().min(1).max(200);
 const version = z.number().int().nonnegative().safe();
 const page = z.number().int().min(1).max(100_000);
+const objectPath = z
+  .array(z.number().int().min(0).max(20_000))
+  .max(16)
+  .optional();
+const tableCell = z
+  .object({
+    row: z.number().int().min(0).max(999),
+    column: z.number().int().min(0).max(255),
+  })
+  .strict()
+  .optional();
+const coordinate = z.number().int().min(-10_000_000).max(10_000_000);
 export const artifactFormatSchema = z.enum(["word", "powerpoint", "excel"]);
 
 export const artifactSelectionSchema = z.discriminatedUnion("kind", [
@@ -17,7 +29,15 @@ export const artifactSelectionSchema = z.discriminatedUnion("kind", [
     })
     .strict()
     .refine((v) => v.end >= v.start),
-  z.object({ kind: z.literal("object"), page, index: version }).strict(),
+  z
+    .object({
+      kind: z.literal("object"),
+      page,
+      index: version,
+      path: objectPath,
+      cell: tableCell,
+    })
+    .strict(),
   z
     .object({
       kind: z.literal("cells"),
@@ -59,7 +79,31 @@ export const artifactOperationSchema = z.discriminatedUnion("type", [
       type: z.literal("set-object-text"),
       page,
       object: version,
+      path: objectPath,
+      cell: tableCell,
       text: z.string().max(1_000_000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("move-object"),
+      page,
+      object: version,
+      path: objectPath,
+      x: coordinate,
+      y: coordinate,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("insert-slide-text"),
+      page,
+      object: version,
+      x: coordinate,
+      y: coordinate,
+      width: z.number().int().positive().max(1_000_000),
+      height: z.number().int().positive().max(1_000_000),
+      text: z.string().min(1).max(100_000),
     })
     .strict(),
   z
@@ -151,11 +195,23 @@ export const artifactSnapshotSchema = z
           .object({
             selection: artifactSelectionSchema,
             text: z.string().max(100_000),
+            editable: z.boolean().optional(),
+            formula: z.string().max(8_192).optional(),
+            bounds: z
+              .object({
+                x: coordinate,
+                y: coordinate,
+                width: z.number().int().nonnegative().max(10_000_000),
+                height: z.number().int().nonnegative().max(10_000_000),
+              })
+              .strict()
+              .optional(),
           })
           .strict(),
       )
       .max(20_000),
     sheets: z.array(z.string().max(128)).max(1_024),
+    selection: artifactSelectionSchema.optional(),
     preview: z.object({ version, assetId: id }).strict().optional(),
     warnings: z.array(z.string().max(2_000)).max(100),
   })
@@ -227,6 +283,7 @@ export type ArtifactSessionRequest = z.infer<
 export interface ArtifactViewState {
   session: ArtifactSession;
   needsSnapshot: boolean;
+  requiredSequence?: number;
   selection?: ArtifactSelection;
 }
 
@@ -253,7 +310,14 @@ export function reduceArtifactEvent(
     session.sequence !== previous.session.sequence + 1 ||
     session.version < previous.session.version
   )
-    return { ...previous, needsSnapshot: true };
+    return {
+      ...previous,
+      needsSnapshot: true,
+      requiredSequence: Math.max(
+        previous.requiredSequence ?? 0,
+        session.sequence,
+      ),
+    };
   return {
     session,
     needsSnapshot: false,
@@ -272,12 +336,18 @@ export function restoreArtifactSnapshot(
   if (
     previous &&
     (previous.session.sessionId !== snapshot.session.sessionId ||
+      previous.session.documentId !== snapshot.session.documentId ||
+      (previous.requiredSequence ?? 0) > snapshot.session.sequence ||
       previous.session.sequence > snapshot.session.sequence)
   )
     return previous;
   return {
     session: snapshot.session,
     needsSnapshot: false,
-    ...(previous?.selection ? { selection: previous.selection } : {}),
+    ...(snapshot.selection
+      ? { selection: snapshot.selection }
+      : previous?.selection
+        ? { selection: previous.selection }
+        : {}),
   };
 }

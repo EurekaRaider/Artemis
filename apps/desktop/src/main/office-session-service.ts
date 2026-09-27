@@ -67,7 +67,10 @@ const journalSchema = z
     threadId: z.string().min(1).max(200),
     workspace: z.string(),
     original: z.string(),
-    baseline: z.string().regex(/^original\.(docx|xlsx|pptx)$/u),
+    baseline: z
+      .string()
+      .regex(/^original(?:-[a-f0-9-]{36})?\.(docx|xlsx|pptx)$/u),
+    baselineVersion: z.number().int().nonnegative().optional(),
     baselineHash: z.string().regex(/^[a-f0-9]{64}$/u),
     diskHash: z.string().regex(/^[a-f0-9]{64}$/u),
     snapshot: artifactSnapshotSchema,
@@ -77,10 +80,13 @@ const journalSchema = z
   .strict()
   .refine(
     (value) =>
-      value.operations.length === value.snapshot.session.version &&
+      value.operations.length + (value.baselineVersion ?? 0) ===
+        value.snapshot.session.version &&
       new Set(value.operations.map((op) => op.id)).size ===
         value.operations.length &&
-      value.operations.every((op, index) => op.baseVersion === index),
+      value.operations.every(
+        (op, index) => op.baseVersion === index + (value.baselineVersion ?? 0),
+      ),
   );
 type Journal = z.infer<typeof journalSchema>;
 interface LiveSession {
@@ -110,8 +116,20 @@ function selectionFor(change: ArtifactOperation): ArtifactSelection {
       start: change.start,
       end: change.start + change.text.length,
     };
-  if (change.type === "set-object-text")
-    return { kind: "object", page: change.page, index: change.object };
+  if (
+    change.type === "set-object-text" ||
+    change.type === "move-object" ||
+    change.type === "insert-slide-text"
+  )
+    return {
+      kind: "object",
+      page: change.page,
+      index: change.object,
+      ...("path" in change && change.path ? { path: change.path } : {}),
+      ...(change.type === "set-object-text" && change.cell
+        ? { cell: change.cell }
+        : {}),
+    };
   const columnName = (column: number): string => {
     let name = "";
     for (let value = column; value > 0; value = Math.floor((value - 1) / 26))
@@ -456,6 +474,7 @@ export class OfficeSessionService {
       next.snapshot = artifactSnapshotSchema.parse({
         ...next.snapshot,
         ...content,
+        selection: selectionFor(request.change),
         session: {
           ...session,
           version: session.version + 1,
@@ -565,7 +584,11 @@ export class OfficeSessionService {
       .catch(async (error: unknown) => {
         if (this.sessions.get(session.sessionId) !== live) return;
         await this.serialize(session.sessionId, async () => {
-          if (this.sessions.get(session.sessionId) !== live) return;
+          if (
+            this.sessions.get(session.sessionId) !== live ||
+            live.journal.snapshot.session.version !== version
+          )
+            return;
           live.journal.snapshot.session.error = `Preview: ${error instanceof Error ? error.message : String(error)}`;
           await this.publish(live, "failed");
         });
@@ -578,6 +601,62 @@ export class OfficeSessionService {
         )
           this.render(live);
       });
+  }
+
+  private async reloadExternal(live: LiveSession, hash: string): Promise<void> {
+    const journal = live.journal;
+    const session = journal.snapshot.session;
+    const source = await this.source(
+      {
+        threadId: journal.threadId,
+        workspacePath: journal.workspace,
+        mode: "execute",
+      },
+      session.path,
+    );
+    if (source.original !== journal.original)
+      throw new Error("Office source identity changed");
+    const baseline = `original-${randomUUID()}${extname(journal.original)}`;
+    const path = join(live.directory, baseline);
+    await copyFile(journal.original, path);
+    if (
+      (await fileSha256(path)) !== hash ||
+      (await fileSha256(journal.original)) !== hash
+    ) {
+      await rm(path, { force: true });
+      throw new Error("Office source changed during reload");
+    }
+    const engine = await this.options.createEngine();
+    try {
+      const content = await engine.open(path, session.format);
+      const next = structuredClone(journal);
+      next.baseline = baseline;
+      next.baselineHash = next.diskHash = hash;
+      next.baselineVersion = session.version + 1;
+      next.operations = [];
+      delete next.pending;
+      next.snapshot = artifactSnapshotSchema.parse({
+        ...content,
+        session: {
+          ...session,
+          version: next.baselineVersion,
+          savedVersion: next.baselineVersion,
+          previewVersion: null,
+          status: "saved",
+          error: undefined,
+        },
+      });
+      await this.writeJournal(live.directory, next);
+      const previousEngine = live.engine;
+      live.engine = engine;
+      live.journal = next;
+      await previousEngine.close();
+      await this.publish(live, "external-change");
+      this.render(live);
+    } catch (error) {
+      if (live.engine !== engine) await engine.close();
+      throw error;
+    }
   }
 
   private observe(live: LiveSession): void {
@@ -597,6 +676,18 @@ export class OfficeSessionService {
             )
               return;
             // This event is explicitly save-level; no fabricated paragraph/cell operation.
+            if (
+              hash !== "missing" &&
+              journal.snapshot.session.version ===
+                journal.snapshot.session.savedVersion
+            ) {
+              try {
+                await this.reloadExternal(live, hash);
+                return;
+              } catch (error) {
+                journal.snapshot.session.error = String(error);
+              }
+            }
             journal.snapshot.session.status = "conflict";
             journal.snapshot.session.error =
               "The file was changed by another program. Reopen it after preserving or discarding this draft.";

@@ -25,12 +25,16 @@ function OfficePage({
   zoom,
   version,
   onRegion,
+  thumbnail = false,
+  label,
 }: {
   document: PDFDocumentProxy;
   page: number;
   zoom: number;
   version: number;
-  onRegion(selection: ArtifactSelection, version: number): void;
+  onRegion?(selection: ArtifactSelection, version: number): void;
+  thumbnail?: boolean;
+  label: string;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const start = useRef<{ x: number; y: number } | undefined>(undefined);
@@ -42,7 +46,11 @@ function OfficePage({
     void document
       .getPage(page)
       .then(async (pdfPage) => {
-        const viewport = pdfPage.getViewport({ scale: zoom });
+        const viewport = pdfPage.getViewport({
+          scale: thumbnail
+            ? 96 / pdfPage.getViewport({ scale: 1 }).width
+            : zoom,
+        });
         const scale = Math.min(
           window.devicePixelRatio || 1,
           2,
@@ -78,7 +86,7 @@ function OfficePage({
       active = false;
       task?.cancel();
     };
-  }, [document, page, version, zoom]);
+  }, [document, page, version, zoom, thumbnail]);
   const point = (event: PointerEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     return {
@@ -90,8 +98,9 @@ function OfficePage({
     <>
       <canvas
         ref={canvas}
-        aria-label={`Page ${page}`}
+        aria-label={label}
         onPointerDown={(event) => {
+          if (!onRegion) return;
           start.current = point(event);
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
@@ -100,6 +109,7 @@ function OfficePage({
           start.current = undefined;
           if (
             !initial ||
+            !onRegion ||
             Number(event.currentTarget.dataset.previewVersion) !== version
           )
             return;
@@ -130,11 +140,13 @@ export function OfficeWorkbenchPanel({
   view,
   locale,
   onAnnotate,
+  onSnapshot,
 }: {
   threadId: string;
   view: ArtifactViewState;
   locale: AppLocale;
   onAnnotate(annotation: ArtifactAnnotation): void;
+  onSnapshot?(snapshot: ArtifactSnapshot): void;
 }) {
   const t = officeCopy(locale);
   const [snapshot, setSnapshot] = useState<ArtifactSnapshot>();
@@ -146,6 +158,8 @@ export function OfficeWorkbenchPanel({
   const [zoom, setZoom] = useState("1");
   const [follow, setFollow] = useState(true);
   const [sheet, setSheet] = useState("");
+  const [sheetPages, setSheetPages] = useState<Record<string, number>>({});
+  const mappedSheet = useRef<string | undefined>(undefined);
   const [range, setRange] = useState("A1");
   const [note, setNote] = useState("");
   const [selection, setSelection] = useState<{
@@ -166,6 +180,7 @@ export function OfficeWorkbenchPanel({
             : previous,
         );
         setError(undefined);
+        if (view.needsSnapshot) onSnapshot?.(next);
       })
       .catch((reason: unknown) => {
         if (active) setError(String(reason));
@@ -173,7 +188,7 @@ export function OfficeWorkbenchPanel({
     return () => {
       active = false;
     };
-  }, [view, sessionId, threadId]);
+  }, [view, sessionId, threadId, onSnapshot]);
   const assetId = snapshot?.preview?.assetId;
   useEffect(() => {
     if (!assetId) return;
@@ -254,6 +269,44 @@ export function OfficeWorkbenchPanel({
     };
   }, [follow, pdf, snapshot, view.selection]);
   const currentSheet = sheet || snapshot?.sheets[0] || "";
+  useEffect(() => {
+    setSheetPages({});
+    if (!pdf || !snapshot?.sheets.length) return;
+    let active = true;
+    void (async () => {
+      const pages: Record<string, number> = {};
+      const outline = await pdf.document.getOutline();
+      for (const item of outline ?? []) {
+        if (!snapshot.sheets.includes(item.title)) continue;
+        const destination =
+          typeof item.dest === "string"
+            ? await pdf.document.getDestination(item.dest)
+            : item.dest;
+        if (!destination?.length) continue;
+        const index =
+          typeof destination[0] === "number"
+            ? destination[0]
+            : await pdf.document.getPageIndex(destination[0]);
+        if (index >= 0 && index < pdf.document.numPages)
+          pages[item.title] = index + 1;
+      }
+      if (active) setSheetPages(pages);
+    })().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [pdf, snapshot?.sheets]);
+  useEffect(() => {
+    const targetPage = sheetPages[currentSheet];
+    if (
+      targetPage &&
+      (mappedSheet.current !== currentSheet ||
+        (follow && view.selection?.kind === "cells"))
+    ) {
+      mappedSheet.current = currentSheet;
+      setPage(targetPage);
+    }
+  }, [currentSheet, sheetPages, follow, view.selection]);
   const targets = (snapshot?.targets ?? []).filter(
     (target) =>
       target.selection.kind !== "cells" ||
@@ -263,7 +316,7 @@ export function OfficeWorkbenchPanel({
   function selectionLabel(value: ArtifactSelection): string {
     if (value.kind === "paragraph") return `${t.paragraph} ${value.index + 1}`;
     if (value.kind === "object")
-      return `${t.page} ${value.page} · ${t.object} ${value.index + 1}`;
+      return `${t.page} ${value.page} · ${t.object} ${[value.index, ...(value.path ?? [])].map((index) => index + 1).join(".")}${value.cell ? ` · R${value.cell.row + 1}C${value.cell.column + 1}` : ""}`;
     if (value.kind === "cells") return `${value.sheet} · ${value.range}`;
     return `${t.regionSelection} · ${t.page} ${value.page}`;
   }
@@ -336,6 +389,34 @@ export function OfficeWorkbenchPanel({
           />
         ) : null}
       </div>
+      {pdf && session.format === "powerpoint" ? (
+        <nav className="office-toolbar" aria-label={t.slides}>
+          {Array.from(
+            { length: Math.min(5, pdf.document.numPages) },
+            (_, index) =>
+              Math.max(1, Math.min(page - 2, pdf.document.numPages - 4)) +
+              index,
+          ).map((number) => (
+            <Button
+              key={number}
+              label={`${t.page} ${number}`}
+              selected={number === page}
+              variant="quiet"
+              onClick={() => setPage(number)}
+            >
+              <OfficePage
+                document={pdf.document}
+                page={number}
+                zoom={1}
+                version={pdf.version}
+                thumbnail
+                label={`${t.page} ${number}`}
+              />
+              {number}
+            </Button>
+          ))}
+        </nav>
+      ) : null}
       <div className="office-page-scroll">
         {pdf ? (
           <OfficePage
@@ -343,6 +424,7 @@ export function OfficeWorkbenchPanel({
             page={Math.min(page, pdf.document.numPages)}
             zoom={Number(zoom)}
             version={pdf.version}
+            label={`${t.page} ${Math.min(page, pdf.document.numPages)}`}
             onRegion={(value, version) => setSelection({ value, version })}
           />
         ) : (
@@ -366,7 +448,8 @@ export function OfficeWorkbenchPanel({
               ...targets.slice(0, 2_000).map((target) => ({
                 value: JSON.stringify(target.selection),
                 label:
-                  target.text.slice(0, 100) || selectionLabel(target.selection),
+                  selectionLabel(target.selection) +
+                  (target.text ? ` · ${target.text.slice(0, 100)}` : ""),
               })),
               ...(selection &&
               !targets.some(
@@ -408,7 +491,11 @@ export function OfficeWorkbenchPanel({
           {t.addNote}
         </Button>
         {snapshot?.warnings.map((warning) => (
-          <small key={warning}>{warning}</small>
+          <small key={warning}>
+            {warning.startsWith("Cell selection index covers A1:Z50 per sheet;")
+              ? t.cellLimit
+              : warning}
+          </small>
         ))}
       </div>
     </section>

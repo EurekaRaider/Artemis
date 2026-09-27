@@ -212,6 +212,54 @@ describe("native Office session host", () => {
     ).rejects.toThrow("Original changed");
     expect(await readFile(join(f.root, "稿件.docx"), "utf8")).toBe("External");
   });
+  it("reloads an external save when there is no draft and recovers the new baseline", async () => {
+    const f = await fixture();
+    await writeFile(join(f.root, "稿件.docx"), "External revision");
+    await vi.waitFor(
+      async () => {
+        const snapshot = await f.service.snapshotForUi(
+          f.opened.session.sessionId,
+          "task",
+        );
+        expect(snapshot.targets[0]?.text).toBe("External revision");
+        expect(snapshot.session).toMatchObject({
+          version: 1,
+          savedVersion: 1,
+          status: "saved",
+        });
+      },
+      { timeout: 3000 },
+    );
+    await f.service.dispose();
+    const restored = new OfficeSessionService(f.options);
+    services.push(restored);
+    const snapshot = await restored.execute(
+      {
+        ...f.base,
+        operation: "snapshot",
+        sessionId: f.opened.session.sessionId,
+      },
+      f.context,
+    );
+    expect(snapshot.targets[0]?.text).toBe("External revision");
+    expect(snapshot.session.version).toBe(1);
+  });
+  it("keeps an unsaved draft when a watcher sees an external save", async () => {
+    const f = await fixture();
+    await f.service.execute(f.apply("edit", 0), f.context);
+    await writeFile(join(f.root, "稿件.docx"), "External revision");
+    await vi.waitFor(
+      async () => {
+        const snapshot = await f.service.snapshotForUi(
+          f.opened.session.sessionId,
+          "task",
+        );
+        expect(snapshot.session.status).toBe("conflict");
+        expect(snapshot.targets[0]?.text).toBe("Edited");
+      },
+      { timeout: 3000 },
+    );
+  });
   it("recovers only committed operations after a partial engine failure", async () => {
     const f = await fixture();
     await f.service.execute(f.apply("first", 0, "Accepted"), f.context);

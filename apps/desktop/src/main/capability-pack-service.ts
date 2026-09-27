@@ -2,6 +2,7 @@ import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   copyFile,
+  link,
   lstat,
   mkdir,
   open,
@@ -92,10 +93,17 @@ export class CapabilityPackService {
       const value = JSON.parse(
         await readFile(join(this.options.root, "active.json"), "utf8"),
       ) as { version: string };
+      if (!value || typeof value.version !== "string") return undefined;
       this.versionPath(value.version);
       return value.version;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      if (
+        error instanceof SyntaxError ||
+        (error instanceof Error &&
+          error.message === "Invalid capability version")
+      )
+        return undefined;
       throw error;
     }
   }
@@ -236,39 +244,47 @@ export class CapabilityPackService {
     await mkdir(this.options.root, { recursive: true, mode: 0o700 });
     const path = join(this.options.root, ".install.lock");
     const token = randomUUID();
-    const create = () => open(path, "wx", 0o600);
-    let handle;
+    const candidate = `${path}.${token}`;
+    const handle = await open(candidate, "wx", 0o600);
     try {
-      handle = await create();
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const raw = await readFile(path, "utf8");
-      let owner: { pid?: number };
-      try {
-        owner = JSON.parse(raw) as { pid?: number };
-      } catch {
-        throw new Error(
-          "Capability lock is incomplete; restart Artemis before retrying",
-        );
-      }
-      if (!Number.isSafeInteger(owner.pid) || owner.pid! <= 0)
-        throw new Error("Invalid capability lock");
-      try {
-        process.kill(owner.pid!, 0);
-        throw new Error("Another host is maintaining this capability pack");
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-      }
-      // Artemis is a single-instance desktop host. Reclaim only a confirmed dead owner.
-      if ((await readFile(path, "utf8")) !== raw)
-        throw new Error("Capability lock changed; retry");
-      await rm(path);
-      handle = await create();
-    }
-    await handle.writeFile(JSON.stringify({ pid: process.pid, token }));
-    await handle.sync();
-    return async () => {
+      await handle.writeFile(JSON.stringify({ pid: process.pid, token }));
+      await handle.sync();
+    } finally {
       await handle.close();
+    }
+    try {
+      try {
+        // Publish only complete lock records. link is atomic and never replaces
+        // another host's lock on either supported platform.
+        await link(candidate, path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        const raw = await readFile(path, "utf8");
+        let owner: { pid?: number };
+        try {
+          owner = JSON.parse(raw) as { pid?: number };
+        } catch {
+          throw new Error(
+            "Capability lock is damaged; its owner cannot be verified",
+          );
+        }
+        if (!Number.isSafeInteger(owner.pid) || owner.pid! <= 0)
+          throw new Error("Invalid capability lock");
+        try {
+          process.kill(owner.pid!, 0);
+          throw new Error("Another host is maintaining this capability pack");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+        if ((await readFile(path, "utf8")) !== raw)
+          throw new Error("Capability lock changed; retry");
+        await rm(path);
+        await link(candidate, path);
+      }
+    } finally {
+      await rm(candidate, { force: true });
+    }
+    return async () => {
       const owner = JSON.parse(await readFile(path, "utf8")) as {
         token: string;
       };
@@ -302,9 +318,25 @@ export class CapabilityPackService {
     try {
       const target = this.versionPath(manifest.version);
       let exists = false;
+      let installed: CapabilityPackManifest | undefined;
       try {
-        const installed = await this.receipt(manifest.version);
+        const info = await lstat(target);
+        if (!info.isDirectory() || info.isSymbolicLink())
+          throw new Error("Invalid capability installation directory");
         exists = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      if (exists) {
+        try {
+          installed = await this.receipt(manifest.version);
+        } catch {
+          if ((this.leases.get(manifest.version) ?? 0) > 0)
+            throw new Error("Capability version is in use");
+          // Reinstall from the independently verified signed manifest, never from the damaged receipt.
+        }
+      }
+      if (installed) {
         if (installed.archive.sha256 !== manifest.archive.sha256)
           throw new Error(
             "An immutable capability version cannot be republished",
@@ -320,8 +352,6 @@ export class CapabilityPackService {
         } catch (error) {
           if ((this.leases.get(manifest.version) ?? 0) > 0) throw error;
         }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
       await mkdir(stage, { mode: 0o700 });
       const archive = join(stage, "download.zip");

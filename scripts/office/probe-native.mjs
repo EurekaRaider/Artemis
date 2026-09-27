@@ -124,8 +124,127 @@ function request(command, fields = {}) {
   });
 }
 const measurements = [];
+const marker = "[Artemis probe]";
+function planEdit(sample, snapshot) {
+  if (sample.format === "word") {
+    const target =
+      snapshot.targets.find((target) => target.text) ?? snapshot.targets[0];
+    if (!target) throw new Error("No paragraph or table cell in Word sample");
+    return {
+      target,
+      change: {
+        type: "replace-text",
+        paragraph: target.selection.index,
+        start: 0,
+        end: 0,
+        text: marker,
+      },
+    };
+  }
+  if (sample.format === "powerpoint") {
+    const text =
+      sample.id === "slides/connector-shape-animations.pptx"
+        ? snapshot.targets.find((target) => target.selection.cell)
+        : snapshot.targets.find((target) => target.editable && target.text);
+    const target = text ?? snapshot.targets.find((target) => target.bounds);
+    if (!target && sample.id === "slides/onemaster-twolayouts.pptx")
+      return {
+        target: { selection: { kind: "object", page: 1, index: 0 } },
+        change: {
+          type: "insert-slide-text",
+          page: 1,
+          object: 0,
+          x: 1000,
+          y: 1000,
+          width: 10000,
+          height: 2000,
+          text: marker,
+        },
+      };
+    if (!target)
+      throw new Error("No editable text or movable object in slide sample");
+    const { page, index: object, path, cell } = target.selection;
+    return {
+      target,
+      change: text
+        ? {
+            type: "set-object-text",
+            page,
+            object,
+            ...(path ? { path } : {}),
+            ...(cell ? { cell } : {}),
+            text: marker + target.text,
+          }
+        : {
+            type: "move-object",
+            page,
+            object,
+            ...(path ? { path } : {}),
+            x: target.bounds.x + 100,
+            y: target.bounds.y + 100,
+          },
+    };
+  }
+  // Use a named source cell for the pivot fixture, never its derived Sheet3!A3 output.
+  const pivot = sample.id.includes("PivotTable_");
+  const sheet = pivot ? "Sheet1" : snapshot.sheets[0];
+  const address = pivot ? "A2" : "Z50";
+  if (!snapshot.sheets.includes(sheet))
+    throw new Error(`Missing fixture sheet: ${sheet}`);
+  const current = snapshot.targets.find(
+    (target) =>
+      target.selection.sheet === sheet && target.selection.range === address,
+  );
+  const value = pivot ? Number(current?.text) + 1 : marker;
+  if (pivot && !Number.isFinite(value))
+    throw Error("Pivot source fixture must be numeric");
+  return {
+    target: { selection: { kind: "cells", sheet, range: address } },
+    change: {
+      type: "set-cells",
+      sheet,
+      column: pivot ? 1 : 26,
+      row: pivot ? 2 : 50,
+      values: [[value]],
+    },
+  };
+}
+function assertEdit(snapshot, target, change) {
+  const actual = snapshot.targets.find(
+    (value) =>
+      JSON.stringify(value.selection) === JSON.stringify(target.selection),
+  );
+  // Native JSON objects are key-sorted; compare selection identity without relying on key order.
+  const matches = (value) =>
+    Object.entries(target.selection).every(
+      ([key, expected]) =>
+        (target.selection.kind === "paragraph" &&
+          (key === "start" || key === "end")) ||
+        JSON.stringify(value.selection[key]) === JSON.stringify(expected),
+    );
+  const edited = actual ?? snapshot.targets.find(matches);
+  if (change.type === "move-object") {
+    if (
+      !edited?.bounds ||
+      Math.abs(edited.bounds.x - change.x) > 1 ||
+      Math.abs(edited.bounds.y - change.y) > 1
+    )
+      throw new Error("Object position did not survive the native operation");
+  } else if (
+    change.type === "set-cells" &&
+    typeof change.values[0][0] === "number"
+  ) {
+    if (Number(edited?.text) !== change.values[0][0])
+      throw Error("Numeric source edit was not preserved");
+  } else if (!edited?.text.includes(marker))
+    throw new Error(
+      "Edited content is missing from the selected native target",
+    );
+}
 try {
-  for (const sample of source.samples) {
+  for (const sample of source.samples.filter(
+    (sample) => !args.sample || sample.id === args.sample,
+  )) {
     const directory = join(out, sample.id.replaceAll("/", "_"));
     await mkdir(directory, { recursive: true });
     const row = {
@@ -134,56 +253,48 @@ try {
       nativeFlowPassed: false,
       compatibilityAccepted: false,
     };
+    const snapshots = {};
     try {
       let start = performance.now();
       const snapshot = await request("open", {
         path: join(corpus, sample.id),
         format: sample.format,
       });
+      snapshots.original = snapshot;
       row.openMs = performance.now() - start;
-      const target = snapshot.targets.find((target) => target.text.length > 0);
-      if (!target)
-        throw new Error("No supported selection target in this sample");
-      const marker = "Artemis probe ";
-      let change;
-      if (target.selection.kind === "paragraph")
-        change = {
-          type: "replace-text",
-          paragraph: target.selection.index,
-          start: 0,
-          end: 0,
-          text: marker,
-        };
-      else if (target.selection.kind === "object")
-        change = {
-          type: "set-object-text",
-          page: target.selection.page,
-          object: target.selection.index,
-          text: marker + target.text,
-        };
-      else {
-        const [, columnName, rowNumber] =
-          target.selection.range.match(/^([A-Z]+)(\d+)/u);
-        const column = [...columnName].reduce(
-          (value, char) => value * 26 + char.charCodeAt(0) - 64,
-          0,
-        );
-        change = {
-          type: "set-cells",
-          sheet: target.selection.sheet,
-          column,
-          row: Number(rowNumber),
-          values: [[marker + target.text]],
-        };
-      }
+      const { target, change } = planEdit(sample, snapshot);
       row.selection = target.selection;
+      row.change = change;
+      if (sample.id.includes("PivotTable_")) {
+        const derived = snapshot.targets.find(
+          (value) => value.editable === false,
+        );
+        if (!derived)
+          throw new Error("Pivot output was not identified as read-only");
+        let blocked = false;
+        try {
+          await request("apply", {
+            change: {
+              type: "set-cells",
+              sheet: "Sheet3",
+              column: 1,
+              row: 3,
+              values: [[marker]],
+            },
+          });
+        } catch (error) {
+          blocked = String(error).includes("Pivot result cells are derived");
+        }
+        if (!blocked) throw new Error("Pivot output edit was not rejected");
+        row.pivotOutputProtected = true;
+      }
       start = performance.now();
       await request("apply", { change });
       row.operationAckMs = performance.now() - start;
       const changed = await request("snapshot");
+      snapshots.changed = changed;
       row.snapshotMs = performance.now() - start;
-      if (!changed.targets.some((target) => target.text.includes(marker)))
-        throw new Error("Applied content is missing from native snapshot");
+      assertEdit(changed, target, change);
       start = performance.now();
       await request("render", { path: join(directory, "live.pdf") });
       row.nativePdfMs = performance.now() - start;
@@ -194,13 +305,9 @@ try {
         path: saved,
         format: sample.format,
       });
-      if (!reopened.targets.some((target) => target.text.includes(marker)))
-        throw new Error("Edited content did not survive save/reopen");
+      snapshots.reopened = reopened;
+      assertEdit(reopened, target, change);
       await request("render", { path: join(directory, "reopened.pdf") });
-      await writeFile(
-        join(directory, "snapshots.json"),
-        JSON.stringify({ original: snapshot, changed, reopened }, null, 2),
-      );
       row.nativeFlowPassed = true;
       row.targetCountBefore = snapshot.targets.length;
       row.targetCountAfter = reopened.targets.length;
@@ -208,6 +315,10 @@ try {
     } catch (error) {
       row.error = String(error);
     } finally {
+      await writeFile(
+        join(directory, "snapshots.json"),
+        JSON.stringify(snapshots, null, 2),
+      );
       await request("close").catch(() => undefined);
     }
     measurements.push(row);
@@ -222,6 +333,7 @@ try {
           executionCommit: process.env.GITHUB_SHA,
           expectedSamples: source.samples.length,
           sourceCommit: source.sourceCommit,
+          ...(args.sample ? { focusedSample: args.sample } : {}),
           notes: [
             "Native operation and PDF export measurements, not UI paint latency.",
             "Compatibility is not accepted by opening or round-tripping alone. Inspect pixels and feature preservation.",

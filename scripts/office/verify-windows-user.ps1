@@ -1,7 +1,7 @@
-# Ephemeral CI account only. This probes an unsigned engineering runtime, not release acceptance.
+# Ephemeral CI account only. Installs and exercises the actual unsigned candidate ZIP.
 param(
-  [Parameter(Mandatory = $true)][string]$Office,
-  [Parameter(Mandatory = $true)][string]$Bridge,
+  [Parameter(Mandatory = $true)][string]$Candidate,
+  [Parameter(Mandatory = $true)][string]$Verifier,
   [string]$Corpus = 'artifacts/office/corpus',
   [string]$Out = 'artifacts/office/ordinary-user'
 )
@@ -27,8 +27,12 @@ try {
     $probeAcl.AddAccessRule($rule)
   }
   Set-Acl $probeStage $probeAcl
-  Copy-Item (Split-Path (Split-Path (Resolve-Path $Office).Path)) (Join-Path $probeStage 'runtime') -Recurse
-  Copy-Item $Bridge (Join-Path $probeStage 'office-bridge.exe')
+  New-Item (Join-Path $probeStage 'candidate') -ItemType Directory | Out-Null
+  foreach ($name in @('catalog.json','office-core-win32-x64.zip')) {
+    Copy-Item (Join-Path $Candidate $name) (Join-Path $probeStage 'candidate')
+  }
+  Copy-Item $Verifier (Join-Path $probeStage 'verify-candidate.mjs')
+  Copy-Item (Join-Path $PSScriptRoot 'verify-installed-acl.ps1') $probeStage
   Copy-Item $Corpus (Join-Path $probeStage 'corpus') -Recurse
   Copy-Item (Get-Command node.exe).Source (Join-Path $probeStage 'node.exe')
   Copy-Item (Join-Path $PSScriptRoot 'probe-native.mjs') $probeStage
@@ -44,33 +48,20 @@ $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Expected an ordinary user token' }
 $localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData, [Environment+SpecialFolderOption]::Create)
 if (-not $localData) { throw 'The ordinary user has no local application data directory' }
-$payload = Join-Path $localData 'Artemis\capability-packs\office-core\1.0.0\payload'
-New-Item $payload -ItemType Directory -Force | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'runtime') (Join-Path $payload 'runtime') -Recurse
-Copy-Item (Join-Path $PSScriptRoot 'office-bridge.exe') $payload
+$installedRoot = Join-Path $localData 'Artemis\capability-packs'
 $workspace = Join-Path $localData 'Artemis\验证文档'
 Copy-Item (Join-Path $PSScriptRoot 'corpus') $workspace -Recurse
 $output = Join-Path $PSScriptRoot 'evidence'
-$office = Join-Path $payload 'runtime\program\soffice.exe'
-$bridge = Join-Path $payload 'office-bridge.exe'
-$proof = [ordered]@{
-  schemaVersion=1; administrator=$false; userSid=$identity.User.Value
-  payload=$payload; workspace=$workspace; localApplicationData=$localData; userProfile=$env:USERPROFILE
-  finalCapabilityPackage=$false; releaseAccepted=$false
-  acl=@((Get-Acl $payload).Sddl, (Get-Acl $office).Sddl, (Get-Acl $bridge).Sddl)
-}
-$proof | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $output 'identity.json') -Encoding utf8
-& (Join-Path $PSScriptRoot 'node.exe') (Join-Path $PSScriptRoot 'probe-native.mjs') --office $office --bridge $bridge --corpus $workspace --out (Join-Path $output 'native')
+@{schemaVersion=1;administrator=$false;userSid=$identity.User.Value;installedRoot=$installedRoot;workspace=$workspace;localApplicationData=$localData;finalCapabilityPackage=$true;releaseAccepted=$false} | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $output 'identity.json') -Encoding utf8
+& (Join-Path $PSScriptRoot 'node.exe') (Join-Path $PSScriptRoot 'verify-candidate.mjs') (Join-Path $PSScriptRoot 'candidate') $installedRoot $workspace $output (Join-Path $PSScriptRoot 'probe-native.mjs')
 $code = $LASTEXITCODE
-$proof.nativeProbeExitCode = $code
-$proof | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $output 'identity.json') -Encoding utf8
 exit $code
 '@ | Set-Content $probeWorker -Encoding utf8BOM
   $credential = [PSCredential]::new("$env:COMPUTERNAME\$probeUserName", $probePassword)
   # Let CreateProcessWithLogonW create the new user's environment instead of
   # forwarding runneradmin's USERPROFILE, APPDATA and temporary directories.
   $probeProcess = Start-Process -FilePath (Get-Command powershell.exe).Source -Credential $credential -LoadUserProfile -UseNewEnvironment -WorkingDirectory $probeStage -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$probeWorker`"", '-Commit', $env:GITHUB_SHA) -RedirectStandardOutput (Join-Path $probeStage 'stdout.log') -RedirectStandardError (Join-Path $probeStage 'stderr.log') -PassThru
-  if (-not $probeProcess.WaitForExit(300000)) { throw 'Ordinary-user native probe timed out' }
+  if (-not $probeProcess.WaitForExit(900000)) { throw 'Ordinary-user native probe timed out' }
   $probeProcess.Refresh()
   if ($probeProcess.ExitCode -ne 0) { throw "Ordinary-user probe exited $($probeProcess.ExitCode); see its preserved evidence" }
 } finally {

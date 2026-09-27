@@ -12,6 +12,26 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const out = resolve(process.argv[2] ?? "artifacts/office/preview");
+const nativeDirectory = process.argv[3] && resolve(process.argv[3]);
+const nativeCases = [];
+if (nativeDirectory) {
+  for (const [format, id] of [
+    ["word", "word_2col-header.docx"],
+    ["excel", "sheets_TableStyleTest.xlsx"],
+    ["powerpoint", "slides_ShapePlusImage.pptx"],
+  ]) {
+    nativeCases.push({
+      format,
+      path: id.slice(id.indexOf("_") + 1),
+      snapshot: JSON.parse(
+        await readFile(join(nativeDirectory, id, "snapshots.json"), "utf8"),
+      ).reopened,
+      pdf: (await readFile(join(nativeDirectory, id, "reopened.pdf"))).toString(
+        "base64",
+      ),
+    });
+  }
+}
 const fixture = await mkdtemp(
   join(repo, "artifacts", "office-preview-fixture-"),
 );
@@ -59,16 +79,17 @@ import {OfficeWorkbenchPanel} from ${relative("apps/desktop/src/renderer/OfficeW
 import '@artemis/ui/styles.css';
 import '@artemis/theme-artemis/theme.css';
 const pdfs = ${JSON.stringify(pdfs)};
-let current = 0; window.notes = []; window.paints = []; window.errors = [];
+const nativeCases = ${JSON.stringify(nativeCases)};
+let current = 0; window.notes = []; window.paints = []; window.errors = []; window.recovered = [];
 window.addEventListener('artemis-office-preview-painted', event => window.paints.push(event.detail));
 window.addEventListener('error', event => window.errors.push(String(event.error || event.message)));
 window.addEventListener('unhandledrejection', event => window.errors.push(String(event.reason)));
-const session = version => ({protocolVersion:1,documentId:'sample',sessionId:'fixture',path:'Sample.docx',format:'word',engineVersion:'fixture',version,savedVersion:0,previewVersion:version,sequence:version+1,status:version?'editing':'saved'});
+const session = version => ({protocolVersion:1,documentId:'sample',sessionId:'fixture',path:nativeCases[version-3]?.path??'Sample.docx',format:nativeCases[version-3]?.format??'word',engineVersion:'fixture',version,savedVersion:version>=3?version:0,previewVersion:version,sequence:version+1,status:version>=3||!version?'saved':'editing'});
 window.artemis = {
- readOfficeSnapshot: async () => ({session:session(current),targets:[{selection:{kind:'paragraph',index:0,start:0,end:12},text:'Artemis Office preview'}],sheets:[],warnings:[],preview:{assetId:String(current),version:current}}),
- openOfficePreview: async (_thread,_session,assetId) => { const v=Number(assetId); if(v===1) await new Promise(resolve=>setTimeout(resolve,350)); return {data:pdfs[v],version:v}; }
+ readOfficeSnapshot: async () => ({session:session(current),targets:[{selection:{kind:'paragraph',index:0,start:0,end:12},text:'Artemis Office preview'}],sheets:[],warnings:[],...nativeCases[current-3]?.snapshot,preview:{assetId:String(current),version:current}}),
+ openOfficePreview: async (_thread,_session,assetId) => { const v=Number(assetId); if(v===1) await new Promise(resolve=>setTimeout(resolve,350)); return {data:v>=3?nativeCases[v-3].pdf:pdfs[v],version:v}; }
 };
-function Fixture(){const [version,setVersion]=useState(0);window.advance=v=>{current=v;setVersion(v)};return <main style={{height:'100vh',padding:16,boxSizing:'border-box'}}><OfficeWorkbenchPanel locale="zh-CN" threadId="fixture" view={{session:session(version),needsSnapshot:false}} onAnnotate={note=>window.notes.push(note)}/></main>}
+function Fixture(){const [version,setVersion]=useState(0);const [gap,setGap]=useState(false);window.recoverGap=()=>setGap(true);window.advance=v=>{current=v;setVersion(v)};return <main style={{height:'100vh',padding:16,boxSizing:'border-box'}}><OfficeWorkbenchPanel key={version>=3?version:'synthetic'} locale="zh-CN" threadId="fixture" view={{session:session(version),needsSnapshot:gap}} onSnapshot={snapshot=>{window.recovered.push(snapshot.session.sequence);setGap(false)}} onAnnotate={note=>window.notes.push(note)}/></main>}
 createRoot(document.getElementById('root')).render(<Fixture/>);
 `,
 );
@@ -92,16 +113,18 @@ app.whenReady().then(async()=>{
  const win=new BrowserWindow({width:1100,height:900,show:false,webPreferences:{nodeIntegration:false,contextIsolation:true}});
  const errors=[]; win.webContents.on('console-message', details=>{if(details.level==='error') errors.push(details.message)});
  const js=source=>win.webContents.executeJavaScript(source);
- const wait=async source=>{for(let i=0;i<100;i++){if(await js(source))return;await new Promise(r=>setTimeout(r,50))}throw Error('Timeout: '+source)};
+ const wait=async source=>{for(let i=0;i<200;i++){if(await js(source))return;await new Promise(r=>setTimeout(r,50))}await fs.writeFile(out+'/failure.png',(await win.webContents.capturePage()).toPNG());throw Error('Timeout: '+source+'; '+JSON.stringify(await js('({errors:window.errors,text:document.body.innerText,paints:window.paints})')))};
  await win.loadFile(${JSON.stringify(join(fixture, "dist/index.html"))});
- await wait('document.querySelector("canvas")?.dataset.previewVersion === "0"');
- const before=await js('document.querySelector("canvas").toDataURL()');
+ await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "0"');
+ const before=await js('document.querySelector(".office-page-scroll canvas").toDataURL()');
  await js('window.advance(1)'); await new Promise(r=>setTimeout(r,30)); await js('window.advance(2)');
- await wait('document.querySelector("canvas")?.dataset.previewVersion === "2"');
+ await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "2"');
  await new Promise(r=>setTimeout(r,500));
- if(await js('document.querySelector("canvas").dataset.previewVersion')!=='2') throw Error('Stale render overwrote the latest version');
- if(before===await js('document.querySelector("canvas").toDataURL()')) throw Error('Document content did not repaint');
- const bounds=await js('(()=>{const r=document.querySelector("canvas").getBoundingClientRect();return {x:r.x,y:r.y}})()');
+ if(await js('document.querySelector(".office-page-scroll canvas").dataset.previewVersion')!=='2') throw Error('Stale render overwrote the latest version');
+ if(before===await js('document.querySelector(".office-page-scroll canvas").toDataURL()')) throw Error('Document content did not repaint');
+ await js('window.recoverGap()');
+ await wait('window.recovered.includes(3)');
+ const bounds=await js('(()=>{const r=document.querySelector(".office-page-scroll canvas").getBoundingClientRect();return {x:r.x,y:r.y}})()');
  win.webContents.sendInputEvent({type:'mouseDown',x:Math.round(bounds.x+30),y:Math.round(bounds.y+30),button:'left',clickCount:1});
  win.webContents.sendInputEvent({type:'mouseUp',x:Math.round(bounds.x+130),y:Math.round(bounds.y+100),button:'left',clickCount:1});
  await js('document.querySelector("textarea").focus()');
@@ -114,7 +137,17 @@ app.whenReady().then(async()=>{
  await fs.writeFile(out+'/desktop.png',(await win.webContents.capturePage()).toPNG());
  win.setSize(600,850); await new Promise(r=>setTimeout(r,100));
  await fs.writeFile(out+'/compact.png',(await win.webContents.capturePage()).toPNG());
- const report={fixture:'synthetic IPC with real PDF.js rasterization',browser:'Browser plugin not available; repository Electron verification pattern',title:await js('document.title'),contentChanged:true,staleRenderRejected:true,annotation:note,scroll,errors:[...errors,...await js('window.errors')],paints:await js('window.paints')};
+ const nativeScreenshots=[];
+ for(const [index,sample] of ${JSON.stringify(nativeCases.map(({ format, path }) => ({ format, path })))}.entries()) {
+   win.setContentSize(760,960);
+   await js('window.advance('+(index+3)+')');
+   await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "'+(index+3)+'"');
+   await wait('document.querySelector(".office-workbench")?.getAttribute("aria-label") === '+JSON.stringify(sample.path));
+   if(sample.format==='powerpoint') await wait('[...document.querySelectorAll("nav canvas")].length>0 && [...document.querySelectorAll("nav canvas")].every(canvas=>canvas.dataset.previewVersion==="'+(index+3)+'")');
+   await fs.writeFile(out+'/'+sample.format+'.png',(await win.webContents.capturePage()).toPNG());
+   nativeScreenshots.push({...sample,screenshot:sample.format+'.png',viewport:win.getContentSize()});
+ }
+ const report={fixture:'synthetic IPC with real PDF.js rasterization',nativeScreenshots,browser:'Browser plugin not available; repository Electron verification pattern',title:await js('document.title'),contentChanged:true,staleRenderRejected:true,eventGapSnapshotRecovered:true,annotation:note,scroll,errors:[...errors,...await js('window.errors')],paints:await js('window.paints')};
  await fs.writeFile(out+'/report.json',JSON.stringify(report,null,2));
  if(report.errors.length) throw Error(JSON.stringify(report.errors));
  win.destroy();app.exit(0);

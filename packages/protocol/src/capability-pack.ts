@@ -78,6 +78,21 @@ export const capabilityPackManifestSchema = z
       .object({
         signer: z.string().min(1).max(200),
         notarization: z.enum(["accepted-stapled", "not-applicable"]),
+        windows: z
+          .array(
+            z
+              .object({
+                path: capabilityPathSchema,
+                signer: z
+                  .string()
+                  .regex(/^[A-Fa-f0-9]{40}$/u)
+                  .nullable(),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(50_000)
+          .optional(),
       })
       .strict(),
     signature: z
@@ -117,6 +132,24 @@ export const capabilityPackManifestSchema = z
       ctx.addIssue({ code: "custom", message: "Unsupported native target" });
     if (!value.archive.url.includes(`/office-runtime-v${value.version}/`))
       ctx.addIssue({ code: "custom", message: "Release version mismatch" });
+    if (value.native.windows) {
+      const paths = value.native.windows.map((binary) => binary.path);
+      if (
+        value.platform !== "win32" ||
+        new Set(paths).size !== paths.length ||
+        [value.entrypoint, value.officeExecutable].some(
+          (path) => !paths.includes(path),
+        ) ||
+        paths.some(
+          (path) =>
+            !value.files.some((file) => file.path === path && file.executable),
+        )
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "Invalid Windows executable trust inventory",
+        });
+    }
   });
 export type CapabilityPackManifest = z.infer<
   typeof capabilityPackManifestSchema

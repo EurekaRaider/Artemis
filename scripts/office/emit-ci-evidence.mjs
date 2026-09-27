@@ -8,7 +8,7 @@ import { gzipSync } from "node:zlib";
 
 const root = resolve("artifacts/office");
 const allowed =
-  /^(?:(?:report|identity|windows|snapshots)\.json|(?:live|reopened)\.pdf|(?:desktop|compact)\.png)$/u;
+  /^(?:(?:report|identity|windows|snapshots)\.json|(?:live|reopened)\.pdf|(?:desktop|compact|word|excel|powerpoint)\.png)$/u;
 let total = 0;
 let count = 0;
 const files = [];
@@ -43,8 +43,10 @@ async function emit(path) {
     );
   count++;
 }
-for (const name of ["probe", "preview", "evidence", "ordinary-user"])
+for (const name of ["probe", "preview", "evidence", "ordinary-user", "panels"])
   await discover(join(root, name));
+if (await stat(join(root, "candidate", "report.json")).catch(() => null))
+  files.push(join(root, "candidate", "report.json"));
 // Preserve reports and UI screenshots before optional sample PDFs. A large
 // native export must not prevent retrieving the rest of a failed job's evidence.
 const priority = (path) =>
