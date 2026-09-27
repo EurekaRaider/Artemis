@@ -80,6 +80,7 @@ const bridge = spawn(
 const pending = new Map();
 let buffered = "",
   diagnostics = "";
+let ready = false;
 bridge.stderr.setEncoding("utf8");
 bridge.stderr.on("data", (chunk) => {
   diagnostics = (diagnostics + chunk).slice(-4000);
@@ -93,6 +94,7 @@ bridge.stdout.on("data", (chunk) => {
     buffered = buffered.slice(newline + 1);
     const wait = pending.get(value.id);
     if (!wait) continue;
+    ready = true;
     pending.delete(value.id);
     clearTimeout(wait.timer);
     if (value.error !== undefined) wait.reject(new Error(value.error));
@@ -115,10 +117,13 @@ function request(command, fields = {}) {
     );
   const id = randomUUID();
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error(`${command} timed out: ${diagnostics}`));
-    }, 30_000);
+    const timer = setTimeout(
+      () => {
+        pending.delete(id);
+        reject(new Error(`${command} timed out: ${diagnostics}`));
+      },
+      ready ? 30_000 : 90_000,
+    );
     pending.set(id, { resolve, reject, timer });
     bridge.stdin.write(`${JSON.stringify({ id, command, ...fields })}\n`);
   });

@@ -287,9 +287,10 @@ int main(int argc, char** argv) {
         auto context = cppu::defaultBootstrap_InitialComponentContext(u(argv[1]));
         Reference<css::bridge::XUnoUrlResolver> resolver(context->getServiceManager()->createInstanceWithContext(u("com.sun.star.bridge.UnoUrlResolver"), context), UNO_QUERY_THROW);
         Reference<css::uno::XComponentContext> remote;
-        for (int i = 0; i < 150 && !remote.is(); i++) {
+        const auto startupDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (!remote.is()) {
             try { remote.set(resolver->resolve(u(argv[2])), UNO_QUERY_THROW); }
-            catch (const css::uno::Exception&) { if (i == 149) throw; std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+            catch (const css::uno::Exception&) { if (std::chrono::steady_clock::now() >= startupDeadline) throw; std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
         }
         Reference<css::frame::XComponentLoader> loader(remote->getServiceManager()->createInstanceWithContext(u("com.sun.star.frame.Desktop"), remote), UNO_QUERY_THROW);
         Document document(remote);

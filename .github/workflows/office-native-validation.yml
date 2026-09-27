@@ -101,7 +101,7 @@ jobs:
         run: npm run build:ui-libraries
       - name: Verify Office policy, recovery and installation
         if: success()
-        run: node node_modules/vitest/vitest.mjs run --no-file-parallelism apps/desktop/test/office-document-service.test.ts apps/desktop/test/office-session-service.test.ts apps/desktop/test/capability-pack-service.test.ts packages/protocol/test/artifact.test.ts
+        run: node node_modules/vitest/vitest.mjs run --no-file-parallelism apps/desktop/test/office-document-service.test.ts apps/desktop/test/office-session-service.test.ts apps/desktop/test/office-uno-engine.test.ts apps/desktop/test/capability-pack-service.test.ts packages/protocol/test/artifact.test.ts
         env:
           NODE_OPTIONS: --no-experimental-webstorage
       - name: Verify real Electron preview and annotation

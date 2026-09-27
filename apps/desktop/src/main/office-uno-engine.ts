@@ -96,6 +96,7 @@ export class UnoOfficeEngine implements OfficeEngine {
     }
   >();
   private closed = false;
+  private ready = false;
 
   private constructor(
     root: string,
@@ -180,6 +181,7 @@ export class UnoOfficeEngine implements OfficeEngine {
           };
           const pending = this.pending.get(message.id);
           if (!pending) throw new Error("Unexpected Office bridge response");
+          this.ready = true;
           clearTimeout(pending.timer);
           this.pending.delete(message.id);
           if (typeof message.error === "string")
@@ -236,7 +238,8 @@ export class UnoOfficeEngine implements OfficeEngine {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(
         () => this.fail(new Error(`Office ${command} timed out`)),
-        30_000,
+        // A cold native runtime has a separate 60-second connection budget.
+        this.ready ? 30_000 : 90_000,
       );
       this.pending.set(id, { resolve, reject, timer });
       this.bridge.stdin.write(
