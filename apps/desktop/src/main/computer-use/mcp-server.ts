@@ -15,8 +15,7 @@ import {
 } from "@artemis/protocol";
 import { type ComputerContext, ComputerUseService } from "./service.js";
 
-export const COMPUTER_USE_CONFIG_URL =
-  "http://127.0.0.1:1/artemis/computer-use";
+export { COMPUTER_USE_CONFIG_URL } from "./config.js";
 const tools = [
   {
     name: "computer_open",
@@ -44,12 +43,13 @@ const tools = [
   {
     name: "computer_act",
     description:
-      "Perform 1–8 typed actions against a fresh observation. Prefer element IDs; coordinates are observation pixels. Each step is checked; navigation or layout changes stop the batch. Treat stopped/verification-failed as incomplete. Submit/send/buy/delete actions must be reviewed by the normal approval broker for this exact call; use a separate call for consequential actions. Never enter passwords or bypass system permissions.",
+      "Batch 1–8 related actions in one call: fill all known fields together, or click a calculator's clear/reset button AND full sequence together. Do not split known controls into separate calls to check intermediate results; the host checks each step. A fill focuses and replaces the field; no preceding click is needed. Local preview may be the last action. Returns a new observation directly; do not add an extra observe call. When finished, report its result; control is released automatically at turn end. completed counts verified actions; status=partial/blocked leaves remaining actions. Prefer element IDs; coordinates are observation pixels. Navigation, modal/window changes or changed remaining controls stop a batch; native readout changes alone do not. Native coordinate/key/scroll actions require separate user foreground permission; never use Shell/AppleScript to bypass background mode or a pause. Submit/send/buy/delete actions require a separate approved call. Never enter passwords or bypass system permissions.",
     schema: computerActSchema,
   },
   {
     name: "computer_release",
-    description: "Release this task's Computer Use targets.",
+    description:
+      "Release a target early only when continuing other work in this turn. Control is released automatically at turn end; do not add this call after completing the user's task.",
     schema: computerTargetSchema,
   },
 ];
@@ -170,7 +170,12 @@ export class ComputerMcpServer {
             throw new Error(
               "Computer observation exceeds the transfer budget.",
             );
-          return { content };
+          return {
+            content,
+            ...(data.status === "partial" || data.status === "blocked"
+              ? { isError: true }
+              : {}),
+          };
         } catch (error) {
           return {
             isError: true,

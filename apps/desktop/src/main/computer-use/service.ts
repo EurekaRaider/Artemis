@@ -35,6 +35,7 @@ export interface ComputerDriver {
     target: ComputerTarget,
     action: ComputerAction,
     signal: AbortSignal,
+    allowForeground?: boolean,
   ): Promise<void>;
   release(target: ComputerTarget): Promise<void>;
 }
@@ -44,6 +45,32 @@ interface Lease {
   controller: AbortController;
   observation?: ComputerObservation;
   busy: boolean;
+  allowForeground?: boolean;
+}
+
+function remainingControlsUnchanged(
+  before: ComputerFrame,
+  after: ComputerFrame,
+  actions: ComputerAction[],
+) {
+  if (!before.scopeRevision || before.scopeRevision !== after.scopeRevision)
+    return false;
+  return actions.every((action) => {
+    if (!("elementId" in action)) return false;
+    const previous = before.elements.find(
+      (element) => element.id === action.elementId,
+    );
+    const current = after.elements.find(
+      (element) => element.id === action.elementId,
+    );
+    return (
+      previous &&
+      current &&
+      previous.role === current.role &&
+      previous.label === current.label &&
+      JSON.stringify(previous.bounds) === JSON.stringify(current.bounds)
+    );
+  });
 }
 export class ComputerUseService {
   private readonly leases = new Map<string, Lease>();
@@ -51,7 +78,10 @@ export class ComputerUseService {
     string,
     { controller: AbortController; context: ComputerContext }
   >();
-  private readonly pausedTurns = new Map<string, string>();
+  private readonly pausedTurns = new Map<
+    string,
+    { turnId: string; reason: string }
+  >();
   private state: ComputerControlState = {
     version: COMPUTER_USE_VERSION,
     state: "idle",
@@ -60,6 +90,11 @@ export class ComputerUseService {
     private readonly options: {
       drivers: Record<ComputerTarget["kind"], ComputerDriver>;
       authorize(
+        target: ComputerTarget,
+        context: ComputerContext,
+        signal: AbortSignal,
+      ): Promise<boolean>;
+      authorizeForeground?(
         target: ComputerTarget,
         context: ComputerContext,
         signal: AbortSignal,
@@ -94,6 +129,7 @@ export class ComputerUseService {
   }
   private lease(id: string, context: ComputerContext): Lease {
     this.assertExecute(context);
+    this.assertNotPaused(context);
     const lease = this.leases.get(id);
     if (
       !lease ||
@@ -105,6 +141,13 @@ export class ComputerUseService {
       );
     lease.controller.signal.throwIfAborted();
     return lease;
+  }
+  private assertNotPaused(context: ComputerContext) {
+    const paused = this.pausedTurns.get(context.threadId);
+    if (paused?.turnId === context.turnId)
+      throw new Error(
+        `Computer Use is paused: ${paused.reason}. Wait for Resume or a new user turn; do not reopen or use Shell to bypass the pause.`,
+      );
   }
   private async snapshot(
     lease: Lease,
@@ -139,10 +182,7 @@ export class ComputerUseService {
   ): Promise<ComputerObservation> {
     this.assertExecute(context);
     input = computerOpenSchema.parse(input);
-    if (this.pausedTurns.get(context.threadId) === context.turnId)
-      throw new Error(
-        "User paused Computer Use. Wait for Resume or a new user turn.",
-      );
+    this.assertNotPaused(context);
     const kind =
       input.target === "browser" || input.target.startsWith("browser:")
         ? "browser"
@@ -241,17 +281,46 @@ export class ComputerUseService {
     lease.busy = true;
     const driver = this.options.drivers[lease.target.kind];
     const signal = lease.controller.signal;
-    const deadline = performance.now() + 3000;
-    const timer = setTimeout(
-      () =>
-        lease.controller.abort(
-          new Error("Computer action exceeded 3 seconds. Reopen the target."),
-        ),
-      3000,
-    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let completed = 0;
+    let attempted = 0;
     let stopped: string | undefined;
     try {
+      const needsForeground =
+        lease.target.kind === "desktop" &&
+        input.actions.some((action) =>
+          ["key", "scroll", "click_at"].includes(action.type),
+        );
+      if (needsForeground && !lease.allowForeground) {
+        const allowed = await this.options.authorizeForeground?.(
+          lease.target,
+          context,
+          signal,
+        );
+        signal.throwIfAborted();
+        if (!allowed)
+          return {
+            ...(await this.snapshot(lease)),
+            status: "blocked" as const,
+            attempted: 0,
+            completed: 0,
+            remaining: input.actions.length,
+            stopped: "foreground-required",
+            message:
+              "Background control cannot perform these native actions. The user has not allowed foreground control. Stop here; do not retry or use Shell to activate the app.",
+          };
+        lease.allowForeground = true;
+      }
+      const deadline = performance.now() + 3000;
+      timer = setTimeout(
+        () =>
+          lease.controller.abort(
+            new Error(
+              "Computer action exceeded 3 seconds. Resume control before retrying.",
+            ),
+          ),
+        3000,
+      );
       const coordinates = input.actions.some(
         (action) => action.type === "click_at",
       );
@@ -294,14 +363,15 @@ export class ComputerUseService {
         )
           lease.observation.foreground = true;
         this.publish(lease, "acting");
-        await driver.act(lease.target, action, signal);
-        signal.throwIfAborted();
-        completed++;
-        const after = await driver.observe(
+        await driver.act(
           lease.target,
-          action.type === "click_at",
+          action,
           signal,
+          lease.allowForeground === true,
         );
+        signal.throwIfAborted();
+        attempted++;
+        const after = await driver.observe(lease.target, false, signal);
         signal.throwIfAborted();
         if (action.type === "fill") {
           const field = after.elements.find((e) => e.id === action.elementId);
@@ -314,10 +384,18 @@ export class ComputerUseService {
             break;
           }
         }
+        completed++;
         if (
-          after.revision !== before.revision ||
-          (action.type === "click_at" &&
-            after.visualRevision !== before.visualRevision)
+          completed < input.actions.length &&
+          after.revision !== before.revision &&
+          !(
+            lease.target.kind === "desktop" &&
+            remainingControlsUnchanged(
+              before,
+              after,
+              input.actions.slice(completed),
+            )
+          )
         ) {
           stopped = "interface-changed";
           break;
@@ -327,12 +405,21 @@ export class ComputerUseService {
       clearTimeout(timer);
       const observation = await this.snapshot(lease);
       this.publish(lease, "observing");
-      return { ...observation, completed, ...(stopped ? { stopped } : {}) };
+      return {
+        ...observation,
+        status: stopped ? ("partial" as const) : ("completed" as const),
+        attempted,
+        completed,
+        remaining: input.actions.length - completed,
+        ...(stopped ? { stopped } : {}),
+      };
     } catch (error) {
       if (signal.aborted && this.leases.get(lease.target.id) === lease)
         this.stopThread(
           context.threadId,
-          "Computer action stopped. Resume control before reopening the target.",
+          signal.reason instanceof Error
+            ? signal.reason.message
+            : "Computer action stopped. Resume control before reopening the target.",
         );
       throw error;
     } finally {
@@ -345,12 +432,20 @@ export class ComputerUseService {
     for (const opening of this.opening.values())
       if (opening.context.threadId === threadId) {
         opening.controller.abort(new Error(reason));
-        if (!finished) this.pausedTurns.set(threadId, opening.context.turnId);
+        if (!finished)
+          this.pausedTurns.set(threadId, {
+            turnId: opening.context.turnId,
+            reason,
+          });
       }
     for (const [id, lease] of this.leases) {
       if (lease.context.threadId !== threadId) continue;
       lease.controller.abort(new Error(reason));
-      if (!finished) this.pausedTurns.set(threadId, lease.context.turnId);
+      if (!finished)
+        this.pausedTurns.set(threadId, {
+          turnId: lease.context.turnId,
+          reason,
+        });
       this.leases.delete(id);
       this.publish(lease, "paused", reason);
       void this.options.drivers[lease.target.kind]

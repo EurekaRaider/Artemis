@@ -43,9 +43,54 @@ async function fixture() {
     }) as Parameters<Client["connect"]>[0],
   );
   cleanups.push(() => client.close());
-  return { ...connection, client, server };
+  return { ...connection, client, server, driver };
 }
 describe("private Computer Use MCP transport", () => {
+  it("marks failed verification as an error while retaining the fresh observation", async () => {
+    const f = await fixture();
+    f.driver.observe = async () => ({
+      revision: "1",
+      width: 400,
+      height: 300,
+      elements: [{ id: "field", role: "textbox", label: "Name", value: "" }],
+    });
+    const context = {
+      threadId: "thread",
+      turnId: "turn",
+      mode: "execute" as const,
+    };
+    const call = (name: string, args: Record<string, unknown>) =>
+      f.client.callTool({
+        name,
+        arguments: args,
+        _meta: f.server.authorize(context, name, args).metadata,
+      });
+    const opened = await call("computer_open", { target: "browser" });
+    const observation = JSON.parse(
+      (opened.content as Array<{ type: string; text: string }>).find(
+        (c) => c.type === "text",
+      )!.text,
+    );
+    const result = await call("computer_act", {
+      targetId: observation.target.id,
+      observationId: observation.observationId,
+      actions: [{ type: "fill", elementId: "field", text: "Expected" }],
+    });
+    expect(result.isError).toBe(true);
+    const updated = JSON.parse(
+      (result.content as Array<{ type: string; text: string }>).find(
+        (c) => c.type === "text",
+      )!.text,
+    );
+    expect(updated).toMatchObject({
+      status: "partial",
+      attempted: 1,
+      completed: 0,
+      remaining: 1,
+      stopped: "verification-failed",
+    });
+    expect(updated.observationId).not.toBe(observation.observationId);
+  });
   it("requires loopback authentication and rejects browser-origin requests", async () => {
     const f = await fixture();
     expect((await fetch(f.url, { method: "POST" })).status).toBe(401);

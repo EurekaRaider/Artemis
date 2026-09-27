@@ -1649,9 +1649,14 @@ export class CodexPluginService {
   }
 
   async listInstalled(): Promise<InstalledCodexPlugin[]> {
-    const plugins = (await this.loadStore()).plugins.map((plugin) =>
-      this.installedPlugin(plugin),
-    );
+    const plugins = (await this.loadStore()).plugins
+      .filter(
+        (plugin) =>
+          this.options.computerUseRoot ||
+          plugin.source.kind !== "builtin" ||
+          plugin.source.pluginName !== "computer-use",
+      )
+      .map((plugin) => this.installedPlugin(plugin));
     const configuredIds = new Set(
       (await this.options.mcpStore.list()).map((config) => config.id),
     );

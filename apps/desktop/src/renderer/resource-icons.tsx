@@ -37,6 +37,7 @@ export const RESOURCE_ICON_NAMES = [
   "lightbulb",
   "lightning",
   "mcp",
+  "monitor",
   "package",
   "palette",
   "pdf",
@@ -62,6 +63,7 @@ interface ResourceIconRule {
 }
 
 const RESOURCE_ICON_RULES: readonly ResourceIconRule[] = [
+  { icon: "monitor", terms: ["computer-use", "computeruse"] },
   { icon: "web-video", terms: ["website-to-hyperframes"] },
   {
     icon: "terminal",
@@ -209,6 +211,40 @@ export function ResourceArtwork({ icon }: { icon: ResourceIconName }) {
   const paint = `url(#${gradientId})`;
   const artwork = (() => {
     switch (icon) {
+      case "monitor":
+        return (
+          <>
+            <defs>
+              <linearGradient id={gradientId} x2=".8" y2="1">
+                <stop stopColor="#74cbff" />
+                <stop offset="1" stopColor="#6275ee" />
+              </linearGradient>
+            </defs>
+            <path d="M27 43h10l2 10H25Z" fill="#a7bbd9" />
+            <path
+              d="M21 54h22"
+              stroke="#cad8eb"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <rect x="5" y="9" width="54" height="36" rx="7" fill="#c5ddf4" />
+            <rect x="8" y="12" width="48" height="28" rx="4" fill={paint} />
+            <path
+              d="M14 27V18h14"
+              stroke="#d6f2ff"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="m37 27 19 15-9 1-4 9Z"
+              fill="#f7fbff"
+              stroke="#5371bb"
+              strokeWidth="2"
+              strokeLinejoin="round"
+            />
+          </>
+        );
       case "hook-plugin":
         return (
           <>

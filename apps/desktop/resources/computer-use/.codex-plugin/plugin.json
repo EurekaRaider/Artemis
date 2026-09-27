@@ -1,6 +1,6 @@
 {
   "name": "computer-use",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Work with websites and macOS applications through their visual interfaces. Artemis provides the browser, native helper and current model.",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",

@@ -6,6 +6,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { McpServerConfig } from "../shared/api.js";
+import { isMcpServerSupported } from "./computer-use/config.js";
 
 export type { McpServerConfig } from "../shared/api.js";
 
@@ -255,6 +256,14 @@ export class McpConfigStore {
 
   async list(): Promise<McpServerConfig[]> {
     return structuredClone((await this.load()).servers);
+  }
+
+  async listAvailable(
+    platform: NodeJS.Platform = process.platform,
+  ): Promise<McpServerConfig[]> {
+    return (await this.list()).filter((config) =>
+      isMcpServerSupported(config, platform),
+    );
   }
 
   async upsert(input: McpServerConfig): Promise<McpServerConfig> {

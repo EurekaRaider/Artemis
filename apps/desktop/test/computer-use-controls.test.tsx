@@ -41,13 +41,15 @@ it("stops, resumes and revokes the actual target's grant", async () => {
     await screen.findByRole("button", { name: "停止", exact: true }),
   );
   expect(control).toHaveBeenCalledWith("stop", "task");
-  await user.click(screen.getByRole("button", { name: "应用授权" }));
-  await user.click(await screen.findByRole("button", { name: "撤销" }));
-  expect(revoke).toHaveBeenCalledWith("browser");
-  expect(await screen.findByText("没有长期授权的应用")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "恢复", exact: true }));
   expect(control).toHaveBeenCalledWith("resume", "task");
   expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   rendered.unmount();
   expect(unsubscribe).toHaveBeenCalledOnce();
+
+  render(<ComputerUseControls locale="zh-CN" permissionsOnly />);
+  await user.click(screen.getByRole("button", { name: "应用授权" }));
+  await user.click(await screen.findByRole("button", { name: "撤销" }));
+  expect(revoke).toHaveBeenCalledWith("browser");
+  expect(await screen.findByText("没有长期授权的应用")).toBeVisible();
 });

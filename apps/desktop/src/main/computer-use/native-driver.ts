@@ -22,7 +22,9 @@ export class ComputerNativeDriver implements ComputerDriver {
   >();
   constructor(
     private readonly path: string,
-    private readonly takeover: () => void,
+    private readonly takeover: (reason: string) => void,
+    private readonly stopLabel: () => string = () => "Stop",
+    private readonly darkAppearance?: () => boolean,
   ) {}
   private start() {
     if (this.child) return this.child;
@@ -43,7 +45,11 @@ export class ComputerNativeDriver implements ComputerDriver {
       try {
         const message = JSON.parse(line);
         if (message.event === "takeover") {
-          this.takeover();
+          this.takeover(
+            typeof message.reason === "string"
+              ? message.reason.slice(0, 300)
+              : "Native control was stopped",
+          );
           return;
         }
         const pending = this.pending.get(message.id);
@@ -71,7 +77,7 @@ export class ComputerNativeDriver implements ComputerDriver {
         );
       }
       this.pending.clear();
-      this.takeover();
+      this.takeover("Native helper exited unexpectedly");
     };
     child.once("error", failed);
     child.once("exit", failed);
@@ -90,8 +96,9 @@ export class ComputerNativeDriver implements ComputerDriver {
     return new Promise<T>((resolve, reject) => {
       const abort = () => this.dispose();
       const timer = setTimeout(() => {
-        abort();
-        this.takeover();
+        const reason = `Native helper ${method} request timed out after 20 seconds`;
+        this.dispose(new Error(reason));
+        this.takeover(reason);
       }, 20000);
       const cleanup = () => {
         clearTimeout(timer);
@@ -128,7 +135,12 @@ export class ComputerNativeDriver implements ComputerDriver {
   async observe(target: ComputerTarget, image: boolean, signal: AbortSignal) {
     return this.request<ComputerFrame>(
       "observe",
-      { id: target.id, image },
+      {
+        id: target.id,
+        image,
+        stopLabel: this.stopLabel(),
+        darkAppearance: this.darkAppearance?.(),
+      },
       signal,
     );
   }
@@ -136,18 +148,23 @@ export class ComputerNativeDriver implements ComputerDriver {
     target: ComputerTarget,
     action: ComputerAction,
     signal: AbortSignal,
+    allowForeground = false,
   ) {
-    await this.request("act", { id: target.id, action }, signal);
+    await this.request(
+      "act",
+      { id: target.id, action, allowForeground },
+      signal,
+    );
   }
   async release(target: ComputerTarget) {
     if (this.child) await this.request("release", { id: target.id });
   }
-  dispose() {
+  dispose(error = new Error("Computer Use cancelled.")) {
     const child = this.child;
     this.child = undefined;
     for (const pending of this.pending.values()) {
       pending.cleanup();
-      pending.reject(new Error("Computer Use cancelled."));
+      pending.reject(error);
     }
     this.pending.clear();
     child?.kill("SIGKILL");

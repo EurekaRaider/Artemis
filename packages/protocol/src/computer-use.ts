@@ -79,6 +79,8 @@ export interface ComputerElement {
 export interface ComputerFrame {
   /** Changes on navigation, window geometry, or element structure changes. */
   revision: string;
+  /** Native window identity, geometry and modal boundary, excluding changing readouts. */
+  scopeRevision?: string;
   /** Screenshot fingerprint used to reject stale coordinate input. */
   visualRevision?: string;
   width: number;

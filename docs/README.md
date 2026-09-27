@@ -30,6 +30,8 @@ macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [
 
 ## records/ · 台账
 
+- [release-notes.md](records/release-notes.md)：当前版本的中英文公开发布说明，由 CD 随客户端产物发布。
+
 | 文档                                                                     | 说明                                        |
 | ------------------------------------------------------------------------ | ------------------------------------------- |
 | [skin-compatibility-ledger.md](records/skin-compatibility-ledger.md)     | 皮肤兼容账本                                |

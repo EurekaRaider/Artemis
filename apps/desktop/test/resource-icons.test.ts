@@ -17,7 +17,7 @@ describe("resource icons", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe(
       "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
     );
-    expect(RESOURCE_ICON_NAMES).toHaveLength(38);
+    expect(RESOURCE_ICON_NAMES).toHaveLength(39);
     expect(new Set(RESOURCE_ICON_NAMES).size).toBe(RESOURCE_ICON_NAMES.length);
 
     for (const name of RESOURCE_ICON_NAMES) {
@@ -74,6 +74,7 @@ describe("resource icons", () => {
 
   it.each([
     ["CodeGraph MCP", "codegraph"],
+    ["Computer Use", "monitor"],
     ["Context7", "file-search"],
     ["node-repl MCP", "terminal"],
     ["GitHub MCP Server", "github"],

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import type { WebContents } from "electron";
+import { setTimeout as delay } from "node:timers/promises";
+import type { NativeImage, WebContents } from "electron";
 import type {
   ComputerAction,
   ComputerElement,
@@ -164,12 +165,45 @@ export class ComputerBrowserDriver implements ComputerDriver {
     signal.throwIfAborted();
     return result as T;
   }
+  private async capture(target: ComputerTarget, signal: AbortSignal) {
+    for (let attempt = 0; ; attempt++) {
+      signal.throwIfAborted();
+      const { contents } = this.browser(target);
+      try {
+        const image = await contents.capturePage();
+        signal.throwIfAborted();
+        if (image.isEmpty())
+          throw new Error("Browser capture returned an empty image");
+        return image;
+      } catch (error) {
+        signal.throwIfAborted();
+        this.browser(target);
+        const message = error instanceof Error ? error.message : String(error);
+        if (
+          !/UnknownVizError|Current display surface not available for capture|Browser capture returned an empty image/u.test(
+            message,
+          )
+        )
+          throw error;
+        if (attempt === 3)
+          throw new Error(
+            `Browser screenshot unavailable after 4 attempts: ${message}`,
+            { cause: error },
+          );
+        // loadURL/DOM readiness can precede the compositor's first frame.
+        // Repaint and retry only the readback; never reload, focus, or replay input.
+        contents.invalidate();
+        await delay(75 * 2 ** attempt, undefined, { signal });
+      }
+    }
+  }
   async observe(
     target: ComputerTarget,
     image: boolean,
     signal: AbortSignal,
   ): Promise<ComputerFrame> {
     const browser = this.browser(target);
+    let captured: NativeImage | undefined;
     const pendingUrl = this.navigation.get(target);
     if (pendingUrl) {
       const url = pendingUrl;
@@ -177,11 +211,35 @@ export class ComputerBrowserDriver implements ComputerDriver {
       signal.throwIfAborted();
       await browser.contents.loadURL(url);
       signal.throwIfAborted();
+      // The dock's opening animation can outlast navigation. Do not return
+      // an intermediate viewport that will immediately fail the stale guard.
+      let previousViewport: string | undefined;
+      for (let attempt = 0; ; attempt++) {
+        // A hidden guest may not deliver new layout metrics until readback
+        // requests a compositor frame. Sample the painted viewport together.
+        if (image) captured = await this.capture(target, signal);
+        const layout = await this.command<{ cssLayoutViewport: unknown }>(
+          browser,
+          "Page.getLayoutMetrics",
+          {},
+          signal,
+        );
+        const viewport = JSON.stringify(layout.cssLayoutViewport);
+        if (viewport === previousViewport) break;
+        if (attempt === 10)
+          throw new Error(
+            "Browser viewport is still resizing. Observe again once the panel settles.",
+          );
+        previousViewport = viewport;
+        await delay(100, undefined, { signal });
+      }
     }
     const url = browser.contents.getURL();
     if (url !== "about:blank" && !/^https?:\/\//u.test(url))
       throw new Error("This browser document is unavailable to Computer Use.");
     target.url = url;
+    target.name = browser.contents.getTitle() || "Artemis Browser";
+    if (image && !captured) captured = await this.capture(target, signal);
     const [tree, layout] = await Promise.all([
       this.command<{ nodes: AXNode[] }>(
         browser,
@@ -245,14 +303,6 @@ export class ComputerBrowserDriver implements ComputerDriver {
             }),
       });
     }
-    // A viewport capture also detects visual-only layout changes before coordinate input.
-    const captured = await browser.contents.capturePage();
-    signal.throwIfAborted();
-    const resized = captured.resize({
-      width: Math.max(1, Math.round(viewport.clientWidth * browser.scale)),
-      height: Math.max(1, Math.round(viewport.clientHeight * browser.scale)),
-    });
-    const pixels = resized.toJPEG(60);
     const revision = createHash("sha256")
       .update(
         JSON.stringify([
@@ -264,22 +314,21 @@ export class ComputerBrowserDriver implements ComputerDriver {
         ]),
       )
       .digest("hex");
-    return {
+    const frame: ComputerFrame = {
       revision,
-      visualRevision: createHash("sha256").update(pixels).digest("hex"),
-      width: resized.getSize().width,
-      height: resized.getSize().height,
+      width: Math.max(1, Math.round(viewport.clientWidth * browser.scale)),
+      height: Math.max(1, Math.round(viewport.clientHeight * browser.scale)),
       elements,
       foreground: false,
-      ...(image
-        ? {
-            image: {
-              data: pixels.toString("base64"),
-              mimeType: "image/jpeg" as const,
-            },
-          }
-        : {}),
     };
+    if (captured) {
+      const pixels = captured
+        .resize({ width: frame.width, height: frame.height })
+        .toJPEG(60);
+      frame.visualRevision = createHash("sha256").update(pixels).digest("hex");
+      frame.image = { data: pixels.toString("base64"), mimeType: "image/jpeg" };
+    }
+    return frame;
   }
   async act(
     target: ComputerTarget,
@@ -335,9 +384,6 @@ export class ComputerBrowserDriver implements ComputerDriver {
       if (!backendNodeId) throw new Error("This element is not actionable.");
       if (action.type === "fill") {
         await command("DOM.focus", { backendNodeId });
-        await key("a", process.platform === "darwin" ? 4 : 2);
-        await command("Input.insertText", { text: action.text });
-        return;
       }
       const { model } = await command<{ model: { content: number[] } }>(
         "DOM.getBoxModel",
@@ -360,6 +406,25 @@ export class ComputerBrowserDriver implements ComputerDriver {
       button: "left",
       clickCount: 1,
     });
+    if (action.type === "fill") {
+      // DOM.focus alone does not focus an embedded guest's input widget.
+      // Targeted CDP input does not move the system pointer or activate a window.
+      // Chromium's edit command works even without the macOS menu accelerator.
+      await command("Input.dispatchKeyEvent", {
+        type: "rawKeyDown",
+        key: "a",
+        code: "KeyA",
+        windowsVirtualKeyCode: 65,
+        modifiers: process.platform === "darwin" ? 4 : 2,
+        commands: ["selectAll"],
+      });
+      await command("Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: "a",
+        code: "KeyA",
+      });
+      await command("Input.insertText", { text: action.text });
+    }
   }
   async release(target: ComputerTarget) {
     const debug = this.browsers.get(target.id)?.contents.debugger;

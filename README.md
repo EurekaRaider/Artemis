@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.7** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.8** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -372,15 +372,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.7` local packaging configuration produces:
+The `1.6.8` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.7.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.7.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.7.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.8.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.8.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.8.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.7`, and
+Releases are started manually through **Release**, using tag `v1.6.8`, and
 published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -396,6 +396,20 @@ successful CI/signing work and resume the same Apple submission. See the
 Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
+
+Version 1.6.8 adds the bundled **Computer Use** plugin for macOS 14+: operate
+Artemis Browser and native apps with the current vision-capable model. It adds
+per-app grants, separate foreground permission, Stop/Resume controls and immediate
+pause on user takeover. Batched actions verify each step; browser captures recover
+from transient rendering failures and wait for the panel to settle. The control
+bar follows the composer and uses native macOS glass. Windows hides this macOS-only
+plugin and ignores migrated Computer Use connections.
+
+Newly installed plugin MCP services and Connectors now start enabled; setup and
+connection status remain visible, and updates preserve existing disabled choices.
+See the [bilingual release notes](docs/records/release-notes.md) and
+[Computer Use guide](docs/features/computer-use/README.md) for details and
+verification boundaries.
 
 Version 1.6.7 extends trusted lifecycle hooks to authorized IM Execute tasks,
 reports the reason when a hook blocks an initial prompt, and lets Plan and Review

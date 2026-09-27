@@ -969,6 +969,34 @@ describe("CodexPluginService", () => {
     );
   });
 
+  it("hides an installed Computer Use plugin when the host has no native support", async () => {
+    const root = await temporaryRoot();
+    const computerUseRoot = fileURLToPath(
+      new URL("../resources/computer-use", import.meta.url),
+    );
+    const mac = createService(root, { bundledArtifactRoot, computerUseRoot });
+    await mac.service.install({ kind: "builtin", pluginName: "computer-use" });
+    const unsupported = createService(root, { bundledArtifactRoot });
+    expect(
+      (
+        await unsupported.service.loadBundledArtifactMarketplace()
+      )?.plugins.some((p) => p.name === "computer-use"),
+    ).toBe(false);
+    expect(
+      (await unsupported.service.listInstalled()).some(
+        (p) => p.name === "computer-use",
+      ),
+    ).toBe(false);
+    expect(await unsupported.mcpStore.listAvailable("win32")).toEqual([]);
+    expect(await unsupported.mcpStore.listAvailable("darwin")).toHaveLength(1);
+    await expect(
+      unsupported.service.install({
+        kind: "builtin",
+        pluginName: "computer-use",
+      }),
+    ).rejects.toThrow(/requires the macOS/);
+  });
+
   it("installs enabled MCP servers without enabling unrelated existing servers", async () => {
     const root = await temporaryRoot();
     const source = join(root, "source", "demo-tools");

@@ -1,6 +1,7 @@
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
+import { isMcpServerSupported } from "./computer-use/config.js";
 import { homedir as hookHomeDir } from "node:os";
 import type { HookQuery, HookInvocation } from "@artemis/protocol";
 import {
@@ -1695,7 +1696,8 @@ async function applyAgentRuntime(
   runtimeToolCount =
     resolved.mcpTools.length + (resolved.extensionTools?.length ?? 0);
   enabledMcpServerCount = mcpConfigStore
-    ? (await mcpConfigStore.list()).filter((config) => config.enabled).length
+    ? (await mcpConfigStore.listAvailable()).filter((config) => config.enabled)
+        .length
     : 0;
 }
 
@@ -1833,6 +1835,8 @@ async function connectMcpServer(
   if (!mcpClientManager) {
     throw new Error("MCP service is not ready.");
   }
+  if (!isMcpServerSupported(config, process.platform))
+    throw new Error("Computer Use is unavailable on this platform.");
   if (await codexPluginService?.isComputerUseServer(config)) {
     if (!computerUseHost || config.transport !== "streamable-http")
       throw new Error("Computer Use is unavailable on this platform.");
@@ -2118,7 +2122,7 @@ async function getMcpServerStatuses(): Promise<SettingsSnapshot["mcpServers"]> {
   if (!mcpConfigStore || !mcpClientManager) {
     throw new Error("MCP services are not ready.");
   }
-  return mcpClientManager.status(await mcpConfigStore.list());
+  return mcpClientManager.status(await mcpConfigStore.listAvailable());
 }
 
 async function installedSkillsWithState(): Promise<InstalledSkill[]> {
@@ -2460,7 +2464,7 @@ async function initializeOptionalCapabilities(): Promise<void> {
   if (!mcpConfigStore || !mcpClientManager || !settingsStore) {
     throw new Error("MCP services are not ready.");
   }
-  const configurations = await mcpConfigStore.list();
+  const configurations = await mcpConfigStore.listAvailable();
   await Promise.all(
     configurations
       .filter((config) => config.enabled)

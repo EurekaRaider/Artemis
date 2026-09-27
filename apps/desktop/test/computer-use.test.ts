@@ -33,9 +33,11 @@ function fixture() {
     release: vi.fn(async () => {}),
   };
   const authorize = vi.fn(async () => true);
+  const authorizeForeground = vi.fn(async () => false);
   const service = new ComputerUseService({
     drivers: { browser: driver, desktop: driver },
     authorize,
+    authorizeForeground,
     publish: vi.fn(),
   });
   const context = {
@@ -48,6 +50,7 @@ function fixture() {
     service,
     context,
     authorize,
+    authorizeForeground,
     change: () => {
       revision = "page-2";
     },
@@ -175,6 +178,261 @@ describe("Computer Use execution boundaries", () => {
     expect(result.completed).toBe(1);
     expect(result.stopped).toBe("interface-changed");
     expect(f.driver.act).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    "readout",
+    "label",
+    "moved",
+    "removed",
+    "replaced",
+    "window",
+    "dialog",
+    "key",
+    "coordinates",
+  ])(
+    "validates remaining native controls when %s changes during a batch",
+    async (change) => {
+      const f = fixture();
+      f.driver.open = async () => ({
+        id: "desktop:fixture",
+        kind: "desktop",
+        name: "Fixture",
+      });
+      let changed = false;
+      f.driver.observe = vi.fn(async () => ({
+        revision: changed ? "updated" : "initial",
+        scopeRevision:
+          changed && ["window", "dialog"].includes(change)
+            ? "other-scope"
+            : "window-1",
+        visualRevision: "pixels-1",
+        width: 800,
+        height: 600,
+        elements: [
+          { id: "first", role: "AXButton", label: "2" },
+          ...(changed && change === "removed"
+            ? []
+            : [
+                {
+                  id:
+                    changed && change === "replaced" ? "replacement" : "second",
+                  role: "AXButton",
+                  label: changed && change === "label" ? "Delete" : "3",
+                  bounds: {
+                    x: changed && change === "moved" ? 120 : 20,
+                    y: 20,
+                    width: 40,
+                    height: 40,
+                  },
+                },
+              ]),
+          { id: "readout", role: "AXStaticText", label: changed ? "2" : "0" },
+        ],
+      }));
+      f.driver.act = vi.fn(async () => {
+        changed = true;
+      });
+      f.authorizeForeground.mockResolvedValue(true);
+      const o = await f.service.open({ target: "desktop:fixture" }, f.context);
+      const result = await f.service.act(
+        {
+          targetId: o.target.id,
+          observationId: o.observationId,
+          actions: [
+            { type: "click", elementId: "first" },
+            change === "key"
+              ? { type: "key", key: "Enter" }
+              : change === "coordinates"
+                ? { type: "click_at", x: 20, y: 20 }
+                : { type: "click", elementId: "second" },
+          ],
+        },
+        f.context,
+      );
+      expect(result.completed).toBe(change === "readout" ? 2 : 1);
+      expect(f.driver.act).toHaveBeenCalledTimes(change === "readout" ? 2 : 1);
+    },
+  );
+  it("reports the actual pause cause in subsequent tool errors", async () => {
+    const f = fixture();
+    await f.service.open({ target: "browser" }, f.context);
+    f.service.stopThread(
+      f.context.threadId,
+      "Native helper exited unexpectedly",
+    );
+    await expect(
+      f.service.open({ target: "browser" }, f.context),
+    ).rejects.toThrow(/Native helper exited unexpectedly/);
+  });
+  it("continues element actions after a coordinate click only changes focus pixels", async () => {
+    const f = fixture();
+    const o = await f.service.open({ target: "browser" }, f.context);
+    vi.mocked(f.driver.act).mockImplementation(async () => f.changePixels());
+    const result = await f.service.act(
+      {
+        targetId: o.target.id,
+        observationId: o.observationId,
+        actions: [
+          { type: "click_at", x: 20, y: 20 },
+          { type: "click", elementId: "button-1" },
+        ],
+      },
+      f.context,
+    );
+    expect(result).toMatchObject({
+      status: "completed",
+      attempted: 2,
+      completed: 2,
+      remaining: 0,
+    });
+    expect(result.stopped).toBeUndefined();
+  });
+  it("does not count an unverified fill as completed", async () => {
+    const f = fixture();
+    const o = await f.service.open({ target: "browser" }, f.context);
+    const result = await f.service.act(
+      {
+        targetId: o.target.id,
+        observationId: o.observationId,
+        actions: [{ type: "fill", elementId: "button-1", text: "Expected" }],
+      },
+      f.context,
+    );
+    expect(result).toMatchObject({
+      status: "partial",
+      attempted: 1,
+      completed: 0,
+      remaining: 1,
+      stopped: "verification-failed",
+    });
+  });
+  it("does not mark a final successful click incomplete when it updates the page", async () => {
+    const f = fixture();
+    const o = await f.service.open({ target: "browser" }, f.context);
+    vi.mocked(f.driver.act).mockImplementation(async () => f.change());
+    const result = await f.service.act(
+      {
+        targetId: o.target.id,
+        observationId: o.observationId,
+        actions: [{ type: "click", elementId: "button-1" }],
+      },
+      f.context,
+    );
+    expect(result).toMatchObject({
+      status: "completed",
+      completed: 1,
+      remaining: 0,
+    });
+    expect(result.stopped).toBeUndefined();
+  });
+  it("reports a user pause without instructing the model to reopen the target", async () => {
+    const f = fixture();
+    const o = await f.service.open({ target: "browser" }, f.context);
+    f.service.stopThread(f.context.threadId, "User took control");
+    await expect(
+      f.service.act(
+        {
+          targetId: o.target.id,
+          observationId: o.observationId,
+          actions: [{ type: "click", elementId: "button-1" }],
+        },
+        f.context,
+      ),
+    ).rejects.toThrow(/paused.*Resume/);
+  });
+  it("denies native foreground input without separate host authorization", async () => {
+    const f = fixture();
+    f.driver.open = async () => ({
+      id: "desktop:test",
+      kind: "desktop",
+      name: "Test",
+    });
+    const o = await f.service.open({ target: "test" }, f.context);
+    const result = await f.service.act(
+      {
+        targetId: o.target.id,
+        observationId: o.observationId,
+        actions: [{ type: "key", key: "Enter" }],
+      },
+      f.context,
+    );
+    expect(result).toMatchObject({
+      status: "blocked",
+      completed: 0,
+      stopped: "foreground-required",
+    });
+    expect(f.driver.act).not.toHaveBeenCalled();
+  });
+  it("authorizes native foreground input separately and limits reuse to the current turn", async () => {
+    const f = fixture();
+    f.driver.open = async () => ({
+      id: "desktop:test",
+      kind: "desktop",
+      name: "Test",
+    });
+    f.authorizeForeground.mockResolvedValue(true);
+    let o = await f.service.open({ target: "test" }, f.context);
+    for (let i = 0; i < 2; i++) {
+      o = await f.service.act(
+        {
+          targetId: o.target.id,
+          observationId: o.observationId,
+          actions: [{ type: "key", key: "Enter" }],
+        },
+        f.context,
+      );
+    }
+    expect(f.authorizeForeground).toHaveBeenCalledTimes(1);
+    expect(f.driver.act).toHaveBeenLastCalledWith(
+      o.target,
+      { type: "key", key: "Enter" },
+      expect.any(AbortSignal),
+      true,
+    );
+    f.service.stopThread(f.context.threadId, "Turn ended");
+    const next = { ...f.context, turnId: "next" };
+    o = await f.service.open({ target: "test" }, next);
+    await f.service.act(
+      {
+        targetId: o.target.id,
+        observationId: o.observationId,
+        actions: [{ type: "key", key: "Enter" }],
+      },
+      next,
+    );
+    expect(f.authorizeForeground).toHaveBeenCalledTimes(2);
+  });
+  it("never dispatches input if Stop occurs while foreground permission is pending", async () => {
+    const f = fixture();
+    f.driver.open = async () => ({
+      id: "desktop:test",
+      kind: "desktop",
+      name: "Test",
+    });
+    let approve!: (allowed: boolean) => void;
+    f.authorizeForeground.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          approve = resolve;
+        }),
+    );
+    const o = await f.service.open({ target: "test" }, f.context);
+    const action = f.service.act(
+      {
+        targetId: o.target.id,
+        observationId: o.observationId,
+        actions: [{ type: "key", key: "Enter" }],
+      },
+      f.context,
+    );
+    const rejected = expect(action).rejects.toThrow();
+    await vi.waitFor(() =>
+      expect(f.authorizeForeground).toHaveBeenCalledOnce(),
+    );
+    f.service.stopThread(f.context.threadId);
+    approve(true);
+    await rejected;
+    expect(f.driver.act).not.toHaveBeenCalled();
   });
   it("cancels active input and never dispatches the next batch step", async () => {
     const f = fixture();

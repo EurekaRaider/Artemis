@@ -46,6 +46,30 @@ afterEach(async () => {
 });
 
 describe("McpConfigStore", () => {
+  it("hides unsupported Computer Use MCP without removing saved configuration or unrelated services", async () => {
+    const store = new McpConfigStore(join(workspacePath, "mcp.json"));
+    const computer = await store.upsert({
+      id: "plugin-computer-use",
+      name: "Computer Use",
+      transport: "streamable-http",
+      enabled: true,
+      url: "http://127.0.0.1:1/artemis/computer-use",
+      auth: "none",
+    });
+    const other = await store.upsert({
+      ...computer,
+      id: "other",
+      url: "https://example.test/mcp",
+    });
+    expect(await store.listAvailable("win32")).toEqual([other]);
+    expect(await store.listAvailable("linux")).toEqual([other]);
+    expect(await store.listAvailable("darwin")).toEqual([computer, other]);
+    await store.upsert({ ...other, enabled: false });
+    expect((await store.list()).find((s) => s.id === computer.id)).toEqual(
+      computer,
+    );
+  });
+
   it("accepts IPv6 loopback HTTP MCP endpoints", () => {
     expect(
       validateMcpServerConfig({

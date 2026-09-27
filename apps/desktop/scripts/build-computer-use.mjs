@@ -29,6 +29,7 @@ export function buildComputerUse(arch = process.arch, development = false) {
       "-module-cache-path",
       join(root, "build", "swift-module-cache"),
       join(root, "native", "computer-use", "main.swift"),
+      join(root, "native", "computer-use", "input-policy.swift"),
       "-o",
       join(output, "artemis-computer-use"),
     ],

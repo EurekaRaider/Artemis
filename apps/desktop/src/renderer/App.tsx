@@ -5724,9 +5724,6 @@ export function App() {
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
       <SidebarGlassFilters />
-      <Suspense fallback={null}>
-        <ComputerUseControls locale={locale} />
-      </Suspense>
       <NavigationSidebar
         className="sidebar"
         peek={sidebarPeek && !sidebarOpen}
@@ -7417,6 +7414,9 @@ export function App() {
                 {!activeThread?.archived && !retiredGroup && (
                   <div className="composer-wrap">
                     {turnFailureBanner}
+                    <Suspense fallback={null}>
+                      <ComputerUseControls locale={locale} />
+                    </Suspense>
                     <Suspense fallback={null}>
                       <HookTaskNotice
                         locale={locale}

@@ -121,6 +121,7 @@ jobs:
             echo "Release tag $RELEASE_TAG does not match package version $expected." >&2
             exit 1
           fi
+          test "$(head -n 1 docs/records/release-notes.md)" = "# Artemis $RELEASE_TAG"
 
       - name: Check signing credentials
         run: node apps/desktop/scripts/validate-release-env.mjs mac
@@ -450,14 +451,8 @@ jobs:
           RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         shell: bash
         run: |
-          cat > "$RUNNER_TEMP/artemis-release-notes.md" <<EOF
-          macOS Apple Silicon（arm64）：Developer ID 签名、公证，支持应用内更新。
-          Windows x64：无签名 ZIP，应用提示新版本后手动下载替换。
-
-          Windows：将 ZIP 解压到新文件夹，退出旧版后再启动新版。保留用户数据，不要删除 %APPDATA% 中的 Artemis 文件夹。
-
-          源码版本：\`$RELEASE_SHA\`。
-          EOF
+          cp docs/records/release-notes.md "$RUNNER_TEMP/artemis-release-notes.md"
+          printf '\nSource commit / 源码提交：`%s`.\n' "$RELEASE_SHA" >> "$RUNNER_TEMP/artemis-release-notes.md"
           target_repo=EurekaRaider/ArtemisRelease
           existing="$(gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft 2>/dev/null || true)"
           if [[ -z "$existing" ]]; then

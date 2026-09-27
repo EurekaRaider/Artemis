@@ -1,5 +1,6 @@
 import {
   dialog,
+  nativeTheme,
   webContents,
   type BrowserWindow,
   type WebContents,
@@ -23,6 +24,7 @@ export class ComputerUseHost {
     (contents: WebContents) => void
   >();
   private readonly once = new Set<string>();
+  private readonly foregroundChoices = new Map<string, boolean>();
   private grants: Record<string, string> = {};
   private loaded: Promise<void> | undefined;
   private saving: Promise<void> = Promise.resolve();
@@ -34,8 +36,11 @@ export class ComputerUseHost {
       chinese(): boolean;
     },
   ) {
-    this.native = new ComputerNativeDriver(options.helperPath, () =>
-      this.service.stopDesktop("User took control or helper exited"),
+    this.native = new ComputerNativeDriver(
+      options.helperPath,
+      (reason) => this.service.stopDesktop(reason),
+      () => (options.chinese() ? "停止" : "Stop"),
+      () => nativeTheme.shouldUseDarkColors,
     );
     this.browser = new ComputerBrowserDriver(
       (context, signal) => this.requestBrowser(context, signal),
@@ -45,6 +50,8 @@ export class ComputerUseHost {
       drivers: { browser: this.browser, desktop: this.native },
       authorize: (target, context, signal) =>
         this.authorize(target, context, signal),
+      authorizeForeground: (target, context, signal) =>
+        this.authorizeForeground(target, context, signal),
       publish: (state) => {
         const window = this.options.window();
         if (window && !window.isDestroyed())
@@ -99,6 +106,7 @@ export class ComputerUseHost {
     await this.load();
     delete this.grants[id];
     this.once.clear();
+    this.foregroundChoices.clear();
     this.service.stopAll("Permission revoked");
     this.native.dispose();
     await this.save();
@@ -166,6 +174,40 @@ export class ComputerUseHost {
     this.browser.register(contents, threadId);
     this.waitingBrowsers.get(threadId)?.(contents);
   }
+  private async authorizeForeground(
+    target: ComputerTarget,
+    context: ComputerContext,
+    signal: AbortSignal,
+  ) {
+    const key = `${context.threadId}:${context.turnId}:${target.id}`;
+    if (this.foregroundChoices.has(key))
+      return this.foregroundChoices.get(key)!;
+    const window = this.options.window();
+    if (!window || window.isDestroyed()) return false;
+    signal.throwIfAborted();
+    const zh = this.options.chinese();
+    const result = await dialog.showMessageBox(window, {
+      type: "question",
+      title: "Computer Use",
+      message: zh
+        ? `允许将 ${target.name} 切到前台操作？`
+        : `Allow foreground control of ${target.name}?`,
+      detail: zh
+        ? "此操作需要前台键盘或坐标输入，会打断你当前的操作。仅本轮有效；保持后台将跳过此操作。"
+        : "This action needs foreground keyboard or coordinate input and will interrupt your work. Permission lasts for this turn only. Keeping background mode skips the action.",
+      buttons: zh
+        ? ["保持后台", "允许本轮前台操作"]
+        : ["Keep background mode", "Allow foreground this turn"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      signal,
+    });
+    signal.throwIfAborted();
+    const allowed = result.response === 1;
+    this.foregroundChoices.set(key, allowed);
+    return allowed;
+  }
   private requestBrowser(
     context: ComputerContext,
     signal: AbortSignal,
@@ -199,10 +241,13 @@ export class ComputerUseHost {
     this.service.stopThread(threadId, "Turn ended");
     for (const grant of this.once)
       if (grant.startsWith(`${threadId}:`)) this.once.delete(grant);
+    for (const key of this.foregroundChoices.keys())
+      if (key.startsWith(`${threadId}:`)) this.foregroundChoices.delete(key);
   }
   dispose() {
     this.server.dispose();
     this.native.dispose();
     this.once.clear();
+    this.foregroundChoices.clear();
   }
 }
