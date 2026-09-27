@@ -61,3 +61,21 @@ it("identifies a stalled helper and rejects the pending call", async () => {
     "Native helper status request timed out after 20 seconds",
   );
 });
+
+it("keeps diagnostics opt-in and discards callbacks from a retired helper", async () => {
+  const { child, driver, paused } = fixture();
+  const rejected = expect(driver.permissions()).rejects.toThrow();
+  expect(vi.mocked(spawn).mock.calls.at(-1)?.[2]).toMatchObject({
+    env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" },
+  });
+  expect(
+    (vi.mocked(spawn).mock.calls.at(-1)?.[2] as { env: Record<string, string> })
+      .env,
+  ).not.toHaveProperty("ARTEMIS_COMPUTER_DIAGNOSTICS");
+  driver.dispose();
+  await rejected;
+  child.stdio[4]!.write(
+    `${JSON.stringify({ event: "takeover", reason: "Old helper input" })}\n`,
+  );
+  expect(paused).not.toHaveBeenCalled();
+});

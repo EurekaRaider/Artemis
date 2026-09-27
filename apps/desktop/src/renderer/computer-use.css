@@ -110,6 +110,14 @@
   justify-content: space-between;
   gap: 16px;
 }
+.computer-permission-summary {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.computer-permission-summary small {
+  color: var(--artemis-color-text-secondary);
+}
 @container (max-width: 460px) {
   .computer-control-summary {
     display: grid;

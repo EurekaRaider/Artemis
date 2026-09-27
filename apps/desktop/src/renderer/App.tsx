@@ -14,6 +14,10 @@ import {
 import { ThreadWaitingBadge } from "./ThreadStatusIndicator.js";
 import { CommandArtwork } from "./CommandArtwork.js";
 import { ResourceAvatar } from "./resource-icons.js";
+import {
+  createToolPluginResolver,
+  type ToolPlugin,
+} from "./tool-plugin-source.js";
 import { HistoryTurn } from "./HistoryTurn.js";
 import {
   mergeHistoryPage,
@@ -155,6 +159,7 @@ import type {
   DesktopSnapshot,
   InstalledCodexPlugin,
   InstalledSkill,
+  McpServerStatus,
   ReviewAction,
   ReviewComment,
   ReviewDiff,
@@ -5228,6 +5233,21 @@ export function App() {
     [],
   );
 
+  const selectMode = useCallback(
+    async (nextMode: RunMode) => {
+      try {
+        if (mode === "execute" && nextMode !== "execute" && activeThread)
+          await window.artemis.controlComputer("revoke-task", activeThread.id);
+        setMode(nextMode);
+        return true;
+      } catch (error) {
+        setToast({ error: true, message: String(error) });
+        return false;
+      }
+    },
+    [mode, activeThread],
+  );
+
   const sendPrompt = useCallback(async () => {
     if (busy || retiredGroup) return;
     await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
@@ -5264,7 +5284,7 @@ export function App() {
       return;
     }
     if (runModeCommand?.kind === "command") {
-      setMode(submittedMode);
+      if (!(await selectMode(submittedMode))) return;
       if (
         !commandPrompt &&
         pendingAttachments.length === 0 &&
@@ -5470,6 +5490,7 @@ export function App() {
     retiredGroup,
     clearSubmittedPrompt,
     closeGoalEditor,
+    selectMode,
     createThread,
     customAgentTasks,
     mode,
@@ -7312,6 +7333,7 @@ export function App() {
                         }
                         installedPlugins={installedPlugins}
                         installedSkills={installedSkills}
+                        mcpServers={runtimeSettings?.mcpServers}
                         locale={locale}
                         onExternalLink={openConversationExternalLink}
                         onFileLink={openConversationFileLink}
@@ -7659,7 +7681,9 @@ export function App() {
                               onError={(message) =>
                                 setToast({ error: true, message })
                               }
-                              onModeChange={setMode}
+                              onModeChange={(nextMode) =>
+                                void selectMode(nextMode)
+                              }
                               onOpenProject={openProject}
                               onSelectProject={(project) => {
                                 discardNewConversationDraft();
@@ -8019,7 +8043,7 @@ export function App() {
                                 !busy
                               ) {
                                 event.preventDefault();
-                                setMode((current) => nextRunMode(current));
+                                void selectMode(nextRunMode(mode));
                                 return;
                               }
                               if (
@@ -10260,15 +10284,23 @@ export function ToolActivityGroupCard({
   locale,
   onFileLink,
   tools,
+  pluginForTool,
 }: {
   active: boolean;
   locale: Locale;
   onFileLink: (href: string) => void;
   tools: readonly ToolState[];
+  pluginForTool?: (tool: ToolState) => ToolPlugin | undefined;
 }) {
   const [expanded, setExpanded] = useState<boolean>();
   const open = expanded ?? tools.length > 1;
   const view = toolActivityPatternView(tools, active, locale);
+  const firstPlugin = tools[0] && pluginForTool?.(tools[0]);
+  const plugin =
+    firstPlugin &&
+    tools.every((tool) => pluginForTool?.(tool)?.id === firstPlugin.id)
+      ? firstPlugin
+      : undefined;
   const mixedActivity =
     tools.some((tool) => toolActivityKind(tool.name, tool.input) === "bash") &&
     tools.some((tool) =>
@@ -10285,14 +10317,22 @@ export function ToolActivityGroupCard({
 
   return (
     <ToolActivity
-      className={`tool-card ${view.state}${open ? " open" : ""}`}
+      className={`tool-card ${view.state}${open ? " open" : ""}${plugin ? " tool-card-plugin" : ""}`}
       collapseLabel={disclosureLabels.collapse}
       disclosureIcon={<ArtemisIcon height={14} name="chev-right" width={14} />}
       expandLabel={disclosureLabels.expand}
       expanded={open}
       icon={
         <span className="tool-activity-icon">
-          {view.actualStatus === "completed" ? (
+          {plugin ? (
+            <ResourceAvatar
+              kind="plugin"
+              name={plugin.displayName}
+              pluginName={plugin.name}
+              iconDataUrl={plugin.iconDataUrl}
+              brandColor={plugin.brandColor}
+            />
+          ) : view.actualStatus === "completed" ? (
             <ArtemisIcon name="check" />
           ) : view.actualStatus === "failed" ? (
             <ArtemisIcon name="warning" />
@@ -10301,7 +10341,7 @@ export function ToolActivityGroupCard({
           )}
         </span>
       }
-      label={`${summary}, ${view.statusLabel}`}
+      label={`${plugin ? `${plugin.displayName}, ` : ""}${summary}, ${view.statusLabel}`}
       onExpandedChange={setExpanded}
       state={view.state}
       statusLabel={view.statusLabel}
@@ -10379,9 +10419,22 @@ export function ToolActivityGroupCard({
           {tools.map((tool) => {
             const input = formatToolInput(tool.name, tool.input);
             const output = formatToolOutput(tool.name, tool.output);
-            if (!input && !output) return null;
+            const detailPlugin = !plugin ? pluginForTool?.(tool) : undefined;
+            if (!input && !output && !detailPlugin) return null;
             return (
               <section key={tool.id}>
+                {detailPlugin ? (
+                  <span className="tool-detail-plugin">
+                    <ResourceAvatar
+                      kind="plugin"
+                      name={detailPlugin.displayName}
+                      pluginName={detailPlugin.name}
+                      iconDataUrl={detailPlugin.iconDataUrl}
+                      brandColor={detailPlugin.brandColor}
+                    />
+                    {detailPlugin.displayName}
+                  </span>
+                ) : null}
                 <span>{summarizeToolDetail(tool, locale)}</span>
                 {input && <pre>{input}</pre>}
                 {output && <pre>{output}</pre>}
@@ -10557,6 +10610,7 @@ export function Timeline({
   imGroup,
   installedPlugins,
   installedSkills,
+  mcpServers,
   state,
   locale,
   onExternalLink,
@@ -10573,6 +10627,7 @@ export function Timeline({
   imGroup?: ImGroupContext | undefined;
   installedPlugins: readonly InstalledCodexPlugin[];
   installedSkills: readonly InstalledSkill[];
+  mcpServers?: readonly McpServerStatus[] | undefined;
   state: ThreadViewState;
   locale: Locale;
   onExternalLink: (href: string) => void;
@@ -10590,6 +10645,20 @@ export function Timeline({
   onUndoTurnChanges: (turnId: string) => void;
 }) {
   const t = appCopy(locale);
+  const resolvePlugin = useMemo(
+    () =>
+      createToolPluginResolver(
+        installedPlugins,
+        mcpServers?.flatMap((server) => server.tools) ?? [],
+      ),
+    [installedPlugins, mcpServers],
+  );
+  const pluginForTool = (tool: ToolState) =>
+    resolvePlugin(
+      tool,
+      state.entryTurnIds[`tool:${tool.id}`],
+      state.mcpToolUses,
+    );
   const groupedTimeline = useMemo(() => {
     const assigned = new Set<string>();
     const turns = state.turnOrder.flatMap((turnId) => {
@@ -10648,6 +10717,7 @@ export function Timeline({
           locale={locale}
           onFileLink={onFileLink}
           tools={tools}
+          pluginForTool={pluginForTool}
         />
       ) : null;
     }

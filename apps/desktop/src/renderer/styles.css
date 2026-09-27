@@ -12634,14 +12634,17 @@ kbd {
 .tool-item-details[open] > summary > svg {
   transform: rotate(90deg);
 }
-.tool-card[data-state="completed"] > [data-part="status"] {
+.tool-card:not(.tool-card-plugin)[data-state="completed"]
+  > [data-part="status"] {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
 }
-.tool-card[data-artemis-component="tool-activity"][data-state="completed"] {
+.tool-card:not(
+    .tool-card-plugin
+  )[data-artemis-component="tool-activity"][data-state="completed"] {
   grid-template-columns: 16px minmax(0, 1fr) auto;
 }
 .tool-card[data-state="completed"] .tool-activity-icon {
@@ -12650,6 +12653,18 @@ kbd {
 .tool-card[data-state="failed"] .tool-activity-icon,
 .tool-card[data-state="failed"] > [data-part="status"] {
   color: var(--danger);
+}
+.tool-activity-icon .resource-avatar,
+.tool-detail-plugin .resource-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: transparent;
+}
+.tool-detail-plugin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tool-item-details pre {

@@ -17,7 +17,13 @@ it("stops, resumes and revokes the actual target's grant", async () => {
   let notify!: (value: ComputerControlState) => void;
   const unsubscribe = vi.fn();
   const permissions = vi.fn(async () => [
-    { id: "browser", name: "Test Browser" },
+    {
+      id: "browser",
+      name: "Test Browser",
+      scope: "task" as const,
+      foreground: false,
+      threadTitle: "填写表单",
+    },
   ]);
   const revoke = vi.fn(async () => {
     permissions.mockResolvedValue([]);
@@ -49,7 +55,10 @@ it("stops, resumes and revokes the actual target's grant", async () => {
 
   render(<ComputerUseControls locale="zh-CN" permissionsOnly />);
   await user.click(screen.getByRole("button", { name: "应用授权" }));
+  expect(
+    await screen.findByText("本任务自主操作 · 仅后台操作 · 填写表单"),
+  ).toBeVisible();
   await user.click(await screen.findByRole("button", { name: "撤销" }));
   expect(revoke).toHaveBeenCalledWith("browser");
-  expect(await screen.findByText("没有长期授权的应用")).toBeVisible();
+  expect(await screen.findByText("没有应用授权")).toBeVisible();
 });

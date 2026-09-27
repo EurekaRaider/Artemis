@@ -63,6 +63,7 @@ function fixture(temporary = false) {
     imService: { deleteThread: vi.fn() },
     cleanupGoalObjective: vi.fn(),
     taskNotifications: { refresh: vi.fn() },
+    computerUseHost: { clearTask: vi.fn() },
   };
   new Function(
     ...Object.keys(scope),
@@ -87,6 +88,10 @@ describe("thread deletion IPC with an unresponsive Agent Host", () => {
     );
     expect(f.scope.deletePiSessionTranscript).toHaveBeenCalled();
     expect(f.deleted).toHaveBeenCalledWith("thread");
+    expect(f.scope.computerUseHost.clearTask).toHaveBeenCalledWith(
+      "thread",
+      "Task deleted",
+    );
     expect(f.scope.threadHistoryService.discard).toHaveBeenCalledWith("thread");
     expect(f.scope.taskNotifications.refresh).toHaveBeenCalledOnce();
     expect(f.scope.store.getThread()).toBeUndefined();
@@ -100,6 +105,7 @@ describe("thread deletion IPC with an unresponsive Agent Host", () => {
     );
     expect(f.removeWorkspace).not.toHaveBeenCalled();
     expect(f.deleted).not.toHaveBeenCalled();
+    expect(f.scope.computerUseHost.clearTask).not.toHaveBeenCalled();
     expect(f.scope.threadHistoryService.discard).not.toHaveBeenCalled();
   });
 });

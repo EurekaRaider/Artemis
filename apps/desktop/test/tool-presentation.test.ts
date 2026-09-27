@@ -358,9 +358,6 @@ describe("tool presentation", () => {
     );
 
     expect(toolCard).toContain("<ToolActivity");
-    expect(toolCard).toContain(
-      'className={`tool-card ${view.state}${open ? " open" : ""}`}',
-    );
     expect(adapterSource).toContain(
       'active && actualStatus === "completed" ? "running" : actualStatus',
     );

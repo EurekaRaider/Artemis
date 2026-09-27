@@ -202,6 +202,68 @@ describe("reported screenshot regressions", () => {
     ).toHaveTextContent("正在运行");
   });
 
+  it.each(["running", "completed", "failed"] as const)(
+    "retains a plugin's identity in %s tool cards",
+    (status) => {
+      const plugin = {
+        id: "custom",
+        name: "custom",
+        displayName: "Custom plugin",
+        mcpServerIds: ["server"],
+        iconDataUrl: "data:image/png;base64,AA==",
+      };
+      const { container } = render(
+        <ToolActivityGroupCard
+          active={status === "running"}
+          locale="en"
+          onFileLink={() => {}}
+          tools={[
+            { id: "call", name: "server_tool", status, output: "result" },
+          ]}
+          pluginForTool={() => plugin}
+        />,
+      );
+      expect(
+        container.querySelector(".tool-activity-icon img"),
+      ).toHaveAttribute("src", plugin.iconDataUrl);
+      expect(
+        container.querySelector(".tool-card-plugin [data-part=status]"),
+      ).toHaveTextContent(/running|completed|failed/i);
+      expect(container.querySelector(".tool-card-plugin")).toHaveAccessibleName(
+        /Custom plugin/,
+      );
+    },
+  );
+
+  it.each(["result", ""])(
+    "keeps a mixed-plugin group generic with output %j",
+    (output) => {
+      const { container } = render(
+        <ToolActivityGroupCard
+          active={false}
+          locale="en"
+          onFileLink={() => {}}
+          tools={["github", "gmail"].map((id) => ({
+            id,
+            name: "server_search",
+            status: "completed",
+            output,
+          }))}
+          pluginForTool={(tool) => ({
+            id: tool.id,
+            name: tool.id,
+            displayName: tool.id,
+            mcpServerIds: [tool.id],
+          })}
+        />,
+      );
+      expect(container.querySelector(".tool-card-plugin")).toBeNull();
+      expect(
+        container.querySelectorAll(".tool-detail-plugin .resource-avatar"),
+      ).toHaveLength(2);
+    },
+  );
+
   it.each(["warning", "danger"] as const)(
     "keeps %s guidance readable and semantically announced",
     (tone) => {

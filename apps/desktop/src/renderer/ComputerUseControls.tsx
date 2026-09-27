@@ -4,6 +4,7 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 import type { AppLocale, ComputerControlState } from "@artemis/protocol";
 import "./computer-use.css";
 import { COMPUTER_USE_RESOURCES } from "../shared/computer-use-resources.js";
+import type { ComputerPermission } from "../shared/api.js";
 
 export function ComputerUseControls({
   locale,
@@ -18,7 +19,7 @@ export function ComputerUseControls({
     state: "idle",
   });
   const [permissions, setPermissions] = useState<
-    Array<{ id: string; name: string }> | undefined
+    ComputerPermission[] | undefined
   >();
   const [error, setError] = useState<string>();
   const controlRef = useRef<HTMLElement>(null);
@@ -174,7 +175,18 @@ export function ComputerUseControls({
           ) : (
             permissions.map((permission) => (
               <div key={permission.id}>
-                <span>{permission.name}</span>
+                <span className="computer-permission-summary">
+                  <span>{permission.name}</span>
+                  <small>
+                    {copy[permission.scope]}
+                    {permission.scope !== "persistent"
+                      ? ` · ${permission.foreground ? copy.foregroundAllowed : copy.backgroundOnly}`
+                      : ""}
+                    {permission.threadTitle
+                      ? ` · ${permission.threadTitle}`
+                      : ""}
+                  </small>
+                </span>
                 <Button
                   variant="quiet"
                   onClick={() =>

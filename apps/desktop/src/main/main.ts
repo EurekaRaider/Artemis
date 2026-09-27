@@ -1,5 +1,6 @@
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { ComputerUseHost } from "./computer-use/host.js";
+import { resolveComputerTaskApproval } from "./computer-use/approval.js";
 import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
 import { isMcpServerSupported } from "./computer-use/config.js";
 import { homedir as hookHomeDir } from "node:os";
@@ -2708,6 +2709,8 @@ function applyPayloadSideEffects(
   if (!store) throw new Error("Application store is not ready.");
   switch (payload.type) {
     case "turn.started":
+      if (payload.mode !== "execute")
+        computerUseHost?.clearTask(threadId, "Task left Execute mode");
       if (!threadAlreadyUpdated) {
         store.updateThread(threadId, {
           mode: payload.mode,
@@ -5299,6 +5302,19 @@ async function handleMcpBrokerRequest(
     modelApproval: request.modelApproval,
     ...(mcpConfig?.connector ? { connectorId: mcpConfig.connector.id } : {}),
   };
+  const computerTaskGrant = await currentComputerTaskApproval(
+    request,
+    mcpConfig,
+  );
+  if (computerTaskGrant) {
+    await executeApprovedMcp(
+      workerRequestId,
+      request,
+      { ...resolution("once"), source: "policy" },
+      computerTaskGrant,
+    );
+    return;
+  }
   if (
     shouldAutoApprove(
       approvalPolicy ?? "ask",
@@ -5644,10 +5660,26 @@ async function executeApprovedOffice(
   }
 }
 
+function currentComputerTaskApproval(
+  request: Extract<BrokerExecutionRequest, { kind: "mcp.call" }>,
+  config: McpServerConfig | undefined,
+) {
+  return resolveComputerTaskApproval(request, {
+    serverId: computerUseServerId,
+    config,
+    thread: store?.getThread(request.threadId),
+    activeTurnId: activeTurns.get(request.threadId),
+    host: computerUseHost,
+    isTrustedServer: async (candidate) =>
+      (await codexPluginService?.isComputerUseServer(candidate)) ?? false,
+  });
+}
+
 async function executeApprovedMcp(
   workerRequestId: string,
   request: Extract<BrokerExecutionRequest, { kind: "mcp.call" }>,
   resolution: ApprovalResolution,
+  computerTaskGrant?: string,
 ): Promise<void> {
   if (!canRunLicensed()) return;
   if (!agentProcess || !mcpClientManager) return;
@@ -5682,13 +5714,34 @@ async function executeApprovedMcp(
         privateMetadata = { [CONNECTOR_AUTH_META]: context };
     }
     if (request.serverId === computerUseServerId) {
+      const trusted = await codexPluginService?.isComputerUseServer(config);
+      const thread = store?.getThread(request.threadId);
       if (
         !computerUseHost ||
         request.actorAgentId ||
+        thread?.mode !== "execute" ||
+        thread.archived ||
         activeTurns.get(request.threadId) !== request.turnId ||
-        !(await codexPluginService?.isComputerUseServer(config))
+        !trusted
       )
         throw new Error("Computer Use requires the active parent task.");
+      if (
+        computerTaskGrant &&
+        computerUseHost.taskApproval(request.toolName, request.arguments, {
+          threadId: request.threadId,
+          turnId: request.turnId,
+          mode: request.mode,
+        }) !== computerTaskGrant
+      )
+        throw new Error(
+          "Computer Use task permission changed. Reopen the target before retrying.",
+        );
+      if (computerTaskGrant)
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "info",
+          message: `Computer Use local approval: task ${request.threadId}, task permission ${computerTaskGrant}.`,
+        });
       const grant = computerUseHost.server.authorize(
         {
           threadId: request.threadId,
@@ -7270,12 +7323,19 @@ function registerIpc(): void {
         computerUseHost?.service.stopThread(threadId, "User paused control");
       else if (action === "resume")
         computerUseHost?.service.resumeThread(threadId);
+      else if (action === "revoke-task")
+        computerUseHost?.clearTask(threadId, "Task left Execute mode");
       else throw new Error("Invalid control action.");
     },
   );
-  ipcMain.handle(IPC.computerPermissions, (event) => {
+  ipcMain.handle(IPC.computerPermissions, async (event) => {
     assertComputerSender(event.sender);
-    return computerUseHost?.permissions() ?? [];
+    return ((await computerUseHost?.permissions()) ?? []).map((permission) => ({
+      ...permission,
+      ...(permission.threadId
+        ? { threadTitle: store?.getThread(permission.threadId)?.title }
+        : {}),
+    }));
   });
   ipcMain.handle(IPC.computerRevokePermission, (event, id: string) => {
     assertComputerSender(event.sender);
@@ -10479,6 +10539,8 @@ function registerIpc(): void {
       const updated = store.updateThread(thread.id, {
         archived: command.archived,
       });
+      if (command.archived)
+        computerUseHost?.clearTask(thread.id, "Task archived");
       taskNotifications?.refresh();
       return updated;
     },
@@ -10607,6 +10669,7 @@ function registerIpc(): void {
       await taskSourceImages().deleteThread(threadId);
       await attachmentStore().deleteThread(attachmentScope(threadId));
       store.deleteThread(threadId);
+      computerUseHost?.clearTask(threadId, "Task deleted");
       threadHistoryService?.discard(threadId);
       taskNotifications?.refresh();
       imService?.deleteThread(threadId);
@@ -22099,7 +22162,7 @@ app
         status.config.id === computerUseServerId &&
         status.state !== "connected"
       )
-        computerUseHost?.service.stopAll("Computer Use connection changed");
+        computerUseHost?.disable("Computer Use connection changed");
       if (!mainWindow?.isDestroyed())
         mainWindow?.webContents.send(
           IPC.mcpServerStatus,

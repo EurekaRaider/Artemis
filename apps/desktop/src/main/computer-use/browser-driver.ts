@@ -50,7 +50,7 @@ export class ComputerBrowserDriver implements ComputerDriver {
       context: ComputerContext,
       signal: AbortSignal,
     ) => Promise<WebContents>,
-    private readonly takeover: (threadId: string) => void,
+    private readonly takeover: (threadId: string, targetId: string) => void,
   ) {}
   register(contents: WebContents, threadId: string) {
     const id = `browser:${contents.id}`;
@@ -63,11 +63,11 @@ export class ComputerBrowserDriver implements ComputerDriver {
     this.browsers.set(id, { contents, threadId, scale: 1, nodes: new Map() });
     contents.once("destroyed", () => {
       this.browsers.delete(id);
-      this.takeover(threadId);
+      this.takeover(threadId, id);
     });
     // CDP mouse dispatch also emits before-mouse-event. Match only the exact
-    // pending synthetic event; other input always pauses the task.
-    contents.on("before-input-event", () => this.takeover(threadId));
+    // pending synthetic event; other input pauses this target's active control.
+    contents.on("before-input-event", () => this.takeover(threadId, id));
     contents.on("before-mouse-event", (_event, mouse) => {
       const browser = this.browsers.get(id);
       const expected = browser?.expectedMouse;
@@ -79,7 +79,7 @@ export class ComputerBrowserDriver implements ComputerDriver {
       ) {
         delete browser!.expectedMouse;
       } else if (["mouseDown", "mouseWheel"].includes(mouse.type))
-        this.takeover(threadId);
+        this.takeover(threadId, id);
     });
   }
   private description(id: string, browser: BrowserTarget): ComputerTarget {

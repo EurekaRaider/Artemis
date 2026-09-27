@@ -543,6 +543,15 @@ export type McpServerConfig = (
 ) &
   McpResourceMetadata;
 
+export interface ComputerPermission {
+  id: string;
+  name: string;
+  scope: "turn" | "task" | "persistent";
+  foreground: boolean;
+  threadId?: string;
+  threadTitle?: string;
+}
+
 export interface McpServerStatus {
   config: McpServerConfig;
   state:
@@ -841,8 +850,11 @@ export type AttachmentImportResponse =
 export interface ArtemisApi {
   registerComputerBrowser(threadId: string, contentsId: number): Promise<void>;
   getComputerState(): Promise<import("@artemis/protocol").ComputerControlState>;
-  controlComputer(action: "stop" | "resume", threadId: string): Promise<void>;
-  getComputerPermissions(): Promise<Array<{ id: string; name: string }>>;
+  controlComputer(
+    action: "stop" | "resume" | "revoke-task",
+    threadId: string,
+  ): Promise<void>;
+  getComputerPermissions(): Promise<ComputerPermission[]>;
   revokeComputerPermission(id: string): Promise<void>;
   onComputerState(
     listener: (state: import("@artemis/protocol").ComputerControlState) => void,

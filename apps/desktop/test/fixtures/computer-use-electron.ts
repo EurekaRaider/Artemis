@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { dirname, join } from "node:path";
 import { createServer } from "node:http";
 import { writeFile } from "node:fs/promises";
 import { app, BrowserWindow, screen, type WebContents } from "electron";
@@ -12,6 +13,8 @@ async function main() {
   console.log("Computer Use: starting isolated Electron fixture");
   app.setPath("userData", `${evidence}/electron-profile`);
   await app.whenReady();
+  if (process.env.ARTEMIS_VERIFY_ELECTRON === "1")
+    app.setAccessibilitySupportEnabled(true);
   console.log("Computer Use: Electron ready");
   const errors: string[] = [];
   const fixture = createServer((_request, response) => {
@@ -75,20 +78,44 @@ async function main() {
   });
   let service: ComputerUseService;
   const verifyCalculator = process.env.ARTEMIS_VERIFY_CALCULATOR === "1";
+  const verifyElectron = process.env.ARTEMIS_VERIFY_ELECTRON === "1";
+  const electronBundle = execFileSync(
+    "/usr/libexec/PlistBuddy",
+    [
+      "-c",
+      "Print:CFBundleIdentifier",
+      join(dirname(dirname(process.execPath)), "Info.plist"),
+    ],
+    { encoding: "utf8" },
+  ).trim();
+  const inputDiagnostics: Record<string, unknown>[] = [];
   const browser = new ComputerBrowserDriver(
     async () => page,
-    (id) => service.stopThread(id, "User took control"),
+    (threadId, targetId) =>
+      service.stopTargets(
+        (target) => target.id === targetId,
+        threadId,
+        "User took control",
+      ),
   );
   browser.register(page, "fixture");
-  const native = new ComputerNativeDriver(helper!, (reason) =>
-    service.stopDesktop(reason),
+  const native = new ComputerNativeDriver(
+    helper!,
+    (reason) => service.stopDesktop(reason),
+    undefined,
+    undefined,
+    (event) => inputDiagnostics.push(event),
   );
   service = new ComputerUseService({
     drivers: { browser, desktop: native },
     authorize: async (target) =>
       target.kind === "browser" ||
       target.bundleId === fixtureBundle ||
+      (verifyElectron && target.bundleId === electronBundle) ||
       (verifyCalculator && target.bundleId === "com.apple.calculator"),
+    authorizeForeground: async (target) =>
+      target.bundleId === fixtureBundle ||
+      (verifyElectron && target.bundleId === electronBundle),
     publish: () => {},
   });
   const context = {
@@ -354,7 +381,92 @@ async function main() {
         `${evidence}/native.jpg`,
         Buffer.from(saved.image!.data, "base64"),
       );
+      console.log(
+        "Computer Use: three foreground input batches without human input",
+      );
+      let foreground = dynamicBatch;
+      for (let round = 0; round < 3; round++) {
+        foreground = await service.act(
+          {
+            targetId: foreground.target.id,
+            observationId: foreground.observationId,
+            actions: [
+              { type: "key", key: "Tab" },
+              { type: "scroll", direction: "down", amount: 1 },
+            ],
+          },
+          nativeContext,
+        );
+        assert.equal(foreground.completed, 2);
+        assert.equal(service.status().state, "observing");
+      }
       nativeVerified = true;
+    }
+    let electronVerified = false;
+    if (verifyElectron && nativeVerified) {
+      // A bundle ID can name several running Electron processes. Never let this
+      // test select an unrelated development app's windows.
+      const electronPids = JSON.parse(
+        execFileSync(
+          `${fixtureApp}/Contents/MacOS/fixture`,
+          ["--running-app-pids", electronBundle],
+          { encoding: "utf8" },
+        ),
+      );
+      assert.deepEqual(
+        electronPids,
+        [process.pid],
+        "Close other Electron development fixtures before running this opt-in test",
+      );
+      service.stopThread(context.threadId, "Turn ended");
+      window.setTitle("Artemis Chromium native input fixture");
+      window.showInactive();
+      // Give WindowServer time to register this formerly hidden test window
+      // before asking ScreenCaptureKit for its first native observation.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const electronContext = { ...context, turnId: "electron-native-turn" };
+      let current = await service.open(
+        { target: electronBundle },
+        electronContext,
+      );
+      console.log(
+        "Computer Use: native coordinate/key/scroll input in the isolated Electron window",
+      );
+      for (let round = 0; round < 3; round++) {
+        const input = current.elements.find(
+          (e) => e.role === "AXTextArea" && e.bounds,
+        );
+        assert(input?.bounds, "The synthetic host textarea must be accessible");
+        const { x, y, width, height } = input.bounds;
+        current = await service.act(
+          {
+            targetId: current.target.id,
+            observationId: current.observationId,
+            actions: [
+              { type: "click_at", x: x + width / 2, y: y + height / 2 },
+            ],
+          },
+          electronContext,
+        );
+        assert.equal(current.completed, 1);
+        for (const action of [
+          { type: "key", key: "Tab" },
+          { type: "scroll", direction: "down", amount: 1 },
+        ] as const) {
+          current = await service.act(
+            {
+              targetId: current.target.id,
+              observationId: current.observationId,
+              actions: [action],
+            },
+            electronContext,
+          );
+          assert.equal(current.completed, 1);
+        }
+        assert.equal(service.status().state, "observing");
+      }
+      electronVerified = true;
+      window.hide();
     }
     let calculatorBatchMs: number | undefined;
     if (verifyCalculator && nativeVerified) {
@@ -457,6 +569,12 @@ async function main() {
               "native delayed window readiness and background AX fill/click",
               "native foreground input denied without host approval",
               "native stable element IDs across transient unlabelled AX containers",
+              "three native foreground key/scroll batches without false takeover",
+            ]
+          : []),
+        ...(electronVerified
+          ? [
+              "three native coordinate/key/scroll rounds in the isolated Electron window",
             ]
           : []),
         ...(calculatorBatchMs === undefined
@@ -471,11 +589,16 @@ async function main() {
       calculatorBatchMs,
       nativePermissions: permissions,
       nativeVerified,
+      electronVerified,
       errors,
     };
     await writeFile(`${evidence}/result.json`, JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result));
   } finally {
+    await writeFile(
+      `${evidence}/input-diagnostics.json`,
+      JSON.stringify(inputDiagnostics, null, 2),
+    );
     nativeFixture?.kill();
     service.stopAll();
     native.dispose();

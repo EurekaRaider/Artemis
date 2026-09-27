@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import type { WebContents } from "electron";
 import { expect, it, vi } from "vitest";
 import { ComputerBrowserDriver } from "../src/main/computer-use/browser-driver.js";
+import { ComputerUseService } from "../src/main/computer-use/service.js";
 
 async function fixture() {
   const image = {
@@ -41,9 +42,10 @@ async function fixture() {
       ),
     },
   });
+  const takeover = vi.fn();
   const driver = new ComputerBrowserDriver(
     async () => page as unknown as WebContents,
-    vi.fn(),
+    takeover,
   );
   const controller = new AbortController();
   const target = await driver.open(
@@ -51,8 +53,65 @@ async function fixture() {
     { threadId: "task", turnId: "turn", mode: "execute" },
     controller.signal,
   );
-  return { driver, page, image, target, controller };
+  return { driver, page, image, target, controller, takeover };
 }
+
+it("pauses for active browser input but ignores a released browser during native control", async () => {
+  const f = await fixture();
+  const context = {
+    threadId: "task",
+    turnId: "turn",
+    mode: "execute" as const,
+  };
+  const service = new ComputerUseService({
+    drivers: {
+      browser: f.driver,
+      desktop: {
+        targets: async () => [],
+        open: async () => ({
+          id: "desktop:fixture",
+          kind: "desktop",
+          name: "Fixture",
+          bundleId: "fixture",
+        }),
+        observe: async () => ({
+          revision: "native",
+          width: 800,
+          height: 600,
+          elements: [],
+        }),
+        act: async () => {},
+        release: async () => {},
+      },
+    },
+    authorize: async () => true,
+    authorizeForeground: async () => true,
+    publish: () => {},
+  });
+  f.takeover.mockImplementation((threadId, targetId) =>
+    service.stopTargets(
+      (target) => target.id === targetId,
+      threadId,
+      "User took control",
+    ),
+  );
+  await service.open({ target: "browser" }, context);
+  f.page.emit("before-input-event");
+  expect(service.status()).toMatchObject({
+    state: "paused",
+    reason: "User took control",
+  });
+  service.resumeThread(context.threadId);
+  await service.open({ target: "fixture" }, context);
+  f.page.emit("before-input-event");
+  f.page.emit("before-mouse-event", {}, { type: "mouseDown", x: 1, y: 1 });
+  f.page.emit("destroyed");
+  expect(service.status()).toMatchObject({
+    state: "observing",
+    target: { id: "desktop:fixture" },
+  });
+  service.stopAll();
+});
 
 it("recovers transient compositor failures inside one observation without replaying navigation or input", async () => {
   const { driver, page, target, controller } = await fixture();

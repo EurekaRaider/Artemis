@@ -67,6 +67,7 @@ func trustedParent() -> Bool {
   var windows: [String: (AXUIElement, CGRect, CGFloat, pid_t)] = [:]
   var monitor: Any?
   var foregroundControl = false
+  let diagnostics = ProcessInfo.processInfo.environment["ARTEMIS_COMPUTER_DIAGNOSTICS"] == "1"
   let output: FileHandle
   var panel: NSPanel?
   var panelLabel: NSTextField?
@@ -79,14 +80,22 @@ func trustedParent() -> Bool {
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [
       .keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel,
     ]) { [weak self] event in
-      // Our CG events carry a marker; physical events pause before the next input.
-      guard let self,
-        event.cgEvent?.getIntegerValueField(.eventSourceUserData) != 0x4152_5445,
-        shouldPauseComputerInput(
-          recipient: self.inputRecipient(event),
-          controlledPids: Set(self.windows.values.map { $0.3 }),
-          foregroundControl: self.foregroundControl)
-      else { return }
+      guard let self else { return }
+      let tagged = event.cgEvent?.getIntegerValueField(.eventSourceUserData) == 0x4152_5445
+      if tagged && !self.diagnostics { return }
+      let recipient = self.inputRecipient(event)
+      let pauses = !tagged && shouldPauseComputerInput(
+        recipient: recipient, controlledPids: Set(self.windows.values.map { $0.3 }),
+        foregroundControl: self.foregroundControl)
+      if self.diagnostics && !self.windows.isEmpty {
+        self.send(["event": "input-diagnostic", "type": event.type.rawValue,
+          "sourcePid": event.cgEvent?.getIntegerValueField(.eventSourceUnixProcessID) ?? -1,
+          "recipientPid": recipient ?? -1, "controlledPids": self.windows.values.map { $0.3 },
+          "tagged": tagged, "eventTime": event.timestamp,
+          "receivedTime": ProcessInfo.processInfo.systemUptime,
+          "foreground": self.foregroundControl, "session": self.windowIdentity, "pauses": pauses])
+      }
+      guard pauses else { return }
       self.pauseControl(
         self.foregroundControl
           ? "User input during foreground control"

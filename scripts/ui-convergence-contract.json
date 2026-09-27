@@ -116,7 +116,7 @@
       "sources": [
         {
           "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "className={`tool-card ${view.state}${open ? \" open\" : \"\"}`}"
+          "contains": "className={`tool-card ${view.state}${open ? \" open\" : \"\"}${plugin ? \" tool-card-plugin\" : \"\"}`}"
         }
       ]
     },

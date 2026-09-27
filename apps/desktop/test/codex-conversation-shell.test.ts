@@ -278,7 +278,20 @@ describe("Codex conversation shell contract", () => {
     expect(sendPrompt).toContain("parseRunModeCommand(rawPrompt)");
     expect(multipleCommandGuard).toContain("t.multipleModeCommands");
     expect(multipleCommandGuard).toContain("return;");
-    expect(sendPrompt).toContain("setMode(submittedMode)");
+    expect(sendPrompt).toContain(
+      "if (!(await selectMode(submittedMode))) return;",
+    );
+    const selectMode = sourceBetween(
+      appSource,
+      "const selectMode = useCallback",
+      "const sendPrompt = useCallback",
+    );
+    expect(selectMode).toContain(
+      'await window.artemis.controlComputer("revoke-task", activeThread.id)',
+    );
+    expect(selectMode.indexOf('controlComputer("revoke-task"')).toBeLessThan(
+      selectMode.indexOf("setMode(nextMode)"),
+    );
     expect(sendPrompt).toContain("mode: submittedMode");
     expect(sendPrompt).toContain("t.modeCommandWhileRunning");
     expect(sendPrompt.indexOf("t.modeCommandWhileRunning")).toBeLessThan(
@@ -300,7 +313,7 @@ describe("Codex conversation shell contract", () => {
     expect(appSource).toMatch(
       /event\.key === "Tab" &&[\s\S]{0,160}event\.shiftKey &&[\s\S]{0,240}!turnActive &&[\s\S]{0,80}!busy/u,
     );
-    expect(appSource).toContain("setMode((current) => nextRunMode(current))");
+    expect(appSource).toContain("void selectMode(nextRunMode(mode))");
   });
 
   it("uses 9556fac semantic shell tones and typography", () => {

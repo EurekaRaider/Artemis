@@ -76,7 +76,11 @@ export class ComputerUseService {
   private readonly leases = new Map<string, Lease>();
   private readonly opening = new Map<
     string,
-    { controller: AbortController; context: ComputerContext }
+    {
+      controller: AbortController;
+      context: ComputerContext;
+      target?: ComputerTarget;
+    }
   >();
   private readonly pausedTurns = new Map<
     string,
@@ -105,6 +109,37 @@ export class ComputerUseService {
 
   status(): ComputerControlState {
     return structuredClone(this.state);
+  }
+  targetForApproval(
+    input: ComputerAct,
+    context: ComputerContext,
+  ): ComputerTarget | undefined {
+    try {
+      const lease = this.lease(input.targetId, context);
+      if (
+        lease.busy ||
+        lease.observation?.observationId !== input.observationId
+      )
+        return;
+      return { ...lease.target };
+    } catch {
+      return;
+    }
+  }
+  stopTargets(
+    matches: (target: ComputerTarget) => boolean,
+    threadId?: string,
+    reason = "Permission revoked",
+  ) {
+    const affected = new Set<string>();
+    for (const lease of [...this.leases.values(), ...this.opening.values()])
+      if (
+        lease.target &&
+        matches(lease.target) &&
+        (!threadId || lease.context.threadId === threadId)
+      )
+        affected.add(lease.context.threadId);
+    for (const id of affected) this.stopThread(id, reason);
   }
   private publish(
     lease: Lease,
@@ -222,6 +257,7 @@ export class ComputerUseService {
         controller.signal,
       );
       controller.signal.throwIfAborted();
+      this.opening.get(key)!.target = target;
       if (!(await this.options.authorize(target, context, controller.signal)))
         throw new Error("Application access denied by the user.");
       controller.signal.throwIfAborted();

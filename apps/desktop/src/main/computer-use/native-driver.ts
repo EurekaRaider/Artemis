@@ -25,6 +25,7 @@ export class ComputerNativeDriver implements ComputerDriver {
     private readonly takeover: (reason: string) => void,
     private readonly stopLabel: () => string = () => "Stop",
     private readonly darkAppearance?: () => boolean,
+    private readonly diagnostics?: (event: Record<string, unknown>) => void,
   ) {}
   private start() {
     if (this.child) return this.child;
@@ -32,7 +33,11 @@ export class ComputerNativeDriver implements ComputerDriver {
       throw new Error("Desktop Computer Use currently requires macOS.");
     const child = spawn(this.path, [], {
       stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"],
-      env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" },
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "en_US.UTF-8",
+        ...(this.diagnostics ? { ARTEMIS_COMPUTER_DIAGNOSTICS: "1" } : {}),
+      },
     });
     this.child = child;
     const lines = createInterface({ input: child.stdio[4] as Readable });
@@ -44,6 +49,10 @@ export class ComputerNativeDriver implements ComputerDriver {
       }
       try {
         const message = JSON.parse(line);
+        if (message.event === "input-diagnostic") {
+          this.diagnostics?.(message);
+          return;
+        }
         if (message.event === "takeover") {
           this.takeover(
             typeof message.reason === "string"

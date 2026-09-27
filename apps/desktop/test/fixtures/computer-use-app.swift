@@ -1,5 +1,14 @@
 import AppKit
 
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--running-app-pids" {
+  let pids = NSRunningApplication.runningApplications(
+    withBundleIdentifier: CommandLine.arguments[2]
+  ).map { $0.processIdentifier }.sorted()
+  let data = try JSONSerialization.data(withJSONObject: pids)
+  print(String(decoding: data, as: UTF8.self))
+  exit(0)
+}
+
 final class Fixture: NSObject, NSApplicationDelegate {
   var window: NSWindow!
   let input = NSTextField(string: "")
