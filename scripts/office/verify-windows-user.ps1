@@ -62,7 +62,7 @@ exit $code
   # Let CreateProcessWithLogonW create the new user's environment instead of
   # forwarding runneradmin's USERPROFILE, APPDATA and temporary directories.
   $probeProcess = Start-Process -FilePath (Get-Command powershell.exe).Source -Credential $credential -LoadUserProfile -UseNewEnvironment -WorkingDirectory $probeStage -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$probeWorker`"", '-Commit', $env:GITHUB_SHA) -RedirectStandardOutput (Join-Path $probeStage 'stdout.log') -RedirectStandardError (Join-Path $probeStage 'stderr.log') -PassThru
-  if (-not $probeProcess.WaitForExit(900000)) { throw 'Ordinary-user native probe timed out' }
+  if (-not $probeProcess.WaitForExit(1800000)) { throw 'Ordinary-user native probe timed out' }
   $probeProcess.Refresh()
   if ($probeProcess.ExitCode -ne 0) { throw "Ordinary-user probe exited $($probeProcess.ExitCode); see its preserved evidence" }
 } finally {

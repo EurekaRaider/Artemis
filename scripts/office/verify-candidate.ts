@@ -39,6 +39,20 @@ const [first, upgrade] = catalog.manifests;
 if (!first || !upgrade) throw Error("Candidate lacks upgrade fixtures");
 const archive = join(candidate, "office-core-win32-x64.zip");
 const checkpoints: string[] = [];
+const startedAt = performance.now();
+const checkpointTimings: { checkpoint: string; elapsedMs: number }[] = [];
+const checkpoint = (...names: string[]) => {
+  checkpoints.push(...names);
+  for (const name of names) {
+    const timing = {
+      checkpoint: name,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    };
+    checkpointTimings.push(timing);
+    console.log(`OFFICE_CHECKPOINT ${JSON.stringify(timing)}`);
+  }
+};
+let lastPhase = "";
 let users: string[] = [],
   cancelDownload = false,
   downloads = 0;
@@ -75,6 +89,12 @@ const service = new CapabilityPackService({
     });
   },
   onProgress: (status) => {
+    if (status.phase !== lastPhase) {
+      lastPhase = status.phase;
+      console.log(
+        `OFFICE_PHASE ${lastPhase} ${Math.round(performance.now() - startedAt)} ms`,
+      );
+    }
     if (cancelDownload && status.downloadedBytes > 0) service.cancel();
   },
 });
@@ -95,50 +115,53 @@ const report: Record<string, unknown> = {
   finalCapabilityPackage: true,
   releaseAccepted: false,
   checkpoints,
+  checkpointTimings,
+  candidateArchiveSha256: first.archive.sha256,
   transport: "loopback HTTP streaming; offline ZIP",
   publicDownloadValidated: false,
 };
 try {
   await service.install(first, archive);
-  checkpoints.push("offline-install");
+  checkpoint("offline-install");
   const initial = await service.acquire();
   release = initial.release;
   users = ["Documents", "Presentations", "Spreadsheets"];
   await reject(service.uninstall(first.version), "in use");
-  checkpoints.push("active-session-uninstall-protected");
+  checkpoint("active-session-uninstall-protected");
   cancelDownload = true;
   await reject(service.install(upgrade), "cancelled");
   if ((await service.status()).activeVersion !== first.version)
     throw Error("Cancellation changed the active version");
-  checkpoints.push("interrupted-download-retains-active-version");
+  checkpoint("interrupted-download-retains-active-version");
   cancelDownload = false;
   await service.install(upgrade);
   if ((await service.status()).activeVersion !== upgrade.version)
     throw Error("Upgrade did not activate");
-  checkpoints.push("streamed-upgrade");
+  checkpoint("streamed-upgrade");
   await service.activate(first.version);
   release();
   release = undefined;
   await reject(service.uninstall(first.version), "shared");
-  checkpoints.push("rollback", "shared-plugin-uninstall-protected");
+  checkpoint("rollback", "shared-plugin-uninstall-protected");
   await writeFile(
     join(root, "office-core", first.version, "manifest.json"),
     "{interrupted receipt",
   );
   await service.install(first, archive);
+  checkpoint("damaged-receipt-repaired");
   await writeFile(
     join(root, "office-core", first.version, "payload", first.entrypoint),
     "corrupted candidate fixture",
   );
   await service.install(first, archive);
-  checkpoints.push("damaged-receipt-repaired", "damaged-payload-repaired");
+  checkpoint("damaged-payload-repaired");
   users = [];
   await service.uninstall(upgrade.version);
   await service.deactivate();
   await service.uninstall(first.version);
   if ((await service.status()).versions.length)
     throw Error("Uninstall left an advertised installation");
-  checkpoints.push("uninstall");
+  checkpoint("uninstall");
   await service.install(first, archive);
   const lease = await service.acquire();
   release = lease.release;
@@ -170,7 +193,7 @@ try {
       throw Error("Host engine mutation failed");
     await engine.render(join(out, "candidate-host.pdf"));
     await engine.save(join(out, "candidate-host.docx"));
-    checkpoints.push("actual-host-engine-open-edit-render-save");
+    checkpoint("actual-host-engine-open-edit-render-save");
   } finally {
     await engine.close();
   }
@@ -205,7 +228,7 @@ try {
     throw Error(
       "Installed candidate acceptance requires an ordinary user token",
     );
-  checkpoints.push("final-installed-acl");
+  checkpoint("final-installed-acl");
   report.installed = { ...trust, version: first.version, payload: lease.root };
   const run = spawnSync(
     process.execPath,
@@ -226,7 +249,7 @@ try {
   if (run.error) throw run.error;
   if (run.status !== 0)
     throw Error("Installed candidate failed native corpus acceptance");
-  checkpoints.push("installed-native-corpus");
+  checkpoint("installed-native-corpus");
   report.candidateAccepted = true;
 } catch (error) {
   report.error = String(error);

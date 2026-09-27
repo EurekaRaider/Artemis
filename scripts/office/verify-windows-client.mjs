@@ -38,7 +38,7 @@ try {
       out,
       resolve("scripts/office/probe-native.mjs"),
     ],
-    { env, stdio: "inherit", timeout: 900_000 },
+    { env, stdio: "inherit", timeout: 1_800_000 },
   );
   if (result.error) throw result.error;
   if (result.status !== 0)

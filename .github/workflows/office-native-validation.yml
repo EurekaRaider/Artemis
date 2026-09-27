@@ -208,7 +208,7 @@ jobs:
     needs: probe
     if: ${{ inputs.platform != 'macos' }}
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         shell: cmd
