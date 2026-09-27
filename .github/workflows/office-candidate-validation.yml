@@ -17,7 +17,9 @@ on:
         type: string
   push:
     branches: [codex/office-workbench]
-    paths: [.github/workflows/office-candidate-validation.yml]
+    paths:
+      - .github/workflows/office-candidate-validation.yml
+      - scripts/office/verify-candidate.ts
 
 permissions:
   contents: read

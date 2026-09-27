@@ -1,4 +1,4 @@
-// A private, temporary installation under the current ordinary user's LocalAppData.
+// A private, temporary installation under the non-administrative runner's LocalAppData.
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -16,7 +16,7 @@ execFileSync(
     "-NoProfile",
     "-NonInteractive",
     "-Command",
-    "$ErrorActionPreference='Stop'; $p=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()); if($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Ordinary user required'}; if((Get-CimInstance Win32_OperatingSystem).ProductType -ne 1){throw 'Windows client OS required'}",
+    "$ErrorActionPreference='Stop'; $p=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()); if($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Non-administrative token required'}; if((Get-CimInstance Win32_OperatingSystem).ProductType -ne 1){throw 'Windows client OS required'}",
   ],
   { env, stdio: "inherit" },
 );

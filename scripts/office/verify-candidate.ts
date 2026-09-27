@@ -2,7 +2,12 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import {
+  execFileSync,
+  spawnSync,
+  type ChildProcess,
+  type ChildProcessWithoutNullStreams,
+} from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { CapabilityPackService } from "../../apps/desktop/src/main/capability-pack-service.js";
 import {
@@ -125,6 +130,58 @@ try {
   checkpoint("offline-install");
   const initial = await service.acquire();
   release = initial.release;
+  const engine = await UnoOfficeEngine.create(
+    initial.root,
+    initial.manifest,
+    join(out, `profile-${randomUUID()}`),
+    () => {},
+  );
+  // This fixture contains only fixed public samples; keep bounded native startup
+  // diagnostics here, outside production conversation events.
+  const nativeProcesses = engine as unknown as {
+    bridge: ChildProcessWithoutNullStreams;
+    office: ChildProcess;
+  };
+  let bridgeDiagnostics = "";
+  nativeProcesses.bridge.stderr.setEncoding("utf8");
+  nativeProcesses.bridge.stderr.on("data", (chunk: string) => {
+    bridgeDiagnostics = (bridgeDiagnostics + chunk).slice(-4000);
+  });
+  try {
+    const opened = await engine.open(
+      join(workspace, "word/2col-header.docx"),
+      "word",
+    );
+    if (!opened.targets.length)
+      throw Error("Host engine did not return document content");
+    await engine.apply({
+      type: "replace-text",
+      paragraph: 0,
+      start: 0,
+      end: 0,
+      text: "Candidate acceptance ",
+    });
+    if (
+      !(await engine.snapshot()).targets.some((target) =>
+        target.text.includes("Candidate acceptance"),
+      )
+    )
+      throw Error("Host engine mutation failed");
+    await engine.render(join(out, "candidate-host.pdf"));
+    await engine.save(join(out, "candidate-host.docx"));
+    checkpoint("actual-host-engine-open-edit-render-save");
+  } catch (error) {
+    report.engineDiagnostics = {
+      bridgeExitCode: nativeProcesses.bridge.exitCode,
+      bridgeSignal: nativeProcesses.bridge.signalCode,
+      officeExitCode: nativeProcesses.office.exitCode,
+      officeSignal: nativeProcesses.office.signalCode,
+      bridgeDiagnostics,
+    };
+    throw error;
+  } finally {
+    await engine.close();
+  }
   users = ["Documents", "Presentations", "Spreadsheets"];
   await reject(service.uninstall(first.version), "in use");
   checkpoint("active-session-uninstall-protected");
@@ -165,38 +222,6 @@ try {
   await service.install(first, archive);
   const lease = await service.acquire();
   release = lease.release;
-  const engine = await UnoOfficeEngine.create(
-    lease.root,
-    lease.manifest,
-    join(out, `profile-${randomUUID()}`),
-    () => {},
-  );
-  try {
-    const opened = await engine.open(
-      join(workspace, "word/2col-header.docx"),
-      "word",
-    );
-    if (!opened.targets.length)
-      throw Error("Host engine did not return document content");
-    await engine.apply({
-      type: "replace-text",
-      paragraph: 0,
-      start: 0,
-      end: 0,
-      text: "Candidate acceptance ",
-    });
-    if (
-      !(await engine.snapshot()).targets.some((target) =>
-        target.text.includes("Candidate acceptance"),
-      )
-    )
-      throw Error("Host engine mutation failed");
-    await engine.render(join(out, "candidate-host.pdf"));
-    await engine.save(join(out, "candidate-host.docx"));
-    checkpoint("actual-host-engine-open-edit-render-save");
-  } finally {
-    await engine.close();
-  }
   const aclScript = await readFile(
     join(dirname(resolve(probePath)), "verify-installed-acl.ps1"),
     "utf8",

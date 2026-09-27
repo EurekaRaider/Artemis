@@ -204,7 +204,7 @@ jobs:
         run: >-
           powershell.exe -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $identity=[Security.Principal.WindowsIdentity]::GetCurrent(); $principal=[Security.Principal.WindowsPrincipal]::new($identity); [ordered]@{schemaVersion=1;commit='${{ github.sha }}';windows=(Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,ProductType);administrator=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);clientAcceptance=$false;purpose='Read-only environment discovery'} | ConvertTo-Json -Depth 4 -Compress"
   windows-client:
-    name: Installed candidate on Windows 11 ordinary user
+    name: Installed candidate on Windows 11 non-administrator
     needs: probe
     if: ${{ inputs.platform != 'macos' }}
     runs-on: [self-hosted, Windows, X64]
