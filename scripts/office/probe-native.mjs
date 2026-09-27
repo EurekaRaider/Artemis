@@ -219,6 +219,8 @@ try {
           measuredAt: new Date().toISOString(),
           platform: process.platform,
           arch: process.arch,
+          executionCommit: process.env.GITHUB_SHA,
+          expectedSamples: source.samples.length,
           sourceCommit: source.sourceCommit,
           notes: [
             "Native operation and PDF export measurements, not UI paint latency.",
@@ -240,5 +242,8 @@ try {
   bridge.kill();
   office.kill();
 }
-if (measurements.some((sample) => !sample.nativeFlowPassed))
+if (
+  measurements.length !== source.samples.length ||
+  measurements.some((sample) => !sample.nativeFlowPassed)
+)
   process.exitCode = 1;

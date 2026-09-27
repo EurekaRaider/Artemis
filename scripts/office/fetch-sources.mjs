@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,16 +25,42 @@ for (const source of [target.office, target.sdk, pins.json]) {
     console.log(`Verified cache: ${basename(path)}`);
     continue;
   }
-  const response = await fetch(source.url);
-  if (!response.ok || !response.body)
-    throw new Error(`Download failed: ${source.url}`);
   const temporary = `${path}.partial`;
-  const output = await open(temporary, "w", 0o600);
-  try {
-    for await (const chunk of response.body) await output.writeFile(chunk);
-    await output.sync();
-  } finally {
-    await output.close();
+  await rm(temporary, { force: true });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const offset = (await stat(temporary).catch(() => undefined))?.size ?? 0;
+    if (offset && (await digest(temporary)) === source.sha256) break;
+    try {
+      const response = await fetch(source.url, {
+        headers: {
+          "Accept-Encoding": "identity",
+          ...(offset ? { Range: `bytes=${offset}-` } : {}),
+        },
+        signal: AbortSignal.timeout(300_000),
+      });
+      if (!response.ok || !response.body)
+        throw new Error(`Download returned ${response.status}`);
+      const resumed = response.status === 206;
+      if (
+        resumed &&
+        !response.headers.get("content-range")?.startsWith(`bytes ${offset}-`)
+      )
+        throw new Error("Download resumed at an unexpected offset");
+      console.log(
+        `Downloading ${basename(path)}: attempt ${attempt}, offset ${resumed ? offset : 0}`,
+      );
+      const output = await open(temporary, resumed ? "a" : "w", 0o600);
+      try {
+        for await (const chunk of response.body) await output.writeFile(chunk);
+        await output.sync();
+      } finally {
+        await output.close();
+      }
+      break;
+    } catch (error) {
+      console.warn(`Download attempt ${attempt} failed: ${error.message}`);
+      if (attempt === 3) throw error;
+    }
   }
   if ((await digest(temporary)) !== source.sha256) {
     await rm(temporary);

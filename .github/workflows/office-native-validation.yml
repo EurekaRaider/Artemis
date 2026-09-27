@@ -43,10 +43,25 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26.9.0
-      - name: Fetch pinned engine, SDK, headers and representative corpus
-        run: |
-          node scripts/office/fetch-sources.mjs
-          node scripts/office/fetch-corpus.mjs
+      - name: Restore verified build input cache
+        id: source_cache
+        continue-on-error: true
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: artifacts/office/sources
+          key: office-inputs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/office/sources.json') }}
+      - name: Fetch and verify pinned engine, SDK and headers
+        id: sources
+        run: node scripts/office/fetch-sources.mjs
+      - name: Save verified build inputs independently of sample acceptance
+        if: steps.source_cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: artifacts/office/sources
+          key: ${{ steps.source_cache.outputs.cache-primary-key }}
+      - name: Fetch and verify representative corpus
+        run: node scripts/office/fetch-corpus.mjs
       - name: Mount official macOS build inputs read only
         id: mac_inputs
         if: runner.os == 'macOS'
@@ -127,8 +142,16 @@ jobs:
             finalCapabilityPackage=$false; ordinaryUserValidated=$false; releaseAccepted=$false
             binaries=@($binaries)
           } | ConvertTo-Json -Depth 8 | Set-Content artifacts/office/evidence/windows.json -Encoding utf8
+      - name: Probe ordinary-user execution from the user data directory
+        if: always() && runner.os == 'Windows' && steps.win_inputs.outcome == 'success'
+        shell: pwsh
+        run: |
+          if (Test-Path artifacts/office/build/office-bridge.exe) {
+            ./scripts/office/verify-windows-user.ps1 -Office "$env:OFFICE" -Bridge artifacts/office/build/office-bridge.exe
+          } else { throw 'No compiled bridge is available for ordinary-user verification' }
       - name: Preserve native evidence, including failed cases
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: office-native-${{ runner.os }}-${{ runner.arch }}
@@ -136,7 +159,11 @@ jobs:
             artifacts/office/probe
             artifacts/office/preview
             artifacts/office/evidence
+            artifacts/office/ordinary-user
           retention-days: 14
+      - name: Retain checksummed evidence in CI logs
+        if: always()
+        run: node scripts/office/emit-ci-evidence.mjs
       - name: Detach macOS build input volumes
         if: always() && runner.os == 'macOS'
         shell: bash
