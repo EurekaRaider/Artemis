@@ -37,13 +37,13 @@ export function PluginInstallDialog({
       icon: "mcp",
       label: t.mcp,
       count: servers.filter((server) => !server.connector).length,
-      enabled: false,
+      enabled: true,
     },
     {
       icon: "connector",
       label: t.appsCount,
       count: servers.filter((server) => server.connector).length,
-      enabled: false,
+      enabled: true,
     },
   ] as const;
 

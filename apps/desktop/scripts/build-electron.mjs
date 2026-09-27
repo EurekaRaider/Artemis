@@ -7,9 +7,11 @@ import { build } from "esbuild";
 import { packageGateway } from "../../../scripts/package-gateway.mjs";
 
 import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs";
+import { buildComputerUse } from "./build-computer-use.mjs";
 
 const require = createRequire(import.meta.url);
 const packageBuild = process.env.ARTEMIS_PACKAGE_BUILD === "1";
+if (!packageBuild) buildComputerUse(process.arch, true);
 const licenseKeys = JSON.parse(
   await readFile("license-public-keys.json", "utf8"),
 );

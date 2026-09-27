@@ -47,6 +47,83 @@ function provider(
 }
 
 describe("agent runtime configuration", () => {
+  it("registers installed MCP tools for the next turn without replacing the session or exposing them in Plan", async () => {
+    const workspacePath = await mkdtemp(join(tmpdir(), "artemis-mcp-refresh-"));
+    cleanupPaths.push(workspacePath);
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          throw new Error("No external calls expected");
+        },
+      },
+      { emit() {} },
+      { agentDir: join(workspacePath, "agent") },
+    );
+    const selection = {
+      providerId: "local-proxy",
+      modelId: "qwen-coder",
+      thinkingLevel: "off" as const,
+    };
+    const configuration = {
+      credentials: {},
+      providers: [provider("qwen-coder", "Qwen Coder")],
+      selection,
+    };
+    await host.configure(configuration);
+    await host.openThread({
+      threadId: "thread",
+      workspacePath,
+      target: "local",
+      selection,
+    });
+    const hosted = (
+      host as unknown as { threads: Map<string, { session: AgentSession }> }
+    ).threads.get("thread")!;
+    const original = hosted.session;
+    let finish!: () => void;
+    const prompt = vi.spyOn(original, "prompt").mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const running = host.prompt("thread", "first", "Work", "execute");
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce());
+    const tool = {
+      serverId: "new",
+      serverName: "Installed",
+      transport: "streamable-http" as const,
+      piName: "mcp_new_lookup",
+      toolName: "lookup",
+      description: "Look up an item",
+      inputSchema: { type: "object" },
+      readOnly: true,
+      destructive: false,
+    };
+    await host.configure({ ...configuration, mcpTools: [tool] });
+    expect(original.getAllTools().map((tool) => tool.name)).not.toContain(
+      tool.piName,
+    );
+    finish();
+    await running;
+    prompt.mockImplementation(async () => {
+      expect(hosted.session).toBe(original);
+      expect(original.getAllTools().map((entry) => entry.name)).toContain(
+        tool.piName,
+      );
+      expect(
+        original.agent.state.tools.map((entry) => entry.name),
+      ).not.toContain(tool.piName);
+      expect(
+        original.agent.state.tools.map((entry) => entry.name),
+      ).not.toContain("search_mcp_tools");
+    });
+    try {
+      await host.prompt("thread", "next", "Review", "plan");
+    } finally {
+      host.dispose();
+    }
+  });
   it.each([
     ["turn", true, "continue"],
     ["turn", false, "continue"],

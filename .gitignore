@@ -29,3 +29,5 @@ apps/desktop/resources/connector-clients.json
 
 # Default offline issuer private-key exports must never be committed.
 artemis-signing-key*.pem
+apps/desktop/build/computer-use/
+apps/desktop/build/swift-module-cache/

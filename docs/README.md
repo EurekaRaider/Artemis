@@ -18,6 +18,7 @@
 | [attachment-context.md](features/attachment-context/README.md)   | 附件上下文预算与保护                   |
 | [插件与 Git 商店开发](features/plugin-marketplaces/README.md) | 第三方插件规范、签名与发布（中文） |
 | [Plugin development guide](features/plugin-marketplaces/guide-en.md) | Plugin and Git marketplace development (English) |
+| [Computer Use](features/computer-use/README.md) | macOS 与内置浏览器操作、安装、自动调用及验证 |
 | [custom-subagents/](features/custom-subagents/README.md)         | 自定义子智能体(索引 / 计划 / 实施状态) |
 
 macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [本机 arm64 发布指南](features/macos-release/README.md)。

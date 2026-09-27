@@ -195,9 +195,11 @@ imported. `auth: "oauth"` selects OAuth. For bearer setup declare
 in Artemis; `auth: "bearer"` alone does not select bearer mode in this parser.
 Legacy SSE transport is not supported here.
 
-All servers install disabled. Local stdio servers use the native sandbox by
-default. The current importer sets `allowNetwork: true`; users must review it
-before enabling. The per-server full-access compatibility option grants desktop
+New servers install enabled. Missing configuration or authorization is reported
+separately; updates preserve existing switches and new servers follow the plugin
+switch. Historical configurations are never enabled in bulk. Local stdio servers
+use the native sandbox by default. The current importer sets `allowNetwork: true`.
+The per-server full-access compatibility option grants desktop
 user permissions and is a separate explicit choice. Extension **Full local
 access** does not change MCP permissions. Skills do not bypass Plan/Review
 restrictions, and enabling a server is not blanket consent for every action.

@@ -1,4 +1,5 @@
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
+import { ComputerUseControls } from "./ComputerUseControls.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { PluginUninstallDialog } from "./PluginUninstallDialog.js";
 import { ResourceRemovalDialog } from "./ResourceRemovalDialog.js";
@@ -1180,7 +1181,11 @@ export function ResourceCenter({
   function marketplaceSourceForPlugin(
     plugin: CodexPluginPreview,
   ): CodexPluginMarketplaceSource | undefined {
-    if (plugin.source.kind === "bundled" || plugin.source.kind === "runtime") {
+    if (
+      plugin.source.kind === "builtin" ||
+      plugin.source.kind === "bundled" ||
+      plugin.source.kind === "runtime"
+    ) {
       return undefined;
     }
     if (plugin.source.kind !== "git") return undefined;
@@ -1194,7 +1199,11 @@ export function ResourceCenter({
     if (plugin.source.kind === "local") return t.local;
     const source = marketplaceSourceForPlugin(plugin);
     if (source) return marketplaceSourceLabel(source);
-    if (plugin.source.kind === "bundled" || plugin.source.kind === "runtime") {
+    if (
+      plugin.source.kind === "builtin" ||
+      plugin.source.kind === "bundled" ||
+      plugin.source.kind === "runtime"
+    ) {
       return t.bundledPlugins;
     }
     return `${plugin.source.marketplaceName} · ${t.marketplaceRemoved}`;
@@ -1202,7 +1211,9 @@ export function ResourceCenter({
 
   function visualForPlugin(plugin: CodexPluginPreview) {
     const bundled =
-      plugin.source.kind === "bundled" || plugin.source.kind === "runtime"
+      plugin.source.kind === "builtin" ||
+      plugin.source.kind === "bundled" ||
+      plugin.source.kind === "runtime"
         ? (runtimeMarketplace?.plugins ?? []).find(
             (candidate) => candidate.id === plugin.id,
           )
@@ -1492,11 +1503,13 @@ export function ResourceCenter({
             server.state === "connected"
               ? t.connected
               : server.state === "failed" ||
+                  server.state === "configuration-required" ||
                   server.state === "authorization-required"
                 ? t.needsSetup
                 : undefined,
           needsAttention:
             server.state === "failed" ||
+            server.state === "configuration-required" ||
             server.state === "authorization-required",
           configure: () => openMcpEditor(server),
           toggle: (enabled: boolean) =>
@@ -1593,7 +1606,8 @@ export function ResourceCenter({
       );
       if (!installed) continue;
       if (
-        (plugin.source.kind === "bundled" ||
+        (plugin.source.kind === "builtin" ||
+          plugin.source.kind === "bundled" ||
           plugin.source.kind === "runtime") &&
         plugin.source.pluginName === skill.name
       ) {
@@ -1621,7 +1635,11 @@ export function ResourceCenter({
         translated.shortDescription || translated.description!,
       );
     }
-    if (plugin.source.kind === "bundled" || plugin.source.kind === "runtime") {
+    if (
+      plugin.source.kind === "builtin" ||
+      plugin.source.kind === "bundled" ||
+      plugin.source.kind === "runtime"
+    ) {
       const translated = bundledPluginDescription(
         locale,
         plugin.source.pluginName,
@@ -1710,7 +1728,9 @@ export function ResourceCenter({
     const displayName = pluginDisplayName(plugin);
     const description = pluginDescription(plugin);
     const source =
-      plugin.source.kind === "bundled" || plugin.source.kind === "runtime"
+      plugin.source.kind === "builtin" ||
+      plugin.source.kind === "bundled" ||
+      plugin.source.kind === "runtime"
         ? undefined
         : sourceId
           ? marketplaceSourceById.get(sourceId)
@@ -2113,6 +2133,11 @@ export function ResourceCenter({
           title={t.title}
           actions={
             <div className="resource-header-actions">
+              {installedPlugins.some(
+                (plugin) => plugin.source.kind === "builtin",
+              ) ? (
+                <ComputerUseControls locale={locale} permissionsOnly />
+              ) : null}
               <IconButton
                 className="resource-icon-button"
                 disabled={
@@ -2466,6 +2491,16 @@ export function ResourceCenter({
           <div className="resource-management-list">
             {visibleInstalledPlugins.map((plugin) => {
               const visual = visualForPlugin(plugin);
+              const unavailable = mcpServers.filter(
+                (server) =>
+                  plugin.mcpServerIds.includes(server.config.id) &&
+                  server.config.enabled &&
+                  [
+                    "configuration-required",
+                    "authorization-required",
+                    "failed",
+                  ].includes(server.state),
+              );
               return (
                 <ManagementRow
                   actions={
@@ -2492,6 +2527,15 @@ export function ResourceCenter({
                           {t.configure}
                         </Button>
                       )}
+                      {!pluginHasConnection(plugin) && unavailable[0] ? (
+                        <Button
+                          variant="quiet"
+                          disabled={operationPending}
+                          onClick={() => openMcpEditor(unavailable[0])}
+                        >
+                          {t.configure}
+                        </Button>
+                      ) : null}
                       <IconButton
                         className="resource-icon-button"
                         disabled={operationPending || busyId === plugin.id}
@@ -2541,6 +2585,13 @@ export function ResourceCenter({
                       <span className="plugin-market-source">
                         {t.marketplaceSource}: {pluginMarketplaceLabel(plugin)}
                       </span>
+                      {unavailable.map((server) => (
+                        <span key={server.config.id} role="status">
+                          {server.config.name}:{" "}
+                          {statusText(locale, server.state)}
+                          {server.error ? ` · ${server.error}` : ""}
+                        </span>
+                      ))}
                     </>
                   }
                   key={plugin.id}

@@ -175,8 +175,10 @@ description: Use when the user requests a project review with actionable finding
 再由用户在 Artemis 配置令牌；当前解析器仅写 `auth: "bearer"` 不会选择 Bearer
 模式。这里不支持旧 SSE 传输。
 
-服务安装后默认禁用。本地 stdio 默认使用原生沙箱；当前导入器设置
-`allowNetwork: true`，用户应在启用前检查。每个服务的 full-access 兼容选项会授予
+新安装的服务默认启用；缺少配置或授权时显示待配置、待授权，补齐后连接。
+更新保留已有服务的用户开关，新服务沿用插件整体开关；不会批量启用历史配置。
+本地 stdio 默认使用原生沙箱；当前导入器设置 `allowNetwork: true`。
+每个服务的 full-access 兼容选项会授予
 桌面用户权限，需要单独明确选择；扩展的 **Full local access** 不改变 MCP 权限。
 Skill 不会绕过 Plan/Review 限制，启用服务也不等于授权所有业务操作。
 

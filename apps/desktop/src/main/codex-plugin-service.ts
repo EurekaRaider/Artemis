@@ -241,6 +241,7 @@ export interface CodexPluginServiceOptions {
   mcpWorkspaceRoot: string;
   mcpStore: McpConfigStore;
   bundledArtifactRoot?: string;
+  computerUseRoot?: string;
   cloneRepository?: CloneRepository;
   fetcher?: MarketplaceFetcher;
 }
@@ -298,6 +299,7 @@ function safeSlug(value: string, fallback = "plugin"): string {
 }
 
 function pluginSourceIdentity(source: CodexPluginSource): string {
+  if (source.kind === "builtin") return `builtin\0${source.pluginName}`;
   if (source.kind === "local") return `local\0${source.path}`;
   if (source.kind === "bundled" || source.kind === "runtime") {
     // Preserve the legacy runtime identity so Lite updates do not duplicate an
@@ -1446,6 +1448,11 @@ function marketplaceDownloadFailure(error: unknown): Error {
 }
 
 function validateSource(source: CodexPluginSource): CodexPluginSource {
+  if (source.kind === "builtin") {
+    if (source.pluginName !== "computer-use")
+      throw new Error("Unknown built-in plugin.");
+    return { kind: "builtin", pluginName: "computer-use" };
+  }
   if (source.kind === "local") {
     if (!isAbsolute(source.path) || !source.path.trim()) {
       throw new Error("Local plugin source path is invalid.");
@@ -2080,6 +2087,16 @@ export class CodexPluginService {
             `Bundled plugins are unavailable: ${missingNames.join(", ")}.`,
           );
         }
+        if (this.options.computerUseRoot) {
+          marketplace.plugins.push(
+            this.preview(
+              await this.resolveSource(
+                { kind: "builtin", pluginName: "computer-use" },
+                false,
+              ),
+            ),
+          );
+        }
         return marketplace.plugins.length ? marketplace : undefined;
       } catch {
         return undefined;
@@ -2108,6 +2125,7 @@ export class CodexPluginService {
   async update(
     pluginIdentifier: string,
     onProgress?: ProgressReporter,
+    options?: { newServicesEnabled: boolean },
   ): Promise<{ plugin: InstalledCodexPlugin; warnings: string[] }> {
     return this.exclusive(async () => {
       const store = await this.loadStore();
@@ -2138,7 +2156,12 @@ export class CodexPluginService {
           "Plugin source identity changed and cannot be updated in place.",
         );
       }
-      return this.commitInstall(parsed, existing, onProgress);
+      return this.commitInstall(
+        parsed,
+        existing,
+        onProgress,
+        options?.newServicesEnabled,
+      );
     });
   }
 
@@ -2196,6 +2219,25 @@ export class CodexPluginService {
         ),
       ),
     );
+  }
+
+  async isComputerUseServer(config: McpServerConfig): Promise<boolean> {
+    const owner = (await this.loadStore()).plugins.find(
+      (plugin) =>
+        plugin.source.kind === "builtin" &&
+        plugin.source.pluginName === "computer-use" &&
+        plugin.mcpServers.some(
+          (server) =>
+            server.id === config.id &&
+            server.structuralHash === mcpStructuralHash(config),
+        ),
+    );
+    if (!owner || !this.options.computerUseRoot) return false;
+    await this.verifyInstalledResources(
+      owner,
+      await this.options.mcpStore.list(),
+    );
+    return true;
   }
 
   async mcpRuntimeReadOnlyPaths(config: McpServerConfig): Promise<string[]> {
@@ -2825,6 +2867,15 @@ export class CodexPluginService {
     source: CodexPluginSource,
     requireFreshLocal: boolean,
   ): Promise<ParsedPlugin> {
+    if (source.kind === "builtin") {
+      if (!this.options.computerUseRoot)
+        throw new Error("Computer Use requires the macOS Artemis app.");
+      return this.parsePlugin(
+        await canonicalDirectory(this.options.computerUseRoot),
+        source,
+        true,
+      );
+    }
     if (source.kind === "local") {
       if (requireFreshLocal && !(await exists(source.path))) {
         throw new Error(
@@ -3204,7 +3255,7 @@ export class CodexPluginService {
             id,
             name: `${parsed.displayName}: ${server.name}`.slice(0, 100),
             transport: "stdio",
-            enabled: false,
+            enabled: true,
             command,
             args,
             env: usesArtemisNode ? { ELECTRON_RUN_AS_NODE: "1" } : {},
@@ -3226,7 +3277,7 @@ export class CodexPluginService {
           id,
           name: `${parsed.displayName}: ${server.name}`.slice(0, 100),
           transport: "streamable-http",
-          enabled: false,
+          enabled: true,
           url: server.url!,
           auth: server.auth ?? "none",
           ...(server.connector
@@ -3266,29 +3317,25 @@ export class CodexPluginService {
     next: McpServerConfig,
     current: McpServerConfig | undefined,
   ): McpServerConfig {
-    if (!current || current.transport !== next.transport) return next;
+    if (!current) return next;
+    // Enablement is user intent, independent of credential compatibility.
+    next = { ...next, enabled: current.enabled };
+    if (current.transport !== next.transport) return next;
     if (
       canonicalConnectorJson(connectorSecurityContract(next.connector)) !==
       canonicalConnectorJson(connectorSecurityContract(current.connector))
     )
       return next;
     if (next.transport === "stdio" && current.transport === "stdio") {
-      const scopesExpanded = Boolean(
-        next.connector &&
-        (!current.connector ||
-          canonicalConnectorJson(connectorSecurityContract(next.connector)) !==
-            canonicalConnectorJson(
-              connectorSecurityContract(current.connector),
-            ) ||
-          next.connector.scopes.some(
-            (scope) => !current.connector?.scopes.includes(scope),
-          )),
-      );
       return {
         ...next,
-        enabled: scopesExpanded ? false : current.enabled,
         env: structuredClone(next.connector ? next.env : current.env),
-        envVars: [...(next.connector ? next.envVars : current.envVars)],
+        envVars: [
+          ...new Set([
+            ...(next.envVars ?? []),
+            ...(next.connector ? [] : current.envVars),
+          ]),
+        ],
       };
     }
     if (
@@ -3332,6 +3379,7 @@ export class CodexPluginService {
     parsed: ParsedPlugin,
     existing: StoredPlugin | undefined,
     onProgress?: ProgressReporter,
+    newServicesEnabledInput?: boolean,
   ): Promise<{ plugin: InstalledCodexPlugin; warnings: string[] }> {
     const prepared = await this.preparePlugin(parsed);
     const store = await this.loadStore();
@@ -3386,8 +3434,18 @@ export class CodexPluginService {
     const currentById = new Map(
       currentMcp.map((config) => [config.id, config]),
     );
+    const newServicesEnabled =
+      newServicesEnabledInput ??
+      (!existing ||
+        oldMcpIds.size === 0 ||
+        currentMcp.some(
+          (config) => oldMcpIds.has(config.id) && config.enabled,
+        ));
     const mergedMcp = prepared.mcpConfigs.map((config) =>
-      this.mergeMcpUserSettings(config, currentById.get(config.id)),
+      this.mergeMcpUserSettings(
+        { ...config, enabled: newServicesEnabled },
+        currentById.get(config.id),
+      ),
     );
     const nextMcp = [
       ...currentMcp.filter((config) => !oldMcpIds.has(config.id)),

@@ -434,6 +434,11 @@ const loadResourceCenter = () => import("./ResourceCenter.js");
 const loadSettingsPanel = () => import("./SettingsPanel.js");
 const loadTerminalPanel = () => import("./TerminalPanel.js");
 const loadTokenUsagePage = () => import("./TokenUsagePage.js");
+const ComputerUseControls = lazy(() =>
+  import("./ComputerUseControls.js").then((module) => ({
+    default: module.ComputerUseControls,
+  })),
+);
 const AutomationPage = lazy(() =>
   loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
 );
@@ -3330,6 +3335,22 @@ export function App() {
     };
   }, []);
 
+  const [computerBrowserThread, setComputerBrowserThread] = useState<string>();
+  useEffect(
+    () =>
+      window.artemis.onComputerBrowserOpen?.((threadId) => {
+        setComputerBrowserThread(threadId);
+        if (threadId !== activeThreadId) void openAutomationThread(threadId);
+      }),
+    [activeThreadId, openAutomationThread],
+  );
+  useEffect(() => {
+    if (computerBrowserThread && computerBrowserThread === activeThreadId) {
+      openBrowserPanel();
+      setComputerBrowserThread(undefined);
+    }
+  }, [computerBrowserThread, activeThreadId, openBrowserPanel]);
+
   useEffect(
     () =>
       window.artemis.onAutomationThreadOpen((threadId) => {
@@ -5703,6 +5724,9 @@ export function App() {
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
       <SidebarGlassFilters />
+      <Suspense fallback={null}>
+        <ComputerUseControls locale={locale} />
+      </Suspense>
       <NavigationSidebar
         className="sidebar"
         peek={sidebarPeek && !sidebarOpen}
@@ -9337,6 +9361,7 @@ ${model.providerId} · ${model.modelId}`}
                           )}
                           {tab.kind === "browser" && (
                             <WorkspaceBrowserPanel
+                              key={`${activeThreadId ?? "project"}:${tab.id}`}
                               addressPlaceholder={t.browserAddress}
                               backLabel={t.browserBack}
                               emptyMessage={t.noHtmlPreview}

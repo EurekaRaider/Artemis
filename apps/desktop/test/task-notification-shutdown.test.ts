@@ -62,7 +62,7 @@ describe("task notification shutdown", () => {
       const hookSessionsEnded = true, hooksService = undefined;
       const imService = undefined, automationScheduler = undefined, terminalService = undefined;
       const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
-      const mcpClientManager = undefined, agentProcess = undefined;
+      const mcpClientManager = undefined, agentProcess = undefined, computerUseHost = undefined;
       const trustedExtensionManager = undefined;
       const setLicenseShutdown = () => {};
       const threadHistoryService = undefined, releaseUpdateManager = undefined;

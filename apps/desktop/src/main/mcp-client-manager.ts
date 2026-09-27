@@ -63,11 +63,14 @@ interface McpCallResult {
 export interface McpConnection {
   onClose?(listener: () => void): void;
   listTools(): Promise<{ tools: McpTool[] }>;
-  callTool(input: {
-    name: string;
-    arguments: Record<string, unknown>;
-    _meta?: Record<string, unknown>;
-  }): Promise<McpCallResult>;
+  callTool(
+    input: {
+      name: string;
+      arguments: Record<string, unknown>;
+      _meta?: Record<string, unknown>;
+    },
+    signal?: AbortSignal,
+  ): Promise<McpCallResult>;
   close(): Promise<void>;
 }
 
@@ -980,6 +983,19 @@ export class McpClientManager {
       listener(structuredClone(status));
   }
 
+  async configurationRequired(
+    config: McpServerConfig,
+    error: string,
+  ): Promise<void> {
+    await this.disconnect(config.id);
+    this.publishStatus(config.id, {
+      config: structuredClone(config),
+      state: "configuration-required",
+      tools: [],
+      error,
+    });
+  }
+
   constructor(
     private readonly platform: NodeJS.Platform,
     private readonly windowsHelperPath: string | undefined,
@@ -1361,8 +1377,12 @@ export class McpClientManager {
             })),
           };
         },
-        async callTool(input) {
-          const result = await client.callTool(input);
+        async callTool(input, signal) {
+          const result = await client.callTool(
+            input,
+            undefined,
+            signal ? { signal } : undefined,
+          );
           return {
             content: result.content as unknown[],
             isError: Boolean(result.isError),
@@ -1632,7 +1652,9 @@ export class McpClientManager {
     workspacePath?: string,
     mode: Extract<RunMode, "execute"> = "execute",
     privateMetadata?: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<McpToolCallResult> {
+    signal?.throwIfAborted();
     const active = this.active.get(serverId);
     if (!active) {
       throw new Error("MCP server is not connected");
@@ -1648,11 +1670,14 @@ export class McpClientManager {
       throw new Error("MCP tool is not advertised by the scoped server");
     }
     const result = formatMcpResult(
-      await connection.client.callTool({
-        name: toolName,
-        arguments: argumentsValue,
-        ...(privateMetadata ? { _meta: privateMetadata } : {}),
-      }),
+      await connection.client.callTool(
+        {
+          name: toolName,
+          arguments: argumentsValue,
+          ...(privateMetadata ? { _meta: privateMetadata } : {}),
+        },
+        signal,
+      ),
     );
     if (
       this.active.get(serverId) === active &&
@@ -1746,9 +1771,12 @@ export class McpClientManager {
   }
 
   tools(): McpRuntimeTool[] {
-    return [...this.active.values()].flatMap((connection) =>
-      structuredClone(connection.tools),
-    );
+    return [...this.active.values()]
+      .filter(
+        (connection) =>
+          this.statuses.get(connection.config.id)?.state === "connected",
+      )
+      .flatMap((connection) => structuredClone(connection.tools));
   }
 
   status(configs: McpServerConfig[]): McpServerStatus[] {

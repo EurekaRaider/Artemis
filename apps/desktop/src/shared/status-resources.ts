@@ -1,6 +1,7 @@
 import type { AppLocale } from "@artemis/protocol";
 export const STATUS_RESOURCES = {
   en: {
+    "configuration-required": "Setup required",
     starting: "Starting",
     skipped: "Skipped",
     checking: "Checking for updates",
@@ -27,6 +28,7 @@ export const STATUS_RESOURCES = {
     rejected: "Rejected",
   },
   "zh-CN": {
+    "configuration-required": "需要配置",
     starting: "正在启动",
     skipped: "已跳过",
     checking: "正在检查更新",
@@ -53,6 +55,7 @@ export const STATUS_RESOURCES = {
     rejected: "已拒绝",
   },
   "zh-TW": {
+    "configuration-required": "需要設定",
     starting: "正在啟動",
     skipped: "已略過",
     checking: "正在檢查更新",
@@ -79,6 +82,7 @@ export const STATUS_RESOURCES = {
     rejected: "已拒絕",
   },
   ja: {
+    "configuration-required": "設定が必要",
     starting: "起動中",
     skipped: "スキップ済み",
     checking: "更新を確認中",
@@ -105,6 +109,7 @@ export const STATUS_RESOURCES = {
     rejected: "拒否済み",
   },
   ko: {
+    "configuration-required": "설정 필요",
     starting: "시작 중",
     skipped: "건너뜀",
     checking: "업데이트 확인 중",
@@ -131,6 +136,7 @@ export const STATUS_RESOURCES = {
     rejected: "거부됨",
   },
   es: {
+    "configuration-required": "Configuración necesaria",
     starting: "Iniciando",
     skipped: "Omitido",
     checking: "Buscando actualizaciones",
@@ -157,6 +163,7 @@ export const STATUS_RESOURCES = {
     rejected: "Rechazado",
   },
   fr: {
+    "configuration-required": "Configuration requise",
     starting: "Démarrage",
     skipped: "Ignoré",
     checking: "Recherche de mises à jour",
@@ -183,6 +190,7 @@ export const STATUS_RESOURCES = {
     rejected: "Refusé",
   },
   de: {
+    "configuration-required": "Einrichtung erforderlich",
     starting: "Wird gestartet",
     skipped: "Übersprungen",
     checking: "Updates werden gesucht",
@@ -209,6 +217,7 @@ export const STATUS_RESOURCES = {
     rejected: "Abgelehnt",
   },
   "pt-BR": {
+    "configuration-required": "Configuração necessária",
     starting: "Iniciando",
     skipped: "Ignorado",
     checking: "Verificando atualizações",
@@ -235,6 +244,7 @@ export const STATUS_RESOURCES = {
     rejected: "Rejeitado",
   },
   it: {
+    "configuration-required": "Configurazione richiesta",
     starting: "Avvio in corso",
     skipped: "Saltato",
     checking: "Ricerca di aggiornamenti",
@@ -261,6 +271,7 @@ export const STATUS_RESOURCES = {
     rejected: "Rifiutato",
   },
   ru: {
+    "configuration-required": "Требуется настройка",
     starting: "Запуск",
     skipped: "Пропущено",
     checking: "Проверка обновлений",
@@ -287,6 +298,7 @@ export const STATUS_RESOURCES = {
     rejected: "Отклонено",
   },
   ar: {
+    "configuration-required": "إعداد مطلوب",
     starting: "جارٍ البدء",
     skipped: "تم التخطي",
     checking: "جارٍ البحث عن تحديثات",
@@ -313,6 +325,7 @@ export const STATUS_RESOURCES = {
     rejected: "مرفوض",
   },
   hi: {
+    "configuration-required": "कॉन्फ़िगरेशन आवश्यक",
     starting: "शुरू हो रहा है",
     skipped: "छोड़ दिया गया",
     checking: "अपडेट जाँचे जा रहे हैं",
@@ -339,6 +352,7 @@ export const STATUS_RESOURCES = {
     rejected: "अस्वीकृत",
   },
   id: {
+    "configuration-required": "Perlu konfigurasi",
     starting: "Memulai",
     skipped: "Dilewati",
     checking: "Memeriksa pembaruan",
@@ -375,6 +389,7 @@ export const STATUS_RESOURCES = {
     | "downloaded"
     | "disconnected"
     | "authorization-required"
+    | "configuration-required"
     | "authorizing"
     | "changed"
     | "pending"

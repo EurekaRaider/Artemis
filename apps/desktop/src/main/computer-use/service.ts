@@ -1,0 +1,424 @@
+import { createHash, randomUUID } from "node:crypto";
+import {
+  COMPUTER_USE_VERSION,
+  computerActSchema,
+  computerOpenSchema,
+  computerTargetSchema,
+  type ComputerAction,
+  type ComputerAct,
+  type ComputerControlState,
+  type ComputerFrame,
+  type ComputerObservation,
+  type ComputerOpen,
+  type ComputerTarget,
+  type RunMode,
+} from "@artemis/protocol";
+
+export interface ComputerContext {
+  threadId: string;
+  turnId: string;
+  mode: RunMode;
+}
+export interface ComputerDriver {
+  targets(context: ComputerContext): Promise<ComputerTarget[]>;
+  open(
+    input: ComputerOpen,
+    context: ComputerContext,
+    signal: AbortSignal,
+  ): Promise<ComputerTarget>;
+  observe(
+    target: ComputerTarget,
+    image: boolean,
+    signal: AbortSignal,
+  ): Promise<ComputerFrame>;
+  act(
+    target: ComputerTarget,
+    action: ComputerAction,
+    signal: AbortSignal,
+  ): Promise<void>;
+  release(target: ComputerTarget): Promise<void>;
+}
+interface Lease {
+  target: ComputerTarget;
+  context: ComputerContext;
+  controller: AbortController;
+  observation?: ComputerObservation;
+  busy: boolean;
+}
+export class ComputerUseService {
+  private readonly leases = new Map<string, Lease>();
+  private readonly opening = new Map<
+    string,
+    { controller: AbortController; context: ComputerContext }
+  >();
+  private readonly pausedTurns = new Map<string, string>();
+  private state: ComputerControlState = {
+    version: COMPUTER_USE_VERSION,
+    state: "idle",
+  };
+  constructor(
+    private readonly options: {
+      drivers: Record<ComputerTarget["kind"], ComputerDriver>;
+      authorize(
+        target: ComputerTarget,
+        context: ComputerContext,
+        signal: AbortSignal,
+      ): Promise<boolean>;
+      publish(state: ComputerControlState): void;
+    },
+  ) {}
+
+  status(): ComputerControlState {
+    return structuredClone(this.state);
+  }
+  private publish(
+    lease: Lease,
+    state: ComputerControlState["state"],
+    reason?: string,
+  ) {
+    this.state = {
+      version: COMPUTER_USE_VERSION,
+      state,
+      threadId: lease.context.threadId,
+      target: lease.target,
+      ...(lease.observation?.foreground === undefined
+        ? {}
+        : { foreground: lease.observation.foreground }),
+      ...(reason ? { reason } : {}),
+    };
+    this.options.publish(this.status());
+  }
+  private assertExecute(context: ComputerContext) {
+    if (context.mode !== "execute")
+      throw new Error("Computer Use is available only in Execute mode.");
+  }
+  private lease(id: string, context: ComputerContext): Lease {
+    this.assertExecute(context);
+    const lease = this.leases.get(id);
+    if (
+      !lease ||
+      lease.context.threadId !== context.threadId ||
+      lease.context.turnId !== context.turnId
+    )
+      throw new Error(
+        "Target is not owned by this task and turn. Call computer_open first.",
+      );
+    lease.controller.signal.throwIfAborted();
+    return lease;
+  }
+  private async snapshot(
+    lease: Lease,
+    image = true,
+  ): Promise<ComputerObservation> {
+    const frame = await this.options.drivers[lease.target.kind].observe(
+      lease.target,
+      image,
+      lease.controller.signal,
+    );
+    lease.controller.signal.throwIfAborted();
+    const observation: ComputerObservation = {
+      ...frame,
+      version: COMPUTER_USE_VERSION,
+      target: lease.target,
+      observationId: randomUUID(),
+    };
+    if (
+      frame.image &&
+      frame.visualRevision &&
+      frame.visualRevision === lease.observation?.visualRevision
+    ) {
+      delete observation.image;
+      observation.imageUnchanged = true;
+    }
+    lease.observation = observation;
+    return observation;
+  }
+  async open(
+    input: ComputerOpen,
+    context: ComputerContext,
+  ): Promise<ComputerObservation> {
+    this.assertExecute(context);
+    input = computerOpenSchema.parse(input);
+    if (this.pausedTurns.get(context.threadId) === context.turnId)
+      throw new Error(
+        "User paused Computer Use. Wait for Resume or a new user turn.",
+      );
+    const kind =
+      input.target === "browser" || input.target.startsWith("browser:")
+        ? "browser"
+        : "desktop";
+    // Reserve desktop access before any asynchronous target lookup or permission dialog.
+    const key = kind === "desktop" ? "desktop" : `browser:${context.threadId}`;
+    if (this.opening.has(key))
+      throw new Error("A target is already opening. Wait for that operation.");
+    if (
+      [...this.leases.values()].some(
+        (lease) =>
+          lease.busy &&
+          lease.context.threadId === context.threadId &&
+          lease.target.kind === kind,
+      )
+    )
+      throw new Error(
+        "A batch is already running. Wait before opening another target.",
+      );
+    if (
+      [...this.leases.values()].some(
+        (l) =>
+          l.target.kind === kind &&
+          (kind === "desktop" || l.context.threadId === context.threadId) &&
+          l.context.threadId !== context.threadId,
+      )
+    )
+      throw new Error("Desktop control is owned by another task.");
+    const controller = new AbortController();
+    this.opening.set(key, { controller, context });
+    let target: ComputerTarget | undefined;
+    let opened: Lease | undefined;
+    try {
+      target = await this.options.drivers[kind].open(
+        input,
+        context,
+        controller.signal,
+      );
+      controller.signal.throwIfAborted();
+      if (!(await this.options.authorize(target, context, controller.signal)))
+        throw new Error("Application access denied by the user.");
+      controller.signal.throwIfAborted();
+      const existing = this.leases.get(target.id);
+      if (existing && existing.context.threadId !== context.threadId)
+        throw new Error("Target is owned by another task.");
+      existing?.controller.abort();
+      if (kind === "desktop") {
+        for (const [id, previous] of this.leases)
+          if (previous.target.kind === "desktop") {
+            previous.controller.abort();
+            this.leases.delete(id);
+            await this.options.drivers.desktop.release(previous.target);
+          }
+      }
+      const lease: Lease = { target, context, controller, busy: false };
+      opened = lease;
+      this.leases.set(target.id, lease);
+      this.publish(lease, "observing");
+      const observation = await this.snapshot(lease);
+      this.publish(lease, "observing");
+      return observation;
+    } catch (error) {
+      if (opened && this.leases.get(opened.target.id) === opened) {
+        controller.abort();
+        this.leases.delete(opened.target.id);
+        await this.options.drivers[kind].release(opened.target);
+        this.publish(
+          opened,
+          "paused",
+          "Unable to observe the target. Reopen it to retry.",
+        );
+      }
+      throw error;
+    } finally {
+      this.opening.delete(key);
+    }
+  }
+  async act(input: ComputerAct, context: ComputerContext) {
+    input = computerActSchema.parse(input);
+    const lease = this.lease(input.targetId, context);
+    if (
+      this.opening.has(
+        lease.target.kind === "desktop"
+          ? "desktop"
+          : `browser:${context.threadId}`,
+      )
+    )
+      throw new Error("A target is opening. Wait before acting.");
+    if (lease.busy)
+      throw new Error("A batch is already running for this target.");
+    if (
+      !lease.observation ||
+      lease.observation.observationId !== input.observationId
+    )
+      throw new Error("Stale observation. Observe again before acting.");
+    lease.busy = true;
+    const driver = this.options.drivers[lease.target.kind];
+    const signal = lease.controller.signal;
+    const deadline = performance.now() + 3000;
+    const timer = setTimeout(
+      () =>
+        lease.controller.abort(
+          new Error("Computer action exceeded 3 seconds. Reopen the target."),
+        ),
+      3000,
+    );
+    let completed = 0;
+    let stopped: string | undefined;
+    try {
+      const coordinates = input.actions.some(
+        (action) => action.type === "click_at",
+      );
+      const fresh = await driver.observe(lease.target, coordinates, signal);
+      signal.throwIfAborted();
+      if (fresh.revision !== lease.observation.revision)
+        throw new Error("Stale interface. Observe again before acting.");
+      if (
+        coordinates &&
+        (!fresh.visualRevision ||
+          fresh.visualRevision !== lease.observation.visualRevision)
+      )
+        throw new Error(
+          "Stale screenshot. Observe again before coordinate input.",
+        );
+      let before = fresh;
+      for (const action of input.actions) {
+        signal.throwIfAborted();
+        if (performance.now() >= deadline) {
+          stopped = "time-budget";
+          break;
+        }
+        if (completed > 0 && action.type === "click_at") {
+          stopped = "observe-required";
+          break;
+        }
+        if (
+          "elementId" in action &&
+          !before.elements.some((e) => e.id === action.elementId)
+        )
+          throw new Error("Element is absent from the current observation.");
+        if (
+          action.type === "click_at" &&
+          (action.x >= before.width || action.y >= before.height)
+        )
+          throw new Error("Coordinates are outside the observed target.");
+        if (
+          lease.target.kind === "desktop" &&
+          ["key", "scroll", "click_at"].includes(action.type)
+        )
+          lease.observation.foreground = true;
+        this.publish(lease, "acting");
+        await driver.act(lease.target, action, signal);
+        signal.throwIfAborted();
+        completed++;
+        const after = await driver.observe(
+          lease.target,
+          action.type === "click_at",
+          signal,
+        );
+        signal.throwIfAborted();
+        if (action.type === "fill") {
+          const field = after.elements.find((e) => e.id === action.elementId);
+          const verified = field?.valueDigest
+            ? field.valueDigest ===
+              createHash("sha256").update(action.text).digest("hex")
+            : field?.value === action.text;
+          if (!verified) {
+            stopped = "verification-failed";
+            break;
+          }
+        }
+        if (
+          after.revision !== before.revision ||
+          (action.type === "click_at" &&
+            after.visualRevision !== before.visualRevision)
+        ) {
+          stopped = "interface-changed";
+          break;
+        }
+        before = after;
+      }
+      clearTimeout(timer);
+      const observation = await this.snapshot(lease);
+      this.publish(lease, "observing");
+      return { ...observation, completed, ...(stopped ? { stopped } : {}) };
+    } catch (error) {
+      if (signal.aborted && this.leases.get(lease.target.id) === lease)
+        this.stopThread(
+          context.threadId,
+          "Computer action stopped. Resume control before reopening the target.",
+        );
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      lease.busy = false;
+    }
+  }
+  stopThread(threadId: string, reason = "Task stopped") {
+    const finished = reason === "Released" || reason === "Turn ended";
+    for (const opening of this.opening.values())
+      if (opening.context.threadId === threadId) {
+        opening.controller.abort(new Error(reason));
+        if (!finished) this.pausedTurns.set(threadId, opening.context.turnId);
+      }
+    for (const [id, lease] of this.leases) {
+      if (lease.context.threadId !== threadId) continue;
+      lease.controller.abort(new Error(reason));
+      if (!finished) this.pausedTurns.set(threadId, lease.context.turnId);
+      this.leases.delete(id);
+      this.publish(lease, "paused", reason);
+      void this.options.drivers[lease.target.kind]
+        .release(lease.target)
+        .catch(() => {});
+    }
+    if (finished) this.resumeThread(threadId);
+  }
+  resumeThread(threadId: string) {
+    this.pausedTurns.delete(threadId);
+    if (this.state.threadId === threadId) {
+      this.state = { version: COMPUTER_USE_VERSION, state: "idle" };
+      this.options.publish(this.status());
+    }
+  }
+  stopAll(reason = "Computer Use disabled") {
+    for (const opening of this.opening.values())
+      this.stopThread(opening.context.threadId, reason);
+    for (const lease of [...this.leases.values()])
+      this.stopThread(lease.context.threadId, reason);
+  }
+  stopDesktop(reason: string) {
+    const opening = this.opening.get("desktop");
+    if (opening) this.stopThread(opening.context.threadId, reason);
+    for (const lease of [...this.leases.values()])
+      if (lease.target.kind === "desktop")
+        this.stopThread(lease.context.threadId, reason);
+  }
+  async call(
+    name: string,
+    args: Record<string, unknown>,
+    context: ComputerContext,
+  ): Promise<unknown> {
+    this.assertExecute(context);
+    switch (name) {
+      case "computer_status":
+        return this.status();
+      case "computer_targets":
+        return (
+          await Promise.all(
+            Object.values(this.options.drivers).map((d) => d.targets(context)),
+          )
+        ).flat();
+      case "computer_open":
+        return this.open(computerOpenSchema.parse(args), context);
+      case "computer_act":
+        return this.act(computerActSchema.parse(args), context);
+      case "computer_observe": {
+        const lease = this.lease(
+          computerTargetSchema.parse(args).targetId,
+          context,
+        );
+        if (lease.busy)
+          throw new Error("A batch is running. Wait before observing.");
+        const observation = await this.snapshot(lease);
+        this.publish(lease, "observing");
+        return observation;
+      }
+      case "computer_release": {
+        const lease = this.lease(
+          computerTargetSchema.parse(args).targetId,
+          context,
+        );
+        this.stopThread(lease.context.threadId, "Released");
+        return { released: true };
+      }
+      default:
+        throw new Error("Unknown Computer Use tool.");
+    }
+  }
+}

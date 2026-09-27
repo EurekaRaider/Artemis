@@ -207,8 +207,14 @@ installation, and manage updates, connections and removal from each plugin.
   and content-hash trust.
 
 External marketplaces are not fetched or subscribed to by default. Installation
-shows the included capabilities; MCP servers and Connectors remain disabled
-until setup and authorization requirements are satisfied.
+shows the included capabilities; newly installed MCP servers and Connectors are
+enabled immediately. Missing configuration or account authorization is shown as
+a setup state. Existing user-disabled services stay disabled during updates.
+
+On macOS, install **Computer Use** from Bundled plugins to work with websites in
+Artemis Browser and native applications using the current vision model. The app
+includes the native helper; no separate toolchain or API key is needed.
+[Installation, permissions and verification](docs/features/computer-use/README.md).
 
 <p align="center">
   <a href="docs/images/screenshots/resources.png"><img src="docs/images/screenshots/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>

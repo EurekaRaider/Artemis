@@ -76,6 +76,7 @@
     "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop",
     "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify-latest-dock.mjs",
     "verify:ci": "node scripts/verify-ci.mjs",
+    "verify:computer-use": "npm run build:core && node apps/desktop/scripts/verify-computer-use.mjs",
     "verify:prepush": "node scripts/verify-pre-push.mjs",
     "prepare": "node scripts/install-git-hooks.mjs",
     "verify:slack-cli": "node scripts/verify-slack-cli.mjs",

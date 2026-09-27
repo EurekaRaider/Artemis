@@ -2621,7 +2621,7 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("window.artemis.updateCodexPlugin(");
     expect(resourceCenterSource).toContain("window.artemis.removeCodexPlugin(");
     expect(uiText("en", "ResourceCenter_labels.confirmPlugin")).toContain(
-      "MCP servers and Connectors will be installed disabled",
+      "MCP servers and Connectors will be enabled",
     );
 
     for (const method of [
@@ -2746,7 +2746,7 @@ describe("renderer layout contract", () => {
       "iconDataUrl: bundled?.iconDataUrl ?? plugin.iconDataUrl",
     );
     expect(resourceCenterSource).toMatch(
-      /plugin\.source\.kind === "bundled" \|\| plugin\.source\.kind === "runtime"[\s\S]*?\? undefined[\s\S]*?: sourceId/u,
+      /plugin\.source\.kind === "builtin"\s*\|\|\s*plugin\.source\.kind === "bundled"\s*\|\|\s*plugin\.source\.kind === "runtime"[\s\S]*?\? undefined[\s\S]*?: sourceId/u,
     );
     expect(mainProcessSource).toContain("MCP server is managed by plugin");
     const skillEnableHandler = mainProcessSource.slice(
@@ -2836,7 +2836,8 @@ describe("renderer layout contract", () => {
     );
     const startupSource = mainProcessSource.slice(startupStart, startupEnd);
     expect(startupSource).not.toContain("authorizeMcpServer(");
-    expect(startupSource).not.toContain("connectMcpServer(");
+    expect(startupSource).toContain("connectMcpServer(config)");
+    expect(startupSource).not.toContain("connectMcpServer(config, true)");
   });
 
   it("keeps a manually enabled stdio MCP enabled when its connection fails", () => {

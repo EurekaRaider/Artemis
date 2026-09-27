@@ -547,6 +547,7 @@ export interface McpServerStatus {
   state:
     | "disconnected"
     | "connecting"
+    | "configuration-required"
     | "authorization-required"
     | "authorizing"
     | "connected"
@@ -618,6 +619,7 @@ export interface InstalledSkill {
 
 export type CodexPluginSource =
   | { kind: "local"; path: string }
+  | { kind: "builtin"; pluginName: "computer-use" }
   | { kind: "bundled"; pluginName: string }
   // Kept so installations created before Lite mode can update in place.
   | { kind: "runtime"; pluginName: string }
@@ -836,6 +838,15 @@ export interface AttachmentImportResult {
 export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
+  registerComputerBrowser(threadId: string, contentsId: number): Promise<void>;
+  getComputerState(): Promise<import("@artemis/protocol").ComputerControlState>;
+  controlComputer(action: "stop" | "resume", threadId: string): Promise<void>;
+  getComputerPermissions(): Promise<Array<{ id: string; name: string }>>;
+  revokeComputerPermission(id: string): Promise<void>;
+  onComputerState(
+    listener: (state: import("@artemis/protocol").ComputerControlState) => void,
+  ): () => void;
+  onComputerBrowserOpen(listener: (threadId: string) => void): () => void;
   listHooks(
     query: import("@artemis/protocol").HookQuery,
   ): Promise<import("@artemis/protocol").HookCatalog>;
@@ -1220,6 +1231,12 @@ export interface ArtemisApi {
 }
 
 export const IPC = {
+  computerRegisterBrowser: "artemis:computer-register-browser",
+  computerState: "artemis:computer-state",
+  computerControl: "artemis:computer-control",
+  computerPermissions: "artemis:computer-permissions",
+  computerRevokePermission: "artemis:computer-revoke-permission",
+  computerBrowserOpen: "artemis:computer-browser-open",
   hooksList: "artemis:hooks-list",
   hooksTrust: "artemis:hooks-trust",
   hooksChange: "artemis:hooks-change",

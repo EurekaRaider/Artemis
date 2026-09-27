@@ -51,6 +51,7 @@ function createService(
   options: {
     mcpStore?: McpConfigStore;
     bundledArtifactRoot?: string;
+    computerUseRoot?: string;
     cloneRepository?: (url: string, destination: string) => Promise<void>;
     fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
   } = {},
@@ -71,6 +72,9 @@ function createService(
       statePath: join(root, "user-data", "codex-plugins.json"),
       mcpWorkspaceRoot: join(root, "user-data", "mcp-workspaces"),
       mcpStore,
+      ...(options.computerUseRoot
+        ? { computerUseRoot: options.computerUseRoot }
+        : {}),
       ...(options.bundledArtifactRoot
         ? { bundledArtifactRoot: options.bundledArtifactRoot }
         : {}),
@@ -474,7 +478,7 @@ describe("CodexPluginService", () => {
     expect(config).toMatchObject({
       transport: "stdio",
       command: process.execPath,
-      enabled: false,
+      enabled: true,
       env: { ELECTRON_RUN_AS_NODE: "1" },
       connector: { version: 1, provider: "google", id: "gmail" },
     });
@@ -508,7 +512,7 @@ describe("CodexPluginService", () => {
     await service.update(plugin.id);
     expect(
       (await mcpStore.list()).find((candidate) => candidate.id === config!.id),
-    ).toMatchObject({ enabled: false });
+    ).toMatchObject({ enabled: true });
 
     const secondKey = await signMarketplaceRepository(repository);
     expect(secondKey.fingerprint).not.toBe(firstKey.fingerprint);
@@ -926,7 +930,46 @@ describe("CodexPluginService", () => {
     }
   });
 
-  it("previews and atomically installs portable Skills and disabled MCP servers", async () => {
+  it("trusts only the host-bundled Computer Use source, never a local plugin with the same manifest", async () => {
+    const root = await temporaryRoot();
+    const computerUseRoot = fileURLToPath(
+      new URL("../resources/computer-use", import.meta.url),
+    );
+    const first = createService(root, { bundledArtifactRoot, computerUseRoot });
+    const marketplace = await first.service.loadBundledArtifactMarketplace();
+    expect(
+      marketplace?.plugins.find((plugin) => plugin.name === "computer-use")
+        ?.source,
+    ).toEqual({ kind: "builtin", pluginName: "computer-use" });
+    const installed = await first.service.install({
+      kind: "builtin",
+      pluginName: "computer-use",
+    });
+    const config = (await first.mcpStore.list()).find((server) =>
+      installed.plugin.mcpServerIds.includes(server.id),
+    )!;
+    expect(config.enabled).toBe(true);
+    await expect(first.service.isComputerUseServer(config)).resolves.toBe(true);
+    await expect(
+      first.service.isComputerUseServer({
+        ...config,
+        url: "https://example.test",
+      } as McpServerConfig),
+    ).resolves.toBe(false);
+    const second = createService(await temporaryRoot(), { computerUseRoot });
+    const untrusted = await second.service.install({
+      kind: "local",
+      path: computerUseRoot,
+    });
+    const imitation = (await second.mcpStore.list()).find((server) =>
+      untrusted.plugin.mcpServerIds.includes(server.id),
+    )!;
+    await expect(second.service.isComputerUseServer(imitation)).resolves.toBe(
+      false,
+    );
+  });
+
+  it("installs enabled MCP servers without enabling unrelated existing servers", async () => {
     const root = await temporaryRoot();
     const source = join(root, "source", "demo-tools");
     await writePlugin(source);
@@ -987,13 +1030,15 @@ describe("CodexPluginService", () => {
       ),
     ).resolves.toContain("Version one");
     const servers = await mcpStore.list();
-    expect(servers.find((server) => server.id === "existing")).toBeDefined();
+    expect(servers.find((server) => server.id === "existing")?.enabled).toBe(
+      false,
+    );
     const local = servers.find(
       (server): server is Extract<McpServerConfig, { transport: "stdio" }> =>
         server.transport === "stdio",
     );
     expect(local).toMatchObject({
-      enabled: false,
+      enabled: true,
       command: "node",
       env: {},
       envVars: ["API_TOKEN"],
@@ -1007,7 +1052,7 @@ describe("CodexPluginService", () => {
           server.transport === "streamable-http" &&
           server.url === "https://docs.example.test/mcp",
       ),
-    ).toMatchObject({ enabled: false, auth: "oauth" });
+    ).toMatchObject({ enabled: true, auth: "oauth" });
 
     await service.remove(installed.plugin.id);
 
@@ -1080,7 +1125,7 @@ describe("CodexPluginService", () => {
     expect(await mcpStore.list()).toEqual([]);
   });
 
-  it("disables a remote MCP server when an update changes its endpoint", async () => {
+  it("preserves enablement but drops credential bindings when an endpoint changes", async () => {
     const root = await temporaryRoot();
     const source = join(root, "source", "demo-tools");
     await writePlugin(source);
@@ -1090,6 +1135,9 @@ describe("CodexPluginService", () => {
       (await mcpStore.list()).map((server) => ({
         ...server,
         enabled: true,
+        ...(server.transport === "streamable-http"
+          ? { credentialProviderId: "old-account" }
+          : {}),
       })),
     );
     await writePlugin(source, {
@@ -1106,10 +1154,40 @@ describe("CodexPluginService", () => {
     expect(
       servers.find((server) => server.transport === "streamable-http"),
     ).toMatchObject({
-      enabled: false,
+      enabled: true,
       url: "https://new-docs.example.test/mcp",
       auth: "oauth",
     });
+    expect(
+      servers.find((server) => server.transport === "streamable-http"),
+    ).not.toHaveProperty("credentialProviderId");
+  });
+
+  it("keeps a disabled plugin disabled when an update changes endpoints and adds servers", async () => {
+    const root = await temporaryRoot();
+    const source = join(root, "source", "demo-tools");
+    await writePlugin(source);
+    const { service, mcpStore } = createService(root);
+    const first = await service.install({ kind: "local", path: source });
+    await mcpStore.replaceAll(
+      (await mcpStore.list()).map((server) => ({ ...server, enabled: false })),
+    );
+    await writePlugin(source, {
+      version: "2.0.0",
+      mcpUrl: "https://changed.example.test/mcp",
+    });
+    const manifestPath = join(source, ".mcp.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.mcpServers.added = {
+      type: "http",
+      url: "https://added.example.test/mcp",
+    };
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await service.update(first.plugin.id);
+    expect(await mcpStore.list()).toHaveLength(3);
+    expect((await mcpStore.list()).every((server) => !server.enabled)).toBe(
+      true,
+    );
   });
 
   it("rejects collisions and rolls back staged files when MCP persistence fails", async () => {

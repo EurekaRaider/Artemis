@@ -188,6 +188,11 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       webviewReadyRef.current = true;
       setWebviewReady(true);
       syncNavigation();
+      if (props.threadId && window.artemis.registerComputerBrowser) {
+        void window.artemis
+          .registerComputerBrowser(props.threadId, webview.getWebContentsId())
+          .catch((error: unknown) => setNavigationError(String(error)));
+      }
     };
     const handleNavigate = (event: Electron.DidNavigateEvent) => {
       setNavigationError(undefined);

@@ -168,6 +168,10 @@
         {
           "from": "../../artifacts/slack-cli/darwin-${arch}",
           "to": "slack-cli"
+        },
+        {
+          "from": "build/computer-use/${arch}",
+          "to": "computer-use"
         }
       ]
     },

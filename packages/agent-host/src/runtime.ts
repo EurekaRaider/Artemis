@@ -874,6 +874,7 @@ interface HostedThread {
   session: AgentSession;
   resourceLoader: DefaultResourceLoader;
   configurationPending?: boolean;
+  refreshMcpTools(): Promise<boolean>;
   currentTurnId: string | undefined;
   currentMode: RunMode | undefined;
   compacting: boolean;
@@ -1683,9 +1684,14 @@ export class ArtemisAgentHost {
       );
       hosted.session.setThinkingLevel(hosted.selection.thinkingLevel);
     }
-    const activeToolNames = hosted.session.getActiveToolNames();
-    await hosted.resourceLoader.reload();
-    hosted.session.setActiveToolsByName(activeToolNames);
+    const refreshedMcp = await hosted.refreshMcpTools();
+    if (!refreshedMcp) await hosted.resourceLoader.reload();
+    hosted.session.setActiveToolsByName(
+      (hosted.currentMode === "execute"
+        ? hosted.executeTools
+        : hosted.delegatedTools
+      ).map((tool) => tool.name),
+    );
     this.configureSessionCompaction(hosted.session);
     this.emitContextUsage(hosted, false);
     hosted.configurationPending = this.configuration !== configuration;
@@ -5167,7 +5173,7 @@ export class ArtemisAgentHost {
         ),
     });
 
-    const configuredMcpTools = this.configuration.mcpTools ?? [];
+    let configuredMcpTools = this.configuration.mcpTools ?? [];
     const mcpToolByPiName = new Map(
       configuredMcpTools.map((tool) => [tool.piName, tool] as const),
     );
@@ -5188,6 +5194,31 @@ export class ArtemisAgentHost {
             const hosted = this.threads.get(request.threadId);
             if (!hosted?.currentTurnId) {
               throw new Error("No active turn is available for this MCP call.");
+            }
+            if (tool.serverId === this.configuration.computerUseServerId) {
+              if (!hosted.session.model?.input.includes("image"))
+                throw new Error(
+                  "Select a model that supports images to use Computer Use.",
+                );
+              if (tool.toolName === "computer_open") {
+                const names = configuredMcpTools
+                  .filter((candidate) => candidate.serverId === tool.serverId)
+                  .map((candidate) => candidate.piName);
+                hosted.session.setActiveToolsByName([
+                  ...new Set([
+                    ...hosted.session.getActiveToolNames(),
+                    ...names,
+                  ]),
+                ]);
+                for (const active of hosted.session.agent.state.tools)
+                  if (
+                    names.includes(active.name) &&
+                    !hosted.executeTools.some(
+                      (current) => current.name === active.name,
+                    )
+                  )
+                    hosted.executeTools.push(active);
+              }
             }
             const result = await this.broker.request({
               kind: "mcp.call",
@@ -5246,7 +5277,7 @@ export class ArtemisAgentHost {
           },
         }),
       );
-    const mcpTools = createMcpTools();
+    let mcpTools = createMcpTools();
     const searchMcpToolsTool = defineTool({
       name: "search_mcp_tools",
       label: "Search MCP tools",
@@ -5328,8 +5359,7 @@ export class ArtemisAgentHost {
         };
       },
     });
-    const mcpDiscoveryTools =
-      configuredMcpTools.length > 0 ? [searchMcpToolsTool] : [];
+    const mcpDiscoveryTools = [searchMcpToolsTool];
     const extensionTools = (this.configuration.extensionTools ?? []).map(
       (tool) =>
         defineTool({
@@ -6145,6 +6175,40 @@ export class ArtemisAgentHost {
         : {}),
     });
     await resourceLoader.reload();
+    const customTools = [
+      ...attachmentTools,
+      ...remoteTools,
+      readTool,
+      webSearchTool,
+      localFileReadTool,
+      localFileWriteTool,
+      requestUserInputTool,
+      writeTool,
+      officeDocumentTool,
+      loadWorkspaceDependenciesTool,
+      updatePlanTool,
+      getGoalTool,
+      createGoalTool,
+      updateGoalTool,
+      saveMemoryTool,
+      spawnAgentTool,
+      listAgentsTool,
+      waitTeamTool,
+      sendMessageTool,
+      setAgentWriteScopeTool,
+      finishTeamTool,
+      waitAgentTool,
+      getAgentStatusTool,
+      steerAgentTool,
+      cancelAgentTool,
+      retryAgentTool,
+      parentBashTools.bashTool,
+      parentBashTools.bashWaitTool,
+      parentBashTools.bashCancelTool,
+      ...mcpDiscoveryTools,
+      ...mcpTools,
+      ...extensionTools,
+    ];
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
@@ -6154,77 +6218,9 @@ export class ArtemisAgentHost {
       ...(selection ? { thinkingLevel: selection.thinkingLevel } : {}),
       resourceLoader,
       noTools: "builtin",
-      customTools: [
-        ...attachmentTools,
-        ...remoteTools,
-        readTool,
-        webSearchTool,
-        localFileReadTool,
-        localFileWriteTool,
-        requestUserInputTool,
-        writeTool,
-        officeDocumentTool,
-        loadWorkspaceDependenciesTool,
-        updatePlanTool,
-        getGoalTool,
-        createGoalTool,
-        updateGoalTool,
-        saveMemoryTool,
-        spawnAgentTool,
-        listAgentsTool,
-        waitTeamTool,
-        sendMessageTool,
-        setAgentWriteScopeTool,
-        finishTeamTool,
-        waitAgentTool,
-        getAgentStatusTool,
-        steerAgentTool,
-        cancelAgentTool,
-        retryAgentTool,
-        parentBashTools.bashTool,
-        parentBashTools.bashWaitTool,
-        parentBashTools.bashCancelTool,
-        ...mcpDiscoveryTools,
-        ...mcpTools,
-        ...extensionTools,
-      ],
-      tools: [
-        ...remoteTools.map((tool) => tool.name),
-        "read",
-        "web_search",
-        "attachment_list",
-        "attachment_read",
-        "attachment_search",
-        "local_file_read",
-        "local_file_write",
-        "request_user_input",
-        "write",
-        "office_document",
-        "load_workspace_dependencies",
-        "update_plan",
-        "get_goal",
-        "create_goal",
-        "update_goal",
-        "save_memory",
-        "spawn_agent",
-        "list_agents",
-        "wait_team",
-        "send_message",
-        "set_agent_write_scope",
-        "finish_team",
-        "wait_agent",
-        "get_agent_status",
-        "steer_agent",
-        "cancel_agent",
-        "retry_agent",
-        "shell",
-        "shell_wait",
-        "shell_cancel",
-        ...mcpDiscoveryTools.map((tool) => tool.name),
-        ...mcpTools.map((tool) => tool.name),
-        ...extensionTools.map((tool) => tool.name),
-      ],
+      customTools,
     });
+    session.setActiveToolsByName(customTools.map((tool) => tool.name));
     const previousFinishTurn = session.agent.finishTurn;
     session.agent.finishTurn = async (context, signal) => {
       const decision =
@@ -6259,7 +6255,19 @@ export class ArtemisAgentHost {
       priorTopLevelUserTurns: restoredTopLevelUserTurns,
     });
     this.configureSessionCompaction(session);
-    const mcpDirectToolNames = new Set(mcpTools.map((tool) => tool.name));
+    const directMcpNames = () =>
+      new Set(
+        configuredMcpTools
+          .filter(
+            (tool) =>
+              !(
+                tool.serverId === this.configuration.computerUseServerId &&
+                tool.toolName === "computer_open"
+              ),
+          )
+          .map((tool) => tool.piName),
+      );
+    const mcpDirectToolNames = directMcpNames();
     session.setActiveToolsByName(
       session
         .getActiveToolNames()
@@ -6383,6 +6391,10 @@ export class ArtemisAgentHost {
         childControlSessionTools.some(
           (candidate) => candidate.name === tool.name,
         ) ||
+        mcpTools.some(
+          (candidate) =>
+            candidate.name === tool.name && !mcpDirectToolNames.has(tool.name),
+        ) ||
         mcpDiscoveryTools.some((candidate) => candidate.name === tool.name) ||
         extensionTools.some((candidate) => candidate.name === tool.name),
     );
@@ -6399,6 +6411,43 @@ export class ArtemisAgentHost {
         : {}),
       session,
       resourceLoader,
+      refreshMcpTools: async () => {
+        const next = this.configuration.mcpTools ?? [];
+        if (JSON.stringify(next) === JSON.stringify(configuredMcpTools))
+          return false;
+        const oldNames = new Set(configuredMcpTools.map((tool) => tool.piName));
+        const active = session
+          .getActiveToolNames()
+          .filter((name) => !oldNames.has(name));
+        configuredMcpTools = next;
+        mcpToolByPiName.clear();
+        for (const tool of next) mcpToolByPiName.set(tool.piName, tool);
+        mcpTools = createMcpTools();
+        // Pi retains the SDK customTools array; public reload rebuilds its registry.
+        // This is exercised by the next-turn installation integration test.
+        customTools.splice(
+          0,
+          customTools.length,
+          ...customTools.filter((tool) => !oldNames.has(tool.name)),
+          ...mcpTools,
+        );
+        await session.reload();
+        hosted.mcpDirectToolNames = directMcpNames();
+        hosted.mcpToolNames = new Set(
+          [...mcpDiscoveryTools, ...mcpTools].map((tool) => tool.name),
+        );
+        const entryNames = next
+          .filter((tool) => !hosted.mcpDirectToolNames.has(tool.piName))
+          .map((tool) => tool.piName);
+        session.setActiveToolsByName([...active, ...entryNames]);
+        hosted.executeTools = [
+          ...hosted.executeTools.filter((tool) => !oldNames.has(tool.name)),
+          ...session.agent.state.tools.filter((tool) =>
+            entryNames.includes(tool.name),
+          ),
+        ];
+        return true;
+      },
       currentTurnId: undefined,
       currentMode: undefined,
       compacting: false,

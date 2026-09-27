@@ -25,7 +25,11 @@ const channels = [
 function fixture(channel: (typeof channels)[number]) {
   let handler: (...args: unknown[]) => Promise<unknown>;
   const install = vi.fn(async () => ({
-    plugin: { id: "new-plugin", skillNames: ["new-skill"] },
+    plugin: {
+      id: "new-plugin",
+      skillNames: ["new-skill"],
+      mcpServerIds: ["new-server"],
+    },
     warnings: [],
     path: "/tmp/new-skill",
   }));
@@ -57,6 +61,8 @@ function fixture(channel: (typeof channels)[number]) {
     },
     settingsStore: { setSkillEnabled: vi.fn() },
     enableManagedPluginSkills: vi.fn(),
+    mcpConfigStore: { list: async () => [{ id: "new-server", enabled: true }] },
+    reconnectEnabledMcpServers: vi.fn(),
     applyAgentRuntime: vi.fn(),
     codexPluginMutationResult: (warnings: string[]) => ({ warnings }),
     mainWindow: {},

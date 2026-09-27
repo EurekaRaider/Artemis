@@ -1,4 +1,6 @@
 import { HooksService, type HookContext } from "./hooks-service.js";
+import { ComputerUseHost } from "./computer-use/host.js";
+import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
 import { homedir as hookHomeDir } from "node:os";
 import type { HookQuery, HookInvocation } from "@artemis/protocol";
 import {
@@ -452,6 +454,12 @@ let languagePreference: AppLanguage = "system";
 let resolvedLocalePreference: AppLocale = "en";
 let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
+let computerUseHost: ComputerUseHost | undefined;
+let computerUseServerId: string | undefined;
+const activeMcpCalls = new Map<
+  string,
+  { threadId: string; serverId: string; controller: AbortController }
+>();
 let mcpOAuthStore: McpOAuthStore | undefined;
 let mcpSecretStore: McpSecretStore | undefined;
 let connectorService: ConnectorService | undefined;
@@ -1635,6 +1643,12 @@ async function applyAgentRuntime(
   }
   resolved.hooksEnabled = true;
   resolved.mcpTools = mcpClientManager?.tools() ?? [];
+  if (
+    computerUseServerId &&
+    resolved.mcpTools.some((tool) => tool.serverId === computerUseServerId)
+  )
+    resolved.computerUseServerId = computerUseServerId;
+  else delete resolved.computerUseServerId;
   resolved.extensionTools = trustedExtensionManager?.tools() ?? [];
   // Full custom sub-agent definitions (including dedicated instructions)
   // travel only on this trusted main→worker channel; renderers receive
@@ -1712,6 +1726,10 @@ async function mcpAuthentication(
     return connectorService.authentication(config);
   }
   if (config.transport === "stdio") {
+    for (const name of config.envVars) {
+      if (!config.env[name] && !process.env[name])
+        throw new Error(`MCP environment variable is unavailable: ${name}`);
+    }
     const names = config.credentialEnvVars ?? [];
     if (names.length === 0) return undefined;
     if (!mcpSecretStore) throw new Error("MCP secret service is not ready.");
@@ -1743,7 +1761,9 @@ async function mcpAuthentication(
     return { headers };
   }
   if (auth === "bearer") {
-    return mcpBearerToken(config);
+    const token = await mcpBearerToken(config);
+    if (!token) throw new Error("MCP bearer credential is unavailable.");
+    return token;
   }
   if (auth !== "oauth") return undefined;
   if (!mcpOAuthStore) {
@@ -1813,10 +1833,32 @@ async function connectMcpServer(
   if (!mcpClientManager) {
     throw new Error("MCP service is not ready.");
   }
-  await ensureConnectorReady(config);
+  if (await codexPluginService?.isComputerUseServer(config)) {
+    if (!computerUseHost || config.transport !== "streamable-http")
+      throw new Error("Computer Use is unavailable on this platform.");
+    const connection = await computerUseHost.server.start();
+    computerUseServerId = config.id;
+    const status = await mcpClientManager.connect(
+      { ...config, url: connection.url },
+      { bearerToken: connection.bearerToken },
+    );
+    if (status.state !== "connected")
+      throw new Error(status.error ?? "Computer Use connection failed.");
+    return;
+  }
+  let authentication: Awaited<ReturnType<typeof mcpAuthentication>>;
+  try {
+    authentication = await mcpAuthentication(config);
+  } catch (error) {
+    await mcpClientManager.configurationRequired(
+      config,
+      error instanceof Error ? error.message : String(error),
+    );
+    return;
+  }
   const status = await mcpClientManager.connect(
     config,
-    await mcpAuthentication(config),
+    authentication,
     options,
   );
   if (status.state === "failed") {
@@ -1851,7 +1893,7 @@ async function disableConnector(id: string): Promise<void> {
 }
 
 async function resetAgentThreadsForToolChange(): Promise<void> {
-  // Additive installs skip this reset: new MCP servers stay disabled, and
+  // Additive installs skip this reset: their tools and skills are refreshed
   // runtime.configure defers Skill refreshes until the current turn ends.
   if (!agentProcess) return;
   if (activeTurns.size > 0) {
@@ -2134,6 +2176,7 @@ async function reconcileManagedPluginSkills(
   previousNames: string[],
   nextNames: string[],
   previousEnabled: ReadonlyMap<string, boolean>,
+  newSkillsEnabled = true,
 ): Promise<void> {
   if (!settingsStore) throw new Error("Agent settings are not ready.");
   const next = new Set(nextNames);
@@ -2147,13 +2190,19 @@ async function reconcileManagedPluginSkills(
   for (const name of nextNames) {
     await settingsStore.setSkillEnabled(
       join(app.getPath("home"), ".pi", "agent", "skills", name, "SKILL.md"),
-      previousEnabled.get(name) ?? true,
+      previousEnabled.get(name) ?? newSkillsEnabled,
     );
   }
 }
 
 async function disconnectMcpServers(serverIds: string[]): Promise<void> {
   if (!mcpClientManager) throw new Error("MCP service is not ready.");
+  for (const call of activeMcpCalls.values())
+    if (serverIds.includes(call.serverId)) call.controller.abort();
+  if (computerUseServerId && serverIds.includes(computerUseServerId)) {
+    computerUseHost?.dispose();
+    computerUseServerId = undefined;
+  }
   await Promise.all(
     serverIds.map((serverId) => {
       connectorService?.invalidate(serverId);
@@ -2417,10 +2466,7 @@ async function initializeOptionalCapabilities(): Promise<void> {
       .filter((config) => config.enabled)
       .map(async (config) => {
         try {
-          await mcpClientManager!.connect(
-            config,
-            await mcpAuthentication(config),
-          );
+          await connectMcpServer(config);
         } catch (error) {
           diagnosticBundleService?.record({
             source: "main",
@@ -2707,6 +2753,9 @@ function applyPayloadSideEffects(
           automationDeleted(completion.deletedAutomationId);
         }
       }
+      computerUseHost?.endTurn(threadId);
+      for (const call of activeMcpCalls.values())
+        if (call.threadId === threadId) call.controller.abort();
       activeTurns.delete(threadId);
       break;
     case "custom-agent.route":
@@ -2782,6 +2831,9 @@ function applyPayloadSideEffects(
           }
         }
       }
+      computerUseHost?.endTurn(threadId);
+      for (const call of activeMcpCalls.values())
+        if (call.threadId === threadId) call.controller.abort();
       activeTurns.delete(threadId);
       break;
   }
@@ -5603,6 +5655,13 @@ async function executeApprovedMcp(
     scope: resolution.scope,
     ...(resolution.source ? { source: resolution.source } : {}),
   });
+  const controller = new AbortController();
+  activeMcpCalls.set(workerRequestId, {
+    threadId: request.threadId,
+    serverId: request.serverId,
+    controller,
+  });
+  let releaseComputerGrant: (() => unknown) | undefined;
   try {
     if (request.mode !== "execute") {
       throw new Error(`${request.mode} mode rejects MCP calls.`);
@@ -5618,6 +5677,27 @@ async function executeApprovedMcp(
       if (config.transport === "stdio")
         privateMetadata = { [CONNECTOR_AUTH_META]: context };
     }
+    if (request.serverId === computerUseServerId) {
+      if (
+        !computerUseHost ||
+        request.actorAgentId ||
+        activeTurns.get(request.threadId) !== request.turnId ||
+        !(await codexPluginService?.isComputerUseServer(config))
+      )
+        throw new Error("Computer Use requires the active parent task.");
+      const grant = computerUseHost.server.authorize(
+        {
+          threadId: request.threadId,
+          turnId: request.turnId,
+          mode: request.mode,
+        },
+        request.toolName,
+        request.arguments,
+      );
+      privateMetadata = grant.metadata;
+      releaseComputerGrant = grant.dispose;
+    }
+    controller.signal.throwIfAborted();
     const result = await mcpClientManager.call(
       request.serverId,
       request.toolName,
@@ -5625,6 +5705,7 @@ async function executeApprovedMcp(
       request.workspacePath,
       request.mode,
       privateMetadata,
+      controller.signal,
     );
     agentProcess.post({
       type: "broker.resolve",
@@ -5639,6 +5720,9 @@ async function executeApprovedMcp(
       resolution: { ...resolution, approved: false },
       error: error instanceof Error ? error.message : String(error),
     });
+  } finally {
+    releaseComputerGrant?.();
+    activeMcpCalls.delete(workerRequestId);
   }
 }
 
@@ -7005,6 +7089,9 @@ function automationRunNotification(
 }
 
 async function cancelTaskTurn(threadId: string): Promise<void> {
+  computerUseHost?.endTurn(threadId);
+  for (const call of activeMcpCalls.values())
+    if (call.threadId === threadId) call.controller.abort();
   imService?.cancelOperations(threadId);
   const results = await Promise.allSettled([
     ...(activeTurns.has(threadId) ? [cancelLocalTaskTurn(threadId)] : []),
@@ -7015,6 +7102,9 @@ async function cancelTaskTurn(threadId: string): Promise<void> {
 }
 
 async function cancelLocalTaskTurn(threadId: string): Promise<void> {
+  computerUseHost?.endTurn(threadId);
+  for (const call of activeMcpCalls.values())
+    if (call.threadId === threadId) call.controller.abort();
   imService?.cancelOperations(threadId);
   if (!agentProcess || !store) {
     throw new Error("Application is not ready.");
@@ -7151,6 +7241,42 @@ async function cancelRunningGoalContinuation(threadId: string): Promise<void> {
 }
 
 function registerIpc(): void {
+  const assertComputerSender = (sender: Electron.WebContents) => {
+    if (sender.id !== mainWindow?.webContents.id)
+      throw new Error("Computer Use requires the Artemis window.");
+  };
+  ipcMain.handle(
+    IPC.computerRegisterBrowser,
+    (event, threadId: string, contentsId: number) => {
+      assertComputerSender(event.sender);
+      if (!store?.getThread(threadId) || !Number.isSafeInteger(contentsId))
+        throw new Error("Invalid browser task.");
+      computerUseHost?.registerBrowser(event.sender, threadId, contentsId);
+    },
+  );
+  ipcMain.handle(IPC.computerState, (event) => {
+    assertComputerSender(event.sender);
+    return computerUseHost?.service.status() ?? { version: 1, state: "idle" };
+  });
+  ipcMain.handle(
+    IPC.computerControl,
+    (event, action: string, threadId: string) => {
+      assertComputerSender(event.sender);
+      if (action === "stop")
+        computerUseHost?.service.stopThread(threadId, "User paused control");
+      else if (action === "resume")
+        computerUseHost?.service.resumeThread(threadId);
+      else throw new Error("Invalid control action.");
+    },
+  );
+  ipcMain.handle(IPC.computerPermissions, (event) => {
+    assertComputerSender(event.sender);
+    return computerUseHost?.permissions() ?? [];
+  });
+  ipcMain.handle(IPC.computerRevokePermission, (event, id: string) => {
+    assertComputerSender(event.sender);
+    return computerUseHost?.revoke(id);
+  });
   ipcMain.handle(IPC.hooksList, async (_event, query: HookQuery = {}) =>
     hookCatalog(query),
   );
@@ -9096,7 +9222,9 @@ function registerIpc(): void {
       if (!marketplace) {
         throw new Error("Bundled Lite artifact plugins are unavailable.");
       }
-      const pending = marketplace.plugins.filter((plugin) => !plugin.installed);
+      const pending = marketplace.plugins.filter(
+        (plugin) => !plugin.installed && plugin.source.kind !== "builtin",
+      );
       const publish = (percent: number) =>
         publishResourceInstallProgress(event.sender, {
           operationId,
@@ -9112,6 +9240,7 @@ function registerIpc(): void {
       const warnings: string[] = [];
       const installedSkillNames: string[] = [];
       const installedPluginIds: string[] = [];
+      const installedMcpIds: string[] = [];
       publish(5);
       try {
         for (const [index, plugin] of pending.entries()) {
@@ -9124,6 +9253,7 @@ function registerIpc(): void {
               ),
           );
           installedPluginIds.push(installed.plugin.id);
+          installedMcpIds.push(...installed.plugin.mcpServerIds);
           installedSkillNames.push(...installed.plugin.skillNames);
           warnings.push(...installed.warnings);
         }
@@ -9151,6 +9281,11 @@ function registerIpc(): void {
         );
       }
       await enableManagedPluginSkills(installedSkillNames);
+      await reconnectEnabledMcpServers(
+        (await mcpConfigStore!.list()).filter((config) =>
+          installedMcpIds.includes(config.id),
+        ),
+      );
       await applyAgentRuntime();
       publish(100);
       return codexPluginMutationResult(warnings);
@@ -9169,6 +9304,7 @@ function registerIpc(): void {
       const operationId = resourceInstallOperationId(operationIdInput);
       const resourceId =
         source?.kind === "git" ||
+        source?.kind === "builtin" ||
         source?.kind === "bundled" ||
         source?.kind === "runtime"
           ? source.pluginName
@@ -9185,6 +9321,11 @@ function registerIpc(): void {
         publish(10 + percent * 0.8),
       );
       await enableManagedPluginSkills(installed.plugin.skillNames);
+      await reconnectEnabledMcpServers(
+        (await mcpConfigStore!.list()).filter((config) =>
+          installed.plugin.mcpServerIds.includes(config.id),
+        ),
+      );
       await applyAgentRuntime();
       publish(100);
       return codexPluginMutationResult(installed.warnings);
@@ -9219,12 +9360,18 @@ function registerIpc(): void {
           .filter((skill) => existingSkillNames.has(skill.name))
           .map((skill) => [skill.name, skill.enabled]),
       );
+      const pluginEnabled =
+        (existing.hasHooks &&
+          (await getHooksService().pluginEnabled(pluginId))) ||
+        [...previousSkillState.values()].some(Boolean) ||
+        before.some((config) => scopedIds.has(config.id) && config.enabled);
       publish(5);
-      await resetAgentThreadsForToolChange();
       await disconnectMcpServers(existing.mcpServerIds);
       try {
-        const updated = await codexPluginService.update(pluginId, (percent) =>
-          publish(10 + percent * 0.8),
+        const updated = await codexPluginService.update(
+          pluginId,
+          (percent) => publish(10 + percent * 0.8),
+          { newServicesEnabled: pluginEnabled },
         );
         const after = await mcpConfigStore.list();
         await cleanupRemovedMcpAuthentication(before, after, scopedIds);
@@ -9232,6 +9379,7 @@ function registerIpc(): void {
           existing.skillNames,
           updated.plugin.skillNames,
           previousSkillState,
+          pluginEnabled,
         );
         await reconnectEnabledMcpServers(
           after.filter((config) =>
@@ -9290,16 +9438,10 @@ function registerIpc(): void {
       const nextMcp = previousMcp.map((config) =>
         mcpIds.has(config.id) ? { ...config, enabled: enabledInput } : config,
       );
-      if (enabledInput) {
-        for (const config of nextMcp.filter((candidate) =>
-          mcpIds.has(candidate.id),
-        )) {
-          await ensureConnectorReady(config);
-        }
-      }
       if (!enabledInput)
         await getHooksService().setPluginEnabled(pluginId, false);
-      await resetAgentThreadsForToolChange();
+      if (existing.mcpServerIds.includes(computerUseServerId ?? ""))
+        computerUseHost?.dispose();
       await disconnectMcpServers(existing.mcpServerIds);
       try {
         for (const skill of ownedSkills) {
@@ -9353,7 +9495,6 @@ function registerIpc(): void {
       await getHooksService().removePlugin(pluginId);
       const before = await mcpConfigStore.list();
       const scopedIds = new Set(existing.mcpServerIds);
-      await resetAgentThreadsForToolChange();
       await disconnectMcpServers(existing.mcpServerIds);
       try {
         const removed = await codexPluginService.remove(pluginId);
@@ -16343,6 +16484,8 @@ function createMainWindow(): BrowserWindow {
   }
   window.on("closed", () => {
     if (mainWindow === window) {
+      computerUseHost?.service.stopAll("Artemis window closed");
+      computerUseHost?.native.dispose();
       mainWindow = undefined;
       if (taskNotifications) taskNotifications.viewedThreadId = undefined;
     }
@@ -21542,6 +21685,10 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 app.on("render-process-gone", (_event, _contents, details) => {
+  if (_contents === mainWindow?.webContents) {
+    computerUseHost?.service.stopAll("Artemis renderer stopped");
+    computerUseHost?.native.dispose();
+  }
   diagnosticBundleService?.record({
     source: "renderer",
     severity: details.reason === "clean-exit" ? "info" : "fatal",
@@ -21944,8 +22091,22 @@ app
       },
     );
     mcpClientManager.onStatusChange((status) => {
+      if (
+        status.config.id === computerUseServerId &&
+        status.state !== "connected"
+      )
+        computerUseHost?.service.stopAll("Computer Use connection changed");
       if (!mainWindow?.isDestroyed())
-        mainWindow?.webContents.send(IPC.mcpServerStatus, status);
+        mainWindow?.webContents.send(
+          IPC.mcpServerStatus,
+          status.config.id === computerUseServerId &&
+            status.config.transport === "streamable-http"
+            ? {
+                ...status,
+                config: { ...status.config, url: COMPUTER_USE_CONFIG_URL },
+              }
+            : status,
+        );
     });
     resourceCatalogService = new ResourceCatalogService(
       join(app.getPath("home"), ".pi", "agent", "skills"),
@@ -21965,8 +22126,34 @@ app
       mcpWorkspaceRoot: join(app.getPath("userData"), "mcp-workspaces"),
       mcpStore: mcpConfigStore,
       bundledArtifactRoot: bundledArtifactPluginsPath(),
+      ...(process.platform === "darwin"
+        ? {
+            computerUseRoot: join(
+              dirname(bundledArtifactPluginsPath()),
+              "computer-use",
+            ),
+          }
+        : {}),
       fetcher: (url, init) => net.fetch(url, init),
     });
+    if (process.platform === "darwin")
+      computerUseHost = new ComputerUseHost({
+        helperPath: app.isPackaged
+          ? join(process.resourcesPath, "computer-use", "artemis-computer-use")
+          : join(
+              app.getAppPath(),
+              "build",
+              "computer-use",
+              "development",
+              "artemis-computer-use",
+            ),
+        permissionsPath: join(
+          app.getPath("userData"),
+          "computer-use-permissions.json",
+        ),
+        window: () => mainWindow,
+        chinese: () => currentLocale().startsWith("zh"),
+      });
     configurationImportService = new ConfigurationImportService({
       homePath: app.getPath("home"),
       skillsPath: join(app.getPath("home"), ".pi", "agent", "skills"),
@@ -22174,6 +22361,7 @@ app.on("window-all-closed", () => {
 let endingHookSessions = false;
 let hookSessionsEnded = false;
 app.on("before-quit", (event) => {
+  computerUseHost?.dispose();
   if (!hookSessionsEnded && openedThreads.size && canRunLicensed()) {
     event.preventDefault();
     if (!endingHookSessions) {

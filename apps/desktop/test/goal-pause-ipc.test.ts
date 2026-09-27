@@ -49,6 +49,8 @@ function fixture(source?: "user" | "goal-continuation") {
     },
     emitGoalUpdated: vi.fn(),
     activeTurns: new Map(source ? [["thread", "turn"]] : []),
+    computerUseHost: { endTurn: vi.fn() },
+    activeMcpCalls: new Map(),
     goalTurnContexts: new Map(source ? [["turn", { source }]] : []),
     cancelLocalTaskTurn,
     imService: {

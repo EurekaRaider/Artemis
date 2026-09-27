@@ -89,6 +89,8 @@ export interface ExtensionRuntimeTool {
 }
 
 export interface AgentRuntimeConfiguration {
+  /** Host-verified first-party capability identity; never accepted from a plugin manifest. */
+  computerUseServerId?: string;
   /** Desktop host supplies the trusted command-hook broker. */
   hooksEnabled?: boolean;
   credentials: Record<string, RuntimeCredential>;

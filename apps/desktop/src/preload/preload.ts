@@ -9,6 +9,28 @@ import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
+  registerComputerBrowser: (threadId, contentsId) =>
+    ipcRenderer.invoke(IPC.computerRegisterBrowser, threadId, contentsId),
+  getComputerState: () => ipcRenderer.invoke(IPC.computerState),
+  controlComputer: (action, threadId) =>
+    ipcRenderer.invoke(IPC.computerControl, action, threadId),
+  getComputerPermissions: () => ipcRenderer.invoke(IPC.computerPermissions),
+  revokeComputerPermission: (id) =>
+    ipcRenderer.invoke(IPC.computerRevokePermission, id),
+  onComputerState(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      state: import("@artemis/protocol").ComputerControlState,
+    ) => listener(state);
+    ipcRenderer.on(IPC.computerState, handler);
+    return () => ipcRenderer.removeListener(IPC.computerState, handler);
+  },
+  onComputerBrowserOpen(listener) {
+    const handler = (_event: Electron.IpcRendererEvent, threadId: string) =>
+      listener(threadId);
+    ipcRenderer.on(IPC.computerBrowserOpen, handler);
+    return () => ipcRenderer.removeListener(IPC.computerBrowserOpen, handler);
+  },
   listHooks: (query) => ipcRenderer.invoke(IPC.hooksList, query),
   trustHooks: (query, reviewed, scope) =>
     ipcRenderer.invoke(IPC.hooksTrust, query, reviewed, scope),
