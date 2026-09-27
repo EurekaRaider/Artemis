@@ -130,9 +130,49 @@ try {
   checkpoint("offline-install");
   const initial = await service.acquire();
   release = initial.release;
+  users = ["Documents", "Presentations", "Spreadsheets"];
+  await reject(service.uninstall(first.version), "in use");
+  checkpoint("active-session-uninstall-protected");
+  cancelDownload = true;
+  await reject(service.install(upgrade), "cancelled");
+  if ((await service.status()).activeVersion !== first.version)
+    throw Error("Cancellation changed the active version");
+  checkpoint("interrupted-download-retains-active-version");
+  cancelDownload = false;
+  await service.install(upgrade);
+  if ((await service.status()).activeVersion !== upgrade.version)
+    throw Error("Upgrade did not activate");
+  checkpoint("streamed-upgrade");
+  await service.activate(first.version);
+  release();
+  release = undefined;
+  await reject(service.uninstall(first.version), "shared");
+  checkpoint("rollback", "shared-plugin-uninstall-protected");
+  await writeFile(
+    join(root, "office-core", first.version, "manifest.json"),
+    "{interrupted receipt",
+  );
+  await service.install(first, archive);
+  checkpoint("damaged-receipt-repaired");
+  await writeFile(
+    join(root, "office-core", first.version, "payload", first.entrypoint),
+    "corrupted candidate fixture",
+  );
+  await service.install(first, archive);
+  checkpoint("damaged-payload-repaired");
+  users = [];
+  await service.uninstall(upgrade.version);
+  await service.deactivate();
+  await service.uninstall(first.version);
+  if ((await service.status()).versions.length)
+    throw Error("Uninstall left an advertised installation");
+  checkpoint("uninstall");
+  await service.install(first, archive);
+  const lease = await service.acquire();
+  release = lease.release;
   const engine = await UnoOfficeEngine.create(
-    initial.root,
-    initial.manifest,
+    lease.root,
+    lease.manifest,
     join(out, `profile-${randomUUID()}`),
     () => {},
   );
@@ -182,46 +222,6 @@ try {
   } finally {
     await engine.close();
   }
-  users = ["Documents", "Presentations", "Spreadsheets"];
-  await reject(service.uninstall(first.version), "in use");
-  checkpoint("active-session-uninstall-protected");
-  cancelDownload = true;
-  await reject(service.install(upgrade), "cancelled");
-  if ((await service.status()).activeVersion !== first.version)
-    throw Error("Cancellation changed the active version");
-  checkpoint("interrupted-download-retains-active-version");
-  cancelDownload = false;
-  await service.install(upgrade);
-  if ((await service.status()).activeVersion !== upgrade.version)
-    throw Error("Upgrade did not activate");
-  checkpoint("streamed-upgrade");
-  await service.activate(first.version);
-  release();
-  release = undefined;
-  await reject(service.uninstall(first.version), "shared");
-  checkpoint("rollback", "shared-plugin-uninstall-protected");
-  await writeFile(
-    join(root, "office-core", first.version, "manifest.json"),
-    "{interrupted receipt",
-  );
-  await service.install(first, archive);
-  checkpoint("damaged-receipt-repaired");
-  await writeFile(
-    join(root, "office-core", first.version, "payload", first.entrypoint),
-    "corrupted candidate fixture",
-  );
-  await service.install(first, archive);
-  checkpoint("damaged-payload-repaired");
-  users = [];
-  await service.uninstall(upgrade.version);
-  await service.deactivate();
-  await service.uninstall(first.version);
-  if ((await service.status()).versions.length)
-    throw Error("Uninstall left an advertised installation");
-  checkpoint("uninstall");
-  await service.install(first, archive);
-  const lease = await service.acquire();
-  release = lease.release;
   const aclScript = await readFile(
     join(dirname(resolve(probePath)), "verify-installed-acl.ps1"),
     "utf8",
