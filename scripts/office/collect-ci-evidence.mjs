@@ -14,7 +14,7 @@ for (const line of (await readFile(log, "utf8")).split(/\r?\n/u)) {
   const row = JSON.parse(line.slice(start + marker.length));
   if (
     typeof row.path !== "string" ||
-    !/^(probe|preview|evidence|ordinary-user)\/[a-zA-Z0-9_./-]+$/u.test(
+    !/^(probe|preview|evidence|ordinary-user|panels|candidate|client)\/[a-zA-Z0-9_./-]+$/u.test(
       row.path,
     ) ||
     row.path

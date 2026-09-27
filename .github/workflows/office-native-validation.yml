@@ -219,6 +219,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26.9.0
+      - name: Match the hosted runner's verified cache tools
+        run: node scripts/office/prepare-windows-cache.mjs
       - name: Restore the exact candidate and verifier from this run
         uses: actions/cache/restore@v6.1.0
         with:
