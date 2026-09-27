@@ -2,7 +2,9 @@
 
 验证日期：2026-09-27。分支：`codex/office-workbench`，基于 `7134a85093a5822a0fc930f330efbc249d304021`。
 
-**当前状态：macOS arm64 的 30/30 样本已通过原生打开、修改、PDF 渲染、保存副本及重开核对。Windows 未签名候选包正在复验。** 最新本地报告为 `artifacts/office/probe-iteration-5/report.json`。这不等于复杂格式保真、macOS x64 或正式发行验收；`compatibilityAccepted` 仍为 `false`。Windows 旧运行是 17/30，详见下文历史证据，不能据此描述本轮候选包结果。
+**当前状态：本轮 Windows 未签名候选包验收已完成。macOS arm64、托管 Windows 普通用户、Windows 11 非管理员服务账户均为 30/30 原生样本流程通过；两个 Windows 环境各 44 项回归与 12 项安装生命周期检查均通过。** macOS 最新报告为 `artifacts/office/probe-macos-startup/report.json`。这些结果不等于复杂格式保真或正式发行验收；`compatibilityAccepted` 和 `releaseAccepted` 仍为 `false`。
+
+按用户于 2026-09-27 确认的范围，macOS 仅验收 arm64；macOS x64 不属于本次验收，也不作为本次交付待办。
 
 本轮补齐 Writer 表格/文本框、Impress 组内对象/表格/图片位移/空页插入及受限 SmartArt 文字往返。透视表改为编辑数值源单元格，并验证结果区域写入会被拒绝。Calc 使用批量 UNO 快照读取。面板补齐事件缺口恢复、干净文档外部保存重载、幻灯片缩略图、书签工作表定位及 14 种语言。
 
@@ -15,19 +17,21 @@ Windows Authenticode 证书不是验收前提。候选包使用明确允许未�
 | 工作项 | 当前状态 |
 | --- | --- |
 | 三个插件共用可选 `office-core`，v1/v2 工具路由 | 已实现，插件安装测试验证依赖保留 |
-| 签名、平台、版本、摘要、限额、原子安装、离线复用同一验证路径 | 已实现并使用合成签名包测试；未用正式发行包验收 |
+| 签名、平台、版本、摘要、限额、原子安装、离线复用同一验证路径 | 已用真实裁剪候选 ZIP 验证；候选密钥独立于生产信任根 |
 | 取消、修复、切换、停用、共享依赖和租约保护 | 已实现并有回归；损坏收据修复已实现，异常断电遗留目录清理待补 |
 | Execute 边界、来源保护、版本去重、日志恢复和原件冲突保护 | 已实现并有回归 |
-| 原生 C++ UNO 桥、内存文档操作与 PDF 导出 | macOS arm64 与 Windows x64 均真实运行；macOS 本轮 30/30；Windows 旧版 17/30，本轮待复验 |
+| 原生 C++ UNO 桥、内存文档操作与 PDF 导出 | macOS arm64、Windows 管理员及安装候选包的普通用户均 30/30 |
 | 页面预览、区域批注、旧结果抑制、滚动与缩放 | 真实 Electron 渲染验证通过，数据为合成 IPC |
-| Windows 普通用户、用户数据目录及中文工作区路径 | 已用实际非管理员令牌运行，30 份样本结果与管理员一致；工程运行时证据，不是正式包验收 |
+| Windows 普通用户、用户数据目录及中文工作区路径 | 托管普通用户与 Windows 11 非管理员服务账户均已通过；后者不等同于桌面普通用户 |
 | 全局事件缺口恢复后的修改跟随 | 已实现并通过协议和 Electron 补快照回归 |
 | 外部文件保存后刷新 | 干净会话自动重载，脏会话保留草稿并报冲突 |
-| 幻灯片缩略图、工作表与页面映射、完整语言覆盖 | 已实现；实际候选包预览复验中 |
+| 幻灯片缩略图、工作表与页面映射、完整语言覆盖 | 已实现；Windows 候选包生成的 PDF 在真实 Electron 面板中通过复验 |
 | 主程序 CD 只验证并复用已有运行时资产 | 已接入只读脚本；空目录不启用增强能力 |
 | 轻量商店目录迁移和独立运行时发布 CD | 未发布、未完成正式发布链路 |
-| macOS Developer ID、公证 Accepted、staple 与 Windows 最终 ACL | 未验收 |
-| 真实下载路径首次安装、离线启动、升级/回退 | 未验收 |
+| Windows 最终安装目录有效 ACL | 13,700 个目录/文件逐项通过；无非预期写入者 |
+| macOS Developer ID、公证 Accepted、staple | 未验收 |
+| 候选包离线安装、启动、流式升级/回退 | 真实安装器已通过；流式传输使用本机 HTTP 测试端点 |
+| 公开 HTTPS 下载及生产目录 | 未验收、未发布 |
 
 ## 固定输入与复现
 
@@ -49,112 +53,117 @@ Windows 使用 `office-bridge.exe`。官方输入的挂载、解包和编译步�
 
 首次原生验证曾在 `XComponentLoader` 调用时崩溃。调试确认仅加载 URE 类型库会缺少 Office 接口元数据；桥接进程加入 `URE_MORE_TYPES=…/types/offapi.rdb` 后重新运行得到下述结果。这是启动配置缺陷，不能把旧崩溃记录当作 LibreOffice 不支持所有样本的证据。
 
-本机最新原生报告为 `artifacts/office/probe-types/report.json`，每个通过的样本目录包含 `live.pdf`、`reopened.pdf`、保存副本和 `snapshots.json`。前期失败报告保留作诊断，不作为最终结果。界面报告位于 `artifacts/office/preview/report.json`，截图为同目录 `desktop.png` 与 `compact.png`；这些忽略目录由脚本再生成。
+本机最新原生报告为 `artifacts/office/probe-macos-startup/report.json`，每个样本目录包含 `live.pdf`、`reopened.pdf`、保存副本和 `snapshots.json`。报告的 `sourceCommit` 指样本仓库提交，`executionCommit` 为 Artemis 的 `f49232f414e5f653cfd6c1e2c4476c05cca409c6`。独立延迟启动实测故意在桥接启动后 20 秒才启动 Office，约 20.90 秒后正常连接并关闭，报告为 `artifacts/office/startup-delay-macos/report.json`。前期失败报告保留作诊断，不作为最终结果。
 
-## 上一轮 Windows 实测证据（本轮前）
+## Windows 未签名候选包证据
 
-[上一轮 Windows CI](https://github.com/EurekaRaider/Artemis/actions/runs/36312571414) 验证代码提交 `28fe16f24d5425b677987dc322daa50511120fed`，结论为 **failure**：管理员和普通用户的原生样本门槛均未通过，不应将该运行描述为验收全绿。Windows 上的 4 个针对性测试文件、35 项协议/策略/恢复/安装测试，以及真实 Electron 预览脚本均通过。预览确认内容已重绘、旧版本未覆盖新版本、批注绑定版本 2、滚动位置保留，错误列表为空。
+[最终复验 CI](https://github.com/EurekaRaider/Artemis/actions/runs/36323202452) 的两个作业均通过。验收代码为 `a880d249d2bcab55b56a26256b51681966b158b4`，候选包构建代码为 `f49232f414e5f653cfd6c1e2c4476c05cca409c6`；两者之间仅调整测试和验收脚本，产品源码相同。两个环境先核对相同 ZIP 的实际 SHA-256，再通过生产 `CapabilityPackService` 安装，并使用生产 `UnoOfficeEngine` 执行。
 
-环境为 GitHub 托管 `windows-2025` x64，镜像 `win25-vs2026 / 20260922.246.2`，OS 版本 `10.0.26100.0`，Node `26.9.0`，LibreOffice `26.8.0.3`。引擎、SDK、头文件及样本均通过固定摘要校验，辅助程序在该 Windows VM 上由 MSVC 原生编译。
+| 环境 | 账户 | 回归测试 | 安装生命周期 | 安装后原生样本 | 最终 ACL |
+| --- | --- | --- | --- | --- | --- |
+| Windows Server 2025 x64 / Build 26100 | 新建真实普通用户，非管理员 | 44 / 44 | 12 / 12 | 30 / 30 | 13,700 项，无非预期写入者 |
+| Windows 11 Pro x64 / Build 26200 | NETWORK SERVICE，非管理员 | 44 / 44 | 12 / 12 | 30 / 30 | 13,700 项，无非预期写入者 |
 
-普通用户测试创建了临时本地账户，核对 `administrator: false`，使用该账户自己的环境和用户配置；运行时位于 `%LOCALAPPDATA%/Artemis/capability-packs/office-core/1.0.0/payload`，工作区位于 `%LOCALAPPDATA%/Artemis/验证文档`。其报告覆盖完整 30 份样本，仍为 Word 6/10、PowerPoint 4/10、Excel 7/10；失败样本及原因与管理员和 macOS 完全相同。安装目录、引擎和辅助程序的 ACL 均记录在证据中，写权限仅授予该测试用户、SYSTEM 和 Administrators。
+Windows 11 runner 的实际 SID 为 `S-1-5-20`。这是服务账户的真实客户端验证，不能称为 Windows 11 桌面普通用户验收。普通用户证据来自托管 Windows Server。两端均使用用户所属的 LocalAppData 安装目录和中文文档路径，Windows 11 的本次临时安装已清理。
 
-官方 `soffice.exe` 的 Authenticode 为 `Valid`，发布者为 The Document Foundation；自有 `office-bridge.exe` 为 `NotSigned`。测试直接复制工程运行时到用户目录，未经过正式签名包的真实下载、安装和升级链路，故 `finalCapabilityPackage` 与 `releaseAccepted` 保持 `false`。管理员阶段的 `windows.json` 先于普通用户复测生成，其中 `ordinaryUserValidated: false` 不能替代后续独立的普通用户报告。
+12 个检查点覆盖离线导入、活跃会话卸载保护、下载取消后保留已激活版本、流式升级、回滚、插件共享卸载保护、损坏收据修复、损坏内容修复、卸载、重装后的真实宿主打开/编辑/渲染/保存、最终 ACL、安装后完整样本复验。最终安装目录逐项检查只允许该账户、SYSTEM 和 Administrators 写入。
 
-GitHub Artifact 存储配额已满，上传未成功；workflow 允许上传失败后继续回收证据。日志通道已恢复 108 个文件，共 4,544,031 字节，逐文件校验 SHA-256。四份约 20.7 MB 的大表格 PDF 超出日志单文件 16 MiB 限额，仅保留大小和摘要，不能宣称已下载或完整视觉验收这些 PDF。回收入口：
+自有 `office-bridge.exe` 为 `NotSigned`，由候选 Ed25519 清单明确允许。上游 `soffice.exe` 和 `soffice.bin` 按发布者指纹校验，全部文件仍校验摘要。候选密钥不进入生产目录；两端 `candidateAccepted: true`、`releaseAccepted: false`、`publicDownloadValidated: false`。流式传输使用真实本机 HTTP 测试端点，未发布占位 Release URL。
 
-```sh
-gh run view 36312571414 --repo EurekaRaider/Artemis --log > artifacts/office/windows-ci-36312571414-full.log
-node scripts/office/collect-ci-evidence.mjs artifacts/office/windows-ci-36312571414-full.log artifacts/office/windows-ci-36312571414
-```
+旧包的[冷启动复验](https://github.com/EurekaRaider/Artemis/actions/runs/36321054526) 曾在 15 秒 UNO 连接窗口结束后退出。新包将连接上限独立设为 60 秒，首次请求共 90 秒，收到响应后的操作仍限 30 秒；真实宿主检查保持在修复、卸载、重装之后。macOS 的 20 秒延迟启动实验也通过。未将系统延迟归因于未经证实的具体原因。
 
-输出目录必须尚不存在。主要证据相对于该目录为：
+[新包构建运行](https://github.com/EurekaRaider/Artemis/actions/runs/36321959853) 已通过管理员 30/30、普通用户的 12 个检查点及 30/30，但整次运行因 PDF 往返测试超过默认 5 秒、顺序预览测试超过整轮 30 秒而失败。随后只调整对应测试的总时限：文件往返 30 秒，多文档预览 120 秒；内容与画面就绪断言保留。最终复验全部通过，旧失败记录继续保留。
 
-| 证据 | 路径 |
+Artifact 配额已满，最终复验通过 CI 日志恢复托管端 100 个、客户端 99 个文件，逐个验证 SHA-256。大于 16 MiB 的 PDF 仅记录大小和摘要，不声称完整视觉验收。日志不包含引擎用户配置或候选私钥。主要报告位于：
+
+| 证据 | 本地路径 |
 | --- | --- |
-| 管理员原生报告 | `probe/report.json` |
-| 普通用户身份、实际目录及 ACL | `ordinary-user/identity.json` |
-| 普通用户原生报告 | `ordinary-user/native/report.json` |
-| OS、构建提交、原生签名与摘要 | `evidence/windows.json` |
-| 预览行为与 Windows 截图 | `preview/report.json`、`preview/desktop.png`、`preview/compact.png` |
-| 日志回收数量及大文件遗漏清单 | `evidence/log-transport.json` |
+| 托管普通用户安装、生命周期和 ACL | `artifacts/office/windows-ci-36323202452-host/ordinary-user/report.json` |
+| 托管普通用户 30/30 | `artifacts/office/windows-ci-36323202452-host/ordinary-user/native/report.json` |
+| Windows 11 服务账户安装、生命周期和 ACL | `artifacts/office/windows-ci-36323202452-client/client/report.json` |
+| Windows 11 服务账户 30/30 | `artifacts/office/windows-ci-36323202452-client/client/native/report.json` |
+| 构建提交、验收提交及归档摘要绑定 | 两个最终目录中的 `evidence/identity.json` |
+| 管理员 30/30 | `artifacts/office/windows-ci-36321959853-host/probe/report.json` |
 
-已查看两张 Windows 原始截图，实际像素尺寸为 1008×655 与 584×785；这些尺寸不同于脚本请求的外框尺寸。普通用户导出的 `word/2col-header.docx`、`slides/ShapePlusImage.pptx`、`sheets/TableStyleTest.xlsx` 重开后 PDF 各一页，已用 Poppler 渲染并逐页检查，可见修改标记及对应页眉页脚、图形和表格。Excel 新增长表头在固定列宽下未完整显示。该抽查证明真实内容可渲染，不能替代与原件的复杂特性和像素保真比较；完整宿主布局也不由合成面板截图验收。
+Electron 检查使用真实 PDF.js 和受控 IPC，验证过期结果抑制、批注源版本、滚动保留、缩略图、事件缺口恢复和工作表 PDF 页码映射；它不等同于完整 Artemis 主窗口的端到端验收。按用户最新要求，交付仅输出验收报告，不再处理或展示截图。
 
-## 样本矩阵（macOS 本轮 / Windows 旧版）
+## 样本矩阵（macOS arm64 / Windows 候选包）
 
-“流程通过”只表示修改标记经过保存副本和重开仍存在；不表示字体、样式、图片、图表、母版、动画、公式缓存等特性已经无损保留。`目标缺失` 指当前桥接层的有限选取能力，不等于上游引擎无法打开文件。
+“流程通过”表示实际打开、局部修改、PDF 导出、保存副本、重开后目标核对通过；图片页检查位移，空页检查新插入文字。它不表示字体、样式、图片、图表、母版、动画、公式缓存等特性已经无损保留。
 
 | 样本 | macOS arm64 流程 | 格式保真 | Windows x64 |
 | --- | --- | --- | --- |
 | `word/2col-header.docx` | 通过 | 未验收 | 通过 |
-| `word/ImageCrop.docx` | 通过 | 未验收 | 目标缺失 |
-| `word/EmbeddedExcelChart.docx` | 通过 | 未验收 | 目标缺失 |
+| `word/ImageCrop.docx` | 通过 | 未验收 | 通过 |
+| `word/EmbeddedExcelChart.docx` | 通过 | 未验收 | 通过 |
 | `word/TableWithAboveCaptions.docx` | 通过 | 未验收 | 通过 |
-| `word/dml-groupshape-runfonts.docx` | 通过 | 未验收 | 目标缺失 |
+| `word/dml-groupshape-runfonts.docx` | 通过 | 未验收 | 通过 |
 | `word/numbering-font.docx` | 通过 | 未验收 | 通过 |
 | `word/style-inheritance.docx` | 通过 | 未验收 | 通过 |
 | `word/tdf120344_FontTypes.docx` | 通过 | 未验收 | 通过 |
-| `word/table-style-border.docx` | 通过 | 未验收 | 目标缺失 |
+| `word/table-style-border.docx` | 通过 | 未验收 | 通过 |
 | `word/section_break_numbering.docx` | 通过 | 未验收 | 通过 |
 | `slides/ShapePlusImage.pptx` | 通过 | 未验收 | 通过 |
 | `slides/font-scale.pptx` | 通过 | 未验收 | 通过 |
 | `slides/master-slides.pptx` | 通过 | 未验收 | 通过 |
-| `slides/onemaster-twolayouts.pptx` | 通过 | 未验收 | 目标缺失 |
-| `slides/chart_pt_color_bg1.pptx` | 通过 | 未验收 | 目标缺失 |
-| `slides/connector-shape-animations.pptx` | 通过 | 未验收 | 目标缺失 |
-| `slides/smartart-org-chart.pptx` | 通过 | 未验收 | 目标缺失 |
-| `slides/tableBorderLineStyle.pptx` | 通过 | 未验收 | 目标缺失 |
+| `slides/onemaster-twolayouts.pptx` | 通过 | 未验收 | 通过 |
+| `slides/chart_pt_color_bg1.pptx` | 通过 | 未验收 | 通过 |
+| `slides/connector-shape-animations.pptx` | 通过 | 未验收 | 通过 |
+| `slides/smartart-org-chart.pptx` | 通过 | 未验收 | 通过 |
+| `slides/tableBorderLineStyle.pptx` | 通过 | 未验收 | 通过 |
 | `slides/shape-text-rotate.pptx` | 通过 | 未验收 | 通过 |
-| `slides/customshape-bitmapfill-srcrect.pptx` | 通过 | 未验收 | 目标缺失 |
-| `sheets/fontSize.xlsx` | 通过 | 未验收 | 目标缺失 |
+| `slides/customshape-bitmapfill-srcrect.pptx` | 通过 | 未验收 | 通过 |
+| `sheets/fontSize.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/testDrawCircleInMergeCells.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/cond_format_formula_listener.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/tdf151755_stylesLostOnXLSXExport.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/TableStyleTest.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/image_hyperlink.xlsx` | 通过 | 未验收 | 目标缺失 |
+| `sheets/image_hyperlink.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/hyperlink_formula.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/PivotTable_CachedDefinitionAndDataInSync.xlsx` | 通过 | 未验收 | 重开后修改丢失 |
+| `sheets/PivotTable_CachedDefinitionAndDataInSync.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/column-style-autofilter.xlsx` | 通过 | 未验收 | 通过 |
 | `sheets/chart_hyperlink.xlsx` | 通过 | 未验收 | 通过 |
 
 ## 计时与体积
 
-以下为通过样本的单次测量，P95 使用 nearest-rank。失败样本不计入这些数值，因此它们不能代表全部文档性能。现有脚本的 `snapshotMs` 从修改操作开始计时，包含操作确认，表中明确记为“操作加快照”，不是纯快照耗时。
+以下为完整 30 份样本的单次测量，P95 使用 nearest-rank；每类只有 10 份，故此处 P95 等于该类最大值。`snapshotMs` 从修改开始计时，包含操作确认，表中记为“操作加快照”，不是纯快照耗时。
 
 | 平台 / 账户 | 格式 | 流程通过 | 原生操作确认 P95 | 操作加快照 P95 | 原生 PDF 导出 P95 |
 | --- | --- | --- | --- | --- | --- |
-| macOS arm64 | Word | 6 / 10 | 18.08 ms | 43.81 ms | 16.70 ms |
-| macOS arm64 | PowerPoint | 4 / 10 | 0.49 ms | 1.10 ms | 29.74 ms |
-| macOS arm64 | Excel | 7 / 10 | 0.92 ms | 2913.46 ms | 737.44 ms |
-| Windows 管理员 | Word | 6 / 10 | 77.14 ms | 280.63 ms | 62.65 ms |
-| Windows 管理员 | PowerPoint | 4 / 10 | 1.90 ms | 5.86 ms | 67.94 ms |
-| Windows 管理员 | Excel | 7 / 10 | 2.69 ms | 16633.97 ms | 3229.05 ms |
-| Windows 普通用户 | Word | 6 / 10 | 74.91 ms | 169.93 ms | 136.14 ms |
-| Windows 普通用户 | PowerPoint | 4 / 10 | 1.86 ms | 5.68 ms | 356.55 ms |
-| Windows 普通用户 | Excel | 7 / 10 | 7.00 ms | 19004.47 ms | 8443.26 ms |
+| macOS arm64 | Word | 10 / 10 | 23.40 ms | 51.71 ms | 24.98 ms |
+| macOS arm64 | PowerPoint | 10 / 10 | 19.99 ms | 28.45 ms | 26.99 ms |
+| macOS arm64 | Excel | 10 / 10 | 0.59 ms | 16.65 ms | 700.44 ms |
+| 托管 Windows 管理员 | Word | 10 / 10 | 91.16 ms | 209.96 ms | 57.35 ms |
+| 托管 Windows 管理员 | PowerPoint | 10 / 10 | 75.95 ms | 98.78 ms | 44.98 ms |
+| 托管 Windows 管理员 | Excel | 10 / 10 | 2.10 ms | 74.07 ms | 3264.85 ms |
+| 托管 Windows 候选包普通用户 | Word | 10 / 10 | 264.62 ms | 473.62 ms | 237.10 ms |
+| 托管 Windows 候选包普通用户 | PowerPoint | 10 / 10 | 122.93 ms | 179.03 ms | 77.79 ms |
+| 托管 Windows 候选包普通用户 | Excel | 10 / 10 | 4.03 ms | 87.74 ms | 3302.11 ms |
+| Windows 11 服务账户 | Word | 10 / 10 | 56.55 ms | 115.56 ms | 84.40 ms |
+| Windows 11 服务账户 | PowerPoint | 10 / 10 | 43.03 ms | 60.93 ms | 69.00 ms |
+| Windows 11 服务账户 | Excel | 10 / 10 | 1.30 ms | 43.87 ms | 2626.29 ms |
 
-这些时间没有涵盖完整宿主队列、IPC、PDF.js 解码和屏幕呈现。**不能据此宣布 UI 状态 P95 ≤ 300 ms 或可见内容 P95 ≤ 1 秒达标。** Windows 普通用户下，大 Excel 样本操作加快照约 19.0 秒、原生 PDF 导出约 8.44 秒，已明显超出即时跟随体验所能接受的范围。需改进目标索引、增量快照和渲染路径后再测。
+Calc 批量读取将本机大表格的操作加快照从此前约 2.91 秒降至 16.65 ms；托管 Windows 普通用户从此前约 19.0 秒降至 87.74 ms。大表格的 Windows 原生 PDF 导出仍约 2.6–3.3 秒。以上不包含完整宿主队列、IPC、PDF.js 解码和屏幕呈现，**不能宣布 UI 状态 P95 ≤ 300 ms 或可见内容 P95 ≤ 1 秒达标**。
 
-渲染验证使用真实 PDF.js 和 Electron，通过实际像素变化验证草稿版本 0 → 2，并故意延迟版本 1 返回，确认不会覆盖版本 2。区域批注保留 `sourceVersion: 2`，滚动位置保持，控制台没有错误。脚本请求窗口尺寸为 1100×900 和 600×850；实际 Windows 截图尺寸见上节。这不是原生 UNO 到屏幕的端到端基准。
+Windows 实际候选 ZIP 为 479,661,270 字节（457.44 MiB），展开 1,523,455,139 字节（约 1.42 GiB），包含 12,417 个文件。SHA-256 为 `198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47`。已移除帮助、模板、图库及上游 Python 运行时；候选包不携带第二套 Node、Chromium、Python 或 JRE。
 
-官方上游 macOS DMG 为 298,773,447 字节；这不是最终能力包大小。自有桥接可执行文件约 293 KiB。现有构建的逐文件 gzip 测量仅作诊断，不能替代最终主安装包相对基线的增量。**主包增加 ≤ 10 MiB 和裁剪后能力包大小均待发行产物实测。** 本轮 Windows 候选构建移除帮助、模板、图库和上游 Python 运行时；实际移除路径、压缩大小和文件数量由候选报告记录，尚待 Windows 运行验证。
+官方 macOS DMG 为 298,773,447 字节，仅为构建输入；本轮 arm64 桥接为 401,088 字节（391.69 KiB）。macOS 最终能力包体积，以及主安装包相对基线增加 ≤ 10 MiB，仍待发行产物实测。
 
 ## 回归验证
 
 - Office 协议、Lite 原件保护、安装器、会话及插件依赖，以及原生沙箱使用官方 Node 26.9 验证。新增回归覆盖未接受的原件写入、恢复基线篡改、并行打开去重。
-- 本地完整 `npm run verify:ci` 已通过：构建、格式、UI 一致性/边界/性能预算、类型检查及生产依赖审计均完成；各 Vitest 套件共 4040 项通过、14 项按既有条件跳过，其中桌面套件为 2491 项通过、12 项跳过。证据为 `artifacts/office/verify-ci.log`。这些 portable 检查不能抵消 Windows 原生样本门槛的失败。
-- Windows CI 的实际编译、35 项回归、Electron 预览、管理员和普通用户的 30 份原生样本均已执行；结果、限制和原始证据入口见上节。下载重试另外验证了续传、服务器忽略 Range 后重下、完整内容后的断线及缓存摘要；日志回收验证了往返摘要、无效路径/损坏内容拒绝及超大 PDF 不阻断报告。
+- 本轮早期完整 `npm run verify:ci` 已通过：构建、格式、UI 一致性/边界/性能预算、类型检查及生产依赖审计均完成；各 Vitest 套件共 4046 项通过、14 项按既有条件跳过，其中桌面套件为 2496 项通过、12 项跳过。证据为 `artifacts/office/verify-ci-final.log`。后续原生关闭、PowerShell 环境及冷启动修复另通过桌面构建、类型检查及 44 项针对性回归。
+- Windows CI 的实际编译、44 项回归、Electron 预览、管理员、普通用户及服务账户的 30 份原生样本均已执行；结果、限制和原始证据入口见上节。下载重试另外验证了续传、服务器忽略 Range 后重下、完整内容后的断线及缓存摘要；日志回收验证了往返摘要、无效路径/损坏内容拒绝及超大 PDF 不阻断报告。
 - Homebrew Node 的原生动态库问题和未关闭 Node WebStorage 的单独测试结果不能替代 CI 环境结果。最终运行使用官方 Node 26.9 及验证脚本的 `--no-experimental-webstorage` 设置。
 - 原有主分支的热力图 tooltip 样式与 CSS 契约存在三处差异。本分支只将契约更新到已存在的 `width: max-content`、`white-space: normal`、`overflow-wrap: anywhere`，没有改变该 UI 或提高性能预算。
-- 生产 catalog 为空。安装测试使用独立临时目录与合成签名包，没有向用户数据安装未验收的引擎。
+- 生产 catalog 为空。候选包使用独立测试信任根和临时用户目录；不会激活真实 Artemis 用户的 Office 引擎。
 
 ## 发布前流程
 
 此节是正式发布仍需实现和验收的约定，不表示已经有可用的签名发行包。
 
-1. 补齐桥接层对象/表格/组对象选取与往返保留；在 macOS arm64 和 Windows x64 上对固定样本逐项核对特性及像素，并测量真实 UI 延迟。未通过的格式明确阻止原件覆盖。
-2. 按最小 Writer/Calc/Impress 运行闭包制作能力包，移除第二套 Node、Chromium、Python 和 JRE；验证字体缺失、中文路径、文件占用、引擎崩溃与干净系统运行。
+1. 对已通过流程的固定样本逐项核对复杂特性与像素保真，并测量真实宿主 UI 延迟；Windows 10 和 Windows 11 桌面普通用户尚未验收。生产原件覆盖继续禁用。
+2. Windows 已完成裁剪候选包和中文路径验收；仍需制作 macOS arm64 最终能力包，补充字体缺失、文件占用、引擎崩溃与干净系统检查。异常断电遗留目录自动清理仍待完成。
 3. macOS 组织成 `ArtemisOfficeRuntime.app`，依次完成嵌套代码和外层 Developer ID 签名、Hardened Runtime、公证 Accepted、对 app staple、离线验证，再生成最终 ZIP。Windows 校验清单中明确声明的签名或未签名策略、最终安装目录 ACL 和真实执行；无需为候选包购买签名证书。
 4. 以最终字节生成逐文件清单、归档摘要及 Ed25519 签名。把可信公钥和经双平台验收的清单加入宿主目录；不能让离线包自行信任其公钥。
 5. 创建独立 `office-runtime-vX.Y.Z` Release，明确 `make_latest: false`。发布前后读取 `/releases/latest`，证明主程序更新目标没有变化；已发布同版本内容必须一致，禁止覆盖。

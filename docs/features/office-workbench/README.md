@@ -2,6 +2,8 @@
 
 当前分支包含协议、宿主管理器、原生桥接和预览原型，**尚未达到可发布状态**。原生兼容性门槛和剩余工作见[验收记录](../../projects/office-workbench/README.md)。发布目录暂为空，生产入口禁止原生引擎覆盖原文件。
 
+本次平台验收范围为 macOS arm64 与 Windows x64；macOS x64 已按用户要求排除。
+
 ## 插件与能力包的关系
 
 Documents、Presentations、Spreadsheets 保留原来的插件身份和入口，共同声明可选的 `office-core` 依赖。安装能力包后，这三个插件使用同一个增强引擎；不会增加三份增强版插件。能力包由宿主管理，轻量插件安装器不执行 `npm install`，也不提高普通插件的归档限额。
@@ -43,6 +45,9 @@ v2 操作使用预期版本和唯一操作 ID。当前操作支持 Writer 正文
 - `verify-preview.mjs` 使用合成 IPC 与真实 PDF.js/Electron 验证画面变更、过期结果抑制、批注版本和窄窗口布局。
 - `.github/workflows/office-native-validation.yml` 提供手动原生验证，并在 `codex/office-workbench` 的相关文件推送后自动运行 Windows x64 验收；不会发布能力包。构建输入缓存每次复用前重新校验摘要，下载中断支持有限次数的续传或重新下载。
 - `verify-windows-user.ps1` 仅在临时 GitHub 托管 Windows runner 中创建普通用户，在该用户的应用数据目录通过真实安装服务安装候选 ZIP，使用中文文档路径运行同一批样本。`build-candidate.mjs` 裁剪可选资源及上游 Python；`verify-candidate.ts` 验证离线导入、下载取消、流式升级、回滚、共享卸载保护、修复和实际宿主引擎。候选签名密钥只用于隔离测试，不进入生产目录；流式传输用本机 HTTP 测试端点，不代表公开 HTTPS 发布已验收。
+- `verify-windows-client.mjs` 在实际 Windows 客户端的非管理员账户下复验同一候选 ZIP，并清理本次创建的独立安装目录。报告记录实际用户 SID；当前 Windows 11 runner 使用 `NETWORK SERVICE`，其结果属于服务账户验证，不能作为桌面普通用户证据。`prepare-windows-cache.mjs` 为自托管 runner 准备摘要固定的临时 zstd，使候选缓存与托管构建环境一致；不安装机器级工具。
+- `.github/workflows/office-candidate-validation.yml` 复用已构建的候选包，在托管普通用户与实际 Windows 客户端并行验收。缓存键、构建提交和归档 SHA-256 显式绑定；验证器可更新诊断，候选 ZIP 保持原字节。完整安装测试记录阶段耗时，上限为 30 分钟，原生样本测试仍单独受 3 分钟上限约束。原生宿主检查保持在修复、卸载、重装之后，启动失败时只在公开样本测试中保留有界诊断。
+- 原生引擎连接最多等待 60 秒；首次请求允许连接加操作共 90 秒，收到首个响应后恢复每次操作 30 秒的上限。冷启动超时和桥接进程提前退出均有回归覆盖。
 - 验收保留失败报告。Artifact 存储不可用时，`emit-ci-evidence.mjs` 将限定范围的合成预览和公开样本结果压缩到 CI 日志；`collect-ci-evidence.mjs` 校验路径、大小及 SHA-256 后恢复到新目录，不导出引擎用户配置。
 - 主程序 Release 流仅运行 `verify-catalog.mjs`，读取已有清单并校验兼容性、签名和已发布资产。它不构建、签名、公证或上传运行时；空目录保留 Lite。
 
