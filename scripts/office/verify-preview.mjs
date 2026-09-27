@@ -168,10 +168,14 @@ try {
     const env = { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
     const child = spawn(electron, [main], { stdio: "inherit", env });
-    const timeout = setTimeout(() => {
-      child.kill();
-      reject(new Error("Office preview verification timed out"));
-    }, 30_000);
+    // Native documents render sequentially; each readiness assertion stays bounded.
+    const timeout = setTimeout(
+      () => {
+        child.kill();
+        reject(new Error("Office preview verification timed out"));
+      },
+      nativeCases.length ? 120_000 : 30_000,
+    );
     child.on("error", reject);
     child.on("exit", (code) => {
       clearTimeout(timeout);
