@@ -19,6 +19,7 @@ if (nativeDirectory) {
     ["word", "word_2col-header.docx"],
     ["excel", "sheets_TableStyleTest.xlsx"],
     ["powerpoint", "slides_ShapePlusImage.pptx"],
+    ["excel", "sheets_PivotTable_CachedDefinitionAndDataInSync.xlsx"],
   ]) {
     nativeCases.push({
       format,
@@ -137,17 +138,25 @@ app.whenReady().then(async()=>{
  await fs.writeFile(out+'/desktop.png',(await win.webContents.capturePage()).toPNG());
  win.setSize(600,850); await new Promise(r=>setTimeout(r,100));
  await fs.writeFile(out+'/compact.png',(await win.webContents.capturePage()).toPNG());
- const nativeScreenshots=[];
+ const nativeScreenshots=[]; let sheetPageMappingVerified=false;
  for(const [index,sample] of ${JSON.stringify(nativeCases.map(({ format, path }) => ({ format, path })))}.entries()) {
    win.setContentSize(760,960);
    await js('window.advance('+(index+3)+')');
    await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "'+(index+3)+'"');
    await wait('document.querySelector(".office-workbench")?.getAttribute("aria-label") === '+JSON.stringify(sample.path));
    if(sample.format==='powerpoint') await wait('[...document.querySelectorAll("nav canvas")].length>0 && [...document.querySelectorAll("nav canvas")].every(canvas=>canvas.dataset.previewVersion==="'+(index+3)+'")');
+   if(index===3) {
+     await js('[...document.querySelectorAll("[data-artemis-component=select]")].find(control=>control.querySelector("[data-part=label]").textContent==="工作表").querySelector("button").click()');
+     await wait('[...document.querySelectorAll("[role=option]")].some(option=>option.textContent==="Sheet1")');
+     await js('[...document.querySelectorAll("[role=option]")].find(option=>option.textContent==="Sheet1").click()');
+     await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewPage==="2"');
+     sheetPageMappingVerified=true;
+     continue;
+   }
    await fs.writeFile(out+'/'+sample.format+'.png',(await win.webContents.capturePage()).toPNG());
    nativeScreenshots.push({...sample,screenshot:sample.format+'.png',viewport:win.getContentSize()});
  }
- const report={fixture:'synthetic IPC with real PDF.js rasterization',nativeScreenshots,browser:'Browser plugin not available; repository Electron verification pattern',title:await js('document.title'),contentChanged:true,staleRenderRejected:true,eventGapSnapshotRecovered:true,annotation:note,scroll,errors:[...errors,...await js('window.errors')],paints:await js('window.paints')};
+ const report={fixture:'synthetic IPC with real PDF.js rasterization',nativeScreenshots,sheetPageMappingVerified,browser:'Browser plugin not available; repository Electron verification pattern',title:await js('document.title'),contentChanged:true,staleRenderRejected:true,eventGapSnapshotRecovered:true,annotation:note,scroll,errors:[...errors,...await js('window.errors')],paints:await js('window.paints')};
  await fs.writeFile(out+'/report.json',JSON.stringify(report,null,2));
  if(report.errors.length) throw Error(JSON.stringify(report.errors));
  win.destroy();app.exit(0);

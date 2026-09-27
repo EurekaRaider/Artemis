@@ -199,14 +199,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Record OS edition and current token without modifying the machine
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-          [ordered]@{
-            schemaVersion=1; commit='${{ github.sha }}'
-            windows=(Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,ProductType)
-            administrator=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-            clientAcceptance=$false; purpose='Read-only environment discovery'
-          } | ConvertTo-Json -Depth 4 -Compress
+        shell: cmd
+        run: >-
+          powershell.exe -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $identity=[Security.Principal.WindowsIdentity]::GetCurrent(); $principal=[Security.Principal.WindowsPrincipal]::new($identity); [ordered]@{schemaVersion=1;commit='${{ github.sha }}';windows=(Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,ProductType);administrator=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);clientAcceptance=$false;purpose='Read-only environment discovery'} | ConvertTo-Json -Depth 4 -Compress"

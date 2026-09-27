@@ -73,6 +73,7 @@ function OfficePage({
         output.style.height = `${viewport.height}px`;
         output.getContext("2d")!.drawImage(temporary, 0, 0);
         output.dataset.previewVersion = String(version);
+        output.dataset.previewPage = String(page);
         window.dispatchEvent(
           new CustomEvent("artemis-office-preview-painted", {
             detail: { version, page, at: performance.now() },
@@ -110,6 +111,7 @@ function OfficePage({
           if (
             !initial ||
             !onRegion ||
+            Number(event.currentTarget.dataset.previewPage) !== page ||
             Number(event.currentTarget.dataset.previewVersion) !== version
           )
             return;

@@ -50,6 +50,7 @@ $localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalAppl
 if (-not $localData) { throw 'The ordinary user has no local application data directory' }
 $installedRoot = Join-Path $localData 'Artemis\capability-packs'
 $workspace = Join-Path $localData 'Artemis\验证文档'
+New-Item (Split-Path $workspace) -ItemType Directory -Force | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'corpus') $workspace -Recurse
 $output = Join-Path $PSScriptRoot 'evidence'
 @{schemaVersion=1;administrator=$false;userSid=$identity.User.Value;installedRoot=$installedRoot;workspace=$workspace;localApplicationData=$localData;finalCapabilityPackage=$true;releaseAccepted=$false} | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $output 'identity.json') -Encoding utf8
