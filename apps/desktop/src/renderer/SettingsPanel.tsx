@@ -1983,7 +1983,10 @@ ${model.providerId} · ${model.modelId}`,
                       description={
                         <>
                           {settings.update.currentVersion} ·{" "}
-                          {statusText(locale, settings.update.state)}
+                          {settings.update.state === "idle" &&
+                          settings.update.upToDate
+                            ? uiText(locale, "Update.upToDate")
+                            : statusText(locale, settings.update.state)}
                           {settings.update.availableVersion
                             ? ` → ${settings.update.availableVersion}`
                             : ""}

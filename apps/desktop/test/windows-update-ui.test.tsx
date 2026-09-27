@@ -5,8 +5,8 @@ import { SettingsPanel } from "../src/renderer/SettingsPanel.js";
 import type { SettingsSnapshot } from "../src/shared/api.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
-it("opens the Windows ZIP in the browser and explains manual replacement without installing", async () => {
-  const settings = {
+function fixture(): SettingsSnapshot {
+  return {
     platform: "win32",
     encryptionAvailable: true,
     language: "en",
@@ -36,6 +36,10 @@ it("opens the Windows ZIP in the browser and explains manual replacement without
         "https://github.com/EurekaRaider/ArtemisRelease/releases/download/v1.1.0/Artemis-Windows-x64-1.1.0.zip",
     },
   } as unknown as SettingsSnapshot;
+}
+
+it("opens the Windows ZIP in the browser and explains manual replacement without installing", async () => {
+  const settings = fixture();
   const downloadUpdate = vi.fn(),
     installUpdate = vi.fn();
   stubWindowArtemis({
@@ -75,3 +79,32 @@ it("opens the Windows ZIP in the browser and explains manual replacement without
     open.mockRestore();
   }
 });
+
+it.each([false, true])(
+  "only reports the latest version after a successful check: %s",
+  async (upToDate) => {
+    const settings = fixture();
+    settings.update = {
+      state: "idle",
+      currentVersion: "1.6.8",
+      rollbackAvailable: false,
+      upToDate,
+    };
+    stubWindowArtemis({
+      getSettings: async () => settings,
+      onUpdateStatus: () => () => {},
+    });
+    render(
+      <SettingsPanel
+        locale="zh-CN"
+        initialTab="maintenance"
+        initialSettings={settings}
+        onClose={() => {}}
+        onSettingsChange={() => {}}
+      />,
+    );
+    expect(screen.queryByText(/当前Artemis已经是最新版本/) !== null).toBe(
+      upToDate,
+    );
+  },
+);

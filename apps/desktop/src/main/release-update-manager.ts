@@ -36,6 +36,7 @@ export interface ReleaseUpdateStatus {
     | "downloaded"
     | "error";
   currentVersion: string;
+  upToDate?: boolean;
   availableVersion?: string;
   manualDownloadUrl?: string;
   manualUpdate?: boolean;
@@ -173,6 +174,7 @@ export class ReleaseUpdateManager {
     this.updater.on("update-not-available", () => {
       this.update({
         state: "idle",
+        upToDate: true,
         availableVersion: undefined,
         progress: undefined,
         message: undefined,
@@ -260,6 +262,7 @@ export class ReleaseUpdateManager {
         );
         this.update({
           state: release ? "available" : "idle",
+          upToDate: !release,
           availableVersion: release?.version,
           manualDownloadUrl: release?.downloadUrl,
         });
@@ -352,6 +355,7 @@ export class ReleaseUpdateManager {
       if (value === undefined) delete next[key];
       else next[key] = value;
     }
+    if (next.state !== "idle") delete next.upToDate;
     this.status = next as unknown as ReleaseUpdateStatus;
     this.onStatus(this.getStatus());
   }

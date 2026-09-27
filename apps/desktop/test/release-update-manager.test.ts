@@ -56,6 +56,7 @@ describe("ReleaseUpdateManager", () => {
       () => {},
     );
     await manager.initialize();
+    expect(manager.getStatus().upToDate).toBeUndefined();
     vi.useFakeTimers();
     const onError = vi.fn();
     manager.startAutomaticChecks(onError);
@@ -76,6 +77,9 @@ describe("ReleaseUpdateManager", () => {
     expect(updater.checkForUpdates).toHaveBeenCalledTimes(3);
     manager.stopAutomaticChecks();
     updater.emit("update-not-available");
+    expect(manager.getStatus().upToDate).toBe(true);
+    updater.emit("checking-for-update");
+    expect(manager.getStatus().upToDate).toBeUndefined();
     await vi.advanceTimersByTimeAsync(3_600_000);
     expect(updater.checkForUpdates).toHaveBeenCalledTimes(3);
     manager.startAutomaticChecks(onError);
@@ -305,6 +309,7 @@ describe("ReleaseUpdateManager", () => {
     checkWindows.mockResolvedValueOnce(undefined);
     await manager.check();
     expect(manager.getStatus().state).toBe("idle");
+    expect(manager.getStatus().upToDate).toBe(true);
     manager.stopAutomaticChecks();
     expect(updater.checkForUpdates).not.toHaveBeenCalled();
     expect(updater.downloadUpdate).not.toHaveBeenCalled();

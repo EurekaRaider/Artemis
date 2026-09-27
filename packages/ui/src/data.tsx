@@ -1,5 +1,6 @@
 import {
   useId,
+  useLayoutEffect,
   useRef,
   type CSSProperties,
   type HTMLAttributes,
@@ -356,6 +357,62 @@ export function DataHeatmap({
   }
   const tooltipId = useId();
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const tooltip = tooltipRef.current;
+    if (!tooltip) return;
+    let frame = 0;
+    const positionTooltip = () => {
+      window.cancelAnimationFrame(frame);
+      let left = 8;
+      let right = document.documentElement.clientWidth - 8;
+      for (
+        let parent = tooltip.parentElement;
+        parent;
+        parent = parent.parentElement
+      ) {
+        if (
+          /^(auto|scroll|hidden|clip|overlay)$/u.test(
+            getComputedStyle(parent).overflowX,
+          )
+        ) {
+          const bounds = parent.getBoundingClientRect();
+          left = Math.max(left, bounds.left + 4);
+          right = Math.min(right, bounds.right - 4);
+        }
+      }
+      const cell = tooltip.parentElement!;
+      const cellWidth = Number.parseFloat(getComputedStyle(cell).width);
+      const scale = cellWidth
+        ? cell.getBoundingClientRect().width / cellWidth
+        : 1;
+      tooltip.style.maxWidth = `${Math.max(0, right - left) / scale}px`;
+      tooltip.style.translate = "none";
+      const bounds = tooltip.getBoundingClientRect();
+      const shift = Math.max(
+        left - bounds.left,
+        Math.min(0, right - bounds.right),
+      );
+      tooltip.style.translate = `${shift / scale}px 0`;
+      if (
+        cell
+          .getAnimations?.()
+          .some((animation) => animation.playState === "running")
+      ) {
+        frame = window.requestAnimationFrame(positionTooltip);
+      }
+    };
+    positionTooltip();
+    window.cancelAnimationFrame(frame);
+    frame = window.requestAnimationFrame(positionTooltip);
+    window.addEventListener("resize", positionTooltip);
+    window.addEventListener("scroll", positionTooltip, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", positionTooltip);
+      window.removeEventListener("scroll", positionTooltip, true);
+    };
+  }, [activeCellId, cells, state]);
   const disabled = state === "disabled";
   const activeIndex = Math.max(
     0,
@@ -475,6 +532,7 @@ export function DataHeatmap({
                       data-align={cell.tooltipAlign ?? "start"}
                       data-part="tooltip"
                       id={tooltipId}
+                      ref={tooltipRef}
                       role="tooltip"
                     >
                       {cell.label}

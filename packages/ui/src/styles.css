@@ -4346,7 +4346,9 @@
     line-height: 1.35;
     pointer-events: none;
     transform: translateX(-50%);
-    white-space: nowrap;
+    width: max-content;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   [data-artemis-component="data-heatmap"]

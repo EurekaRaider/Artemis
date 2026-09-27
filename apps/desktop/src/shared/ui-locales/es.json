@@ -1587,6 +1587,7 @@
   "GroupAuthorization.fullLocalSharing": "Las operaciones y el envío de resultados son automáticos, sin aprobación individual ni revisión en el escritorio. Se puede enviar información sensible directamente al grupo o a servicios externos.",
   "GroupAuthorization.confirmFullLocal": "Comprendo los riesgos y autorizo a este Agent a usar mis permisos locales y el ámbito de uso compartido indicado.",
   "GroupAuthorization.submitFullLocal": "Confirmar y activar acceso completo",
+  "Update.upToDate": "Artemis ya está actualizado",
   "Update.install": "Instalar actualización",
   "Update.download": "Descargar actualización",
   "Update.downloaded": "Descarga completa: reinicia para instalar",
