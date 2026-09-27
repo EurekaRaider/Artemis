@@ -182,7 +182,8 @@ jobs:
             artifacts/office/candidate/catalog.json
             artifacts/office/candidate/report.json
             artifacts/office/candidate/office-core-win32-x64.zip
-          key: office-candidate-win-x64-${{ github.sha }}
+            artifacts/office/candidate-tools/verify-candidate.mjs
+          key: office-candidate-win-x64-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Retain checksummed evidence in CI logs
         if: always()
         run: node scripts/office/emit-ci-evidence.mjs
@@ -202,3 +203,44 @@ jobs:
         shell: cmd
         run: >-
           powershell.exe -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $identity=[Security.Principal.WindowsIdentity]::GetCurrent(); $principal=[Security.Principal.WindowsPrincipal]::new($identity); [ordered]@{schemaVersion=1;commit='${{ github.sha }}';windows=(Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,ProductType);administrator=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);clientAcceptance=$false;purpose='Read-only environment discovery'} | ConvertTo-Json -Depth 4 -Compress"
+  windows-client:
+    name: Installed candidate on Windows 11 ordinary user
+    needs: probe
+    if: ${{ inputs.platform != 'macos' }}
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.9.0
+      - name: Restore the exact candidate and verifier from this run
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: |
+            artifacts/office/candidate/catalog.json
+            artifacts/office/candidate/report.json
+            artifacts/office/candidate/office-core-win32-x64.zip
+            artifacts/office/candidate-tools/verify-candidate.mjs
+          key: office-candidate-win-x64-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+      - name: Fetch and verify the fixed public sample corpus
+        run: node scripts/office/fetch-corpus.mjs
+      - name: Accept and clean up the private ordinary-user client installation
+        run: node scripts/office/verify-windows-client.mjs
+      - name: Retain client evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v6
+        with:
+          name: office-native-Windows-client
+          path: artifacts/office/client
+          retention-days: 14
+      - name: Retain checksummed client evidence in logs
+        if: always()
+        run: node scripts/office/emit-ci-evidence.mjs

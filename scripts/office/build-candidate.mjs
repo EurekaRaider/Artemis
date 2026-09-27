@@ -110,7 +110,14 @@ const signatures = JSON.parse(
     ],
     {
       encoding: "utf8",
-      env: { ...process.env, OFFICE_CANDIDATE_PAYLOAD: payload },
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([name]) => name.toLowerCase() !== "psmodulepath",
+          ),
+        ),
+        OFFICE_CANDIDATE_PAYLOAD: payload,
+      },
     },
   ),
 );

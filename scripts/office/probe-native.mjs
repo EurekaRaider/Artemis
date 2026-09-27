@@ -350,6 +350,7 @@ try {
     if (bridge.exitCode !== null || bridge.signalCode) break;
   }
 } finally {
+  await request("shutdown").catch(() => undefined);
   bridge.stdin.end();
   bridge.kill();
   office.kill();

@@ -43,7 +43,14 @@ async function emit(path) {
     );
   count++;
 }
-for (const name of ["probe", "preview", "evidence", "ordinary-user", "panels"])
+for (const name of [
+  "probe",
+  "preview",
+  "evidence",
+  "ordinary-user",
+  "panels",
+  "client",
+])
   await discover(join(root, name));
 if (await stat(join(root, "candidate", "report.json")).catch(() => null))
   files.push(join(root, "candidate", "report.json"));

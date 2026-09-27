@@ -11,6 +11,7 @@
 #include <com/sun/star/drawing/XShape.hpp>
 #include <com/sun/star/drawing/XShapes.hpp>
 #include <com/sun/star/frame/XComponentLoader.hpp>
+#include <com/sun/star/frame/XDesktop.hpp>
 #include <com/sun/star/frame/XStorable.hpp>
 #include <com/sun/star/lang/XComponent.hpp>
 #include <com/sun/star/lang/XMultiServiceFactory.hpp>
@@ -295,6 +296,7 @@ int main(int argc, char** argv) {
         std::string line;
         while (std::getline(std::cin, line)) {
             json response;
+            bool shutdown = false;
             try {
                 if (line.size() > 8 * 1024 * 1024) throw std::runtime_error("Request too large");
                 auto input = json::parse(line);
@@ -304,11 +306,17 @@ int main(int argc, char** argv) {
                 else if (command == "apply") document.apply(input.at("change"));
                 else if (command == "render" || command == "save") document.store(input.at("path"), command == "render");
                 else if (command == "close") document.close();
+                else if (command == "shutdown") {
+                    document.close();
+                    shutdown = true;
+                    if (!Reference<css::frame::XDesktop>(loader, UNO_QUERY_THROW)->terminate()) throw std::runtime_error("Office runtime refused shutdown");
+                }
                 else if (command != "snapshot") throw std::runtime_error("Unknown command");
                 response["result"] = command == "snapshot" || command == "open" ? document.snapshot() : json::object();
             } catch (const css::uno::Exception& error) { response["error"] = s(error.Message); }
             catch (const std::exception& error) { response["error"] = error.what(); }
             std::cout << response.dump() << std::endl;
+            if (shutdown) break;
         }
         document.close();
         return 0;

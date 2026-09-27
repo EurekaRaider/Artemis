@@ -70,7 +70,11 @@ export async function verifyOfficeNative(
         timeout: 30_000,
         windowsHide: true,
         env: {
-          ...process.env,
+          ...Object.fromEntries(
+            Object.entries(process.env).filter(
+              ([name]) => name.toLowerCase() !== "psmodulepath",
+            ),
+          ),
           ARTEMIS_OFFICE_VERIFY_PATH: join(directory, path),
           ARTEMIS_OFFICE_VERIFY_SIGNER: signer ?? "unsigned",
         },
@@ -268,7 +272,7 @@ export class UnoOfficeEngine implements OfficeEngine {
   async close(): Promise<void> {
     if (!this.closed) {
       try {
-        await this.request("close");
+        await this.request("shutdown");
       } catch {
         /* The committed journal remains recoverable. */
       }

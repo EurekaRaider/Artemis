@@ -174,18 +174,31 @@ try {
   } finally {
     await engine.close();
   }
+  const aclScript = await readFile(
+    join(dirname(resolve(probePath)), "verify-installed-acl.ps1"),
+    "utf8",
+  );
   const trust = JSON.parse(
     execFileSync(
       "powershell.exe",
       [
         "-NoProfile",
         "-NonInteractive",
-        "-File",
-        join(dirname(resolve(probePath)), "verify-installed-acl.ps1"),
-        "-Root",
-        lease.root,
+        "-Command",
+        `& { ${aclScript} } -Root $env:OFFICE_INSTALLED_ROOT`,
       ],
-      { encoding: "utf8", timeout: 180_000 },
+      {
+        encoding: "utf8",
+        timeout: 180_000,
+        env: {
+          ...Object.fromEntries(
+            Object.entries(process.env).filter(
+              ([name]) => name.toLowerCase() !== "psmodulepath",
+            ),
+          ),
+          OFFICE_INSTALLED_ROOT: lease.root,
+        },
+      },
     ),
   );
   if (trust.administrator)
