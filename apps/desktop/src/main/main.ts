@@ -202,6 +202,38 @@ import {
   isRendererNavigationAllowed,
 } from "./navigation-policy.js";
 import { OfficeDocumentService } from "./office-document-service.js";
+import { createOfficeWorkbench } from "./office-workbench.js";
+
+let officeWorkbench: ReturnType<typeof createOfficeWorkbench> | undefined;
+function getOfficeWorkbench() {
+  officeWorkbench ??= createOfficeWorkbench({
+    userData: app.getPath("userData"),
+    catalogPath: app.isPackaged
+      ? join(
+          process.resourcesPath,
+          "resources",
+          "office-runtime",
+          "catalog.json",
+        )
+      : join(app.getAppPath(), "resources", "office-runtime", "catalog.json"),
+    hostVersion: app.getVersion(),
+    dependents: async (version) =>
+      ((await codexPluginService?.listInstalled()) ?? [])
+        .filter((plugin) =>
+          plugin.capabilityDependencies?.some(
+            (dependency) =>
+              dependency.id === "office-core" && dependency.version === version,
+          ),
+        )
+        .map((plugin) => plugin.displayName),
+    emit: (threadId, event) =>
+      emitPayload(threadId, activeTurns.get(threadId), {
+        type: "artifact.event",
+        event,
+      }),
+  });
+  return officeWorkbench;
+}
 import {
   readLocalTextFile,
   resolveLocalFilePath,
@@ -5612,8 +5644,38 @@ async function executeApprovedOffice(
     });
   }
   try {
+    const thread = store?.getThread(request.threadId);
+    if (
+      request.mode !== "execute" ||
+      thread?.mode !== "execute" ||
+      activeTurns.get(request.threadId) !== request.turnId ||
+      cancellingTurns.has(request.threadId)
+    )
+      throw new Error("Office operations require the current Execute turn");
+    if (request.document.protocolVersion === 2) {
+      const workbench = await getOfficeWorkbench();
+      const result = await workbench.sessions.execute(request.document, {
+        threadId: request.threadId,
+        workspacePath: request.workspacePath,
+        mode: request.mode,
+      });
+      if (request.document.operation === "save")
+        emitPayload(request.threadId, request.turnId, {
+          type: "file.changed",
+          path: request.document.path,
+          operation: "update",
+        });
+      agentProcess.post({
+        type: "broker.resolve",
+        requestId: workerRequestId,
+        resolution,
+        result,
+      });
+      return;
+    }
     const documentResult = await new OfficeDocumentService(
       request.workspacePath,
+      join(app.getPath("userData"), "office-lite"),
     ).execute(request.document);
     if (documentResult.changed) {
       const operation =
@@ -9667,6 +9729,99 @@ function registerIpc(): void {
         throw new Error("PDF preview requires a PDF file.");
       return workspacePdfPreview.open(threadId, file.path);
     },
+  );
+  ipcMain.handle(
+    IPC.officeSnapshot,
+    async (_event, threadId: string, sessionId: string) => {
+      if (!store?.getThread(threadId) || store.getThread(threadId)?.archived)
+        throw new Error("Active task not found");
+      return (await getOfficeWorkbench()).sessions.snapshotForUi(
+        sessionId,
+        threadId,
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.officePreview,
+    async (_event, threadId: string, sessionId: string, assetId: string) => {
+      if (!store?.getThread(threadId) || store.getThread(threadId)?.archived)
+        throw new Error("Active task not found");
+      const sessions = (await getOfficeWorkbench()).sessions;
+      const path = await sessions.previewPath(sessionId, threadId, assetId);
+      if ((await stat(path)).size > 64 * 1024 * 1024)
+        throw new Error("Office preview exceeds size limit");
+      const snapshot = await sessions.snapshotForUi(sessionId, threadId);
+      if (snapshot.preview?.assetId !== assetId)
+        throw new Error("Office preview changed; refresh the snapshot");
+      return {
+        data: (await readFile(path)).toString("base64"),
+        version: snapshot.preview.version,
+      };
+    },
+  );
+  ipcMain.handle(IPC.officeCapabilityStatus, async () => {
+    const workbench = await getOfficeWorkbench();
+    const status = await workbench.packs.status();
+    const available = workbench.catalog.manifests.find(
+      (manifest) =>
+        manifest.platform === process.platform &&
+        manifest.arch === process.arch,
+    );
+    return {
+      ...status,
+      ...(available ? { availableVersion: available.version } : {}),
+    };
+  });
+  ipcMain.handle(IPC.officeCapabilityInstall, async () => {
+    const workbench = await getOfficeWorkbench();
+    const manifest = workbench.catalog.manifests.find(
+      (candidate) =>
+        candidate.platform === process.platform &&
+        candidate.arch === process.arch,
+    );
+    if (!manifest)
+      throw new Error(
+        "No verified Office capability release is available for this platform yet. Lite workflows remain available.",
+      );
+    await workbench.packs.install(manifest);
+  });
+  ipcMain.handle(IPC.officeCapabilityImport, async () => {
+    const selected = await dialog.showOpenDialog({
+      title: "Import signed Office capability manifest",
+      properties: ["openFile"],
+      filters: [{ name: "Signed manifest", extensions: ["json"] }],
+    });
+    if (selected.canceled || !selected.filePaths[0]) return;
+    if ((await stat(selected.filePaths[0])).size > 16 * 1024 * 1024)
+      throw new Error("Capability manifest is too large");
+    const manifest = JSON.parse(
+      await readFile(selected.filePaths[0], "utf8"),
+    ) as unknown;
+    const archive = await dialog.showOpenDialog({
+      title: "Select Office capability ZIP",
+      properties: ["openFile"],
+      filters: [{ name: "Office capability", extensions: ["zip"] }],
+    });
+    if (archive.canceled || !archive.filePaths[0]) return;
+    await (
+      await getOfficeWorkbench()
+    ).packs.install(manifest, archive.filePaths[0]);
+  });
+  ipcMain.handle(IPC.officeCapabilityCancel, async () =>
+    (await getOfficeWorkbench()).packs.cancel(),
+  );
+  ipcMain.handle(
+    IPC.officeCapabilityActivate,
+    async (_event, version: string) =>
+      (await getOfficeWorkbench()).packs.activate(version),
+  );
+  ipcMain.handle(IPC.officeCapabilityDeactivate, async () =>
+    (await getOfficeWorkbench()).packs.deactivate(),
+  );
+  ipcMain.handle(
+    IPC.officeCapabilityUninstall,
+    async (_event, version: string) =>
+      (await getOfficeWorkbench()).packs.uninstall(version),
   );
   ipcMain.handle(
     IPC.workspaceTextFileRead,
@@ -22366,15 +22521,24 @@ let endingHookSessions = false;
 let hookSessionsEnded = false;
 app.on("before-quit", (event) => {
   computerUseHost?.dispose();
-  if (!hookSessionsEnded && openedThreads.size && canRunLicensed()) {
+  if (
+    !hookSessionsEnded &&
+    ((openedThreads.size && canRunLicensed()) || officeWorkbench)
+  ) {
     event.preventDefault();
     if (!endingHookSessions) {
       endingHookSessions = true;
       shuttingDown = true;
       hooksService?.dispose();
-      void Promise.allSettled(
-        [...openedThreads].map((id) => endHookSession(id)),
-      ).finally(() => {
+      void Promise.allSettled([
+        ...(canRunLicensed()
+          ? [...openedThreads].map((id) => endHookSession(id))
+          : []),
+        officeWorkbench?.then(async (workbench) => {
+          workbench.packs.cancel();
+          await workbench.sessions.dispose();
+        }),
+      ]).finally(() => {
         hookSessionsEnded = true;
         app.quit();
       });
@@ -22423,7 +22587,14 @@ setLicenseShutdown(async () => {
       2000,
     ),
   );
-  await Promise.allSettled([...cancellations, mcpClientManager?.dispose()]);
+  await Promise.allSettled([
+    ...cancellations,
+    mcpClientManager?.dispose(),
+    officeWorkbench?.then(async (workbench) => {
+      workbench.packs.cancel();
+      await workbench.sessions.dispose();
+    }),
+  ]);
   agentProcess?.dispose();
 });
 

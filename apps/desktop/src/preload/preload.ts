@@ -245,6 +245,21 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.reviewCommentDelete, threadId, commentId),
   openWorkspacePdf: (threadId, path) =>
     ipcRenderer.invoke(IPC.workspacePdfOpen, threadId, path),
+  readOfficeSnapshot: (threadId, sessionId) =>
+    ipcRenderer.invoke(IPC.officeSnapshot, threadId, sessionId),
+  openOfficePreview: (threadId, sessionId, assetId) =>
+    ipcRenderer.invoke(IPC.officePreview, threadId, sessionId, assetId),
+  officeCapabilityStatus: () => ipcRenderer.invoke(IPC.officeCapabilityStatus),
+  installOfficeCapability: () =>
+    ipcRenderer.invoke(IPC.officeCapabilityInstall),
+  importOfficeCapability: () => ipcRenderer.invoke(IPC.officeCapabilityImport),
+  cancelOfficeCapability: () => ipcRenderer.invoke(IPC.officeCapabilityCancel),
+  activateOfficeCapability: (version) =>
+    ipcRenderer.invoke(IPC.officeCapabilityActivate, version),
+  deactivateOfficeCapability: () =>
+    ipcRenderer.invoke(IPC.officeCapabilityDeactivate),
+  uninstallOfficeCapability: (version) =>
+    ipcRenderer.invoke(IPC.officeCapabilityUninstall, version),
   readWorkspaceTextFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.workspaceTextFileRead, threadId, path),
   readWorkspaceImage: (threadId, markdownPath, href) =>

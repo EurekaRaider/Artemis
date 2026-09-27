@@ -1,6 +1,8 @@
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { ComputerUseControls } from "./ComputerUseControls.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
+import { OfficeCapabilityPanel } from "./OfficeCapabilityPanel.js";
+import { officeCopy } from "./office-copy.js";
 import { PluginUninstallDialog } from "./PluginUninstallDialog.js";
 import { ResourceRemovalDialog } from "./ResourceRemovalDialog.js";
 import resourceCenterIcon from "./assets/resource-center-icon.png";
@@ -221,6 +223,7 @@ export function ResourceCenter({
   const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
   const [pluginInstallDraft, setPluginInstallDraft] =
     useState<CodexPluginPreview>();
+  const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
   const [pluginUninstallDraft, setPluginUninstallDraft] =
     useState<InstalledCodexPlugin>();
   const [resourceRemovalDraft, setResourceRemovalDraft] =
@@ -1703,6 +1706,13 @@ export function ResourceCenter({
   }
 
   function renderPluginConnection() {
+    if (officeCapabilityOpen)
+      return (
+        <OfficeCapabilityPanel
+          locale={locale}
+          onClose={() => setOfficeCapabilityOpen(false)}
+        />
+      );
     return connectionPlugin ? (
       <PluginConnectionDialog
         key={connectionPlugin.id}
@@ -1790,6 +1800,16 @@ export function ResourceCenter({
             )}
             {installed && installedPlugin ? (
               <>
+                {plugin.capabilityDependencies?.some(
+                  (dependency) => dependency.id === "office-core",
+                ) ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setOfficeCapabilityOpen(true)}
+                  >
+                    {officeCopy(locale).runtime}
+                  </Button>
+                ) : null}
                 {pluginHasConnection(installedPlugin) && (
                   <Button
                     className="plugin-market-configure-action"

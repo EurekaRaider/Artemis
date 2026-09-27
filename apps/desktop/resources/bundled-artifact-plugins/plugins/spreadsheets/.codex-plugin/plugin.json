@@ -9,5 +9,12 @@
     "category": "Productivity",
     "brandColor": "#16A34A",
     "logo": "./assets/icon.png"
-  }
+  },
+  "capabilityDependencies": [
+    {
+      "id": "office-core",
+      "version": "1.0.0",
+      "optional": true
+    }
+  ]
 }

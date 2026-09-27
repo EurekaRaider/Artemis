@@ -19,6 +19,7 @@
 | [插件与 Git 商店开发](features/plugin-marketplaces/README.md) | 第三方插件规范、签名与发布（中文） |
 | [Plugin development guide](features/plugin-marketplaces/guide-en.md) | Plugin and Git marketplace development (English) |
 | [Computer Use](features/computer-use/README.md) | macOS 与内置浏览器操作、安装、自动调用及验证 |
+| [Office 工作台与能力包](features/office-workbench/README.md) | 三个插件的共享运行时、版本化会话与预览原型边界 |
 | [custom-subagents/](features/custom-subagents/README.md)         | 自定义子智能体(索引 / 计划 / 实施状态) |
 
 macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [本机 arm64 发布指南](features/macos-release/README.md)。
@@ -27,6 +28,7 @@ macOS 长期签名配置、只签名、独立公证与一条龙发布命令见 [
 
 - [消息接入引导式设置提案](projects/im-guided-settings/README.md)：实际参数、步骤依赖、五步首次设置、群协作与异常恢复。
 - [群协作权限体系重新评估](projects/im-permission-redesign/README.md)：统一权限入口、按会话独立授权、写入调度、原生隔离及实施验收记录。
+- [Office 工作台技术验证](projects/office-workbench/README.md)：30 份样本矩阵、原生和 UI 证据、未通过门槛与发布前流程。
 
 ## records/ · 台账
 

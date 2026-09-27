@@ -1,0 +1,41 @@
+.office-workbench {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  gap: var(--artemis-space-2);
+}
+.office-toolbar,
+.office-actions,
+.office-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--artemis-space-3);
+}
+.office-toolbar > [role="status"] {
+  flex: 1;
+}
+.office-page-scroll {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--artemis-space-4);
+  background: var(--artemis-color-surface-sunken);
+}
+.office-page-scroll canvas {
+  display: block;
+  margin-inline: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+.office-annotation,
+.office-capability {
+  display: grid;
+  gap: var(--artemis-space-3);
+  padding: var(--artemis-space-3);
+}
+.office-annotation {
+  max-block-size: 40%;
+  overflow: auto;
+}

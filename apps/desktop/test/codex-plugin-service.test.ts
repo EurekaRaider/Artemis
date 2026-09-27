@@ -1767,6 +1767,11 @@ describe("CodexPluginService", () => {
     );
     for (const plugin of marketplace?.plugins ?? []) {
       expect(plugin.skills.map((skill) => skill.name)).toEqual([plugin.name]);
+      expect(plugin.capabilityDependencies ?? []).toEqual(
+        plugin.name === "pdf"
+          ? []
+          : [{ id: "office-core", version: "1.0.0", optional: true }],
+      );
       await expect(service.install(plugin.source)).resolves.toMatchObject({
         plugin: { name: plugin.name, installed: true },
       });
@@ -1782,6 +1787,11 @@ describe("CodexPluginService", () => {
     expect(
       (await service.listInstalled()).map((plugin) => plugin.name),
     ).toEqual(["documents", "pdf", "presentations", "spreadsheets"]);
+    expect(
+      (await service.listInstalled()).filter(
+        (plugin) => plugin.capabilityDependencies?.[0]?.id === "office-core",
+      ),
+    ).toHaveLength(3);
   });
 
   it("adopts matching standalone Skills when bundled plugins are installed", async () => {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -94,6 +94,53 @@ afterEach(async () => {
 });
 
 describe("OfficeDocumentService", () => {
+  it("preserves imported and externally changed originals instead of normalizing them", async () => {
+    const root = await temporaryRoot();
+    const service = new OfficeDocumentService(root);
+    const path = "imported.docx";
+    const original = Buffer.from(
+      "Imported complex document: preserve these bytes",
+    );
+    await writeFile(join(root, path), original);
+    await expect(
+      service.execute(
+        request({
+          operation: "write",
+          format: "word",
+          path,
+          content: { format: "word", paragraphs: [{ text: "replacement" }] },
+        }),
+      ),
+    ).rejects.toThrow("original");
+    expect(await readFile(join(root, path))).toEqual(original);
+
+    const generated = "generated.docx";
+    await service.execute(
+      request({
+        operation: "create",
+        format: "word",
+        path: generated,
+        content: { format: "word", paragraphs: [{ text: "initial" }] },
+      }),
+    );
+    await writeFile(join(root, generated), original);
+    await expect(
+      new OfficeDocumentService(root).execute(
+        request({
+          operation: "modify",
+          format: "word",
+          path: generated,
+          patch: {
+            type: "replace-text",
+            find: "initial",
+            replacement: "changed",
+            all: true,
+          },
+        }),
+      ),
+    ).rejects.toThrow("original");
+    expect(await readFile(join(root, generated))).toEqual(original);
+  });
   it("advertises one portable contract for Windows and macOS", () => {
     expect(OFFICE_DOCUMENT_CAPABILITIES.platforms).toEqual(["win32", "darwin"]);
     expect(

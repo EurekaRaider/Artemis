@@ -1,4 +1,8 @@
 import {
+  capabilityDependencySchema,
+  type CapabilityDependency,
+} from "@artemis/protocol";
+import {
   connectorSecurityContract,
   canonicalConnectorJson,
 } from "../shared/connector-oauth.js";
@@ -128,6 +132,7 @@ interface ParsedMcpServer {
 }
 
 interface ParsedPlugin {
+  capabilityDependencies?: CapabilityDependency[];
   hasHooks?: boolean;
   localizations?: PluginLocalizations;
   root: string;
@@ -161,6 +166,7 @@ interface StoredMcpServer {
 }
 
 interface StoredPlugin {
+  capabilityDependencies?: CapabilityDependency[];
   hasHooks?: boolean;
   localizations?: PluginLocalizations;
   id: string;
@@ -2977,6 +2983,10 @@ export class CodexPluginService {
     if (!name || !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(name)) {
       throw new Error("Plugin manifest name is invalid.");
     }
+    const capabilityDependencies = capabilityDependencySchema
+      .array()
+      .max(10)
+      .parse(manifest.capabilityDependencies ?? []);
     const localizations = parsePluginLocalizations(manifest.localizations);
     const interfaceValue = record(manifest?.interface);
     const displayName =
@@ -3121,6 +3131,7 @@ export class CodexPluginService {
       : undefined;
     return {
       root,
+      capabilityDependencies,
       id: pluginId(name, source),
       name,
       displayName,
@@ -3148,6 +3159,9 @@ export class CodexPluginService {
     );
     return {
       id: parsed.id,
+      capabilityDependencies: structuredClone(
+        parsed.capabilityDependencies ?? [],
+      ),
       name: parsed.name,
       displayName: parsed.displayName,
       version: parsed.version,
@@ -3200,6 +3214,9 @@ export class CodexPluginService {
   private installedPlugin(plugin: StoredPlugin): InstalledCodexPlugin {
     return {
       id: plugin.id,
+      capabilityDependencies: structuredClone(
+        plugin.capabilityDependencies ?? [],
+      ),
       name: plugin.name,
       displayName: plugin.displayName,
       version: plugin.version,
@@ -3521,6 +3538,9 @@ export class CodexPluginService {
     const now = new Date().toISOString();
     const stored: StoredPlugin = {
       id: parsed.id,
+      capabilityDependencies: structuredClone(
+        parsed.capabilityDependencies ?? [],
+      ),
       name: parsed.name,
       displayName: parsed.displayName,
       version: parsed.version,

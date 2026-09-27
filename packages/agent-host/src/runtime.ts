@@ -72,6 +72,7 @@ import {
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   PiAdapter,
   officeDocumentRequestSchema,
+  artifactSessionRequestSchema,
   type AgentPayload,
   type AgentTeamMessagePayload,
   type AgentTeamStatusPayload,
@@ -4195,7 +4196,7 @@ export class ArtemisAgentHost {
         name: "office_document",
         label: "Office document",
         description:
-          "Create, write, read, modify, or delete a normalized PDF, Excel (.xlsx), Word (.docx), or PowerPoint (.pptx) document inside the active workspace. Classify the exact operation's risk and whether the user explicitly requested it; the desktop validates paths and brokers mutations for approval.",
+          "Use create/read/write/modify/delete for Lite PDF/XLSX/DOCX/PPTX. Imported or externally modified originals cannot be overwritten by Lite. With the shared Office capability installed, use open/apply/snapshot/save/close for a live native document session. Apply one paragraph, slide object, or cell region operation at a time with the snapshot's expected_version and a stable operation_id; preview updates before save. Classify the exact operation's risk; the desktop validates and brokers it. A draft is not saved until save succeeds.",
         parameters: Type.Object({
           operation: Type.Union([
             Type.Literal("create"),
@@ -4203,7 +4204,68 @@ export class ArtemisAgentHost {
             Type.Literal("read"),
             Type.Literal("modify"),
             Type.Literal("delete"),
+            Type.Literal("open"),
+            Type.Literal("apply"),
+            Type.Literal("snapshot"),
+            Type.Literal("save"),
+            Type.Literal("close"),
           ]),
+          session_id: Type.Optional(
+            Type.String({ description: "Session ID returned by open." }),
+          ),
+          operation_id: Type.Optional(
+            Type.String({
+              description:
+                "Stable ID for an apply retry; never reuse it for different content.",
+            }),
+          ),
+          expected_version: Type.Optional(Type.Integer({ minimum: 0 })),
+          discard: Type.Optional(
+            Type.Boolean({
+              description:
+                "Explicitly discard unsaved draft when closing; defaults to false.",
+            }),
+          ),
+          change: Type.Optional(
+            Type.Union([
+              Type.Object({
+                type: Type.Literal("replace-text"),
+                paragraph: Type.Integer({ minimum: 0 }),
+                start: Type.Integer({ minimum: 0 }),
+                end: Type.Integer({ minimum: 0 }),
+                text: Type.String(),
+              }),
+              Type.Object({
+                type: Type.Literal("set-object-text"),
+                page: Type.Integer({ minimum: 1 }),
+                object: Type.Integer({ minimum: 0 }),
+                text: Type.String(),
+              }),
+              Type.Object({
+                type: Type.Literal("set-cells"),
+                sheet: Type.String(),
+                row: Type.Integer({ minimum: 1 }),
+                column: Type.Integer({ minimum: 1 }),
+                values: Type.Array(
+                  Type.Array(
+                    Type.Union([
+                      Type.String(),
+                      Type.Number(),
+                      Type.Boolean(),
+                      Type.Null(),
+                    ]),
+                  ),
+                ),
+              }),
+              Type.Object({
+                type: Type.Literal("set-formula"),
+                sheet: Type.String(),
+                row: Type.Integer({ minimum: 1 }),
+                column: Type.Integer({ minimum: 1 }),
+                formula: Type.String(),
+              }),
+            ]),
+          ),
           format: Type.Union([
             Type.Literal("pdf"),
             Type.Literal("excel"),
@@ -4310,17 +4372,46 @@ export class ArtemisAgentHost {
               `Sub-agent ${actor.actorAgentId} cannot modify an Office document outside its assigned scope: ${normalizedPath}.`,
             );
           }
-          const document = officeDocumentRequestSchema.parse({
-            protocolVersion: OFFICE_DOCUMENT_PROTOCOL_VERSION,
-            requestId: randomUUID(),
-            operation: params.operation,
-            format: params.format,
-            path: params.path,
-            ...(params.content === undefined
-              ? {}
-              : { content: params.content }),
-            ...(params.patch === undefined ? {} : { patch: params.patch }),
-          });
+          const document = [
+            "open",
+            "apply",
+            "snapshot",
+            "save",
+            "close",
+          ].includes(params.operation)
+            ? artifactSessionRequestSchema.parse({
+                protocolVersion: 2,
+                requestId: randomUUID(),
+                operation: params.operation,
+                format: params.format,
+                path: params.path,
+                ...(params.session_id === undefined
+                  ? {}
+                  : { sessionId: params.session_id }),
+                ...(params.operation_id === undefined
+                  ? {}
+                  : { operationId: params.operation_id }),
+                ...(params.expected_version === undefined
+                  ? {}
+                  : { expectedVersion: params.expected_version }),
+                ...(params.change === undefined
+                  ? {}
+                  : { change: params.change }),
+                ...(params.discard === undefined
+                  ? {}
+                  : { discard: params.discard }),
+              })
+            : officeDocumentRequestSchema.parse({
+                protocolVersion: OFFICE_DOCUMENT_PROTOCOL_VERSION,
+                requestId: randomUUID(),
+                operation: params.operation,
+                format: params.format,
+                path: params.path,
+                ...(params.content === undefined
+                  ? {}
+                  : { content: params.content }),
+                ...(params.patch === undefined ? {} : { patch: params.patch }),
+              });
           const brokerResult = await this.broker.request({
             kind: "office.document",
             approvalId: randomUUID(),

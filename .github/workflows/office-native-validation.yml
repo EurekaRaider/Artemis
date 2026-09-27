@@ -1,0 +1,145 @@
+name: Office native validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Native platform to validate
+        type: choice
+        options: [windows, macos]
+        default: windows
+  push:
+    branches: [codex/office-workbench]
+    paths:
+      - .github/workflows/office-native-validation.yml
+      - scripts/office/**
+      - apps/desktop/native/office-bridge/**
+      - apps/desktop/src/main/office-*.ts
+      - apps/desktop/src/main/capability-*.ts
+      - apps/desktop/src/renderer/Office*.tsx
+      - apps/desktop/src/renderer/office-*
+      - apps/desktop/test/office-*.test.ts
+      - apps/desktop/test/capability-pack-service.test.ts
+      - packages/protocol/src/artifact.ts
+      - packages/protocol/src/capability-pack.ts
+      - package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: office-native-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Native Office (${{ inputs.platform || 'windows' }})
+    runs-on: ${{ inputs.platform == 'macos' && fromJSON('["self-hosted", "macOS", "ARM64", "artemis-macos-arm64"]') || 'windows-2025' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.9.0
+      - name: Fetch pinned engine, SDK, headers and representative corpus
+        run: |
+          node scripts/office/fetch-sources.mjs
+          node scripts/office/fetch-corpus.mjs
+      - name: Mount official macOS build inputs read only
+        id: mac_inputs
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p artifacts/office/mount-office artifacts/office/mount-sdk
+          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/artifacts/office/mount-office" artifacts/office/sources/LibreOffice_26.8.0_MacOS_aarch64.dmg
+          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/artifacts/office/mount-sdk" artifacts/office/sources/LibreOffice_26.8.0_MacOS_aarch64_sdk.dmg
+          echo "OFFICE=$PWD/artifacts/office/mount-office/LibreOffice.app/Contents/MacOS/soffice" >> "$GITHUB_ENV"
+          echo "OFFICE_SDK=$PWD/artifacts/office/mount-sdk/LibreOffice26.8_SDK" >> "$GITHUB_ENV"
+      - name: Extract Windows build inputs and configure the native compiler
+        id: win_inputs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($item in @(@('LibreOffice_26.8.0_Win_x86-64.msi','office'), @('LibreOffice_26.8.0_Win_x86-64_sdk.msi','sdk'))) {
+            $source = (Resolve-Path "artifacts/office/sources/$($item[0])").Path
+            $target = Join-Path $PWD "artifacts/office/$($item[1])"
+            $process = Start-Process msiexec.exe -ArgumentList @('/a', "`"$source`"", '/qn', "TARGETDIR=`"$target`"") -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "MSI extraction failed: $($process.ExitCode)" }
+          }
+          $office = Get-ChildItem artifacts/office/office -Filter soffice.exe -Recurse | Select-Object -First 1
+          $maker = Get-ChildItem artifacts/office/sdk -Filter cppumaker.exe -Recurse | Select-Object -First 1
+          "OFFICE=$($office.FullName)" >> $env:GITHUB_ENV
+          "OFFICE_SDK=$(Split-Path (Split-Path $maker.FullName))" >> $env:GITHUB_ENV
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          & "$vs/Common7/Tools/Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          foreach ($name in @('PATH','INCLUDE','LIB','LIBPATH')) { "$name=$([Environment]::GetEnvironmentVariable($name))" >> $env:GITHUB_ENV }
+      - name: Install verification dependencies
+        run: npm ci
+      - name: Build protocol and agent libraries
+        run: npm run build:core
+      - name: Prepare renderer verification
+        id: prepare
+        run: npm run build:ui-libraries
+      - name: Verify Office policy, recovery and installation
+        if: success()
+        run: node node_modules/vitest/vitest.mjs run --no-file-parallelism apps/desktop/test/office-document-service.test.ts apps/desktop/test/office-session-service.test.ts apps/desktop/test/capability-pack-service.test.ts packages/protocol/test/artifact.test.ts
+        env:
+          NODE_OPTIONS: --no-experimental-webstorage
+      - name: Verify real Electron preview and annotation
+        if: always() && steps.prepare.outcome == 'success'
+        run: node scripts/office/verify-preview.mjs
+      - name: Compile and probe the macOS UNO bridge
+        if: always() && runner.os == 'macOS' && steps.mac_inputs.outcome == 'success'
+        shell: bash
+        run: |
+          node scripts/office/build-bridge.mjs --sdk "$OFFICE_SDK" --office "$OFFICE" --json artifacts/office/sources/json.hpp --out artifacts/office/build
+          node scripts/office/probe-native.mjs --office "$OFFICE" --bridge artifacts/office/build/office-bridge
+      - name: Compile and probe the Windows UNO bridge
+        if: always() && runner.os == 'Windows' && steps.win_inputs.outcome == 'success'
+        shell: pwsh
+        run: |
+          node scripts/office/build-bridge.mjs --sdk "$env:OFFICE_SDK" --office "$env:OFFICE" --json artifacts/office/sources/json.hpp --out artifacts/office/build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/office/probe-native.mjs --office "$env:OFFICE" --bridge artifacts/office/build/office-bridge.exe
+      - name: Record Windows execution and trust evidence
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item artifacts/office/evidence -ItemType Directory -Force | Out-Null
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+          $paths = @($env:OFFICE, (Join-Path $PWD 'artifacts/office/build/office-bridge.exe'))
+          $binaries = foreach ($path in $paths) {
+            if ($path -and (Test-Path $path)) {
+              $signature = Get-AuthenticodeSignature $path
+              $acl = Get-Acl $path
+              [ordered]@{path=$path; sha256=(Get-FileHash $path -Algorithm SHA256).Hash; signatureStatus=[string]$signature.Status; signer=$signature.SignerCertificate.Subject; owner=$acl.Owner; sddl=$acl.Sddl}
+            }
+          }
+          [ordered]@{
+            schemaVersion=1; commit=$env:GITHUB_SHA; runnerOs=$env:RUNNER_OS; runnerArch=$env:RUNNER_ARCH
+            imageOs=$env:ImageOS; imageVersion=$env:ImageVersion; windowsVersion=[Environment]::OSVersion.VersionString
+            administrator=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            finalCapabilityPackage=$false; ordinaryUserValidated=$false; releaseAccepted=$false
+            binaries=@($binaries)
+          } | ConvertTo-Json -Depth 8 | Set-Content artifacts/office/evidence/windows.json -Encoding utf8
+      - name: Preserve native evidence, including failed cases
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: office-native-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            artifacts/office/probe
+            artifacts/office/preview
+            artifacts/office/evidence
+          retention-days: 14
+      - name: Detach macOS build input volumes
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          hdiutil detach "$PWD/artifacts/office/mount-office" || true
+          hdiutil detach "$PWD/artifacts/office/mount-sdk" || true

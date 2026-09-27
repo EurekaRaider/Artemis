@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   mkdir,
   readFile,
@@ -8,7 +8,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { dirname, extname } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 
 import { cellValueAsPrimitive } from "@office-kit/xlsx/cell";
 import { loadWorkbook, workbookToBytes } from "@office-kit/xlsx/io";
@@ -47,6 +47,7 @@ import {
 import { parseOffice, type OfficeContentNode } from "officeparser";
 import { PDFDocument, StandardFonts, type PDFFont } from "pdf-lib";
 import PptxGenJS from "pptxgenjs";
+import { atomicWrite } from "./office-file-utils.js";
 
 const OPERATIONS = ["create", "write", "read", "modify", "delete"] as const;
 
@@ -569,7 +570,49 @@ function applyPatch(
 }
 
 export class OfficeDocumentService {
-  public constructor(private readonly workspacePath: string) {}
+  private readonly provenanceRoot: string;
+
+  public constructor(
+    private readonly workspacePath: string,
+    provenanceRoot?: string,
+  ) {
+    this.provenanceRoot =
+      provenanceRoot ?? join(workspacePath, ".artemis", "office-lite");
+  }
+
+  private provenancePath(path: string): string {
+    return join(
+      this.provenanceRoot,
+      `${createHash("sha256").update(resolve(path)).digest("hex")}.json`,
+    );
+  }
+
+  private async remember(path: string, bytes: Uint8Array): Promise<void> {
+    await mkdir(this.provenanceRoot, { recursive: true });
+    await atomicWrite(
+      this.provenancePath(path),
+      JSON.stringify({
+        version: 1,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      }),
+    );
+  }
+
+  public async assertLiteOriginal(path: string): Promise<void> {
+    const provenance = await readFile(this.provenancePath(path), "utf8")
+      .then(
+        (value) => JSON.parse(value) as { version?: number; sha256?: string },
+      )
+      .catch(() => undefined);
+    const digest = createHash("sha256")
+      .update(await readFile(path))
+      .digest("hex");
+    if (provenance?.version !== 1 || provenance.sha256 !== digest) {
+      throw new Error(
+        "Lite cannot overwrite this imported or externally modified original. Use the Office capability pack, or create a separate normalized copy and preserve the original.",
+      );
+    }
+  }
 
   public async execute(
     input: OfficeDocumentRequest,
@@ -585,6 +628,7 @@ export class OfficeDocumentService {
         await writeFile(absolutePath, bytes, {
           flag: "wx",
         });
+        await this.remember(absolutePath, bytes);
         return result(request, {
           changed: true,
           warnings: [NORMALIZED_WARNING],
@@ -596,7 +640,11 @@ export class OfficeDocumentService {
             `Office document path is not a file: ${request.path}`,
           );
         }
-        await replaceFile(absolutePath, await encode(request.content));
+        await this.assertLiteOriginal(absolutePath);
+        const bytes = await encode(request.content);
+        await this.assertLiteOriginal(absolutePath);
+        await replaceFile(absolutePath, bytes);
+        await this.remember(absolutePath, bytes);
         return result(request, {
           changed: true,
           warnings: [NORMALIZED_WARNING],
@@ -611,10 +659,14 @@ export class OfficeDocumentService {
         });
       }
       case "modify": {
+        await this.assertLiteOriginal(absolutePath);
         const parsed = await decode(request.format, absolutePath);
         const changed = applyPatch(parsed.content, request.patch) > 0;
         if (changed) {
-          await replaceFile(absolutePath, await encode(parsed.content));
+          const bytes = await encode(parsed.content);
+          await this.assertLiteOriginal(absolutePath);
+          await replaceFile(absolutePath, bytes);
+          await this.remember(absolutePath, bytes);
         }
         return result(request, {
           changed,

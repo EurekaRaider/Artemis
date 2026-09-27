@@ -224,6 +224,11 @@ import {
   deriveRunPresentation,
   formatRunDuration,
 } from "./run-presentation.js";
+const OfficeWorkbenchPanel = lazy(() =>
+  import("./OfficeWorkbenchPanel.js").then((module) => ({
+    default: module.OfficeWorkbenchPanel,
+  })),
+);
 import { nextRunMode, parseRunModeCommand } from "./run-mode-controls.js";
 import {
   formatToolInput,
@@ -3669,6 +3674,43 @@ export function App() {
   const activeEvents = activeThread
     ? (snapshot?.events[activeThread.id] ?? [])
     : [];
+  const openedOfficeTabs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeThreadId) return;
+    const opened = activeEvents.filter(
+      (event) =>
+        event.payload.type === "artifact.event" &&
+        event.payload.event.kind === "opened" &&
+        !openedOfficeTabs.current.has(event.payload.event.session.sessionId),
+    );
+    if (!opened.length) return;
+    for (const event of opened)
+      if (event.payload.type === "artifact.event")
+        openedOfficeTabs.current.add(event.payload.event.session.sessionId);
+    setWorkspaceTabsByThread((current) => {
+      let state = current[activeThreadId] ?? emptyWorkspaceTabs();
+      for (const event of opened) {
+        if (event.payload.type !== "artifact.event") continue;
+        const session = event.payload.event.session;
+        const id = `office:${session.sessionId}`;
+        if (state.tabs.some((tab) => tab.id === id)) continue;
+        state = reduceWorkspaceTabs(state, {
+          type: "ensure",
+          tab: {
+            id,
+            kind: "office",
+            title: session.path.split(/[\\/]/u).at(-1) ?? session.path,
+            path: session.path,
+            artifactSessionId: session.sessionId,
+          },
+        });
+      }
+      return state === current[activeThreadId]
+        ? current
+        : { ...current, [activeThreadId]: state };
+    });
+    setWorkspaceDockOpen(true);
+  }, [activeEvents, activeThreadId]);
   useTaskNotificationRead(
     activeView === "workspace" &&
       activeThreadId &&
@@ -9402,6 +9444,26 @@ ${model.providerId} · ${model.modelId}`}
                               unsavedLabel={t.unsaved}
                             />
                           )}
+                          {tab.kind === "office" &&
+                          activeThreadId &&
+                          tab.artifactSessionId &&
+                          threadState?.artifacts?.[tab.artifactSessionId] ? (
+                            <Suspense fallback={<span>…</span>}>
+                              <OfficeWorkbenchPanel
+                                threadId={activeThreadId}
+                                view={
+                                  threadState.artifacts[tab.artifactSessionId]!
+                                }
+                                locale={locale}
+                                onAnnotate={(annotation) =>
+                                  setPrompt(
+                                    (current) =>
+                                      `${current}${current ? "\n\n" : ""}${tab.path}\n${JSON.stringify(annotation, null, 2)}`,
+                                  )
+                                }
+                              />
+                            </Suspense>
+                          ) : null}
                           {tab.kind === "file" && (
                             <WorkspaceFilesPanel
                               previewLabel={t.previewFile}

@@ -654,6 +654,7 @@ export interface CodexPluginAppPreview {
 }
 
 export interface CodexPluginPreview {
+  capabilityDependencies?: import("@artemis/protocol").CapabilityDependency[];
   hasHooks?: boolean;
   localizations?: PluginLocalizations;
   id: string;
@@ -1016,6 +1017,24 @@ export interface ArtemisApi {
   addReviewComment(input: AddReviewCommentInput): Promise<ReviewComment>;
   deleteReviewComment(threadId: string, commentId: string): Promise<void>;
   openWorkspacePdf(threadId: string, path: string): Promise<string>;
+  readOfficeSnapshot(
+    threadId: string,
+    sessionId: string,
+  ): Promise<import("@artemis/protocol").ArtifactSnapshot>;
+  openOfficePreview(
+    threadId: string,
+    sessionId: string,
+    assetId: string,
+  ): Promise<{ data: string; version: number }>;
+  officeCapabilityStatus(): Promise<
+    import("@artemis/protocol").CapabilityPackStatus
+  >;
+  installOfficeCapability(): Promise<void>;
+  importOfficeCapability(): Promise<void>;
+  cancelOfficeCapability(): Promise<void>;
+  activateOfficeCapability(version: string): Promise<void>;
+  deactivateOfficeCapability(): Promise<void>;
+  uninstallOfficeCapability(version: string): Promise<void>;
   readWorkspaceTextFile(
     threadId: string,
     path: string,
@@ -1321,6 +1340,15 @@ export const IPC = {
   reviewCommentAdd: "artemis:review-comment-add",
   reviewCommentDelete: "artemis:review-comment-delete",
   workspacePdfOpen: "artemis:workspace-pdf-open",
+  officeSnapshot: "artemis:office-snapshot",
+  officePreview: "artemis:office-preview",
+  officeCapabilityStatus: "artemis:office-capability-status",
+  officeCapabilityInstall: "artemis:office-capability-install",
+  officeCapabilityImport: "artemis:office-capability-import",
+  officeCapabilityCancel: "artemis:office-capability-cancel",
+  officeCapabilityActivate: "artemis:office-capability-activate",
+  officeCapabilityDeactivate: "artemis:office-capability-deactivate",
+  officeCapabilityUninstall: "artemis:office-capability-uninstall",
   workspaceTextFileRead: "artemis:workspace-text-file-read",
   workspaceImageRead: "artemis:workspace-image-read",
   workspaceDirectoryList: "artemis:workspace-directory-list",

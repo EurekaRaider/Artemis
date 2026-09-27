@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "runtimeVersion": "1.0.0",
+  "libreOfficeVersion": "26.8.0",
+  "json": {
+    "url": "https://raw.githubusercontent.com/nlohmann/json/v3.12.0/single_include/nlohmann/json.hpp",
+    "sha256": "aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63"
+  },
+  "targets": {
+    "darwin-arm64": {
+      "office": {
+        "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/mac/aarch64/LibreOffice_26.8.0_MacOS_aarch64.dmg",
+        "sha256": "8858d8058da4f862f47559486814e65efc27294da67c5e4bb56b006b1ee59f89"
+      },
+      "sdk": {
+        "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/mac/aarch64/LibreOffice_26.8.0_MacOS_aarch64_sdk.dmg",
+        "sha256": "b5b1de6212da8e3f54e9fb249180ea95eac8dbc9be69d2cad2fef7d38404f144"
+      }
+    },
+    "win32-x64": {
+      "office": {
+        "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/win/x86_64/LibreOffice_26.8.0_Win_x86-64.msi",
+        "sha256": "4aa6c6e1895f4055104effcb556bd3362d20c6ad707c149543304f395ef9db95"
+      },
+      "sdk": {
+        "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/win/x86_64/LibreOffice_26.8.0_Win_x86-64_sdk.msi",
+        "sha256": "50ac942ae672cefc90397cfa5d15332fbe926d8cba824de53244306124d57df1"
+      }
+    }
+  }
+}

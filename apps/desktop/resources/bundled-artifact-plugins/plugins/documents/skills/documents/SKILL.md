@@ -26,3 +26,17 @@ Before overwriting or deleting, confirm that the request identifies the intended
 ## Lite limitations
 
 This workflow preserves normalized text and headings. It does not promise fidelity for tracked changes, comments, macros, embedded objects, complex tables, page layout, fonts, or other advanced formatting. Explain that limitation before changing an existing document when it matters to the request.
+
+## Optional native Office sessions
+
+The host-managed `office-core` capability enhances this same plugin. Documents, Presentations and Spreadsheets share one installation. Never download or install the runtime with bash, npm or an extension; the user manages it through the plugin's Office capability panel, including verified offline import.
+
+- Lite remains available without the capability. Imported originals and files changed outside Lite cannot be overwritten through Lite `write` or `modify`. Preserve the original and create a separate file when a normalized copy is wanted.
+- For continuous edits with an installed, accepted capability, call `office_document` with `operation: "open"`. Reuse the returned `sessionId` as `session_id`.
+- Send `operation: "apply"`, a stable unique `operation_id`, the last `expected_version`, and a structured `change`. Word uses paragraph UTF-16 offsets (`replace-text`); slides use page/object indices (`set-object-text`); sheets use `set-cells` or explicit `set-formula`.
+- Retry uncertain operations with the identical operation ID and body. Read `operation: "snapshot"` after a version conflict. Never guess selection indices from an older version.
+- Each acknowledged operation is an unsaved live draft. The host renders it before saving. Only `operation: "save"` with the expected version writes the original. Report saved, draft and preview versions separately.
+- If compatibility validation blocks save, keep the draft and original and report the exact reason. Do not fall back to Lite, bash or rebuilding the original. This development branch has not yet accepted the native compatibility matrix.
+- `operation: "close"` refuses unsaved changes. Only set `discard: true` when the user explicitly wants to discard them. Closing a preview tab does not discard the draft.
+- An external-change event is a file-level update, not evidence of paragraph/cell-level edits. Preserve the live draft before reopening an externally changed original.
+- User annotations include `sourceVersion` and a selection. Check the version before acting on an annotation; do not apply old offsets to new content.

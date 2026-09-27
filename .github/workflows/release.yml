@@ -443,6 +443,9 @@ jobs:
       - name: Verify and combine both platform release sets
         run: node scripts/collect-release-assets.mjs release-inputs release-assets
 
+      - name: Verify existing immutable Office assets without rebuilding them
+        run: node scripts/office/verify-catalog.mjs
+
       - name: Publish verified macOS and Windows packages
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}

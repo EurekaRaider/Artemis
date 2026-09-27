@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { artifactEventSchema } from "./artifact.js";
 
 // Multi-question user-input payloads evolved in place within v4 (the kind
 // payload discriminant) instead of bumping the protocol version: no build
@@ -1044,6 +1045,9 @@ export const taskNotificationStateSchema = z.object({
 export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
 
 export const agentPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({ type: z.literal("artifact.event"), event: artifactEventSchema })
+    .strict(),
   z
     .object({
       type: z.literal("im.group.activity"),

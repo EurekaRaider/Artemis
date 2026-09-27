@@ -7,6 +7,7 @@ import type { CodexPluginPreview } from "../shared/api.js";
 import { UI_COPY } from "../shared/ui-copy.js";
 import { uiText } from "../shared/ui-text.js";
 import { ResourceAvatar } from "./resource-icons.js";
+import { officeCopy } from "./office-copy.js";
 
 export function PluginInstallDialog({
   plugin,
@@ -105,6 +106,11 @@ export function PluginInstallDialog({
       <p className="plugin-install-hint">
         {uiText(locale, "ResourceCenter_labels.disabledInstallHint")}
       </p>
+      {plugin.capabilityDependencies?.length ? (
+        <p>
+          {officeCopy(locale).shared} {officeCopy(locale).lite}
+        </p>
+      ) : null}
       {plugin.unsupported.length > 0 && (
         <InlineNotice tone="warning">
           {t.unsupported}: {plugin.unsupported.join(", ")}

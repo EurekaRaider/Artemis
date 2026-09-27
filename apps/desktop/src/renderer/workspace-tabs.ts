@@ -3,6 +3,7 @@ export type WorkspaceTabKind =
   | "terminal"
   | "browser"
   | "file"
+  | "office"
   | "markdown"
   | "sources"
   | "goal"
@@ -18,6 +19,7 @@ export interface WorkspaceTab {
   url?: string | undefined;
   childAgentId?: string;
   agentTeamId?: string;
+  artifactSessionId?: string;
 }
 
 export interface WorkspaceTabsState {
