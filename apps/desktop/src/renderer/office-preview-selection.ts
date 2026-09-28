@@ -62,3 +62,30 @@ export function pageRegion(
     ? { kind: "region", page, x, y, width, height }
     : undefined;
 }
+
+export function pageRegionQuote(
+  region: Extract<ArtifactSelection, { kind: "region" }>,
+  runs: readonly {
+    text: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[],
+): string | undefined {
+  const text = runs
+    .filter((run) => {
+      const x = run.x + run.width / 2,
+        y = run.y + run.height / 2;
+      return (
+        x >= region.x &&
+        x <= region.x + region.width &&
+        y >= region.y &&
+        y <= region.y + region.height
+      );
+    })
+    .map((run) => run.text)
+    .join(" ")
+    .slice(0, 8192);
+  return text || undefined;
+}

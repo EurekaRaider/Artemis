@@ -113,7 +113,7 @@ const out=${JSON.stringify(out)};
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({width:1100,height:900,show:false,webPreferences:{nodeIntegration:false,contextIsolation:true}});
  const errors=[]; win.webContents.on('console-message', details=>{if(details.level==='error') errors.push(details.message)});
- const js=source=>win.webContents.executeJavaScript(source);
+ const js=async source=>{try{return await win.webContents.executeJavaScript(source)}catch(error){await fs.writeFile(out+'/failure.png',(await win.webContents.capturePage()).toPNG());throw Error(source+': '+error)}};
  const wait=async source=>{for(let i=0;i<200;i++){if(await js(source))return;await new Promise(r=>setTimeout(r,50))}await fs.writeFile(out+'/failure.png',(await win.webContents.capturePage()).toPNG());throw Error('Timeout: '+source+'; '+JSON.stringify(await js('({errors:window.errors,text:document.body.innerText,paints:window.paints})')))};
  await win.loadFile(${JSON.stringify(join(fixture, "dist/index.html"))});
  await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "0"');
@@ -128,13 +128,17 @@ app.whenReady().then(async()=>{
  const bounds=await js('(()=>{const r=document.querySelector(".office-page-scroll canvas").getBoundingClientRect();return {x:r.x,y:r.y}})()');
  win.webContents.sendInputEvent({type:'mouseDown',x:Math.round(bounds.x+30),y:Math.round(bounds.y+30),button:'left',clickCount:1});
  win.webContents.sendInputEvent({type:'mouseUp',x:Math.round(bounds.x+130),y:Math.round(bounds.y+100),button:'left',clickCount:1});
+ await wait('document.querySelector("textarea")');
  await js('document.querySelector("textarea").focus()');
  await win.webContents.insertText('Please check this region.');
  await wait('[...document.querySelectorAll("button")].some(b=>b.textContent.includes("加入输入框")&&!b.disabled)');
  await js('[...document.querySelectorAll("button")].find(b=>b.textContent.includes("加入输入框")).click()');
  await wait('window.notes.length===1');
  const note=await js('window.notes[0]'); if(note.sourceVersion!==2||note.selection.kind!=='region') throw Error('Annotation lost its rendered source version');
- const scroll=await js('(()=>{const s=document.querySelector(".office-page-scroll");s.scrollTop=100;return s.scrollTop})()');
+ await wait('!document.querySelector(".office-annotation")');
+ const scroll=await js('(()=>{const s=document.querySelector(".office-page-scroll"); const next=s.querySelectorAll("[data-page-number]")[1]; s.scrollTop=next.offsetTop;return s.scrollTop})()');
+ await wait('document.querySelector(".office-page-picker [data-part=trigger]")?.textContent.includes("2 /")');
+
  await fs.writeFile(out+'/desktop.png',(await win.webContents.capturePage()).toPNG());
  win.setSize(600,850); await new Promise(r=>setTimeout(r,100));
  await fs.writeFile(out+'/compact.png',(await win.webContents.capturePage()).toPNG());
@@ -151,7 +155,7 @@ app.whenReady().then(async()=>{
    if(sample.format==='powerpoint') await wait('[...document.querySelectorAll("nav canvas")].length>0 && [...document.querySelectorAll("nav canvas")].every(canvas=>canvas.dataset.previewVersion==="'+(index+3)+'")');
    if(index===3) {
      await js('[...document.querySelectorAll(".office-sheet-tabs button")].find(button=>button.querySelector("[data-part=label]").textContent==="Sheet1").click()');
-     await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewPage==="2"');
+     await wait('document.querySelector(".office-page-picker [data-part=trigger]")?.textContent.includes("2 /")');
      sheetPageMappingVerified=true;
      continue;
    }

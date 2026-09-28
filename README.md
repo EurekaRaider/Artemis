@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.9** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.10** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -372,15 +372,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.9` local packaging configuration produces:
+The `1.6.10` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.9.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.9.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.9.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.10.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.10.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.10.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.9`, and
+Releases are started manually through **Release**, using tag `v1.6.10`, and
 published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -397,7 +397,15 @@ Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
 
-Version 1.6.9 adds the **Office workbench** with local DOCX/PPTX text editing,
+Version 1.6.10 improves Office review across Word, PowerPoint and Excel: scroll
+continuously through preview pages, move the comment panel, clear selections with
+Escape or the clear control, and recover comment drafts when switching chats.
+Comments appear as editable cards in the composer with links back to their source.
+Region comments include visible text context when available; older-version
+locations are marked instead of silently applied to updated content. Office and
+CSV error messages can be dismissed while unsaved drafts remain available.
+
+Version 1.6.9 added the **Office workbench** with local DOCX/PPTX text editing,
 XLSX cell and formula editing, CSV editing, automatic saving, and undo/redo.
 Documents, Presentations and Spreadsheets share one optional Office runtime,
 with online installation, single-file offline import, update checks and repair.

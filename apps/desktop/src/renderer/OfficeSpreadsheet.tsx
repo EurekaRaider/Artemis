@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ArtifactSelection, ArtifactSnapshot } from "@artemis/protocol";
 import type { OfficeEditorState } from "./office-editor-state.js";
 import {
@@ -52,6 +52,17 @@ export function OfficeSpreadsheet({
       ? selection.range
       : "";
   const bounds = cellRangeBounds(range);
+  useEffect(() => {
+    if (selection?.kind !== "cells" || selection.sheet !== sheet) return;
+    const selected = cellRangeBounds(selection.range);
+    if (!selected) return;
+    table.current
+      ?.querySelector(
+        `[data-row="${selected.top}"][data-column="${selected.left}"]`,
+      )
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selection, sheet]);
+
   const hitCell = (element: Element | null): OfficeCell | undefined => {
     const cell = element?.closest<HTMLTableCellElement>("td[data-cell]");
     return cell && table.current?.contains(cell)

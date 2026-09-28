@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   artifactAnnotationSchema,
@@ -16,6 +17,8 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { OfficePreviewPage } from "./OfficePreviewPage.js";
 import { OfficeSpreadsheet } from "./OfficeSpreadsheet.js";
+import { officeAnnotationCopy } from "./office-annotation-copy.js";
+import { officeSelectionLabel } from "./office-annotations.js";
 import { officeCopy } from "./office-copy.js";
 import "./office-workbench.css";
 import { officeEditor } from "./office-editor-state.js";
@@ -23,45 +26,142 @@ import { officeEditCopy } from "./office-edit-copy.js";
 import documentsIcon from "../../resources/bundled-artifact-plugins/plugins/documents/assets/icon.png";
 import presentationsIcon from "../../resources/bundled-artifact-plugins/plugins/presentations/assets/icon.png";
 import spreadsheetsIcon from "../../resources/bundled-artifact-plugins/plugins/spreadsheets/assets/icon.png";
+import { readLocalDraft, writeLocalDraft } from "./workspace-autosave.js";
+import { officeReviewCopy } from "./office-review-copy.js";
 import { useWorkspaceEditHistory } from "./workspace-edit-history.js";
 
-export function OfficeWorkbenchPanel({
+const reviewDraftSchema = z.object({
+  protocolVersion: z.literal(1),
+  open: z.boolean(),
+  note: z.string().max(8192),
+  selection: z
+    .object({
+      value: artifactSelectionSchema,
+      version: z.number().int().nonnegative(),
+      quote: z.string().max(8192).optional(),
+    })
+    .optional(),
+});
+
+export function OfficeWorkbenchPanel(
+  props: Parameters<typeof OfficeWorkbenchContent>[0],
+) {
+  return (
+    <OfficeWorkbenchContent
+      key={`${props.threadId}:${props.view.session.sessionId}`}
+      {...props}
+    />
+  );
+}
+
+function OfficeWorkbenchContent({
   threadId,
   view,
   locale,
   onAnnotate,
   onSnapshot,
+  annotationFocus,
 }: {
   threadId: string;
   view: ArtifactViewState;
   locale: AppLocale;
-  onAnnotate(annotation: ArtifactAnnotation): void;
+  onAnnotate(annotation: ArtifactAnnotation): void | boolean;
+  annotationFocus?: ArtifactAnnotation | undefined;
   onSnapshot?(snapshot: ArtifactSnapshot): void;
 }) {
   const t = officeCopy(locale);
+  const review = officeReviewCopy(locale);
+  const draftKey = `artemis-office-review:${threadId}:${view.session.sessionId}`;
+  const [savedDraft] = useState(() => {
+    const parsed = reviewDraftSchema.safeParse(readLocalDraft(draftKey));
+    return parsed.success ? parsed.data : undefined;
+  });
   const [snapshot, setSnapshot] = useState<ArtifactSnapshot>();
   const [pdf, setPdf] = useState<{
     document: PDFDocumentProxy;
     version: number;
   }>();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(
+    savedDraft?.selection?.value.kind === "region" ||
+      savedDraft?.selection?.value.kind === "object"
+      ? savedDraft.selection.value.page
+      : 1,
+  );
   const [zoom, setZoom] = useState(
     view.session.format === "powerpoint" ? "page" : "width",
   );
-  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [annotationOpen, setAnnotationOpen] = useState(
+    savedDraft?.open === true,
+  );
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [sheetView, setSheetView] = useState("grid");
-  const [follow, setFollow] = useState(true);
-  const [sheet, setSheet] = useState("");
+  const [follow, setFollow] = useState(!savedDraft?.selection);
+  const [sheet, setSheet] = useState(
+    savedDraft?.selection?.value.kind === "cells"
+      ? savedDraft.selection.value.sheet
+      : "",
+  );
   const [sheetPages, setSheetPages] = useState<Record<string, number>>({});
   const mappedSheet = useRef<string | undefined>(undefined);
   const [range, setRange] = useState("A1");
-  const [note, setNote] = useState("");
-  const [selection, setSelection] = useState<{
-    value: ArtifactSelection;
-    version: number;
-  }>();
+  const [note, setNote] = useState(
+    typeof savedDraft?.note === "string" ? savedDraft.note.slice(0, 8192) : "",
+  );
+  const [selection, setSelection] = useState<
+    | {
+        value: ArtifactSelection;
+        version: number;
+        quote?: string | undefined;
+      }
+    | undefined
+  >(savedDraft?.selection);
+  useEffect(() => {
+    writeLocalDraft(draftKey, {
+      protocolVersion: 1,
+      open: annotationOpen,
+      note,
+      selection,
+    });
+  }, [draftKey, annotationOpen, note, selection]);
+  const stage = useRef<HTMLDivElement>(null);
+  const pageScroll = useRef<HTMLDivElement>(null);
+  const scrollPage = useRef<number | undefined>(undefined);
+  const annotationPanel = useRef<HTMLElement>(null);
+  const [position, setPosition] = useState<{ x: number; y: number }>();
+  const moving = useRef<
+    { x: number; y: number; left: number; top: number } | undefined
+  >(undefined);
+  useEffect(() => {
+    if (!annotationOpen || !stage.current || !annotationPanel.current) return;
+    const observer = new ResizeObserver(() => {
+      setPosition((previous) => {
+        if (!previous || !stage.current || !annotationPanel.current)
+          return previous;
+        const x = Math.max(
+          0,
+          Math.min(
+            previous.x,
+            stage.current.clientWidth - annotationPanel.current.offsetWidth,
+          ),
+        );
+        const y = Math.max(
+          0,
+          Math.min(
+            previous.y,
+            stage.current.clientHeight - annotationPanel.current.offsetHeight,
+          ),
+        );
+        return x === previous.x && y === previous.y ? previous : { x, y };
+      });
+    });
+    observer.observe(stage.current);
+    observer.observe(annotationPanel.current);
+    return () => observer.disconnect();
+  }, [annotationOpen]);
+  const [dismissedError, setDismissedError] = useState<string>();
   const [error, setError] = useState<string>();
+  const [staleAnnotation, setStaleAnnotation] = useState(false);
+  const handledFocus = useRef<ArtifactAnnotation | undefined>(undefined);
   const sessionId = view.session.sessionId;
   const editCopy = officeEditCopy(locale);
   const [, refreshEditor] = useState(0);
@@ -138,6 +238,34 @@ export function OfficeWorkbenchPanel({
     };
   }, [assetId, sessionId, threadId]);
   useEffect(() => {
+    if (
+      !annotationFocus ||
+      !snapshot ||
+      handledFocus.current === annotationFocus
+    )
+      return;
+    handledFocus.current = annotationFocus;
+    setFollow(false);
+    setAnnotationOpen(false);
+    const sameVersion =
+      annotationFocus.documentId === snapshot.session.documentId &&
+      annotationFocus.sessionId === sessionId &&
+      annotationFocus.sourceVersion === snapshot.session.version;
+    setStaleAnnotation(!sameVersion);
+    if (!sameVersion) {
+      setSelection(undefined);
+      return;
+    }
+    const value = annotationFocus.selection;
+    setSelection({ value, version: annotationFocus.sourceVersion });
+    if (value.kind === "region" || value.kind === "object") setPage(value.page);
+    if (value.kind === "cells") {
+      setSheet(value.sheet);
+      setRange(value.range);
+      setSheetView("grid");
+    }
+  }, [annotationFocus, snapshot, sessionId]);
+  useEffect(() => {
     if (!follow || !view.selection || annotationOpen) return;
     const value = view.selection;
     setSelection({ value, version: view.session.version });
@@ -147,17 +275,21 @@ export function OfficeWorkbenchPanel({
       setRange(value.range);
     }
   }, [follow, view.selection, view.session.version, annotationOpen]);
+  const navigationSelection = follow
+    ? view.selection
+    : selection?.version === snapshot?.session.version
+      ? selection?.value
+      : undefined;
   useEffect(() => {
     if (
-      !follow ||
       annotationOpen ||
       !pdf ||
-      view.selection?.kind !== "paragraph" ||
+      navigationSelection?.kind !== "paragraph" ||
       !snapshot ||
       pdf.version !== snapshot.session.version
     )
       return;
-    const index = view.selection.index;
+    const index = navigationSelection.index;
     const target = snapshot.targets.find(
       (target) =>
         target.selection.kind === "paragraph" &&
@@ -187,7 +319,7 @@ export function OfficeWorkbenchPanel({
     return () => {
       active = false;
     };
-  }, [follow, pdf, snapshot, view.selection, annotationOpen]);
+  }, [pdf, snapshot, navigationSelection, annotationOpen]);
   const currentSheet = sheet || snapshot?.sheets[0] || "";
   useEffect(() => {
     setSheetPages({});
@@ -234,11 +366,7 @@ export function OfficeWorkbenchPanel({
   );
   const session = snapshot?.session ?? view.session;
   function selectionLabel(value: ArtifactSelection): string {
-    if (value.kind === "paragraph") return `${t.paragraph} ${value.index + 1}`;
-    if (value.kind === "object")
-      return `${t.page} ${value.page} · ${t.object} ${[value.index, ...(value.path ?? [])].map((index) => index + 1).join(".")}${value.cell ? ` · R${value.cell.row + 1}C${value.cell.column + 1}` : ""}`;
-    if (value.kind === "cells") return `${value.sheet} · ${value.range}`;
-    return `${t.regionSelection} · ${t.page} ${value.page}`;
+    return officeSelectionLabel(value, locale);
   }
   function addNote() {
     if (!selection || !note.trim()) return;
@@ -249,13 +377,14 @@ export function OfficeWorkbenchPanel({
       sessionId,
       sourceVersion: selection.version,
       selection: selection.value,
+      ...(selection.quote ? { quote: selection.quote } : {}),
       text: note,
     });
     if (!parsed.success) {
       setError(parsed.error.message);
       return;
     }
-    onAnnotate(parsed.data);
+    if (onAnnotate(parsed.data) === false) return;
     setNote("");
     setAnnotationOpen(false);
     setSelection(undefined);
@@ -264,6 +393,25 @@ export function OfficeWorkbenchPanel({
   const showGrid = isSheet && sheetView === "grid";
   const pageCount = pdf?.document.numPages ?? 1;
   const currentPage = Math.min(page, pageCount);
+  const continuous = !showGrid;
+  useEffect(() => {
+    if (!continuous || !pdf) return;
+    if (scrollPage.current === currentPage) {
+      scrollPage.current = undefined;
+      return;
+    }
+    pageScroll.current
+      ?.querySelector(`[data-page-number="${currentPage}"]`)
+      ?.scrollIntoView({ block: "start" });
+  }, [currentPage, continuous, pdf]);
+  const displayedError = editor.error ?? error ?? session.error;
+  useEffect(() => {
+    setDismissedError(undefined);
+  }, [displayedError]);
+  const clearSelection = () => {
+    setSelection(undefined);
+    setFollow(false);
+  };
   const slides = useRef<HTMLElement>(null);
   useEffect(() => {
     const strip = slides.current;
@@ -282,11 +430,12 @@ export function OfficeWorkbenchPanel({
   const validSelection =
     selection && artifactSelectionSchema.safeParse(selection.value).success;
   const quote =
-    selection?.version === session.version
+    selection?.quote ??
+    (selection?.version === session.version
       ? targets.find(
           (target) => JSON.stringify(target.selection) === selectedValue,
         )?.text
-      : undefined;
+      : undefined);
   const targetOptions = (isSheet ? [] : targets)
     .filter(
       (target) =>
@@ -313,8 +462,10 @@ export function OfficeWorkbenchPanel({
   const chooseSelection = (
     value: ArtifactSelection,
     version = session.version,
+    quote?: string,
   ) => {
-    setSelection({ value, version });
+    setFollow(false);
+    setSelection({ value, version, ...(quote ? { quote } : {}) });
     setAnnotationOpen(true);
     if (value.kind === "cells") setRange(value.range);
   };
@@ -336,11 +487,13 @@ export function OfficeWorkbenchPanel({
           void editor.flush().catch(() => undefined);
           return;
         }
-        if (event.defaultPrevented || !annotationOpen) return;
+        if (event.defaultPrevented || event.nativeEvent.isComposing) return;
         if (event.key === "Escape") {
           event.preventDefault();
+          clearSelection();
           setAnnotationOpen(false);
         } else if (
+          annotationOpen &&
           event.key === "Enter" &&
           (event.metaKey || event.ctrlKey) &&
           validSelection &&
@@ -407,9 +560,19 @@ export function OfficeWorkbenchPanel({
           onCheckedChange={setFollow}
         />
       </header>
-      {error || session.error || editor.error ? (
+      {staleAnnotation ? (
         <InlineNotice tone="warning">
-          {editor.error ?? error ?? session.error}
+          {officeAnnotationCopy(locale).stale}
+        </InlineNotice>
+      ) : null}
+      {displayedError && dismissedError !== displayedError ? (
+        <InlineNotice tone="warning">
+          {displayedError}
+          <IconButton
+            label={review.dismissError}
+            icon={<ArtemisIcon name="close" />}
+            onClick={() => setDismissedError(displayedError)}
+          />
         </InlineNotice>
       ) : null}
       <div className="office-toolbar" role="group" aria-label={t.preview}>
@@ -435,12 +598,6 @@ export function OfficeWorkbenchPanel({
         ) : null}
         {!showGrid ? (
           <div className="office-page-navigation">
-            <IconButton
-              label={t.previousPage}
-              disabled={!pdf || currentPage <= 1}
-              icon={<ArtemisIcon name="chev-left" />}
-              onClick={() => setPage(currentPage - 1)}
-            />
             <Select
               className="office-page-picker"
               size="compact"
@@ -452,12 +609,6 @@ export function OfficeWorkbenchPanel({
                 value: String(index + 1),
                 label: `${index + 1} / ${pageCount}`,
               }))}
-            />
-            <IconButton
-              label={t.nextPage}
-              disabled={!pdf || currentPage >= pageCount}
-              icon={<ArtemisIcon name="chev-right" />}
-              onClick={() => setPage(currentPage + 1)}
             />
           </div>
         ) : null}
@@ -483,14 +634,40 @@ export function OfficeWorkbenchPanel({
           variant="quiet"
           selected={annotationOpen}
           icon={<ArtemisIcon name="message" />}
-          onClick={() => setAnnotationOpen((open) => !open)}
+          onClick={() => {
+            if (annotationOpen) clearSelection();
+            setAnnotationOpen((open) => !open);
+          }}
         >
           {t.note}
         </Button>
       </div>
-      <div className="office-stage">
+      {annotationOpen && !showGrid ? (
+        <p className="office-region-hint">
+          {t.region} {review.escape}
+        </p>
+      ) : null}
+      <div className="office-stage" ref={stage}>
         <div
+          ref={pageScroll}
           className="office-page-scroll"
+          onScroll={() => {
+            if (!continuous || !pageScroll.current) return;
+            const top = pageScroll.current.getBoundingClientRect().top;
+            const pages = [
+              ...pageScroll.current.querySelectorAll<HTMLElement>(
+                "[data-page-number]",
+              ),
+            ];
+            const visible = pages.find(
+              (item) => item.getBoundingClientRect().bottom > top + 40,
+            );
+            const number = Number(visible?.dataset.pageNumber);
+            if (number && number !== currentPage) {
+              scrollPage.current = number;
+              setPage(number);
+            }
+          }}
           data-view={showGrid ? "grid" : "print"}
         >
           {showGrid && snapshot ? (
@@ -518,19 +695,29 @@ export function OfficeWorkbenchPanel({
               }}
             />
           ) : pdf && !showGrid ? (
-            <OfficePreviewPage
-              editor={isSheet || annotationOpen ? undefined : editor}
-              editLabel={editCopy.text}
-              document={pdf.document}
-              page={currentPage}
-              zoom={zoom}
-              version={pdf.version}
-              label={`${t.page} ${currentPage}`}
-              selection={
-                selection?.version === pdf.version ? selection.value : undefined
-              }
-              onRegion={chooseSelection}
-            />
+            Array.from({ length: pageCount }, (_, index) => index + 1).map(
+              (number) => (
+                <OfficePreviewPage
+                  key={number}
+                  lazy
+                  onClearSelection={clearSelection}
+                  selecting={annotationOpen}
+                  editor={isSheet || annotationOpen ? undefined : editor}
+                  editLabel={editCopy.text}
+                  document={pdf.document}
+                  page={number}
+                  zoom={zoom}
+                  version={pdf.version}
+                  label={`${t.page} ${number}`}
+                  selection={
+                    selection?.version === pdf.version
+                      ? selection.value
+                      : undefined
+                  }
+                  onRegion={chooseSelection}
+                />
+              ),
+            )
           ) : (
             <div className="office-preview-empty" role="status">
               <ArtemisIcon name="document" />
@@ -539,8 +726,78 @@ export function OfficeWorkbenchPanel({
           )}
         </div>
         {annotationOpen ? (
-          <section className="office-annotation" aria-label={t.note}>
-            <div className="office-annotation-heading">
+          <section
+            ref={annotationPanel}
+            className="office-annotation"
+            aria-label={t.note}
+            style={
+              position
+                ? {
+                    left: position.x,
+                    top: position.y,
+                    right: "auto",
+                    bottom: "auto",
+                  }
+                : undefined
+            }
+          >
+            <div
+              className="office-annotation-heading"
+              onPointerDown={(event) => {
+                if (
+                  event.button !== 0 ||
+                  (event.target as HTMLElement).closest("button")
+                )
+                  return;
+                const panel = annotationPanel.current!.getBoundingClientRect();
+                const bounds = stage.current!.getBoundingClientRect();
+                moving.current = {
+                  x: event.clientX,
+                  y: event.clientY,
+                  left: panel.left - bounds.left,
+                  top: panel.top - bounds.top,
+                };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (
+                  !moving.current ||
+                  !stage.current ||
+                  !annotationPanel.current
+                )
+                  return;
+                const move = moving.current;
+                setPosition({
+                  x: Math.max(
+                    0,
+                    Math.min(
+                      stage.current.clientWidth -
+                        annotationPanel.current.offsetWidth,
+                      move.left + event.clientX - move.x,
+                    ),
+                  ),
+                  y: Math.max(
+                    0,
+                    Math.min(
+                      stage.current.clientHeight -
+                        annotationPanel.current.offsetHeight,
+                      move.top + event.clientY - move.y,
+                    ),
+                  ),
+                });
+              }}
+              onPointerUp={(event) => {
+                moving.current = undefined;
+                if (event.currentTarget.hasPointerCapture(event.pointerId))
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+              onPointerCancel={() => {
+                moving.current = undefined;
+              }}
+              onLostPointerCapture={() => {
+                moving.current = undefined;
+              }}
+            >
               <ArtemisIcon name="message" />
               <strong>
                 {selection ? selectionLabel(selection.value) : t.note}
@@ -548,9 +805,17 @@ export function OfficeWorkbenchPanel({
               <IconButton
                 label={t.close}
                 icon={<ArtemisIcon name="close" />}
-                onClick={() => setAnnotationOpen(false)}
+                onClick={() => {
+                  clearSelection();
+                  setAnnotationOpen(false);
+                }}
               />
             </div>
+            {selection ? (
+              <Button variant="quiet" onClick={clearSelection}>
+                {review.clearSelection}
+              </Button>
+            ) : null}
             {selection ? (
               <small className="office-annotation-version">
                 {t.version} {selection.version}

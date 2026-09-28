@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import {
   WorkspaceEditorToolbar,
@@ -13,6 +13,10 @@ import {
   replaceWorkspaceCsvCell,
 } from "./workspace-csv.js";
 import "./workspace-csv.css";
+import { InlineNotice } from "@artemis/ui/feedback";
+import { IconButton } from "@artemis/ui/actions";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import { officeReviewCopy } from "./office-review-copy.js";
 
 export function WorkspaceCsvEditor({
   content,
@@ -29,6 +33,8 @@ export function WorkspaceCsvEditor({
   sourceLabel: string;
 }) {
   const [view, setView] = useState<"rich" | "source">("rich");
+  const [dismissedError, setDismissedError] = useState<string>();
+  useEffect(() => setDismissedError(undefined), [saveError, toolbar.path]);
   const [cell, setCell] = useState<string>();
   const preview = useMemo(
     () => (view === "rich" ? parseWorkspaceCsv(content) : undefined),
@@ -41,7 +47,6 @@ export function WorkspaceCsvEditor({
     <WorkspaceEditorToolbar
       {...toolbar}
       readOnly={toolbar.readOnly ?? false}
-      {...(saveError === undefined ? {} : { saveError })}
       modeToggle={{
         ariaLabel,
         value: view,
@@ -57,6 +62,20 @@ export function WorkspaceCsvEditor({
         )
       }
     >
+      {saveError && dismissedError !== saveError ? (
+        <InlineNotice
+          tone="danger"
+          action={
+            <IconButton
+              label={officeReviewCopy(locale).dismissError}
+              icon={<ArtemisIcon name="close" />}
+              onClick={() => setDismissedError(saveError)}
+            />
+          }
+        >
+          {saveError}
+        </InlineNotice>
+      ) : null}
       {preview ? (
         <div
           className="workspace-csv-preview"

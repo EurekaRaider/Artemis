@@ -40,3 +40,5 @@ The host-managed `office-core` capability enhances this same plugin. Documents, 
 - `operation: "close"` refuses unsaved changes. Only set `discard: true` when the user explicitly wants to discard them. Closing a preview tab does not discard the draft.
 - An external-change event is a file-level update, not evidence of paragraph/cell-level edits. Preserve the live draft before reopening an externally changed original.
 - User annotations include `sourceVersion` and a selection. Check the version before acting on an annotation; do not apply old offsets to new content.
+
+- Region annotations use page-relative coordinates from 0 to 1 with the origin at the top-left. Their optional `quote` contains visible PDF text runs as context, not native paragraph or cell offsets. Verify that context against the current snapshot and rendered page; do not guess a paragraph, object or cell from page coordinates. If the target is ambiguous, ask for a more precise selection before editing.

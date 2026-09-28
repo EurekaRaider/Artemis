@@ -84,12 +84,13 @@
   inline-size: 82px;
 }
 .office-zoom-picker {
-  inline-size: 138px;
+  inline-size: 112px;
+  flex: none;
 }
 .office-page-picker [data-part="trigger"],
 .office-zoom-picker [data-part="trigger"] {
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--artemis-color-border-default);
+  background: var(--artemis-color-surface-base);
 }
 .office-note-toggle {
   margin-inline-start: auto;
@@ -116,14 +117,6 @@
   inline-size: fit-content;
   margin-inline: auto;
 }
-.office-workbench[data-format="powerpoint"] .office-page-scroll {
-  display: flex;
-  flex-direction: column;
-}
-.office-workbench[data-format="powerpoint"] .office-page-scroll > .office-page {
-  flex: none;
-  margin-block: auto;
-}
 .office-page:not([data-thumbnail]) {
   box-shadow: 0 0 0 var(--artemis-border-width-default)
     var(--artemis-color-border-subtle);
@@ -131,7 +124,7 @@
 .office-page canvas {
   display: block;
   touch-action: none;
-  cursor: crosshair;
+  cursor: default;
 }
 .office-page[data-thumbnail] canvas {
   cursor: pointer;
@@ -447,7 +440,7 @@
     gap: var(--artemis-space-1);
   }
   .office-zoom-picker {
-    inline-size: 122px;
+    inline-size: 112px;
   }
   .office-page-scroll {
     padding: var(--artemis-space-3);
@@ -499,4 +492,23 @@
   overflow: hidden;
   outline: 1px solid var(--artemis-color-status-info);
   z-index: 1;
+}
+
+.office-page-scroll > .office-page + .office-page {
+  margin-block-start: var(--artemis-space-6);
+}
+.office-page[data-selecting] canvas {
+  cursor: crosshair;
+}
+.office-region-hint {
+  flex: none;
+  margin: 0;
+  padding: var(--artemis-space-2) var(--artemis-space-3);
+  color: var(--artemis-color-text-secondary);
+  font-size: var(--artemis-typography-label-size);
+}
+.office-annotation-heading {
+  cursor: move;
+  touch-action: none;
+  user-select: none;
 }

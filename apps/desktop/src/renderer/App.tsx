@@ -38,6 +38,16 @@ import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
 import { CustomAgentTaskBlocks } from "./CustomAgentTaskBlocks.js";
 import { ComposerSkillChip } from "./ComposerSkillChip.js";
 import { ComposerAttachments } from "./ComposerAttachments.js";
+import { OfficeAnnotationCards } from "./OfficeAnnotationCards.js";
+import {
+  addOfficeAnnotation,
+  changeOfficeAnnotation,
+  readOfficeAnnotations,
+  isStoredOfficeAnnotations,
+  restoreOfficeAnnotationAttachment,
+  type OfficeAnnotationReference,
+} from "./office-annotations.js";
+import { officeAnnotationCopy } from "./office-annotation-copy.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
@@ -1139,6 +1149,9 @@ export function App() {
   const [workspaceTabsByThread, setWorkspaceTabsByThread] = useState<
     Record<string, WorkspaceTabsState>
   >({});
+  const [officeAnnotationFocus, setOfficeAnnotationFocus] = useState<
+    OfficeAnnotationReference & { threadId: string }
+  >();
   const [workspaceDockOpen, setWorkspaceDockOpen] = useState(false);
   const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
   const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
@@ -1607,6 +1620,12 @@ export function App() {
     selectedSkillNames: selectedComposerSkillNames,
     customAgentTasks = [],
   } = activeComposerDraft;
+  const hasOfficeAnnotations = attachments.some((item) =>
+    readOfficeAnnotations(item),
+  );
+  const hasRegularAttachments = attachments.some(
+    (item) => !readOfficeAnnotations(item),
+  );
   const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
   draftAttachments.current.set(activeComposerDraftKey, attachments);
   const pendingAttachmentReads = useRef(new PromptAttachmentReadQueues());
@@ -1722,6 +1741,43 @@ export function App() {
     },
     [activeComposerDraftKey, updateActiveComposerDraft],
   );
+
+  const restoringOfficeAnnotations = useRef(new Set<string>());
+  useEffect(() => {
+    for (const attachment of attachments) {
+      if (!isStoredOfficeAnnotations(attachment)) continue;
+      const key = `${activeComposerDraftKey}:${attachment.id}`;
+      if (restoringOfficeAnnotations.current.has(key)) continue;
+      restoringOfficeAnnotations.current.add(key);
+      void pendingAttachmentReads.current.track(
+        activeComposerDraftKey,
+        restoreOfficeAnnotationAttachment(attachment, (offset) =>
+          window.artemis.previewPromptFile(
+            attachment.id,
+            offset,
+            activeThreadId,
+          ),
+        )
+          .then((restored) =>
+            setAttachments((current) =>
+              current.map((item) =>
+                isAttachmentReference(item) && item.id === attachment.id
+                  ? restored
+                  : item,
+              ),
+            ),
+          )
+          .catch((error) => setToast({ error: true, message: String(error) }))
+          .finally(() => restoringOfficeAnnotations.current.delete(key)),
+      );
+    }
+  }, [
+    attachments,
+    activeComposerDraftKey,
+    activeThreadId,
+    setAttachments,
+    setToast,
+  ]);
 
   useEffect(() => {
     promptHistoryNavigation.current = { index: -1, draft: prompt };
@@ -5401,7 +5457,11 @@ export function App() {
       goalCommand?.kind === "set"
         ? goalCommand.objective
         : commandPrompt ||
-          (pendingAttachments.length ? t.inspectAttachments : "");
+          (pendingAttachments.some((item) => readOfficeAnnotations(item))
+            ? officeAnnotationCopy(locale).request
+            : pendingAttachments.length
+              ? t.inspectAttachments
+              : "");
     const text = goalCommand
       ? visibleText
       : promptWithSelectedSkills(visibleText, selectedSkills);
@@ -5547,6 +5607,7 @@ export function App() {
     activeThread,
     activeComposerDraft,
     activeComposerDraftKey,
+    locale,
     busy,
     retiredGroup,
     clearSubmittedPrompt,
@@ -7978,7 +8039,7 @@ export function App() {
                         )}
                         {((!skillCommandMenuOpen &&
                           selectedSkills.length > 0) ||
-                          attachments.length > 0) && (
+                          hasRegularAttachments) && (
                           <div className="composer-resource-strip">
                             {!skillCommandMenuOpen &&
                               selectedSkills.map((skill) => (
@@ -7994,7 +8055,7 @@ export function App() {
                                   }
                                 />
                               ))}
-                            {attachments.length > 0 && (
+                            {hasRegularAttachments && (
                               <ComposerAttachments
                                 key={activeComposerDraftKey}
                                 attachments={attachments}
@@ -8017,6 +8078,39 @@ export function App() {
                               />
                             )}
                           </div>
+                        )}
+                        {hasOfficeAnnotations && (
+                          <OfficeAnnotationCards
+                            key={activeComposerDraftKey}
+                            attachments={attachments}
+                            locale={locale}
+                            disabled={busy}
+                            onChange={(index, id, text) => {
+                              const next = changeOfficeAnnotation(
+                                draftAttachments.current.get(
+                                  activeComposerDraftKey,
+                                ) ?? [],
+                                index,
+                                id,
+                                text,
+                              );
+                              if (!next) {
+                                setToast(t.attachmentLimit);
+                                return false;
+                              }
+                              setAttachments(next);
+                              return true;
+                            }}
+                            onLocate={({ path, annotation }) => {
+                              if (!activeThreadId) return;
+                              setOfficeAnnotationFocus({
+                                threadId: activeThreadId,
+                                path,
+                                annotation: { ...annotation },
+                              });
+                              openWorkspaceTab("office", { path });
+                            }}
+                          />
                         )}
                         {customAgentTasks.length > 0 && (
                           <CustomAgentTaskBlocks
@@ -8206,7 +8300,9 @@ export function App() {
                               activeThread &&
                               imThreadStatus[activeThread.id]?.group
                                 ? uiText(locale, "App.inline12")
-                                : t.prompt
+                                : hasOfficeAnnotations
+                                  ? officeAnnotationCopy(locale).placeholder
+                                  : t.prompt
                             }
                             ref={promptInput}
                             rows={1}
@@ -9512,12 +9608,32 @@ ${model.providerId} · ${model.modelId}`}
                                 }
                                 locale={locale}
                                 onSnapshot={recoverOfficeSnapshot}
-                                onAnnotate={(annotation) =>
-                                  setPrompt(
-                                    (current) =>
-                                      `${current}${current ? "\n\n" : ""}${tab.path}\n${JSON.stringify(annotation, null, 2)}`,
-                                  )
+                                annotationFocus={
+                                  officeAnnotationFocus?.threadId ===
+                                    activeThreadId &&
+                                  officeAnnotationFocus.path === tab.path
+                                    ? officeAnnotationFocus.annotation
+                                    : undefined
                                 }
+                                onAnnotate={(annotation) => {
+                                  if (busy) return false;
+                                  const next = addOfficeAnnotation(
+                                    draftAttachments.current.get(
+                                      activeComposerDraftKey,
+                                    ) ?? [],
+                                    tab.path!,
+                                    annotation,
+                                  );
+                                  if (!next) {
+                                    setToast(t.attachmentLimit);
+                                    return false;
+                                  }
+                                  setAttachments(next);
+                                  window.requestAnimationFrame(() =>
+                                    promptInput.current?.focus(),
+                                  );
+                                  return true;
+                                }}
                               />
                             </Suspense>
                           ) : null}

@@ -1,0 +1,153 @@
+.office-comment-cards {
+  min-inline-size: 0;
+  inline-size: 100%;
+  padding: 12px 12px 8px;
+  color: var(--artemis-color-text-primary);
+  container-type: inline-size;
+}
+.office-comment-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 8px;
+  font-size: 12px;
+  color: var(--artemis-color-text-secondary);
+}
+.office-comment-summary > button {
+  margin-inline-start: auto;
+}
+.office-comment-list {
+  display: grid;
+  gap: 8px;
+  max-block-size: min(420px, 42vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.office-comment-group {
+  min-inline-size: 0;
+  border: 1px solid var(--artemis-color-border-default);
+  border-radius: 12px;
+  background: var(--artemis-color-surface-sunken);
+  overflow: hidden;
+}
+.office-comment-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 12px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+.office-comment-file strong {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+.office-comment-file svg {
+  flex: none;
+}
+.office-comment-count,
+.office-comment-location {
+  color: var(--artemis-color-text-secondary);
+  font-size: 11px;
+}
+.office-comment-count {
+  padding: 2px 6px;
+}
+.office-comment-row {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
+}
+.office-comment-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-inline-size: 24px;
+  block-size: 24px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--office-comment-color);
+  background: color-mix(in srgb, var(--office-comment-color) 15%, transparent);
+}
+.office-comment-body {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.office-comment-body p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.office-comment-actions {
+  display: flex;
+  flex: none;
+  align-self: center;
+  gap: 2px;
+}
+.office-comment-actions button {
+  inline-size: 28px;
+  min-inline-size: 28px;
+  block-size: 28px;
+}
+.office-comment-actions svg {
+  inline-size: 15px;
+  block-size: 15px;
+}
+.office-comment-more {
+  margin: 4px 12px 8px;
+}
+.office-comment-file:focus-visible {
+  outline: 2px solid var(--artemis-color-text-secondary);
+  outline-offset: -3px;
+}
+.office-comment-dialog {
+  inline-size: min(480px, calc(100vw - 32px));
+  max-block-size: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px;
+  color: var(--artemis-color-text-primary);
+  background: var(--artemis-color-surface-base);
+  border: 1px solid var(--artemis-color-border-default);
+  border-radius: 16px;
+}
+.office-comment-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.office-comment-dialog > strong {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-block-end: 16px;
+}
+.office-comment-dialog-actions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+  margin-block-start: 16px;
+}
+@container (max-width: 400px) {
+  .office-comment-row {
+    flex-wrap: wrap;
+  }
+  .office-comment-body {
+    flex-basis: calc(100% - 34px);
+  }
+  .office-comment-actions {
+    margin-inline-start: auto;
+  }
+  .office-comment-summary {
+    flex-wrap: wrap;
+  }
+}

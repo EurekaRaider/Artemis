@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { ArtifactSelection } from "@artemis/protocol";
 import { InlineNotice } from "@artemis/ui/feedback";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { pageRegion } from "./office-preview-selection.js";
+import { pageRegion, pageRegionQuote } from "./office-preview-selection.js";
 import { OfficePageEditor } from "./OfficePageEditor.js";
 import type { OfficeEditorState } from "./office-editor-state.js";
 
@@ -17,20 +17,48 @@ export function OfficePreviewPage({
   selection,
   editor,
   editLabel,
+  lazy = false,
+  selecting = false,
+  onClearSelection,
 }: {
   document: PDFDocumentProxy;
   page: number;
   zoom: string;
   version: number;
-  onRegion?(selection: ArtifactSelection, version: number): void;
+  onRegion?(
+    selection: ArtifactSelection,
+    version: number,
+    quote?: string,
+  ): void;
   thumbnail?: boolean;
   label: string;
   selection?: ArtifactSelection | undefined;
   editor?: OfficeEditorState | undefined;
   editLabel?: string;
+  lazy?: boolean;
+  selecting?: boolean;
+  onClearSelection?(): void;
 }) {
   const frame = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(
+    !lazy || typeof IntersectionObserver === "undefined",
+  );
+  useEffect(() => {
+    if (!lazy || !frame.current || typeof IntersectionObserver === "undefined")
+      return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(!!entry?.isIntersecting),
+      { root: frame.current.parentElement, rootMargin: "800px" },
+    );
+    observer.observe(frame.current);
+    return () => observer.disconnect();
+  }, [lazy]);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const textRuns = useRef<{
+    page: number;
+    version: number;
+    runs: Parameters<typeof pageRegionQuote>[1];
+  }>(undefined);
   const start = useRef<{ x: number; y: number } | undefined>(undefined);
   const [drag, setDrag] =
     useState<Extract<ArtifactSelection, { kind: "region" }>>();
@@ -40,6 +68,7 @@ export function OfficePreviewPage({
     page: number;
     version: number;
     width: number;
+    height: number;
   }>();
 
   useEffect(() => {
@@ -73,6 +102,7 @@ export function OfficePreviewPage({
     setError(undefined);
     setDrag(undefined);
     start.current = undefined;
+    textRuns.current = undefined;
     void document
       .getPage(page)
       .then(async (pdfPage) => {
@@ -88,6 +118,18 @@ export function OfficePreviewPage({
               ? Math.min(widthScale, heightScale)
               : Number(zoom);
         const viewport = pdfPage.getViewport({ scale: Math.max(0.1, scale) });
+        if (canvas.current) {
+          canvas.current.style.width = `${viewport.width}px`;
+          canvas.current.style.height = `${viewport.height}px`;
+        }
+        if (!visible) {
+          if (canvas.current) {
+            canvas.current.width = 0;
+            canvas.current.height = 0;
+          }
+          setPainted(undefined);
+          return;
+        }
         const density = Math.min(
           window.devicePixelRatio || 1,
           2,
@@ -102,6 +144,43 @@ export function OfficePreviewPage({
           transform: [density, 0, 0, density, 0, 0],
         });
         await task.promise;
+        const runs: Array<{
+          text: string;
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        }> = [];
+        if (!thumbnail) {
+          try {
+            const content = await pdfPage.getTextContent();
+            for (const item of content.items) {
+              if (
+                !("str" in item) ||
+                !item.str.trim() ||
+                Math.abs(item.transform[1]!) > 0.01 ||
+                Math.abs(item.transform[2]!) > 0.01
+              )
+                continue;
+              const [x, baseline] = viewport.convertToViewportPoint(
+                item.transform[4]!,
+                item.transform[5]!,
+              );
+              const height = Math.abs(item.transform[3]!) * viewport.scale;
+              const ascent = content.styles[item.fontName]?.ascent ?? 0.8;
+              runs.push({
+                text: item.str,
+                x: x! / viewport.width,
+                y: (baseline! - height * ascent) / viewport.height,
+                width: (item.width * viewport.scale) / viewport.width,
+                height: height / viewport.height,
+              });
+            }
+          } catch {
+            /* Image-only previews still retain their exact region. */
+          }
+        }
+        if (active) textRuns.current = { page, version, runs };
         if (!active || !canvas.current) return;
         const output = canvas.current;
         output.width = temporary.width;
@@ -111,7 +190,12 @@ export function OfficePreviewPage({
         output.getContext("2d")!.drawImage(temporary, 0, 0);
         output.dataset.previewVersion = String(version);
         output.dataset.previewPage = String(page);
-        setPainted({ page, version, width: viewport.width });
+        setPainted({
+          page,
+          version,
+          width: viewport.width,
+          height: viewport.height,
+        });
         if (!thumbnail)
           window.dispatchEvent(
             new CustomEvent("artemis-office-preview-painted", {
@@ -126,7 +210,7 @@ export function OfficePreviewPage({
       active = false;
       task?.cancel();
     };
-  }, [document, page, version, zoom, thumbnail, size]);
+  }, [document, page, version, zoom, thumbnail, size, visible]);
 
   const point = (event: PointerEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -145,12 +229,23 @@ export function OfficePreviewPage({
       ref={frame}
       className="office-page"
       data-thumbnail={thumbnail || undefined}
+      data-page-number={page}
+      data-selecting={selecting || undefined}
     >
       <canvas
         ref={canvas}
         aria-label={label}
+        tabIndex={thumbnail ? undefined : 0}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            start.current = undefined;
+            setDrag(undefined);
+            onClearSelection?.();
+          }
+        }}
         onPointerDown={(event) => {
           if (!onRegion || event.button !== 0) return;
+          event.currentTarget.focus({ preventScroll: true });
           start.current = point(event);
           setDrag(undefined);
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -171,7 +266,16 @@ export function OfficePreviewPage({
           )
             return;
           const value = pageRegion(page, initial, point(event));
-          if (value) onRegion(value, version);
+          if (value) {
+            const text = textRuns.current;
+            onRegion(
+              value,
+              version,
+              text?.page === page && text.version === version
+                ? pageRegionQuote(value, text.runs)
+                : undefined,
+            );
+          } else onClearSelection?.();
           event.currentTarget.releasePointerCapture(event.pointerId);
         }}
         onPointerCancel={() => {
@@ -195,15 +299,18 @@ export function OfficePreviewPage({
           label={editLabel ?? "Edit text"}
         />
       ) : null}
-      {region && !thumbnail ? (
+      {region &&
+      !thumbnail &&
+      painted?.page === page &&
+      painted.version === version ? (
         <div
           className="office-region-selection"
           aria-hidden="true"
           style={{
-            left: `${region.x * 100}%`,
-            top: `${region.y * 100}%`,
-            width: `${region.width * 100}%`,
-            height: `${region.height * 100}%`,
+            left: region.x * painted.width,
+            top: region.y * painted.height,
+            width: region.width * painted.width,
+            height: region.height * painted.height,
           }}
         />
       ) : null}

@@ -1,3 +1,4 @@
+import { readOfficeAnnotations } from "./office-annotations.js";
 import type { AppLocale } from "@artemis/protocol";
 import { uiText } from "../shared/ui-text.js";
 import { AttachmentFileIcon } from "./AttachmentFileIcon.js";
@@ -57,52 +58,56 @@ export function ComposerAttachments({
   return (
     <>
       <div className="attachment-image-strip composer-image-strip">
-        {attachments.map((attachment, index) => (
-          <div
-            className="attachment-image-tile composer-resource-chip"
-            key={isAttachmentReference(attachment) ? attachment.id : index}
-          >
-            {attachmentIsImage(attachment) ? (
+        {attachments.map((attachment, index) =>
+          readOfficeAnnotations(attachment) ? null : (
+            <div
+              className="attachment-image-tile composer-resource-chip"
+              key={isAttachmentReference(attachment) ? attachment.id : index}
+            >
+              {attachmentIsImage(attachment) ? (
+                <button
+                  type="button"
+                  className="attachment-image-button"
+                  aria-label={`${uiText(locale, "ComposerAttachments.inline2")}: ${attachment.name}`}
+                  title={attachment.name}
+                  onClick={() => void openPreview(attachment)}
+                >
+                  {thumbnail(attachment) ? (
+                    <img src={thumbnail(attachment)} alt={attachment.name} />
+                  ) : (
+                    <AttachmentFileIcon name={attachment.name} />
+                  )}
+                  <span className="composer-resource-name">
+                    {attachment.name}
+                  </span>
+                </button>
+              ) : (
+                <FileAttachment
+                  name={attachment.name}
+                  locale={locale}
+                  id={
+                    isAttachmentReference(attachment)
+                      ? attachment.id
+                      : undefined
+                  }
+                  content={
+                    "type" in attachment && attachment.type === "file"
+                      ? attachment.content
+                      : undefined
+                  }
+                />
+              )}
               <button
                 type="button"
-                className="attachment-image-button"
-                aria-label={`${uiText(locale, "ComposerAttachments.inline2")}: ${attachment.name}`}
-                title={attachment.name}
-                onClick={() => void openPreview(attachment)}
+                className="composer-resource-remove"
+                aria-label={`${attachmentIsImage(attachment) ? uiText(locale, "ComposerAttachments.inline4") : uiText(locale, "ComposerAttachments.inline3")}: ${attachment.name}`}
+                onClick={() => onRemove(index)}
               >
-                {thumbnail(attachment) ? (
-                  <img src={thumbnail(attachment)} alt={attachment.name} />
-                ) : (
-                  <AttachmentFileIcon name={attachment.name} />
-                )}
-                <span className="composer-resource-name">
-                  {attachment.name}
-                </span>
+                <ArtemisIcon name="close" width={14} height={14} />
               </button>
-            ) : (
-              <FileAttachment
-                name={attachment.name}
-                locale={locale}
-                id={
-                  isAttachmentReference(attachment) ? attachment.id : undefined
-                }
-                content={
-                  "type" in attachment && attachment.type === "file"
-                    ? attachment.content
-                    : undefined
-                }
-              />
-            )}
-            <button
-              type="button"
-              className="composer-resource-remove"
-              aria-label={`${attachmentIsImage(attachment) ? uiText(locale, "ComposerAttachments.inline4") : uiText(locale, "ComposerAttachments.inline3")}: ${attachment.name}`}
-              onClick={() => onRemove(index)}
-            >
-              <ArtemisIcon name="close" width={14} height={14} />
-            </button>
-          </div>
-        ))}
+            </div>
+          ),
+        )}
       </div>
       {previewError && <p role="alert">{previewError}</p>}
       {preview && (

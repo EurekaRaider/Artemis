@@ -7,7 +7,11 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import type { ArtifactSnapshot, ArtifactViewState } from "@artemis/protocol";
+import type {
+  ArtifactAnnotation,
+  ArtifactSnapshot,
+  ArtifactViewState,
+} from "@artemis/protocol";
 import { OfficeWorkbenchPanel } from "../src/renderer/OfficeWorkbenchPanel.js";
 import {
   cellAddress,
@@ -19,13 +23,24 @@ import { stubWindowArtemis } from "./renderer-test-utils.js";
 
 const pdf = vi.hoisted(() => ({
   numPages: 5,
+  textItems: [] as Array<{
+    str: string;
+    transform: number[];
+    width: number;
+    fontName: string;
+  }>,
   getPage: vi.fn(async () => ({
     getViewport: ({ scale }: { scale: number }) => ({
+      scale,
+      convertToViewportPoint: (x: number, y: number) => [
+        x * scale,
+        (780 - y) * scale,
+      ],
       width: 600 * scale,
       height: 780 * scale,
     }),
     render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }),
-    getTextContent: async () => ({ items: [] }),
+    getTextContent: async () => ({ items: pdf.textItems, styles: {} }),
   })),
   getOutline: vi.fn(
     async (): Promise<Array<{ title: string; dest: number[] }>> => [],
@@ -37,6 +52,8 @@ vi.mock("pdfjs-dist", () => ({
 }));
 
 beforeEach(() => {
+  localStorage.clear();
+  pdf.textItems = [];
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -134,6 +151,17 @@ function fixture(format: "word" | "excel" | "powerpoint" = "word") {
   return {
     ...result,
     onAnnotate,
+    focus(annotationFocus: ArtifactAnnotation) {
+      result.rerender(
+        <OfficeWorkbenchPanel
+          locale="en"
+          threadId="thread"
+          view={{ session: snapshot.session, needsSnapshot: false }}
+          onAnnotate={onAnnotate}
+          annotationFocus={annotationFocus}
+        />,
+      );
+    },
     advance(selection: ArtifactViewState["selection"]) {
       snapshot = {
         ...snapshot,
@@ -322,7 +350,7 @@ describe("Office workbench review flow", () => {
     await waitFor(() =>
       expect(
         container
-          .querySelector(".office-page-scroll canvas")
+          .querySelector('.office-page-scroll [data-preview-page="2"]')
           ?.getAttribute("data-preview-page"),
       ).toBe("2"),
     );
@@ -335,18 +363,19 @@ describe("Office workbench review flow", () => {
     await waitFor(() =>
       expect(
         container
-          .querySelector(".office-page-scroll canvas")
+          .querySelector('.office-page-scroll [data-preview-page="3"]')
           ?.getAttribute("data-preview-page"),
       ).toBe("3"),
     );
     expect(
       within(strip).getByRole("button", { name: "Page 3" }),
     ).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Page 3 / 5" }));
+    fireEvent.click(screen.getByRole("option", { name: "4 / 5" }));
     await waitFor(() =>
       expect(
         container
-          .querySelector(".office-page-scroll canvas")
+          .querySelector('.office-page-scroll [data-preview-page="4"]')
           ?.getAttribute("data-preview-page"),
       ).toBe("4"),
     );
@@ -372,4 +401,329 @@ it("normalizes reversed cell ranges and page regions at the page edge", () => {
     height: 0.7,
   });
   expect(pageRegion(1, { x: 0, y: 0 }, { x: 0.001, y: 0.002 })).toBeUndefined();
+});
+
+it("reveals a saved region and refuses stale coordinates", async () => {
+  const result = fixture();
+  await waitFor(() =>
+    expect(
+      result.container
+        .querySelector("canvas")
+        ?.getAttribute("data-preview-version"),
+    ).toBe("4"),
+  );
+  const annotation: ArtifactAnnotation = {
+    protocolVersion: 1,
+    id: "focus",
+    documentId: "document",
+    sessionId: "session",
+    sourceVersion: 4,
+    selection: {
+      kind: "region",
+      page: 3,
+      x: 0.1,
+      y: 0.2,
+      width: 0.5,
+      height: 0.1,
+    },
+    text: "Check this area",
+  };
+  result.focus(annotation);
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /^Page / })).toHaveTextContent(
+      "3 / 5",
+    ),
+  );
+  expect(
+    result.container.querySelector(".office-region-selection"),
+  ).not.toBeNull();
+  result.focus({ ...annotation, id: "stale", sourceVersion: 3 });
+  await waitFor(() =>
+    expect(screen.getByText(/earlier document version/)).toBeVisible(),
+  );
+  expect(result.container.querySelector(".office-region-selection")).toBeNull();
+});
+
+it("reveals a saved range on the requested worksheet", async () => {
+  const result = fixture("excel");
+  await screen.findByRole("grid", { name: /Budget/ });
+  result.focus({
+    protocolVersion: 1,
+    id: "cells",
+    documentId: "document",
+    sessionId: "session",
+    sourceVersion: 4,
+    selection: { kind: "cells", sheet: "Summary", range: "D5:D8" },
+    text: "Check prices",
+  });
+  const grid = await screen.findByRole("grid", { name: /Summary/ });
+  await waitFor(() =>
+    expect(grid.querySelector('[data-cell="D5"]')).toHaveAttribute(
+      "aria-selected",
+      "true",
+    ),
+  );
+});
+
+it("keeps the entered note when adding it to the composer is rejected", async () => {
+  const result = fixture();
+  result.onAnnotate.mockReturnValue(false);
+  await waitFor(() =>
+    expect(result.container.querySelector("canvas")).not.toBeNull(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Comment", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /^Selection / }));
+  fireEvent.click(
+    screen.getByRole("option", { name: "Paragraph 1 · First paragraph" }),
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+    target: { value: "Keep this draft" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add to message" }));
+  expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue(
+    "Keep this draft",
+  );
+});
+
+it("clears a selected region with Escape and with an explicit control", async () => {
+  const result = fixture();
+  await waitFor(() =>
+    expect(
+      result.container.querySelector("canvas")?.dataset.previewVersion,
+    ).toBe("4"),
+  );
+  const canvas = result.container.querySelector("canvas")!;
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+    left: 40,
+    top: 80,
+    width: 300,
+    height: 390,
+  } as DOMRect);
+  const select = () => {
+    fireEvent.pointerDown(canvas, {
+      button: 0,
+      pointerId: 1,
+      clientX: 70,
+      clientY: 119,
+    });
+    fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 190, clientY: 275 });
+  };
+  select();
+  fireEvent.keyDown(canvas, { key: "Escape" });
+  expect(result.container.querySelector(".office-region-selection")).toBeNull();
+  select();
+  fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+  expect(result.container.querySelector(".office-region-selection")).toBeNull();
+  expect(screen.getByRole("button", { name: "Add to message" })).toBeDisabled();
+});
+
+it("restores the comment draft after leaving and returning to a document", async () => {
+  const first = fixture();
+  fireEvent.click(screen.getByRole("button", { name: "Comment", exact: true }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+    target: { value: "Keep my review" },
+  });
+  first.unmount();
+  const second = fixture();
+  expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue(
+    "Keep my review",
+  );
+  fireEvent.click(
+    within(second.container.querySelector(".office-annotation")!).getByRole(
+      "button",
+      { name: "Close" },
+    ),
+  );
+  second.unmount();
+  fixture();
+  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+});
+
+it("renders Word pages in one scroll area with a single page picker", async () => {
+  const { container } = fixture();
+  await waitFor(() =>
+    expect(
+      container.querySelectorAll(".office-page-scroll canvas"),
+    ).toHaveLength(5),
+  );
+  expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Previous page" })).toBeNull();
+});
+
+it("dismisses session errors without hiding the session status", async () => {
+  const result = fixture();
+  result.rerender(
+    <OfficeWorkbenchPanel
+      locale="en"
+      threadId="thread"
+      onAnnotate={result.onAnnotate}
+      view={{
+        needsSnapshot: false,
+        session: {
+          protocolVersion: 1,
+          documentId: "document",
+          sessionId: "failed-session",
+          path: "Brief.docx",
+          format: "word",
+          engineVersion: "test",
+          version: 4,
+          savedVersion: 4,
+          sequence: 1,
+          status: "failed",
+          error: "Office session was closed",
+        },
+      }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss error" }));
+  expect(screen.queryByText("Office session was closed")).toBeNull();
+});
+
+it.each(["word", "powerpoint", "excel"] as const)(
+  "retains and clears comments in %s",
+  async (format) => {
+    const first = fixture(format);
+    await waitFor(() =>
+      expect(
+        first.container.querySelector('canvas, [role="grid"]'),
+      ).not.toBeNull(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Comment", exact: true }),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+      target: { value: "Retain draft" },
+    });
+    first.unmount();
+    const second = fixture(format);
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue(
+      "Retain draft",
+    );
+    if (format === "excel") {
+      const grid = await screen.findByRole("grid");
+      fireEvent.keyDown(grid, { key: "ArrowRight", shiftKey: true });
+      fireEvent.keyDown(grid, { key: "Escape" });
+      expect(
+        within(grid).queryAllByRole("gridcell", { selected: true }),
+      ).toHaveLength(0);
+    } else {
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Comment" }), {
+        key: "Escape",
+      });
+      expect(
+        second.container.querySelector(".office-region-selection"),
+      ).toBeNull();
+    }
+  },
+);
+
+it("drags the comment panel within the document stage", async () => {
+  const { container } = fixture();
+  fireEvent.click(screen.getByRole("button", { name: "Comment", exact: true }));
+  const stage = container.querySelector(".office-stage")!;
+  const panel = container.querySelector<HTMLElement>(".office-annotation")!;
+  const heading = panel.querySelector<HTMLElement>(
+    ".office-annotation-heading",
+  )!;
+  Object.defineProperties(stage, {
+    clientWidth: { value: 900 },
+    clientHeight: { value: 700 },
+  });
+  Object.defineProperties(panel, {
+    offsetWidth: { value: 360 },
+    offsetHeight: { value: 220 },
+  });
+  vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+  } as DOMRect);
+  vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({
+    left: 500,
+    top: 400,
+  } as DOMRect);
+  fireEvent.pointerDown(heading, {
+    button: 0,
+    pointerId: 2,
+    clientX: 520,
+    clientY: 410,
+  });
+  fireEvent.pointerMove(heading, { pointerId: 2, clientX: 120, clientY: 110 });
+  expect(panel.style.left).toBe("100px");
+  expect(panel.style.top).toBe("100px");
+  fireEvent.pointerMove(heading, {
+    pointerId: 2,
+    clientX: -500,
+    clientY: -500,
+  });
+  expect(panel.style.left).toBe("0px");
+  expect(panel.style.top).toBe("0px");
+});
+
+it("sends the selected PDF text with scaled page coordinates, excluding other text", async () => {
+  pdf.textItems = [
+    {
+      str: "Selected text",
+      transform: [12, 0, 0, 12, 100, 650],
+      width: 90,
+      fontName: "test",
+    },
+    {
+      str: "Other text",
+      transform: [12, 0, 0, 12, 100, 100],
+      width: 90,
+      fontName: "test",
+    },
+  ];
+  const result = fixture();
+  await waitFor(() =>
+    expect(
+      result.container.querySelector("canvas")?.dataset.previewVersion,
+    ).toBe("4"),
+  );
+  const canvas = result.container.querySelector("canvas")!;
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+    left: 40,
+    top: 80,
+    width: 300,
+    height: 390,
+  } as DOMRect);
+  fireEvent.pointerDown(canvas, {
+    button: 0,
+    pointerId: 1,
+    clientX: 70,
+    clientY: 119,
+  });
+  fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 190, clientY: 275 });
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+    target: { value: "Review selection" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add to message" }));
+  expect(result.onAnnotate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      quote: "Selected text",
+      sourceVersion: 4,
+      selection: {
+        kind: "region",
+        page: 1,
+        x: 0.1,
+        y: 0.1,
+        width: 0.4,
+        height: 0.4,
+      },
+    }),
+  );
+});
+
+it("ignores invalid persisted review data", () => {
+  localStorage.setItem(
+    "artemis-office-review:thread:session",
+    JSON.stringify({
+      protocolVersion: 1,
+      open: true,
+      note: "old",
+      selection: { version: 4 },
+    }),
+  );
+  fixture();
+  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
 });

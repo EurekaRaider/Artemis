@@ -52,3 +52,31 @@ describe("CSV preview and source", () => {
     expect(save).toHaveBeenCalledWith(edited);
   });
 });
+
+it("dismisses a save error while keeping unsaved CSV and retry available", () => {
+  const onSave = vi.fn();
+  render(
+    <WorkspaceCsvEditor
+      ariaLabel="CSV"
+      locale="en"
+      path="data.csv"
+      content="a,b\n1,2"
+      dirty
+      onChange={vi.fn()}
+      onSave={onSave}
+      saveError="Save failed"
+      saveState="idle"
+      saveLabel="Save"
+      savedLabel="Saved"
+      savingLabel="Saving"
+      unsavedLabel="Unsaved"
+      previewLabel="Preview"
+      sourceLabel="Source"
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss error" }));
+  expect(screen.queryByText("Save failed")).toBeNull();
+  expect(screen.getByRole("cell", { name: "2" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onSave).toHaveBeenCalledOnce();
+});
