@@ -58,7 +58,7 @@ jobs:
     needs: publish
     if: always() && (needs.publish.result == 'success' || inputs.verify_only)
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 40
+    timeout-minutes: 180
     defaults:
       run:
         shell: cmd
