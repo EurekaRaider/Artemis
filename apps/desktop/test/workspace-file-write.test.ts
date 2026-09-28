@@ -33,15 +33,30 @@ describe("workspace file writes", () => {
         workspaceTextFiles.writeWorkspaceFile(
           workspace,
           "data.csv",
-          "stale",
+          "second",
           "old",
         ),
       ]);
-      expect(results.map((result) => result.status)).toEqual([
+      // Both calls start with the same baseline; filesystem checks may finish
+      // in either order, but exactly one write must win and the other conflict.
+      expect(results.map((result) => result.status).sort()).toEqual([
         "fulfilled",
         "rejected",
       ]);
-      expect(await readFile(path, "utf8")).toBe("first");
+      const winner = results.findIndex(
+        (result) => result.status === "fulfilled",
+      );
+      expect(await readFile(path, "utf8")).toBe(["first", "second"][winner]);
+      const rejected = results.find((result) => result.status === "rejected");
+      expect(rejected?.reason.message).toContain("changed outside Artemis");
+      await expect(
+        workspaceTextFiles.writeWorkspaceFile(
+          workspace,
+          "data.csv",
+          "stale",
+          "old",
+        ),
+      ).rejects.toThrow("changed outside Artemis");
       const invalid = Buffer.from([0xd6, 0xd0, 0xce, 0xc4]);
       await writeFile(path, invalid);
       await expect(

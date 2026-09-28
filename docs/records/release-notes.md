@@ -14,7 +14,7 @@
 ### 安装与范围
 
 - **macOS Apple Silicon（arm64）**：Developer ID 签名、公证的 DMG/ZIP，支持应用内更新。Office Runtime 1.0.0 为独立下载的可选组件；本版复用已发布的 macOS arm64 运行时，不在客户端 CD 中重建或替换它。
-- **Windows x64**：无签名 ZIP，下载后退出旧版并解压到新文件夹启动，保留 `%APPDATA%` 中的 Artemis 用户数据。Windows 客户端发布不代表 Windows Office 增强运行时已经正式发布；运行时可用性以平台目录为准。
+- **Windows x64**：无签名 ZIP，下载后退出旧版并解压到新文件夹启动，保留 `%APPDATA%` 中的 Artemis 用户数据。Windows Office Runtime 1.0.1 已独立公开发布，可从任一 Office 插件的“升级 Office 功能”入口在线安装，或导入单个离线包；自有程序不做 Authenticode 签名，清单签名与逐文件摘要仍强制验证。
 - 复杂 Office 排版和完整格式保真尚未全面放行；旋转文字、无法唯一定位的文字及跨页段落保持只读，旧版 DOC/PPT/XLS 需先转换。新增编辑文案提供中文及英文回退，其余既有 Office 文案保留 14 种语言。原始 #226 Codex 暂停报告仍未确认，不能视为已全面解决。macOS Intel x64 不包含在本次 CD 产物中。
 
 ## English
@@ -31,5 +31,5 @@
 ### Installation and scope
 
 - **macOS Apple Silicon (arm64)**: Developer ID signed and notarized DMG/ZIP, with in-app updates. Office Runtime 1.0.0 is an optional separate download. Client CD reuses the published macOS arm64 runtime without rebuilding or replacing it.
-- **Windows x64**: unsigned ZIP. Quit the old version, extract into a new folder and launch the new app, preserving Artemis user data in `%APPDATA%`. Shipping the Windows client does not establish a public Windows enhanced Office runtime; availability follows the platform catalog.
+- **Windows x64**: unsigned ZIP. Quit the old version, extract into a new folder and launch the new app, preserving Artemis user data in `%APPDATA%`. Windows Office Runtime 1.0.1 is published separately and can be installed online through any Office plugin’s Upgrade Office features entry, or imported as a single offline package. Custom binaries remain without Authenticode signatures; manifest signatures and per-file digests remain mandatory.
 - Full Office layout and format fidelity remain limited. Rotated text, ambiguous targets and paragraphs spanning pages stay read-only; legacy DOC/PPT/XLS files require conversion. New editing strings include Chinese and English fallback; existing Office strings retain 14 languages. The original #226 Codex pause report remains unconfirmed. Intel macOS x64 is outside this CD artifact set.

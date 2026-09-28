@@ -403,8 +403,8 @@ Documents, Presentations and Spreadsheets share one optional Office runtime,
 with online installation, single-file offline import, update checks and repair.
 Office documents save to a working copy; external changes block conflicting
 writes. Native previews, page and sheet navigation, and region annotations stay
-in the right panel. The published runtime currently covers macOS arm64;
-Windows runtime acceptance remains separate from the Windows client release.
+in the right panel. Published runtimes cover macOS arm64 (1.0.0) and Windows x64 (1.0.1),
+with platform-specific online installation and single-file offline packages.
 See the [Office guide](docs/features/office-workbench/README.md) for editing limits.
 
 This release also reuses explicitly granted Computer Use permissions within a

@@ -8,9 +8,17 @@
 
 本轮补齐 Writer 表格/文本框、Impress 组内对象/表格/图片位移/空页插入及受限 SmartArt 文字往返。透视表改为编辑数值源单元格，并验证结果区域写入会被拒绝。Calc 使用批量 UNO 快照读取。面板补齐事件缺口恢复、干净文档外部保存重载、幻灯片缩略图、书签工作表定位及 14 种语言。
 
-Windows Authenticode 证书不是验收前提。候选包使用明确允许未签名桥接程序的 Ed25519 签名清单，逐文件 SHA-256 保持必需；上游程序按其实际签名指纹校验。真实普通用户安装、生命周期、最终 ACL 与完整样本复验由候选包工作流记录；Windows 候选包仍未公开发布。
+Windows Authenticode 证书不是验收前提。候选包使用明确允许未签名桥接程序的 Ed25519 签名清单，逐文件 SHA-256 保持必需；上游程序按其实际签名指纹校验。真实普通用户安装、生命周期、最终 ACL 与完整样本复验由候选包工作流记录；Windows 同字节 ZIP 已于 2026-09-28 以 Runtime 1.0.1 正式公开发布，见下节。
 
-用户体验与协议说明见[功能文档](../../features/office-workbench/README.md)。三个原有 Office 插件共享一个增强能力包；没有新增重复插件。生产目录已包含 macOS arm64 的正式签名清单，原生覆盖原文件仍明确禁用，Lite 保持可用并保护导入原件。
+用户体验与协议说明见[功能文档](../../features/office-workbench/README.md)。三个原有 Office 插件共享一个增强能力包；没有新增重复插件。生产目录已包含 macOS arm64 与 Windows x64 的正式签名清单，原生覆盖原文件仍明确禁用，Lite 保持可用并保护导入原件。
+
+## 2026-09-28 Windows 运行时公开发布
+
+[Office Runtime 1.0.1 · Windows x64](https://github.com/EurekaRaider/ArtemisRelease/releases/tag/office-runtime-v1.0.1) 已正式公开发布。复用已验收的 479,661,270 字节 ZIP，SHA-256 保持 `198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47`；没有重新构建、压缩或添加 Authenticode 签名。正式 Ed25519 清单复用宿主已有信任根，宿主范围为 `>=1.6.9 <2.0.0`。
+
+七项资产的 GitHub 上传摘要与本地文件一致；公开发布未改变主程序 Latest。双平台目录保留原有 macOS 1.0.0 清单，主程序已接入 Windows 1.0.1 在线安装项；离线包为单个 `.artemis-office` 文件。新增目录回归验证真实清单签名、平台筛选、宿主版本兼容性与 Windows 未签名程序策略。
+
+[公开在线安装验证](https://github.com/EurekaRaider/Artemis/actions/runs/36377670718) 使用 Windows 非管理员客户端、生产宿主管理器和匿名 HTTPS 下载，随后检查 Word/Excel/PowerPoint 原生预览与最终 ACL。公开在线目录由该作业在实际安装及原生验证通过后更新；最终结论以链接中的运行结果为准。候选包历史报告中的本地 HTTP 验收标记保持原样。
 
 ## 2026-09-28 独立能力包发布
 
@@ -166,7 +174,7 @@ Windows 实际候选 ZIP 为 479,661,270 字节（457.44 MiB），展开 1,523,4
 - Windows CI 的实际编译、44 项回归、Electron 预览、管理员、普通用户及服务账户的 30 份原生样本均已执行；结果、限制和原始证据入口见上节。下载重试另外验证了续传、服务器忽略 Range 后重下、完整内容后的断线及缓存摘要；日志回收验证了往返摘要、无效路径/损坏内容拒绝及超大 PDF 不阻断报告。
 - Homebrew Node 的原生动态库问题和未关闭 Node WebStorage 的单独测试结果不能替代 CI 环境结果。最终运行使用官方 Node 26.9 及验证脚本的 `--no-experimental-webstorage` 设置。
 - 原有主分支的热力图 tooltip 样式与 CSS 契约存在三处差异。本分支只将契约更新到已存在的 `width: max-content`、`white-space: normal`、`overflow-wrap: anywhere`，没有改变该 UI 或提高性能预算。
-- 生产 catalog 已包含 macOS arm64 的正式签名清单和更新源。临时候选密钥不会加入生产信任根，自动化验证继续使用独立用户目录。
+- 生产 catalog 已包含 macOS arm64 与 Windows x64 的正式签名清单和更新源。临时候选密钥不会加入生产信任根，自动化验证继续使用独立用户目录。
 
 ## 发布前流程
 
