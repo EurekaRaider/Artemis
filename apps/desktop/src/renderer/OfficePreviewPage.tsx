@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { ArtifactSelection } from "@artemis/protocol";
 import { InlineNotice } from "@artemis/ui/feedback";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { TextLayer, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
 import { pageRegion, pageRegionQuote } from "./office-preview-selection.js";
 import { OfficePageEditor } from "./OfficePageEditor.js";
 import type { OfficeEditorState } from "./office-editor-state.js";
@@ -54,6 +54,7 @@ export function OfficePreviewPage({
     return () => observer.disconnect();
   }, [lazy]);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const textLayer = useRef<HTMLDivElement>(null);
   const textRuns = useRef<{
     page: number;
     version: number;
@@ -99,6 +100,8 @@ export function OfficePreviewPage({
   useEffect(() => {
     let active = true;
     let task: RenderTask | undefined;
+    let layer: TextLayer | undefined;
+    textLayer.current?.replaceChildren();
     setError(undefined);
     setDrag(undefined);
     start.current = undefined;
@@ -154,6 +157,19 @@ export function OfficePreviewPage({
         if (!thumbnail) {
           try {
             const content = await pdfPage.getTextContent();
+            if (!active) return;
+            if (textLayer.current) {
+              textLayer.current.style.setProperty(
+                "--total-scale-factor",
+                String(viewport.scale * (viewport.userUnit ?? 1)),
+              );
+              layer = new TextLayer({
+                textContentSource: content,
+                container: textLayer.current,
+                viewport,
+              });
+              await layer.render();
+            }
             for (const item of content.items) {
               if (
                 !("str" in item) ||
@@ -209,6 +225,7 @@ export function OfficePreviewPage({
     return () => {
       active = false;
       task?.cancel();
+      layer?.cancel();
     };
   }, [document, page, version, zoom, thumbnail, size, visible]);
 
@@ -287,6 +304,60 @@ export function OfficePreviewPage({
           setDrag(undefined);
         }}
       />
+      {!thumbnail ? (
+        <div
+          ref={textLayer}
+          className="office-text-layer"
+          hidden={!selecting}
+          tabIndex={selecting ? 0 : -1}
+          onPointerDown={() =>
+            textLayer.current?.focus({ preventScroll: true })
+          }
+          onPointerUp={() => {
+            const selected = window.getSelection();
+            const root = textLayer.current;
+            if (
+              !root ||
+              !selected ||
+              selected.isCollapsed ||
+              !selected.rangeCount ||
+              painted?.page !== page ||
+              painted.version !== version
+            )
+              return;
+            const range = selected.getRangeAt(0);
+            if (
+              !root.contains(range.startContainer) ||
+              !root.contains(range.endContainer)
+            )
+              return;
+            const quote = selected.toString().slice(0, 8192);
+            const bounds = root.getBoundingClientRect();
+            const rect = range.getBoundingClientRect();
+            if (!quote.trim() || !bounds.width || !bounds.height) return;
+            const x = Math.max(0, (rect.left - bounds.left) / bounds.width);
+            const y = Math.max(0, (rect.top - bounds.top) / bounds.height);
+            onRegion?.(
+              {
+                kind: "region",
+                page,
+                x,
+                y,
+                width: Math.min(rect.width / bounds.width, 1 - x),
+                height: Math.min(rect.height / bounds.height, 1 - y),
+              },
+              version,
+              quote,
+            );
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              window.getSelection()?.removeAllRanges();
+              onClearSelection?.();
+            }
+          }}
+        />
+      ) : null}
       {!thumbnail && editor && canvas.current && painted?.page === page ? (
         <OfficePageEditor
           key={page}

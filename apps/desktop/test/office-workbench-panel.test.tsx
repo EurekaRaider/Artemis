@@ -48,6 +48,22 @@ const pdf = vi.hoisted(() => ({
 }));
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: {},
+  TextLayer: class {
+    constructor(
+      private options: {
+        container: HTMLElement;
+        textContentSource: { items: { str: string }[] };
+      },
+    ) {}
+    async render() {
+      for (const item of this.options.textContentSource.items) {
+        const span = document.createElement("span");
+        span.textContent = item.str;
+        this.options.container.append(span);
+      }
+    }
+    cancel() {}
+  },
   getDocument: () => ({ promise: Promise.resolve(pdf), destroy: vi.fn() }),
 }));
 
@@ -726,4 +742,49 @@ it("ignores invalid persisted review data", () => {
   );
   fixture();
   expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+});
+
+it("keeps a native character selection as the exact comment quote", async () => {
+  pdf.textItems = [
+    {
+      str: "只批注这几个字而不是整段",
+      transform: [12, 0, 0, 12, 100, 650],
+      width: 160,
+      fontName: "test",
+    },
+  ];
+  const result = fixture();
+  await waitFor(() =>
+    expect(
+      result.container.querySelector("canvas")?.dataset.previewVersion,
+    ).toBe("4"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Comment", exact: true }));
+  const layer =
+    result.container.querySelector<HTMLElement>(".office-text-layer")!;
+  expect(layer).toBeVisible();
+  const node = layer.querySelector("span")!.firstChild!;
+  const range = document.createRange();
+  range.setStart(node, 3);
+  range.setEnd(node, 7);
+  Object.defineProperty(range, "getBoundingClientRect", {
+    value: () => ({ left: 80, top: 100, width: 40, height: 12 }),
+  });
+  vi.spyOn(layer, "getBoundingClientRect").mockReturnValue({
+    left: 40,
+    top: 80,
+    width: 300,
+    height: 390,
+  } as DOMRect);
+  window.getSelection()!.removeAllRanges();
+  window.getSelection()!.addRange(range);
+  fireEvent.pointerUp(layer);
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+    target: { value: "精确批注" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add to message" }));
+  expect(result.onAnnotate).toHaveBeenCalledWith(
+    expect.objectContaining({ quote: "这几个字", sourceVersion: 4 }),
+  );
+  window.getSelection()!.removeAllRanges();
 });

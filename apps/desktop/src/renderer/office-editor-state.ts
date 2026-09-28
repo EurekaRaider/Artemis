@@ -108,6 +108,23 @@ export class OfficeEditorState {
       }
     registerWorkspaceAutosave(this.storageKey, this);
   }
+  retainDraft() {
+    if (this.running || this.composing)
+      throw new Error("Finish saving or text input before closing.");
+    // Verify durable storage before removing this editor from the shutdown gate.
+    if (this.drafts.size) {
+      const value = JSON.stringify([...this.drafts.values()]);
+      localStorage.setItem(this.storageKey, value);
+      if (localStorage.getItem(this.storageKey) !== value)
+        throw new Error("The draft could not be retained.");
+    }
+    clearTimeout(this.timer);
+    clearTimeout(this.deadline);
+    this.deadline = undefined;
+  }
+  resumeAutosave() {
+    registerWorkspaceAutosave(this.storageKey, this);
+  }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
@@ -325,5 +342,6 @@ export function officeEditor(
     editor = new OfficeEditorState(threadId, sessionId, path);
     editors.set(key, editor);
   }
+  editor.resumeAutosave();
   return editor;
 }

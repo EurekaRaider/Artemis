@@ -234,7 +234,10 @@ import {
   WorkspaceFileIcon,
   WorkspaceFilesPanel,
 } from "./WorkspaceFilesPanel.js";
-import { flushWorkspaceEdits } from "./workspace-autosave.js";
+import {
+  flushWorkspaceEdits,
+  retainWorkspaceDrafts,
+} from "./workspace-autosave.js";
 import {
   MarkdownReaderPanel,
   WorkspaceBrowserPanel,
@@ -1313,6 +1316,12 @@ export function App() {
   const deletingThreadIds = useRef(new Set<string>());
   const [goalMutationPending, setGoalMutationPending] = useState(false);
   const toastSerial = useRef(0);
+  const [failedTabClose, setFailedTabClose] = useState<{
+    tabId: string;
+    threadId: string;
+    path: string;
+    message: string;
+  }>();
   const [toast, setToastState] = useState<ToastState>();
   const setToast = useCallback((content: ToastContent | undefined) => {
     if (content === undefined) {
@@ -2366,9 +2375,19 @@ export function App() {
       const tab = workspaceTabs.tabs.find((value) => value.id === tabId);
       try {
         if (tab?.path) await flushWorkspaceEdits(activeThreadId, tab.path);
-      } catch {
+      } catch (error) {
+        if (tab?.path && activeThreadId) {
+          dispatchWorkspaceTab({ type: "activate", tabId });
+          setFailedTabClose({
+            tabId,
+            threadId: activeThreadId,
+            path: tab.path,
+            message: String(error),
+          });
+        }
         return;
       }
+      setFailedTabClose(undefined);
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
       const focusTarget = workspaceTabFocusTargetAfterClose(
         workspaceTabs.tabs,
@@ -9741,6 +9760,52 @@ ${model.providerId} · ${model.modelId}`}
         )}
       </section>
 
+      {failedTabClose && (
+        <Dialog
+          open
+          label={locale.startsWith("zh") ? "文件尚未保存" : "File not saved"}
+          onOpenChange={(open) => {
+            if (!open) setFailedTabClose(undefined);
+          }}
+        >
+          <h2>{locale.startsWith("zh") ? "文件尚未保存" : "File not saved"}</h2>
+          <p>{failedTabClose.path}</p>
+          <p>{failedTabClose.message}</p>
+          <p>
+            {locale.startsWith("zh")
+              ? "可以重试保存，或保留 Office 草稿并关闭。保留的草稿尚未写入文档，重新打开此文件后可继续处理。"
+              : "Retry saving, or retain the Office draft and close. Retained drafts are not saved to the document; reopen this file to recover them."}
+          </p>
+          <Button onClick={() => setFailedTabClose(undefined)}>
+            {locale.startsWith("zh") ? "继续编辑" : "Keep editing"}
+          </Button>
+          <Button onClick={() => void closeWorkspaceTab(failedTabClose.tabId)}>
+            {locale.startsWith("zh") ? "重试保存" : "Retry save"}
+          </Button>
+          <Button
+            onClick={() => {
+              try {
+                retainWorkspaceDrafts(
+                  failedTabClose.threadId,
+                  failedTabClose.path,
+                );
+                void closeWorkspaceTab(failedTabClose.tabId, {
+                  moveFocus: true,
+                });
+              } catch (error) {
+                setFailedTabClose({
+                  ...failedTabClose,
+                  message: String(error),
+                });
+              }
+            }}
+          >
+            {locale.startsWith("zh")
+              ? "保留草稿并关闭"
+              : "Retain draft and close"}
+          </Button>
+        </Dialog>
+      )}
       {threadRename && (
         <Dialog
           className="thread-rename-dialog"

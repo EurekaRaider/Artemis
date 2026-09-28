@@ -1,27 +1,17 @@
-# Artemis v1.6.10
+# Artemis v1.6.11
 
 ## 中文
 
-- **Office 批注**：Word、PPT、Excel 共用的批注面板支持拖动、清除选区和 Esc 取消；切换会话后恢复该文档会话的批注展开状态、草稿和选区。批注作为输入框卡片按文件分组，支持编辑、删除和返回来源；旧版本位置会显示提醒。
-- **页面浏览**：Word、PPT 和 Excel 打印预览支持连续滚动，使用单一页码选择器，缩放控件更紧凑并恢复可见边框。仅对可见区域附近的页面绘制画布；PPT 保留幻灯片缩略导航，Excel 保留工作表与数据视图。
-- **区域核对**：区域批注附带可读取的 PDF 文本片段和原始版本、页码、归一化坐标。执行时须核对当前内容，不将区域坐标猜测为段落或单元格索引。图像区域和无法准确提取的文字仍以区域坐标为准。
-- **错误反馈**：Office 与 CSV 错误提示支持关闭，保留未保存草稿与保存入口；关闭提示不表示保存成功，也不会丢弃内容。
+- **精确批注（#240）**：进入批注模式后，可在 Office 页面文字上按字选择。批注引用保留实际选中的文字，不再把几个字扩大成整个 PDF 文本块；空白和图像区域继续支持框选。
+- **定位开关（#238）**：“跟随更新”改为“自动定位到最新修改”，并解释它控制最新 AI 修改位置的跳转，不影响保存。
+- **关闭与更新恢复（#237）**：保存失败时关闭标签页会显示原因，提供继续编辑、重试保存及明确确认后的保留草稿并关闭。草稿存储成功后才解除该编辑器的退出保存检查；重新打开文件恢复检查。保留草稿不等于已保存到文档。
 
-### 核实范围
-
-#229、#231–#236 的界面问题已通过源码和回归测试确认并修复。#230 缺少原始文档，尚未复现其报告的具体偏移；本版增加可核对的选区文本、缩放坐标回归和防止猜测目标的约束，不宣称所有区域识别问题均已解决。
-
-发布目标为 macOS arm64（签名、公证 DMG/ZIP）和 Windows x64（未签名 ZIP）。复用已发布的 Office Runtime，不重建或替换运行时。Office 复杂格式保真及编辑范围限制保持原有约束。
+发布目标为 macOS arm64（签名、公证 DMG/ZIP）与 Windows x64（未签名 ZIP），沿用已发布 Office Runtime。原始用户文件未提供，修复依据为源码验证和回归测试；不宣称所有复杂文档布局均已验证。
 
 ## English
 
-- **Office comments**: the shared Word, PowerPoint and Excel comment panel can be moved, and selections can be cleared explicitly or with Escape. Returning to a document session restores its comment state, draft and selection. Composer cards group comments by file and support editing, removal and source navigation, with warnings for older versions.
-- **Page navigation**: Word, PowerPoint and Excel print previews scroll continuously with one page picker and a compact, bordered zoom control. Canvases render near the visible area. PowerPoint retains its slide strip; Excel retains worksheets and data view.
-- **Region context**: region comments include readable PDF text runs when available, alongside the original version, page and normalized coordinates. The agent must verify current content instead of guessing native paragraph, object or cell indices from coordinates. Image regions retain their coordinates without fabricated text.
-- **Errors**: Office and CSV error messages can be dismissed while preserving unsaved drafts and save controls. Dismissing a message does not mark changes as saved or discard them.
+- **Precise comments (#240)**: Office comment mode supports native character selection over page text. Quotes retain the selected characters instead of expanding to a whole PDF text run. Blank and image areas still support region selection.
+- **Navigation switch (#238)**: “Go to latest change” explains that following the latest AI edit changes the reading position without affecting saving.
+- **Close and update recovery (#237)**: failed tab saves show the error and actions to keep editing, retry, or explicitly retain an Office draft and close. Draft storage must succeed before that editor leaves the shutdown save gate; reopening restores the gate. Retention does not mean the document was saved.
 
-### Verification scope
-
-The UI defects in #229 and #231–#236 were confirmed through source inspection and regression tests. The specific offset reported in #230 remains unconfirmed without its original document. This release adds verifiable text context, scaled-coordinate coverage and explicit target verification; it does not claim that every region recognition problem is resolved.
-
-Release targets are macOS arm64 (signed, notarized DMG/ZIP) and Windows x64 (unsigned ZIP). Existing published Office runtimes are reused without rebuilding or replacing them. Existing Office format-fidelity and editing limitations remain applicable.
+Release targets are macOS arm64 (signed, notarized DMG/ZIP) and Windows x64 (unsigned ZIP), reusing published Office runtimes. Original reporter files were unavailable; fixes are grounded in source verification and regression tests, not universal complex-document layout acceptance.

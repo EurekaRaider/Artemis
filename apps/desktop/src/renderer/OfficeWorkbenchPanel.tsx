@@ -556,6 +556,11 @@ function OfficeWorkbenchContent({
         <Switch
           className="office-follow"
           label={t.follow}
+          title={
+            locale.startsWith("zh")
+              ? "自动跳转到 AI 最新修改的位置；关闭后停留在当前阅读位置，不影响保存。"
+              : "Jump to the latest AI edit. Turn off to keep your reading position; saving is unaffected."
+          }
           checked={follow}
           onCheckedChange={setFollow}
         />

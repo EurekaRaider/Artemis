@@ -1,13 +1,32 @@
 // Editors retain their flush callback while a save is pending, even off-screen.
 const editors = new Map<
   string,
-  { threadId: string; path: string; flush(): Promise<void> }
+  {
+    threadId: string;
+    path: string;
+    flush(): Promise<void>;
+    retainDraft?(): void;
+  }
 >();
 export function registerWorkspaceAutosave(
   key: string,
-  editor: { threadId: string; path: string; flush(): Promise<void> },
+  editor: {
+    threadId: string;
+    path: string;
+    flush(): Promise<void>;
+    retainDraft?(): void;
+  },
 ) {
   editors.set(key, editor);
+}
+export function retainWorkspaceDrafts(threadId: string, path: string) {
+  const matching = [...editors.entries()].filter(
+    ([, editor]) => editor.threadId === threadId && editor.path === path,
+  );
+  if (!matching.length || matching.some(([, editor]) => !editor.retainDraft))
+    throw new Error("This editor must save before closing.");
+  for (const [, editor] of matching) editor.retainDraft!();
+  for (const [key] of matching) editors.delete(key);
 }
 export async function flushWorkspaceEdits(threadId?: string, path?: string) {
   await Promise.all(

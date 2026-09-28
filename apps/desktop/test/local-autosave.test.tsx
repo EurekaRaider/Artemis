@@ -12,6 +12,10 @@ import { CsvAutosave } from "../src/renderer/WorkspaceCsvFileEditor.js";
 import { replaceWorkspaceCsvCell } from "../src/renderer/workspace-csv.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
+import {
+  flushWorkspaceEdits,
+  retainWorkspaceDrafts,
+} from "../src/renderer/workspace-autosave.js";
 afterEach(() => localStorage.clear());
 describe("local editor autosave", () => {
   it("splices a CSV field without losing unseen rows, quotes, identifiers or CRLF", () => {
@@ -271,4 +275,69 @@ describe("local editor autosave", () => {
     await editor.flush();
     expect(localStorage.getItem("artemis-csv-draft:ime:data.csv")).toBeNull();
   });
+});
+
+it("retains a failed Office draft before closing and resumes its save gate on reopen", async () => {
+  const editor = new OfficeEditorState("retain-close", "session", "draft.docx");
+  stubWindowArtemis({
+    readOfficeSnapshot: vi
+      .fn()
+      .mockRejectedValue(new Error("Session unavailable")),
+  });
+  editor.setText(
+    {
+      selection: { kind: "paragraph", index: 0, start: 0, end: 3 },
+      text: "old",
+    },
+    "my draft",
+  );
+  await expect(
+    flushWorkspaceEdits("retain-close", "draft.docx"),
+  ).rejects.toThrow("Session unavailable");
+  retainWorkspaceDrafts("retain-close", "draft.docx");
+  expect(
+    localStorage.getItem("artemis-office-draft:retain-close:session"),
+  ).toContain("my draft");
+  await expect(
+    flushWorkspaceEdits("retain-close", "draft.docx"),
+  ).resolves.toBeUndefined();
+  editor.resumeAutosave();
+  await expect(
+    flushWorkspaceEdits("retain-close", "draft.docx"),
+  ).rejects.toThrow("Session unavailable");
+  retainWorkspaceDrafts("retain-close", "draft.docx");
+});
+
+it("keeps the save gate when draft retention fails", async () => {
+  const editor = new OfficeEditorState(
+    "retain-failure",
+    "session",
+    "draft.docx",
+  );
+  stubWindowArtemis({
+    readOfficeSnapshot: vi
+      .fn()
+      .mockRejectedValue(new Error("Session unavailable")),
+  });
+  editor.setText(
+    {
+      selection: { kind: "paragraph", index: 0, start: 0, end: 3 },
+      text: "old",
+    },
+    "draft",
+  );
+  await expect(editor.flush()).rejects.toThrow();
+  const storage = vi
+    .spyOn(Storage.prototype, "setItem")
+    .mockImplementation(() => {
+      throw new Error("Storage full");
+    });
+  expect(() => retainWorkspaceDrafts("retain-failure", "draft.docx")).toThrow(
+    "Storage full",
+  );
+  await expect(
+    flushWorkspaceEdits("retain-failure", "draft.docx"),
+  ).rejects.toThrow("Session unavailable");
+  storage.mockRestore();
+  retainWorkspaceDrafts("retain-failure", "draft.docx");
 });
