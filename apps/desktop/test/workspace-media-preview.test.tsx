@@ -24,6 +24,76 @@ const labels = {
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"/>';
 
 describe("workspace media preview", () => {
+  it.each(["data.csv", "slides.ppt", "budget.xls"])(
+    "shows upgrade guidance for %s when Office is missing",
+    async (path) => {
+      stubWindowArtemis({
+        listWorkspaceDirectory: async () => [],
+        readWorkspaceFile: async () => ({
+          path,
+          binary: !path.endsWith("csv"),
+          content: "a,b",
+        }),
+        officeCapabilityStatus: async () => ({ phase: "idle", versions: [] }),
+      });
+      render(
+        <WorkspaceFilesPanel
+          {...labels}
+          locale="zh-CN"
+          threadId="task"
+          selectedPath={path}
+          onOpenHtml={vi.fn()}
+          onFileSelected={vi.fn()}
+        />,
+      );
+      expect(
+        await screen.findByText("不支持预览，如需预览请升级office功能"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "升级 Office 功能" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Binary file")).toBeNull();
+    },
+  );
+  it.each(["report.docx", "Slides.PPTX", "预算.xlsx"])(
+    "routes %s from the file tree and restored selection without binary reading",
+    async (path) => {
+      const open = vi.fn(),
+        read = vi.fn();
+      stubWindowArtemis({
+        listWorkspaceDirectory: vi
+          .fn()
+          .mockResolvedValue([{ name: path, path, kind: "file" }]),
+        readWorkspaceFile: read,
+      });
+      const { rerender } = render(
+        <WorkspaceFilesPanel
+          {...labels}
+          threadId="task"
+          selectedPath={undefined}
+          onOpenHtml={vi.fn()}
+          onOpenOffice={open}
+          onFileSelected={vi.fn()}
+        />,
+      );
+      fireEvent.click(await screen.findByText(path));
+      expect(open).toHaveBeenCalledWith(path);
+      open.mockClear();
+      rerender(
+        <WorkspaceFilesPanel
+          {...labels}
+          threadId="task"
+          selectedPath={path}
+          onOpenHtml={vi.fn()}
+          onOpenOffice={open}
+          onFileSelected={vi.fn()}
+        />,
+      );
+      await waitFor(() => expect(open).toHaveBeenCalledWith(path));
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
+
   it("previews SVG without a source toggle or empty toolbar", async () => {
     stubWindowArtemis({
       listWorkspaceDirectory: vi.fn().mockResolvedValue([]),

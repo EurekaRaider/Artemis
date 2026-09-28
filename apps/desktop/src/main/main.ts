@@ -18,6 +18,7 @@ import { ThreadHistoryService } from "./thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
+import { installWorkspaceHistoryShortcuts } from "./workspace-history-shortcuts.js";
 import {
   WorkspacePdfPreview,
   WORKSPACE_PDF_SCHEME,
@@ -203,6 +204,42 @@ import {
   isRendererNavigationAllowed,
 } from "./navigation-policy.js";
 import { OfficeDocumentService } from "./office-document-service.js";
+import { createOfficeWorkbench } from "./office-workbench.js";
+
+let officeWorkbench: ReturnType<typeof createOfficeWorkbench> | undefined;
+function getOfficeWorkbench() {
+  officeWorkbench ??= createOfficeWorkbench({
+    userData: app.getPath("userData"),
+    catalogPath: app.isPackaged
+      ? join(
+          process.resourcesPath,
+          "resources",
+          "office-runtime",
+          "catalog.json",
+        )
+      : join(app.getAppPath(), "resources", "office-runtime", "catalog.json"),
+    hostVersion: app.getVersion(),
+    canAutoSave: (threadId) => {
+      const thread = store?.getThread(threadId);
+      return !!thread && !thread.archived && thread.mode === "execute";
+    },
+    dependents: async (version) =>
+      ((await codexPluginService?.listInstalled()) ?? [])
+        .filter((plugin) =>
+          plugin.capabilityDependencies?.some(
+            (dependency) =>
+              dependency.id === "office-core" && dependency.version === version,
+          ),
+        )
+        .map((plugin) => plugin.displayName),
+    emit: (threadId, event) =>
+      emitPayload(threadId, activeTurns.get(threadId), {
+        type: "artifact.event",
+        event,
+      }),
+  });
+  return officeWorkbench;
+}
 import {
   readLocalTextFile,
   resolveLocalFilePath,
@@ -5628,8 +5665,38 @@ async function executeApprovedOffice(
     });
   }
   try {
+    const thread = store?.getThread(request.threadId);
+    if (
+      request.mode !== "execute" ||
+      thread?.mode !== "execute" ||
+      activeTurns.get(request.threadId) !== request.turnId ||
+      cancellingTurns.has(request.threadId)
+    )
+      throw new Error("Office operations require the current Execute turn");
+    if (request.document.protocolVersion === 2) {
+      const workbench = await getOfficeWorkbench();
+      const result = await workbench.sessions.execute(request.document, {
+        threadId: request.threadId,
+        workspacePath: request.workspacePath,
+        mode: request.mode,
+      });
+      if (request.document.operation === "save")
+        emitPayload(request.threadId, request.turnId, {
+          type: "file.changed",
+          path: request.document.path,
+          operation: "update",
+        });
+      agentProcess.post({
+        type: "broker.resolve",
+        requestId: workerRequestId,
+        resolution,
+        result,
+      });
+      return;
+    }
     const documentResult = await new OfficeDocumentService(
       request.workspacePath,
+      join(app.getPath("userData"), "office-lite"),
     ).execute(request.document);
     if (documentResult.changed) {
       const operation =
@@ -9727,6 +9794,154 @@ function registerIpc(): void {
         throw new Error("PDF preview requires a PDF file.");
       return workspacePdfPreview.open(threadId, file.path);
     },
+  );
+  ipcMain.handle(
+    IPC.officeOpen,
+    async (_event, threadId: string, path: string) => {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) throw new Error("Active task not found");
+      // Opening starts an engine and writes a working copy, even for preview.
+      if (thread.mode !== "execute")
+        throw new Error(`${thread.mode} mode rejects Office sessions`);
+      const context = await resolveThreadWorkspace(thread);
+      const workbench = await getOfficeWorkbench();
+      const current = store?.getThread(threadId);
+      if (!current || current.archived)
+        throw new Error("Active task not found");
+      return workbench.sessions.openFile(String(path ?? ""), {
+        workspacePath: context.workspacePath,
+        threadId,
+        mode: current.mode,
+      });
+    },
+  );
+  ipcMain.handle(
+    IPC.officeSnapshot,
+    async (_event, threadId: string, sessionId: string) => {
+      if (!store?.getThread(threadId) || store.getThread(threadId)?.archived)
+        throw new Error("Active task not found");
+      return (await getOfficeWorkbench()).sessions.snapshotForUi(
+        sessionId,
+        threadId,
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.officeEdit,
+    async (
+      _event,
+      threadId: string,
+      request: import("@artemis/protocol").ArtifactSessionRequest,
+    ) => {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) throw new Error("Active task not found");
+      if (thread.mode !== "execute")
+        throw new Error(`${thread.mode} mode rejects Office sessions`);
+      const context = await resolveThreadWorkspace(thread);
+      const workbench = await getOfficeWorkbench();
+      const current = store?.getThread(threadId);
+      if (!current || current.archived)
+        throw new Error("Active task not found");
+      return workbench.sessions.executeFromUi(request, {
+        threadId,
+        workspacePath: context.workspacePath,
+        mode: current.mode,
+      });
+    },
+  );
+  ipcMain.handle(
+    IPC.workspaceCsvSave,
+    async (
+      _event,
+      threadId: string,
+      path: string,
+      content: string,
+      expectedContent: string,
+    ) => {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) throw new Error("Active task not found");
+      if (thread.mode !== "execute")
+        throw new Error(`${thread.mode} mode rejects CSV edits`);
+      if (
+        typeof path !== "string" ||
+        !/\.csv$/iu.test(path) ||
+        typeof content !== "string" ||
+        typeof expectedContent !== "string"
+      )
+        throw new Error("Invalid CSV save request");
+      const context = await resolveThreadWorkspace(thread);
+      const current = store?.getThread(threadId);
+      if (!current || current.archived || current.mode !== "execute")
+        throw new Error("CSV editing is no longer allowed");
+      return writeWorkspaceFile(
+        context.workspacePath,
+        path,
+        content,
+        expectedContent,
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.officePreview,
+    async (_event, threadId: string, sessionId: string, assetId: string) => {
+      if (!store?.getThread(threadId) || store.getThread(threadId)?.archived)
+        throw new Error("Active task not found");
+      const sessions = (await getOfficeWorkbench()).sessions;
+      const path = await sessions.previewPath(sessionId, threadId, assetId);
+      if ((await stat(path)).size > 64 * 1024 * 1024)
+        throw new Error("Office preview exceeds size limit");
+      const snapshot = await sessions.snapshotForUi(sessionId, threadId);
+      if (snapshot.preview?.assetId !== assetId)
+        throw new Error("Office preview changed; refresh the snapshot");
+      return {
+        data: (await readFile(path)).toString("base64"),
+        version: snapshot.preview.version,
+      };
+    },
+  );
+  ipcMain.handle(IPC.officeCapabilityStatus, async () => {
+    return (await getOfficeWorkbench()).status();
+  });
+  ipcMain.handle(IPC.officeCapabilityCheckUpdates, async () => {
+    await (await getOfficeWorkbench()).updates.check();
+  });
+  ipcMain.handle(IPC.officeCapabilityInstall, async () => {
+    const workbench = await getOfficeWorkbench();
+    const manifest = workbench.updates.available();
+    if (!manifest)
+      throw new Error(
+        "No verified Office capability release is available for this platform yet. Lite workflows remain available.",
+      );
+    await workbench.packs.install(manifest);
+  });
+  ipcMain.handle(IPC.officeCapabilityImport, async () => {
+    const selected = await dialog.showOpenDialog({
+      title: "Import Office offline pack",
+      properties: ["openFile"],
+      filters: [
+        { name: "Office offline pack", extensions: ["artemis-office"] },
+      ],
+    });
+    if (selected.canceled || !selected.filePaths[0]) return;
+    await (
+      await getOfficeWorkbench()
+    ).packs.installOffline(selected.filePaths[0]);
+  });
+  ipcMain.handle(IPC.officeCapabilityCancel, async () =>
+    (await getOfficeWorkbench()).packs.cancel(),
+  );
+  ipcMain.handle(
+    IPC.officeCapabilityActivate,
+    async (_event, version: string) =>
+      (await getOfficeWorkbench()).packs.activate(version),
+  );
+  ipcMain.handle(IPC.officeCapabilityDeactivate, async () =>
+    (await getOfficeWorkbench()).packs.deactivate(),
+  );
+  ipcMain.handle(
+    IPC.officeCapabilityUninstall,
+    async (_event, version: string) =>
+      (await getOfficeWorkbench()).packs.uninstall(version),
   );
   ipcMain.handle(
     IPC.workspaceTextFileRead,
@@ -16549,6 +16764,27 @@ function createMainWindow(): BrowserWindow {
     // Set the final content viewport before React initializes its sidebar state.
     window.setContentSize(smokeWidth, smokeHeight);
   }
+  let editorsFlushed = false;
+  let flushingEditors = false;
+  window.on("close", (event) => {
+    if (editorsFlushed || hookSessionsEnded || window.webContents.isDestroyed())
+      return;
+    event.preventDefault();
+    if (flushingEditors) return;
+    flushingEditors = true;
+    void window.webContents
+      .executeJavaScript("window.artemisFlushWorkspaceEdits?.()")
+      .then(() => {
+        editorsFlushed = true;
+        window.close();
+      })
+      .catch((error: unknown) => {
+        dialog.showErrorBox("Document save failed", String(error));
+      })
+      .finally(() => {
+        flushingEditors = false;
+      });
+  });
   window.on("closed", () => {
     if (mainWindow === window) {
       computerUseHost?.service.stopAll("Artemis window closed");
@@ -16634,6 +16870,7 @@ function createMainWindow(): BrowserWindow {
     "index.html",
   );
   const rendererEntry = devServer ?? pathToFileURL(productionEntry).href;
+  installWorkspaceHistoryShortcuts(window.webContents);
   window.webContents.on("will-navigate", (event, url) => {
     if (!isRendererNavigationAllowed(url, rendererEntry, Boolean(devServer))) {
       event.preventDefault();
@@ -22429,17 +22666,35 @@ let endingHookSessions = false;
 let hookSessionsEnded = false;
 app.on("before-quit", (event) => {
   computerUseHost?.dispose();
-  if (!hookSessionsEnded && openedThreads.size && canRunLicensed()) {
+  if (
+    !hookSessionsEnded &&
+    ((openedThreads.size && canRunLicensed()) || officeWorkbench || mainWindow)
+  ) {
     event.preventDefault();
     if (!endingHookSessions) {
       endingHookSessions = true;
-      shuttingDown = true;
-      hooksService?.dispose();
-      void Promise.allSettled(
-        [...openedThreads].map((id) => endHookSession(id)),
-      ).finally(() => {
+      void (async () => {
+        if (mainWindow && !mainWindow.webContents.isDestroyed())
+          await mainWindow.webContents.executeJavaScript(
+            "window.artemisFlushWorkspaceEdits?.()",
+          );
+        shuttingDown = true;
+        hooksService?.dispose();
+        await Promise.allSettled([
+          ...(canRunLicensed()
+            ? [...openedThreads].map((id) => endHookSession(id))
+            : []),
+          officeWorkbench?.then(async (workbench) => {
+            workbench.packs.cancel();
+            await workbench.sessions.dispose();
+          }),
+        ]);
         hookSessionsEnded = true;
         app.quit();
+      })().catch((error: unknown) => {
+        endingHookSessions = false;
+        shuttingDown = false;
+        dialog.showErrorBox("Document save failed", String(error));
       });
     }
     return;
@@ -22486,7 +22741,14 @@ setLicenseShutdown(async () => {
       2000,
     ),
   );
-  await Promise.allSettled([...cancellations, mcpClientManager?.dispose()]);
+  await Promise.allSettled([
+    ...cancellations,
+    mcpClientManager?.dispose(),
+    officeWorkbench?.then(async (workbench) => {
+      workbench.packs.cancel();
+      await workbench.sessions.dispose();
+    }),
+  ]);
   agentProcess?.dispose();
 });
 

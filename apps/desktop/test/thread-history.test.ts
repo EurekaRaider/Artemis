@@ -11,6 +11,10 @@ import {
 import { AppStore } from "../src/main/store.js";
 import { ThreadHistoryReader } from "../src/main/thread-history-reader.js";
 import { mergeHistoryPage } from "../src/shared/thread-history.js";
+import {
+  emptyWorkspaceTabs,
+  reconcileOfficeWorkspaceTab,
+} from "../src/renderer/workspace-tabs.js";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -63,6 +67,72 @@ function fixture(turns = 65) {
 }
 
 describe("paged history projections", () => {
+  it("restores an Office tab from reduced history even when presentation events omit its open event", () => {
+    const { reader, add } = fixture(1);
+    const session = {
+      protocolVersion: 1 as const,
+      documentId: "doc",
+      sessionId: "session",
+      path: "Brief.docx",
+      format: "word" as const,
+      engineVersion: "test",
+      version: 0,
+      savedVersion: 0,
+      previewVersion: null,
+      sequence: 1,
+      status: "saved" as const,
+    };
+    add("t0", {
+      type: "artifact.event",
+      event: {
+        protocolVersion: 1,
+        eventId: "office-open",
+        kind: "opened",
+        session,
+      },
+    });
+    const page = reader.read("thread");
+    expect(
+      page.events.some((event) => event.payload.type === "artifact.event"),
+    ).toBe(false);
+    const restored = reconcileOfficeWorkspaceTab(
+      emptyWorkspaceTabs(),
+      page.state.artifacts.session!.session,
+    );
+    expect(restored.tabs).toEqual([
+      expect.objectContaining({
+        kind: "office",
+        path: "Brief.docx",
+        artifactSessionId: "session",
+      }),
+    ]);
+    const pending = {
+      tabs: [
+        {
+          id: "clicked",
+          kind: "office" as const,
+          path: "Brief.docx",
+          title: "Brief.docx",
+        },
+      ],
+      activeTabId: "clicked",
+    };
+    const reconciled = reconcileOfficeWorkspaceTab(pending, session);
+    expect(reconciled.tabs).toHaveLength(1);
+    expect(reconciled.tabs[0]).toMatchObject({
+      id: "clicked",
+      artifactSessionId: "session",
+    });
+    expect(reconciled.activeTabId).toBe("clicked");
+    expect(reconcileOfficeWorkspaceTab(reconciled, session)).toBe(reconciled);
+    expect(
+      reconcileOfficeWorkspaceTab(emptyWorkspaceTabs(), {
+        ...session,
+        status: "closed",
+      }).tabs,
+    ).toEqual([]);
+  });
+
   it("returns recent complete turns and reconstructs the full timeline without changing raw history", () => {
     const { store, reader } = fixture();
     const original = store.getThreadEvents("thread");

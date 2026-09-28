@@ -164,7 +164,9 @@
       "line-height": "1.35",
       "pointer-events": "none",
       "transform": "translateX(-50%)",
-      "white-space": "nowrap"
+      "white-space": "normal",
+      "width": "max-content",
+      "overflow-wrap": "anywhere"
     }
   ],
   [

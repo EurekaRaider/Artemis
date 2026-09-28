@@ -1,0 +1,55 @@
+.workspace-csv-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.workspace-csv-preview table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+  font-size: 12px;
+}
+.workspace-csv-preview th,
+.workspace-csv-preview td {
+  border-inline-end: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 7px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 64px;
+  max-width: 320px;
+  text-align: start;
+  vertical-align: top;
+}
+.workspace-csv-preview th {
+  color: var(--artemis-color-text-secondary);
+  background: var(--surface);
+  font-weight: 500;
+}
+.workspace-csv-preview thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.workspace-csv-preview tr > th:first-child {
+  min-width: 36px;
+  width: 36px;
+}
+.workspace-csv-preview p {
+  margin: 12px;
+  color: var(--artemis-color-text-secondary);
+}
+.workspace-csv-preview textarea {
+  box-sizing: border-box;
+  min-width: 120px;
+  width: 100%;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.workspace-csv-file-editor {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}

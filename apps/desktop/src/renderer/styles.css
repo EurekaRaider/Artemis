@@ -12000,6 +12000,27 @@ kbd {
   z-index: 1;
 }
 
+.plugin-market-card-actions[data-installed="true"][data-office="true"] {
+  flex-wrap: wrap;
+  gap: var(--artemis-space-2);
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"][data-office="true"]
+  [data-artemis-component="button"] {
+  flex: 0 0 auto;
+  min-block-size: var(--artemis-size-control-compact);
+  margin-inline-start: 0;
+  border-radius: var(--artemis-radius-control);
+}
+
+.plugin-market-card-actions[data-installed="true"][data-office="true"]
+  [data-part="label"] {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
 .resource-page-header,
 .automation-header {
   padding: 0;

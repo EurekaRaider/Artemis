@@ -18,6 +18,45 @@ const writeWorkspaceFile = (workspaceTextFiles as WorkspaceTextFileModule)
   .writeWorkspaceFile;
 
 describe("workspace file writes", () => {
+  it("serializes CSV autosaves and rejects stale baselines or unsupported encodings", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "artemis-csv-write-"));
+    const path = join(workspace, "data.csv");
+    try {
+      await writeFile(path, "old");
+      const results = await Promise.allSettled([
+        workspaceTextFiles.writeWorkspaceFile(
+          workspace,
+          "data.csv",
+          "first",
+          "old",
+        ),
+        workspaceTextFiles.writeWorkspaceFile(
+          workspace,
+          "data.csv",
+          "stale",
+          "old",
+        ),
+      ]);
+      expect(results.map((result) => result.status)).toEqual([
+        "fulfilled",
+        "rejected",
+      ]);
+      expect(await readFile(path, "utf8")).toBe("first");
+      const invalid = Buffer.from([0xd6, 0xd0, 0xce, 0xc4]);
+      await writeFile(path, invalid);
+      await expect(
+        workspaceTextFiles.writeWorkspaceFile(
+          workspace,
+          "data.csv",
+          "edited",
+          invalid.toString("utf8"),
+        ),
+      ).rejects.toThrow("not UTF-8");
+      expect(await readFile(path)).toEqual(invalid);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
   it("persists edited UTF-8 text through the path-scoped workspace helper", async () => {
     expect(writeWorkspaceFile).toBeTypeOf("function");
     if (!writeWorkspaceFile) return;

@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "source": "LibreOffice/core",
+  "sourceCommit": "e155df48174bf3e64426fb1b912b9c15fa375704",
+  "license": "MPL-2.0; see LibreOffice core/COPYING",
+  "samples": [
+    {
+      "id": "word/2col-header.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/2col-header.docx",
+      "gitBlobSha1": "3e8f2c459d5b213fd35f4df52358f3577310e00c",
+      "bytes": 17060,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/2col-header.docx"
+    },
+    {
+      "id": "word/ImageCrop.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/ImageCrop.docx",
+      "gitBlobSha1": "120ce78eb7de094d235a7dbef3412000912e4bfd",
+      "bytes": 71650,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/ImageCrop.docx"
+    },
+    {
+      "id": "word/EmbeddedExcelChart.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/EmbeddedExcelChart.docx",
+      "gitBlobSha1": "567660b8e1d053a73bb6ae32605f50d1a1c0765a",
+      "bytes": 21785,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/EmbeddedExcelChart.docx"
+    },
+    {
+      "id": "word/TableWithAboveCaptions.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/TableWithAboveCaptions.docx",
+      "gitBlobSha1": "f445ab6b153dde2d4360eedb4ff7e743067718ec",
+      "bytes": 14761,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/TableWithAboveCaptions.docx"
+    },
+    {
+      "id": "word/dml-groupshape-runfonts.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/dml-groupshape-runfonts.docx",
+      "gitBlobSha1": "e4c8c6cb575fc000fbd6e849dba6d8abc09e7a2c",
+      "bytes": 16971,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/dml-groupshape-runfonts.docx"
+    },
+    {
+      "id": "word/numbering-font.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/numbering-font.docx",
+      "gitBlobSha1": "ccbbd9ed8d46bdf4b9f75bb27a0c8dd2ac069d04",
+      "bytes": 11014,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/numbering-font.docx"
+    },
+    {
+      "id": "word/style-inheritance.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/style-inheritance.docx",
+      "gitBlobSha1": "65ca38aedd573e6a9d8817b03bc055ad9d23594a",
+      "bytes": 26321,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/style-inheritance.docx"
+    },
+    {
+      "id": "word/tdf120344_FontTypes.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/tdf120344_FontTypes.docx",
+      "gitBlobSha1": "74bcd59e24c6eb2e8bfca1314ae88a5c4551702d",
+      "bytes": 13217,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/tdf120344_FontTypes.docx"
+    },
+    {
+      "id": "word/table-style-border.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/table-style-border.docx",
+      "gitBlobSha1": "ceb0bd8a0eaf8ccdcc27e7ca952897ea022ab899",
+      "bytes": 14552,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/table-style-border.docx"
+    },
+    {
+      "id": "word/section_break_numbering.docx",
+      "format": "word",
+      "sourcePath": "sw/qa/extras/ooxmlexport/data/section_break_numbering.docx",
+      "gitBlobSha1": "8b5378a771e540f79f47c355ed79accf90299a21",
+      "bytes": 5614,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sw/qa/extras/ooxmlexport/data/section_break_numbering.docx"
+    },
+    {
+      "id": "slides/ShapePlusImage.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/ShapePlusImage.pptx",
+      "gitBlobSha1": "dd9424d172cede4c1b7584c1789a40a6f7154837",
+      "bytes": 36088,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/ShapePlusImage.pptx"
+    },
+    {
+      "id": "slides/font-scale.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/font-scale.pptx",
+      "gitBlobSha1": "df33b20cebca6f1a7e0b77f7b5564477417f6475",
+      "bytes": 40239,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/font-scale.pptx"
+    },
+    {
+      "id": "slides/master-slides.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/master-slides.pptx",
+      "gitBlobSha1": "3494d33254abdda7c9ac0ea963e04c00b59dbe39",
+      "bytes": 54445,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/master-slides.pptx"
+    },
+    {
+      "id": "slides/onemaster-twolayouts.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/onemaster-twolayouts.pptx",
+      "gitBlobSha1": "f27260f2e5833760f0fd6466511d303c441c6142",
+      "bytes": 14842,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/onemaster-twolayouts.pptx"
+    },
+    {
+      "id": "slides/chart_pt_color_bg1.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/chart_pt_color_bg1.pptx",
+      "gitBlobSha1": "66a0f8cc6d0f28ff26ce966cffb9273d93491678",
+      "bytes": 31934,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/chart_pt_color_bg1.pptx"
+    },
+    {
+      "id": "slides/connector-shape-animations.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/connector-shape-animations.pptx",
+      "gitBlobSha1": "2fc2cee6af20ff9cee04e372103e6a2cc0e9ac90",
+      "bytes": 22329,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/connector-shape-animations.pptx"
+    },
+    {
+      "id": "slides/smartart-org-chart.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/smartart-org-chart.pptx",
+      "gitBlobSha1": "08c9a4fc916db8c121612dcdd770c0d96665ab7f",
+      "bytes": 57764,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/smartart-org-chart.pptx"
+    },
+    {
+      "id": "slides/tableBorderLineStyle.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/tableBorderLineStyle.pptx",
+      "gitBlobSha1": "c46b7bcee819f7565b34af97c32db3b3ab0b2d49",
+      "bytes": 51776,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/tableBorderLineStyle.pptx"
+    },
+    {
+      "id": "slides/shape-text-rotate.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/shape-text-rotate.pptx",
+      "gitBlobSha1": "4a433c748d32eb56b2e9160f0029859cbf9e45fe",
+      "bytes": 33784,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/shape-text-rotate.pptx"
+    },
+    {
+      "id": "slides/customshape-bitmapfill-srcrect.pptx",
+      "format": "powerpoint",
+      "sourcePath": "sd/qa/unit/data/pptx/customshape-bitmapfill-srcrect.pptx",
+      "gitBlobSha1": "e162f7e9923fad6574f4486883b178ec5d98a237",
+      "bytes": 34892,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sd/qa/unit/data/pptx/customshape-bitmapfill-srcrect.pptx"
+    },
+    {
+      "id": "sheets/fontSize.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/fontSize.xlsx",
+      "gitBlobSha1": "8811df7faec52c47b2af8101618fd53843be970f",
+      "bytes": 9883,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/fontSize.xlsx"
+    },
+    {
+      "id": "sheets/testDrawCircleInMergeCells.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/testDrawCircleInMergeCells.xlsx",
+      "gitBlobSha1": "cab448a22d4942859323728a92819e05083af51e",
+      "bytes": 8170,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/testDrawCircleInMergeCells.xlsx"
+    },
+    {
+      "id": "sheets/cond_format_formula_listener.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/cond_format_formula_listener.xlsx",
+      "gitBlobSha1": "97d7845c35111d679cd1c9eb3d1ce215e4cdae9b",
+      "bytes": 8545,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/cond_format_formula_listener.xlsx"
+    },
+    {
+      "id": "sheets/tdf151755_stylesLostOnXLSXExport.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/tdf151755_stylesLostOnXLSXExport.xlsx",
+      "gitBlobSha1": "e48562022af8633a16bd4159f7b41d30903a5515",
+      "bytes": 12993,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/tdf151755_stylesLostOnXLSXExport.xlsx"
+    },
+    {
+      "id": "sheets/TableStyleTest.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/TableStyleTest.xlsx",
+      "gitBlobSha1": "aaabd558e3e71138638d741fa1220a7f05dd1555",
+      "bytes": 11204,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/TableStyleTest.xlsx"
+    },
+    {
+      "id": "sheets/image_hyperlink.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/image_hyperlink.xlsx",
+      "gitBlobSha1": "dd7afe725adb013aa4d469f13d908be11a312000",
+      "bytes": 17868,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/image_hyperlink.xlsx"
+    },
+    {
+      "id": "sheets/hyperlink_formula.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/hyperlink_formula.xlsx",
+      "gitBlobSha1": "77ae2bdc7f7b3d40017c7a729582513512f4f6f0",
+      "bytes": 9472,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/hyperlink_formula.xlsx"
+    },
+    {
+      "id": "sheets/PivotTable_CachedDefinitionAndDataInSync.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/PivotTable_CachedDefinitionAndDataInSync.xlsx",
+      "gitBlobSha1": "f425f978cb50a6d210da3cda2a9c8d2b6c658baf",
+      "bytes": 13237,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/PivotTable_CachedDefinitionAndDataInSync.xlsx"
+    },
+    {
+      "id": "sheets/column-style-autofilter.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/column-style-autofilter.xlsx",
+      "gitBlobSha1": "67b2dd479576f45604106359496dad3d120fe2fb",
+      "bytes": 396312,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/column-style-autofilter.xlsx"
+    },
+    {
+      "id": "sheets/chart_hyperlink.xlsx",
+      "format": "excel",
+      "sourcePath": "sc/qa/unit/data/xlsx/chart_hyperlink.xlsx",
+      "gitBlobSha1": "95d48266f0fb1082765d2f46a2e5f00cd821c22b",
+      "bytes": 21564,
+      "url": "https://raw.githubusercontent.com/LibreOffice/core/e155df48174bf3e64426fb1b912b9c15fa375704/sc/qa/unit/data/xlsx/chart_hyperlink.xlsx"
+    }
+  ]
+}

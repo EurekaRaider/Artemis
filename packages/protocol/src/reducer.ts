@@ -20,6 +20,7 @@ import type {
   UserInputResolvedPayload,
 } from "./schema.js";
 import { isLegacyInternalAgentMessage } from "./internal-messages.js";
+import { reduceArtifactEvent, type ArtifactViewState } from "./artifact.js";
 
 export interface MessagePartState {
   id: string;
@@ -126,6 +127,7 @@ export interface TurnViewState {
 }
 
 export interface ThreadViewState {
+  artifacts?: Record<string, ArtifactViewState>;
   notification?: TaskNotificationState;
   threadId: string;
   status:
@@ -795,6 +797,14 @@ function applyAgentPayload(
         };
       }
       state.status = pendingInteractionStatus(state);
+      return;
+    }
+    case "artifact.event": {
+      const key = payload.event.session.sessionId;
+      state.artifacts = {
+        ...state.artifacts,
+        [key]: reduceArtifactEvent(state.artifacts?.[key], payload.event),
+      };
       return;
     }
     case "file.changed": {

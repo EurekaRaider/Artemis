@@ -1,5 +1,9 @@
 import { claimUpdateAnnouncement } from "./update-announcement.js";
 import type { HookQuery } from "@artemis/protocol";
+import {
+  restoreArtifactSnapshot,
+  type ArtifactSnapshot,
+} from "@artemis/protocol";
 import { imUserMessageText } from "./im-user-message.js";
 import { UserInputCard } from "./UserInputCard.js";
 import {
@@ -220,6 +224,7 @@ import {
   WorkspaceFileIcon,
   WorkspaceFilesPanel,
 } from "./WorkspaceFilesPanel.js";
+import { flushWorkspaceEdits } from "./workspace-autosave.js";
 import {
   MarkdownReaderPanel,
   WorkspaceBrowserPanel,
@@ -229,6 +234,11 @@ import {
   deriveRunPresentation,
   formatRunDuration,
 } from "./run-presentation.js";
+const OfficeFilePanel = lazy(() =>
+  import("./OfficeFilePanel.js").then((module) => ({
+    default: module.OfficeFilePanel,
+  })),
+);
 import { nextRunMode, parseRunModeCommand } from "./run-mode-controls.js";
 import {
   formatToolInput,
@@ -289,11 +299,14 @@ import {
   childAgentWorkspaceTab,
   closesLastWorkspaceTab,
   emptyWorkspaceTabs,
+  findReusableWorkspaceTab,
   reconcileAgentTeamWorkspaceTab,
+  reconcileOfficeWorkspaceTab,
   reduceWorkspaceTabs,
   type WorkspaceTab,
   type WorkspaceTabAction,
   type WorkspaceTabKind,
+  type WorkspaceTabOpenOptions,
   type WorkspaceTabsState,
   handleWorkspaceTabBarKeyDown,
   workspaceTabDomId,
@@ -373,14 +386,6 @@ interface ProjectSidebarDrag {
   pointerId: number;
   startWidth: number;
   startX: number;
-}
-
-interface WorkspaceTabOpenOptions {
-  forceNew?: boolean;
-  path?: string;
-  reuseKind?: boolean;
-  revision?: string;
-  url?: string;
 }
 
 interface WorkspaceTabScrollState {
@@ -1539,6 +1544,24 @@ export function App() {
       }
     >(),
   );
+  const [officeSnapshots, setOfficeSnapshots] = useState<
+    Record<string, ArtifactSnapshot>
+  >({});
+  const recoverOfficeSnapshot = useCallback((next: ArtifactSnapshot) => {
+    setOfficeSnapshots((current) => {
+      if (
+        (current[next.session.sessionId]?.session.sequence ?? -1) >=
+        next.session.sequence
+      )
+        return current;
+      return Object.fromEntries([
+        ...Object.entries(current)
+          .filter(([id]) => id !== next.session.sessionId)
+          .slice(-19),
+        [next.session.sessionId, next],
+      ]);
+    });
+  }, []);
   // Highest turn count ever derived per thread. Cross-switch cache pollution
   // can shrink a derivation below what this thread already rendered; the
   // memo re-derives from raw inputs whenever that watermark is exceeded.
@@ -2283,7 +2306,13 @@ export function App() {
   );
 
   const closeWorkspaceTab = useCallback(
-    (tabId: string, options?: { moveFocus?: boolean }) => {
+    async (tabId: string, options?: { moveFocus?: boolean }) => {
+      const tab = workspaceTabs.tabs.find((value) => value.id === tabId);
+      try {
+        if (tab?.path) await flushWorkspaceEdits(activeThreadId, tab.path);
+      } catch {
+        return;
+      }
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
       const focusTarget = workspaceTabFocusTargetAfterClose(
         workspaceTabs.tabs,
@@ -2302,7 +2331,7 @@ export function App() {
         focusWorkspaceTab(focusTarget);
       }
     },
-    [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
+    [activeThreadId, dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
 
   const openWorkspaceTabForThread = useCallback(
@@ -2313,16 +2342,7 @@ export function App() {
     ) => {
       setWorkspaceTabsByThread((current) => {
         const state = current[threadId] ?? emptyWorkspaceTabs();
-        const existing = options.forceNew
-          ? undefined
-          : state.tabs.find(
-              (tab) =>
-                tab.kind === kind &&
-                (options.reuseKind ||
-                  (!options.path && !options.url) ||
-                  tab.path === options.path ||
-                  tab.url === options.url),
-            );
+        const existing = findReusableWorkspaceTab(state, kind, options);
         const pathTitle = options.path?.replaceAll("\\", "/").split("/").at(-1);
         const baseTitle = workspaceTabBaseTitle(kind);
         if (existing) {
@@ -3771,6 +3791,22 @@ export function App() {
       activeThread.id,
       Math.max(turnWatermark, guardedState.order.length),
     );
+    for (const recovered of Object.values(officeSnapshots)) {
+      const id = recovered.session.sessionId;
+      const current = guardedState.artifacts?.[id];
+      if (
+        current?.needsSnapshot &&
+        recovered.session.sequence >= current.session.sequence
+      ) {
+        guardedState = {
+          ...guardedState,
+          artifacts: {
+            ...guardedState.artifacts,
+            [id]: restoreArtifactSnapshot(current, recovered),
+          },
+        };
+      }
+    }
     threadStateCache.current.delete(activeThread.id);
     threadStateCache.current.set(activeThread.id, {
       ...(activeHistory ? { history: activeHistory } : {}),
@@ -3824,10 +3860,35 @@ export function App() {
   }, [
     activeEvents,
     activeHistory,
+    officeSnapshots,
     activeThread?.id,
     activeThread?.mode,
     liveChildActivities,
   ]);
+  const openedOfficeTabs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeThreadId || !threadState) return;
+    // History pages retain artifact state but omit raw artifact presentation events.
+    const sessions = Object.values(threadState.artifacts ?? {})
+      .map((view) => view.session)
+      .filter(
+        (session) =>
+          session.status !== "closed" &&
+          !openedOfficeTabs.current.has(session.sessionId),
+      );
+    if (!sessions.length) return;
+    for (const session of sessions)
+      openedOfficeTabs.current.add(session.sessionId);
+    setWorkspaceTabsByThread((current) => {
+      let state = current[activeThreadId] ?? emptyWorkspaceTabs();
+      for (const session of sessions)
+        state = reconcileOfficeWorkspaceTab(state, session);
+      return state === current[activeThreadId]
+        ? current
+        : { ...current, [activeThreadId]: state };
+    });
+    setWorkspaceDockOpen(true);
+  }, [activeThreadId, threadState]);
   const activePromptHistory = useMemo(() => {
     if (!threadState?.order.length) {
       return promptHistoryForConversation(promptHistory, undefined);
@@ -9426,8 +9487,46 @@ ${model.providerId} · ${model.modelId}`}
                               unsavedLabel={t.unsaved}
                             />
                           )}
+                          {tab.kind === "office" &&
+                          activeThreadId &&
+                          tab.path ? (
+                            <Suspense fallback={<span>…</span>}>
+                              <OfficeFilePanel
+                                key={`${activeThreadId}:${tab.id}`}
+                                threadId={activeThreadId}
+                                path={tab.path}
+                                retryLabel={t.refreshPreview}
+                                onOpened={(artifactSessionId) =>
+                                  dispatchWorkspaceTab({
+                                    type: "update",
+                                    tabId: tab.id,
+                                    updates: { artifactSessionId },
+                                  })
+                                }
+                                view={
+                                  tab.artifactSessionId
+                                    ? threadState?.artifacts?.[
+                                        tab.artifactSessionId
+                                      ]
+                                    : undefined
+                                }
+                                locale={locale}
+                                onSnapshot={recoverOfficeSnapshot}
+                                onAnnotate={(annotation) =>
+                                  setPrompt(
+                                    (current) =>
+                                      `${current}${current ? "\n\n" : ""}${tab.path}\n${JSON.stringify(annotation, null, 2)}`,
+                                  )
+                                }
+                              />
+                            </Suspense>
+                          ) : null}
                           {tab.kind === "file" && (
                             <WorkspaceFilesPanel
+                              locale={locale}
+                              onOpenOffice={(path) =>
+                                openWorkspaceTab("office", { path })
+                              }
                               previewLabel={t.previewFile}
                               binaryMessage={t.binaryFile}
                               editFileLabel={t.editFile}

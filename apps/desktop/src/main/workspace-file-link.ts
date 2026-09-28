@@ -3,6 +3,7 @@ import { extname, isAbsolute, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveWorkspacePath } from "@artemis/platform";
+import { officeDocumentFormatForPath } from "@artemis/protocol";
 
 import type { WorkspaceFileLink } from "../shared/api.js";
 
@@ -78,6 +79,8 @@ function withLineSuffix(location: ParsedFileHref): ParsedFileHref | undefined {
 }
 
 export function workspaceFileViewer(path: string): WorkspaceFileLink["viewer"] {
+  const format = officeDocumentFormatForPath(path);
+  if (format && format !== "pdf") return "office";
   const extension = extname(path).toLowerCase();
   if (extension === ".md" || extension === ".markdown") return "markdown";
   if (extension === ".htm" || extension === ".html" || extension === ".pdf")

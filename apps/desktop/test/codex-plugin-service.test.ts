@@ -1758,7 +1758,7 @@ describe("CodexPluginService", () => {
     expect(
       marketplace?.plugins.every(
         (plugin) =>
-          plugin.version === "1.0.1" &&
+          plugin.version === (plugin.name === "pdf" ? "1.0.1" : "1.0.2") &&
           plugin.iconDataUrl?.startsWith("data:image/png;base64,"),
       ),
     ).toBe(true);
@@ -1767,6 +1767,11 @@ describe("CodexPluginService", () => {
     );
     for (const plugin of marketplace?.plugins ?? []) {
       expect(plugin.skills.map((skill) => skill.name)).toEqual([plugin.name]);
+      expect(plugin.capabilityDependencies ?? []).toEqual(
+        plugin.name === "pdf"
+          ? []
+          : [{ id: "office-core", version: "1.0.0", optional: true }],
+      );
       await expect(service.install(plugin.source)).resolves.toMatchObject({
         plugin: { name: plugin.name, installed: true },
       });
@@ -1775,6 +1780,10 @@ describe("CodexPluginService", () => {
         "utf8",
       );
       expect(skillSource).toContain("`office_document`");
+      if (plugin.name !== "pdf")
+        expect(skillSource).toContain(
+          "https://github.com/EurekaRaider/ArtemisRelease/releases",
+        );
       expect(skillSource).toContain(
         "Do not call `load_workspace_dependencies`",
       );
@@ -1782,6 +1791,23 @@ describe("CodexPluginService", () => {
     expect(
       (await service.listInstalled()).map((plugin) => plugin.name),
     ).toEqual(["documents", "pdf", "presentations", "spreadsheets"]);
+    expect(
+      (await service.listInstalled()).filter(
+        (plugin) => plugin.capabilityDependencies?.[0]?.id === "office-core",
+      ),
+    ).toHaveLength(3);
+    const reloaded = createService(root, { bundledArtifactRoot }).service;
+    expect(
+      (await reloaded.listInstalled()).map((plugin) => ({
+        name: plugin.name,
+        dependencies: plugin.capabilityDependencies,
+      })),
+    ).toEqual(
+      (await service.listInstalled()).map((plugin) => ({
+        name: plugin.name,
+        dependencies: plugin.capabilityDependencies,
+      })),
+    );
   });
 
   it("adopts matching standalone Skills when bundled plugins are installed", async () => {

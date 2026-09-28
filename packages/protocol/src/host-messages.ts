@@ -472,7 +472,8 @@ export type BrokerExecutionRequest =
       threadId: string;
       turnId: string;
       workspacePath: string;
-      document: OfficeDocumentRequest;
+      document:
+        OfficeDocumentRequest | import("./artifact.js").ArtifactSessionRequest;
       actorAgentId?: string;
       modelApproval: ModelApprovalDecision;
       mode: RunMode;
