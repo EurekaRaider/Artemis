@@ -86,17 +86,18 @@ declare global {
     artemisApplyWorkspaceHistory?: (direction: HistoryDirection) => boolean;
   }
 }
-window.artemisApplyWorkspaceHistory = (direction) => {
-  const target = document.activeElement;
-  if (!(target instanceof HTMLElement)) return false;
-  return !target.dispatchEvent(
-    new CustomEvent("artemis-workspace-history", {
-      bubbles: true,
-      cancelable: true,
-      detail: direction,
-    }),
-  );
-};
+if (typeof window !== "undefined")
+  window.artemisApplyWorkspaceHistory = (direction) => {
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement)) return false;
+    return !target.dispatchEvent(
+      new CustomEvent("artemis-workspace-history", {
+        bubbles: true,
+        cancelable: true,
+        detail: direction,
+      }),
+    );
+  };
 
 export function useWorkspaceEditHistory<T extends HTMLElement>(
   editor: HistoryEditor,

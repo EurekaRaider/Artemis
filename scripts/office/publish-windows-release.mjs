@@ -58,7 +58,9 @@ if (!release) {
     "--notes-file",
     "artifacts/office/windows-release-notes.md",
   );
-  release = api(`releases/tags/${tag}`);
+  release = api("releases?per_page=100").find(
+    (entry) => entry.tag_name === tag,
+  );
 }
 for (const name of await readdir(out)) {
   const bytes = await readFile(join(out, name));
@@ -72,7 +74,7 @@ for (const name of await readdir(out)) {
     gh("release", "upload", tag, join(out, name), "--repo", repo);
   }
 }
-release = api(`releases/tags/${tag}`);
+release = api(`releases/${release.id}`);
 if (release.assets.length !== (await readdir(out)).length)
   throw Error("Unexpected public asset set");
 for (const asset of release.assets) {

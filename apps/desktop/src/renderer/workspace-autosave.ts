@@ -25,7 +25,8 @@ declare global {
     artemisFlushWorkspaceEdits?: typeof flushWorkspaceEdits;
   }
 }
-window.artemisFlushWorkspaceEdits = flushWorkspaceEdits;
+if (typeof window !== "undefined")
+  window.artemisFlushWorkspaceEdits = flushWorkspaceEdits;
 
 export function readLocalDraft(key: string): unknown {
   try {
