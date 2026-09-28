@@ -2,7 +2,11 @@ import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 const repo = "EurekaRaider/ArtemisRelease";
 const endpoint = `repos/${repo}/contents/office-runtime/catalog.json`;
-const gh = (...args) => execFileSync("gh", args, { encoding: "utf8" }).trim();
+const gh = (...args) =>
+  execFileSync("gh", args, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  }).trim();
 const current = JSON.parse(gh("api", endpoint));
 const content = await readFile(process.argv[2], "utf8");
 const next = JSON.parse(content);

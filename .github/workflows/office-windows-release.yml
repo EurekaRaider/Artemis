@@ -27,6 +27,7 @@ jobs:
         run: |
           test "$(gh run view 36323202452 --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
       - name: Prepare verified cache tools
+        shell: cmd
         run: node scripts/office/prepare-windows-cache.mjs
       - uses: actions/cache/restore@v6.1.0
         with:

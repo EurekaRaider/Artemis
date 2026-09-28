@@ -42,6 +42,7 @@ export async function fetchSlackBytes(
     fetchImpl = fetch,
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     limit = 64 * 1024 * 1024,
+    timeoutMs = 30_000,
   } = {},
 ) {
   const headers = {
@@ -57,7 +58,7 @@ export async function fetchSlackBytes(
       const response = await fetchImpl(url, {
         headers,
         cache: "no-store",
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) {
         reason = `HTTP ${response.status}`;
@@ -180,7 +181,11 @@ export function assertSlackLock(lock, release) {
 }
 
 export async function downloadSlackAsset(asset, options) {
-  const bytes = await fetchSlackBytes(asset.url, options);
+  // Archive downloads can take longer than metadata requests on release runners.
+  const bytes = await fetchSlackBytes(asset.url, {
+    timeoutMs: 120_000,
+    ...options,
+  });
   if (bytes.length !== asset.archiveBytes || sha256(bytes) !== asset.sha256)
     throw new Error("Slack CLI: official archive SHA-256 or size mismatch.");
   return bytes;
