@@ -78,7 +78,7 @@ jobs:
       - name: Verify production-host online install, native preview and final ACLs
         run: node artifacts/office/public-tools/verify-public-windows.mjs artifacts/office/public-catalog.json
       - name: Publish installation catalog after Windows acceptance
-        shell: bash
+        shell: cmd
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
         run: node scripts/office/publish-office-catalog.mjs artifacts/office/public-catalog.json
