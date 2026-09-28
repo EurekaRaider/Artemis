@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 452000,
+      "desktopCssBytes": 500000,
       "desktopJsBytes": 4500000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -54,6 +54,16 @@
     }
   },
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-09-28",
+      "measurementHead": "1eebe759adb88713d079d02b27ddfd6408a6e9df",
+      "baseDesktopCssBytes": 451994,
+      "measuredDesktopCssBytes": 452391,
+      "desktopCssIncreaseBytes": 397,
+      "previousDesktopCssMaximumBytes": 452000,
+      "desktopCssMaximumBytes": 500000,
+      "reason": "User explicitly raised the desktop CSS budget to 500000 bytes for this release. The merged production build measures 452391 bytes. An identical Vite build substituting only styles.css and computer-use.css from de5e5164 measures 451994 bytes, a 397-byte increase from Computer Use permission and plugin identity styles. JavaScript, shared UI, gallery, startup and workload budgets are unchanged."
+    },
     {
       "date": "2026-09-28",
       "baseDesktopCssBytes": 450899,

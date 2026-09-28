@@ -1,0 +1,79 @@
+name: Release Windows Office runtime
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: office-windows-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.9.0
+      - name: Require successful retained-candidate acceptance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh run view 36323202452 --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+      - name: Prepare verified cache tools
+        run: node scripts/office/prepare-windows-cache.mjs
+      - uses: actions/cache/restore@v6.1.0
+        with:
+          path: |
+            artifacts/office/candidate/catalog.json
+            artifacts/office/candidate/report.json
+            artifacts/office/candidate/office-core-win32-x64.zip
+            artifacts/office/candidate-tools/verify-candidate.mjs
+          key: office-candidate-win-x64-f49232f414e5f653cfd6c1e2c4476c05cca409c6-36321959853-1
+          fail-on-cache-miss: true
+      - run: npm ci
+      - run: npm run build:core
+      - name: Authenticate the manifest without signing or changing the Windows binaries
+        run: node scripts/office/prepare-windows-release.mjs
+        env:
+          OFFICE_RUNTIME_ED25519_PRIVATE_KEY: ${{ secrets.OFFICE_RUNTIME_ED25519_PRIVATE_KEY }}
+      - name: Publish immutable runtime assets without changing app Latest
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+        run: node scripts/office/publish-windows-release.mjs
+  verify-online-install:
+    needs: publish
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.9.0
+      - run: node scripts/normalize-windows-checkout.mjs
+      - run: npm ci
+      - run: npm run build:core
+      - run: node scripts/office/build-public-verifier.mjs
+      - run: node scripts/office/fetch-corpus.mjs
+      - name: Download the public catalog snapshot anonymously
+        run: >-
+          node --input-type=module -e "import {writeFile} from 'node:fs/promises';const r=await fetch('https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v1.0.1/catalog.json');if(!r.ok)throw Error(r.status);await writeFile('artifacts/office/public-catalog.json',new Uint8Array(await r.arrayBuffer()));"
+      - name: Verify production-host online install, native preview and final ACLs
+        run: node artifacts/office/public-tools/verify-public-windows.mjs artifacts/office/public-catalog.json
+      - name: Publish installation catalog after Windows acceptance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+        run: node scripts/office/publish-office-catalog.mjs artifacts/office/public-catalog.json
+      - name: Retain verification report in logs
+        if: always()
+        run: node -e "const fs=require('fs');const p='artifacts/office/public-windows/report.json';if(fs.existsSync(p))console.log(fs.readFileSync(p,'utf8'));"
