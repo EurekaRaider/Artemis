@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const publisher = fileURLToPath(
@@ -22,8 +22,9 @@ function publish(before: unknown, after: unknown, mismatch = false) {
   const directory = mkdtempSync(join(tmpdir(), "office-catalog-publisher-"));
   const input = join(directory, "catalog.json");
   const requests = join(directory, "requests.json");
-  const mock = join(directory, "mock.mjs");
+  const mock = join(directory, "mock #.mjs");
   writeFileSync(input, JSON.stringify(after));
+  writeFileSync(requests, "[]");
   writeFileSync(
     mock,
     `import assert from 'node:assert/strict';
@@ -53,7 +54,7 @@ globalThis.fetch=async (url, options)=>{
     try {
       output = execFileSync(
         process.execPath,
-        ["--import", mock, publisher, input],
+        ["--import", pathToFileURL(mock).href, publisher, input],
         {
           env: { ...process.env, GH_TOKEN: "fixture-token" },
           encoding: "utf8",
