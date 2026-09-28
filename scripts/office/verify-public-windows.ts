@@ -101,25 +101,25 @@ try {
   console.log("OFFICE_PUBLIC_STAGE acquired");
   const workspace = join(base, "验证文档");
   await cp("artifacts/office/corpus", workspace, { recursive: true });
-  const engine = await UnoOfficeEngine.create(
-    lease.root,
-    lease.manifest,
-    join(base, "profile"),
-    () => {},
-  );
-  try {
-    for (const [file, format] of [
-      ["word/2col-header.docx", "word"],
-      ["sheets/fontSize.xlsx", "excel"],
-      ["slides/ShapePlusImage.pptx", "powerpoint"],
-    ] as const) {
+  for (const [file, format] of [
+    ["word/2col-header.docx", "word"],
+    ["sheets/fontSize.xlsx", "excel"],
+    ["slides/ShapePlusImage.pptx", "powerpoint"],
+  ] as const) {
+    const engine = await UnoOfficeEngine.create(
+      lease.root,
+      lease.manifest,
+      join(base, `profile-${format}`),
+      () => {},
+    );
+    try {
       console.log("OFFICE_PUBLIC_STAGE native-preview", format);
       const snapshot = await engine.open(join(workspace, file), format);
       if (!snapshot.targets.length) throw Error(`No native content: ${file}`);
       await engine.render(join(out, `${format}.pdf`));
+    } finally {
+      await engine.close();
     }
-  } finally {
-    await engine.close();
   }
   const env = {
     ...Object.fromEntries(
