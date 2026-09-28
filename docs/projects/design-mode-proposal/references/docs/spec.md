@@ -19,6 +19,7 @@
 [piai]: https://github.com/badlogic/pi-mono/tree/main/packages/ai
 
 Other docs:
+
 - Architecture → [`architecture.md`](architecture.md)
 - Skills protocol → [`skills-protocol.md`](skills-protocol.md)
 - Agent adapters → [`agent-adapters.md`](agent-adapters.md)
@@ -36,13 +37,13 @@ Other docs:
 
 ## 2. Core bets (and why they're different)
 
-| # | Bet | [Anthropic Claude Design][cd] | [Open CoDesign][ocod] | OD |
-|---|---|---|---|---|
-| 1 | Where the product runs | claude.ai only | Local Electron app | **Next.js web app + local daemon + desktop loop** — `pnpm tools-dev`, Vercel web deploy |
-| 2 | Who owns the agent loop | Anthropic, closed | [Open CoDesign][ocod] itself, via [`pi-ai`][piai] | **The user's existing code agent CLI** (Claude Code, Codex, Devin for Terminal, Cursor Agent, Gemini CLI, OpenCode, OpenClaw); direct Anthropic API as fallback |
-| 3 | What "design skills" are | Proprietary internal tools | TypeScript modules baked into the app | **File-based skills** that follow Claude Code's `SKILL.md` spec — forkable, versionable, shareable, installable by symlink |
-| 4 | How design systems are authored | Implicit in prompt | N/A | **`DESIGN.md` files** following the [awesome-claude-design][acd] 9-section schema |
-| 5 | Extension point | Anthropic only | Custom PRs | **Drop a folder into `skills/`** — composable by third parties |
+| #   | Bet                             | [Anthropic Claude Design][cd] | [Open CoDesign][ocod]                             | OD                                                                                                                                                              |
+| --- | ------------------------------- | ----------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Where the product runs          | claude.ai only                | Local Electron app                                | **Next.js web app + local daemon + desktop loop** — `pnpm tools-dev`, Vercel web deploy                                                                         |
+| 2   | Who owns the agent loop         | Anthropic, closed             | [Open CoDesign][ocod] itself, via [`pi-ai`][piai] | **The user's existing code agent CLI** (Claude Code, Codex, Devin for Terminal, Cursor Agent, Gemini CLI, OpenCode, OpenClaw); direct Anthropic API as fallback |
+| 3   | What "design skills" are        | Proprietary internal tools    | TypeScript modules baked into the app             | **File-based skills** that follow Claude Code's `SKILL.md` spec — forkable, versionable, shareable, installable by symlink                                      |
+| 4   | How design systems are authored | Implicit in prompt            | N/A                                               | **`DESIGN.md` files** following the [awesome-claude-design][acd] 9-section schema                                                                               |
+| 5   | Extension point                 | Anthropic only                | Custom PRs                                        | **Drop a folder into `skills/`** — composable by third parties                                                                                                  |
 
 The differentiation is not "yet another design generator." It is **an integration shell that refuses to own the agent, the model, or the skill catalog** — all three are external and pluggable.
 
@@ -56,18 +57,23 @@ The differentiation is not "yet another design generator." It is **an integratio
 ## 4. User scenarios
 
 ### S1 — "Give me a prototype"
-User opens the web app, types *"Airbnb-style search page, use our internal design system"*, OD picks the `prototype-skill`, resolves the user's `DESIGN.md`, dispatches to Claude Code with both files plus the brief, streams tool calls into the UI, and renders the resulting HTML in an iframe preview. User clicks an element, drops a comment, the agent rewrites just that region.
+
+User opens the web app, types _"Airbnb-style search page, use our internal design system"_, OD picks the `prototype-skill`, resolves the user's `DESIGN.md`, dispatches to Claude Code with both files plus the brief, streams tool calls into the UI, and renders the resulting HTML in an iframe preview. User clicks an element, drops a comment, the agent rewrites just that region.
 
 ### S2 — "Make me a deck"
-User says *"8-slide magazine-style pitch deck for my seed round"*. OD routes to `deck-skill` (a fork of [`guizang-ppt-skill`][guizang]). Output is a single-file HTML deck; preview is the deck itself with arrow-key navigation; export is PDF/PPTX.
+
+User says _"8-slide magazine-style pitch deck for my seed round"_. OD routes to `deck-skill` (a fork of [`guizang-ppt-skill`][guizang]). Output is a single-file HTML deck; preview is the deck itself with arrow-key navigation; export is PDF/PPTX.
 
 ### S3 — "Start from a template"
+
 User picks "SaaS landing — Stripe-ish" from a gallery. Template is a pre-filled artifact bundle plus a `DESIGN.md` reference. Agent only fills content; structure is already there. This is the fastest mode — useful for users who don't want to prompt at all.
 
 ### S4 — "Set up our design system"
+
 User uploads a screenshot, brand guide PDF, or Figma link. OD runs `design-system-skill` which produces a `DESIGN.md` following the 9-section format. That file is then referenced by every subsequent generation — prototypes, decks, templates all pick up the tokens.
 
 ### S5 — "Let the design agent evolve"
+
 User connects sources such as GitHub, Notion, Drive, Slack, or a local folder, then picks an Automation template like "Ingest into memory tree," "Extract design system," or "Crystallize this run into a skill." OD canonicalizes the source, optionally compresses it, proposes memory / skill / design-system changes, and only applies them after the configured review policy. Future agent runs consume those accepted nodes automatically.
 
 The first four scenarios map 1:1 to the four modes in [`modes.md`](modes.md).

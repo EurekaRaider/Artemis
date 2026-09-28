@@ -127,13 +127,13 @@ parallel. There is no config-directory confidence heuristic or persisted
 
 Functional skills and rendering templates are separate listing surfaces:
 
-| Surface | Bundled source | API | Purpose |
-|---|---|---|---|
-| Functional skills | `skills/` | `/api/skills` | Capabilities an agent invokes while working |
-| Design templates | `design-templates/` | `/api/design-templates` | Renderable starting points for creation workflows |
-| Design systems | `design-systems/` | `/api/design-systems` | Brand tokens, rules, and fixtures |
-| Plugins | `plugins/_official/` plus configured registries | `/api/plugins` | Installable bundles and marketplace metadata |
-| Craft | `craft/` | composed by the daemon | Universal rules requested by a skill/template |
+| Surface           | Bundled source                                  | API                     | Purpose                                           |
+| ----------------- | ----------------------------------------------- | ----------------------- | ------------------------------------------------- |
+| Functional skills | `skills/`                                       | `/api/skills`           | Capabilities an agent invokes while working       |
+| Design templates  | `design-templates/`                             | `/api/design-templates` | Renderable starting points for creation workflows |
+| Design systems    | `design-systems/`                               | `/api/design-systems`   | Brand tokens, rules, and fixtures                 |
+| Plugins           | `plugins/_official/` plus configured registries | `/api/plugins`          | Installable bundles and marketplace metadata      |
+| Craft             | `craft/`                                        | composed by the daemon  | Universal rules requested by a skill/template     |
 
 The skill and template endpoints scan their user-writable root first and their
 bundled root second on each listing request; a user entry can shadow a bundled
@@ -262,17 +262,17 @@ Shared DTOs live in `packages/contracts`.
 
 ## 8. Source map
 
-| Concern | Primary source |
-|---|---|
-| Web product UI | `apps/web/src/` |
-| Daemon composition and data-root resolution | `apps/daemon/src/server.ts` |
-| Focused daemon HTTP boundaries | `apps/daemon/src/routes/` |
-| Shared web/daemon DTOs and prompt contracts | `packages/contracts/src/` |
-| Runtime definitions and engine | `apps/daemon/src/runtimes/` |
-| Functional-skill loader | `apps/daemon/src/skills.ts` |
-| Packaged launch | `apps/packaged/`, `tools/pack/` |
-| Development lifecycle | `tools/dev/` |
-| User-level validation | `e2e/` |
+| Concern                                     | Primary source                  |
+| ------------------------------------------- | ------------------------------- |
+| Web product UI                              | `apps/web/src/`                 |
+| Daemon composition and data-root resolution | `apps/daemon/src/server.ts`     |
+| Focused daemon HTTP boundaries              | `apps/daemon/src/routes/`       |
+| Shared web/daemon DTOs and prompt contracts | `packages/contracts/src/`       |
+| Runtime definitions and engine              | `apps/daemon/src/runtimes/`     |
+| Functional-skill loader                     | `apps/daemon/src/skills.ts`     |
+| Packaged launch                             | `apps/packaged/`, `tools/pack/` |
+| Development lifecycle                       | `tools/dev/`                    |
+| User-level validation                       | `e2e/`                          |
 
 When a user-facing capability changes, keep its daemon endpoint, shared
 contract, web surface, and `od` CLI surface aligned as required by the root

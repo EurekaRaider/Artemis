@@ -295,14 +295,14 @@ Patch types:
 
 ```ts
 type EditPatch =
-  | { id: string; kind: 'set-text'; value: string }
-  | { id: string; kind: 'set-link'; text: string; href: string }
-  | { id: string; kind: 'set-image'; src: string; alt: string }
-  | { id: string; kind: 'set-token'; token: string; value: string }
-  | { id: string; kind: 'set-style'; styles: Partial<EditableStyles> }
-  | { id: string; kind: 'set-attributes'; attributes: Record<string, string> }
-  | { id: string; kind: 'set-outer-html'; html: string }
-  | { kind: 'set-full-source'; source: string };
+  | { id: string; kind: "set-text"; value: string }
+  | { id: string; kind: "set-link"; text: string; href: string }
+  | { id: string; kind: "set-image"; src: string; alt: string }
+  | { id: string; kind: "set-token"; token: string; value: string }
+  | { id: string; kind: "set-style"; styles: Partial<EditableStyles> }
+  | { id: string; kind: "set-attributes"; attributes: Record<string, string> }
+  | { id: string; kind: "set-outer-html"; html: string }
+  | { kind: "set-full-source"; source: string };
 ```
 
 History entry shape:

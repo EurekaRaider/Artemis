@@ -45,47 +45,55 @@ W7 任务书的前提是「思考区是第二处需要贴底跟随的地方」�
 
 数据来源:npm registry API / bundlephobia API / GitHub API / 直接读 `raw.githubusercontent.com` 源码,均为 2026-09-02 实测。
 
-| 库 | 版本 / 最近发布 | 许可 | 周下载 | 体积 (min / gzip) | React 18 | 形态 | 判定 |
-|---|---|---|---|---|---|---|---|
-| `use-stick-to-bottom` | 1.1.6 / 2026-06-04 | MIT | 3,665,283 | 6.8 KB / **2.5 KB** | peer `^16‖^17‖^18‖^19` ✓ | hook + `<StickToBottom>`;需 `scrollRef` + `contentRef`(**内容必须再包一层 div**) | **不引**。见 §3.1 |
-| `react-scroll-to-bottom` | 4.2.0 / **2021-10-14** | MIT | 90,484 | 87.7 KB / **26.6 KB** | peer `>=16.8.6`,React 18/19 正式支持未声明 | Context + 13 个 hook | **不引**。5 年未发版;仓库 issue #133「还维护吗」和 #142「推荐换 use-stick-to-bottom」都开着;依赖 core-js + @emotion,体积是前者 10 倍 |
-| Vercel `ai-elements` `<Conversation>` | 随 registry 更新(2026-09-01 仍在推) | MIT | — (shadcn 式 registry,非独立包) | 继承 | 主打 React 19 | 5 行薄壳,**内部就是 `use-stick-to-bottom` ^1.1.3** | **不引**。它不是第二套实现,缺陷逐条继承;且无虚拟化(其 issue #103) |
-| Vercel AI SDK 本体(`ai` / `@ai-sdk/react`) | — | — | — | — | — | — | **不存在滚动工具**。查过 `packages/ai/package.json` 依赖与全仓代码搜索,零命中。滚动只在 `ai-elements` 里 |
-| shadcn `@shadcn/react` `MessageScroller` | 0.3.1 / 2026-08-31 | MIT(仓库许可) | 1,345,199 | 未测 | 未逐条核实 | **整套组件树** `Provider→Scroller→Viewport→Content→Item` + `MessageScrollerButton` | **不引,但抄判据**。工程最完整的一份,见 §3.2 |
-| `@assistant-ui/react` | 0.15.17 / 2026-08-27 | MIT | 1,747,194 | 未测 | — | 完整 Thread 框架 | **不引**(整框架),**抄判据**。几何判据我们已经在用了 |
-| `react-virtuoso` | 4.18.12 / 2026-08-17 | MIT | 3,458,448 | — / 19.2 KB | ✓ | 虚拟列表 + `followOutput` / `atBottomStateChange` | **不引**。会替掉我们自己的虚拟化。但它的「不在底部的原因」枚举值得抄,见 §3.3 |
-| `@virtuoso.dev/message-list` | 1.17.2 / 2026-08-28 | **Commercial** | 35,899 | — | — | 商用聊天虚拟列表 | **排除**。许可不合(本仓 Apache-2.0) |
-| `react-infinite-scroll-component` | 7.2.1 / 2026-06-06 | MIT | 1,288,341 | — | ✓ | `inverse` + `column-reverse` | **排除**。解的是「向上翻历史分页」,不是流式跟随;`column-reverse` 本身是可访问性陷阱(见 §5.5) |
-| HuggingFace `chat-ui` `stickToBottom.ts` | 非 npm 包(仓库内文件,870 行) | Apache-2.0(未逐条核实) | — | — | Svelte,非 React | 直接读源码 | **不引(不是包),但它是本次调研里工程质量最高的一份**,判据全部值得抄,见 §3.4 |
+| 库                                         | 版本 / 最近发布                     | 许可                   | 周下载                          | 体积 (min / gzip)     | React 18                                   | 形态                                                                               | 判定                                                                                                                                 |
+| ------------------------------------------ | ----------------------------------- | ---------------------- | ------------------------------- | --------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `use-stick-to-bottom`                      | 1.1.6 / 2026-06-04                  | MIT                    | 3,665,283                       | 6.8 KB / **2.5 KB**   | peer `^16‖^17‖^18‖^19` ✓                   | hook + `<StickToBottom>`;需 `scrollRef` + `contentRef`(**内容必须再包一层 div**)   | **不引**。见 §3.1                                                                                                                    |
+| `react-scroll-to-bottom`                   | 4.2.0 / **2021-10-14**              | MIT                    | 90,484                          | 87.7 KB / **26.6 KB** | peer `>=16.8.6`,React 18/19 正式支持未声明 | Context + 13 个 hook                                                               | **不引**。5 年未发版;仓库 issue #133「还维护吗」和 #142「推荐换 use-stick-to-bottom」都开着;依赖 core-js + @emotion,体积是前者 10 倍 |
+| Vercel `ai-elements` `<Conversation>`      | 随 registry 更新(2026-09-01 仍在推) | MIT                    | — (shadcn 式 registry,非独立包) | 继承                  | 主打 React 19                              | 5 行薄壳,**内部就是 `use-stick-to-bottom` ^1.1.3**                                 | **不引**。它不是第二套实现,缺陷逐条继承;且无虚拟化(其 issue #103)                                                                    |
+| Vercel AI SDK 本体(`ai` / `@ai-sdk/react`) | —                                   | —                      | —                               | —                     | —                                          | —                                                                                  | **不存在滚动工具**。查过 `packages/ai/package.json` 依赖与全仓代码搜索,零命中。滚动只在 `ai-elements` 里                             |
+| shadcn `@shadcn/react` `MessageScroller`   | 0.3.1 / 2026-08-31                  | MIT(仓库许可)          | 1,345,199                       | 未测                  | 未逐条核实                                 | **整套组件树** `Provider→Scroller→Viewport→Content→Item` + `MessageScrollerButton` | **不引,但抄判据**。工程最完整的一份,见 §3.2                                                                                          |
+| `@assistant-ui/react`                      | 0.15.17 / 2026-08-27                | MIT                    | 1,747,194                       | 未测                  | —                                          | 完整 Thread 框架                                                                   | **不引**(整框架),**抄判据**。几何判据我们已经在用了                                                                                  |
+| `react-virtuoso`                           | 4.18.12 / 2026-08-17                | MIT                    | 3,458,448                       | — / 19.2 KB           | ✓                                          | 虚拟列表 + `followOutput` / `atBottomStateChange`                                  | **不引**。会替掉我们自己的虚拟化。但它的「不在底部的原因」枚举值得抄,见 §3.3                                                         |
+| `@virtuoso.dev/message-list`               | 1.17.2 / 2026-08-28                 | **Commercial**         | 35,899                          | —                     | —                                          | 商用聊天虚拟列表                                                                   | **排除**。许可不合(本仓 Apache-2.0)                                                                                                  |
+| `react-infinite-scroll-component`          | 7.2.1 / 2026-06-06                  | MIT                    | 1,288,341                       | —                     | ✓                                          | `inverse` + `column-reverse`                                                       | **排除**。解的是「向上翻历史分页」,不是流式跟随;`column-reverse` 本身是可访问性陷阱(见 §5.5)                                         |
+| HuggingFace `chat-ui` `stickToBottom.ts`   | 非 npm 包(仓库内文件,870 行)        | Apache-2.0(未逐条核实) | —                               | —                     | Svelte,非 React                            | 直接读源码                                                                         | **不引(不是包),但它是本次调研里工程质量最高的一份**,判据全部值得抄,见 §3.4                                                           |
 
 ### 3.1 `use-stick-to-bottom` 为什么仍然不引(逐条核到 issue 号)
 
 现有 `stick-to-bottom.ts` 文件末尾已经论证过一次。这次把每条都核到了当前状态:
 
-| issue | 内容 | 状态(2026-09-02 实测) |
-|---|---|---|
-| **#9** | iOS 上跟随判据失准、动画慢 | **开着,2024-12-18 至今**。维护者原话:*"since bolt.new doesn't target iOS i haven't yet tweaked all the stuff to work correctly on iOS"*。源码里**根本没有 touch 监听** |
-| **#14** | 每个 scroll 事件都 setState → 整棵子树重渲 | **开着**。修复 PR #44(2026-08-16)未合;主干 `handleScroll` 仍无条件调 `setIsAtBottom` / `setEscapedFromLock` |
-| **#32** | Safari 85% 缩放下内容「不停跳」 | **开着**。修复 PR #33 未合,内容就是加 `SCROLL_EPSILON_PX = 1` 死区。主干仍是硬编码 `scrollHeight - 1 - clientHeight` |
-| **#40** | **滚动容器自身**尺寸变化(输入框长高 / 软键盘 / flex 兄弟)不触发任何信号 | **开着**。修复 PR #43 未合,内容就是补第二个挂在 `scrollRef` 上的 `ResizeObserver` |
+| issue   | 内容                                                                    | 状态(2026-09-02 实测)                                                                                                                                                  |
+| ------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **#9**  | iOS 上跟随判据失准、动画慢                                              | **开着,2024-12-18 至今**。维护者原话:_"since bolt.new doesn't target iOS i haven't yet tweaked all the stuff to work correctly on iOS"_。源码里**根本没有 touch 监听** |
+| **#14** | 每个 scroll 事件都 setState → 整棵子树重渲                              | **开着**。修复 PR #44(2026-08-16)未合;主干 `handleScroll` 仍无条件调 `setIsAtBottom` / `setEscapedFromLock`                                                            |
+| **#32** | Safari 85% 缩放下内容「不停跳」                                         | **开着**。修复 PR #33 未合,内容就是加 `SCROLL_EPSILON_PX = 1` 死区。主干仍是硬编码 `scrollHeight - 1 - clientHeight`                                                   |
+| **#40** | **滚动容器自身**尺寸变化(输入框长高 / 软键盘 / flex 兄弟)不触发任何信号 | **开着**。修复 PR #43 未合,内容就是补第二个挂在 `scrollRef` 上的 `ResizeObserver`                                                                                      |
 
 其余硬伤:仓库**没有测试套件**(`package.json` 无 `test` 脚本,PR #43 自己在验证栏里写明是手工验证);纯 ESM 且**不带 `"use client"`**(Next.js App Router 需要自己包一层);无 `prefers-reduced-motion`(代码搜索 0 命中);要求内容外再包一层 `contentRef` div,与 `.chat-log` 现在「消息是直接子元素」的 flex 契约(`> .msg:first-of-type { margin-top:auto }` 配平、逐子元素挂 RO、尾部占位块)冲突;自带弹簧(damping 0.7 / stiffness 0.05 / mass 1.25)在快速流式时是**故意落后于真实底部**的,和我们「瞬时贴底」的既定选择相反。
 
 ### 3.2 shadcn `MessageScroller`:工程最完整的一份(判据可抄)
 
-2026-06 才进 shadcn 核心(`ui.shadcn.com/docs/changelog/2026-06-chat-components`),仓库 skill 文档写得很直白:*"`MessageScroller` owns scroll behavior. Streaming follow, anchoring, and jump-to-latest are built in. Don't write a `useStickToBottom`/`ResizeObserver` hook."*
+2026-06 才进 shadcn 核心(`ui.shadcn.com/docs/changelog/2026-06-chat-components`),仓库 skill 文档写得很直白:_"`MessageScroller` owns scroll behavior. Streaming follow, anchoring, and jump-to-latest are built in. Don't write a `useStickToBottom`/`ResizeObserver` hook."_
 
 亲自 fetch 过 `packages/react/src/message-scroller/types.ts` 和 `components.tsx`,确认到的常量与接线:
 
 ```ts
 /** Sub-pixel tolerance so edge detection does not flicker across engines that round scrollTop differently. */
-DEFAULT_SCROLL_EDGE_THRESHOLD = 8
+DEFAULT_SCROLL_EDGE_THRESHOLD = 8;
 /** Two fractional scrollTop values within this range are treated as equal, to absorb zoom and HiDPI rounding drift. */
-SCROLL_POSITION_EPSILON = 0.5
+SCROLL_POSITION_EPSILON = 0.5;
 /** Viewport keys that count as deliberate scroll intent and release follow-bottom. */
-USER_SCROLL_KEYS = new Set(["ArrowDown","ArrowUp","End","Home","PageDown","PageUp"," "])
+USER_SCROLL_KEYS = new Set([
+  "ArrowDown",
+  "ArrowUp",
+  "End",
+  "Home",
+  "PageDown",
+  "PageUp",
+  " ",
+]);
 /** How long (ms) data-autoscrolling stays set during a programmatic smooth scroll before clearing. */
-AUTOSCROLLING_CLEAR_DELAY = 180
+AUTOSCROLLING_CLEAR_DELAY = 180;
 ```
 
 接线三处(`components.tsx` 亲验):`onWheel` / `onTouchMove` / `onKeyDown`(键在 `USER_SCROLL_KEYS` 里)**都直接调 `userScrollIntent()`**,不经过 scroll 事件;**两个独立 `ResizeObserver`**,一个挂 viewport、一个挂 content,都用 `requestAnimationFrame` 合并;首帧用 `data-pending-scroll` 属性把视口先藏起来,避免 SSR 转录本闪一下顶部。
@@ -110,8 +118,8 @@ AtBottomReason    = 'SCROLLED_DOWN' | 'SIZE_DECREASED'
 
 ```ts
 const AT_BOTTOM_EPS = 2;
-const UNPIN_DRIFT_PX = 3;        // 累计上滚 3px 才算逃逸 —— 过滤亚像素抖动
-const GESTURE_CHAIN_MS = 150;    // 一次 wheel/touch 手势的余波仍然算「用户在滚」
+const UNPIN_DRIFT_PX = 3; // 累计上滚 3px 才算逃逸 —— 过滤亚像素抖动
+const GESTURE_CHAIN_MS = 150; // 一次 wheel/touch 手势的余波仍然算「用户在滚」
 const CONTENT_ACTIVITY_MS = 120; // 用来把 Safari 的 scroll 夹取和真实导航分开
 const SPRING_TAU_MS = 80;
 ```
@@ -129,28 +137,28 @@ const SPRING_TAU_MS = 80;
 
 「我们」= `apps/web/src/runtime/chat/stick-to-bottom.ts` + `ChatPane.tsx` 当前实现。
 
-| # | 难点 | 我们 | use-stick-to-bottom | shadcn MessageScroller | assistant-ui | react-virtuoso | HF chat-ui | VS Code Copilot Chat |
-|---|---|---|---|---|---|---|---|---|
-| 1 | 分清程序滚动 / 用户滚动 | ⚠️ 只靠「方向 + `scrollHeight` 未变」+ wheel/touch;**没有程序滚动标记**,3 处 `scrollTo({smooth})` 绕过基线刷新 | ⚠️ `ignoreEscapes` 标记 + 动画期间吞掉 scroll 事件;另加 `setTimeout(…,1)` 把 scroll 推到 RO 之后 | ✅ `data-autoscrolling` 属性 + 180ms 清除;**外加 wheel/touchmove/keydown 三路显式意图** | ✅ `isUserScrollUp` 几何判据 + `isInFlightDownwardScroll` 屏蔽平滑中间帧 + `pointerdown` 取消待执行意图 | ✅ 原因枚举分类 | ✅ 手势时间窗 `GESTURE_CHAIN_MS` + 内容活动窗 | ⚪️ 不需要:每次内容更新前后各测一次几何,不留状态 |
-| 2 | 内容增长 / **收缩**不得伪装成用户滚动 | ✅ 严格 `layoutStable`(高度**双向**都要求不变),已有针对「收缩抹掉最后 30px」的红测。⚠️ 但**过严**,见 §6.2 | ⚠️ `resizeDifference` 只在 resize 那一拍 bail;容器收缩不覆盖(#40) | ✅ 双 RO,viewport + content 分开 | ✅ `previous.scrollHeight === current.scrollHeight` | ✅ `SIZE_INCREASED` / `SIZE_DECREASED` / `VIEWPORT_HEIGHT_DECREASING` 三个独立原因 | ✅ 累计漂移 3px 死区 + 内容活动窗 | ✅ `_withPersistedAutoScroll` 把每次 DOM 变更夹在两次几何读之间 |
-| 3 | 原生 scroll anchoring 移动 `scrollTop` | ✅ 靠 `layoutStable` 排掉;**刻意不设** `overflow-anchor:none`。⚠️ 残留:上增下减总高不变时会漏 | ✅ 同思路(README 明说不依赖 `overflow-anchor`,因为 Safari 没有) | ⚪️ 无显式处理;改用逐行 `getBoundingClientRect()` 自算几何 | ✅ 同 `scrollHeight` 等值判据 | ⚪️ 未见处理 | ✅ 见 §3.4 的 Safari 夹取实证 | ⚪️ 无(每次都重测) |
-| 4 | 底部容差(亚像素 / 缩放 / 取整) | ✅ **8px** | ❌ 硬编码 1px(#32 开着) | ✅ **8px** + 0.5px 相等 epsilon | ✅ `<= 1`(PR #4141 专门把 `< 1` 改成 `<= 1`,因为 retina 上 `devicePixelRatio:2` 会把 `scrollTop` 截少 1px) | ✅ 4px + `< 1.01` | ✅ 2px + 3px 漂移死区 | ✅ 2px(外层)/ 10px(思考框) |
-| 5 | 惯性 / 橡皮筋 | ✅ wheel(`deltaY<0`)+ touchmove(下拖 >8px)。❌ 无 keydown;❌ 未处理 iOS 重放平滑滚动 | ❌ 只有 wheel,**零 touch**(#9) | ✅ wheel + touchmove + keydown | ⚪️ 仅 `pointerdown` | ⚪️ 未见 | ✅ 手势时间窗 + 触屏一律 instant | ⚪️ 纯几何,天然免疫 |
-| 6 | ResizeObserver 时序 / 基线刷新 | ✅ rAF 里 sync,**落定后同步刷基线**;容器自己也被观察(比 #40 强)。⚠️ scroll 与 RO 同帧先后无保证 | ⚠️ rAF + `setTimeout(1)` 双层延后(引用 WICG/resize-observer#25) | ✅ 双 RO,均 rAF 合并 + 取消前一帧 | ✅ RO + MO,MO 过滤纯 style 属性变更防回环 | ✅ RO 测量,文档明写 `contentRect` 不含 margin 的坑 | ✅ MO 时间戳参与判据 | ✅ `transitionrun`/`transitionend` 参与折叠动画期间的锚定 |
-| 7 | 首帧 / 挂载 | ✅ rAF 后 `armFollow` + 瞬时写底;初次定位显式用 `behavior:'auto'` 并写了原因 | ⚠️ 默认走弹簧(ai-elements 还刻意设 `initial="smooth"`,首帧会动) | ✅ `data-pending-scroll` 把视口先藏起来 | ✅ `useLayoutEffect` + `instant`,每 thread 一次 | ✅ | ✅ | ✅ |
-| 8 | `prefers-reduced-motion` | ❌ **完全没有**(见 §6.8,有 spec 依据) | ❌ 代码搜索 0 命中 | ❌ 0 命中 | ⚠️ 有,但只在**文字浮现**动画上,滚动本身没有 | ❌ 0 命中 | ⚪️ 未核实 | ⚪️ 未核实 |
+| #   | 难点                                   | 我们                                                                                                           | use-stick-to-bottom                                                                              | shadcn MessageScroller                                                                  | assistant-ui                                                                                               | react-virtuoso                                                                     | HF chat-ui                                    | VS Code Copilot Chat                                            |
+| --- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+| 1   | 分清程序滚动 / 用户滚动                | ⚠️ 只靠「方向 + `scrollHeight` 未变」+ wheel/touch;**没有程序滚动标记**,3 处 `scrollTo({smooth})` 绕过基线刷新 | ⚠️ `ignoreEscapes` 标记 + 动画期间吞掉 scroll 事件;另加 `setTimeout(…,1)` 把 scroll 推到 RO 之后 | ✅ `data-autoscrolling` 属性 + 180ms 清除;**外加 wheel/touchmove/keydown 三路显式意图** | ✅ `isUserScrollUp` 几何判据 + `isInFlightDownwardScroll` 屏蔽平滑中间帧 + `pointerdown` 取消待执行意图    | ✅ 原因枚举分类                                                                    | ✅ 手势时间窗 `GESTURE_CHAIN_MS` + 内容活动窗 | ⚪️ 不需要:每次内容更新前后各测一次几何,不留状态                 |
+| 2   | 内容增长 / **收缩**不得伪装成用户滚动  | ✅ 严格 `layoutStable`(高度**双向**都要求不变),已有针对「收缩抹掉最后 30px」的红测。⚠️ 但**过严**,见 §6.2      | ⚠️ `resizeDifference` 只在 resize 那一拍 bail;容器收缩不覆盖(#40)                                | ✅ 双 RO,viewport + content 分开                                                        | ✅ `previous.scrollHeight === current.scrollHeight`                                                        | ✅ `SIZE_INCREASED` / `SIZE_DECREASED` / `VIEWPORT_HEIGHT_DECREASING` 三个独立原因 | ✅ 累计漂移 3px 死区 + 内容活动窗             | ✅ `_withPersistedAutoScroll` 把每次 DOM 变更夹在两次几何读之间 |
+| 3   | 原生 scroll anchoring 移动 `scrollTop` | ✅ 靠 `layoutStable` 排掉;**刻意不设** `overflow-anchor:none`。⚠️ 残留:上增下减总高不变时会漏                  | ✅ 同思路(README 明说不依赖 `overflow-anchor`,因为 Safari 没有)                                  | ⚪️ 无显式处理;改用逐行 `getBoundingClientRect()` 自算几何                               | ✅ 同 `scrollHeight` 等值判据                                                                              | ⚪️ 未见处理                                                                        | ✅ 见 §3.4 的 Safari 夹取实证                 | ⚪️ 无(每次都重测)                                               |
+| 4   | 底部容差(亚像素 / 缩放 / 取整)         | ✅ **8px**                                                                                                     | ❌ 硬编码 1px(#32 开着)                                                                          | ✅ **8px** + 0.5px 相等 epsilon                                                         | ✅ `<= 1`(PR #4141 专门把 `< 1` 改成 `<= 1`,因为 retina 上 `devicePixelRatio:2` 会把 `scrollTop` 截少 1px) | ✅ 4px + `< 1.01`                                                                  | ✅ 2px + 3px 漂移死区                         | ✅ 2px(外层)/ 10px(思考框)                                      |
+| 5   | 惯性 / 橡皮筋                          | ✅ wheel(`deltaY<0`)+ touchmove(下拖 >8px)。❌ 无 keydown;❌ 未处理 iOS 重放平滑滚动                           | ❌ 只有 wheel,**零 touch**(#9)                                                                   | ✅ wheel + touchmove + keydown                                                          | ⚪️ 仅 `pointerdown`                                                                                        | ⚪️ 未见                                                                            | ✅ 手势时间窗 + 触屏一律 instant              | ⚪️ 纯几何,天然免疫                                              |
+| 6   | ResizeObserver 时序 / 基线刷新         | ✅ rAF 里 sync,**落定后同步刷基线**;容器自己也被观察(比 #40 强)。⚠️ scroll 与 RO 同帧先后无保证                | ⚠️ rAF + `setTimeout(1)` 双层延后(引用 WICG/resize-observer#25)                                  | ✅ 双 RO,均 rAF 合并 + 取消前一帧                                                       | ✅ RO + MO,MO 过滤纯 style 属性变更防回环                                                                  | ✅ RO 测量,文档明写 `contentRect` 不含 margin 的坑                                 | ✅ MO 时间戳参与判据                          | ✅ `transitionrun`/`transitionend` 参与折叠动画期间的锚定       |
+| 7   | 首帧 / 挂载                            | ✅ rAF 后 `armFollow` + 瞬时写底;初次定位显式用 `behavior:'auto'` 并写了原因                                   | ⚠️ 默认走弹簧(ai-elements 还刻意设 `initial="smooth"`,首帧会动)                                  | ✅ `data-pending-scroll` 把视口先藏起来                                                 | ✅ `useLayoutEffect` + `instant`,每 thread 一次                                                            | ✅                                                                                 | ✅                                            | ✅                                                              |
+| 8   | `prefers-reduced-motion`               | ❌ **完全没有**(见 §6.8,有 spec 依据)                                                                          | ❌ 代码搜索 0 命中                                                                               | ❌ 0 命中                                                                               | ⚠️ 有,但只在**文字浮现**动画上,滚动本身没有                                                                | ❌ 0 命中                                                                          | ⚪️ 未核实                                     | ⚪️ 未核实                                                       |
 
 补充一列产品语义(第 2 节那张需求表的对照),来自读源码:
 
-| 产品 | 逃逸阈值 | 恢复阈值 | 展开折叠块时 | 推理区独立滚动 |
-|---|---|---|---|---|
-| VS Code Copilot Chat | 任何离底 >2px | 回到 2px 内 | **不跳底**;把被点开那一行自己的顶边锚住(`UserToggleResizeTracker`),用户中途手动滚就放弃锚定 | ✅ **200px 定高内滚动容器,自己的 10px 判据,瞬时贴底**,`thinkingStyle` 默认就是 `fixedScrolling` |
-| LibreChat | wheel `deltaY<0` 立刻,不看距离 | 距底 ≤150px(**恢复比逃逸松**,注释解释:流式时底部是移动靶,滚到头也会差几十像素) | **不跳底**;`pointerdown`/`keydown` 置 `suppressNextResizeFollowRef`,下一次 RO 触发的跟随被吞掉 | — |
-| Lobe Chat | 通用 hook 20px;主列表 300px | 通用 hook **不自动恢复**(必须显式 `resetScrollLock()`) | — | ✅ 同一个 hook 的独立实例,`max-height: min(40vh,320px)`,阈值 120px,`enabled` 绑在展开态上 |
-| open-webui | 5px | 5px(对称,双向实时) | — | — |
-| Chatbot UI | 像素级严格相等 | 严格相等;一轮结束自动复位 | — | — |
-| use-stick-to-bottom | 任意上滚 / **有文字选区时的任意滚动** | 任意下滚 + 进入 70px 带 | — | — |
-| HF chat-ui | 累计上滚 3px | 进入 60px 带 | — | 刻意**不**贴底跟随:新回合把视图带到该轮**顶部**然后脱开 |
+| 产品                 | 逃逸阈值                              | 恢复阈值                                                                       | 展开折叠块时                                                                                   | 推理区独立滚动                                                                                  |
+| -------------------- | ------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| VS Code Copilot Chat | 任何离底 >2px                         | 回到 2px 内                                                                    | **不跳底**;把被点开那一行自己的顶边锚住(`UserToggleResizeTracker`),用户中途手动滚就放弃锚定    | ✅ **200px 定高内滚动容器,自己的 10px 判据,瞬时贴底**,`thinkingStyle` 默认就是 `fixedScrolling` |
+| LibreChat            | wheel `deltaY<0` 立刻,不看距离        | 距底 ≤150px(**恢复比逃逸松**,注释解释:流式时底部是移动靶,滚到头也会差几十像素) | **不跳底**;`pointerdown`/`keydown` 置 `suppressNextResizeFollowRef`,下一次 RO 触发的跟随被吞掉 | —                                                                                               |
+| Lobe Chat            | 通用 hook 20px;主列表 300px           | 通用 hook **不自动恢复**(必须显式 `resetScrollLock()`)                         | —                                                                                              | ✅ 同一个 hook 的独立实例,`max-height: min(40vh,320px)`,阈值 120px,`enabled` 绑在展开态上       |
+| open-webui           | 5px                                   | 5px(对称,双向实时)                                                             | —                                                                                              | —                                                                                               |
+| Chatbot UI           | 像素级严格相等                        | 严格相等;一轮结束自动复位                                                      | —                                                                                              | —                                                                                               |
+| use-stick-to-bottom  | 任意上滚 / **有文字选区时的任意滚动** | 任意下滚 + 进入 70px 带                                                        | —                                                                                              | —                                                                                               |
+| HF chat-ui           | 累计上滚 3px                          | 进入 60px 带                                                                   | —                                                                                              | 刻意**不**贴底跟随:新回合把视图带到该轮**顶部**然后脱开                                         |
 
 三条跨产品共识,和我们的需求表对照:
 
@@ -164,10 +172,10 @@ const SPRING_TAU_MS = 80;
 
 ### 5.1 支持度:今天已经是 Baseline
 
-| 浏览器 | 版本 |
-|---|---|
-| Chrome / Edge | 114+(2023) |
-| Firefox | 109+(2023) |
+| 浏览器                  | 版本                                                              |
+| ----------------------- | ----------------------------------------------------------------- |
+| Chrome / Edge           | 114+(2023)                                                        |
+| Firefox                 | 109+(2023)                                                        |
 | **Safari(macOS + iOS)** | **26.2+** —— WebKit 于 2025-09-11 默认开启,赶上 26.2 车(~2025-12) |
 
 caniuse 全球覆盖 88.55%。这和 2023–2024 年那批「Safari 没有,必须 polyfill」的文章不一样了,**支持度不再是障碍**。降级用 `scrollyfills`(Adam Argyle,原生支持时自动变 no-op)。
@@ -176,7 +184,7 @@ caniuse 全球覆盖 88.55%。这和 2023–2024 年那批「Safari 没有,必�
 
 规范和实现者都明确过:**`scrollend` 不携带来源信息,而且这是设计取舍,不是待补的窟窿。**
 
-- WICG/overscroll-scrollend-events#4 里,Chrome 的 flackr 明确反对暴露来源:*"I don't think the developer has a good way of knowing whether more scrolling is coming if we sent multiple scrollend events"*,最终定成**一次「滚动交互」只发一个 `scrollend`**。
+- WICG/overscroll-scrollend-events#4 里,Chrome 的 flackr 明确反对暴露来源:_"I don't think the developer has a good way of knowing whether more scrolling is coming if we sent multiple scrollend events"_,最终定成**一次「滚动交互」只发一个 `scrollend`**。
 - 用户滚、`scrollTo()`、`scrollTop=` 三条路发出来的 `scrollend` **完全一样**(Chrome 官方博客明说)。
 - 如果一次平滑滚动中途被用户手势打断,你只会在最后拿到**一个** `scrollend`,恢复不出「这里其实有两次滚动」。
 - CSSOM-View:滚动位置没变就**不发** `scrollend`(csswg-drafts #8218 讨论过)。这条要小心:我们 `syncFollowState` 里那次「已经在底了再写一次 `scrollTop`」不会产生 `scrollend`,**不能拿它当「我写完了」的唯一回执**。
@@ -186,7 +194,7 @@ caniuse 全球覆盖 88.55%。这和 2023–2024 年那批「Safari 没有,必�
 ### 5.3 那它有什么用 —— 两处实打实的位置
 
 1. **给程序滚动标记做「解除」信号。** 我们要引入的 `programmaticUntil` 标记(见 §7),超时兜底是必须的,但有 `scrollend` 时可以**精确**在动画落地那一刻解除并刷新几何基线,不用瞎猜时长。这正好治 §6.1 那个 `behavior:'smooth'` 的洞。
-2. **替掉 `ChatPane.tsx:2538-2547` 那个 650ms 手写 debounce**(`markScrolling`)。WebKit 26.2 的发布说明原话就是:*"Previously, developers had to debounce the scroll event with timers."*(顺带:那个 timer 现在驱动的 `is-scrolling` class **全仓没有任何 CSS 消费它**,是死代码——不属于 W7 范围,记一笔。)
+2. **替掉 `ChatPane.tsx:2538-2547` 那个 650ms 手写 debounce**(`markScrolling`)。WebKit 26.2 的发布说明原话就是:_"Previously, developers had to debounce the scroll event with timers."_(顺带:那个 timer 现在驱动的 `is-scrolling` class **全仓没有任何 CSS 消费它**,是死代码——不属于 W7 范围,记一笔。)
 
 ### 5.4 降级方案
 
@@ -199,7 +207,7 @@ caniuse 全球覆盖 88.55%。这和 2023–2024 年那批「Safari 没有,必�
 
 ### 5.5 顺带核清的几条平台事实
 
-- **原生 scroll anchoring 的修正会发 `scroll` 事件。** CSS Scroll Anchoring L1 规范原文:*"The scroll adjustment is a type of scrolling as defined by [CSSOM-VIEW], and generates scroll events in the manner described there."* **没有被抑制**。我们靠 `layoutStable` 排掉它是对的做法,但要知道它确实会来敲门。
+- **原生 scroll anchoring 的修正会发 `scroll` 事件。** CSS Scroll Anchoring L1 规范原文:_"The scroll adjustment is a type of scrolling as defined by [CSSOM-VIEW], and generates scroll events in the manner described there."_ **没有被抑制**。我们靠 `layoutStable` 排掉它是对的做法,但要知道它确实会来敲门。
 - **Safari 至今没有实现 scroll anchoring**(WebKit #171099 / #109640 仍开着;caniuse:Safari 全版本 No)。所以 `stick-to-bottom.ts` 注释里那句「Safari 那边上方回流仍然会跳,是浏览器的账」**成立**。(注:任务背景里提到的 WebKit bug 202799 查不到,正确的追踪单是 #171099 和 #109640。)
 - **`flex-direction: column-reverse` 是陷阱**,别为了「天然贴底」去动布局:DOM 顺序与视觉顺序分叉,屏幕阅读器 / 键盘顺序与视觉顺序不一致(WCAG「有意义的序列」问题),浏览器查找(Ctrl+F)和文本选择也跟着别扭。正解就是我们现在用的:正常 `column` + 首个子元素 `margin-top:auto`。(另外 `justify-content: flex-end` 会让溢出方向的内容滚不到,浏览器为防数据丢失会强制按 `flex-start` 处理——`.chat-log` 的 CSS 里已经写了这条注释,是对的。)
 - **`scroll-initial-target`**(Chrome/Edge 133+,Firefox/Safari 无)可以纯 CSS 让容器首次布局就滚到指定子元素。**只能当渐进增强**,不能替掉首帧 JS。
@@ -323,7 +331,7 @@ export interface FollowBottomHandle {
   /** 显式松开:展开外层折叠块、anchor-to-top 接管、思考块折起 */
   release(): void;
   /** 唯一的滚动写入口。带程序标记 + 自动刷基线 + reduced-motion 降级 */
-  scrollToBottom(behavior?: 'instant' | 'smooth'): void;
+  scrollToBottom(behavior?: "instant" | "smooth"): void;
   /** 任何会改几何的事情之后调一次:把意图落到屏幕上。**它不改意图** */
   sync(): void;
 }
@@ -335,25 +343,38 @@ export interface FollowBottomHandle {
 
 ```ts
 // —— 判据层:两处修改 ——
-function nextFollowIntent(current, previous, next, ctx: { gesture: boolean; eps: number }) {
+function nextFollowIntent(
+  current,
+  previous,
+  next,
+  ctx: { gesture: boolean; eps: number },
+) {
   // (A) 手势余波期内放宽 layoutStable。
   //     出处:HF chat-ui GESTURE_CHAIN_MS=150。
   //     治的是 §6.2:流式每帧都在长高,恢复侧永远等不到一个「布局静止」的帧。
-  const layoutStable = ctx.gesture
-    || (next.scrollHeight === previous.scrollHeight && next.clientHeight === previous.clientHeight);
+  const layoutStable =
+    ctx.gesture ||
+    (next.scrollHeight === previous.scrollHeight &&
+      next.clientHeight === previous.clientHeight);
 
   // (B) 方向判定加亚像素死区。
   //     出处:shadcn SCROLL_POSITION_EPSILON=0.5 / HF UNPIN_DRIFT_PX=3。
   //     治的是 §6.4:分数级缩放下 0.3px 抖动被判成上滚(use-stick-to-bottom #32)。
   const dy = next.scrollTop - previous.scrollTop;
-  const scrolledUp   = layoutStable && dy < -ctx.eps;
-  const scrolledDown = layoutStable && dy >  ctx.eps;
+  const scrolledUp = layoutStable && dy < -ctx.eps;
+  const scrolledDown = layoutStable && dy > ctx.eps;
 
   let { following, escaped } = current;
-  if (scrolledUp && !isAtBottom(next))  { escaped = true;  following = false; }
+  if (scrolledUp && !isAtBottom(next)) {
+    escaped = true;
+    following = false;
+  }
   // 恢复仍然要求「同一次真实下滚 + 真的到底」—— 这条不放松,它挡的是
   // 「距底几十像素时 Plan/queue/composer 高度变化把差距吃掉」那类误恢复。
-  if (scrolledDown && isAtBottom(next)) { escaped = false; following = true;  }
+  if (scrolledDown && isAtBottom(next)) {
+    escaped = false;
+    following = true;
+  }
   return { following, escaped };
 }
 ```
@@ -437,15 +458,15 @@ const follow = useFollowBottom({ ref: bodyRef, enabled: live && open });
 
 `chat-scroll-following.test.tsx` 的 `userScrollTo()` 从不同帧改内容高度,所以以下**全部是新的**:
 
-| 用例 | 钉的是 |
-|---|---|
-| 用户滚动事件与内容增长**同帧**(`scrollTop` 和 `contentHeight` 一起改)后,下滚到底仍能恢复跟随 | §6.2 |
-| question-form 在**流式中**到达,平滑定位的中间帧不得让跟随逃逸 | §6.1 |
-| `scrollTop` 抖动 0.3px 不得算作上滚 | §6.4 |
-| PageUp / Home 按键必须立即逃逸 | §6.3 |
-| `prefers-reduced-motion: reduce` 下,点「回到最新」不得传 `behavior:'smooth'` | §6.5 |
-| 思考框:流式中最后一行始终可见;向上滚后停手;滚回底恢复;折起再展开恢复;toggle 回声不得触发 | §6.6 |
-| 思考框折起时不得写 `scrollTop`(几何为 0) | §6.6 |
+| 用例                                                                                         | 钉的是 |
+| -------------------------------------------------------------------------------------------- | ------ |
+| 用户滚动事件与内容增长**同帧**(`scrollTop` 和 `contentHeight` 一起改)后,下滚到底仍能恢复跟随 | §6.2   |
+| question-form 在**流式中**到达,平滑定位的中间帧不得让跟随逃逸                                | §6.1   |
+| `scrollTop` 抖动 0.3px 不得算作上滚                                                          | §6.4   |
+| PageUp / Home 按键必须立即逃逸                                                               | §6.3   |
+| `prefers-reduced-motion: reduce` 下,点「回到最新」不得传 `behavior:'smooth'`                 | §6.5   |
+| 思考框:流式中最后一行始终可见;向上滚后停手;滚回底恢复;折起再展开恢复;toggle 回声不得触发     | §6.6   |
+| 思考框折起时不得写 `scrollTop`(几何为 0)                                                     | §6.6   |
 
 按仓库规矩,每条都要先在无实现的情况下跑红。
 
@@ -472,6 +493,7 @@ const follow = useFollowBottom({ ref: bodyRef, enabled: live && open });
 ## 9. 参考链接(均实际读过)
 
 **源码**
+
 - `use-stick-to-bottom` — [useStickToBottom.ts](https://github.com/stackblitz-labs/use-stick-to-bottom/blob/main/src/useStickToBottom.ts) · [issue #9](https://github.com/stackblitz-labs/use-stick-to-bottom/issues/9) · [#14](https://github.com/stackblitz-labs/use-stick-to-bottom/issues/14) · [#32](https://github.com/stackblitz-labs/use-stick-to-bottom/issues/32) · [#40](https://github.com/stackblitz-labs/use-stick-to-bottom/issues/40)
 - shadcn `MessageScroller` — [types.ts](https://raw.githubusercontent.com/shadcn-ui/ui/main/packages/react/src/message-scroller/types.ts) · [components.tsx](https://raw.githubusercontent.com/shadcn-ui/ui/main/packages/react/src/message-scroller/components.tsx) · [2026-06 changelog](https://ui.shadcn.com/docs/changelog/2026-06-chat-components)
 - Vercel `ai-elements` — [conversation.tsx](https://github.com/vercel/ai-elements/blob/main/packages/elements/src/conversation.tsx)
@@ -485,6 +507,7 @@ const follow = useFollowBottom({ ref: bodyRef, enabled: live && open });
 - Chatbot UI — [use-scroll.tsx](https://github.com/mckaywrigley/chatbot-ui/blob/main/components/chat/chat-hooks/use-scroll.tsx)
 
 **规范 / 平台**
+
 - [CSSOM View — perform a scroll(`behavior:'smooth'` 绕过 CSS 的原文)](https://drafts.csswg.org/cssom-view/#scrolling)
 - [CSS Scroll Anchoring L1(锚定修正**会**发 scroll 事件)](https://drafts.csswg.org/css-scroll-anchoring-1/)
 - [WICG/overscroll-scrollend-events#4(为什么 scrollend 不带来源)](https://github.com/WICG/overscroll-scrollend-events/issues/4)
@@ -497,11 +520,13 @@ const follow = useFollowBottom({ ref: bodyRef, enabled: live && open });
 - [Checka11y.css #55 — `column-reverse` 的可访问性问题](https://github.com/jackdomleo7/Checka11y.css/issues/55)
 
 **产品行为(旁证,非源码)**
+
 - [Bugzilla #1874621 — Mozilla 工程师对 ChatGPT 滚动的诊断](https://bugzilla.mozilla.org/show_bug.cgi?id=1874621)
 - [Cursor 论坛 — Shift+Enter 触发自动滚底(输入框长高导致)](https://forum.cursor.com/t/shift-enter-triggers-chat-auto-scroll/140089)
 - [Gemini — 向上滚被反复弹回的长期未修问题](https://discuss.ai.google.dev/t/persistent-auto-scrolling-jumping-issue-in-chat-interface/108431)
 
 **本仓**
+
 - `apps/web/src/runtime/chat/stick-to-bottom.ts` / `jump-to-latest.ts`
 - `apps/web/src/components/ChatPane.tsx`(2365 初次定位 / 2444 anchor-to-top / 2581 onScroll / 2626 onWheel / 2645 onTouchMove / 2726 ResizeObserver / 2949 syncFollowState / 3095 scrollAnchorToTop / 3104 jumpToBottom / 3524 折叠块 release / 4872 虚拟化)
 - `apps/web/src/components/chat/ExecutionShell.tsx:348` `ThoughtsRow` · `primitives/Foldable.tsx:94` `bodyRef` · `primitives/record.module.css:905`(思考容器注释)/ `:930` `.stream` / `:1007` `.fold .body.scroll`

@@ -17,14 +17,14 @@ bundle. The source of truth for the UI taxonomy is `CreateTab` and
 daemon parser and normalization rules live in
 [`skills.ts`](../apps/daemon/src/skills.ts).
 
-| Creation tab | Project metadata | Skill routing | Main distinction |
-|---|---|---|---|
-| **Prototype** | `kind: prototype` | Default `prototype` skill, replaced by a selected design template | Responsive web, mobile, tablet, or desktop-app interface work |
-| **Live Artifact** | `kind: prototype`, `intent: live-artifact` | A live-artifact-capable `prototype` skill | High-fidelity, data-bearing or connector-backed artifact |
-| **Deck** | `kind: deck` | Default `deck` skill, replaced by a selected design template | Slide navigation plus presentation export paths |
-| **Template** | `kind: template` | A user-saved project template | Starts from a template created through Share rather than the built-in rendering catalogue |
-| **Media** | `kind: image`, `video`, or `audio` | Matching media-mode skill | Provider/model, aspect, duration, voice, and prompt-template controls |
-| **Other** | `kind: other` | No required skill | Free-form project surface |
+| Creation tab      | Project metadata                           | Skill routing                                                     | Main distinction                                                                          |
+| ----------------- | ------------------------------------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Prototype**     | `kind: prototype`                          | Default `prototype` skill, replaced by a selected design template | Responsive web, mobile, tablet, or desktop-app interface work                             |
+| **Live Artifact** | `kind: prototype`, `intent: live-artifact` | A live-artifact-capable `prototype` skill                         | High-fidelity, data-bearing or connector-backed artifact                                  |
+| **Deck**          | `kind: deck`                               | Default `deck` skill, replaced by a selected design template      | Slide navigation plus presentation export paths                                           |
+| **Template**      | `kind: template`                           | A user-saved project template                                     | Starts from a template created through Share rather than the built-in rendering catalogue |
+| **Media**         | `kind: image`, `video`, or `audio`         | Matching media-mode skill                                         | Provider/model, aspect, duration, voice, and prompt-template controls                     |
+| **Other**         | `kind: other`                              | No required skill                                                 | Free-form project surface                                                                 |
 
 ## Prototype
 

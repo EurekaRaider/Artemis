@@ -4,18 +4,18 @@
 
 ## 能力总览
 
-| 能力 | 交互 | 持久化路径 |
-| --- | --- | --- |
-| 选中框 + 动作条 | 点击元素出现宿主侧蓝框,框上方浮动动作条(复制/删除;图片额外有替换/裁剪) | `duplicate-element` / `remove-element` / `set-image` patch |
-| 复制元素 | 动作条按钮或 Cmd/Ctrl+D;副本插入原元素之后 | `duplicate-element`(克隆剥离全部 `data-od-*` 身份属性,渲染时重新标注;path id 可推导时自动选中副本) |
-| 删除元素 | 动作条按钮或 Delete/Backspace | `remove-element` |
-| 宽度拉伸 | 选中框左右两侧触点拖拽;左触点保持右缘锚定 | `set-style`(width;左触点附加水平位移;`display:inline` 元素同步升级 `inline-block`,否则 width 被 CSS 忽略) |
-| 自由移动 | 选中框顶部触点拖拽;拖拽中显示红色虚线对齐参考线并吸附(边缘+中线,阈值 5px) | `set-style`(absolute/fixed → left/top;流式元素 → `position:relative` + left/top 偏移,不回流兄弟节点) |
-| 行内文字编辑 | 点击文本元素落光标(含仅内联子标记的元素) | 纯文本 → `set-text`;产生内联标记 → `set-inner-html`(宿主侧消毒) |
-| 浮动文字工具栏 | 选中文本/链接元素时出现:字号、B/I/U/S、对齐、字间距/行高、颜色 | 元素级 → `set-style`(即时预览 + 800ms 防抖自动落盘);会话内选区 → iframe `execCommand`,提交时走 `set-inner-html` |
-| 图片替换 | 动作条按钮,文件选择后上传 | 上传至项目 → `set-image` |
-| 图片裁剪 | 动作条按钮进入裁剪模式:遮罩 + 8 触点裁剪窗;确认后按原始像素裁切 | 宿主 fetch 原图 → canvas 裁切 → 上传新 PNG → `set-image`(原资产不动,undo 无损) |
-| Undo/Redo | 画布左上角按钮簇 + Cmd/Ctrl+Z、Shift+Cmd/Ctrl+Z(iframe 内按键由桥转发) | 既有全量快照栈;每次手势/补丁 = 一条历史 + 一个文件版本(daemon `.file-versions` 存储) |
+| 能力            | 交互                                                                      | 持久化路径                                                                                                      |
+| --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 选中框 + 动作条 | 点击元素出现宿主侧蓝框,框上方浮动动作条(复制/删除;图片额外有替换/裁剪)    | `duplicate-element` / `remove-element` / `set-image` patch                                                      |
+| 复制元素        | 动作条按钮或 Cmd/Ctrl+D;副本插入原元素之后                                | `duplicate-element`(克隆剥离全部 `data-od-*` 身份属性,渲染时重新标注;path id 可推导时自动选中副本)              |
+| 删除元素        | 动作条按钮或 Delete/Backspace                                             | `remove-element`                                                                                                |
+| 宽度拉伸        | 选中框左右两侧触点拖拽;左触点保持右缘锚定                                 | `set-style`(width;左触点附加水平位移;`display:inline` 元素同步升级 `inline-block`,否则 width 被 CSS 忽略)       |
+| 自由移动        | 选中框顶部触点拖拽;拖拽中显示红色虚线对齐参考线并吸附(边缘+中线,阈值 5px) | `set-style`(absolute/fixed → left/top;流式元素 → `position:relative` + left/top 偏移,不回流兄弟节点)            |
+| 行内文字编辑    | 点击文本元素落光标(含仅内联子标记的元素)                                  | 纯文本 → `set-text`;产生内联标记 → `set-inner-html`(宿主侧消毒)                                                 |
+| 浮动文字工具栏  | 选中文本/链接元素时出现:字号、B/I/U/S、对齐、字间距/行高、颜色            | 元素级 → `set-style`(即时预览 + 800ms 防抖自动落盘);会话内选区 → iframe `execCommand`,提交时走 `set-inner-html` |
+| 图片替换        | 动作条按钮,文件选择后上传                                                 | 上传至项目 → `set-image`                                                                                        |
+| 图片裁剪        | 动作条按钮进入裁剪模式:遮罩 + 8 触点裁剪窗;确认后按原始像素裁切           | 宿主 fetch 原图 → canvas 裁切 → 上传新 PNG → `set-image`(原资产不动,undo 无损)                                  |
+| Undo/Redo       | 画布左上角按钮簇 + Cmd/Ctrl+Z、Shift+Cmd/Ctrl+Z(iframe 内按键由桥转发)    | 既有全量快照栈;每次手势/补丁 = 一条历史 + 一个文件版本(daemon `.file-versions` 存储)                            |
 
 ## 架构决策
 
@@ -84,7 +84,7 @@
 
 契约反转记录:FileViewer 旧测试「holds the preview steady while manual Edit is open」(编辑模式中外部变更不刷新画布)被本轮**推翻**,改为「defers during interaction, follows once idle」。
 
-新增/更新测试:gestures「preview transform 前置合成」「out-of-flow 移动钉宽」;source-patches「insert-html 锚后插入/消毒/身份剥离/__body__ 追加/单根校验」;bridge「Cmd+C 元素复制 vs 原生文本复制」「paste 按载荷分流元素/图片」「drop 锚定 drop 点最深元素」;FileViewer「外部改写后重进编辑模式取新源」「编辑中空闲跟随外部改写」「交互中推迟、结束后落地」「工具栏单层互斥」。
+新增/更新测试:gestures「preview transform 前置合成」「out-of-flow 移动钉宽」;source-patches「insert-html 锚后插入/消毒/身份剥离/**body** 追加/单根校验」;bridge「Cmd+C 元素复制 vs 原生文本复制」「paste 按载荷分流元素/图片」「drop 锚定 drop 点最深元素」;FileViewer「外部改写后重进编辑模式取新源」「编辑中空闲跟随外部改写」「交互中推迟、结束后落地」「工具栏单层互斥」。
 
 ## v2.4 体系化架构定稿(全内容补丁原地化 + 身份重标注,2026-07-19)
 
@@ -92,14 +92,14 @@
 
 ### 层次地图
 
-| 层 | 归属 | 职责 | 关键源 |
-| --- | --- | --- | --- |
-| L1 身份与发现 | srcdoc 构建 + 桥 | 构建时 `annotateMissingOdIds`(补位置性 `data-od-id`)+ `annotateManualEditSourcePaths`(全量 `data-od-source-path`);桥点击/hover 解析、targets 广播 | `runtime/srcdoc.ts`、`edit-mode/bridge.ts` |
-| L2 选中与 chrome | 宿主 | 选中框/动作条/文字工具栏/裁剪窗,rect×scale 坐标换算,单层互斥 | `ManualEditSelectionOverlay`、`ManualEditTextToolbar` |
-| L3 样式管线 | 宿主 ⇄ 桥 | `od-edit-preview-style` 即时预览 → pending 防抖 → `set-style` 落盘 → reconcile;**永不重载 iframe** | `FileViewer` pending-style 管线 |
-| L4 内容管线 | 宿主 ⇄ 桥 | 文本/图片/属性/插入/删除/复制补丁:源码 patch → 落盘 → **`od-edit-apply-dom` 原地应用**(v2.4 起全覆盖)→ 重标注 → targets 重播 | `applyManualEditContentInPlace`、`source-patches.ts` |
-| L5 版本与历史 | 宿主 + daemon | 每补丁 = 一条历史 + 一个带 `versionSource:'manual'` + label 的文件版本(版本列表可见);undo/redo(按钮 + ⌘Z/⇧⌘Z)同样产生 `Undo/Redo <label>` 版本,原地回放 | `applyManualEditHistoryInPlace`、daemon `.file-versions` |
-| L6 外部同步 | 宿主 | frozen source 生命周期:进入冻结、own-write 豁免、外部改写空闲跟随、保存期新鲜度确认 | v2.3 follow effect |
+| 层               | 归属             | 职责                                                                                                                                                    | 关键源                                                   |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| L1 身份与发现    | srcdoc 构建 + 桥 | 构建时 `annotateMissingOdIds`(补位置性 `data-od-id`)+ `annotateManualEditSourcePaths`(全量 `data-od-source-path`);桥点击/hover 解析、targets 广播       | `runtime/srcdoc.ts`、`edit-mode/bridge.ts`               |
+| L2 选中与 chrome | 宿主             | 选中框/动作条/文字工具栏/裁剪窗,rect×scale 坐标换算,单层互斥                                                                                            | `ManualEditSelectionOverlay`、`ManualEditTextToolbar`    |
+| L3 样式管线      | 宿主 ⇄ 桥        | `od-edit-preview-style` 即时预览 → pending 防抖 → `set-style` 落盘 → reconcile;**永不重载 iframe**                                                      | `FileViewer` pending-style 管线                          |
+| L4 内容管线      | 宿主 ⇄ 桥        | 文本/图片/属性/插入/删除/复制补丁:源码 patch → 落盘 → **`od-edit-apply-dom` 原地应用**(v2.4 起全覆盖)→ 重标注 → targets 重播                            | `applyManualEditContentInPlace`、`source-patches.ts`     |
+| L5 版本与历史    | 宿主 + daemon    | 每补丁 = 一条历史 + 一个带 `versionSource:'manual'` + label 的文件版本(版本列表可见);undo/redo(按钮 + ⌘Z/⇧⌘Z)同样产生 `Undo/Redo <label>` 版本,原地回放 | `applyManualEditHistoryInPlace`、daemon `.file-versions` |
+| L6 外部同步      | 宿主             | frozen source 生命周期:进入冻结、own-write 豁免、外部改写空闲跟随、保存期新鲜度确认                                                                     | v2.3 follow effect                                       |
 
 ### 核心不变量
 
@@ -112,15 +112,15 @@
 
 ### 补丁种类 × 应用方式矩阵
 
-| patch | 原地 op | 兜底 |
-| --- | --- | --- |
-| `set-style`(元素) | 预览通道(L3) | — |
-| `set-text` / `set-inner-html` / `set-link` / `set-image` / `set-attributes` / `set-outer-html` | `replace`(保存源 outerHTML) | frozen 重载 + 滚动快照 |
-| `insert-html`(元素锚) / `duplicate-element` | `insert-after`(保存源读回) | 同上 |
-| `insert-html`(`__body__`) | `append-child` | 同上 |
-| `remove-element` | `remove` | 同上 |
-| undo of `remove-element` | `readManualEditRestoreDescriptor` → `insert-after` 前兄弟 / `prepend-child` 父级(`__body__` 支持) | 同上 |
-| `set-token` / `set-full-source` / `__body__` 样式 | —(页面级) | frozen 重载 + 滚动快照 |
+| patch                                                                                          | 原地 op                                                                                           | 兜底                   |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------- |
+| `set-style`(元素)                                                                              | 预览通道(L3)                                                                                      | —                      |
+| `set-text` / `set-inner-html` / `set-link` / `set-image` / `set-attributes` / `set-outer-html` | `replace`(保存源 outerHTML)                                                                       | frozen 重载 + 滚动快照 |
+| `insert-html`(元素锚) / `duplicate-element`                                                    | `insert-after`(保存源读回)                                                                        | 同上                   |
+| `insert-html`(`__body__`)                                                                      | `append-child`                                                                                    | 同上                   |
+| `remove-element`                                                                               | `remove`                                                                                          | 同上                   |
+| undo of `remove-element`                                                                       | `readManualEditRestoreDescriptor` → `insert-after` 前兄弟 / `prepend-child` 父级(`__body__` 支持) | 同上                   |
+| `set-token` / `set-full-source` / `__body__` 样式                                              | —(页面级)                                                                                         | frozen 重载 + 滚动快照 |
 
 ### 性能契约
 
@@ -156,7 +156,7 @@
 
 协议增量:`od-edit-text-selection` 增 `format {bold,italic,underline,strike} | null`;`od-edit-apply-dom` 增 `op: replace|insert-after|append-child|prepend-child|remove|insert-at-index|apply-content`(默认 replace,向后兼容)。
 
-新增测试:bridge「选区格式状态上报」「insert-after/append-child/prepend-child/remove 原地应用」「重标注跟随位移 + 新元素就地 stamp + 授权 id 不动 + replace 后仍 source-mappable」;source-patches「插入读回(授权锚/位置锚/__body__)」「删除还原描述符(前兄弟/父级 prepend/__body__/缺失)」;FileViewer「文本提交原地不换 srcdoc」「删除走 remove op」「粘贴图片原地插入 + 选中交接」「undo 原地 + Undo 版本 label」。
+新增测试:bridge「选区格式状态上报」「insert-after/append-child/prepend-child/remove 原地应用」「重标注跟随位移 + 新元素就地 stamp + 授权 id 不动 + replace 后仍 source-mappable」;source-patches「插入读回(授权锚/位置锚/**body**)」「删除还原描述符(前兄弟/父级 prepend/**body**/缺失)」;FileViewer「文本提交原地不换 srcdoc」「删除走 remove op」「粘贴图片原地插入 + 选中交接」「undo 原地 + Undo 版本 label」。
 
 ### v2.5 修订(整图拖拽移动 + 选中框跟随实测盒,2026-07-20)
 
