@@ -172,6 +172,7 @@
     review: { label: "审查", icon: "review" },
     terminal: { label: "终端", icon: "terminal" },
     browser: { label: "浏览器", icon: "browser" },
+    design: { label: "设计", icon: "design" },
     files: { label: "文件", icon: "files" },
     goal: { label: "任务目标" },
     sources: { label: "来源" },
@@ -614,2306 +615,164 @@
     });
   });
 
-  /* ---------- 消息接入（方向 B：单列分区卡片流；derive 为单一事实源） ----------
-     状态对象 → imDerive() → 各卡徽标/摘要/告警角标/胶囊聚合/自动展开；
-     #im-demo=empty|progress|alert 重放（applyDemo 全量重建，幂等）。
-     第三轮升级：从头完全模拟——瞬态 starting/connecting、配对 10s 双轨到达、
-     群发现/确认两拍支线、会话内模拟（sim）与「从头再来」重置。
-     第四轮（2026-09-14）：原②添加机器人+③绑定账号合并为②「接入渠道并绑定账号」
-     ——按渠道 tab 线性推进（凭据 → 平台接收 → 绑定账号），完成链五步改四步；
-     ②完成谓词改为配对谓词（∃渠道：连接 connected ∧ 该渠道有绑定账号），
-     消除「两个 any-of 拼出全绿但无渠道端到端可用」的漏洞；
-     ④允许手机操作的项目改行内即时生效+授权配置弹窗（生产对齐）。
-     第五轮（2026-09-14）：完成链三步化——①连接服务 → ②接入渠道并绑定账号
-     → ③允许手机操作的项目。原④测试卡降级为②尾部「顺手验证（可选）」折叠段，
-     不计入完成链；三步全✓的完成仪式移到③卡尾（开始使用/验证引导/群协作/概览）。
-     面板内全部演示条件入口集中隔离到 #imDemoConsole（迁移生产代码时整块删除）。 */
+  /* ---------- 消息接入（按 proposal-im-settings-redesign 三态：向导 / 管理双栏 / 紧凑） ---------- */
   var imPanel = $("#settingsPanelIm");
   if (imPanel) {
-    var IM_PLATFORMS = [
-      { key: "feishu", name: "飞书" },
-      { key: "wecom", name: "企业微信" },
-      { key: "slack", name: "Slack" },
-    ];
-    var IM_CHANNEL_CONSTRAINT = {
-      feishu: "长连接，无需公网",
-      wecom: "智能机器人 · API 模式",
-      slack: "Socket Mode",
-    };
-    var IM_CARD_ORDER = ["service", "channel", "projects"];
-    var IM_STEP_TOTAL = 3; /* 设置进度总数：完成链三步（②=接入渠道并绑定账号合并卡；测试=②尾可选验证不计入；群协作=可选独立流程不计入） */
-    var IM_PAIR_CODES = ["7K2Q-XR9M", "3TD8-M52W", "9FJ4-QN7C"];
-    /* 时序常量：启动/连接过渡、配对等待、群确认；淡入淡出 200ms；脉冲 0.9s 仅
-       用于深链/胶囊定位/配对请求到达；④[保存]本地瞬时，不设假延迟 */
-    var IM_T_START = 1000,
-      IM_T_CONNECT = 900,
-      IM_T_PAIR_WAIT = 10000,
-      IM_T_FADE = 200;
-    var IM_ICON_BELL = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg>';
-    var IM_ICON_BELL_OFF = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg>';
-    var IM_ICON_UNLINK = '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg>';
+    var imNav = $("#imNavList"),
+      imDetailEl = $("#imDetail"),
+      imMoreBtn = $("#imMoreBtn"),
+      imMoreMenu = $("#imMoreMenu"),
+      imWizard = $("#imWizard"),
+      imManage = $("#imManage"),
+      imMaster = $("#imMasterSwitch"),
+      imStateText = $("#imStateText"),
+      imStatePill = $("#imStatePill"),
+      countdownEl = $("#imCountdown");
 
-    /* 演示状态种子：empty=空态 / progress=进行中 / alert=告警；
-       sim=会话内模拟（仅内存，不写 hash；任何用户操作即开启，applyDemo 回到快照） */
-    function imSimSeed() {
-      return {
-        session: false,
-        /* 凭据保存的确定性演示结果（选择器在凭据子卡内，不用随机） */
-        credOutcome: { feishu: "ok", wecom: "ok", slack: "ok" },
-        /* ① 一键开启的确定性演示结果（成功 / 端口被占用 / 注册失败） */
-        serviceOutcome: "ok",
-        /* ③ 双轨：10s 倒计时自动到达 + 演示直达弱链接 */
-        pairWait: null /* { platform, leftMs } */,
-        projectsDirty: false,
-        /* 保存/启用两阶段演示开关（确定性失败分支） */
-        saveFailure: false,
-        enableFailure: false,
-        hints: {}, /* 会话内「首次」引导旗标 */
-        /* ②尾「顺手验证」折叠段展开态：首绑自动展开一次，用户动过后本次会话记住 */
-        verifyOpened: false,
-        verifyTouched: false,
-      };
+    /* 渠道/通用导航：点选或方向键切换详情视图（tablist 语义） */
+    function imSelect(view) {
+      $$('#imNavList .im-channel-card[data-im-view]').forEach(function (b) {
+        b.setAttribute(
+          "aria-selected",
+          String(b.getAttribute("data-im-view") === view),
+        );
+      });
+      imDetailEl
+        .querySelectorAll(".im-view")
+        .forEach(function (section) {
+          section.hidden = section.getAttribute("data-im-view") !== view;
+        });
+      imMoreMenu.hidden = true;
+      imMoreBtn.setAttribute("aria-expanded", "false");
+      imMoreBtn.classList.toggle("selected", ["gateway", "pairing", "projects", "guide"].includes(view));
     }
-    var IM_SEEDS = {
-      empty: {
-        sim: imSimSeed(),
-        gateway: { started: false, linkBroken: false, deviceId: "dev-3f9a" },
-        masterOn: false,
-        grantEnabled: false,
-        grantEnableFailed: false,
-        connections: { feishu: [], wecom: [], slack: [] },
-        platformReady: { feishu: false, wecom: false, slack: false },
-        test: { stage: 0, failed: false, confirmed: false, channel: "" },
-        groupFlow: { open: false, phase: "discover", spaceSaved: false, groups: [] },
-        pairingRequests: [],
-        bindings: [],
-        groups: [],
-        projects: [
-          { id: "Artemis", path: "~/Documents/Artemis", checked: false, expired: false },
-          { id: "token-lab", path: "~/Documents/token-lab", checked: false, expired: false },
-        ],
-        defaultProject: "",
-        pairCode: IM_PAIR_CODES[0],
-      },
-      progress: {
-        sim: imSimSeed(),
-        gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
-        masterOn: true,
-        grantEnabled: true,
-        grantEnableFailed: false,
-        connections: {
-          feishu: [
-            { conn: "conn-1", app: "Artemis 机器人", state: "ok", note: "已连接 · 2 分钟前" },
-          ],
-          wecom: [],
-          slack: [],
-        },
-        platformReady: { feishu: false, wecom: false, slack: false },
-        test: { stage: 0, failed: false, confirmed: false, channel: "" },
-        groupFlow: { open: false, phase: "discover", spaceSaved: false, groups: [] },
-        pairingRequests: [],
-        bindings: [],
-        groups: [],
-        projects: [
-          { id: "Artemis", path: "~/Documents/Artemis", checked: false, expired: false },
-          { id: "token-lab", path: "~/Documents/token-lab", checked: false, expired: false },
-        ],
-        defaultProject: "",
-        pairCode: IM_PAIR_CODES[0],
-      },
-      alert: {
-        sim: imSimSeed(),
-        gateway: { started: true, linkBroken: false, deviceId: "dev-3f9a" },
-        masterOn: true,
-        grantEnabled: true,
-        grantEnableFailed: false,
-        connections: {
-          feishu: [
-            { conn: "conn-1", app: "Artemis 机器人", state: "bad", reason: "App Secret 已失效" },
-            { conn: "conn-2", app: "Artemis 备用机器人", state: "ok", note: "已连接 · 2 分钟前" },
-          ],
-          wecom: [
-            { conn: "conn-3", app: "Artemis 机器人", state: "ok", note: "已连接 · 5 分钟前" },
-          ],
-          slack: [
-            { conn: "conn-4", app: "Artemis 机器人", state: "reconnecting", attempt: 2 },
-          ],
-        },
-        platformReady: { feishu: true, wecom: true, slack: false },
-        test: { stage: 0, failed: false, confirmed: false, channel: "" },
-        groupFlow: { open: false, phase: "done", spaceSaved: true, groups: [
-          { name: "artemis-ui-评审群", platform: "feishu", members: 5, confirmed: true },
-          { name: "packaging-standby", platform: "wecom", members: 2, confirmed: true },
-        ] },
-        pairingRequests: [{ name: "张伟", id: "u_33c1", platform: "feishu" }],
-        bindings: [
-          { name: "王小明", id: "u_9f3a", platform: "feishu", mode: "Plan", muted: true },
-          { name: "李四", id: "u_2c71", platform: "feishu", mode: "Execute", muted: false },
-        ],
-        groups: [
-          { name: "artemis-ui-评审群", members: 5, platform: "feishu" },
-          { name: "packaging-standby", members: 2, platform: "wecom" },
-        ],
-        projects: [
-          { id: "Artemis", path: "~/Documents/Artemis", checked: true, expired: false },
-          { id: "token-lab", path: "~/Documents/token-lab", checked: false, expired: true },
-        ],
-        defaultProject: "Artemis",
-        pairCode: IM_PAIR_CODES[0],
-      },
-    };
-
-    var imState = null; /* 当前演示状态（可变副本） */
-    var imDerived = null; /* imDerive 缓存 */
-    var imManual = {}; /* 用户显式切换概览/设置步骤；applyDemo 按完成态自动定向 */ /* 用户手动展开/折叠：cardKey → boolean */
-    var imShowOverview = false;
-    var imEpoch = 0; /* applyDemo 递增：作废在途过渡定时器 */
-    var imCardEls = {};
-    IM_CARD_ORDER.forEach(function (key) {
-      var el = imPanel.querySelector('.im-card[data-im-card="' + key + '"]');
-      if (el) imCardEls[key] = el;
+    imNav.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("[data-im-view]");
+      if (btn) imSelect(btn.getAttribute("data-im-view"));
+      if (ev.target === imMoreBtn || imMoreBtn.contains(ev.target))
+        { imMoreMenu.hidden = !imMoreMenu.hidden; imMoreBtn.setAttribute("aria-expanded", String(!imMoreMenu.hidden)); }
     });
-    var imPill = $("#imStatePill"),
-      imStateText = $("#imStateText");
-    /* D1：首次流程无总开关——启用语义归④「保存并启用」；暂停/恢复在完成后概览（C5） */
-
-    /* ===== derive：状态 → 徽标 / 摘要 / 告警角标 / 胶囊 / 自动展开 ===== */
-    function imDerive(s) {
-      var sim = s.sim || {};
-      var platforms = {};
-      var healthyTotal = 0,
-        badTotal = 0,
-        reconnectTotal = 0,
-        connectingTotal = 0;
-      IM_PLATFORMS.forEach(function (p) {
-        var conns = (s.connections && s.connections[p.key]) || [];
-        var ok = 0,
-          bad = 0,
-          rc = 0,
-          cg = 0;
-        conns.forEach(function (c) {
-          if (c.state === "ok") ok += 1;
-          else if (c.state === "bad") bad += 1;
-          else if (c.state === "reconnecting") rc += 1;
-          else if (c.state === "connecting") cg += 1;
-        });
-        healthyTotal += ok;
-        badTotal += bad;
-        reconnectTotal += rc;
-        connectingTotal += cg;
-        /* connecting 计入 pending 类聚合分支，不计入 healthyTotal（完成链不前进） */
-        var agg;
-        if (!conns.length) agg = "none";
-        else if (bad && ok) agg = "partial";
-        else if (bad && !ok) agg = "allbad";
-        else if ((rc || cg) && !ok) agg = cg && !rc ? "connecting" : "reconnecting";
-        else agg = "ok";
-        platforms[p.key] = { conns: conns, ok: ok, bad: bad, rc: rc, cg: cg, agg: agg };
+    imNav.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") { imMoreMenu.hidden = true; imMoreBtn.setAttribute("aria-expanded", "false"); imMoreBtn.focus(); return; }
+      if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(ev.key) || ev.target.closest("#imMoreMenu")) return;
+      var tabs = $$('#imNavList .im-channel-card').filter(function (tab) { return tab.getClientRects().length > 0; });
+      var i = tabs.findIndex(function (t) {
+        return t.getAttribute("aria-selected") === "true";
       });
-
-      var serviceAlerts = s.gateway.linkBroken ? 1 : 0;
-      var expired = s.projects.filter(function (pr) { return pr.expired; }).length;
-      var checkedProjects = s.projects.filter(function (pr) { return pr.checked; }).length;
-      /* 顺手验证（②尾可选）：已验证渠道=测试确认时所在渠道（测试为全局单实例） */
-      var verifiedChannels = s.test && s.test.confirmed && s.test.channel
-        ? [s.test.channel] : [];
-      /* 渠道就绪 = 配对谓词：该渠道有 connected 连接 ∧ 该渠道有绑定账号 */
-      IM_PLATFORMS.forEach(function (p) {
-        platforms[p.key].paired =
-          platforms[p.key].ok > 0 &&
-          s.bindings.some(function (b) { return b.platform === p.key; });
-      });
-      var readyPlatformNames = IM_PLATFORMS.filter(function (p) {
-        return platforms[p.key].paired;
-      }).map(function (p) { return p.name; });
-      var healthyPlatformNames = IM_PLATFORMS.filter(function (p) {
-        return platforms[p.key].ok > 0;
-      }).map(function (p) { return p.name; });
-      var connsTotal = healthyTotal + badTotal + reconnectTotal + connectingTotal;
-
-      var starting = !!s.gateway.starting;
-      var serviceDone = s.gateway.started && !s.gateway.linkBroken;
-      var channelDone = readyPlatformNames.length > 0;
-      var connectedUnpaired = IM_PLATFORMS.filter(function (p) {
-        return platforms[p.key].ok > 0 && !platforms[p.key].paired;
-      }).map(function (p) { return p.name; });
-      var projectsDone = checkedProjects > 0 && expired === 0 && !sim.projectsDirty;
-      /* 顺手验证是②尾可选段（D4 诚实版保留）：不入门禁，只作状态/徽标信号 */
-      var anyConfigured = connsTotal > 0;
-      var paused = !s.masterOn && anyConfigured;
-      var pairWaiting = !!sim.pairWait;
-
-      /* 完成链三步（②=接入渠道并绑定账号合并卡；测试=②尾可选验证不入链）：
-         第一个未完成卡即「当前步骤」；群协作独立流程不入链 */
-      var chain = [
-        ["service", serviceDone],
-        ["channel", channelDone],
-        ["projects", projectsDone],
-      ];
-      var firstUndone = null;
-      for (var i = 0; i < chain.length; i += 1) {
-        if (!chain[i][1]) { firstUndone = chain[i][0]; break; }
-      }
-
-      function cardState(key, done, warnInstead) {
-        if (warnInstead) return "warn";
-        if (done) return "done";
-        return firstUndone === key ? "current" : "todo";
-      }
-
-      var cards = {};
-      /* ① 连接服务（starting 为瞬态：徽标 busy「正在启动…」） */
-      cards.service = {
-        state: starting ? "busy" : s.gateway.linkBroken ? "warn" : serviceDone ? "done" : "current",
-        badgeText: starting
-          ? "正在启动…"
-          : s.gateway.linkBroken
-            ? "服务断连"
-            : serviceDone
-              ? "已就绪"
-              : "待开启",
-        alerts: serviceAlerts,
-        summary: serviceDone
-          ? "已就绪 · " + (s.gateway.team ? "团队服务" : "本机运行") + " · " + s.gateway.deviceId
-          : "先开启服务",
-      };
-      /* ② 接入渠道并绑定账号（合并原②③：连接+配对两个事实合成一个配对谓词卡） */
-      var channelBadgeText = "待办";
-      if (channelDone) channelBadgeText = "已就绪 · " + readyPlatformNames[0];
-      else if (s.pairingRequests.length) channelBadgeText = "待确认";
-      else if (pairWaiting) channelBadgeText = "等待确认";
-      else if (connectingTotal) channelBadgeText = "连接中";
-      else if (anyConfigured && !healthyTotal) channelBadgeText = "连接失败";
-      else if (healthyTotal) channelBadgeText = "待绑定账号";
-      else if (firstUndone === "channel") channelBadgeText = "当前步骤";
-      else if (!serviceDone) channelBadgeText = "待开启";
-      cards.channel = {
-        state: (connectingTotal || pairWaiting) && !channelDone
-          ? "busy"
-          : cardState("channel", channelDone, anyConfigured && !healthyTotal),
-        badgeText: channelBadgeText,
-        alerts: badTotal + s.pairingRequests.length,
-        summary: s.pairingRequests.length
-          ? s.pairingRequests.length + " 条绑定待确认"
-          : channelDone
-            ? "已连接 · " + readyPlatformNames.join("、") + " · " + s.bindings.filter(function (b) { return readyPlatformNames.indexOf((IM_PLATFORMS.filter(function (p) { return p.key === b.platform; })[0] || {}).name) >= 0; }).length + " 个账号"
-            : connectedUnpaired.length
-              ? "已连接 · " + connectedUnpaired.join("、") + " · 待绑定账号"
-              : connectingTotal
-                ? "正在连接机器人"
-                : anyConfigured
-                  ? "有连接故障，点开查看"
-                  : "还没有机器人，先添加一个",
-      };
-      /* ③ 允许手机操作的项目（行内即时生效：无待保存态；启用失败入⚠；临时会话计作 1 个项目） */
-      var projectsBusy = !!sim.projectsDirty;
-      cards.projects = {
-        state: projectsBusy ? "busy" : cardState("projects", projectsDone, expired > 0 || !!s.grantEnableFailed),
-        badgeText: projectsBusy
-          ? "已选 " + checkedProjects + " · 待生效"
-          : checkedProjects > 0
-            ? "已授权 " + (checkedProjects + 1) + " 个"
-            : firstUndone === "projects"
-              ? "当前步骤"
-              : "待选择",
-        alerts: expired + (s.grantEnableFailed ? 1 : 0),
-        summary: s.grantEnableFailed
-          ? "授权已保存 · 连接未启用"
-          : checkedProjects
-            ? (checkedProjects + 1) + " 个项目" +
-              (s.defaultProject ? " · 默认 " + s.defaultProject : "")
-            : "还没有选择项目",
-      };
-      /* 顺手验证归属渠道徽标：已确认时所在渠道标「已验证」 */
-      verifiedChannels.forEach(function (pk) {
-        if (platforms[pk]) platforms[pk].verified = true;
-      });
-
-      if (!s.gateway.started) {
-        /* 空态：②-④ 折叠为统一的「先开启服务」摘要行（点击=定位①大按钮） */
-        IM_CARD_ORDER.forEach(function (key) {
-          cards[key].summary = "先开启服务";
-        });
-      } else if (firstUndone) {
-        /* 未来步骤：显示前置提示（完成链线性，先完成当前步骤） */
-        var undoneIdx = IM_CARD_ORDER.indexOf(firstUndone);
-        var undoneTitles = { service: "连接服务", channel: "接入渠道并绑定账号", projects: "选择项目" };
-        IM_CARD_ORDER.forEach(function (key, i) {
-          if (i > undoneIdx && key !== "groups" && cards[key].state === "todo") {
-            cards[key].summary = "先完成第 " + (undoneIdx + 1) + " 步「" + undoneTitles[firstUndone] + "」";
-          }
-        });
-      }
-      if (paused) {
-        /* 主开关关闭：徽标保留，摘要加「已暂停」后缀 */
-        IM_CARD_ORDER.forEach(function (key) {
-          cards[key].summary += " · 已暂停";
-        });
-      }
-
-      /* 胶囊聚合：启动瞬态 busy；服务就绪但无连接 → 中间态（仍灰）；
-         暂停优先于健康态；故障计数可点定位 */
-      var pill;
-      if (starting)
-        pill = { tone: "busy", html: "正在启动消息服务", count: 0 };
-      else if (!connsTotal)
-        pill = {
-          tone: "off",
-          html: serviceDone ? "服务已就绪，还没有机器人" : "未开启",
-          count: 0,
-        };
-      else if (!s.masterOn)
-        pill = { tone: "paused", html: "已暂停响应 IM 指令", count: 0 };
-      else if (badTotal + serviceAlerts > 0)
-        pill = {
-          tone: "warn",
-          html: "<strong>" + (badTotal + serviceAlerts) + "</strong> 个机器人连接失败",
-          count: badTotal + serviceAlerts,
-        };
-      else
-        pill = {
-          tone: "ok",
-          html: "一切正常 · <strong>" + healthyTotal + "</strong> 个机器人在线",
-          count: healthyTotal,
-        };
-
-      var autoExpand = [];
-      if (firstUndone) autoExpand.push(firstUndone);
-      IM_CARD_ORDER.forEach(function (key) {
-        if (cards[key].alerts > 0 && autoExpand.indexOf(key) < 0) autoExpand.push(key);
-      });
-
-      return {
-        platforms: platforms,
-        healthyTotal: healthyTotal,
-        badTotal: badTotal,
-        reconnectTotal: reconnectTotal,
-        connectingTotal: connectingTotal,
-        paused: paused,
-        firstUndone: firstUndone,
-        allDone: !firstUndone,
-        cards: cards,
-        pill: pill,
-        autoExpand: autoExpand,
-        expired: expired,
-        projectsDone: projectsDone,
-        /* 设置进度：完成链四步计数（②合并卡；群协作可选不计入） */
-        progressDone: chain.filter(function (c) { return c[1]; }).length,
-        ready: s.masterOn && s.grantEnabled !== false && serviceDone && channelDone && projectsDone &&
-          badTotal + serviceAlerts + s.pairingRequests.length + expired === 0,
-      };
-    }
-
-    /* ===== 渲染：结构（applyDemo 全量重建）+ 状态（imRefresh 原地更新） ===== */
-    function imPlatformDotClass(st) {
-      if (imDerived.paused) return "idle";
-      if (st.agg === "ok") return "ok";
-      if (st.agg === "allbad") return "bad";
-      if (st.agg === "partial" || st.agg === "reconnecting" || st.agg === "connecting")
-        return "pending";
-      return "idle";
-    }
-
-    /* M2b 凭据子卡：字段清单（接收方式条件化）+ 保存并重连三态流 + 接入指引 */
-    var imFieldSequence = 0;
-    var IM_FIELD = function (label, inputHtml, extra) {
-      return (
-        '<label class="im-field' + (extra || "") + '" data-im-field-label="' + label + '">' +
-        '<span class="im-field-label">' + label + "</span>" + inputHtml +
-        '<p class="im-fine im-field-help" data-im-field-help="" hidden=""></p></label>'
-      );
-    };
-    /* 字段级帮助（聚焦显示）与校验（blur 非空/提交必填）：大白话，逐平台同构 */
-    var IM_FIELD_RULES = {
-      feishu: {
-        "App ID": { required: true, requiredError: "请输入 App ID。", prefix: "cli_", prefixError: "App ID 应以 cli_ 开头。", help: "开发者后台 → 凭证与基础信息。" },
-        "App Secret": { required: true, requiredError: "请输入 App Secret。", help: "与 App ID 来自同一应用；原型仅在本次页面中使用。" },
-        "机器人 Open ID": { prefix: "ou_", prefixError: "请输入 ou_ 开头的机器人 Open ID。", help: "可留空，连接时自动识别。" },
-        "Tenant Key": { help: "可留空，连接时自动识别团队。" },
-        "Verification Token": { httpsHelp: "从事件与回调页复制 Verification Token。" },
-        "Encrypt Key": { httpsHelp: "从事件与回调页复制 Encrypt Key。" }
-      },
-      wecom: {
-        "企业 ID": { required: true, requiredError: "请输入企业 ID。", prefix: "ww", prefixError: "企业 ID 应以 ww 开头。", help: "管理后台 → 我的企业 → 企业信息。" },
-        "Bot ID": { required: true, requiredError: "请输入智能机器人的 Bot ID。" },
-        "Secret": { required: true, requiredError: "请输入与 Bot ID 对应的 Secret。", help: "智能机器人 → API 模式 → 长连接；不是群 Webhook。" }
-      },
-      slack: {
-        "Bot Token": { required: true, requiredError: "请输入 Bot User OAuth Token。", prefix: "xoxb-", prefixError: "Bot Token 应以 xoxb- 开头。" },
-        "App-Level Token": { required: true, requiredError: "请输入 App-Level Token。", prefix: "xapp-", prefixError: "App-Level Token 应以 xapp- 开头。", help: "需包含 connections:write，两个令牌来自同一应用。" }
-      }
-    };
-    var IM_HTTPS_REQUIRED_ERROR = "选了 HTTPS 回调，这两项就必填。";
-    function imFieldRule(platformKey, label) {
-      return (IM_FIELD_RULES[platformKey] || {})[label] || null;
-    }
-    function imFieldHelpEl(labelEl) {
-      return labelEl.querySelector("[data-im-field-help]");
-    }
-    function imShowFieldMessage(labelEl, text, isError) {
-      var help = imFieldHelpEl(labelEl);
-      if (!help) return;
-      help.textContent = text || "";
-      help.classList.toggle("im-field-error", !!isError);
-      help.hidden = !text;
-      var input = labelEl.querySelector("input, select");
-      if (input) {
-        if (!help.id) help.id = "im-help-" + (++imFieldSequence);
-        input.setAttribute("aria-describedby", help.id);
-        input.setAttribute("aria-invalid", String(!!isError));
-      }
-    }
-    function imHideFieldMessage(labelEl) {
-      var help = imFieldHelpEl(labelEl);
-      if (help) help.hidden = true;
-      var input = labelEl.querySelector("input, select");
-      if (input) input.removeAttribute("aria-invalid");
-    }
-    /* 单字段校验：返回错误文案或 null（httpsOnly 字段仅在可见时参与） */
-    function imValidateField(platformKey, labelEl) {
-      var input = labelEl.querySelector("input, select");
-      if (!input) return null;
-      var label = labelEl.getAttribute("data-im-field-label");
-      var rule = imFieldRule(platformKey, label);
-      if (!rule) return null;
-      var value = (input.value || "").trim();
-      var httpsVisible = !labelEl.hasAttribute("data-im-https-only") || !labelEl.hidden;
-      if (rule.prefix && value && !value.toLowerCase().startsWith(rule.prefix))
-        return rule.prefixError;
-      if (!value && rule.required) return rule.requiredError;
-      if (!value && rule.httpsHelp && httpsVisible) return IM_HTTPS_REQUIRED_ERROR;
-      return null;
-    }
-    var IM_RECEIVE_SELECT =
-      '<select class="im-field-input" data-im-receive-mode=""><option selected="" value="ws">长连接（推荐）</option><option value="https">HTTPS 回调</option></select>';
-    var IM_FORWARD_URL = function (platformKey) {
-      return (
-        '<div class="im-field field-wide" data-im-https-only="" hidden="">' +
-        '<span class="im-field-label">消息转发地址（复制到平台后台）</span>' +
-        '<div class="im-callback"><code class="im-identifier">https://gw.example.com/im/' +
-        platformKey + '/conn-1/callback</code>' +
-        '<button class="btn btn-ghost" data-copy="" type="button">复制</button></div></div>'
-      );
-    };
-
-    function imSubcardTemplate(p) {
-      var fields = "";
-      var secret = '<input class="im-field-input" type="password" autocomplete="off"/>';
-      if (p.key === "feishu") {
-        fields = IM_FIELD("App ID", '<input class="im-field-input" placeholder="cli_…" spellcheck="false"/>') +
-          IM_FIELD("App Secret", secret) +
-          '<details class="im-credential-advanced field-wide"><summary>高级设置 · 通常无需修改</summary><div class="form-grid">' +
-          IM_FIELD("区域", '<select class="im-field-input"><option value="feishu">飞书 · 中国</option><option value="lark">Lark · 国际</option></select>') +
-          IM_FIELD("接收方式", IM_RECEIVE_SELECT) +
-          IM_FIELD("Tenant Key", '<input class="im-field-input" placeholder="自动获取"/>') +
-          IM_FIELD("机器人 Open ID", '<input class="im-field-input" placeholder="自动获取"/>') +
-          IM_FIELD("Verification Token", secret, '\" data-im-https-only="" hidden=""') +
-          IM_FIELD("Encrypt Key", secret, '\" data-im-https-only="" hidden=""') +
-          IM_FORWARD_URL(p.key) + '</div></details>';
-      } else if (p.key === "wecom") {
-        fields = IM_FIELD("企业 ID", '<input class="im-field-input" placeholder="ww…"/>') +
-          IM_FIELD("Bot ID", '<input class="im-field-input" placeholder="智能机器人 Bot ID"/>') + IM_FIELD("Secret", secret);
-      } else {
-        fields = IM_FIELD("Bot Token", secret.replace('/>', ' placeholder="xoxb-…"/>')) +
-          IM_FIELD("App-Level Token", secret.replace('/>', ' placeholder="xapp-…"/>'));
-      }
-      return (
-        '<div class="im-subcard" data-im-subcard="' + p.key + '" hidden="">' +
-        /* 四子阶段（合并卡）：准备机器人 → 填写凭据并连接 → 完成平台接收设置 → 绑定我的账号 */
-        '<ol class="im-substages" data-im-substages="">' +
-        '<li data-substage="1">准备机器人</li>' +
-        '<li data-substage="2">填写凭据并连接</li>' +
-        '<li data-substage="3">完成平台接收设置</li>' +
-        '<li data-substage="4">绑定我的账号</li></ol>' +
-        '<div class="im-stage1"><button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>查看接入指引（权限与事件订阅）</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>' +
-        '<div class="im-fold-body" hidden="">' + imGuideTemplate(p.key) + "</div></div>" +
-        /* 团队态：Gateway 上已有机器人，选用即连，无需凭据 */
-        '<div class="im-team-bots" data-im-team-bots="" hidden="">' +
-        '<p class="im-fine">团队 Gateway 上已有可用机器人，选用即可，无需填写凭据。</p>' +
-        '<button class="im-team-bot" data-im-team-pick="" type="button"><strong>Artemis 团队机器人 · ' + p.name + '</strong><small>已连接到团队 Gateway · 选用后即可配对</small></button>' +
-        '<button class="im-demo-link" data-im-team-custom="" type="button">改用自己的凭据 →</button></div>' +
-        '<div class="im-subcard-saved" data-im-cred-saved="" hidden="">' +
-        '<p class="im-muted">演示配置已保存，密钥已清空。实际产品在 Gateway 加密保存。</p>' +
-        '<div class="btn-pair"><button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button>' +
-        '<button class="btn btn-ghost danger" data-im-conn-delete="" type="button">删除连接</button></div></div>' +
-        '<form novalidate class="im-credentials-form" data-im-cred-form="">' +
-        '<div class="im-subcard-title">应用凭据</div>' +
-        '<p class="im-fine">填写必需凭据即可连接；请使用演示值，不要输入真实密钥。</p>' +
-        '<div class="form-grid">' + fields + "</div>" +
-        '<p class="im-fine">保存后机器人会用新密钥重新连接。</p>' +
-        '<p class="im-fine" data-im-connect-help="" hidden="">正在用新密钥连接机器人，通常几秒。</p>' +
-        '<div class="btn-pair"><button class="btn btn-ghost" data-im-fill-demo="" type="button">填入演示值</button><button class="btn btn-primary" data-im-cred-save="" type="button">保存并重连</button>' +
-        '<button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div></form>' +
-        /* 阶段3：平台侧步骤由用户确认，不伪装系统检测 */
-        '<div class="im-stage3" data-im-stage3="" hidden="">' +
-        '<p class="im-fine">' + imStage3Copy(p.key) + "</p>" +
-        '<label class="settings-checkbox"><input type="checkbox" data-im-receive-ready=""/><span>我已在平台完成接收设置</span></label>' +
-        '<p class="im-fine" data-im-receive-note="" hidden="">收发将在配对时验证。</p>' +
-        '<div class="btn-pair"><button class="btn btn-primary" data-im-receive-done="" disabled="" type="button">已完成平台设置，继续</button></div>' +
-        '<p class="im-fine" data-im-receive-done-note="" hidden="">已确认 · 收发将在配对时验证。</p>' +
-        "</div>" +
-        /* 阶段4（原③卡整体迁入）：只允许你的账号使用这台电脑——同渠道线性推进 */
-        '<div class="im-stage4" data-im-stage4="" hidden="">' +
-        '<p class="im-muted">机器人连上了。现在把它认成你：在 ' + p.name + " 里找到刚配置的机器人，打开本人单聊发一条配对指令。不要把配对码发到群里。</p>" +
-        '<div data-im-pairing-requests=""></div>' +
-        '<p class="im-fine im-pair-phase" data-im-pair-phase="" hidden=""></p>' +
-        '<div class="im-code-card" data-im-instructions=""></div>' +
-        '<div class="im-code-card im-wait-card" data-im-wait-card="" hidden="">' +
-        '<span aria-hidden="true" class="im-dot pending"></span>' +
-        '<div class="im-wait-copy">' +
-        '<p class="im-wait-title">已复制。发给机器人私聊，等它回复确认——通常几秒内。</p>' +
-        '<p class="im-fine"><span class="im-countdown" data-im-wait-countdown="">0:10</span> · <button class="im-demo-link" data-im-pair-arrive="" type="button">演示：让确认现在到达</button></p>' +
-        "</div></div>" +
-        '<button class="im-demo-link" data-im-goto-projects="" hidden="" type="button">先去 ③ 选择项目 →</button>' +
-        '<div class="im-block">' +
-        '<h4>已绑定账号 · ' + p.name + "</h4>" +
-        '<ul class="im-binding-list" data-im-bindings=""></ul>' +
-        '<p class="im-muted" data-im-binding-empty="" hidden="">这个渠道还没有绑定账号。</p>' +
-        "</div></div></div>"
-      );
-    }
-
-    /* 阶段3 说明按平台生成（对齐生产平台侧步骤） */
-    function imStage3Copy(platformKey) {
-      if (platformKey === "feishu")
-        return "回飞书后台：事件订阅选择「长连接」、订阅消息事件，然后创建版本并发布。做完再来勾选。";
-      if (platformKey === "wecom")
-        return "回企业微信确认机器人已发布，且自己已在「可使用成员」范围。做完再来勾选。";
-      return "回 Slack 确认应用已安装到工作区、Socket Mode 已开启。做完再来勾选。";
-    }
-
-    function imGuideTemplate(platformKey) {
-      if (platformKey === "feishu") {
-        return (
-          '<ol class="im-guide"><li><p>在飞书开发者后台创建企业自建应用。</p></li>' +
-          '<li><p>开通以下权限：</p><div class="im-chips">' +
-          '<button class="im-chip" type="button"><code>im:message</code><span aria-hidden="true">⧉</span></button>' +
-          '<button class="im-chip" type="button"><code>im:message:send_as_bot</code><span aria-hidden="true">⧉</span></button>' +
-          '<button class="im-chip" type="button"><code>im:message.reaction:write</code><span aria-hidden="true">⧉</span></button>' +
-          '<button class="im-chip" type="button"><code>im:resource</code><span aria-hidden="true">⧉</span></button></div></li>' +
-          '<li><p>先在 Artemis 保存凭据建立连接，再回平台选择长连接、订阅事件并发布。HTTPS 回调只用于公网团队服务。</p></li>' +
-          '<li><p>订阅事件：</p><div class="im-chips"><button class="im-chip" type="button"><code>im.message.receive_v1</code><span aria-hidden="true">⧉</span></button></div></li>' +
-          '<li class="im-guide-warning"><p>在「回调配置」（不是事件订阅）添加：</p><div class="im-chips"><button class="im-chip" type="button"><code>card.action.trigger</code><span aria-hidden="true">⧉</span></button></div></li>' +
-          '<li><p>创建版本并发布。</p></li></ol>'
-        );
-      }
-      if (platformKey === "wecom") {
-        return (
-          '<ol class="im-guide"><li><p>企业微信客户端 → 工作台 → 智能机器人 → API 模式创建。</p></li>' +
-          '<li><p>选择长连接，复制 Bot ID、Secret；从管理后台复制企业 ID。</p></li>' +
-          '<li><p>同一个 Bot ID 仅连接一份 Gateway，避免被其他客户端抢占。</p></li>' +
-          '<li><p>将自己加入机器人可使用成员范围并保存。</p></li></ol>'
-        );
-      }
-      return (
-        '<ol class="im-guide"><li><p>在 Slack API 创建应用，或直接导入 Manifest。</p></li>' +
-        '<li><p>开启 Socket Mode（无需公网回调）。</p></li>' +
-        '<li><p>订阅 message.im、app_mention；授予 chat:write、im:history、app_mentions:read、files:read、users:read。安装应用到工作区，创建带 connections:write 的 App-Level Token。</p></li></ol>'
-      );
-    }
-
-    /* 平台行动作：按聚合态派生（全部状态推导，不写死）；connecting 过渡期无行操作 */
-    function imPlatformActions(st) {
-      if (st.agg === "none")
-        return '<button class="btn btn-ghost" data-im-add="" type="button">去添加</button>';
-      if (st.agg === "connecting") return "";
-      if (st.agg === "allbad")
-        return (
-          '<button class="btn btn-ghost" data-im-view-reason="" type="button">查看原因</button>' +
-          '<button class="btn btn-ghost" data-im-reenter="" type="button">重新输入密钥</button>'
-        );
-      if (st.agg === "reconnecting")
-        return (
-          '<button class="btn btn-ghost" data-im-retry="" type="button">重试</button>' +
-          '<button class="btn btn-ghost" data-im-manage="" type="button">管理</button>'
-        );
-      return '<button class="btn btn-ghost" data-im-manage="" type="button">管理</button>';
-    }
-
-    function imConnSubrows(st) {
-      return st.conns
-        .map(function (c) {
-          var dotClass = c.state === "ok" ? "ok" : c.state === "bad" ? "bad" : "pending";
-          var stateText =
-            c.state === "ok"
-              ? "已连接"
-              : c.state === "bad"
-                ? "连接失败"
-                : c.state === "connecting"
-                  ? "连接中"
-                  : "正在重连 · 第 " + (c.attempt || 1) + " 次";
-          var note = c.state === "ok" ? c.note || "" : c.reason || "";
-          return (
-            '<div class="im-conn-row" title="' + c.conn + '">' +
-            '<span aria-hidden="true" class="im-dot ' + dotClass + '"></span>' +
-            '<span class="im-conn-app">' + (c.app || "机器人") + "</span>" +
-            '<span class="im-conn-state">' + stateText + "</span>" +
-            '<span class="im-conn-time">' + note + "</span></div>"
-          );
-        })
-        .join("");
-    }
-
-    /* ===== 渠道 tab（合并卡）：单一事实源=imChannelSel；面板互斥显示 ===== */
-    var imChannelSel = "";
-    function imBuildChannelTabs() {
-      var strip = imPanel.querySelector("[data-im-channel-tabs]");
-      if (!strip) return;
-      if (!imChannelSel) {
-        var withConns = IM_PLATFORMS.filter(function (p) {
-          return ((imState.connections || {})[p.key] || []).length > 0;
-        });
-        imChannelSel = (withConns[0] || IM_PLATFORMS[0]).key;
-      }
-      strip.textContent = "";
-      IM_PLATFORMS.forEach(function (p) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "im-channel-tab";
-        b.setAttribute("role", "tab");
-        b.setAttribute("data-im-channel-tab", p.key);
-        b.setAttribute("aria-selected", String(p.key === imChannelSel));
-        b.innerHTML =
-          "<strong>" + p.name + "</strong><span>" +
-          (IM_CHANNEL_CONSTRAINT[p.key] || "") + "</span>";
-        strip.appendChild(b);
-      });
-    }
-    function imSyncChannelPanels() {
-      IM_PLATFORMS.forEach(function (p) {
-        var row = imPanel.querySelector('[data-im-platform="' + p.key + '"]');
-        if (row) row.hidden = p.key !== imChannelSel;
-      });
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-channel-tab]"),
-        function (t) {
-          t.setAttribute(
-            "aria-selected",
-            String(t.getAttribute("data-im-channel-tab") === imChannelSel),
-          );
-        },
-      );
-    }
-    imPanel.addEventListener("click", function (ev) {
-      var tab = ev.target.closest("[data-im-channel-tab]");
-      if (!tab) return;
-      imChannelSel = tab.getAttribute("data-im-channel-tab");
-      imSyncChannelPanels();
+      var next = (i + (["ArrowDown", "ArrowRight"].includes(ev.key) ? 1 : -1) + tabs.length) % tabs.length;
+      tabs[next].focus();
+      imSelect(tabs[next].getAttribute("data-im-view"));
+      ev.preventDefault();
     });
 
-    function imBuildPlatformRows() {
-      var list = imPanel.querySelector("[data-im-platform-rows]");
-      list.textContent = "";
-      imBuildChannelTabs();
-      IM_PLATFORMS.forEach(function (p) {
-        var st = imDerived.platforms[p.key];
-        var showConns =
-          st.conns.length > 1 ||
-          st.agg === "partial" ||
-          st.agg === "allbad" ||
-          st.agg === "reconnecting" ||
-          st.agg === "connecting";
-        var li = document.createElement("li");
-        li.className = "im-platform-row";
-        li.setAttribute("data-im-platform", p.key);
-        li.innerHTML =
-          '<div class="im-platform-line">' +
-          '<span aria-hidden="true" class="im-dot"></span>' +
-          '<span class="im-platform-name">' + p.name + "</span>" +
-          '<span class="im-platform-status"></span>' +
-          '<span class="im-platform-actions">' + imPlatformActions(st) + "</span></div>" +
-          '<p class="im-platform-reason" hidden=""></p>' +
-          '<div class="im-conn-subrows"' + (showConns ? "" : ' hidden=""') + ">" +
-          imConnSubrows(st) + "</div>" +
-          imSubcardTemplate(p);
-        list.appendChild(li);
-      });
-      imSyncChannelPanels();
-    }
-
-    function imUpdatePlatformRows() {
-      IM_PLATFORMS.forEach(function (p) {
-        var row = imPanel.querySelector('[data-im-platform="' + p.key + '"]');
-        if (!row) return;
-        var st = imDerived.platforms[p.key];
-        var dot = row.querySelector(".im-platform-line > .im-dot");
-        var status = row.querySelector(".im-platform-status");
-        dot.className = "im-dot " + imPlatformDotClass(st);
-        var text;
-        if (st.agg === "none") text = "未配置";
-        else if (st.agg === "ok") text = "已连接 · " + st.conns.length + " 个";
-        else if (st.agg === "partial") text = st.bad + "/" + st.conns.length + " 连接故障";
-        else if (st.agg === "allbad") text = "连接失败";
-        else if (st.agg === "connecting") text = "连接中";
-        else if (st.agg === "reconnecting")
-          text = "正在重连 · 第 " + ((st.conns[0] && st.conns[0].attempt) || 1) + " 次";
-        status.textContent = text;
-        /* 行操作随聚合态原地刷新（不动子卡展开状态） */
-        row.querySelector(".im-platform-actions").innerHTML = imPlatformActions(st);
-        var reason = row.querySelector(".im-platform-reason");
-        if (st.agg === "allbad") {
-          reason.hidden = false;
-          reason.textContent =
-            (st.conns[0] && st.conns[0].reason) || "连接失败，请检查凭据";
-        } else {
-          reason.hidden = true;
-        }
-      });
-    }
-
-    function imPairCommand(platformKey) {
-      /* Slack 无斜杠（spec 规定），其余 /pair */
-      return (platformKey === "slack" ? "pair " : "/pair ") + imState.pairCode;
-    }
-
-    /* 配对码时效：到期变「已过期」，[换一个] 重置倒计时并换新码 */
-    var imSecondsLeft = 4 * 60 + 32;
-    var imCodeExpired = false;
-    function imExpiryText() {
-      var m = Math.floor(imSecondsLeft / 60),
-        s = imSecondsLeft % 60;
-      return m + ":" + String(s).padStart(2, "0");
-    }
-    function imRenewCode() {
-      imSecondsLeft = 5 * 60;
-      imCodeExpired = false;
-      /* [换一个] 终止等待（配对码作废，确认自然不会到达） */
-      if (imState.sim && imState.sim.pairWait) {
-        imState.sim.pairWait = null;
-        imRenderWaitCard();
+    /* 向导态 ↔ 管理态（hash #settings=1&im=wizard|manage 可直达）；
+       六步清单为单份 markup（#imGuideContent），向导态整体搬入向导面板，管理态归位「设置指引」视图 */
+    function imMode(mode) {
+      var wizard = mode === "wizard";
+      imPanel.setAttribute("data-im-mode", mode);
+      imWizard.hidden = !wizard;
+      imManage.hidden = wizard;
+      var content = $("#imGuideContent");
+      if (content) {
+        (wizard ? $("#imWizardBody") : $("#imGuideBody")).appendChild(
+          content,
+        );
       }
-      var i = IM_PAIR_CODES.indexOf(imState.pairCode);
-      imState.pairCode = IM_PAIR_CODES[(i + 1) % IM_PAIR_CODES.length];
-      imBuildInstructions();
-      imRefresh();
-      notice("已换新配对码（演示）");
-    }
-
-    /* 配对请求卡：按渠道渲染到各自 stage4；批准/拒绝后移除 */
-    function imBuildPairingRequests() {
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-pairing-requests]"),
-        function (box) {
-          var sub = box.closest("[data-im-subcard]");
-          var pk = sub ? sub.getAttribute("data-im-subcard") : "";
-          box.textContent = "";
-          imState.pairingRequests.forEach(function (req, idx) {
-            if (req.platform !== pk) return;
-            var platformName = (IM_PLATFORMS.filter(function (p) {
-              return p.key === req.platform;
-            })[0] || {}).name || req.platform;
-            var card = document.createElement("div");
-            card.className = "im-pairing-request-card";
-            card.setAttribute("data-im-pairing-idx", String(idx));
-            card.innerHTML =
-              '<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span>' +
-              "<strong>" + req.name + " 请求绑定这台电脑</strong><span class=\"im-demo-tag\">演示</span></div>" +
-              '<div class="im-pair-who"><span class="im-pair-platform">' + platformName + "</span>" +
-              '<code class="im-identifier">' + req.id + "</code></div>" +
-              '<div class="im-pair-actions"><button class="btn btn-primary" data-im-approve="" type="button">批准</button>' +
-              '<button class="btn btn-ghost" data-im-reject="" type="button">拒绝</button></div>';
-            box.appendChild(card);
-          });
-        },
-      );
-    }
-
-    function imBuildInstructions() {
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-instructions]"),
-        function (box) {
-          var sub = box.closest("[data-im-subcard]");
-          var pk = sub ? sub.getAttribute("data-im-subcard") : "";
-          var st = imDerived.platforms[pk] || { ok: 0, conns: [] };
-          if (!st.ok) {
-            box.innerHTML = '<p class="im-muted">先把上方的机器人连起来，这里会给出配对指令。</p>';
-            return;
-          }
-          var p = IM_PLATFORMS.filter(function (x) { return x.key === pk; })[0];
-          var conn = st.conns.filter(function (c) { return c.state === "ok"; })[0];
-          var html = "";
-          /* 会话内首次：机器人连上后的衔接首行 */
-          if (!(imState.sim.hints && imState.sim.hints.accountIntro)) {
-            if (imState.sim.hints) imState.sim.hints.accountIntro = true;
-            html += '<p class="im-instr-title">机器人连上了。现在把它认成你：</p>';
-          }
-          html += '<p class="im-instr-title">1. 把这条消息发给机器人私聊：</p>';
-          html +=
-            '<div class="im-instr-line" data-im-instr-platform="' + pk + '"><span class="im-instr-who">' +
-            p.name + " · " + (conn && conn.app ? conn.app : "机器人") +
-            '</span><code class="im-identifier">' + imPairCommand(pk) +
-            '</code><button class="btn btn-ghost" data-copy-pair="" type="button"' +
-            (imCodeExpired ? ' disabled="" title="配对码已过期"' : "") + ">复制指令</button></div>";
-          html +=
-            '<p class="im-fine"><span data-im-expiry-note=""><span class="im-countdown" data-im-countdown="">' +
-            imExpiryText() + '</span>' + (imCodeExpired ? "" : " 后过期") +
-            '</span> · <button class="im-demo-link" data-im-renew-code="" type="button">' +
-            (imCodeExpired ? "生成新指令" : "换一个") + "</button></p>" +
-            '<p class="im-instr-title">2. 机器人回复确认后，账号会出现在下面。</p>';
-          box.innerHTML = html;
-          /* 重建后重新挂复制反馈；复制指令开启 10s 双轨等待（幂等） */
-          var btn = box.querySelector("[data-copy-pair]");
-          if (btn)
-            btn.addEventListener("click", function () {
-              if (imCodeExpired || imState.gateway.linkBroken) { notice("请先更新配对码或恢复服务。", true); return; }
-              imCopy(btn.closest("[data-im-instr-platform]").querySelector("code").textContent);
-              var original = btn.textContent;
-              btn.textContent = "已复制";
-              setTimeout(function () { btn.textContent = original; }, 1400);
-              imStartPairWait(pk);
-            });
-        },
-      );
-    }
-
-    /* ③ 双轨：10s 倒计时自动到达 + 「演示：让确认现在到达」弱链接（幂等） */
-    function imStartPairWait(platformKey) {
-      if (!imState.sim || imState.sim.pairWait) return;
-      if (imCodeExpired || imState.gateway.linkBroken) { notice("配对码已过期或服务断连，请更新配对码并恢复服务。", true); return; }
-      imState.sim.session = true;
-      imState.sim.pairWait = { platform: platformKey, leftMs: IM_T_PAIR_WAIT };
-      imRenderWaitCard();
-      imRefresh();
-    }
-    function imPairWaitText() {
-      var w = imState.sim && imState.sim.pairWait;
-      var left = Math.max(0, Math.ceil(((w && w.leftMs) || 0) / 1000));
-      return "0:" + String(left).padStart(2, "0");
-    }
-    function imRenderWaitCard() {
-      var w = imState.sim && imState.sim.pairWait;
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-wait-card]"),
-        function (card) {
-          var sub = card.closest("[data-im-subcard]");
-          var pk = sub ? sub.getAttribute("data-im-subcard") : "";
-          card.hidden = !w || w.platform !== pk;
-          if (w && w.platform === pk) {
-            var el = card.querySelector("[data-im-wait-countdown]");
-            if (el) el.textContent = imPairWaitText();
-          }
-        },
-      );
-    }
-    /* 到达：转入配对请求卡（到达脉冲是允许的三个脉冲场景之一）；
-       requestFresh 2.5s 内显示「收到账号请求」，随后转「待本人确认」（配对五态）；
-       自动切到该渠道 tab，让到达可见 */
-    function imArrivePairing() {
-      var w = imState.sim && imState.sim.pairWait;
-      if (!w) return; /* 幂等：已到达/已取消 */
-      imState.sim.pairWait = null;
-      imRenderWaitCard();
-      imState.sim.requestFresh = true;
-      imChannelSel = w.platform;
-      imSyncChannelPanels();
-      imState.pairingRequests.push({
-        name: "我（演示账号）",
-        id: "u_me01",
-        platform: w.platform,
-      });
-      imBuildPairingRequests();
-      imRefresh();
-      var fe = imEpoch;
-      setTimeout(function () {
-        if (fe !== imEpoch || !imState.sim) return;
-        imState.sim.requestFresh = false;
-        imRenderPairPhase();
-      }, 2500);
-      var reqCard = imPanel.querySelector("[data-im-pairing-idx]");
-      if (reqCard) {
-        reqCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        imPulse(reqCard);
-      }
-    }
-
-    function imBuildBindings() {
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-bindings]"),
-        function (list) {
-          var sub = list.closest("[data-im-subcard]");
-          var pk = sub ? sub.getAttribute("data-im-subcard") : "";
-          list.textContent = "";
-          imState.bindings.forEach(function (b, idx) {
-            if (b.platform !== pk) return;
-            var li = document.createElement("li");
-            li.className = "im-binding-row";
-            li.setAttribute("data-im-binding-idx", String(idx));
-            li.innerHTML =
-              '<div class="im-binding-main"><span class="im-binding-name">' + b.name +
-              '<span class="im-demo-tag">演示</span></span><code class="im-identifier">' + b.id + "</code>" +
-              '<span class="im-binding-meta">' +
-              (IM_PLATFORMS.filter(function (p) { return p.key === b.platform; })[0] || {}).name +
-              " · " + b.mode + ' 模式</span>' +
-              (b.muted ? '<span class="im-binding-tag">已静音</span>' : "") +
-              '</div><div class="im-binding-actions">' +
-              '<button aria-label="' + (b.muted ? "恢复输出" : "静音") +
-              '" class="im-icon-btn" data-im-mute="" title="' + (b.muted ? "恢复输出" : "静音") +
-              '" type="button">' + (b.muted ? IM_ICON_BELL : IM_ICON_BELL_OFF) +
-              '</button><button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button">' +
-              IM_ICON_UNLINK + "</button></div>" +
-              '<div class="im-unbind-confirm" hidden=""><span>确认解除与该账号的绑定？</span>' +
-              '<button class="btn btn-ghost danger" data-im-unbind-done="" type="button">确认解除</button>' +
-              '<button class="btn btn-ghost" data-im-keep="" type="button">保留</button></div>';
-            list.appendChild(li);
-          });
-          var empty = sub.querySelector("[data-im-binding-empty]");
-          if (empty)
-            empty.hidden = imState.bindings.some(function (b) { return b.platform === pk; });
-        },
-      );
-    }
-
-    /* ④ 范围树（演示数据）：depth 由路径推导；locked=受保护文件不可选 */
-    var IM_SCOPE_TREE = [
-      { path: "src/" },
-      { path: "src/renderer/" },
-      { path: "src/main/" },
-      { path: "docs/" },
-      { path: "package.json" },
-      { path: ".env.local", locked: true },
-    ];
-    function imScopeDepth(path) {
-      return (path.match(/\//g) || []).length - 1;
-    }
-    function imScopeAncestors(path) {
-      var out = [];
-      var parts = path.split("/");
-      parts.pop(); /* 末段（文件或目录名）不入祖先 */
-      var acc = "";
-      parts.forEach(function (seg) {
-        if (!seg) return;
-        acc += seg + "/";
-        out.push(acc);
-      });
-      return out;
-    }
-    var IM_MODE_META = {
-      plan: { label: "只读分析", desc: "可以看和总结，不改文件" },
-      review: { label: "只读审查", desc: "可以评审代码，不改文件" },
-      execute: { label: "允许修改", desc: "可以改文件，需要选择范围" },
-    };
-    function imScopeText(pr) {
-      if (pr.mode === "execute") {
-        var reads = pr.reads && pr.reads.length ? "可读 " + pr.reads.length + " 项" : "未选范围";
-        var writes = pr.writes && pr.writes.length ? " · 可写 " + pr.writes.length + " 项" : "";
-        return reads + writes;
-      }
-      return pr.reads && pr.reads.length ? "自定义可读 " + pr.reads.length + " 项" : "可读整个项目，不可写任何文件";
-    }
-
-    /* ③ 行内摘要（生产对齐）：范围 + 期限；到期/未生效加注 */
-    function imRowSummary(pr) {
-      var text = imScopeText(pr);
-      if (pr.expired) text += " · 已过期";
-      else text += " · 30 天有效";
-      return text;
-    }
-    var IM_MODE_SUFFIX = { plan: "Plan", review: "Review", execute: "Execute" };
-
-    /* 授权配置弹窗体：三档模式 + 范围树 + 审批/命令/网络 + 有效期（与行内草稿联动） */
-    function imGrantBodyTemplate(pr, idx) {
-      var modes = ["plan", "review", "execute"]
-        .map(function (m) {
-          return (
-            '<label class="im-mode-tier' + (pr.mode === m ? " on" : "") + '"><input type="radio" name="imMode' + idx + '" value="' + m + '"' + (pr.mode === m ? " checked" : "") + ' data-im-mode=""/><strong>' + IM_MODE_META[m].label + "</strong><small>" + IM_MODE_META[m].desc + "</small></label>"
-          );
-        })
-        .join("");
-      var tree =
-        '<div class="im-scope-head"><span></span><span>可读</span><span>可写</span></div>' +
-        IM_SCOPE_TREE.map(function (node) {
-          var locked = !!node.locked;
-          return (
-            '<div class="im-scope-row' + (locked ? " locked" : "") + '" data-scope-path="' + node.path + '" style="--depth:' + imScopeDepth(node.path) + '">' +
-            '<input type="checkbox" aria-label="可读 ' + node.path + '" data-im-scope-read="" data-scope-path="' + node.path + '"' + (locked ? " disabled" : "") + "/>" +
-            '<input type="checkbox" aria-label="可写 ' + node.path + '" data-im-scope-write="" data-scope-path="' + node.path + '"' + (locked ? " disabled" : "") + "/>" +
-            '<span class="im-scope-label">' + node.path + (locked ? " · 受保护" : "") + "</span></div>"
-          );
-        }).join("");
-      return (
-        '<div class="im-mode-tiers" data-im-mode-tiers="">' + modes + "</div>" +
-        '<p class="im-fine" data-im-scope-declare=""></p>' +
-        '<div class="im-scope-tree" data-im-scope-tree="" hidden="">' + tree + "</div>" +
-        '<button class="im-demo-link" data-im-scope-custom="" type="button">自定义范围 ▸</button>' +
-        '<label class="im-field"><span class="im-field-label">执行审批</span><select class="im-field-input" data-im-permission="approval"><option value="ask">每次确认</option><option value="automatic">授权范围内自动执行</option></select></label>' +
-        '<div data-im-exec-only="" hidden=""><label class="settings-checkbox"><input type="checkbox" data-im-permission="commands"/><span>允许沙箱命令</span></label>' +
-        '<label class="settings-checkbox"><input type="checkbox" data-im-permission="network"/><span>允许命令访问网络</span></label></div>' +
-        '<p class="im-fine">远程任务仅在授权项目的沙箱内运行；不开放完整本机访问、MCP 或扩展。</p>' +
-        '<p class="im-fine" data-im-expiry-field="">' + (pr.expired ? "授权已到期，重新确认可续期 30 天。" : "确认后授权有效期为 30 天。") + "</p>"
-      );
-    }
-
-    /* 行内即时生效（生产对齐）：勾选/确认配置即保存+启用；两阶段失败分支保留 */
-    function imApplyGrant(action, name) {
-      var errEl = imPanel.querySelector("[data-im-grant-error]");
-      if (imState.sim.saveFailure) {
-        if (errEl) {
-          errEl.hidden = false;
-          errEl.textContent = "保存失败：服务暂不可用。授权未保存，连接未启用；已保留你的选择，恢复后重试。";
-        }
-        return false;
-      }
-      if (action) action();
-      /* 续期规则：勾选保存即续期；到期项目「去授权→确认设置」即使未勾选也清到期标记（UI 承诺「重新确认可续期 30 天」） */
-      imState.projects.forEach(function (pr) { if (pr.checked || pr.id === name) pr.expired = false; });
-      imState.sim.projectsDirty = false;
-      if (errEl) errEl.hidden = true;
-      if (imState.sim.enableFailure) {
-        imState.grantEnabled = false;
-        imState.grantEnableFailed = true;
-        imBuildProjects();
-        imRefresh();
-        notice("授权已保存，连接未启用（演示）", true);
-      } else {
-        imState.grantEnabled = true;
-        imState.grantEnableFailed = false;
-        imBuildProjects();
-        imRefresh();
-        if (name) notice(name + " 的授权已生效（演示）");
-      }
-      return true;
-    }
-
-    function imBuildProjects() {
-      var list = imPanel.querySelector("[data-im-project-rows]");
-      list.textContent = "";
-      /* 临时会话：内置授权目标，默认开启且不可取消（2026-09-13 拍板）；
-         默认项目为空时它就是默认（普通消息落临时任务） */
-      var adhocDefault = !imState.defaultProject;
-      var builtin = document.createElement("li");
-      builtin.className = "im-project im-project-builtin";
-      builtin.innerHTML =
-        '<div class="im-project-line"><label class="settings-checkbox im-project-head"><input type="checkbox" checked disabled="" aria-label="临时会话（内置，始终可用）"/><span><strong>临时会话</strong><small>不绑定项目的会话；手机上始终可用</small></span></label>' +
-        '<span class="im-row-summary">内置授权 · 始终有效</span>' +
-        (adhocDefault ? '<span class="im-default-badge">默认</span>' : "") + "</div>";
-      list.appendChild(builtin);
-      imState.projects.forEach(function (pr, idx) {
-        pr.reads = pr.reads || [];
-        pr.writes = pr.writes || [];
-        pr.mode = pr.mode || "plan";
-        pr.approval = pr.approval || "ask";
-        var isDefault = imState.defaultProject === pr.id;
-        var li = document.createElement("li");
-        li.className = "im-project";
-        li.setAttribute("data-im-project-idx", String(idx));
-        li.innerHTML =
-          '<div class="im-project-line">' +
-          '<label class="settings-checkbox im-project-head"><input type="checkbox"' +
-          (pr.checked ? " checked" : "") + '><span><strong>' + pr.id + '</strong><em class="im-mode-suffix">.' + IM_MODE_SUFFIX[pr.mode] + "</em></span></label>" +
-          '<span class="im-row-summary">' + imRowSummary(pr) + "</span>" +
-          (isDefault ? '<span class="im-default-badge">默认</span>' : "") +
-          (pr.checked && !isDefault ? '<button class="im-set-default" data-im-set-default="" type="button">设为默认</button>' : "") +
-          '<button class="btn btn-ghost im-grant-btn" data-im-grant-config="" type="button">授权配置</button>' +
-          "</div>" +
-          (pr.expired
-            ? '<div class="im-project-expired"><span>⚠ 授权已到期</span><button class="btn btn-ghost" data-im-reauthorize="" type="button">去授权</button></div>'
-            : "");
-        var checkbox = li.querySelector(".im-project-head input");
-        checkbox.addEventListener("change", function () {
-          imState.sim.session = true;
-          var ok = imApplyGrant(function () {
-            imState.projects[idx].checked = checkbox.checked;
-            if (checkbox.checked && !imState.defaultProject)
-              imState.defaultProject = imState.projects[idx].id;
-            if (
-              !imState.projects.some(function (p2) { return p2.checked && p2.id === imState.defaultProject; })
-            ) {
-              imState.defaultProject =
-                (imState.projects.find(function (p2) { return p2.checked; }) || {}).id || "";
-            }
-          });
-          if (!ok) checkbox.checked = imState.projects[idx].checked;
-        });
-        list.appendChild(li);
-      });
-    }
-
-    /* ④ 行内状态渲染：档位高亮 / 范围声明 / 树显隐与勾选态 / 命令网络可用性 */
-    function imUpdateProjectRow(li, pr) {
-      Array.prototype.forEach.call(
-        li.querySelectorAll("[data-im-mode-tiers] .im-mode-tier"),
-        function (tier) {
-          var radio = tier.querySelector("input");
-          tier.classList.toggle("on", radio && radio.checked);
-        },
-      );
-      var declare = li.querySelector("[data-im-scope-declare]");
-      if (declare)
-        declare.textContent =
-          pr.mode === "execute"
-            ? "选择可读与可写范围；可写必须是可读的子集，受保护文件不能选。"
-            : "默认可读整个项目，不可写任何文件；需要更细可改用「自定义范围」。";
-      var tree = li.querySelector("[data-im-scope-tree]");
-      var customBtn = li.querySelector("[data-im-scope-custom]");
-      var customOpen = !!li.dataset.scopeCustom;
-      var treeOpen = pr.mode === "execute" || customOpen;
-      if (tree) tree.hidden = !treeOpen;
-      if (customBtn) customBtn.hidden = pr.mode === "execute";
-      Array.prototype.forEach.call(
-        li.querySelectorAll(".im-scope-row"),
-        function (row) {
-          var path = row.getAttribute("data-scope-path");
-          var locked = row.classList.contains("locked");
-          var r = row.querySelector("[data-im-scope-read]");
-          var w = row.querySelector("[data-im-scope-write]");
-          r.checked = pr.reads.indexOf(path) >= 0;
-          w.checked = pr.writes.indexOf(path) >= 0;
-          /* 受保护文件不可选；可写依赖可读——自身或子路径有可写时禁取消可读 */
-          r.disabled =
-            locked ||
-            w.checked ||
-            pr.writes.some(function (wPath) {
-              return wPath === path || wPath.indexOf(path) === 0;
-            });
-          w.disabled = locked || pr.mode !== "execute";
-        },
-      );
-      var execOnly = li.querySelector("[data-im-exec-only]");
-      if (execOnly) {
-        execOnly.hidden = pr.mode !== "execute";
-        var cmd = li.querySelector('[data-im-permission="commands"]');
-        var net = li.querySelector('[data-im-permission="network"]');
-        if (cmd) cmd.disabled = pr.mode !== "execute";
-        if (net) net.disabled = pr.mode !== "execute" || !pr.commands;
-      }
-    }
-    function imSyncDefaultProject() {
-      /* 默认项目已改徽章打标 + 悬停切换（生产对齐）：无下拉可同步 */
-    }
-
-    function imRenderPill() {
-      var pill = imDerived.pill;
-      imPill.dataset.tone = pill.tone;
-      imPill.setAttribute(
+      /* 主开关守卫：向导态（未完成配置）禁用并给原因 */
+      imMaster.disabled = wizard;
+      imMaster.setAttribute(
         "title",
-        pill.tone === "warn"
-          ? "点按定位到「接入渠道」卡片"
-          : "机器人接入状态；不代表聊天软件客户端在线状态。",
-      );
-      imStateText.innerHTML = pill.html;
-      var dot = imPill.querySelector(".im-dot");
-      dot.className =
-        "im-dot " +
-        (pill.tone === "ok"
-          ? "ok"
-          : pill.tone === "warn" || pill.tone === "busy"
-            ? "pending"
-            : "idle");
-      imPill.disabled = pill.tone !== "warn";
-    }
-
-    function imRenderCards() {
-      IM_CARD_ORDER.forEach(function (key) {
-        var card = imCardEls[key];
-        if (!card) return;
-        var c = imDerived.cards[key];
-        var badge = card.querySelector("[data-im-badge]");
-        badge.dataset.state = c.state;
-        badge.textContent = c.badgeText;
-        var alerts = card.querySelector("[data-im-alerts]");
-        if (c.alerts > 0) {
-          alerts.hidden = false;
-          alerts.setAttribute("aria-label", c.alerts + " 条告警");
-          alerts.textContent = "⚠" + c.alerts;
-        } else {
-          alerts.hidden = true;
-        }
-        var summary = card.querySelector("[data-im-summary]");
-        var open = key in imManual
-          ? !!imManual[key]
-          : imDerived.autoExpand.indexOf(key) >= 0;
-        card.querySelector(".im-card-body").hidden = !open;
-        card.querySelector("[data-im-card-head]").setAttribute("aria-expanded", String(open));
-        card.querySelector("[data-im-caret]").textContent = open ? "▾" : "▸";
-        /* 已完成且折叠的卡：摘要行尾给「编辑」入口提示（卡头整行即编辑入口）；
-           三步版：②已验证渠道在摘要附「已验证」信号（验证可选、入门禁信号） */
-        var base = c.summary;
-        if (key === "channel" && c.state === "done") {
-          var verified = IM_PLATFORMS.filter(function (p) {
-            return imDerived.platforms[p.key].verified;
-          });
-          if (verified.length)
-            base += " · " + verified.map(function (p) { return p.name; }).join("、") + " 已验证";
-        }
-        summary.textContent = c.state === "done" && !open ? base + " · 编辑" : base;
-        summary.hidden = open;
-      });
-    }
-
-    /* ① 空态按钮/帮助行随 starting 瞬态（G1：1000ms 启动过渡）与失败分支（端口占用/注册失败） */
-    function imRenderService() {
-      var cta = imPanel.querySelector("[data-im-service-start]");
-      var help = imPanel.querySelector("[data-im-service-help]");
-      var err = imPanel.querySelector("[data-im-service-error]");
-      var starting = !!imState.gateway.starting;
-      var failed = imState.gateway.startError;
-      if (cta) {
-        cta.disabled = starting;
-        cta.textContent = starting ? "正在启动…" : failed ? "重试开启" : "一键开启（推荐）";
-      }
-      if (help) help.hidden = !starting;
-      if (err) {
-        err.hidden = !failed;
-        if (failed) err.textContent = failed;
-      }
-    }
-
-    /* ===== ②尾「顺手验证」折叠段（三步版）：不计入完成链，验证归属渠道 ===== */
-    var IM_TEST_STEPS = ["消息已发出", "桌面出现任务", "任务完成", "IM 回复已送达"];
-    function imTestCommand(platformKey) {
-      /* 飞书/企微指令带 /，Slack 不带（与配对指令同一斜杠规则） */
-      return (platformKey === "slack" ? "" : "/") +
-        "new 请查看当前项目，告诉我它是做什么的，先不要修改文件。";
-    }
-    /* 验证归属渠道：已开测的渠道粘住不放（除非解绑）；否则取当前 tab；再回退首个可用 */
-    function imTestChannel() {
-      var t = imState.test;
-      var paired = function (k) {
-        var st = imDerived.platforms[k];
-        return !!(st && st.paired);
-      };
-      if (t && t.channel && paired(t.channel)) return t.channel;
-      if (paired(imChannelSel)) return imChannelSel;
-      var p = IM_PLATFORMS.filter(function (x) { return paired(x.key); })[0];
-      return p ? p.key : "";
-    }
-    function imRenderTest() {
-      var verify = imPanel.querySelector("[data-im-verify]");
-      if (!verify) return;
-      var toggle = verify.querySelector("[data-im-verify-toggle]");
-      var body = verify.querySelector("#imVerifyBody");
-      var box = verify.querySelector("[data-im-test-commands]");
-      var track = verify.querySelector("[data-im-track]");
-      var actions = verify.querySelector("[data-im-test-actions]");
-      var errEl = verify.querySelector("[data-im-test-error]");
-      var confirmBox = verify.querySelector("[data-im-test-confirm]");
-      var doneBox = verify.querySelector("[data-im-test-done]");
-      var t = imState.test || (imState.test = { stage: 0, failed: false, confirmed: false, channel: "" });
-      /* 折叠段开合：用户动过后记住；未动过则跟随自动规则（首绑自动展开一次） */
-      var open = !!imState.sim.verifyOpened;
-      if (toggle && body) {
-        body.hidden = !open;
-        toggle.setAttribute("aria-expanded", String(open));
-        var caret = toggle.querySelector(".im-guide-caret");
-        if (caret) caret.textContent = open ? "▾" : "▸";
-      }
-      /* 折叠标签带验证状态信号：未验证 / 验证进行中 / 已验证·渠道名 */
-      var pk = imTestChannel();
-      var pkName = pk ? (IM_PLATFORMS.filter(function (p) { return p.key === pk; })[0] || {}).name : "";
-      if (toggle) {
-        var label = toggle.querySelector("span");
-        if (label)
-          label.textContent = t.confirmed
-            ? "顺手验证：已验证 · " + pkName
-            : t.stage > 0
-              ? "顺手验证：验证进行中 · " + pkName
-              : "顺手验证（可选）：发一条真实消息走通全链路";
-      }
-      /* 指令只列端到端可用（已连接且已绑定）的渠道 */
-      var readyPlatforms = IM_PLATFORMS.filter(function (p) {
-        return imDerived.platforms[p.key].paired;
-      });
-      if (box) {
-        box.textContent = "";
-        if (!readyPlatforms.length) {
-          box.innerHTML = '<p class="im-muted">完成绑定后，这里会给出测试指令。</p>';
-        } else {
-          readyPlatforms.forEach(function (p) {
-            var line = document.createElement("div");
-            line.className = "im-instr-line";
-            line.innerHTML =
-              '<span class="im-instr-who">' + p.name + " · Artemis 机器人</span>" +
-              '<code class="im-identifier">' + imTestCommand(p.key) + "</code>" +
-              '<button class="btn btn-ghost" data-im-copy-new="" type="button">复制指令</button>';
-            box.appendChild(line);
-          });
-        }
-      }
-      if (track) {
-        track.hidden = !pk || t.confirmed;
-        if (!track.hidden)
-          track.innerHTML = IM_TEST_STEPS.map(function (label, i) {
-            var n = i + 1;
-            var cls = t.stage >= n ? "done" : t.stage + 1 === n ? "cur" : "";
-            return '<li class="' + cls + '" data-track="' + n + '">' + (t.stage >= n ? "✓ " : n + " · ") + label + "</li>";
-          }).join("");
-      }
-      if (actions) {
-        var html = "";
-        if (pk && !t.confirmed) {
-          if (t.failed) {
-            html = '<button class="btn btn-ghost" data-im-test-retry="" type="button">重试任务（演示）</button>';
-          } else if (t.stage === 0) {
-            html = '<span class="im-fine">复制后发到 ' + pkName + ' 单聊，然后：</span><button class="im-demo-link" data-im-test-advance="" type="button">演示：消息已发出</button>';
-          } else if (t.stage === 1) {
-            html = '<button class="im-demo-link" data-im-test-advance="" type="button">演示：桌面已出现任务</button>';
-          } else if (t.stage === 2) {
-            html =
-              '<button class="im-demo-link" data-im-test-advance="" type="button">演示：任务已完成</button>' +
-              '<button class="im-demo-link" data-im-test-fail="" type="button">演示：模型不可用</button>';
-          } else if (t.stage === 3) {
-            html = '<button class="im-demo-link" data-im-test-advance="" type="button">演示：回复已送达</button>';
-          }
-        }
-        actions.innerHTML = html;
-      }
-      if (errEl) {
-        errEl.hidden = !t.failed;
-        if (t.failed)
-          errEl.textContent = "任务失败：模型不可用——这是任务的问题，不是机器人连接问题；连接状态不受影响。";
-      }
-      if (confirmBox) confirmBox.hidden = !(t.stage >= 4 && !t.confirmed);
-      if (doneBox) {
-        doneBox.hidden = !t.confirmed;
-        var title = doneBox.querySelector(".im-ready-title");
-        if (title) title.textContent = "✓ 全链路走通（你已确认）· " + pkName;
-        var undo = doneBox.querySelector("[data-im-test-undo]");
-        if (undo) undo.remove();
-        if (t.confirmed) {
-          var undoBtn = document.createElement("button");
-          undoBtn.className = "im-demo-link";
-          undoBtn.setAttribute("data-im-test-undo", "");
-          undoBtn.type = "button";
-          undoBtn.textContent = "撤销确认";
-          doneBox.appendChild(undoBtn);
-        }
-      }
-    }
-
-    /* ③尾完成仪式：三步完成链全✓后出现（验证不计入门禁，只在此引导补做） */
-    function imRenderCeremony() {
-      var el = imPanel.querySelector("[data-im-ceremony]");
-      if (el) el.hidden = !imDerived.allDone;
-    }
-
-    /* ===== 群协作独立第二流程（D2/PT-7）：发现群 → 选择群与成员 → 各群确认 → 授权我的项目 ===== */
-    function imGroupStateText() {
-      var gf = imState.groupFlow;
-      if (gf.phase === "confirm") {
-        var pending = gf.groups.filter(function (g) { return !g.confirmed; }).length;
-        return pending ? "已保存，等待 " + pending + " 个群确认" : "全部群已确认";
-      }
-      if (gf.phase === "grant") return "群已确认，尚未授权项目";
-      if (gf.phase === "done") return "你的项目已就绪";
-      return "";
-    }
-    function imRenderGroupFlow() {
-      var flowEl = imPanel.querySelector("[data-im-group-flow]");
-      var mainFlow = imPanel.querySelector("#imFlow");
-      if (!flowEl) return;
-      var gf = imState.groupFlow;
-      flowEl.hidden = !gf.open;
-      if (mainFlow) mainFlow.hidden = !!gf.open;
-      if (!gf.open) return;
-      var body = imPanel.querySelector("[data-im-group-body]");
-      var stateEl = imPanel.querySelector("[data-im-group-state]");
-      var steps = imPanel.querySelectorAll("[data-gstep]");
-      var phaseIdx = { discover: 1, select: 2, confirm: 3, grant: 4, done: 5 }[gf.phase] || 1;
-      Array.prototype.forEach.call(steps, function (li) {
-        var n = Number(li.getAttribute("data-gstep"));
-        li.classList.toggle("done", gf.phase === "done" || n < phaseIdx);
-        li.classList.toggle("cur", gf.phase !== "done" && n === phaseIdx);
-      });
-      if (stateEl) stateEl.textContent = imGroupStateText();
-      if (!body) return;
-      var html = "";
-      if (imState.bindings.length === 0) {
-        html =
-          '<p class="im-muted">群协作需要每位成员先完成配对。</p>' +
-          '<button class="im-demo-link" data-im-group-back="" type="button">先回 ② 绑定账号 →</button>';
-      } else if (gf.phase === "discover") {
-        html =
-          '<p class="im-fine">在群里 @机器人 发 <code class="im-identifier">/help</code> 发现群——发现不等于共享，还需保存空间并确认。</p>' +
-          '<div class="im-chips"><button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button></div>' +
-          '<button class="im-demo-link" data-im-gf-find="" type="button">演示：机器人发现了群</button>';
-      } else if (gf.phase === "select") {
-        html =
-          gf.groups.map(function (g) {
-            return '<div class="im-group-row"><span class="im-group-name">' + g.name + "</span>" +
-              '<span class="im-group-meta">' + g.members + " 名成员 · 已发现</span></div>";
-          }).join("") +
-          '<p class="im-fine">参与成员：' + imState.bindings.map(function (b) { return b.name; }).join("、") + "（各成员需已配对）</p>" +
-          '<div class="btn-pair"><button class="btn btn-primary" data-im-gf-save="" type="button">保存空间</button></div>' +
-          '<p class="im-fine">每次保存空间都会重置全部群确认（对齐生产行为）。</p>';
-      } else if (gf.phase === "confirm") {
-        html =
-          gf.groups.map(function (g, i) {
-            return '<div class="im-group-row">' +
-              '<span class="im-group-name">' + g.name + "</span>" +
-              '<span class="im-group-state">' + (g.confirmed ? "已确认" : "待确认") + "</span>" +
-              (g.confirmed ? "" :
-                '<button class="im-chip" type="button"><code>' + (g.platform === "slack" ? "" : "/") + 'space-confirm</code><span aria-hidden="true">⧉</span></button>' +
-                '<button class="im-demo-link" data-im-gf-confirm="' + i + '" type="button">演示：本群已确认</button>') +
-              "</div>";
-          }).join("") +
-          '<button class="im-demo-link" data-im-gf-resave="" type="button">修改群或成员？重新保存空间（会重置全部确认）</button>';
-      } else if (gf.phase === "grant") {
-        html =
-          '<p class="im-fine">每位成员在自己的电脑上授权项目和数据范围，空间管理员不能代开。</p>' +
-          '<button class="im-demo-link" data-im-gf-grant="" type="button">演示：我的授权已就绪</button>';
-      } else {
-        html =
-          '<p class="im-fine">已连接 ' + gf.groups.length + " 个群。群任务、公开进度与成果在空间内共享。</p>" +
-          '<div class="btn-pair"><button class="btn btn-primary" data-im-group-back="" type="button">返回单聊设置</button></div>';
-      }
-      body.innerHTML = html;
-    }
-
-    /* ② 三子阶段渲染：阶段条高亮（未连接=② / 已连接未确认=③）+ 阶段3 显隐与确认态 */
-    function imRenderSubstages() {
-      IM_PLATFORMS.forEach(function (p) {
-        var row = imPanel.querySelector('[data-im-platform="' + p.key + '"]');
-        if (!row) return;
-        var sub = row.querySelector("[data-im-subcard]");
-        if (!sub) return;
-        var st = imDerived.platforms[p.key];
-        var connected = st.ok > 0;
-        var ready = !!(imState.platformReady && imState.platformReady[p.key]);
-        var paired = !!(st && st.paired);
-        Array.prototype.forEach.call(
-          sub.querySelectorAll("[data-substage]"),
-          function (li) {
-            var n = li.getAttribute("data-substage");
-            li.classList.toggle(
-              "done",
-              n === "2" ? connected : n === "3" ? ready : n === "4" ? paired : false,
-            );
-            var cur = !connected ? "2" : !ready ? "3" : !paired ? "4" : "";
-            li.classList.toggle("cur", !!cur && n === cur);
-          },
-        );
-        var stage3 = sub.querySelector("[data-im-stage3]");
-        if (stage3) {
-          stage3.hidden = !connected;
-          var doneNote = stage3.querySelector("[data-im-receive-done-note]");
-          if (doneNote) doneNote.hidden = !ready;
-          var box = stage3.querySelector(".settings-checkbox");
-          if (box) box.hidden = ready;
-          var btnRow = stage3.querySelector(".btn-pair");
-          if (btnRow) btnRow.hidden = ready;
-          if (ready) {
-            var note = stage3.querySelector("[data-im-receive-note]");
-            if (note) note.hidden = true;
-          }
-        }
-        var stage4 = sub.querySelector("[data-im-stage4]");
-        if (stage4) stage4.hidden = !connected;
-      });
-    }
-
-    /* ===== 完成后连接概览（D1/PT-8）：三态分开表达 + 五分区 + 总开关新家 ===== */
-    function imRenderOverview() {
-      var ov = imPanel.querySelector("[data-im-overview]");
-      if (!ov) return;
-      var gf = imState.groupFlow;
-      ov.hidden = !!gf.open || !imShowOverview;
-      var mainFlow = imPanel.querySelector("#imFlow");
-      if (mainFlow) mainFlow.hidden = !!gf.open || imShowOverview;
-      if (!imShowOverview || gf.open) return;
-      var d = imDerived;
-      var s = imState;
-      var badN = d.badTotal + (s.gateway.linkBroken ? 1 : 0);
-      var trio = imPanel.querySelector("[data-im-ov-trio]");
-      if (trio) {
-        var conn =
-          s.gateway.linkBroken
-            ? { t: "服务断连", c: "bad" }
-            : badN
-              ? d.healthyTotal
-                ? { t: "部分连接异常", c: "warn" }
-                : { t: "连接异常", c: "bad" }
-              : d.healthyTotal
-                ? { t: "全部正常", c: "ok" }
-                : { t: "还没有机器人", c: "idle" };
-        trio.innerHTML =
-          '<span class="' + (d.allDone ? "ok" : "") + '">配置完整 <b>' + (d.allDone ? "✓" : "未完成") + "</b></span>" +
-          '<span class="' + conn.c + '">连接 <b>' + conn.t + "</b></span>" +
-          '<span class="' + (s.test.confirmed ? "ok" : "") + '">测试 <b>' + (s.test.confirmed
-            ? "已通过" + (s.test.channel ? " · " + ((IM_PLATFORMS.filter(function (p) { return p.key === s.test.channel; })[0] || {}).name || s.test.channel) : "") + "（你已确认）"
-            : "未做") + "</b></span>";
-      }
-      var contBtn = imPanel.querySelector("[data-im-continue-setup]");
-      if (contBtn) contBtn.hidden = d.allDone && !badN && !d.expired;
-      var secs = imPanel.querySelector("[data-im-ov-sections]");
-      if (!secs) return;
-      var paused = d.paused;
-      var pausedTag = paused ? " · 已暂停" : "";
-      var connDot = function (state) {
-        return paused ? "idle" : state === "ok" ? "ok" : state === "bad" ? "bad" : "pending";
-      };
-      var connText = function (c) {
-        return c.state === "ok" ? "已连接" : c.state === "bad" ? "连接失败" : c.state === "connecting" ? "连接中" : "正在重连 · 第 " + (c.attempt || 1) + " 次";
-      };
-      var botRows = "";
-      IM_PLATFORMS.forEach(function (p) {
-        (s.connections[p.key] || []).forEach(function (c) {
-          botRows +=
-            '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ' + connDot(c.state) + '"></span>' +
-            '<span>' + c.app + " · " + p.name + "</span>" +
-            '<span class="im-ov-note">' + connText(c) + (c.state === "ok" && c.note ? " · " + c.note : c.reason ? " · " + c.reason : "") + "</span></div>";
-        });
-      });
-      var partialNote =
-        d.badTotal && d.healthyTotal
-          ? '<p class="im-fine">部分连接异常——故障连接可单独修复，其余不受影响。</p>'
-          : "";
-      var accountRows = s.bindings
-        .map(function (b) {
-          return '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ok"></span><span>' + b.name + " · " + b.id +
-            '</span><span class="im-ov-note">' + b.mode + " 模式" + (b.muted ? " · 已静音" : "") + "</span></div>";
-        })
-        .join("");
-      var projectRows = s.projects
-        .filter(function (pr) { return pr.checked; })
-        .map(function (pr) {
-          return '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ' + (pr.expired ? "pending" : "ok") + '"></span><span>' + pr.id +
-            '</span><span class="im-ov-note">' + IM_MODE_META[pr.mode].label + " · " + imScopeText(pr) +
-            (pr.expired ? " · 已到期" : " · 有效期 30 天") + "</span></div>";
-        })
-        .join("") || '<div class="im-ov-row"><span class="im-ov-note">还没有授权项目</span></div>';
-      var groupLine =
-        gf.phase === "done"
-          ? "已连接 " + gf.groups.length + " 个群"
-          : gf.phase === "discover"
-            ? "未设置"
-            : "进行中";
-      secs.innerHTML =
-        '<div class="im-ov-section"><div class="im-ov-sec-title">消息服务' + pausedTag + "</div>" +
-        '<div class="im-ov-row"><span aria-hidden="true" class="im-dot ' + (s.gateway.linkBroken ? "bad" : "ok") + '"></span>' +
-        "<span>" + (s.gateway.team ? "团队服务 · " + s.gateway.team : "本机运行") + " · " + s.gateway.deviceId + "</span>" +
-        '<label class="im-master"><span class="im-master-label">' + (s.masterOn ? "运行中" : "已暂停") + '</span>' +
-        '<button aria-checked="' + s.masterOn + '" aria-label="暂停或恢复响应 IM 指令" class="switch' + (s.masterOn ? " on" : "") + '" data-im-ov-master="" role="switch" type="button"></button></label></div>' +
-        '<p class="im-fine">团队配置与诊断在第 ① 步的高级区。</p></div>' +
-        '<div class="im-ov-section"><div class="im-ov-sec-title">机器人' + pausedTag + "</div>" + partialNote +
-        (botRows || '<div class="im-ov-row"><span class="im-ov-note">还没有机器人</span></div>') +
-        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-ov-goto="channel" type="button">去管理</button></div></div>' +
-        '<div class="im-ov-section"><div class="im-ov-sec-title">我的账号</div>' +
-        (accountRows || '<div class="im-ov-row"><span class="im-ov-note">还没有绑定账号</span></div>') +
-        (s.pairingRequests.length ? '<div class="im-ov-row"><span aria-hidden="true" class="im-dot pending"></span><span>' + s.pairingRequests.length + " 条绑定待确认</span></div>" : "") +
-        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-ov-goto="channel" type="button">去处理</button></div></div>' +
-        '<div class="im-ov-section"><div class="im-ov-sec-title">项目访问</div>' + projectRows +
-        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-ov-goto="projects" type="button">编辑</button></div></div>' +
-        '<div class="im-ov-section"><div class="im-ov-sec-title">群协作</div>' +
-        '<div class="im-ov-row"><span class="im-ov-note">' + groupLine + "</span></div>" +
-        '<div class="im-ov-row"><span class="sp"></span><button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作</button></div></div>';
-      /* 动态渲染的 switch 需单独初始化（对齐 UI.toggle 运行时增强） */
-      Array.prototype.forEach.call(secs.querySelectorAll(".switch"), function (sw) {
-        if (window.ArtemisUI) window.ArtemisUI.toggle(sw);
-      });
-    }
-
-    function imRefresh() {
-      var recovery = imPanel.querySelector("[data-im-recovery]");
-      if (recovery) recovery.hidden = !imState.gateway.linkBroken;
-      var runtime = imPanel.querySelector("[data-im-runtime]");
-      if (runtime) runtime.textContent = imState.gateway.team ? "团队服务 · " + imState.gateway.team : "本机自动运行（推荐）";
-      imDerived = imDerive(imState);
-      imRenderPill();
-      imRenderCards();
-      /* ① 空态 / 就绪态 + 启动瞬态 */
-      imPanel.querySelector("[data-im-service-empty]").hidden = imState.gateway.started;
-      imPanel.querySelector("[data-im-service-ready]").hidden = !imState.gateway.started;
-      imRenderService();
-      /* ② 渠道 tab + 平台面板信号灯与聚合文案（暂停时转 idle）+ 四子阶段 */
-      imUpdatePlatformRows();
-      imRenderSubstages();
-      /* 等待卡与衔接行（按渠道） */
-      imRenderWaitCard();
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-goto-projects]"),
-        function (link) {
-          link.hidden = imDerived.projectsDone;
-        },
-      );
-      /* ③ 引导（勾选前显示，勾过即让位） */
-      var projGuide = imPanel.querySelector("[data-im-projects-guide]");
-      if (projGuide) {
-        projGuide.hidden = imState.projects.some(function (pr) { return pr.checked; });
-      }
-      /* ③ 行内即时生效：无保存按钮；仅保留部分成功条（启用失败） */
-      var partialBar = imPanel.querySelector("[data-im-grant-partial]");
-      if (partialBar) partialBar.hidden = !imState.grantEnableFailed;
-      /* ②尾顺手验证 + ③尾完成仪式 + 群协作第二流程 + 完成后概览 */
-      imRenderTest();
-      imRenderCeremony();
-      imRenderGroupFlow();
-      imRenderOverview();
-      /* D1：首次流程无总开关。设置进度 N/3 + 配对五态行（按渠道）+ ②尾验证/③尾完成仪式 */
-      var progEl = imPanel.querySelector("[data-im-progress]");
-      if (progEl)
-        progEl.innerHTML = "设置进度 <b>" + imDerived.progressDone + "</b>/" + IM_STEP_TOTAL;
-      imRenderPairPhase();
-    }
-
-    /* 配对五态（按渠道）：未生成 → 等待你发送 → 收到账号请求 → 待本人确认 → 已绑定 */
-    function imPairPhase(pk) {
-      var reqs = imState.pairingRequests.filter(function (r) { return r.platform === pk; });
-      if (reqs.length)
-        return imState.sim.requestFresh ? "收到账号请求" : "待本人确认";
-      var st = imDerived.platforms[pk];
-      if (!st || st.ok === 0) return "未生成";
-      if (imState.bindings.some(function (b) { return b.platform === pk; })) return "已绑定";
-      return "等待你发送";
-    }
-    function imRenderPairPhase() {
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-pair-phase]"),
-        function (el) {
-          var sub = el.closest("[data-im-subcard]");
-          var pk = sub ? sub.getAttribute("data-im-subcard") : "";
-          var st = imDerived.platforms[pk];
-          var hasBot = st && st.ok > 0;
-          el.hidden = !hasBot;
-          if (hasBot) el.innerHTML = "当前状态：<b>" + imPairPhase(pk) + "</b>";
-        },
+        wizard
+          ? "完成 Gateway、渠道与账号配置后可启用"
+          : "关闭后停止响应 IM 指令，配置保留",
       );
     }
-
-    /* 通用 200ms 淡入（绑定行/请求卡共用） */
-    function imFadeIn(el) {
-      el.classList.add("im-enter");
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () { el.classList.add("im-enter-on"); });
+    $("#imBackManage") &&
+      $("#imBackManage").addEventListener("click", function () {
+        imMode("manage");
       });
-    }
-
-    function imRenderAll() {
-      imDerived = imDerive(imState);
-      imBuildPlatformRows();
-      imUpdatePlatformRows();
-      imBuildPairingRequests();
-      imBuildInstructions();
-      imBuildBindings();
-      imBuildProjects();
-      imRefresh();
-    }
-
-    function imApplyDemo(key) {
-      if (!Object.hasOwn(IM_SEEDS, key)) key = "empty";
-      imEpoch += 1; /* 作废在途的启动/连接/群确认定时器（防串态） */
-      imState = JSON.parse(JSON.stringify(IM_SEEDS[key]));
-      imManual = {};
-      imPanel.querySelectorAll("#imTeamForm input").forEach(function (input) { input.value = ""; });
-      imPanel.querySelectorAll("[data-im-team-result], [data-im-diagnostic-result]").forEach(function (el) { el.hidden = true; });
-      var failureToggle = imPanel.querySelector("[data-im-save-failure]"); if (failureToggle) failureToggle.setAttribute("aria-pressed", "false");
-      var enableToggle = imPanel.querySelector("[data-im-enable-failure]"); if (enableToggle) enableToggle.setAttribute("aria-pressed", "false");
-      /* IM DEMO CONSOLE —— 结果选择器回到成功默认，与快照状态一致（迁移生产代码时删除本段） */
-      imPanel.querySelectorAll("[data-im-service-outcome], [data-im-cred-outcome]").forEach(function (sel) { sel.value = "ok"; });
-      imSecondsLeft = 5 * 60;
-      imCodeExpired = false;
-      imRenderAll();
-      /* 三步全✓时自动进入概览：再次打开不重跑流程 */
-      imShowOverview = !!(imDerived && imDerived.allDone);
-      imRefresh();
-    }
-
-    /* ===== 定位与脉冲（一次性背景脉冲，不用 focus ring） ===== */
-    function imPulse(el) {
-      if (!el) return;
-      el.classList.remove("im-pulse");
-      void el.offsetWidth; /* 重启动画 */
-      el.classList.add("im-pulse");
-      el.addEventListener("animationend", function handler(ev) {
-        if (ev.animationName === "im-pulse-bg") {
-          el.classList.remove("im-pulse");
-          el.removeEventListener("animationend", handler);
-        }
+    $$("[data-im-goto]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        imMode("manage");
+        imSelect(b.getAttribute("data-im-goto"));
       });
-    }
-    /* 展开目标卡 → .settings-content 滚动到位 → 一次性脉冲 → 焦点落卡头（时序：scroll 先于 focus） */
-    function imLocateCard(key, opts) {
-      opts = opts || {};
-      imShowOverview = false; /* 定位目标在设置步骤内：先退出概览 */
-      imRefresh();
-      imManual[key] = true;
-      imRenderCards();
-      var card = imCardEls[key];
-      var head = card.querySelector("[data-im-card-head]");
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          head.scrollIntoView({ block: "center", behavior: "smooth" });
-          if (opts.pulse !== false) imPulse(opts.pulse || card);
-          if (opts.focus !== false) {
-            setTimeout(function () { head.focus(); }, 400);
-          }
-        });
-      });
-    }
-    /* 自动推进：只做展开+smooth 滚动到视口中央；仅当触发动作前焦点在刚完成的卡体内，
-       滚动后 +400ms 把焦点移到新卡卡头（鼠标用户不被抢焦点；不脉冲） */
-    function imAdvanceTo(key) {
-      var active = document.activeElement;
-      var prevCard =
-        active && active.closest ? active.closest(".im-card") : null;
-      imLocateCard(key, { focus: false, pulse: false });
-      if (prevCard && prevCard !== imCardEls[key]) {
-        setTimeout(function () {
-          var head = imCardEls[key].querySelector("[data-im-card-head]");
-          if (head) head.focus();
-        }, 400);
-      }
-    }
-
-    /* ===== 交互 ===== */
-    /* 卡头：切换折叠并记住；空态下 ②-⑤ 点击=闪烁定位①大按钮 */
-    imPanel.addEventListener("click", function (ev) {
-      var head = ev.target.closest("[data-im-card-head]");
-      if (!head) return;
-      var card = head.closest(".im-card");
-      var key = card.getAttribute("data-im-card");
-      if (!imState.gateway.started && key !== "service") {
-        var cta = imPanel.querySelector("[data-im-service-start]");
-        cta.scrollIntoView({ block: "center", behavior: "smooth" });
-        imPulse(cta);
-        return;
-      }
-      imManual[key] = card.querySelector(".im-card-body").hidden;
-      imRenderCards();
     });
 
-    /* 聚合胶囊：故障态点击=定位②卡（滚动+一次性脉冲） */
-    imPill.addEventListener("click", function () {
-      if (imDerived.pill.tone !== "warn") return;
-      imLocateCard("channel");
+    /* 主开关：关闭只停用，不清配置（proposal 语义）；翻转由全局 UI.toggle 完成，此处只跟随状态 */
+    imMaster.addEventListener("click", function () {
+      var on = imMaster.classList.contains("on");
+      imMaster.setAttribute("aria-checked", String(on));
+      imStateText.textContent = on ? "已连接" : "已停用";
+      var dot = imStatePill.querySelector(".im-dot");
+      dot.className = "im-dot " + (on ? "ok" : "idle");
+      notice(on ? "IM 连接已启用（演示）" : "IM 连接已停用，配置保留（演示）");
     });
 
-    /* ① 一键开启（G1：1000ms 启动过渡；失败分支=确定性演示结果，失败留在本步可重试） */
-    imPanel.querySelector("[data-im-service-start]").addEventListener("click", function () {
-      if (imState.gateway.starting || imState.gateway.started) return;
-      imState.sim.session = true;
-      delete imState.gateway.startError;
-      imState.gateway.starting = true;
-      imRefresh();
-      var epoch = imEpoch;
-      setTimeout(function () {
-        if (epoch !== imEpoch) return;
-        imState.gateway.starting = false;
-        var outcome = (imState.sim && imState.sim.serviceOutcome) || "ok";
-        if (outcome === "ok") {
-          imState.gateway.started = true;
-          imState.masterOn = true;
-          imRefresh();
-          notice("消息服务已在本机开启（演示）");
-          imAdvanceTo("channel"); /* ②自动展开●（不抢鼠标用户焦点） */
-        } else {
-          imState.gateway.startError =
-            outcome === "port"
-              ? "启动失败：端口被其他程序占用。关闭占用程序后重试，或改用团队服务器。"
-              : "注册失败：无法生成设备编号。请重试；多次失败可改用团队服务器。";
-          imRefresh();
-          notice("启动失败（演示）", true);
-        }
-      }, IM_T_START);
+    /* 配对请求条件卡：批准/拒绝后即时移除 */
+    imDetailEl.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-im-approve]")) {
+        var card = ev.target.closest(".im-pairing-request-card");
+        if (card) card.remove();
+        notice("已批准配对，账号已绑定（演示）");
+      } else if (ev.target.closest("[data-im-reject]")) {
+        var card2 = ev.target.closest(".im-pairing-request-card");
+        if (card2) card2.remove();
+        notice("已拒绝配对（演示）");
+      }
     });
 
-    /* ② 平台行操作与 M2b 凭据子卡（swap / cancel / save 三态流）；
-       重新输入密钥 = 已配置平台也直接进表单并聚焦密钥格 */
-    function imOpenSubcard(platformKey, focusSecret) {
-      var row = imPanel.querySelector('[data-im-platform="' + platformKey + '"]');
-      var sub = row.querySelector("[data-im-subcard]");
-      var st = imDerived.platforms[platformKey];
-      var configured = st.conns.length > 0;
-      /* 团队态：未配置平台优先呈现团队机器人列表（选用即连），跳过凭据表单 */
-      var team = !!imState.gateway.team && !configured && !focusSecret;
-      var showForm = (!configured || focusSecret) && !team;
-      sub.hidden = false;
-      var teamBox = sub.querySelector("[data-im-team-bots]");
-      if (teamBox) teamBox.hidden = !team;
-      sub.querySelector("[data-im-cred-saved]").hidden = !(configured && !focusSecret && !team);
-      sub.querySelector("[data-im-cred-form]").hidden = !showForm;
-      if (showForm) {
-        var first = sub.querySelector(
-          focusSecret ? 'input[type="password"]' : "input, select",
-        );
-        if (first) first.focus();
-      }
-    }
-    function imCloseSubcard(platformKey) {
-      var row = imPanel.querySelector('[data-im-platform="' + platformKey + '"]');
-      var sub = row.querySelector("[data-im-subcard]");
-      sub.hidden = true;
-      var form = sub.querySelector("[data-im-cred-form]");
-      /* 折叠保留本次页面中的草稿。 */
-    }
-    /* 接收方式：长连接隐藏 HTTPS 专属字段与转发地址；
-       HTTPS 专属字段的帮助小字在该模式下常驻显示 */
-    function imApplyReceiveMode(scope) {
-      var select = scope.querySelector("[data-im-receive-mode]");
-      if (!select) return;
-      var sub = scope.closest(".im-platform-row");
-      var platformKey = sub ? sub.getAttribute("data-im-platform") : "";
-      var https = select.value === "https";
-      Array.prototype.forEach.call(
-        scope.querySelectorAll("[data-im-https-only]"),
-        function (el) {
-          el.hidden = !https;
-          if (!el.hasAttribute("data-im-field-label")) return;
-          var rule = imFieldRule(platformKey, el.getAttribute("data-im-field-label"));
-          if (rule && rule.httpsHelp && https) {
-            imShowFieldMessage(el, rule.httpsHelp, false);
-          } else {
-            imHideFieldMessage(el);
-          }
-        },
-      );
-    }
-    imPanel.addEventListener("change", function (ev) {
-      var select = ev.target.closest("[data-im-receive-mode]");
-      if (select) imApplyReceiveMode(select.closest("[data-im-cred-form]"));
-      /* 演示结果选择器（确定性，不随机） */
-      /* IM DEMO CONSOLE —— 原型模拟接线（迁移生产代码时删除本段） */
-      var credOutcome = ev.target.closest("[data-im-cred-outcome]");
-      if (credOutcome && imState.sim)
-        imState.sim.credOutcome[credOutcome.getAttribute("data-im-cred-outcome")] = credOutcome.value;
-      /* ① 启动演示结果（成功 / 端口被占用 / 注册失败） */
-      var svcOutcome = ev.target.closest("[data-im-service-outcome]");
-      if (svcOutcome && imState.sim) imState.sim.serviceOutcome = svcOutcome.value;
-      /* ② 阶段3：勾选「我已在平台完成接收设置」→ 解锁继续按钮 + 显示验证说明 */
-      var ready3 = ev.target.closest("[data-im-receive-ready]");
-      if (ready3) {
-        var sub3 = ready3.closest("[data-im-subcard]");
-        var btn3 = sub3.querySelector("[data-im-receive-done]");
-        if (btn3) btn3.disabled = !ready3.checked;
-        var note3 = sub3.querySelector("[data-im-receive-note]");
-        if (note3) note3.hidden = !ready3.checked;
-      }
-    });
-    /* 字段帮助：聚焦显示帮助小字；blur 非空校验前缀；输入即清错；
-       已显示的错误优先于帮助（不被聚焦覆盖） */
-    imPanel.addEventListener("focusin", function (ev) {
-      var labelEl = ev.target.closest("[data-im-field-label]");
-      if (!labelEl || !labelEl.closest("[data-im-cred-form]")) return;
-      var helpEl = imFieldHelpEl(labelEl);
-      if (helpEl && helpEl.classList.contains("im-field-error")) return;
-      var sub = labelEl.closest(".im-platform-row");
-      var rule = imFieldRule(
-        sub ? sub.getAttribute("data-im-platform") : "",
-        labelEl.getAttribute("data-im-field-label"),
-      );
-      var isHttpsOnly = labelEl.hasAttribute("data-im-https-only");
-      var httpsOn =
-        !isHttpsOnly ||
-        (labelEl.closest("[data-im-cred-form]").querySelector("[data-im-receive-mode]") || {}).value === "https";
-      if (rule && rule.help && !isHttpsOnly) imShowFieldMessage(labelEl, rule.help, false);
-      else if (rule && rule.httpsHelp && isHttpsOnly && httpsOn)
-        imShowFieldMessage(labelEl, rule.httpsHelp, false);
-      else if (rule && rule.help && isHttpsOnly && !httpsOn)
-        imShowFieldMessage(labelEl, rule.help, false);
-    });
-    imPanel.addEventListener("focusout", function (ev) {
-      var labelEl = ev.target.closest("[data-im-field-label]");
-      if (!labelEl || !labelEl.closest("[data-im-cred-form]")) return;
-      var sub = labelEl.closest(".im-platform-row");
-      var value = (ev.target.value || "").trim();
-      if (!value) {
-        /* 空值不催错（必填错误只在提交时统一校验）；https 常驻帮助保留 */
-        var rule0 = imFieldRule(
-          sub ? sub.getAttribute("data-im-platform") : "",
-          labelEl.getAttribute("data-im-field-label"),
-        );
-        if (!(rule0 && rule0.httpsHelp && !labelEl.hidden)) imHideFieldMessage(labelEl);
-        return;
-      }
-      var error = imValidateField(sub ? sub.getAttribute("data-im-platform") : "", labelEl);
-      if (error) imShowFieldMessage(labelEl, error, true);
-    });
-    imPanel.addEventListener("input", function (ev) {
-      var labelEl = ev.target.closest("[data-im-field-label]");
-      if (!labelEl || !labelEl.closest("[data-im-cred-form]")) return;
-      var help = imFieldHelpEl(labelEl);
-      if (help && help.classList.contains("im-field-error")) imHideFieldMessage(labelEl);
-    });
-    /* 提交前整表校验：错误大白话 + 聚焦第一个错误格；全过才进连接过渡 */
-    function imValidateForm(form) {
-      var sub = form.closest(".im-platform-row");
-      var platformKey = sub ? sub.getAttribute("data-im-platform") : "";
-      var firstBad = null;
-      Array.prototype.forEach.call(
-        form.querySelectorAll("[data-im-field-label]"),
-        function (labelEl) {
-          if (labelEl.hidden) return; /* HTTPS 专属字段长连接下不参与 */
-          var error = imValidateField(platformKey, labelEl);
-          if (error) {
-            imShowFieldMessage(labelEl, error, true);
-            if (!firstBad) firstBad = labelEl.querySelector("input, select");
-          } else {
-            imHideFieldMessage(labelEl);
-          }
-        },
-      );
-      if (firstBad) {
-        var advanced = firstBad.closest("details"); if (advanced) advanced.open = true;
-        firstBad.focus();
-        return false;
-      }
-      return true;
-    }
-
-    imPanel.addEventListener("click", function (ev) {
-      var platformRow = ev.target.closest(".im-platform-row");
-      var key = platformRow && platformRow.getAttribute("data-im-platform");
-      /* 删除连接：级联回退（该平台绑定与待确认请求一并移除，完成链重算）+ 一次性提示 */
-      var del = ev.target.closest("[data-im-conn-delete]");
-      if (del && key) {
-        var delName = (IM_PLATFORMS.filter(function (p) { return p.key === key; })[0] || {}).name || key;
-        imConfirm("删除连接", "将删除「" + delName + "」的机器人连接，并解除该平台已绑定账号与待确认请求。", function () {
-          imState.connections[key] = [];
-          imState.pairingRequests = imState.pairingRequests.filter(function (r) { return r.platform !== key; });
-          var removed = imState.bindings.filter(function (b) { return b.platform === key; }).length;
-          imState.bindings = imState.bindings.filter(function (b) { return b.platform !== key; });
-          imState.sim.session = true;
-          imBuildPlatformRows();
-          imUpdatePlatformRows();
-          imBuildPairingRequests();
-          imBuildBindings();
-          imBuildInstructions();
-          imRefresh();
-          notice(removed ? "已删除连接；相关绑定与后续步骤状态已回退（演示）" : "已删除连接（演示）");
-        }, { danger: true });
-        return;
-      }
-      if (ev.target.closest("[data-im-manage]")) {
-        var sub = platformRow.querySelector("[data-im-subcard]");
-        imOpenSubcard(key, false);
-        return;
-      }
-      if (ev.target.closest("[data-im-add]")) {
-        imOpenSubcard(key, false);
-        return;
-      }
-      /* 团队态：选用团队机器人（直接建立连接，接收设置由团队管理员维护） */
-      if (ev.target.closest("[data-im-team-pick]")) {
-        imState.sim.session = true;
-        var pickId =
-          "conn-" +
-          (IM_PLATFORMS.reduce(function (n, p) {
-            return n + ((imState.connections[p.key] || []).length);
-          }, 0) + 1);
-        imState.connections[key] = [
-          { conn: pickId, app: "Artemis 团队机器人", state: "ok", note: "已连接 · 刚刚" },
-        ];
-        imState.platformReady[key] = true;
-        imBuildPlatformRows();
-        imUpdatePlatformRows();
-        imBuildInstructions();
-        imRefresh();
-        notice("已选用团队机器人。收发将在配对时验证。");
-        return;
-      }
-      /* 团队态次级路径：改用自己的凭据 */
-      if (ev.target.closest("[data-im-team-custom]")) {
-        var subC = platformRow.querySelector("[data-im-subcard]");
-        subC.querySelector("[data-im-team-bots]").hidden = true;
-        var formC = subC.querySelector("[data-im-cred-form]");
-        formC.hidden = false;
-        var firstC = formC.querySelector("input, select");
-        if (firstC) firstC.focus();
-        return;
-      }
-      if (ev.target.closest("[data-im-reenter]")) {
-        imOpenSubcard(key, true);
-        return;
-      }
-      if (ev.target.closest("[data-im-view-reason]")) {
-        var subs = platformRow.querySelector(".im-conn-subrows");
-        subs.hidden = false;
-        var badRow = subs.querySelector(".im-dot.bad");
-        if (badRow) badRow.closest(".im-conn-row").scrollIntoView({ block: "nearest", behavior: "smooth" });
-        var reasonEl = platformRow.querySelector(".im-platform-reason");
-        if (reasonEl && !reasonEl.hidden) reasonEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        imPulse(reasonEl && !reasonEl.hidden ? reasonEl : subs);
-        return;
-      }
-      if (ev.target.closest("[data-im-retry]")) {
-        var st = imDerived.platforms[key];
-        st.conns.forEach(function (c) {
-          if (c.state === "reconnecting") c.attempt = (c.attempt || 1) + 1;
-        });
-        imRefresh();
-        notice("已发起重连（演示）");
-        return;
-      }
-      /* 凭据三态流：更换 ↔ 表单（密钥不回显） */
+    /* 凭据两态：已保存 ↔ 表单（按渠道就近展开，密钥不回显） */
+    imDetailEl.addEventListener("click", function (ev) {
       var swap = ev.target.closest("[data-im-cred-swap]");
       if (swap) {
-        var sub2 = swap.closest("[data-im-subcard]");
-        sub2.querySelector("[data-im-cred-saved]").hidden = true;
-        var form2 = sub2.querySelector("[data-im-cred-form]");
-        form2.hidden = false;
-        var firstInput = form2.querySelector("input, select");
-        if (firstInput) firstInput.focus();
+        var block = swap.closest(".im-block");
+        var saved = block.querySelector("[data-im-cred-saved]");
+        var empty = block.querySelector(".im-cred-empty");
+        var form = block.querySelector("[data-im-cred-form]");
+        if (saved) saved.hidden = true;
+        if (empty) empty.hidden = true;
+        form.hidden = false;
+        var first = form.querySelector("input, select");
+        if (first) first.focus();
         return;
       }
       if (ev.target.closest("[data-im-cred-cancel]")) {
+        var form2 = ev.target.closest("[data-im-cred-form]");
+        var block2 = form2.closest(".im-block");
+        form2.hidden = true;
+        form2.reset();
+        var saved2 = block2.querySelector("[data-im-cred-saved]");
+        var empty2 = block2.querySelector(".im-cred-empty");
+        if (saved2) saved2.hidden = false;
+        if (empty2) empty2.hidden = false;
+        return;
+      }
+      if (ev.target.closest("[data-im-cred-save]")) {
         var form3 = ev.target.closest("[data-im-cred-form]");
-        var sub3 = form3.closest("[data-im-subcard]");
-        var row3 = sub3.closest(".im-platform-row");
-        var st3 = imDerived.platforms[row3.getAttribute("data-im-platform")];
-        /* 取消收起表单，草稿保留；重置演示时统一清空。 */
-        if (st3.conns.length > 0) {
-          form3.hidden = true;
-          sub3.querySelector("[data-im-cred-saved]").hidden = false;
-        } else {
-          sub3.hidden = true;
+        var block3 = form3.closest(".im-block");
+        form3.hidden = true;
+        form3.reset();
+        var saved3 = block3.querySelector("[data-im-cred-saved]");
+        var empty3 = block3.querySelector(".im-cred-empty");
+        if (saved3) saved3.hidden = false;
+        if (empty3) {
+          /* 未配置渠道首次保存：升级为已保存态提示 */
+          empty3.innerHTML =
+            '<p class="im-muted">凭据已加密保存在本机，不会回显。</p>' +
+            '<button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button>';
+          empty3.hidden = false;
         }
+        notice("凭据已保存并连接（演示）");
         return;
       }
-      var save = ev.target.closest("[data-im-cred-save]");
-      if (save) {
-        if (save.disabled) return;
-        var form4 = ev.target.closest("[data-im-cred-form]");
-        var sub4 = form4.closest("[data-im-subcard]");
-        var rowKey = sub4.closest(".im-platform-row").getAttribute("data-im-platform");
-        if (!imValidateForm(form4)) return; /* 错误大白话，聚焦首错 */
-        if (!imState.gateway.started || imState.gateway.linkBroken) { notice("消息服务未连接，请先恢复服务。", true); return; }
-        var receive = form4.querySelector("[data-im-receive-mode]");
-        if (receive && receive.value === "https" && !imState.gateway.team) { notice("HTTPS 回调需要公网团队服务，请先在高级设置注册。", true); return; }
-        var selectedOutcome = imState.sim.credOutcome[rowKey];
-        var isNew = (imState.connections[rowKey] || []).length === 0;
-        imState.sim.session = true;
-        /* 900ms 连接过渡：保存钮禁用「正在连接…」+帮助行；平台行 ◐ 连接中 */
-        save.disabled = true;
-        save.textContent = "正在连接…";
-        form4.setAttribute("aria-busy", "true");
-        form4.querySelectorAll("input, select, button").forEach(function (el) { el.disabled = true; });
-        var help4 = form4.querySelector("[data-im-connect-help]");
-        if (help4) help4.hidden = false;
-        var connId =
-          "conn-" +
-          (IM_PLATFORMS.reduce(function (n, p) {
-            return n + ((imState.connections[p.key] || []).length);
-          }, 0) + 1);
-        if (isNew) {
-          imState.connections[rowKey] = [
-            { conn: connId, app: "Artemis 机器人", state: "connecting" },
-          ];
-        } else {
-          imState.connections[rowKey].forEach(function (c) {
-            c.state = "connecting";
-          });
-        }
-        imRefresh();
-        var epoch = imEpoch;
-        setTimeout(function () {
-          if (epoch !== imEpoch) return;
-          var outcome = selectedOutcome;
-          form4.removeAttribute("aria-busy");
-          form4.querySelectorAll("input, select, button").forEach(function (el) { el.disabled = false; });
-          var conns = imState.connections[rowKey] || [];
-          if (outcome === "ok") {
-            conns.forEach(function (c) {
-              c.state = "ok";
-              c.note = "已连接 · 刚刚";
-              delete c.reason;
-            });
-            form4.reset();
-            imApplyReceiveMode(form4);
-            form4.hidden = true;
-            sub4.querySelector("[data-im-cred-saved]").hidden = false;
-            imRefresh();
-            imBuildInstructions(); /* ③ 指令区随首个健康连接重建 */
-            notice(
-              isNew
-                ? "机器人连上了。继续绑定你的账号。"
-                : "已保存，机器人正在用新密钥重新连接（演示）",
-            );
-            if (isNew) { /* 同卡衔接：切到该渠道并脉冲「绑定我的账号」子阶段 */ imChannelSel = rowKey; imSyncChannelPanels(); var s4 = imPanel.querySelector('[data-im-subcard="' + rowKey + '"] [data-im-stage4]'); if (s4) { s4.scrollIntoView({ block: "nearest", behavior: "smooth" }); imPulse(s4); } }
-          } else {
-            /* 失败（确定性演示结果）：行内原因 + 现有失败 UI；表单保留可直接重试 */
-            var secretName =
-              rowKey === "wecom" ? "Secret" : rowKey === "slack" ? "Bot Token" : "App Secret";
-            conns.forEach(function (c) {
-              if (c.state !== "ok") {
-                c.state = "bad";
-                c.reason =
-                  outcome === "offline" ? "网络中断。检查网络后重试，已保留输入。" : outcome === "permission" ? "平台权限不足。补齐权限、发布并安装应用后重试。" : outcome === "mismatch" ? "连接握手失败：Bot Token 与 App-Level Token 属于不同应用。两个令牌必须来自同一应用（保存时不校验，连接时才发现）。" : secretName + " 已失效或不匹配。重新复制后重试，已保留输入。";
-              }
-            });
-            save.disabled = false;
-            save.textContent = "保存并重连";
-            if (help4) help4.hidden = true;
-            imRefresh();
-          }
-        }, IM_T_CONNECT);
-        return;
-      }
-      /* 复制类按钮反馈（转发地址）与 chips 复制 */
-      var copy = ev.target.closest("[data-copy]");
-      if (copy) {
-        imCopy(copy.parentElement.querySelector("code").textContent);
-        var original = copy.textContent;
-        copy.textContent = "已复制";
-        setTimeout(function () {
-          copy.textContent = original;
-        }, 1400);
-        return;
-      }
-      var chip = ev.target.closest(".im-chip");
-      if (chip && chip.contains(ev.target)) {
-        imCopy(chip.querySelector("code").textContent);
-        var mark = chip.querySelector("span[aria-hidden]");
-        var markText = mark ? mark.textContent : "";
-        chip.classList.add("copied");
-        if (mark) mark.textContent = "✓";
-        setTimeout(function () {
-          chip.classList.remove("copied");
-          if (mark) mark.textContent = markText;
-        }, 1400);
-      }
-    });
-
-    /* ③ 配对请求：批准=落绑定（G3）+绑定行淡入+④自动展开；拒绝=淡出+焦点回复制钮 */
-    imPanel.addEventListener("click", function (ev) {
-      var approve = ev.target.closest("[data-im-approve]");
-      var reject = ev.target.closest("[data-im-reject]");
-      if (!approve && !reject) return;
-      var cardEl = (approve || reject).closest("[data-im-pairing-idx]");
-      var idx = Number(cardEl.getAttribute("data-im-pairing-idx"));
-      var req = imState.pairingRequests[idx];
-      if (!req) return;
-      imState.sim.session = true;
-      if (approve) {
-        imState.pairingRequests.splice(idx, 1);
-        imState.bindings.push({
-          name: req.id === "u_me01" ? "我（nicky）" : req.name,
-          id: req.id,
-          platform: req.platform,
-          mode: "Plan",
-          muted: false,
-        });
-        imBuildPairingRequests();
-        imBuildBindings();
-        imRefresh();
-        var newRow = imPanel.querySelector(
-          '[data-im-bindings] [data-im-binding-idx="' + (imState.bindings.length - 1) + '"]',
-        );
-        if (newRow) imFadeIn(newRow);
-        /* 首绑自动展开②尾「顺手验证」段（用户动过折叠后不再抢开）；否则按链推进③ */
-        if (!imState.sim.verifyTouched) {
-          imState.sim.verifyOpened = true;
-          imRefresh();
-          var vBody = imPanel.querySelector("[data-im-verify]");
-          if (vBody) {
-            vBody.scrollIntoView({ block: "center", behavior: "smooth" });
-            imPulse(vBody);
-          }
-          notice("已绑定。可以顺手发条测试消息，也可以去 ③ 选项目。");
-        } else {
-          imRefresh();
-          imAdvanceTo("projects"); /* ③自动展开 */
-          notice("已绑定。机器人以后只认这个账号。");
-        }
-      } else {
-        var platformKey2 = req.platform;
-        imState.pairingRequests.splice(idx, 1);
-        cardEl.classList.add("im-card-leaving");
-        var epoch = imEpoch;
-        setTimeout(function () {
-          if (epoch !== imEpoch) return;
-          imBuildPairingRequests();
-          imRefresh();
-          notice("已拒绝。配对码还在有效期，重新发送即可。");
-          /* 焦点回到该平台的复制指令按钮 */
-          var copyBtn = imPanel.querySelector(
-            '[data-im-instr-platform="' + platformKey2 + '"] [data-copy-pair]',
-          ) || imPanel.querySelector("[data-copy-pair]");
-          if (copyBtn) copyBtn.focus();
-        }, IM_T_FADE);
-      }
-    });
-    /* ② 阶段3「已完成平台设置，继续」：用户确认落 platformReady（不伪装系统检测） */
-    imPanel.addEventListener("click", function (ev) {
-      var done3 = ev.target.closest("[data-im-receive-done]");
-      if (!done3 || done3.disabled) return;
-      var pk = done3.closest("[data-im-subcard]").getAttribute("data-im-subcard");
-      imState.platformReady[pk] = true;
-      imState.sim.session = true;
-      imRefresh();
-      notice("已确认。收发将在配对时验证。");
-    });
-
-    /* ③ 双轨：演示直达（幂等，pairWait 判空） */
-    imPanel.addEventListener("click", function (ev) {
-      if (ev.target.closest("[data-im-pair-arrive]")) imArrivePairing();
-    });
-    /* 配对码：[换一个] 重置倒计时并换新码 */
-    imPanel.addEventListener("click", function (ev) {
-      if (ev.target.closest("[data-im-renew-code]")) imRenewCode();
-    });
-
-    /* 衔接行（按渠道实例化，委托处理）：定位③（展开+滚动+脉冲+焦点） */
-    imPanel.addEventListener("click", function (ev) {
-      if (!ev.target.closest("[data-im-goto-projects]")) return;
-      imLocateCard("projects");
-    });
-
-    /* ③ 悬停「设为默认」：徽章切换走行内即时生效（生产对齐） */
-    imPanel.addEventListener("click", function (ev) {
-      var setDef = ev.target.closest("[data-im-set-default]");
-      if (!setDef) return;
-      var li = setDef.closest("[data-im-project-idx]");
-      var pr = imState.projects[Number(li.getAttribute("data-im-project-idx"))];
-      imState.sim.session = true;
-      imApplyGrant(
-        function () { imState.defaultProject = pr.id; },
-        pr.id,
-      );
-    });
-    /* 部分成功：仅重试启用（不重复保存） */
-    imPanel.querySelector("[data-im-retry-enable]").addEventListener("click", function () {
-      if (imState.sim.enableFailure) {
-        notice("启用仍失败：服务暂不可用（演示）。", true);
-        return;
-      }
-      imState.grantEnabled = true;
-      imState.grantEnableFailed = false;
-      imRefresh();
-      notice("连接已启用（演示）");
-    });
-    /* ③ 到期行 [去授权] / 行内 [授权配置]：打开授权配置弹窗（草稿=当前授权快照） */
-    imPanel.addEventListener("click", function (ev) {
-      var reauth = ev.target.closest("[data-im-reauthorize]");
-      var configBtn = ev.target.closest("[data-im-grant-config]");
-      if (!reauth && !configBtn) return;
-      var li = (reauth || configBtn).closest("[data-im-project-idx]");
-      imOpenGrantDialog(Number(li.getAttribute("data-im-project-idx")));
-    });
-
-    /* 静音：行内标签切换 + 图标互换（不只 toast） */
-    imPanel.addEventListener("click", function (ev) {
-      var mute = ev.target.closest("[data-im-mute]");
-      if (!mute) return;
-      var row = mute.closest(".im-binding-row");
-      var idx = Number(row.getAttribute("data-im-binding-idx"));
-      var b = imState.bindings[idx];
-      if (!b) return;
-      b.muted = !b.muted;
-      var main = row.querySelector(".im-binding-main");
-      var tag = main.querySelector(".im-binding-tag");
-      if (b.muted && !tag) {
-        tag = document.createElement("span");
-        tag.className = "im-binding-tag";
-        tag.textContent = "已静音";
-        main.appendChild(tag);
-      } else if (!b.muted && tag) {
-        tag.remove();
-      }
-      mute.setAttribute("aria-label", b.muted ? "恢复输出" : "静音");
-      mute.title = b.muted ? "恢复输出" : "静音";
-      mute.innerHTML = b.muted ? IM_ICON_BELL : IM_ICON_BELL_OFF;
-      notice(b.muted ? "已静音（演示）" : "已恢复输出（演示）");
-    });
-
-    /* 解绑行内二次确认：焦点移入确认钮，Esc 视为保留（不给弹窗关闭让路）；
-       确认后 200ms 淡出移除，焦点移到下一行或卡头 */
-    imPanel.addEventListener("click", function (ev) {
+      /* 解绑行内二次确认：焦点移入确认钮，Esc 视为保留 */
       var unbind = ev.target.closest("[data-im-unbind]");
       if (unbind) {
         var row = unbind.closest(".im-binding-row");
         row.querySelector(".im-binding-actions").hidden = true;
         var confirmBar = row.querySelector(".im-unbind-confirm");
         confirmBar.hidden = false;
-        confirmBar.querySelector("[data-im-keep]").focus();
+        confirmBar.querySelector("[data-im-unbind-done]").focus();
         return;
       }
       if (ev.target.closest("[data-im-keep]")) {
@@ -2921,32 +780,13 @@
         row2.querySelector(".im-unbind-confirm").hidden = true;
         row2.querySelector(".im-binding-actions").hidden = false;
         row2.querySelector("[data-im-unbind]").focus();
-        return;
-      }
-      var done = ev.target.closest("[data-im-unbind-done]");
-      if (done) {
-        var row3 = done.closest(".im-binding-row");
-        var idx = Number(row3.getAttribute("data-im-binding-idx"));
-        if (!Number.isFinite(idx)) return;
-        imState.bindings.splice(idx, 1);
-        row3.classList.add("im-binding-removing");
-        setTimeout(function () {
-          imBuildBindings();
-          imRefresh();
-          notice("已解除绑定（演示）");
-          var list = imPanel.querySelector("[data-im-bindings]");
-          var next = list.querySelector(
-            '[data-im-binding-idx="' + idx + '"] .im-icon-btn',
-          );
-          if (!next) next = imCardEls.channel.querySelector("[data-im-card-head]");
-          if (next) next.focus();
-        }, 200);
       }
     });
-    imPanel.addEventListener("keydown", function (ev) {
+    imDetailEl.addEventListener("keydown", function (ev) {
       if (ev.key !== "Escape") return;
       var confirmBar = ev.target.closest(".im-unbind-confirm");
       if (!confirmBar) return;
+      /* 行内确认的 Esc 只作用于本行（不给设置弹窗的关闭让路） */
       ev.stopPropagation();
       ev.preventDefault();
       var row = confirmBar.closest(".im-binding-row");
@@ -2955,7 +795,7 @@
       row.querySelector("[data-im-unbind]").focus();
     });
 
-    /* 折叠块（高级组 / 调整权限 / 后续指引） */
+    /* 折叠块（接入指引 / 高级字段 / 群协作 / 试试第一条任务 / 授权设置） */
     imPanel.addEventListener("click", function (ev) {
       var fold = ev.target.closest("[data-im-fold]");
       if (!fold) return;
@@ -2966,540 +806,82 @@
       fold.setAttribute("aria-expanded", String(open));
       var caret = fold.querySelector(".im-guide-caret");
       if (caret) caret.textContent = open ? "▾" : "▸";
-      /* 顺手验证段被用户手动开合 → 本次会话记住，不再自动展开/收起 */
-      if (fold.hasAttribute("data-im-verify-toggle")) {
-        imState.sim.verifyTouched = true;
-        imState.sim.verifyOpened = open;
-      }
     });
 
-    /* ⑤ 测试任务轨道：复制 / 推进 / 模型失败支线 / 确认与撤销（D4 诚实版：只标记用户确认） */
-    imPanel.addEventListener("click", function (ev) {
-      var t = imState.test;
-      if (!t) return;
-      var copyNew = ev.target.closest("[data-im-copy-new]");
-      if (copyNew) {
-        imCopy(copyNew.closest(".im-instr-line").querySelector("code").textContent);
-        var original = copyNew.textContent;
-        copyNew.textContent = "已复制";
-        setTimeout(function () { copyNew.textContent = original; }, 1400);
-        return;
-      }
-      if (ev.target.closest("[data-im-test-advance]")) {
-        imState.sim.session = true;
-        if (!t.channel) t.channel = imTestChannel(); /* 开测即归属渠道 */
-        if (t.stage < 4) t.stage += 1;
-        imRefresh();
-        return;
-      }
-      if (ev.target.closest("[data-im-test-fail]")) {
-        t.failed = true;
-        imRefresh();
-        return;
-      }
-      if (ev.target.closest("[data-im-test-retry]")) {
-        t.failed = false;
-        t.stage = 3;
-        imRefresh();
-        notice("任务重试成功（演示）");
-        return;
-      }
-      if (ev.target.closest("[data-im-test-confirm-btn]")) {
-        imState.sim.session = true;
-        if (!t.channel) t.channel = imTestChannel();
-        t.confirmed = true;
-        imRefresh();
-        notice("你已确认收到回复，该渠道全链路走通。");
-        return;
-      }
-      if (ev.target.closest("[data-im-verify-now]")) {
-        /* 完成仪式「发测试消息验证」：定位②并展开验证段 */
-        imLocateCard("channel", { focus: false });
-        imState.sim.verifyTouched = true;
-        imState.sim.verifyOpened = true;
-        imRefresh();
-        var vSec = imPanel.querySelector("[data-im-verify]");
-        if (vSec) setTimeout(function () { vSec.scrollIntoView({ block: "center", behavior: "smooth" }); }, 300);
-        return;
-      }
-      if (ev.target.closest("[data-im-test-undo]")) {
-        t.confirmed = false;
-        t.channel = "";
-        imRefresh();
-        return;
-      }
-      if (ev.target.closest("[data-im-finish]")) {
-        var closeBtn = $("#settingsClose");
-        if (closeBtn) closeBtn.click();
-        notice("开始使用！随时回到这里调整。");
-        return;
-      }
-      if (ev.target.closest("[data-im-open-group-flow]")) {
-        imState.groupFlow.open = true;
-        imRefresh();
-        var scroller2 = $(".settings-content");
-        if (scroller2) scroller2.scrollTo({ top: 0, behavior: "smooth" });
-      }
+    /* Gateway 模式卡片：团队模式展开连接表单 */
+    $$('input[name="gwMode"]').forEach(function (radio) {
+      radio.addEventListener("change", function () {
+        $("#imTeamForm").hidden = radio.value !== "team" || !radio.checked;
+      });
     });
 
-    /* 群协作第二流程（PT-7）：发现 → 保存空间（重置确认）→ 按群确认 → 各自授权 */
-    imPanel.addEventListener("click", function (ev) {
-      var gf = imState.groupFlow;
-      if (!gf) return;
-      if (ev.target.closest("[data-im-group-back]") && gf.open) {
-        gf.open = false;
-        imRefresh(); /* 统一经 refresh：正确衔接概览与设置步骤的显隐 */
-        return;
-      }
-      if (ev.target.closest("[data-im-gf-find]")) {
-        if (gf.phase !== "discover") return;
-        imState.sim.session = true;
-        var firstHealthy = IM_PLATFORMS.filter(function (p) {
-          return imDerived.platforms[p.key].ok > 0;
-        })[0];
-        gf.groups = [
-          { name: "artemis-ui-评审群", platform: firstHealthy ? firstHealthy.key : "feishu", members: 5, confirmed: false },
-        ];
-        gf.phase = "select";
-        imRefresh();
-        return;
-      }
-      if (ev.target.closest("[data-im-gf-save]")) {
-        gf.spaceSaved = true;
-        gf.groups.forEach(function (g) { g.confirmed = false; });
-        gf.phase = "confirm";
-        imRefresh();
-        return;
-      }
-      var confirmBtn = ev.target.closest("[data-im-gf-confirm]");
-      if (confirmBtn) {
-        gf.groups[Number(confirmBtn.getAttribute("data-im-gf-confirm"))].confirmed = true;
-        if (gf.groups.every(function (g) { return g.confirmed; })) gf.phase = "grant";
-        imRefresh();
-        return;
-      }
-      if (ev.target.closest("[data-im-gf-resave]")) {
-        gf.spaceSaved = false;
-        gf.groups.forEach(function (g) { g.confirmed = false; });
-        gf.phase = "select";
-        imRefresh();
-        notice("已重新编辑空间；保存后全部群确认会重置（演示）");
-        return;
-      }
-      if (ev.target.closest("[data-im-gf-grant]")) {
-        gf.phase = "done";
-        imRefresh();
-        notice("群协作已就绪（演示）");
-      }
-    });
-
-    /* 完成后概览交互：总开关（暂停/恢复）/进入/返回/继续设置/分区跳转 */
-    imPanel.addEventListener("click", function (ev) {
-      var master2 = ev.target.closest("[data-im-ov-master]");
-      if (master2) {
-        imState.masterOn = master2.classList.contains("on");
-        imRefresh();
-        notice(imState.masterOn ? "已恢复响应 IM 指令（演示）" : "已暂停响应 IM 指令，配置保留（演示）");
-        return;
-      }
-      if (ev.target.closest("[data-im-view-overview]")) {
-        imShowOverview = true;
-        imRefresh();
-        var scroller3 = $(".settings-content");
-        if (scroller3) scroller3.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
-      if (ev.target.closest("[data-im-back-setup]")) {
-        imShowOverview = false;
-        imRefresh();
-        return;
-      }
-      var cont2 = ev.target.closest("[data-im-continue-setup]");
-      if (cont2) {
-        imShowOverview = false;
-        imRefresh();
-        var target2 = imDerived.firstUndone || (imDerived.expired ? "projects" : "channel");
-        imLocateCard(target2);
-        return;
-      }
-      var goto2 = ev.target.closest("[data-im-ov-goto]");
-      if (goto2) {
-        imShowOverview = false;
-        imRefresh();
-        imLocateCard(goto2.getAttribute("data-im-ov-goto"));
-      }
-    });
-
-    /* 重置入口：从头再来一遍（回到 empty 快照，滚回面板顶，焦点落①卡头） */
-    imPanel.querySelector("[data-im-sim-reset]").addEventListener("click", function () {
-      imConfirm("重新开始设置", "清空本次演示的配置和未保存输入。实际服务不受影响。", function () { imApplyDemo("empty"); notice("已回到初始状态（演示）"); });
-      var scroller = $(".settings-content");
-      if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
-      setTimeout(function () {
-        var head = imCardEls.service.querySelector("[data-im-card-head]");
-        if (head) head.focus();
-      }, 250);
-    });
-
-    /* 配对码倒计时（tabular-nums；元素随指令区重建，逐 tick 查询）；
-       到期变「已过期 · [换一个]」，点击重置倒计时并换新码；
-       ③ 双轨等待 10s 归零 → 确认自动到达（幂等） */
+    /* 配对码倒计时（tabular-nums，5 分钟时效） */
+    var secondsLeft = 4 * 60 + 32;
     function imTick() {
-      if (imSecondsLeft > 0) imSecondsLeft -= 1;
-      if (imSecondsLeft === 0) imCodeExpired = true;
-      Array.prototype.forEach.call(
-        imPanel.querySelectorAll("[data-im-countdown]"),
-        function (el) {
-          el.textContent = imExpiryText();
-        },
-      );
-      if (imCodeExpired) {
-        Array.prototype.forEach.call(
-          imPanel.querySelectorAll("[data-im-expiry-note]"),
-          function (el) {
-            el.textContent = "已过期";
-          },
-        );
-      }
-      var wait = imState && imState.sim && imState.sim.pairWait;
-      if (wait) {
-        wait.leftMs -= 1000;
-        if (wait.leftMs <= 0) {
-          imArrivePairing();
-        } else {
-          var waitEl = imPanel.querySelector("[data-im-wait-countdown]");
-          if (waitEl) waitEl.textContent = imPairWaitText();
-        }
+      if (secondsLeft > 0) secondsLeft--;
+      var m = Math.floor(secondsLeft / 60),
+        s = secondsLeft % 60;
+      countdownEl.textContent = m + ":" + String(s).padStart(2, "0");
+      if (secondsLeft === 0) {
+        clearInterval(imTimer);
+        var head = countdownEl.closest(".im-pair-head");
+        if (head) head.querySelector("strong").textContent = "配对码已过期";
       }
     }
     var imTimer = setInterval(imTick, 1000);
 
-    /* 渠道 tab 吸顶：tab 条贴住滚动容器顶缘时加投影（仅可见时判定） */
-    (function () {
-      var strip = imPanel.querySelector(".im-channel-tabs");
-      var scroller = $(".settings-content");
-      if (!strip || !scroller) return;
-      function update() {
-        if (strip.offsetParent === null) return; /* ②折叠或不在面板内：不判定 */
-        /* 停靠线 = padding-top + 条的 top（Chromium sticky 参照滚动容器 content box 顶，
-           top 为 -padding-top 时停靠线=0=裁剪线）；+1px 容差 */
-        var padTop = parseFloat(getComputedStyle(scroller).paddingTop) || 0;
-        var stickTop = parseFloat(getComputedStyle(strip).top) || 0;
-        var dockLine = padTop + stickTop;
-        var stuck =
-          strip.getBoundingClientRect().top - scroller.getBoundingClientRect().top <= dockLine + 1;
-        strip.classList.toggle("stuck", stuck);
-      }
-      scroller.addEventListener("scroll", update, { passive: true });
-    })();
-
-    /* hash 直达桥（#im-demo=empty|progress|alert）、定位桥与幂等态 setter；
-       无 hash 时默认未配置（empty），打开面板即处于可操作的从头模拟起点 */
-    /* Settings simulation shares buttons, icons, dialog and toast with the workspace. */
-    var imConfirmEl = document.createElement("dialog");
-    imConfirmEl.className = "prototype-dialog im-confirm-dialog";
-    imConfirmEl.setAttribute("aria-labelledby", "im-confirm-title");
-    imConfirmEl.innerHTML = '<h3 id="im-confirm-title"></h3><p id="im-confirm-description"></p><div class="btn-pair"></div>';
-    var imCancelButton = UI.button({ label: "取消", variant: "ghost" });
-    imCancelButton.setAttribute("data-im-confirm-cancel", "");
-    var imSaveButton = UI.button({ label: "确认保存", variant: "primary" });
-    imSaveButton.setAttribute("data-im-confirm-ok", "");
-    imConfirmEl.querySelector(".btn-pair").append(imCancelButton, imSaveButton);
-    imConfirmEl.setAttribute("aria-describedby", "im-confirm-description");
-    document.body.appendChild(imConfirmEl);
-    var imConfirmController = UI.dialog(imConfirmEl, { initialFocus: imConfirmEl.querySelector("[data-im-confirm-cancel]") });
-    var imConfirmAction;
-    function imConfirm(title, description, action, options) {
-      imConfirmEl.querySelector("h3").textContent = title;
-      imConfirmEl.querySelector("p").textContent = description;
-      imSaveButton.dataset.variant = options && options.danger ? "danger" : "primary";
-      imConfirmAction = action;
-      imConfirmController.open(document.activeElement);
-    }
-    imConfirmEl.querySelector("[data-im-confirm-cancel]").onclick = function () { imConfirmController.close(); imConfirmAction = null; };
-    imConfirmEl.querySelector("[data-im-confirm-ok]").onclick = function () { var action = imConfirmAction; imConfirmAction = null; imConfirmController.close(); if (action) action(); };
-
-    /* ③ 授权配置弹窗（生产对齐：草稿=当前授权快照；关闭=回退，确认设置=行内即时生效）。
-       挂在 imPanel 内，让 mode/scope/permission 的委托监听器直接作用于弹窗草稿。 */
-    var imGrantDialogEl = document.createElement("dialog");
-    imGrantDialogEl.className = "prototype-dialog im-grant-dialog";
-    imGrantDialogEl.setAttribute("aria-labelledby", "im-grant-title");
-    imGrantDialogEl.innerHTML =
-      '<h3 id="im-grant-title"></h3>' +
-      '<div class="im-grant-dialog-scroll" data-im-grant-body=""></div>' +
-      '<p class="im-fine im-grant-dialog-error" data-im-grant-dialog-error="" hidden="" role="alert"></p>' +
-      '<div class="btn-pair"></div>';
-    imPanel.appendChild(imGrantDialogEl);
-    var imGrantIdx = -1;
-    var imGrantSnapshot = null;
-    var imGrantConfirmed = false;
-    var imGrantController = UI.dialog(imGrantDialogEl, {
-      initialFocus: null,
-      onClose: function () {
-        /* 未确认的任何关闭（按钮/Esc/点外）= 放弃草稿，回退授权快照 */
-        if (!imGrantConfirmed && imGrantSnapshot && imState.projects[imGrantIdx]) {
-          imState.projects[imGrantIdx] = imGrantSnapshot;
-          imState.sim.projectsDirty = false;
-          imBuildProjects();
-          imRefresh();
-        }
-        imGrantConfirmed = false;
-      },
-    });
-    function imOpenGrantDialog(idx) {
-      var pr = imState.projects[idx];
-      if (!pr) return;
-      imGrantIdx = idx;
-      imGrantConfirmed = false;
-      imGrantSnapshot = JSON.parse(JSON.stringify(pr));
-      imState.sim.session = true;
-      imGrantDialogEl.querySelector("h3").textContent = "授权配置 · " + pr.id;
-      var body = imGrantDialogEl.querySelector("[data-im-grant-body]");
-      body.setAttribute("data-im-project-idx", String(idx));
-      body.innerHTML = imGrantBodyTemplate(pr, idx);
-      var approvalSel = body.querySelector('[data-im-permission="approval"]');
-      if (approvalSel) approvalSel.value = pr.approval;
-      var cmd = body.querySelector('[data-im-permission="commands"]');
-      var net = body.querySelector('[data-im-permission="network"]');
-      if (cmd) cmd.checked = !!pr.commands;
-      if (net) net.checked = !!pr.network;
-      imUpdateProjectRow(body, pr);
-      imGrantDialogEl.querySelector("[data-im-grant-dialog-error]").hidden = true;
-      var closeBtn = document.createElement("button");
-      closeBtn.className = "btn btn-ghost";
-      closeBtn.type = "button";
-      closeBtn.textContent = "关闭";
-      var okBtn = document.createElement("button");
-      okBtn.className = "btn btn-primary";
-      okBtn.type = "button";
-      okBtn.textContent = "确认设置";
-      imGrantDialogEl.querySelector(".btn-pair").replaceChildren(closeBtn, okBtn);
-      closeBtn.onclick = function () {
-        imGrantController.close(); /* onClose 统一回退草稿 */
-      };
-      okBtn.onclick = function () {
-        var pr2 = imState.projects[imGrantIdx];
-        var errEl2 = imGrantDialogEl.querySelector("[data-im-grant-dialog-error]");
-        if (imState.sim.saveFailure) {
-          /* 保存失败：弹窗保持打开，草稿保留可重试 */
-          errEl2.hidden = false;
-          errEl2.textContent = "保存失败：服务暂不可用。授权未生效；已保留你的调整，恢复后重试。";
-          return;
-        }
-        imGrantConfirmed = true;
-        imGrantController.close();
-        imApplyGrant(null, pr2.id);
-      };
-      imGrantController.open(document.activeElement);
-    }
-
-    function imCopy(text) {
-      if (!navigator.clipboard) { notice("剪贴板不可用，请选中指令手动复制。", true); return; }
-      navigator.clipboard.writeText(text).catch(function () { notice("复制失败，请选中指令手动复制。", true); });
-    }
-    function imDecorate() {
-      imPanel.querySelectorAll("[data-im-field-label]").forEach(function (field) {
-        var input = field.querySelector("input,select");
-        if (!input) return;
-        if (!input.id) input.id = "im-input-" + (++imFieldSequence);
-        field.htmlFor = input.id;
+    /* 复制类按钮反馈（回调地址 / 配对指令） */
+    $$('[data-copy], [data-copy-pair]').forEach(function (btn) {
+      var original = btn.textContent;
+      btn.addEventListener("click", function () {
+        btn.textContent = "已复制";
+        setTimeout(function () {
+          btn.textContent = original;
+        }, 1400);
       });
-      imPanel.querySelectorAll('input[type="password"]').forEach(function (input) {
-        if (input.dataset.revealReady) return;
-        input.dataset.revealReady = "true";
-        var wrap = document.createElement("span"); wrap.className = "im-secret-wrap";
-        input.replaceWith(wrap); wrap.append(input);
-        var button = document.createElement("button"); button.type = "button"; button.className = "btn btn-ghost im-reveal";
-        button.textContent = "显示"; button.setAttribute("aria-label", "显示密钥"); button.setAttribute("aria-pressed", "false");
-        button.onclick = function (event) { event.preventDefault(); var show = input.type === "password"; input.type = show ? "text" : "password"; button.textContent = show ? "隐藏" : "显示"; button.setAttribute("aria-label", show ? "隐藏密钥" : "显示密钥"); button.setAttribute("aria-pressed", String(show)); };
-        wrap.append(button);
-      });
-      /* 行内次要按钮与设置抽屉其他分区对齐：纯文字 compact ghost（12px/28px）。
-         不按标签猜图标——猜测曾把「已保存 · 更换」配成 ✓、「删除连接」配成 ⟲，语义全错。 */
-      imPanel.querySelectorAll(".btn-ghost, .btn-quiet").forEach(function (button) {
-        button.dataset.size = "compact";
-      });
-      UI.enhance(imPanel);
-    }
-    // Observe added controls only; repeated enhancement is idempotent.
-    var imDecorating = false;
-    var imObserver = new MutationObserver(function () {
-      if (imDecorating) return;
-      imDecorating = true; imObserver.disconnect(); imDecorate();
-      imObserver.observe(imPanel, { childList: true, subtree: true }); imDecorating = false;
     });
-    imObserver.observe(imPanel, { childList: true, subtree: true });
-    imPanel.addEventListener("submit", function (event) {
-      if (!event.target.matches("[data-im-cred-form]")) return;
-      event.preventDefault(); event.target.querySelector("[data-im-cred-save]").click();
-    });
-    imPanel.addEventListener("keydown", function (event) {
-      if (event.key === "Enter" && !event.isComposing && event.target.matches("[data-im-cred-form] input")) {
-        event.preventDefault(); event.target.closest("form").querySelector("[data-im-cred-save]").click();
-      }
-    });
-    imPanel.addEventListener("change", function (event) {
-      var li = event.target.closest("[data-im-project-idx]");
-      if (!li) return;
-      var pr = imState.projects[Number(li.getAttribute("data-im-project-idx"))];
-      /* 三档模式：退出「允许修改」清空命令/网络/可写 */
-      var modeRadio = event.target.closest("[data-im-mode]");
-      if (modeRadio && modeRadio.checked) {
-        pr.mode = modeRadio.value;
-        if (pr.mode !== "execute") {
-          pr.commands = pr.network = false;
-          pr.writes = [];
-        }
-        imState.sim.projectsDirty = true;
-        imUpdateProjectRow(li, pr);
-        imRefresh();
-        return;
-      }
-      /* 审批 / 沙箱命令 / 网络 */
-      var input = event.target.closest("[data-im-permission]");
-      if (input) {
-        pr[input.dataset.imPermission] = input.type === "checkbox" ? input.checked : input.value;
-        if (pr.mode !== "execute") pr.commands = pr.network = false;
-        if (!pr.commands) pr.network = false;
-        imState.sim.projectsDirty = true;
-        imUpdateProjectRow(li, pr);
-        imRefresh();
-        return;
-      }
-      /* 范围树：可写⊆可读联动；受保护不可选（构建时已禁） */
-      var readChk = event.target.closest("[data-im-scope-read]");
-      var writeChk = event.target.closest("[data-im-scope-write]");
-      if (readChk || writeChk) {
-        var path = (readChk || writeChk).getAttribute("data-scope-path");
-        if (readChk) {
-          if (readChk.checked) {
-            if (pr.reads.indexOf(path) < 0) pr.reads.push(path);
-          } else {
-            var depends = pr.writes.some(function (wPath) {
-              return wPath === path || wPath.indexOf(path) === 0;
-            });
-            if (depends) {
-              readChk.checked = true;
-              notice("先取消依赖它的可写范围，再取消可读。", true);
-              return;
-            }
-            pr.reads = pr.reads.filter(function (rPath) { return rPath !== path; });
-          }
-        }
-        if (writeChk) {
-          if (writeChk.checked) {
-            if (pr.writes.indexOf(path) < 0) pr.writes.push(path);
-            /* 可写强制可读：自身 + 祖先目录 */
-            imScopeAncestors(path).concat([path]).forEach(function (p2) {
-              if (pr.reads.indexOf(p2) < 0) pr.reads.push(p2);
-            });
-          } else {
-            pr.writes = pr.writes.filter(function (wPath) { return wPath !== path; });
-          }
-        }
-        imState.sim.projectsDirty = true;
-        imUpdateProjectRow(li, pr);
-        imRefresh();
-      }
-    });
-    /* 模式档位卡：label→radio 原生激活在部分 webview 的 <dialog> 内不触发，
-       委托兜底幂等补勾（原生已勾则空转） */
-    imPanel.addEventListener("click", function (ev) {
-      var tier = ev.target.closest(".im-mode-tier");
-      if (!tier || !tier.closest(".im-grant-dialog")) return;
-      var radio = tier.querySelector('input[type="radio"]');
-      if (radio && !radio.checked) {
-        radio.checked = true;
-        radio.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    });
-    /* 「自定义范围」：Plan/Review 档展开完整树（Execute 档树常显） */
-    imPanel.addEventListener("click", function (event) {
-      var custom = event.target.closest("[data-im-scope-custom]");
-      if (!custom) return;
-      var li = custom.closest("[data-im-project-idx]");
-      if (li.dataset.scopeCustom === "true") delete li.dataset.scopeCustom;
-      else li.dataset.scopeCustom = "true";
-      var pr = imState.projects[Number(li.getAttribute("data-im-project-idx"))];
-      imUpdateProjectRow(li, pr);
-    });
-    imPanel.addEventListener("click", function (event) {
-      var fill = event.target.closest("[data-im-fill-demo]");
-      if (fill) {
-        var row = fill.closest("[data-im-platform]");
-        var values = { "App ID": "cli_demo_artemis", "App Secret": "demo-secret", "企业 ID": "ww123456789", "Bot ID": "demo-bot", "Secret": "demo-secret", "Bot Token": "xoxb-demo", "App-Level Token": "xapp-demo", "Verification Token": "demo-verification", "Encrypt Key": "demo-encrypt" };
-        row.querySelectorAll("[data-im-field-label]").forEach(function (field) { var input = field.querySelector("input"); if (input && values[field.dataset.imFieldLabel]) { input.value = values[field.dataset.imFieldLabel]; imHideFieldMessage(field); } });
-        notice("已填入虚构演示值，仅在当前页面使用。");
-      }
-      var scene = event.target.closest("[data-im-scene]");
-      if (scene) {
-        var key = scene.dataset.imScene;
-        imConfirm("切换演示场景", "当前输入和未保存设置会清空；不会修改实际消息服务。", function () {
-          imApplyDemo(key === "ready" || key === "offline" || key === "expired" ? "alert" : key === "team" ? "progress" : key);
-          if (key === "ready" || key === "offline" || key === "expired") {
-            Object.values(imState.connections).flat().forEach(function (c) { c.state = "ok"; delete c.reason; });
-            imState.pairingRequests = []; imState.projects.forEach(function (p) { p.expired = false; });
-            imState.gateway.linkBroken = key === "offline";
-            if (key === "ready") { imState.test.stage = 4; imState.test.confirmed = true; imState.test.channel = "feishu"; }
-            if (key === "expired") { imSecondsLeft = 0; imCodeExpired = true; imManual.channel = true; }
-            imRenderAll();
-            imShowOverview = !!(imDerived && imDerived.allDone);
-            imRefresh();
-          }
-          if (key === "team") {
-            imState.gateway.team = "https://gw.example.com";
-            imRenderAll();
-          }
-          notice("已切换演示场景。");
+
+    /* 渠道 tab 状态推导：已配置(连接数)/未配置；任一连接健康即绿灯（否则已配置但无健康连接=amber） */
+    function imSyncChannelTabs() {
+      $$("#imNavList .im-channel-card:not(.gen)").forEach(function (card) {
+        var view = card.getAttribute("data-im-view");
+        var section = imDetailEl.querySelector(
+          '.im-view[data-im-view="' + view + '"]',
+        );
+        var status = card.querySelector(".im-channel-status");
+        if (!section || !status) return;
+        var conns = Array.prototype.slice.call(
+          section.querySelectorAll(".im-conn-row"),
+        );
+        var healthy = conns.some(function (row) {
+          return !!row.querySelector(".im-dot.ok");
         });
-      }
-      if (event.target.closest("[data-im-save-failure]")) { imState.sim.saveFailure = !imState.sim.saveFailure; event.target.closest("button").setAttribute("aria-pressed", String(imState.sim.saveFailure)); notice(imState.sim.saveFailure ? "接下来保存项目权限将失败。" : "已恢复保存能力，可重试。"); }
-      if (event.target.closest("[data-im-enable-failure]")) { imState.sim.enableFailure = !imState.sim.enableFailure; event.target.closest("button").setAttribute("aria-pressed", String(imState.sim.enableFailure)); notice(imState.sim.enableFailure ? "接下来保存成功后启用连接将失败。" : "已恢复启用能力，可重试启用。"); }
-      if (event.target.closest("[data-im-recover]")) { imState.gateway.linkBroken = false; imRefresh(); notice("消息服务已恢复（演示）"); }
-      if (event.target.closest("[data-im-diagnose]")) {
-        var output = imPanel.querySelector("[data-im-diagnostic-result]");
-        output.textContent = !imState.gateway.started ? "服务未启动：先完成第 1 步。" : imState.gateway.linkBroken ? "设备与服务断连：恢复服务后重试。" : imDerived.badTotal ? "机器人凭据或权限异常：展开第 2 步查看原因。" : !imState.bindings.length ? "服务正常；尚未绑定账号，请在第 2 步完成绑定。" : !imDerived.ready ? "连接正常；请保存有效项目授权并启用连接。" : "服务、机器人、账号与项目授权均正常。";
-        output.hidden = false;
-      }
-      if (event.target.closest("[data-im-team-register]")) {
-        var form = imPanel.querySelector("#imTeamForm"); var inputs = form.querySelectorAll("input");
-        var result = form.querySelector("[data-im-team-result]");
-        var url;
-        try { url = new URL(inputs[0].value); } catch (_) {}
-        if (!url || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !inputs[1].value.trim() || !inputs[2].value.trim()) {
-          result.textContent = "填写 HTTPS 服务地址、设备名和管理凭据；地址不能含账号、密码或查询参数。"; result.hidden = false; inputs[!url || url.protocol !== "https:" ? 0 : !inputs[1].value.trim() ? 1 : 2].focus(); return;
+        var dot = status.querySelector(".im-dot");
+        if (!dot) {
+          dot = document.createElement("span");
+          dot.className = "im-dot";
+          dot.setAttribute("aria-hidden", "true");
         }
-        /* 切换服务先暂停并明确影响（PT-2）：已在运行时注册团队=断开现有连接与绑定 */
-        var switching = imState.gateway.started && !imState.gateway.linkBroken;
-        imConfirm("注册到团队服务器", switching
-          ? "将切换到团队服务器：本机服务停止，现有机器人连接与绑定会被断开，之后需要重新接入。确认继续？"
-          : "机器人凭据将由团队 Gateway 保管。此处只模拟注册，不连接外部服务器。", function () {
-          inputs[2].value = "";
-          if (switching) {
-            IM_PLATFORMS.forEach(function (p) { imState.connections[p.key] = []; });
-            imState.pairingRequests = [];
-            imState.bindings = [];
-            imBuildPlatformRows();
-            imUpdatePlatformRows();
-            imBuildPairingRequests();
-            imBuildBindings();
-            imBuildInstructions();
-          }
-          imState.gateway.team = url.origin; imState.gateway.started = true; imState.gateway.linkBroken = false;
-          result.textContent = "已注册演示设备 dev-3f9a，管理凭据已清空。"; result.hidden = false; imRefresh();
-          if (switching) notice("已切换到团队服务器，机器人连接已断开（演示）");
-        });
-      }
-    });
-    window.addEventListener("beforeunload", function (event) {
-      var dirty = imState.sim.projectsDirty || Array.from(imPanel.querySelectorAll('[data-im-cred-form] input')).some(function (input) { return !!input.value; });
-      if (dirty) { event.preventDefault(); event.returnValue = ""; }
-    });
-    imDecorate();
+        var text = document.createElement("span");
+        text.textContent = conns.length
+          ? "已配置(" + conns.length + ")"
+          : "未配置";
+        dot.className =
+          "im-dot " +
+          (conns.length ? (healthy ? "ok" : "pending") : "idle");
+        status.textContent = "";
+        status.appendChild(dot);
+        status.appendChild(text);
+      });
+    }
 
-    window.__imApplyDemo = imApplyDemo;
-    window.__imLocateCard = imLocateCard;
-    imApplyDemo("empty");
+    imMode("manage");
+    imSelect("feishu");
+    imSyncChannelTabs();
+    /* 供连接态变化后复推（及测试直达） */
+    window.__imSyncChannelTabs = imSyncChannelTabs;
+    /* hash 直达桥（#settings=1&im=wizard|manage） */
+    window.__imSetMode = imMode;
   }
 
   /* 设置弹窗 */
@@ -3536,18 +918,6 @@
   function selectSettings(key) {
     var tab = $('.settings-tab[data-settings-panel="' + key + '"]');
     if (tab) settingsTabs.select(tab);
-  }
-
-  /* 定时任务卡「待授权」深链：打开设置 → 消息接入 → 展开③ → 滚动 → 一次性脉冲 → 焦点落③卡头 */
-  var autoAuthBtn = $("[data-auto-auth]");
-  if (autoAuthBtn) {
-    autoAuthBtn.addEventListener("click", function () {
-      settingsController.open(autoAuthBtn);
-      selectSettings("im");
-      requestAnimationFrame(function () {
-        if (window.__imLocateCard) window.__imLocateCard("projects");
-      });
-    });
   }
 
   /* 主题（对齐真实设置：界面主题下拉 + #theme= hash；语言下拉即时生效语义） */
@@ -4387,6 +1757,1351 @@
     },
   });
 
+  /* ---------- 设计面板（open-design 结构）：文件浏览 ↔ 预览，含工具条功能模拟 ---------- */
+  var dzPanel = $("#dockPanelDesign");
+  if (dzPanel) {
+    var dzViewFiles = $("#dzViewFiles");
+    var dzViewPreview = $("#dzViewPreview");
+    var dzFilesTab = $("#dzTabFiles");
+    var dzFileTabs = $$('.design-ws-tab[data-dz-file]');
+    var dzStage = $("#dzStage");
+    var dzMockDesktop = $("#dzMockDesktop");
+    var dzMockPhone = $("#dzMockPhone");
+    var dzSource = $("#dzSource");
+    var dzToolHint = $("#dzToolHint");
+    var dzMode = "preview";
+    var dzDevice = "desktop";
+    var dzZoom = 100;
+    var dzCommentMode = false;
+    var dzComments = [];
+    var dzToastTimer = 0;
+    var dzFileMenuPop = null;
+
+    function dzToast(message) {
+      var toast = $("#dzToast");
+      toast.textContent = message;
+      toast.hidden = false;
+      window.clearTimeout(dzToastTimer);
+      dzToastTimer = window.setTimeout(function () {
+        toast.hidden = true;
+      }, 2600);
+    }
+    function dzCloseMenus() {
+      $$(".dz-menu").forEach(function (m) {
+        m.hidden = true;
+      });
+      $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzMoreBtn, #dzHandoffCaret").forEach(function (b) {
+        b.setAttribute("aria-expanded", "false");
+      });
+    }
+    function dzDisplayLabel(c) {
+      if (c.free) return "图钉";
+      if (c.kind === "control") return "控件";
+      if (c.kind === "text") return "文本";
+      if (c.kind === "image") return "图片";
+      if (c.kind === "link") return "链接";
+      return "区域";
+    }
+    function dzRenderComments() {
+      var list = $("#dzCommentList");
+      var empty = $("#dzCommentEmpty");
+      var total = String(dzComments.length);
+      $("#dzPanelCount").textContent = total;
+      $("#dzCount").textContent = total;
+      $("#dzMoreCount").textContent = total;
+      list.replaceChildren();
+      empty.hidden = dzComments.length > 0;
+      dzComments.forEach(function (c) {
+        var item = document.createElement("div");
+        item.className = "dz-comment-item";
+        if (c.id === dzActiveCommentId) item.classList.add("active");
+        item.setAttribute("role", "button");
+        item.tabIndex = 0;
+        var head = document.createElement("div");
+        head.className = "dz-comment-item-head";
+        var title = document.createElement("b");
+        title.textContent = c.seq + ". " + dzDisplayLabel(c);
+        var time = document.createElement("span");
+        time.className = "dz-comment-time";
+        time.textContent = c.at;
+        head.append(title, time);
+        var body = document.createElement("p");
+        body.textContent = c.text;
+        item.append(head, body);
+        if (c.images && c.images.length) {
+          var atts = document.createElement("div");
+          atts.className = "dz-comment-atts";
+          c.images.forEach(function (src) {
+            var img = document.createElement("img");
+            img.src = src;
+            img.alt = "评论附件";
+            atts.appendChild(img);
+          });
+          item.appendChild(atts);
+        }
+        function open() {
+          dzOpenComment(c);
+        }
+        item.addEventListener("click", open);
+        item.addEventListener("keydown", function (e) {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          open();
+        });
+        list.appendChild(item);
+      });
+    }
+
+    function dzApplyStage() {
+      var widths = { desktop: "min(560px, 100%)", tablet: "min(430px, 100%)", mobile: "min(300px, 100%)" };
+      dzStage.style.width = widths[dzDevice];
+      dzMockDesktop.hidden = dzDevice !== "desktop";
+      dzMockPhone.hidden = dzDevice === "desktop";
+      dzStage.style.transform = dzZoom === 100 ? "" : "scale(" + dzZoom / 100 + ")";
+    }
+    function dzHint(text) {
+      if (!text) {
+        dzToolHint.hidden = true;
+        return;
+      }
+      dzToolHint.textContent = text;
+      dzToolHint.hidden = false;
+    }
+    function dzClearTools() {
+      dzCommentMode = false;
+      [$("#dzCommentBtn"), $("#dzDrawBtn"), $("#dzEditBtn")].forEach(function (b) {
+        b.classList.remove("active");
+        b.setAttribute("aria-pressed", "false");
+      });
+      dzDrawExit(false);
+      $$('#dzMockDesktop [contenteditable="true"], #dzMockPhone [contenteditable="true"]').forEach(function (m) {
+        m.contentEditable = "false";
+      });
+      dzHint("");
+      dzCloseComposer();
+      dzSetPicking(false);
+    }
+    function dzShow(view, file, title) {
+      var files = view === "files";
+      dzViewFiles.hidden = !files;
+      dzViewPreview.hidden = files;
+      dzFilesTab.classList.toggle("active", files);
+      dzFilesTab.setAttribute("aria-selected", String(files));
+      dzFileTabs.forEach(function (t) {
+        var active = !files && t.dataset.dzFile === file;
+        t.classList.toggle("active", active);
+        t.setAttribute("aria-selected", String(active));
+        if (file && t.dataset.dzFile === file) t.hidden = false;
+      });
+      if (!files) dzClearTools();
+    }
+    dzFilesTab.addEventListener("click", function () {
+      dzShow("files");
+    });
+    dzFileTabs.forEach(function (t) {
+      t.addEventListener("click", function (e) {
+        if (e.target.closest(".design-ws-x")) {
+          e.stopPropagation();
+          t.hidden = true;
+          var remaining = dzFileTabs.filter(function (o) {
+            return !o.hidden;
+          });
+          if (t.classList.contains("active")) {
+            if (remaining.length) dzShow("preview", remaining[0].dataset.dzFile);
+            else dzShow("files");
+          }
+          return;
+        }
+        dzShow("preview", t.dataset.dzFile, t.dataset.dzTitle);
+      });
+    });
+    $$(".design-file-card").forEach(function (card) {
+      card.addEventListener("click", function () {
+        dzShow("preview", card.dataset.dzOpen, card.dataset.dzTitle);
+      });
+    });
+
+    /* 预览 | 代码 */
+    $$(".dz-mode-tab").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        dzMode = tab.dataset.dzMode;
+        $$(".dz-mode-tab").forEach(function (o) {
+          var active = o === tab;
+          o.classList.toggle("active", active);
+          o.setAttribute("aria-selected", String(active));
+        });
+        dzSource.hidden = dzMode !== "source";
+        dzStage.hidden = dzMode === "source";
+        dzClearTools();
+        if (dzMode === "preview") {
+          // 点「预览」= 让视口重新渲染一次（含已在预览态时），给可见反馈
+          dzStage.classList.remove("dz-rendering");
+          void dzStage.offsetWidth;
+          dzStage.classList.add("dz-rendering");
+        }
+      });
+    });
+
+    function dzToggleMenu(btn, menu) {
+      var open = menu.hidden;
+      $$(".dz-menu").forEach(function (m) {
+        m.hidden = true;
+      });
+      $$('.dz-device-trigger, .dz-zoom-trigger, #dzMoreBtn, #dzHandoffCaret').forEach(function (b) {
+        b.setAttribute("aria-expanded", "false");
+      });
+      menu.hidden = !open;
+      btn.setAttribute("aria-expanded", String(!menu.hidden));
+    }
+    /* 设备/缩放：主下拉与「更多」菜单里的副本共用一份状态与 active 同步 */
+    function dzSetDevice(id) {
+      dzDevice = id;
+      $("#dzDeviceLabel").textContent = id === "mobile" ? "手机" : id === "tablet" ? "平板" : "桌面端";
+      $$('.dz-menu [data-dz-device]').forEach(function (o) {
+        o.classList.toggle("active", o.dataset.dzDevice === id);
+      });
+      dzApplyStage();
+    }
+    function dzSetZoom(level) {
+      dzZoom = level;
+      $("#dzZoomLabel").textContent = level + "%";
+      $$('.dz-menu [data-dz-zoom]').forEach(function (o) {
+        o.classList.toggle("active", Number(o.dataset.dzZoom) === level);
+      });
+      dzApplyStage();
+    }
+    $("#dzDeviceBtn").addEventListener("click", function () {
+      dzToggleMenu($("#dzDeviceBtn"), $("#dzDeviceMenu"));
+    });
+    $$('#dzDeviceMenu .dz-menu-item').forEach(function (item) {
+      item.addEventListener("click", function () {
+        dzSetDevice(item.dataset.dzDevice);
+        $("#dzDeviceMenu").hidden = true;
+        $("#dzDeviceBtn").setAttribute("aria-expanded", "false");
+      });
+    });
+    $("#dzZoomBtn").addEventListener("click", function () {
+      dzToggleMenu($("#dzZoomBtn"), $("#dzZoomMenu"));
+    });
+    $$('#dzZoomMenu .dz-menu-item').forEach(function (item) {
+      item.addEventListener("click", function () {
+        dzSetZoom(Number(item.dataset.dzZoom));
+        $("#dzZoomMenu").hidden = true;
+        $("#dzZoomBtn").setAttribute("aria-expanded", "false");
+      });
+    });
+
+    /* 「更多」汇聚菜单：版本历史 / 设备预设 / 注释·标记·编辑·评论 / 缩放（对照 viewer-toolbar-more） */
+    function dzSyncMoreTools() {
+      var map = [
+        ['[data-dz-more="comment"]', "#dzCommentBtn"],
+        ['[data-dz-more="draw"]', "#dzDrawBtn"],
+        ['[data-dz-more="edit"]', "#dzEditBtn"],
+        ['[data-dz-more="comments"]', "#dzCommentListBtn"],
+      ];
+      map.forEach(function (pair) {
+        var item = document.querySelector(pair[0]);
+        if (item) item.classList.toggle("active", $(pair[1]).classList.contains("active"));
+      });
+    }
+    $("#dzMoreBtn").addEventListener("click", function () {
+      dzToggleMenu($("#dzMoreBtn"), $("#dzMoreMenu"));
+      if (!$("#dzMoreMenu").hidden) dzSyncMoreTools();
+    });
+    $("#dzMoreMenu").addEventListener("click", function (e) {
+      var item = e.target.closest(".dz-menu-item");
+      if (!item) return;
+      $("#dzMoreMenu").hidden = true;
+      $("#dzMoreBtn").setAttribute("aria-expanded", "false");
+      if (item.dataset.dzMore === "history") {
+        /* 阻止冒泡：避免 document 层的「点外关历史」把刚打开的浮层又关掉 */
+        e.stopPropagation();
+        $("#dzHistory").hidden = !$("#dzHistory").hidden;
+      } else if (item.dataset.dzMore === "comment") {
+        $("#dzCommentBtn").click();
+      } else if (item.dataset.dzMore === "draw") {
+        $("#dzDrawBtn").click();
+      } else if (item.dataset.dzMore === "edit") {
+        $("#dzEditBtn").click();
+      } else if (item.dataset.dzMore === "comments") {
+        $("#dzCommentListBtn").click();
+      } else if (item.dataset.dzDevice) {
+        dzSetDevice(item.dataset.dzDevice);
+      } else if (item.dataset.dzZoom) {
+        dzSetZoom(Number(item.dataset.dzZoom));
+      }
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-handoff")) {
+        $$(".dz-menu").forEach(function (m) {
+          m.hidden = true;
+        });
+      }
+      if (!e.target.closest("#dzHistory") && !e.target.closest("#dzHistoryBtn")) {
+        $("#dzHistory").hidden = true;
+      }
+    });
+
+    /* 刷新：图标旋转 + 预览重渲染一次（模拟 iframe 重载） */
+    $("#dzReload").addEventListener("click", function () {
+      var icon = $("#dzReload svg");
+      icon.style.transition = "transform .5s cubic-bezier(0.23,1,0.32,1)";
+      icon.style.transform = "rotate(360deg)";
+      window.setTimeout(function () {
+        icon.style.transition = "";
+        icon.style.transform = "";
+      }, 520);
+      if (dzMode === "preview" && !dzStage.hidden) {
+        dzStage.classList.remove("dz-rendering");
+        void dzStage.offsetWidth;
+        dzStage.classList.add("dz-rendering");
+      }
+    });
+
+    /* 注释 / 标记 / 编辑 三个工具（对照 open-design activate*Tool 的互斥模型） */
+    function dzToolState(btn, on) {
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", String(on));
+    }
+    function dzEditExit(notify) {
+      var btn = $("#dzEditBtn");
+      if (!btn.classList.contains("active")) return;
+      dzToolState(btn, false);
+      $$('#dzMockDesktop [contenteditable="true"], #dzMockPhone [contenteditable="true"]').forEach(function (m) {
+        m.contentEditable = "false";
+      });
+      dzHint("");
+      if (notify) dzToast("编辑已保存");
+    }
+    $("#dzCommentBtn").addEventListener("click", function () {
+      dzCommentMode = !dzCommentMode;
+      dzToolState($("#dzCommentBtn"), dzCommentMode);
+      if (dzCommentMode) {
+        dzDrawExit(false);
+        dzEditExit(false);
+        dzSetPicking(true);
+        dzHint("点击要注释的元素");
+      } else {
+        dzCloseComposer();
+        dzSetPicking(false);
+        dzHint("");
+      }
+    });
+    /* 编辑：预览直接可编辑（contenteditable），再点一次保存 */
+    $("#dzEditBtn").addEventListener("click", function () {
+      if ($("#dzEditBtn").classList.contains("active")) {
+        dzEditExit(true);
+        return;
+      }
+      dzToolState($("#dzEditBtn"), true);
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzDrawExit(false);
+      $$("#dzMockDesktop .mock-main, #dzMockPhone .dz-phone-screen").forEach(function (m) {
+        m.contentEditable = "true";
+      });
+      dzHint("点击文字直接编辑，完成后再点一次「编辑」保存");
+    });
+
+    /* 注释引擎（对照 open-design 注释工具全链路）：
+       crosshair 拾取 → hover 高亮框 + 样式摘要卡 → 点击捕获（无语义元素落自由图钉）
+       → composer（拖拽/样式行/附件/发送到聊天/评论）→ 编号 pin → 面板联动（点 pin 展开面板）。
+       pin 编号只增不减（open-design pinSeq 语义：删除/解决后不复用）。 */
+    var DZ_TARGET_SEL = ".mock-btn,.mock-field,.mock-switch,label,.mock-head b,.mock-head span,.mock-row";
+    var dzSeq = 0;
+    var dzActiveCommentId = null;
+    var dzEditTarget = null;
+    var dzComposerCtx = null;
+    var dzComposerImages = [];
+    var dzHoverEl = null;
+    function dzScale() { return dzZoom / 100; }
+    function dzSetPicking(on) {
+      $("#dzViewport").classList.toggle("dz-picking", on);
+      if (!on) {
+        dzHoverEl = null;
+        $("#dzPickCard").hidden = true;
+        $("#dzPickBox").hidden = true;
+      }
+    }
+    function dzPickTarget(el) {
+      return el && el.closest ? el.closest(DZ_TARGET_SEL) : null;
+    }
+    function dzTargetLabel(el, free) {
+      if (free || !el) return "pin";
+      var named = el.getAttribute("data-dz-target");
+      if (named) return named;
+      var tag = el.tagName.toLowerCase();
+      var cls = typeof el.className === "string" && el.className.trim()
+        ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
+        : "";
+      return tag + cls;
+    }
+    function dzTargetKind(el, free) {
+      if (free || !el) return "pin";
+      if (el.classList.contains("mock-btn") || el.classList.contains("mock-field") || el.classList.contains("mock-switch")) return "control";
+      if (el.classList.contains("mock-row") || el.classList.contains("mock-head")) return "area";
+      return "text";
+    }
+    function dzCssToHex(color) {
+      var m = color.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\)/);
+      if (!m) return /^#[0-9a-f]{3,8}$/i.test(color.trim()) ? color.trim() : "";
+      if (m[4] !== undefined && Number(m[4]) === 0) return "";
+      return "#" + [1, 2, 3].map(function (i) {
+        var v = Math.max(0, Math.min(255, Math.round(Number(m[i])))).toString(16);
+        return v.length === 1 ? "0" + v : v;
+      }).join("");
+    }
+    function dzStyleRows(el) {
+      var s = dzScale();
+      var rect = el.getBoundingClientRect();
+      var cs = getComputedStyle(el);
+      var rows = [];
+      var w = Math.round(rect.width / s), h = Math.round(rect.height / s);
+      if (w > 0 && h > 0) rows.push({ k: "Size", v: w + "x" + h });
+      var color = dzCssToHex(cs.color);
+      if (color) rows.push({ k: "Color", v: color, sw: color });
+      var bg = dzCssToHex(cs.backgroundColor);
+      if (bg) rows.push({ k: "Bg", v: bg, sw: bg });
+      var font = [cs.fontSize];
+      if (cs.fontWeight && cs.fontWeight !== "400") font.push(cs.fontWeight);
+      font.push(cs.fontFamily.split(",")[0].replace(/["']/g, "").trim());
+      rows.push({ k: "Font", v: font.join(" ") });
+      if (cs.lineHeight && cs.lineHeight !== "normal") rows.push({ k: "Line", v: cs.lineHeight });
+      return rows;
+    }
+    function dzRenderRows(container, rows) {
+      container.replaceChildren();
+      rows.forEach(function (r) {
+        var row = document.createElement("div");
+        row.className = "dz-pick-row";
+        var label = document.createElement("span");
+        label.textContent = r.k;
+        var val = document.createElement("b");
+        if (r.sw) {
+          var swatch = document.createElement("i");
+          swatch.style.background = r.sw;
+          val.appendChild(swatch);
+        }
+        val.appendChild(document.createTextNode(r.v));
+        row.append(label, val);
+        container.appendChild(row);
+      });
+    }
+    /* stage 坐标（随缩放）↔ viewport 内容坐标（composer/pin 各按所属空间存放） */
+    function dzContentFromStage(x, y) {
+      var vp = $("#dzViewport");
+      var s = dzScale();
+      var sr = dzStage.getBoundingClientRect();
+      var vr = vp.getBoundingClientRect();
+      return {
+        x: sr.left - vr.left + vp.scrollLeft + x * s,
+        y: sr.top - vr.top + vp.scrollTop + y * s,
+      };
+    }
+    function dzPlaceFloating(card, cx, cy) {
+      var vp = $("#dzViewport");
+      var vr = vp.getBoundingClientRect();
+      var cw = card.offsetWidth, ch = card.offsetHeight;
+      var minL = vp.scrollLeft + 8, minT = vp.scrollTop + 8;
+      var maxL = Math.max(minL, vp.scrollLeft + vr.width - cw - 8);
+      var maxT = Math.max(minT, vp.scrollTop + vr.height - ch - 8);
+      var left = cx + 14, top = cy + 14;
+      if (left > maxL) {
+        var flipL = cx - cw - 14;
+        left = flipL >= minL ? flipL : maxL;
+      }
+      if (top > maxT) {
+        var flipT = cy - ch - 14;
+        top = flipT >= minT ? flipT : maxT;
+      }
+      card.style.left = Math.max(minL, left) + "px";
+      card.style.top = Math.max(minT, top) + "px";
+    }
+    function dzHideHover() {
+      dzHoverEl = null;
+      $("#dzPickCard").hidden = true;
+    }
+    $("#dzViewport").addEventListener("mousemove", function (e) {
+      /* composer 打开时 hover 冻结（open-design：activeTarget 优先于 hoveredTarget） */
+      if (!dzCommentMode || !$("#dzNoteComposer").hidden) return;
+      var target = dzPickTarget(e.target);
+      if (target && target === dzHoverEl) return;
+      dzHoverEl = target;
+      var box = $("#dzPickBox");
+      if (!target) {
+        box.hidden = true;
+        dzHideHover();
+        return;
+      }
+      var s = dzScale();
+      var sr = dzStage.getBoundingClientRect();
+      var r = target.getBoundingClientRect();
+      box.style.left = (r.left - sr.left) / s + "px";
+      box.style.top = (r.top - sr.top) / s + "px";
+      box.style.width = r.width / s + "px";
+      box.style.height = r.height / s + "px";
+      box.hidden = false;
+      var card = $("#dzPickCard");
+      dzRenderRows(card, dzStyleRows(target));
+      card.hidden = false;
+      var vp = $("#dzViewport");
+      var vr = vp.getBoundingClientRect();
+      dzPlaceFloating(card, e.clientX - vr.left + vp.scrollLeft, e.clientY - vr.top + vp.scrollTop);
+    });
+    $("#dzViewport").addEventListener("mouseleave", function () {
+      if (!$("#dzNoteComposer").hidden) return;
+      $("#dzPickBox").hidden = true;
+      dzHideHover();
+    });
+    dzStage.addEventListener("click", function (e) {
+      if (!dzCommentMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var target = dzPickTarget(e.target);
+      var sr = dzStage.getBoundingClientRect();
+      var s = dzScale();
+      dzOpenComposer({
+        el: target,
+        free: !target,
+        x: (e.clientX - sr.left) / s,
+        y: (e.clientY - sr.top) / s,
+      });
+    });
+    function dzSyncComposerButtons() {
+      var text = $("#dzNoteInput").value.trim();
+      $("#dzNoteSave").disabled = !text || (dzEditTarget ? text === dzEditTarget.text : false);
+    }
+    function dzRenderDraftImages() {
+      var wrap = $("#dzNoteImages");
+      wrap.replaceChildren();
+      dzComposerImages.forEach(function (src, i) {
+        var item = document.createElement("span");
+        item.className = "dz-note-img";
+        var img = document.createElement("img");
+        img.src = src;
+        img.alt = "评论附件";
+        var x = document.createElement("button");
+        x.type = "button";
+        x.setAttribute("aria-label", "移除图片");
+        x.title = "移除图片";
+        x.innerHTML = '<svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg>';
+        x.addEventListener("click", function () {
+          dzComposerImages.splice(i, 1);
+          dzRenderDraftImages();
+        });
+        item.append(img, x);
+        wrap.appendChild(item);
+      });
+      wrap.hidden = dzComposerImages.length === 0;
+    }
+    function dzOpenComposer(opts) {
+      var composer = $("#dzNoteComposer");
+      dzEditTarget = opts.comment || null;
+      dzActiveCommentId = dzEditTarget ? dzEditTarget.id : null;
+      var free = dzEditTarget ? dzEditTarget.free : opts.free;
+      var label = dzEditTarget ? dzEditTarget.label : dzTargetLabel(opts.el, opts.free);
+      $("#dzNoteTitle").textContent = label;
+      $("#dzNoteTitle").title = label;
+      dzComposerImages = [];
+      $("#dzNoteImages").replaceChildren();
+      if (dzEditTarget) {
+        dzComposerImages = (dzEditTarget.images || []).slice();
+        $("#dzNoteInput").value = dzEditTarget.text;
+        dzRenderRows($("#dzNoteRows"), dzEditTarget.el && dzEditTarget.el.isConnected ? dzStyleRows(dzEditTarget.el) : []);
+        $("#dzNoteDelete").hidden = false;
+        $("#dzNoteClose").hidden = true; /* open-design：编辑已有评论时 ✕ 换垃圾桶 */
+      } else {
+        $("#dzNoteInput").value = "";
+        dzComposerCtx = {
+          label: label,
+          kind: dzTargetKind(opts.el, opts.free),
+          free: free,
+          el: opts.el || null,
+          x: opts.x, y: opts.y,
+        };
+        dzRenderRows($("#dzNoteRows"), opts.el ? dzStyleRows(opts.el) : []);
+        $("#dzNoteDelete").hidden = true;
+        $("#dzNoteClose").hidden = false;
+      }
+      dzRenderDraftImages();
+      dzSyncComposerButtons();
+      dzHideHover();
+      /* 选中框锁定被注释元素（composer 开着 = selected 双层描边；自由图钉无元素） */
+      var box = $("#dzPickBox");
+      var boxEl = dzEditTarget ? dzEditTarget.el : opts.el;
+      if (boxEl && boxEl.isConnected) {
+        var s = dzScale();
+        var sr = dzStage.getBoundingClientRect();
+        var r = boxEl.getBoundingClientRect();
+        box.style.left = (r.left - sr.left) / s + "px";
+        box.style.top = (r.top - sr.top) / s + "px";
+        box.style.width = r.width / s + "px";
+        box.style.height = r.height / s + "px";
+        box.classList.add("selected");
+        box.hidden = false;
+      } else {
+        box.classList.remove("selected");
+        box.hidden = true;
+      }
+      composer.hidden = false;
+      var anchor = dzEditTarget
+        ? dzContentFromStage(dzEditTarget.x, dzEditTarget.y)
+        : dzContentFromStage(opts.x, opts.y);
+      dzPlaceFloating(composer, anchor.x, anchor.y);
+      $("#dzNoteInput").focus();
+    }
+    function dzCloseComposer() {
+      var composer = $("#dzNoteComposer");
+      if (!composer.hidden) composer.hidden = true;
+      dzEditTarget = null;
+      dzActiveCommentId = null;
+      dzComposerImages = [];
+      $("#dzPickBox").classList.remove("selected");
+      $("#dzPickBox").hidden = true;
+      dzRenderComments();
+      dzRenderPins();
+    }
+    function dzRenderPins() {
+      var layer = $("#dzPinLayer");
+      layer.replaceChildren();
+      dzComments.forEach(function (c) {
+        var pin = document.createElement("button");
+        pin.type = "button";
+        pin.className = "dz-pin";
+        pin.textContent = String(c.seq);
+        pin.style.left = c.x + "px";
+        pin.style.top = c.y + "px";
+        pin.title = c.seq + ". " + dzDisplayLabel(c) + "：" + c.text;
+        pin.setAttribute("aria-label", "打开评论 " + c.seq + "（" + dzDisplayLabel(c) + "）");
+        pin.addEventListener("click", function (e) {
+          e.stopPropagation();
+          dzOpenComment(c);
+        });
+        layer.appendChild(pin);
+      });
+    }
+    function dzOpenComment(c) {
+      $("#dzCommentPanel").hidden = false;
+      dzOpenComposer({ comment: c });
+      dzRenderComments();
+    }
+    function dzSaveComment() {
+      var text = $("#dzNoteInput").value.trim();
+      if (!text) return;
+      if (dzEditTarget) {
+        dzEditTarget.text = text;
+        dzEditTarget.images = dzComposerImages.slice();
+        dzEditTarget.at = "刚刚";
+      } else {
+        dzSeq += 1;
+        dzComments.push({
+          id: "c" + dzSeq + "-" + Date.now().toString(36),
+          seq: dzSeq,
+          label: dzComposerCtx.label,
+          kind: dzComposerCtx.kind,
+          free: dzComposerCtx.free,
+          el: dzComposerCtx.el,
+          x: dzComposerCtx.x, y: dzComposerCtx.y,
+          text: text,
+          images: dzComposerImages.slice(),
+          at: "刚刚",
+        });
+      }
+      dzToast("评论已保存");
+      dzCloseComposer();
+      /* open-design：保存后退出拾取模式 */
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzSetPicking(false);
+      dzHint("");
+    }
+    $("#dzNoteInput").addEventListener("input", dzSyncComposerButtons);
+    $("#dzNoteInput").addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" || e.shiftKey) return;
+      e.preventDefault();
+      if (!$("#dzNoteSave").disabled) dzSaveComment();
+    });
+    $("#dzNoteSave").addEventListener("click", dzSaveComment);
+    $("#dzNoteClose").addEventListener("click", function () {
+      dzCloseComposer();
+    });
+    $("#dzNoteDelete").addEventListener("click", function () {
+      if (!dzEditTarget) return;
+      dzComments = dzComments.filter(function (c) { return c.id !== dzEditTarget.id; });
+      dzToast("评论已删除");
+      dzCloseComposer();
+    });
+    $("#dzNoteSendChat").addEventListener("click", function () {
+      var text = $("#dzNoteInput").value.trim();
+      if (text || dzComposerImages.length) dzToast("已发送到对话");
+      if (dzEditTarget) {
+        /* open-design：发送到聊天后该评论即从画布移除 */
+        dzComments = dzComments.filter(function (c) { return c.id !== dzEditTarget.id; });
+      }
+      dzCloseComposer();
+    });
+    $("#dzNoteAttach").addEventListener("click", function () {
+      $("#dzNoteFile").click();
+    });
+    $("#dzNoteFile").addEventListener("change", function () {
+      var self = this;
+      Array.from(self.files || []).forEach(function (f) {
+        if (f.type.startsWith("image/")) dzComposerImages.push(URL.createObjectURL(f));
+      });
+      self.value = "";
+      dzRenderDraftImages();
+    });
+    $("#dzNoteViewAll").addEventListener("click", function () {
+      $("#dzCommentPanel").hidden = false;
+    });
+    /* 拖拽移动 composer（comment-popover-drag-handle） */
+    (function () {
+      var grip = $("#dzNoteGrip");
+      var composer = $("#dzNoteComposer");
+      var drag = null;
+      grip.addEventListener("pointerdown", function (e) {
+        if (composer.hidden) return;
+        e.preventDefault();
+        var r = composer.getBoundingClientRect();
+        var vp = $("#dzViewport");
+        var vr = vp.getBoundingClientRect();
+        drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, vx: vr.left, vy: vr.top };
+        grip.setPointerCapture(e.pointerId);
+      });
+      grip.addEventListener("pointermove", function (e) {
+        if (!drag) return;
+        var vp = $("#dzViewport");
+        composer.style.left = e.clientX - drag.vx + vp.scrollLeft - drag.dx + "px";
+        composer.style.top = e.clientY - drag.vy + vp.scrollTop - drag.dy + "px";
+      });
+      grip.addEventListener("pointerup", function () { drag = null; });
+      grip.addEventListener("pointercancel", function () { drag = null; });
+    })();
+    /* Esc：先关 composer，再关评论面板 */
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (!$("#dzNoteComposer").hidden) {
+        e.preventDefault();
+        dzCloseComposer();
+        return;
+      }
+      if (!$("#dzCommentPanel").hidden) {
+        e.preventDefault();
+        $("#dzCommentPanel").hidden = true;
+      }
+    });
+
+    /* 版本历史浮层 */
+    $("#dzHistoryBtn").addEventListener("click", function () {
+      $("#dzHistory").hidden = !$("#dzHistory").hidden;
+    });
+    $$("#dzHistory .dz-history-item").forEach(function (item) {
+      item.addEventListener("click", function () {
+        $$("#dzHistory .dz-history-item").forEach(function (o) {
+          o.classList.toggle("active", o === item);
+        });
+      });
+    });
+
+    /* ---- 仿真增强（对照 open-design 行为） ---- */
+
+    /* 截图：视口白闪 + 草稿卡（当前设计稿迷你克隆，模拟进入对话输入区的附件草稿） */
+    var dzShotTimer = 0;
+    $("#dzShotBtn").addEventListener("click", function () {
+      var flash = document.createElement("span");
+      flash.className = "dz-flash";
+      $("#dzViewport").appendChild(flash);
+      window.setTimeout(function () {
+        flash.remove();
+      }, 320);
+      var old = $("#dzShotCard");
+      if (old) old.remove();
+      var card = document.createElement("div");
+      card.className = "dz-shot-card";
+      card.id = "dzShotCard";
+      var mini = document.createElement("div");
+      mini.className = "dz-shot-mini";
+      /* 克隆当前预览（去掉 dz* id 防重复），垃圾桶移除模拟从输入区删除附件 */
+      mini.innerHTML = dzStage.outerHTML.replace(/ id="dz[^"]*"/g, "");
+      var cap = document.createElement("div");
+      cap.className = "dz-shot-cap";
+      cap.innerHTML = "<b>截图草稿</b><span>已加入输入区，随下条消息发送</span>";
+      var x = document.createElement("button");
+      x.type = "button";
+      x.className = "dz-shot-x";
+      x.setAttribute("aria-label", "移除截图草稿");
+      x.title = "移除截图草稿";
+      x.innerHTML =
+        '<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="14"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l1 12.5a1 1 0 0 0 1 .5h7a1 1 0 0 0 1-.5l1-12.5"></path><path d="M10 11v5M14 11v5"></path></svg>';
+      x.addEventListener("click", function () {
+        card.remove();
+        dzToast("截图草稿已移除");
+      });
+      card.appendChild(mini);
+      card.appendChild(cap);
+      card.appendChild(x);
+      $("#dzViewport").appendChild(card);
+      window.clearTimeout(dzShotTimer);
+      dzShotTimer = window.setTimeout(function () {
+        if (!card.isConnected) return;
+        card.remove();
+        dzToast("截图已发送到对话");
+      }, 3200);
+    });
+
+    /* 标记：画笔 / 方框 / 文字 + 撤销重做 + 发送到输入框（对照 open-design PreviewDrawOverlay） */
+    var drawLayer = $("#dzDrawLayer");
+    var drawViewport = $("#dzViewport");
+    var drawPath = null;
+    var drawRect = null;
+    var drawStart = null;
+    var dzDrawTool = "pen";
+    var dzDrawOps = [];
+    var dzDrawRedo = [];
+    function dzDrawing() {
+      return drawViewport.classList.contains("dz-drawing");
+    }
+    function dzDrawPush(op) {
+      dzDrawOps.push(op);
+      dzDrawRedo.length = 0;
+    }
+    function dzDrawExit(notify) {
+      var had = dzDrawOps.length > 0;
+      dzDrawOps.forEach(function (op) {
+        op.el.remove();
+      });
+      dzDrawOps.length = 0;
+      dzDrawRedo.length = 0;
+      drawLayer.replaceChildren();
+      $$(".dz-draw-text").forEach(function (t) {
+        t.remove();
+      });
+      drawViewport.classList.remove("dz-drawing");
+      $("#dzDrawTools").hidden = true;
+      dzToolState($("#dzDrawBtn"), false);
+      dzHint("");
+      if (notify && had) dzToast("标记已发送到对话输入框");
+    }
+    drawViewport.addEventListener("mousedown", function (e) {
+      if (!dzDrawing() || e.button !== 0 || e.target.closest(".dz-draw-tools")) return;
+      var rect = drawLayer.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      if (dzDrawTool === "pen") {
+        e.preventDefault();
+        drawPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        drawPath.setAttribute("d", "M" + x + " " + y);
+        drawLayer.appendChild(drawPath);
+      } else if (dzDrawTool === "box") {
+        e.preventDefault();
+        drawStart = { x: x, y: y };
+        drawRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        drawRect.setAttribute("x", x);
+        drawRect.setAttribute("y", y);
+        drawRect.setAttribute("width", 0);
+        drawRect.setAttribute("height", 0);
+        drawLayer.appendChild(drawRect);
+      }
+    });
+    drawViewport.addEventListener("mousemove", function (e) {
+      if (!dzDrawing()) return;
+      var rect = drawLayer.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      if (drawPath) {
+        drawPath.setAttribute("d", drawPath.getAttribute("d") + " L" + x + " " + y);
+      } else if (drawRect && drawStart) {
+        drawRect.setAttribute("x", Math.min(drawStart.x, x));
+        drawRect.setAttribute("y", Math.min(drawStart.y, y));
+        drawRect.setAttribute("width", Math.abs(x - drawStart.x));
+        drawRect.setAttribute("height", Math.abs(y - drawStart.y));
+      }
+    });
+    window.addEventListener("mouseup", function () {
+      if (drawPath) {
+        if (drawPath.getAttribute("d").indexOf("L") > -1) dzDrawPush({ type: "path", el: drawPath });
+        else drawPath.remove();
+        drawPath = null;
+      }
+      if (drawRect) {
+        if (Number(drawRect.getAttribute("width")) > 4) dzDrawPush({ type: "rect", el: drawRect });
+        else drawRect.remove();
+        drawRect = null;
+        drawStart = null;
+      }
+    });
+    /* 文字工具：点击放置可编辑文本，失焦即定型 */
+    drawViewport.addEventListener("click", function (e) {
+      if (!dzDrawing() || dzDrawTool !== "text" || e.target.closest(".dz-draw-tools") || e.target.closest(".dz-draw-text")) return;
+      var vp = drawViewport.getBoundingClientRect();
+      var t = document.createElement("span");
+      t.className = "dz-draw-text";
+      t.contentEditable = "true";
+      t.style.left = Math.round(e.clientX - vp.left) + "px";
+      t.style.top = Math.round(e.clientY - vp.top) + "px";
+      drawViewport.appendChild(t);
+      t.focus();
+      t.addEventListener("blur", function () {
+        if (t.textContent.trim()) dzDrawPush({ type: "text", el: t });
+        else t.remove();
+      });
+    });
+    $$("#dzDrawTools .dz-draw-tool").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        dzDrawTool = btn.dataset.dzDtool;
+        $$("#dzDrawTools .dz-draw-tool").forEach(function (o) {
+          o.classList.toggle("active", o === btn);
+        });
+      });
+    });
+    $("#dzDrawUndo").addEventListener("click", function () {
+      var op = dzDrawOps.pop();
+      if (!op) return;
+      op.el.remove();
+      dzDrawRedo.push(op);
+    });
+    $("#dzDrawRedo").addEventListener("click", function () {
+      var op = dzDrawRedo.pop();
+      if (!op) return;
+      (op.el.tagName === "span" ? drawViewport : drawLayer).appendChild(op.el);
+      dzDrawOps.push(op);
+    });
+    $("#dzDrawSend").addEventListener("click", function () {
+      dzDrawExit(true);
+    });
+    $("#dzDrawBtn").addEventListener("click", function () {
+      if ($("#dzDrawBtn").classList.contains("active")) {
+        dzDrawExit(true);
+        return;
+      }
+      dzToolState($("#dzDrawBtn"), true);
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzEditExit(false);
+      drawViewport.classList.add("dz-drawing");
+      $("#dzDrawTools").hidden = false;
+      dzHint("在预览上标记：画笔、方框或文字");
+    });
+
+    /* 评论：面板开关 + 进入注释创建态（对照 activateCommentCreateTool） */
+    $("#dzCommentListBtn").addEventListener("click", function () {
+      var panel = $("#dzCommentPanel");
+      var open = panel.hidden;
+      panel.hidden = !open;
+      dzToolState($("#dzCommentListBtn"), open);
+      if (open) {
+        dzCommentMode = true;
+        dzToolState($("#dzCommentBtn"), true);
+        dzDrawExit(false);
+        dzEditExit(false);
+        dzHint("点击要注释的元素");
+      } else {
+        dzCommentMode = false;
+        dzToolState($("#dzCommentBtn"), false);
+        dzHint("");
+      }
+    });
+    $("#dzCommentPanelClose").addEventListener("click", function () {
+      $("#dzCommentPanel").hidden = true;
+      dzToolState($("#dzCommentListBtn"), false);
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzHint("");
+    });
+
+    /* 版本历史：点击条目 → 恢复确认；确认后新增历史条目并回写 mock 文案 */
+    $$("#dzHistory .dz-history-item").forEach(function (item) {
+      item.addEventListener("click", function () {
+        $$("#dzHistory .dz-history-item").forEach(function (o) {
+          o.classList.toggle("active", o === item);
+        });
+        $("#dzConfirm").hidden = false;
+      });
+    });
+    $("#dzConfirmCancel").addEventListener("click", function () {
+      $("#dzConfirm").hidden = true;
+    });
+    $("#dzConfirmOk").addEventListener("click", function () {
+      $("#dzConfirm").hidden = true;
+      $("#dzHistory").hidden = true;
+      var entry = document.createElement("button");
+      entry.className = "dz-history-item active";
+      entry.type = "button";
+      entry.innerHTML =
+        '<span class="dz-history-dot"></span><span class="dz-history-copy"><b>刚刚 · 你（恢复）</b><small>恢复到今天 14:05 的版本</small></span><span class="mono dz-history-id">e7a01c9b</span>';
+      $$("#dzHistory .dz-history-item").forEach(function (o) {
+        o.classList.remove("active");
+      });
+      $("#dzHistory").insertBefore(entry, $("#dzHistory .dz-history-item"));
+      var btn = $(".dz-stage .mock-btn.primary");
+      if (btn) btn.textContent = "保存";
+      dzToast("已恢复，并存成一个新版本");
+    });
+
+    /* 演示模式：下拉选演示方式；stage 整体移入全屏层，退出时归位 */
+    var presentLayer = $("#dzPresentLayer");
+    var presentReturnTo = null;
+    function dzPresentEnter(fullscreen) {
+      if (!dzViewFiles.hidden) dzShow("preview", "customer.html");
+      var file = $(".design-ws-tab.active .design-ws-label");
+      $("#dzPresentTitle").textContent = (file ? file.textContent : "customer.html") + " · 演示中";
+      presentReturnTo = dzStage.nextSibling;
+      presentLayer.appendChild(dzStage);
+      presentLayer.hidden = false;
+      dzPresentBtn.classList.add("active");
+      if (fullscreen && presentLayer.requestFullscreen) {
+        presentLayer.requestFullscreen().catch(function () {});
+      }
+    }
+    function dzPresentExit() {
+      if (presentLayer.hidden) return;
+      presentLayer.hidden = true;
+      if (presentReturnTo) presentReturnTo.parentNode.insertBefore(dzStage, presentReturnTo);
+      dzPresentBtn.classList.remove("active");
+      if (document.fullscreenElement === presentLayer && document.exitFullscreen) {
+        document.exitFullscreen().catch(function () {});
+      }
+    }
+    function dzCollectMockCss() {
+      var out = "";
+      function walk(rules) {
+        Array.prototype.forEach.call(rules, function (rule) {
+          if (rule.styleSheet) {
+            try {
+              walk(rule.styleSheet.cssRules);
+            } catch (err) {
+              /* 跨域或尚未加载的 @import，跳过 */
+            }
+            return;
+          }
+          var text = rule.cssText || "";
+          if (/^:root|\[data-theme|\.dz-stage|\.design-mock|\.mock-|\.dz-phone/.test(text)) out += text + "\n";
+        });
+      }
+      Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+        var rules = null;
+        try {
+          rules = sheet.cssRules;
+        } catch (err) {
+          rules = null;
+        }
+        if (rules) walk(rules);
+      });
+      return out;
+    }
+    function dzPresentNewTab() {
+      var file = $(".design-ws-tab.active .design-ws-label");
+      var name = file ? file.textContent : "customer.html";
+      var attrs =
+        ' data-theme="' +
+        (document.documentElement.dataset.theme || "light") +
+        '" data-contrast="' +
+        (document.documentElement.dataset.contrast || "normal") +
+        '" data-direction="' +
+        (document.documentElement.dataset.direction || "a") +
+        '"';
+      var doc =
+        '<!doctype html><html lang="zh-CN"' +
+        attrs +
+        "><head><meta charset=\"utf-8\">" +
+        '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+        "<title>" +
+        name +
+        " · 演示</title><style>html,body{margin:0;min-height:100%}" +
+        "body{display:flex;flex-direction:column;background:var(--surface-2,#f5f5f7);color:var(--text,#111);" +
+        "font-family:var(--font-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif)}" +
+        ".pd-bar{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:12.5px;font-weight:600;" +
+        "background:var(--surface,#fff);border-bottom:1px solid var(--border-soft,rgba(0,0,0,.1))}" +
+        ".pd-bar small{font-weight:400;font-size:11px;color:var(--text-2,#666)}" +
+        ".pd-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px}" +
+        ".pd-body .dz-stage{width:min(920px,92vw) !important;transform:none !important;margin:auto}" +
+        dzCollectMockCss() +
+        "</style></head><body>" +
+        '<div class="pd-bar"><span>' +
+        name +
+        ' · 演示</span><small>原型演示模式生成的静态页面</small></div>' +
+        '<div class="pd-body">' +
+        dzStage.outerHTML +
+        "</div></body></html>";
+      var url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
+      if (window.open(url, "_blank")) return;
+      dzPresentEnter(false);
+      dzToast("弹窗被浏览器拦截，已改为在当前标签页演示");
+    }
+    var dzPresentBtn = $("#dzPresentBtn");
+    $("#dzPresentMenu").addEventListener("click", function (e) {
+      var item = e.target.closest(".dz-menu-item");
+      if (!item) return;
+      $("#dzPresentMenu").hidden = true;
+      dzPresentBtn.setAttribute("aria-expanded", "false");
+      if (item.dataset.dzPresent === "tab") dzPresentEnter(false);
+      else if (item.dataset.dzPresent === "fullscreen") dzPresentEnter(true);
+      else dzPresentNewTab();
+    });
+    $("#dzPresentExit").addEventListener("click", dzPresentExit);
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      if (!$("#dzPresentMenu").hidden) {
+        $("#dzPresentMenu").hidden = true;
+        dzPresentBtn.setAttribute("aria-expanded", "false");
+        return;
+      }
+      if (!presentLayer.hidden) {
+        e.stopPropagation();
+        dzPresentExit();
+      }
+    });
+    document.addEventListener("fullscreenchange", function () {
+      if (!document.fullscreenElement && !presentLayer.hidden) dzPresentExit();
+    });
+
+    /* 导出 / 新建标签 / 项目菜单：toggle 式下拉 */
+    [["#dzExportBtn", "#dzExportMenu"], ["#dzPlusBtn", "#dzPlusMenu"], ["#dzProjectBtn", "#dzProjectMenu"], ["#dzPresentBtn", "#dzPresentMenu"]].forEach(
+      function (pair) {
+        $(pair[0]).addEventListener("click", function (e) {
+          e.stopPropagation();
+          var menu = $(pair[1]);
+          var open = menu.hidden;
+          dzCloseMenus();
+          menu.hidden = !open;
+          $(pair[0]).setAttribute("aria-expanded", String(!menu.hidden));
+        });
+      },
+    );
+    /* 菜单项里的 data-dz-toast：点了给 toast 并收起菜单 */
+    dzPanel.addEventListener("click", function (e) {
+      var item = e.target.closest("[data-dz-toast]");
+      if (!item) return;
+      dzCloseMenus();
+      dzToast(item.dataset.dzToast.replace("{file}", $(".design-ws-tab.active .design-ws-label") ? $(".design-ws-tab.active .design-ws-label").textContent : "文件"));
+    });
+    /* 新建标签菜单项：打开对应视图 */
+    $$("#dzPlusMenu .dz-menu-item").forEach(function (item) {
+      item.addEventListener("click", function () {
+        dzCloseMenus();
+        if (item.dataset.dzOpen === "files") dzShow("files");
+        else dzShow("preview", item.dataset.dzOpen, item.dataset.dzTitle);
+      });
+    });
+
+    /* 分享：开关态切换 */
+    $("#dzShareBtn").addEventListener("click", function () {
+      var shared = $("#dzShareBtn").classList.toggle("shared");
+      $("#dzShareLabel").textContent = shared ? "已分享" : "分享";
+      dzToast(shared ? "分享已开启，链接已复制" : "分享已关闭");
+    });
+
+    /* 交付（Handoff）：分体按钮 = 左侧直接用首选编辑器打开，▼ 弹「编辑器/CLI」双 tab 菜单 */
+    var dzHandoffEditors = {
+      "VS Code": '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .325 8.74L3.899 12 .325 15.26a1 1 0 0 0 .002 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zM17.9 17.448 10.826 12l7.178-5.448v10.896z" fill="#22a0e8"></path></svg>',
+      Cursor: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M12 3.2 20.5 19h-4.2L12 10.4 7.7 19H3.5z" fill="currentColor"></path></svg>',
+      Trae: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><rect height="15" rx="3.5" width="15" x="4.5" y="4.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M9.5 9.5l5 5M14.5 9.5l-5 5" stroke="currentColor" stroke-linecap="round" stroke-width="1.6"></path></svg>',
+      Zed: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M7 7h10L7 17h10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path></svg>',
+      Xcode: '<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><path d="M4 16.5 16.5 4l3.5 3.5L7.5 20z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.6"></path><path d="M4 20l3-1" stroke="currentColor" stroke-linecap="round" stroke-width="1.6"></path></svg>',
+    };
+    var dzHandoffPreferred = "VS Code";
+    var dzHandoffInstalled = ["VS Code", "Cursor", "Trae"];
+    var dzHandoffFramework = "React";
+    var dzHandoffCli = [
+      { name: "Claude Code", bin: "claude" },
+      { name: "Codex CLI", bin: "codex" },
+      { name: "OpenCode", bin: "opencode" },
+      { name: "Gemini CLI", bin: "gemini" },
+      { name: "Qwen Code", bin: "qwen" },
+    ];
+    function dzHandoffPanes() {
+      var editor =
+        '<div class="dz-handoff-pane" id="dzHandoffEditor">' +
+        '<div class="dz-handoff-group-title">已安装</div><div class="dz-handoff-rail">' +
+        dzHandoffInstalled
+          .map(function (name) {
+            return (
+              '<button class="dz-handoff-item" data-dz-editor="' + name + '" title="在 ' + name + ' 中打开" type="button">' +
+              '<span class="dz-handoff-logo sm">' + dzHandoffEditors[name] + "</span>" +
+              "<span>" + name + "</span>" +
+              '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg></button>'
+            );
+          })
+          .join("") +
+        '</div><div class="dz-handoff-group-title">未安装</div><div class="dz-handoff-rail dim">' +
+        ["Zed", "Xcode"]
+          .map(function (name) {
+            return (
+              '<button class="dz-handoff-item" data-dz-editor="' + name + '" data-dz-dim="1" title="未检测到 ' + name + '" type="button">' +
+              '<span class="dz-handoff-logo sm">' + dzHandoffEditors[name] + "</span>" +
+              "<span>" + name + "</span></button>"
+            );
+          })
+          .join("") +
+        "</div></div>";
+      var cli =
+        '<div class="dz-handoff-pane">' +
+        '<div class="dz-handoff-group-title">代码框架</div><div class="dz-handoff-frameworks">' +
+        ["React", "Vue.js", "Svelte", "SolidJS", "Next.js", "JS"]
+          .map(function (f) {
+            return '<button class="dz-handoff-chip' + (f === dzHandoffFramework ? " active" : "") + '" data-dz-framework="' + f + '" type="button">' + f + "</button>";
+          })
+          .join("") +
+        '</div><div class="dz-handoff-group-title">已安装</div><div class="dz-handoff-cli">' +
+        dzHandoffCli
+          .map(function (c) {
+            return (
+              '<div class="dz-handoff-cli-row"><span class="dz-handoff-cli-name">' + c.name + '</span><code class="mono">' + c.bin + '</code><button class="dz-handoff-copy" data-dz-copy="' + c.name + ' 启动命令" type="button">复制</button></div>'
+            );
+          })
+          .join("") +
+        "</div></div>";
+      $("#dzHandoffPanes").innerHTML = editor + cli;
+      $("#dzHandoffEditor").nextElementSibling.hidden = true;
+    }
+    dzHandoffPanes();
+    $("#dzHandoffMain").addEventListener("click", function () {
+      dzToast("已在 " + dzHandoffPreferred + " 中打开项目文件夹");
+    });
+    $("#dzHandoffCaret").addEventListener("click", function () {
+      dzToggleMenu($("#dzHandoffCaret"), $("#dzHandoffMenu"));
+    });
+    $("#dzHandoffMenu").addEventListener("click", function (e) {
+      var tab = e.target.closest("[data-dz-htab]");
+      if (tab) {
+        $$(".dz-handoff-tabs [role=tab]").forEach(function (o) {
+          var on = o === tab;
+          o.classList.toggle("active", on);
+          o.setAttribute("aria-selected", String(on));
+        });
+        var isCli = tab.dataset.dzHtab === "cli";
+        var panes = $("#dzHandoffPanes").children;
+        panes[0].hidden = isCli;
+        panes[1].hidden = !isCli;
+        return;
+      }
+      var chip = e.target.closest("[data-dz-framework]");
+      if (chip) {
+        dzHandoffFramework = chip.dataset.dzFramework;
+        $$(".dz-handoff-chip").forEach(function (o) {
+          o.classList.toggle("active", o === chip);
+        });
+        return;
+      }
+      var editorBtn = e.target.closest("[data-dz-editor]");
+      if (editorBtn) {
+        $("#dzHandoffMenu").hidden = true;
+        $("#dzHandoffCaret").setAttribute("aria-expanded", "false");
+        if (editorBtn.dataset.dzDim) {
+          dzToast("未检测到 " + editorBtn.dataset.dzEditor + "，请先安装");
+          return;
+        }
+        dzHandoffPreferred = editorBtn.dataset.dzEditor;
+        $("#dzHandoffLogo").innerHTML = dzHandoffEditors[dzHandoffPreferred];
+        $("#dzHandoffLabel").textContent = dzHandoffPreferred;
+        $("#dzHandoffMain").setAttribute("aria-label", "在 " + dzHandoffPreferred + " 中打开项目文件夹");
+        $("#dzHandoffMain").title = "在 " + dzHandoffPreferred + " 中打开项目文件夹";
+        dzToast("已在 " + dzHandoffPreferred + " 中打开项目文件夹");
+        return;
+      }
+      var copy = e.target.closest("[data-dz-copy]");
+      if (copy) {
+        dzToast("已复制 " + copy.dataset.dzCopy.replace("项目路径", "项目路径（/Users/demo/Projects/rights-hub）"));
+        var old = copy.textContent;
+        copy.textContent = "已复制";
+        copy.disabled = true;
+        window.setTimeout(function () {
+          copy.textContent = old;
+          copy.disabled = false;
+        }, 1200);
+      }
+    });
+
+    /* 全局点外收起所有菜单（含新加的三组） */
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-handoff") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-crumb-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-file-menu-pop")) {
+        dzCloseMenus();
+      }
+      if (!e.target.closest("#dzHistory") && !e.target.closest("#dzHistoryBtn")) {
+        $("#dzHistory").hidden = true;
+      }
+    });
+
+    /* 分类胶囊：切换并过滤文件卡（空分类给空态） */
+    $$(".design-cat").forEach(function (cat) {
+      cat.addEventListener("click", function () {
+        $$(".design-cat").forEach(function (o) {
+          o.classList.toggle("active", o === cat);
+        });
+        var name = cat.textContent.trim().split(/\s/)[0];
+        var key = { "文件夹": "folders", "页面": "pages", "样式表": "stylesheets", "脚本": "scripts", "图片": "images", "其他": "other" }[name] || "pages";
+        var shown = 0;
+        $$(".design-file-card").forEach(function (card) {
+          var match = card.dataset.dzCat === key;
+          card.hidden = !match;
+          if (match) shown += 1;
+        });
+        $("#dzCatEmpty").hidden = shown > 0;
+      });
+    });
+
+    /* 文件卡 ⋯ 菜单：跟随卡片的 fixed 浮层（打开/下载/重命名/删除） */
+    $$(".design-file-menu").forEach(function (menuBtn) {
+      menuBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (dzFileMenuPop) {
+          dzFileMenuPop.remove();
+          dzFileMenuPop = null;
+          return;
+        }
+        var card = menuBtn.closest(".design-file-card");
+        var name = card.querySelector(".design-file-name").textContent;
+        var b = menuBtn.getBoundingClientRect();
+        dzFileMenuPop = document.createElement("div");
+        dzFileMenuPop.className = "dz-menu dz-file-menu-pop";
+        dzFileMenuPop.setAttribute("role", "menu");
+        dzFileMenuPop.style.left = Math.round(b.right - 150) + "px";
+        dzFileMenuPop.style.top = Math.round(b.bottom + 6) + "px";
+        [["打开", "open"], ["下载", "download"], ["重命名", "rename"], ["删除", "delete"]].forEach(function (pair) {
+          var item = document.createElement("button");
+          item.className = "dz-menu-item" + (pair[1] === "delete" ? " danger" : "");
+          item.type = "button";
+          item.setAttribute("role", "menuitem");
+          item.textContent = pair[0];
+          item.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            dzFileMenuPop.remove();
+            dzFileMenuPop = null;
+            if (pair[1] === "open") card.click();
+            else if (pair[1] === "delete") {
+              card.hidden = true;
+              dzToast("已删除 " + name);
+            } else dzToast((pair[1] === "download" ? "已下载 " : "重命名已复制到输入：") + name);
+          });
+          dzFileMenuPop.appendChild(item);
+        });
+        document.body.appendChild(dzFileMenuPop);
+      });
+    });
+    document.addEventListener("click", function (e) {
+      if (dzFileMenuPop && !e.target.closest(".dz-file-menu-pop") && !e.target.closest(".design-file-menu")) {
+        dzFileMenuPop.remove();
+        dzFileMenuPop = null;
+      }
+    });
+
+    /* 生成 composer：发送后入队提示并复位 */
+    var dzComposer = dzPanel.querySelector(".design-composer-input");
+    var dzSend = dzPanel.querySelector(".design-composer-send");
+    if (dzComposer && dzSend) {
+      dzComposer.addEventListener("input", function () {
+        dzSend.disabled = !dzComposer.textContent.trim();
+      });
+      dzSend.addEventListener("click", function () {
+        dzComposer.textContent = "";
+        dzSend.disabled = true;
+        dzToast("已加入生成队列");
+      });
+    }
+    dzApplyStage();
+  }
+
+
   var reviewExamples = ArtemisWorkspaceFixtures.reviews;
   function selectReview(index) {
     var lines = reviewExamples[index];
@@ -5054,14 +3769,10 @@
       if (params.get("empty") === "1") body.setAttribute("data-empty", "1");
       if (params.get("settings") === "1") {
         settingsController.open($("#settingsBtn"));
-        var imDemo = params.get("im-demo");
-        if (
-          ["empty", "progress", "alert"].includes(imDemo) &&
-          window.__imApplyDemo
-        ) {
+        var imHash = params.get("im");
+        if ((imHash === "wizard" || imHash === "manage") && window.__imSetMode) {
           selectSettings("im");
-          /* hash 重放幂等：applyDemo 从种子全量重建（derive 重跑） */
-          window.__imApplyDemo(imDemo);
+          window.__imSetMode(imHash);
         }
       }
       if (params.get("collapsed") === "1") {

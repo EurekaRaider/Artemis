@@ -7,9 +7,9 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=178" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=174" rel="stylesheet"/>
 
-<link href="workspace-composition.css?v=144" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=128"/>
+<link href="workspace-composition.css?v=146" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=127"/>
 </head>
 <body data-dock="closed" data-empty="0" data-view="workspace">
 <!-- v113：模拟 macOS hiddenInset 红绿灯（真实应用为原生控件，恒浮于内容之上；纯展示不拦截点击） -->
@@ -457,14 +457,282 @@
 <button class="launch-btn" data-launch="review" type="button"><span class="launch-ico"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5"></path></svg></span>Review</button>
 <button class="launch-btn" data-launch="terminal" type="button"><span class="launch-ico"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><path d="m5 8 4 4-4 4M11 17h8"></path></svg></span>Terminal</button>
 <button class="launch-btn" data-launch="browser" type="button"><span class="launch-ico"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><circle cx="12" cy="12" r="8.5"></circle><path d="M3.5 12h17M12 3.5c-4.8 4.6-4.8 12.4 0 17M12 3.5c4.8 4.6 4.8 12.4 0 17"></path></svg></span>Browser</button>
+<button class="launch-btn" data-launch="design" type="button"><span class="launch-ico"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><path d="M12 4.5l1.7 5.3 5.3 1.7-5.3 1.7L12 18.5l-1.7-5.3L5 11.5l5.3-1.7z"></path></svg></span>Design</button>
 <button class="launch-btn" data-launch="files" type="button"><span class="launch-ico"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg></span>Files</button>
 </div>
 </div>
 <!-- browser 占位面板（点击 launcher Browser 打开） -->
 <div aria-labelledby="dockTabBrowser" class="tab-panel" data-panel="browser" hidden="" id="dockPanelBrowser" role="tabpanel"><header class="panel-toolbar"><strong>浏览器</strong><span class="sp"></span><button class="btn btn-quiet" id="browserRefresh" type="button">刷新</button></header><form class="browser-bar" id="browserForm"><button aria-label="后退" class="icon-btn" disabled="" id="browserBack" type="button">‹</button><button aria-label="前进" class="icon-btn" disabled="" id="browserForward" type="button">›</button><input aria-label="浏览器地址" class="browser-address" id="browserAddress" value="artemis://preview/welcome"/><button class="btn btn-quiet" type="submit">前往</button></form><div class="browser-preview" id="browserPreview"><span class="chip ok">本地预览</span><h1>让想法成为作品。</h1><p>从一个任务开始，在同一个工作空间中编写、查看和完善。</p><div class="preview-grid"><article class="card"><h2>清晰的上下文</h2><p>项目、附件和来源始终触手可及。</p></article><article class="card"><h2>专注的工作空间</h2><p>会话与工具并排，随时查看结果。</p></article></div><button class="btn btn-primary" id="previewReadme" type="button">阅读项目说明</button></div></div>
+<!-- 设计主面板（还原 open-design 项目页右侧设计呈现面板结构：工作区标签条 → 文件浏览（面包屑/分类胶囊/文件卡网格/底部生成 composer）→ 文件预览态） -->
+<section aria-label="设计" class="tab-panel design-panel" data-panel="design" hidden="" id="dockPanelDesign" role="tabpanel" aria-labelledby="dockTabDesign">
+<div aria-label="页面" class="design-ws-tabs" role="tablist">
+<button aria-selected="true" class="design-ws-tab active" data-dz-view="files" id="dzTabFiles" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg><span class="design-ws-label">设计文件</span></button>
+<button aria-selected="false" class="design-ws-tab" data-dz-file="customer.html" data-dz-title="客户档案" id="dzTabCustomer" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="design-ws-label">customer.html</span><span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button>
+<button aria-selected="false" class="design-ws-tab" data-dz-file="index.html" data-dz-title="工作台" hidden="" id="dzTabIndex" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="design-ws-label">index.html</span><span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button>
+<div class="dz-plus"><button aria-label="新建标签页" aria-expanded="false" class="design-ws-add" id="dzPlusBtn" title="新建标签页" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="13"><path d="M12 5v14M5 12h14"></path></svg></button>
+<div class="dz-menu dz-plus-menu" hidden="" id="dzPlusMenu" role="menu">
+<button class="dz-menu-item" data-dz-open="files" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg>设计文件</button>
+<button class="dz-menu-item" data-dz-open="customer.html" data-dz-title="客户档案" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg>customer.html</button>
+<button class="dz-menu-item" data-dz-open="index.html" data-dz-title="工作台" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg>index.html</button>
+</div>
+</div>
+<span class="sp"></span>
+<div class="design-ws-actions">
+<div class="design-ws-present">
+<button aria-expanded="false" aria-haspopup="menu" aria-label="演示" class="design-ws-iconbtn" id="dzPresentBtn" title="演示" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M10.3 9.6v4.8l4.3-2.4z" fill="currentColor" stroke="none"></path></svg></button>
+<div class="dz-menu dz-present-menu" hidden="" id="dzPresentMenu" role="menu">
+<button class="dz-menu-item" data-dz-present="tab" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M2.8 12S6 6.2 12 6.2 21.2 12 21.2 12 18 17.8 12 17.8 2.8 12 2.8 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>在当前标签页</button>
+<button class="dz-menu-item" data-dz-present="fullscreen" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M8.2 5.8v12.4L18.4 12z"></path></svg>全屏</button>
+<button class="dz-menu-item" data-dz-present="newtab" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M14 4h6v6"></path><path d="M20 4l-8.5 8.5"></path><path d="M18.5 13.5V18A1.5 1.5 0 0 1 17 19.5H6A1.5 1.5 0 0 1 4.5 18V7A1.5 1.5 0 0 1 6 5.5h4.5"></path></svg>新标签页</button>
+</div>
+</div>
+<button aria-label="版本历史" class="design-ws-iconbtn" id="dzHistoryBtn" title="版本历史" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></button>
+<div class="dz-export">
+<button class="btn btn-primary design-ws-export" id="dzExportBtn" type="button">导出</button>
+<div class="dz-menu dz-export-menu" hidden="" id="dzExportMenu" role="menu">
+<button class="dz-menu-item" data-dz-toast="已下载 customer.html（静态 HTML）" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M12 4v11M7.5 11.5 12 16l4.5-4.5"></path><path d="M4.5 19.5h15"></path></svg>下载 HTML</button>
+<button class="dz-menu-item" data-dz-toast="截图已保存到下载文件夹" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg>下载截图</button>
+<button class="dz-menu-item" data-dz-toast="分享链接已复制" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M9.5 14.5 14.5 9.5"></path><path d="M11 6.5 12.8 4.7a4 4 0 0 1 5.7 5.7L16.7 12"></path><path d="M13 17.5 11.2 19.3a4 4 0 0 1-5.7-5.7L7.3 12"></path></svg>复制分享链接</button>
+</div>
+</div>
+<button class="btn btn-quiet design-ws-share" id="dzShareBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M14 4h6v6"></path><path d="M20 4l-8.5 8.5"></path><path d="M18.5 13.5V18A1.5 1.5 0 0 1 17 19.5H6A1.5 1.5 0 0 1 4.5 18V7A1.5 1.5 0 0 1 6 5.5h4.5"></path></svg><span id="dzShareLabel">分享</span></button>
+<div class="dz-handoff" id="dzHandoff">
+<div class="dz-handoff-split">
+<button aria-label="在 VS Code 中打开项目文件夹" class="dz-handoff-trigger" id="dzHandoffMain" title="在 VS Code 中打开项目文件夹" type="button"><span class="dz-handoff-logo" id="dzHandoffLogo"><svg fill="none" height="16" viewbox="0 0 24 24" width="16"><path d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .325 8.74L3.899 12 .325 15.26a1 1 0 0 0 .002 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zM17.9 17.448 10.826 12l7.178-5.448v10.896z" fill="#22a0e8"></path></svg></span><span id="dzHandoffLabel">VS Code</span></button>
+<button aria-expanded="false" aria-haspopup="menu" aria-label="选择交付目标" class="dz-handoff-caret" id="dzHandoffCaret" title="选择交付目标" type="button"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg></button>
+</div>
+<div class="dz-menu dz-handoff-menu" hidden="" id="dzHandoffMenu" role="dialog" aria-label="交付选项">
+<div class="dz-handoff-tabs" role="tablist">
+<button aria-selected="true" class="active" data-dz-htab="editor" id="dzHTabEditor" role="tab" type="button">通过编辑器打开</button>
+<button aria-selected="false" data-dz-htab="cli" id="dzHTabCli" role="tab" type="button">复制给 CLI</button>
+</div>
+<div class="dz-handoff-path"><span class="mono" title="/Users/demo/Projects/rights-hub">/Users/demo/Projects/rights-hub</span><button class="dz-handoff-copy" data-dz-copy="项目路径" type="button">复制路径</button></div>
+<div id="dzHandoffPanes"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="design-files" id="dzViewFiles">
+<nav aria-label="项目" class="design-crumb">
+<span class="design-crumb-project">2B_Hifi</span>
+<span class="sp"></span>
+<button aria-label="项目操作" aria-expanded="false" class="design-crumb-menu" id="dzProjectBtn" title="项目操作" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></button>
+<div class="dz-menu dz-crumb-menu" hidden="" id="dzProjectMenu" role="menu">
+<button class="dz-menu-item" data-dz-toast="文件列表已刷新" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M20 12a8 8 0 1 1-2.5-5.8"></path><path d="M20 4v4h-4"></path></svg>刷新文件</button>
+<button class="dz-menu-item" data-dz-toast="已在访达中显示项目文件夹" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg>在访达中显示</button>
+<button class="dz-menu-item" data-dz-toast="项目设置已在对话中打开" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="12" cy="12" r="2.8"></circle><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M18 6l-1.4 1.4M7.4 16.6 6 18"></path></svg>项目设置</button>
+</div>
+</nav>
+<div class="design-cats">
+<button class="design-cat" type="button">文件夹 <span class="design-cat-count">3</span></button>
+<button class="design-cat active" type="button">页面 <span class="design-cat-count">2</span></button>
+<button class="design-cat" type="button">样式表 <span class="design-cat-count">1</span></button>
+<button class="design-cat" type="button">脚本 <span class="design-cat-count">20</span></button>
+<button class="design-cat" type="button">图片 <span class="design-cat-count">50</span></button>
+<button class="design-cat" type="button">其他 <span class="design-cat-count">25</span></button>
+</div>
+<div class="design-cards" id="dzCards">
+<button class="design-file-card" data-dz-cat="pages" data-dz-open="customer.html" data-dz-title="客户档案" type="button">
+<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>
+<span class="design-file-meta"><span class="design-file-name">customer.html</span><span class="design-file-sub">HTML 页面 · 3 周前</span></span>
+<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>
+</button>
+<button class="design-file-card" data-dz-cat="pages" data-dz-open="index.html" data-dz-title="工作台" type="button">
+<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-grid"><b></b><b></b><b class="w60"></b><b></b></i></span>
+<span class="design-file-meta"><span class="design-file-name">index.html</span><span class="design-file-sub">HTML 页面 · 3 周前</span></span>
+<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>
+</button>
+<button class="design-file-card" data-dz-cat="folders" data-dz-open="assets/" data-dz-title="资源文件夹" type="button">
+<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side on"></i><i class="t-col"><b class="w60"></b><b class="w60"></b></i></i></span>
+<span class="design-file-meta"><span class="design-file-name">assets/</span><span class="design-file-sub">文件夹 · 12 项</span></span>
+<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>
+</button>
+<button class="design-file-card" data-dz-cat="images" data-dz-open="cover.png" data-dz-title="封面图" type="button">
+<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-col"><b class="w60"></b><b></b></i><i class="t-side"></i></i></span>
+<span class="design-file-meta"><span class="design-file-name">cover.png</span><span class="design-file-sub">图片 · 248 KB</span></span>
+<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>
+</button>
+<p class="dz-empty" hidden="" id="dzCatEmpty">这个分类还没有内容</p>
+</div>
+<div class="design-composer">
+<div class="design-composer-input" contenteditable="true" data-placeholder="描述你想生成的内容…" role="textbox"></div>
+<div class="design-composer-actions">
+<button aria-label="添加上下文" class="design-composer-btn" title="添加上下文" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="15"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button aria-label="发送" class="design-composer-send" disabled="" id="dzComposerSend" title="发送" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="15"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"></path></svg></button>
+</div>
+</div>
+</div>
+<div class="design-preview-view" hidden="" id="dzViewPreview">
+<div class="dz-toolbar">
+<div class="dz-toolbar-left">
+<button aria-label="刷新预览" class="dz-iconbtn" id="dzReload" title="刷新预览" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20 12a8 8 0 1 1-2.5-5.8"></path><path d="M20 4v4h-4"></path></svg></button>
+<div aria-label="视图模式" class="dz-mode" role="tablist">
+<button aria-selected="true" class="dz-mode-tab active" data-dz-mode="preview" id="dzModePreview" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9h17"></path><path d="M7 13h6.5M7 16h9"></path></svg><span class="dz-mode-label">预览</span></button>
+<button aria-selected="false" class="dz-mode-tab" data-dz-mode="source" id="dzModeSource" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="dz-mode-label">代码</span></button>
+</div>
+<div class="dz-device">
+<button aria-expanded="false" aria-haspopup="menu" class="dz-device-trigger" id="dzDeviceBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg><span id="dzDeviceLabel">桌面端</span><svg aria-hidden="true" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="10"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg></button>
+<div class="dz-menu" hidden="" id="dzDeviceMenu" role="menu">
+<button class="dz-menu-item active" data-dz-device="desktop" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg>桌面端<span class="dz-menu-sub">自适应</span></button>
+<button class="dz-menu-item" data-dz-device="tablet" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="18" rx="2" width="13" x="5.5" y="3"></rect><path d="M11 18h2"></path></svg>平板<span class="dz-menu-sub">820 × 1180</span></button>
+<button class="dz-menu-item" data-dz-device="mobile" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="18" rx="2.5" width="11" x="6.5" y="3"></rect><path d="M11 18h2"></path></svg>手机<span class="dz-menu-sub">390 × 844</span></button>
+</div>
+</div>
+</div>
+<span class="sp"></span>
+<div class="dz-toolbar-actions">
+<button aria-label="截图发送到对话输入框" class="dz-iconbtn" id="dzShotBtn" title="截图发送到对话输入框" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg></button>
+<button aria-label="注释" class="dz-iconbtn" id="dzCommentBtn" title="注释" type="button"><svg fill="currentColor" height="14" viewbox="0 0 24 24" width="14"><path d="M14 3V5H4V18.3851L5.76282 17H20V10H22V18C22 18.5523 21.5523 19 21 19H6.45455L2 22.5V4C2 3.44772 2.44772 3 3 3H14ZM19 3V0H21V3H24V5H21V8H19V5H16V3H19Z"></path></svg></button>
+<button aria-label="标记" class="dz-iconbtn" id="dzDrawBtn" title="标记" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
+<span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="编辑" class="dz-iconbtn" id="dzEditBtn" title="编辑" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
+<span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="评论" class="dz-iconbtn dz-comment-count" id="dzCommentListBtn" title="评论" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg><span class="dz-count" id="dzCount">0</span></button>
+<div class="dz-zoom">
+<button aria-expanded="false" aria-haspopup="menu" class="dz-zoom-trigger" id="dzZoomBtn" title="重置缩放" type="button"><span id="dzZoomLabel">100%</span></button>
+<div class="dz-menu" hidden="" id="dzZoomMenu" role="menu">
+<button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button">50%</button>
+<button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button">75%</button>
+<button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button">100%</button>
+<button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button">125%</button>
+<button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
+<button class="dz-menu-item" data-dz-zoom="200" role="menuitem" type="button">200%</button>
+</div>
+</div>
+</div>
+<div class="dz-more">
+<button aria-expanded="false" aria-haspopup="menu" aria-label="更多" class="dz-iconbtn" id="dzMoreBtn" title="更多" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"></circle><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"></circle></svg></button>
+<div class="dz-menu dz-more-menu" hidden="" id="dzMoreMenu" role="menu">
+<button class="dz-menu-item" data-dz-more="history" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>版本历史</button>
+<div class="dz-menu-sep" role="separator"></div>
+<button class="dz-menu-item" data-dz-device="desktop" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg>桌面端<span class="dz-menu-sub">自适应</span></button>
+<button class="dz-menu-item" data-dz-device="tablet" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="18" rx="2" width="13" x="5.5" y="3"></rect><path d="M11 18h2"></path></svg>平板<span class="dz-menu-sub">820 × 1180</span></button>
+<button class="dz-menu-item" data-dz-device="mobile" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="18" rx="2.5" width="11" x="6.5" y="3"></rect><path d="M11 18h2"></path></svg>手机<span class="dz-menu-sub">390 × 844</span></button>
+<button class="dz-menu-item" data-dz-more="comment" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M15 8.5H6.5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2H8v2.7l3.3-2.7h3.7a2 2 0 0 0 2-2v-1.5"></path><path d="M18 3.2v4.6M15.7 5.5h4.6"></path></svg>注释</button>
+<button class="dz-menu-item" data-dz-more="draw" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg>标记</button>
+<button class="dz-menu-item" data-dz-more="edit" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>编辑</button>
+<button class="dz-menu-item" data-dz-more="comments" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg>评论<span class="dz-menu-sub" id="dzMoreCount">0</span></button>
+<div class="dz-menu-sep" role="separator"></div>
+<button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5M11 8.5v5"></path></svg>50%</button>
+<button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5M11 8.5v5"></path></svg>75%</button>
+<button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5M11 8.5v5"></path></svg>100%</button>
+<button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5M11 8.5v5"></path></svg>125%</button>
+<button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5M11 8.5v5"></path></svg>150%</button>
+<button class="dz-menu-item" data-dz-zoom="200" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4M8.5 11h5M11 8.5v5"></path></svg>200%</button>
+</div>
+</div>
+</div>
+<div class="dz-viewport" id="dzViewport">
+<div class="dz-stage" id="dzStage">
+<div class="design-mock" id="dzMockDesktop">
+<div class="mock-side"><i class="on"></i><i></i><i></i><i></i></div>
+<div class="mock-main">
+<div class="mock-head"><b>账户设置</b><span>管理你的偏好与连接</span></div>
+<div class="mock-row"><label>主题</label><i class="mock-field">深色</i></div>
+<div class="mock-row"><label>语言</label><i class="mock-field">简体中文</i></div>
+<div class="mock-row"><label>自动更新</label><i class="mock-switch"></i></div>
+<div class="mock-actions"><i class="mock-btn ghost">取消</i><i class="mock-btn primary is-selected" data-dz-target="hero-cta">保存设置</i></div>
+</div>
+</div>
+<div class="dz-phone" hidden="" id="dzMockPhone">
+<span aria-hidden="true" class="dz-phone-notch"></span>
+<span aria-hidden="true" class="dz-phone-status"><i>21:47</i><i>●●●</i></span>
+<div class="dz-phone-screen">
+<div class="mock-head"><b>账户设置</b><span>管理你的偏好与连接</span></div>
+<div class="mock-row"><label>主题</label><i class="mock-field">深色</i></div>
+<div class="mock-row"><label>语言</label><i class="mock-field">简体中文</i></div>
+<div class="mock-row"><label>自动更新</label><i class="mock-switch"></i></div>
+<div class="mock-actions"><i class="mock-btn ghost">取消</i><i class="mock-btn primary is-selected" data-dz-target="hero-cta">保存设置</i></div>
+</div>
+</div>
+<div aria-hidden="true" class="dz-pin-layer" id="dzPinLayer"></div>
+<div hidden="" id="dzPickBox"></div>
+</div>
+<pre class="dz-source" hidden="" id="dzSource" tabindex="0"><span class="ln"> 96</span>  &lt;section class="customer-summary" data-design-id="c360-summary"&gt;
+<span class="ln"> 97</span>    &lt;header class="c360-identity"&gt;
+<span class="ln"> 98</span>      &lt;h2 id="c360-title"&gt;客户档案&lt;/h2&gt;
+<span class="ln"> 99</span>    &lt;/header&gt;
+<span class="ln">125</span>  &lt;form class="settings-form" data-design-id="settings"&gt;
+<span class="ln">126</span>    &lt;div class="field"&gt;
+<span class="ln">127</span>      &lt;label for="theme"&gt;主题&lt;/label&gt;
+<span class="ln">128</span>      &lt;select id="theme" class="input"&gt;深色&lt;/select&gt;
+<span class="ln">129</span>    &lt;/div&gt;
+<span class="ln">130</span>  &lt;/form&gt;
+<span class="ln">131</span>  &lt;div class="form-actions" data-design-id="hero-cta"&gt;
+<span class="ln">132</span>    &lt;button class="btn ghost"&gt;取消&lt;/button&gt;
+<span class="ln">133</span>    &lt;button class="btn primary"&gt;保存设置&lt;/button&gt;
+<span class="ln">134</span>  &lt;/div&gt;</pre>
+<div class="dz-tool-hint" hidden="" id="dzToolHint">在预览里点击要评论的元素</div>
+<div class="dz-pick-card" hidden="" id="dzPickCard" role="tooltip"></div>
+<div aria-label="注释" class="dz-note-composer" hidden="" id="dzNoteComposer" role="dialog">
+<div class="dz-note-titlebar">
+<button aria-label="移动注释框" class="dz-note-grip" id="dzNoteGrip" title="移动注释框" type="button"><span aria-hidden="true"></span></button>
+<span class="dz-note-title" id="dzNoteTitle" title="button.mock-btn">button.mock-btn</span>
+<button class="dz-note-viewall" id="dzNoteViewAll" type="button">查看全部评论<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="12"><path d="m9 5 7 7-7 7"></path></svg></button>
+</div>
+<div class="dz-note-body">
+<div class="dz-note-rows" id="dzNoteRows"></div>
+<div class="dz-note-images" hidden="" id="dzNoteImages"></div>
+<textarea aria-label="评论此元素" class="dz-note-input" id="dzNoteInput" placeholder="评论此元素…"></textarea>
+</div>
+<div class="dz-note-actions">
+<div class="dz-note-actions-start">
+<input accept="image/*" class="dz-note-file" hidden="" id="dzNoteFile" multiple="" type="file"/>
+<button aria-label="添加图片" class="dz-note-ic" id="dzNoteAttach" title="添加图片" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m20.5 11.5-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5"></path></svg></button>
+<button aria-label="删除" class="dz-note-ic dz-note-danger" hidden="" id="dzNoteDelete" title="删除" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l1 12.5a1 1 0 0 0 1 .5h7a1 1 0 0 0 1-.5l1-12.5"></path><path d="M10 11v5M14 11v5"></path></svg></button>
+<button aria-label="关闭" class="dz-note-ic" id="dzNoteClose" title="关闭" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div class="dz-note-actions-end">
+<button class="btn btn-quiet" id="dzNoteSendChat" type="button">发送到聊天</button>
+<button class="btn btn-primary" id="dzNoteSave" type="button">评论</button>
+</div>
+</div>
+</div>
+<svg aria-hidden="true" class="dz-draw-layer" id="dzDrawLayer"></svg>
+<div class="dz-draw-tools" hidden="" id="dzDrawTools" role="toolbar" aria-label="标记工具">
+<div class="dz-draw-seg">
+<button aria-label="画笔" class="dz-draw-tool active" data-dz-dtool="pen" title="画笔" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
+<button aria-label="方框" class="dz-draw-tool" data-dz-dtool="box" title="方框" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="13" rx="1.5" width="15" x="4.5" y="5.5"></rect></svg></button>
+<button aria-label="文字" class="dz-draw-tool" data-dz-dtool="text" title="文字" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M5 7V5.5h14V7M12 5.5v13M9.5 18.5h5"></path></svg></button>
+</div>
+<span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="撤销" class="dz-draw-act" id="dzDrawUndo" title="撤销" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M8.5 5.5 4 10l4.5 4.5"></path><path d="M4 10h9a6 6 0 0 1 0 12h-2"></path></svg></button>
+<button aria-label="重做" class="dz-draw-act" id="dzDrawRedo" title="重做" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M15.5 5.5 20 10l-4.5 4.5"></path><path d="M20 10h-9a6 6 0 0 0 0 12h2"></path></svg></button>
+<span aria-hidden="true" class="dz-divider"></span>
+<button class="btn btn-primary dz-draw-send" id="dzDrawSend" type="button">发送到输入框</button>
+</div>
+<aside aria-label="评论列表" class="dz-comment-panel" hidden="" id="dzCommentPanel">
+<div class="dz-comment-panel-head"><strong><svg fill="currentColor" height="14" viewbox="0 0 24 24" width="14"><path d="M7.065 20.433a9.06 9.06 0 0 1-2.588-1.516A9.04 9.04 0 0 1 3 12.032C3 7.063 7.03 3 12 3s9 4.063 9 9.032-4.03 9.031-9 9.031a9.1 9.1 0 0 1-2.749-.42l-3.417 1.357a.4.4 0 0 1-.537-.436z"></path></svg>评论</strong><span class="dz-count-badge" id="dzPanelCount">0</span><span class="sp"></span><button aria-label="关闭评论列表" class="dz-panel-close" id="dzCommentPanelClose" type="button"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="12"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+<div class="dz-comment-list" id="dzCommentList"></div>
+<p class="dz-empty dz-comment-empty" id="dzCommentEmpty">没有已保存的评论。</p>
+</aside>
+<div class="dz-confirm" hidden="" id="dzConfirm">
+<strong id="dzConfirmTitle">恢复到这个版本？</strong>
+<span class="card-sub">会存成一个新版本，不会丢现在的。</span>
+<div class="dz-confirm-actions"><span class="sp"></span><button class="btn btn-quiet" id="dzConfirmCancel" type="button">取消</button><button class="btn btn-primary" id="dzConfirmOk" type="button">恢复</button></div>
+</div>
+<div class="dz-toast" hidden="" id="dzToast" role="status"></div>
+<div class="dz-history" hidden="" id="dzHistory">
+<strong>版本历史</strong>
+<button class="dz-history-item active" type="button"><span class="dz-history-dot"></span><span class="dz-history-copy"><b>今天 14:32 · 你（手动微调）</b><small>保存设置按钮改文案与颜色</small></span><span class="mono dz-history-id">a3f19c02</span></button>
+<button class="dz-history-item" type="button"><span class="dz-history-dot"></span><span class="dz-history-copy"><b>今天 14:05 · 对话</b><small>你的要求：加深标题层级</small></span><span class="mono dz-history-id">9d24b710</span></button>
+<button class="dz-history-item" type="button"><span class="dz-history-dot"></span><span class="dz-history-copy"><b>昨天 18:44 · 对话</b><small>⚠ 有分叉</small></span><span class="mono dz-history-id">5c88e2f4</span></button>
+<span class="card-sub">恢复会存成一个新版本，不会丢现在的。</span>
+</div>
+<div aria-label="演示模式" class="dz-present" hidden="" id="dzPresentLayer" role="dialog">
+<div class="dz-present-bar">
+<span class="dz-present-title" id="dzPresentTitle">customer.html · 客户档案</span>
+<span class="card-sub">按 Esc 退出演示</span>
+<span class="sp"></span>
+<button aria-label="退出演示" class="dz-iconbtn" id="dzPresentExit" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+</section>
 <div aria-labelledby="dockTabFiles" class="tab-panel" data-panel="files" hidden="" id="dockPanelFiles" role="tabpanel"><header class="panel-toolbar"><strong>文件</strong><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">打开阅读器</button></header><div class="files-workspace"><div class="file-viewer"><div class="panel-toolbar"><span class="mono" id="fileViewerPath">README.md</span><span class="sp"></span><button class="btn btn-quiet" id="fileEdit" type="button">编辑</button></div><pre class="code-view" id="fileSource" tabindex="0"></pre><textarea aria-label="文件内容" class="editor-area" hidden="" id="fileEditor"></textarea><div class="panel-actions" hidden="" id="fileEditActions"><span class="card-sub">修改仅保留在此原型页面</span><span class="sp"></span><button class="btn btn-quiet" id="fileCancel" type="button">取消</button><button class="btn btn-primary" id="fileSave" type="button">保存</button></div></div><aside aria-label="工作区文件" class="file-tree"><label class="panel-filter"><input aria-label="筛选工作区文件" id="fileFilter" placeholder="筛选文件"/></label><details open=""><summary>Artemis</summary><button class="file-row selected" data-file="readme" type="button">README.md</button><details open=""><summary>docs / ui-prototype</summary><button class="file-row" data-file="html" type="button">artemis-ui.html</button><button class="file-row" data-file="css" type="button">component-tokens.css</button></details><button class="file-row" data-file="package" type="button">package.json</button></details><p class="empty-hint" hidden="" id="fileNoMatch">没有匹配的文件</p></aside></div></div>
 <section aria-label="任务目标" class="tab-panel" data-panel="goal" hidden="" id="dockPanelGoal" role="tabpanel"><header class="panel-toolbar"><strong>任务目标</strong><span class="sp"></span><span class="chip run">进行中</span></header><div class="panel-scroll goal-editor"><label class="setting-group-title" for="goalInput">目标</label><textarea class="editor-area" id="goalInput">对齐 Artemis 当前主界面与子面板，使用现有组件组装一套可交互的 UI 原型，并完成布局与交互检查。</textarea><div class="goal-meta"><span>已用时 4 分 12 秒</span><span>预算未设置</span></div><div class="panel-actions"><span class="card-sub" id="goalSaved" role="status">修改后可保存目标</span><span class="sp"></span><button class="btn btn-quiet" disabled="" id="goalRevert" type="button">还原</button><button class="btn btn-primary" disabled="" id="goalSave" type="button">保存目标</button></div></div></section><section aria-label="来源" class="tab-panel" data-panel="sources" hidden="" id="dockPanelSources" role="tabpanel"><header class="panel-toolbar"><strong>来源</strong><span class="sp"></span><span class="card-sub">本次任务</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">附件 · 2</h2><div class="setting-row"><div><div class="label">artemis-ui.html</div><div class="desc">页面原型 · 当前任务</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="files" type="button">查看文件</button></div><div class="setting-row"><div><div class="label">README.md</div><div class="desc">项目说明 · 当前任务</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">阅读</button></div></section><section class="setting-group"><h2 class="setting-group-title">MCP · 1</h2><details class="tool-card source-details"><summary>filesystem <span class="chip">1 次调用</span></summary><div class="tool-row"><code>read_file</code><span class="sp"></span><span class="card-sub">主 Agent · 1 次</span></div></details></section><section class="setting-group"><h2 class="setting-group-title">Agent · 1</h2><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">使用了 2 个项目附件</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看详情</button></div></section></div></section><section aria-label="README.md" class="tab-panel" data-panel="markdown" hidden="" id="dockPanelMarkdown" role="tabpanel"><header class="panel-toolbar"><strong>README.md</strong><span class="sp"></span><div aria-label="阅读模式" class="seg" role="group"><button aria-pressed="true" class="active" data-reader="rich" type="button">富文本</button><button aria-pressed="false" data-reader="source" type="button">源代码</button></div></header><article class="panel-scroll document-reader" id="readerRich"><span class="card-sub">ARTEMIS / README</span><h1>一个专注于任务的工作空间</h1><p>Artemis 将会话、文件和工具放在一起，让任务的上下文清晰可见。</p><h2>开始工作</h2><ol><li>选择本地项目，或开始一个临时会话。</li><li>在输入区选择计划、执行或审查模式。</li><li>从右侧工具栏打开审查、终端、浏览器与文件。</li></ol><h2>检查与交付</h2><p>查看更改、阅读任务来源，并在目标面板确认完成范围。</p><blockquote>项目上下文与当前任务保持一致。</blockquote></article><pre class="code-view" hidden="" id="readerSource"></pre></section><section aria-label="Agent 团队" class="tab-panel" data-panel="team" hidden="" id="dockPanelTeam" role="tabpanel"><header class="panel-toolbar"><strong>UI 实现团队</strong><span class="sp"></span><span class="chip run">运行中</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">成员 · 2</h2><div class="setting-row"><div><div class="label">界面编排</div><div class="desc">正在整理子面板</div></div><span class="sp"></span><span class="chip run">运行中</span></div><div class="setting-row"><div><div class="label">样式检查</div><div class="desc">已完成 · 3 个发现</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看</button></div></section><section class="setting-group"><h2 class="setting-group-title">团队消息</h2><article class="tool-card panel-message"><strong>样式检查</strong><span class="card-sub">刚刚</span><p>审查面板的文件列表应位于右侧；项目与模式上下文应在输入框上方独立排列。</p></article></section><div class="panel-actions"><button class="btn btn-quiet" id="teamStop" type="button">停止团队</button></div></div></section><section aria-label="样式检查" class="tab-panel" data-panel="agent" hidden="" id="dockPanelAgent" role="tabpanel"><header class="panel-toolbar"><strong>布局检查</strong><span class="sp"></span><span class="chip ok">已完成</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">任务</h2><p>核对主界面及子面板的信息层级、入口和容器关系。</p></section><section class="setting-group"><h2 class="setting-group-title">活动记录</h2><div class="tool-row">读取 App.tsx<span class="sp"></span><span class="chip ok">完成</span></div><div class="tool-row">核对面板组件<span class="sp"></span><span class="chip ok">完成</span></div></section><section class="setting-group"><h2 class="setting-group-title">结果</h2><article class="tool-card panel-message"><p>已核对 9 类 Dock 面板。建议保持会话区独立滚动，并将上下文入口集中到环境浮层。</p></article></section></div></section></div>
-<div aria-label="打开工具" class="panel-picker" hidden="" id="panelPicker" role="menu"><button class="btn btn-quiet" data-open-panel="review" role="menuitem" type="button">审查</button><button class="btn btn-quiet" data-open-panel="terminal" role="menuitem" type="button">终端</button><button class="btn btn-quiet" data-open-panel="browser" role="menuitem" type="button">浏览器</button><button class="btn btn-quiet" data-open-panel="files" role="menuitem" type="button">文件</button></div></aside>
+<div aria-label="打开工具" class="panel-picker" hidden="" id="panelPicker" role="menu"><button class="btn btn-quiet" data-open-panel="review" role="menuitem" type="button">审查</button><button class="btn btn-quiet" data-open-panel="terminal" role="menuitem" type="button">终端</button><button class="btn btn-quiet" data-open-panel="browser" role="menuitem" type="button">浏览器</button><button class="btn btn-quiet" data-open-panel="design" role="menuitem" type="button">设计</button><button class="btn btn-quiet" data-open-panel="files" role="menuitem" type="button">文件</button></div></aside>
 </div>
 </div>
 <!-- 视图: 插件 -->
@@ -617,10 +885,10 @@
 </div>
 </article>
 <article class="card" data-project="token-lab">
-<div class="card-row"><div><h2 class="card-title">周报草稿</h2><div class="card-sub">token-lab</div></div><span class="sp"></span><button class="auto-state pending" data-auto-auth="" title="打开设置 → 消息接入 → 允许手机操作的项目" type="button">待授权 · 点击去授权</button></div>
+<div class="card-row"><div><h2 class="card-title">周报草稿</h2><div class="card-sub">token-lab</div></div><span class="sp"></span><span class="auto-state pending">需要授权</span></div>
 <p class="auto-prompt">汇总本周合并的 PR 与 CHANGELOG 变更，生成英文周报草稿并发送审批。</p>
 <div class="auto-meta"><span>五 · 18:00 · Asia/Shanghai</span><span>PLAN · 托管 Worktree</span><span>下次: 2026年9月11日 18:00</span><span>上次: 2026年8月28日 18:00</span></div>
-<div class="card-actions"><button class="btn btn-quiet" disabled type="button">立即运行</button><button class="btn btn-quiet" data-auto-toggle type="button">已启用</button><button class="btn btn-quiet" data-auto-edit type="button">编辑</button><button class="btn btn-quiet danger" data-toast="已删除定时任务（演示）" type="button">删除</button></div>
+<div class="card-actions"><button class="btn btn-quiet" data-toast="已发起授权（演示）" type="button">授权</button><button class="btn btn-quiet" disabled type="button">立即运行</button><button class="btn btn-quiet" data-auto-toggle type="button">已启用</button><button class="btn btn-quiet" data-auto-edit type="button">编辑</button><button class="btn btn-quiet danger" data-toast="已删除定时任务（演示）" type="button">删除</button></div>
 <div class="run-history"><strong>最近运行</strong>
 <button class="run-row" type="button"><span class="run-dot skipped"></span><span>2026年8月28日 18:00</span><span>skipped</span><small>跳过：上一个任务仍在运行</small></button>
 </div>
@@ -801,162 +1069,342 @@
 </div>
 </div>
 </div>
-<!-- 消息接入（方向 B：单列分区卡片流；徽标/胶囊/摘要/展开全部由 derive 从演示状态推导） -->
-<div aria-labelledby="settingsTabIm" class="settings-panel-content" data-panel="im" hidden="" id="settingsPanelIm" role="tabpanel">
+<!-- 消息接入（按 proposal-im-settings-redesign 三态：向导 / 管理双栏 / 紧凑 <720px） -->
+<div aria-labelledby="settingsTabIm" class="settings-panel-content" data-panel="im" data-im-mode="manage" hidden="" id="settingsPanelIm" role="tabpanel">
 <div class="im-head">
 <div>
 <h3 class="im-head-title">消息接入</h3>
-<p class="im-head-hint">在聊天软件里发消息，就能指挥这台电脑干活。</p>
+<p class="im-head-hint">通过 IM 单聊或群协作，把任务交给这台电脑执行。</p>
 </div>
-<div class="im-head-state">
-<span class="im-progress" data-im-progress="">设置进度 <b>0</b>/3</span>
-<button aria-live="polite" class="im-status-pill" id="imStatePill" title="机器人接入状态；不代表聊天软件客户端在线状态。" type="button"><span aria-hidden="true" class="im-dot idle"></span><span id="imStateText">未开启</span></button>
+<div class="im-head-state" title="机器人接入状态；不代表手机或电脑上的 IM 客户端在线状态。">
+<span class="im-status-pill" id="imStatePill"><span aria-hidden="true" class="im-dot ok"></span><span id="imStateText">已连接</span></span>
+<label class="im-master"><span class="im-master-label">启用</span><button aria-checked="true" aria-label="启用 IM 连接" class="switch on" id="imMasterSwitch" role="switch" type="button"></button></label>
 </div>
 </div>
-<p class="im-fine">交互原型 · 配置仅在本次页面中模拟，不连接聊天平台。</p>
-<div class="im-recovery" data-im-recovery hidden role="status">设备与消息服务断连，远程任务暂不可用。<button type="button" class="btn btn-ghost" data-im-recover>恢复服务</button></div>
-<div class="im-flow" id="imFlow">
-<!-- ① 连接服务 -->
-<section class="im-card" data-im-card="service">
-<button aria-controls="imCardBodyService" aria-expanded="true" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">1</span><span class="im-card-title">连接服务</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyService">
-<div class="im-service-empty" data-im-service-empty="">
-<button class="btn btn-primary im-service-cta" data-im-service-start="" type="button">一键开启（推荐）</button>
-<p class="im-muted">消息服务负责收发消息，在本机自动运行。</p>
-<p class="im-fine" data-im-service-help="" hidden="">启动服务并注册电脑，几秒就好。</p>
-<p class="im-fine im-service-error" data-im-service-error="" hidden="" role="alert"></p>
-<!-- 条件设置口（演示结果选择等）已隔离至面板底部 #imDemoConsole（原型专用，迁移生产代码时删除） -->
-<p class="im-fine">个人使用可直接开启；团队配置在本步骤下方。</p>
+<div class="im-wizard" id="imWizard" hidden="">
+<p class="im-wizard-hint">首次使用？跟着 6 步完成设置。<button class="im-demo-link" id="imBackManage" type="button">返回管理</button></p>
+<button class="im-platform-card im-group-entry" data-im-goto="group" type="button"><strong>群消息接入</strong><span>连接群聊或频道，创建同平台或跨平台协作空间</span></button>
+<div id="imWizardBody"></div>
 </div>
-<div class="im-service-ready" data-im-service-ready="" hidden="">
-<div class="im-service-facts">
-<div class="im-fact"><span class="im-fact-label">运行方式</span><span class="im-fact-value" data-im-runtime>本机自动运行（推荐）</span></div>
-<div class="im-fact"><span class="im-fact-label">设备编号</span><span class="im-fact-value"><code class="im-identifier">dev-3f9a</code></span></div>
+<div class="im-manage" id="imManage">
+<div class="im-layout">
+<nav aria-label="消息接入导航" class="im-channel-list" id="imNavList" role="tablist">
+<div class="im-nav-group">渠道</div>
+<button aria-selected="true" class="im-channel-card" data-im-view="feishu" role="tab" type="button"><span class="im-channel-title">飞书</span><span class="im-channel-status"><span aria-hidden="true" class="im-dot ok"></span>已配置(2)</span></button>
+<button aria-selected="false" class="im-channel-card" data-im-view="wecom" role="tab" type="button"><span class="im-channel-title">企业微信</span><span class="im-channel-status"><span aria-hidden="true" class="im-dot idle"></span>未配置</span></button>
+<button aria-selected="false" class="im-channel-card" data-im-view="slack" role="tab" type="button"><span class="im-channel-title">Slack</span><span class="im-channel-status"><span aria-hidden="true" class="im-dot idle"></span>未配置</span></button>
+<button aria-selected="false" class="im-channel-card" data-im-view="group" role="tab" type="button"><span class="im-channel-title">群消息接入</span></button>
+<button class="im-more" id="imMoreBtn" type="button">通用 ▾</button>
+<div class="im-nav-group gen">通用</div>
+<button aria-selected="false" class="im-channel-card gen" data-im-view="gateway" role="tab" type="button"><span class="im-channel-title">Gateway 与设备</span></button>
+<button aria-selected="false" class="im-channel-card gen" data-im-view="pairing" role="tab" type="button"><span class="im-channel-title">配对与账号</span></button>
+<button aria-selected="false" class="im-channel-card gen" data-im-view="projects" role="tab" type="button"><span class="im-channel-title">项目授权</span></button>
+<button aria-selected="false" class="im-channel-card gen" data-im-view="guide" role="tab" type="button"><span class="im-channel-title">设置指引</span></button>
+<div class="im-more-menu" hidden="" id="imMoreMenu">
+<button data-im-view="gateway" type="button">Gateway 与设备</button>
+<button data-im-view="pairing" type="button">配对与账号</button>
+<button data-im-view="projects" type="button">项目授权</button>
+<button data-im-view="guide" type="button">设置指引</button>
 </div>
-<p class="im-muted">接收远程任务时，请保持电脑唤醒、Artemis 运行。退出应用会停止本机消息服务。</p>
-<p class="im-fine">团队服务器与诊断见本步骤下方。</p>
+</nav>
+<div class="im-detail" id="imDetail">
+<!-- 渠道详情：飞书（已连接：条件配对卡 + 凭据/回调/连接状态/绑定/指引五块） -->
+<section class="im-view" data-im-view="feishu">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">飞书</h4><p class="im-detail-hint">企业自建应用 · 凭证与回调已就绪</p></div>
+<span class="im-status-pill"><span aria-hidden="true" class="im-dot ok"></span>已连接</span>
+</header>
+<div class="im-pairing-request-card" id="imPairCard">
+<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span><strong>配对请求 · 待确认</strong></div>
+<div class="im-pair-who">王小明 · <code class="im-identifier">u_9f3a</code></div>
+<div class="im-pair-actions"><button class="btn btn-primary" data-im-approve="" type="button">批准</button><button class="btn btn-ghost" data-im-reject="" type="button">拒绝</button></div>
 </div>
-<!-- 底部「高级」折叠组：团队服务器 / 连接诊断 / 指令速查 -->
-<div class="im-advanced" id="imAdvanced">
-<button aria-controls="imAdvancedBody" aria-expanded="false" class="im-advanced-toggle" data-im-fold="" type="button"><span>团队服务器与诊断</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="" id="imAdvancedBody">
-<div class="im-block im-team-form" id="imTeamForm">
-<h4>团队服务器</h4>
+<div class="im-block">
+<div class="im-block-head"><h4>应用凭据</h4><button class="btn btn-ghost" data-im-cred-swap="" type="button">已保存 · 更换</button></div>
+<p class="im-muted" data-im-cred-saved="">凭据已加密保存在本机，不会回显。保存新凭据会覆盖当前凭据并重新连接机器人。</p>
+<form class="im-credentials-form" data-im-cred-form="" hidden="">
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">应用 ID</span><input class="im-field-input" placeholder="cli_a5…" spellcheck="false"/></label>
+<label class="im-field"><span class="im-field-label">应用名称</span><input class="im-field-input" placeholder="Artemis 机器人"/></label>
+<label class="im-field"><span class="im-field-label">租户 ID</span><input class="im-field-input" placeholder="tenant_id"/></label>
+<label class="im-field"><span class="im-field-label">App ID</span><input class="im-field-input" placeholder="cli_a5…"/></label>
+<label class="im-field"><span class="im-field-label">机器人 Open ID</span><input class="im-field-input" placeholder="ou_…"/></label>
+<label class="im-field"><span class="im-field-label">App Secret</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">Verification Token</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">Encrypt Key</span><input class="im-field-input" type="password"/></label>
+</div>
+<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并连接</button><button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>
+</form>
+</div>
+<div class="im-block">
+<h4>事件回调地址</h4>
+<div class="im-callback"><code class="im-identifier">https://gw.example.com/im/feishu/conn-1/callback</code><button class="btn btn-ghost" data-copy="" type="button">复制</button></div>
+</div>
+<div class="im-block">
+<h4>连接状态</h4>
+<div class="im-conn-row"><span aria-hidden="true" class="im-dot ok"></span><code class="im-identifier">conn-1</code><span class="im-conn-state">已连接</span><span class="im-conn-time">2 分钟前</span></div>
+<div class="im-conn-row"><span aria-hidden="true" class="im-dot pending"></span><code class="im-identifier">conn-2</code><span class="im-conn-state">连接中</span><span class="im-conn-time">重试 1/3</span></div>
+</div>
+<div class="im-block">
+<h4>已绑定账号</h4>
+<ul class="im-binding-list">
+<li class="im-binding-row">
+<div class="im-binding-main"><span class="im-binding-name">王小明</span><code class="im-identifier">u_9f3a</code><span class="im-binding-meta">Plan 模式</span></div>
+<div class="im-binding-actions">
+<button aria-label="静音" class="im-icon-btn" data-toast="已静音（演示）" title="静音" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg></button>
+<button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg></button>
+</div>
+<div class="im-unbind-confirm" hidden="">
+<span>确认解除与该账号的绑定？</span>
+<button class="btn btn-ghost danger" data-toast="已解除绑定（演示）" data-im-unbind-done="" type="button">确认解除</button>
+<button class="btn btn-ghost" data-im-keep="" type="button">保留</button>
+</div>
+</li>
+<li class="im-binding-row">
+<div class="im-binding-main"><span class="im-binding-name">李四</span><code class="im-identifier">u_2c71</code><span class="im-binding-meta">Execute 模式</span></div>
+<div class="im-binding-actions">
+<button aria-label="恢复输出" class="im-icon-btn" data-toast="已恢复输出（演示）" title="恢复输出" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg></button>
+<button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg></button>
+</div>
+<div class="im-unbind-confirm" hidden="">
+<span>确认解除与该账号的绑定？</span>
+<button class="btn btn-ghost danger" data-toast="已解除绑定（演示）" data-im-unbind-done="" type="button">确认解除</button>
+<button class="btn btn-ghost" data-im-keep="" type="button">保留</button>
+</div>
+</li>
+</ul>
+</div>
+<div class="im-block">
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>飞书接入指引</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<ol class="im-guide">
+<li><p>在飞书开发者后台创建企业自建应用。</p></li>
+<li><p>开通以下权限：</p>
+<div class="im-chips">
+<button class="im-chip" type="button"><code>im:message</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>im:message:send_as_bot</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>im:message.reaction:write</code><span aria-hidden="true">⧉</span></button>
+<button class="im-chip" type="button"><code>im:resource</code><span aria-hidden="true">⧉</span></button>
+</div>
+</li>
+<li><p>事件订阅方式选择「长连接」。</p></li>
+<li><p>订阅事件：</p>
+<div class="im-chips"><button class="im-chip" type="button"><code>im.message.receive_v1</code><span aria-hidden="true">⧉</span></button></div>
+</li>
+<li class="im-guide-warning"><p>在「回调配置」（不是事件订阅）添加：</p>
+<div class="im-chips"><button class="im-chip" type="button"><code>card.action.trigger</code><span aria-hidden="true">⧉</span></button></div>
+</li>
+<li><p>创建版本并发布。</p></li>
+</ol>
+</div>
+</div>
+</section>
+<!-- 渠道详情：企业微信（未配置：凭据空态 + 指引） -->
+<section class="im-view" data-im-view="wecom" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">企业微信</h4><p class="im-detail-hint">企业自建应用 · 长连接，无需公网</p></div>
+<span class="im-status-pill"><span aria-hidden="true" class="im-dot idle"></span>未配置</span>
+</header>
+<div class="im-block">
+<div class="im-block-head"><h4>应用凭据</h4></div>
+<div class="im-cred-empty">
+<p class="im-muted">还没有保存企业微信应用凭证。</p>
+<button class="btn btn-primary" data-im-cred-swap="" type="button">填写企业 ID / Secret 等…</button>
+</div>
+<form class="im-credentials-form" data-im-cred-form="" hidden="">
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">企业 ID</span><input class="im-field-input" placeholder="ww…" spellcheck="false"/></label>
+<label class="im-field"><span class="im-field-label">应用 Secret</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">Agent ID</span><input class="im-field-input"/></label>
+<label class="im-field"><span class="im-field-label">Token</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">EncodingAESKey</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">可信域名</span><input class="im-field-input" placeholder="example.com" spellcheck="false"/></label>
+</div>
+<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并连接</button><button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>
+</form>
+</div>
+<div class="im-block">
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>企业微信接入指引</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<ol class="im-guide">
+<li><p>在企业微信管理后台创建企业自建应用。</p></li>
+<li><p>记录企业 ID、Agent ID 与应用 Secret。</p></li>
+<li><p>在「接收消息」页配置 Token 与 EncodingAESKey，回调模式选择长连接。</p></li>
+<li><p>把可信域名加入应用白名单。</p></li>
+</ol>
+</div>
+</div>
+</section>
+<!-- 渠道详情：Slack（未配置 + 高级折叠） -->
+<section class="im-view" data-im-view="slack" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">Slack</h4><p class="im-detail-hint">Manifest 导入 · 无需公网</p></div>
+<span class="im-status-pill"><span aria-hidden="true" class="im-dot idle"></span>未配置</span>
+</header>
+<div class="im-block">
+<div class="im-block-head"><h4>应用凭据</h4></div>
+<div class="im-cred-empty">
+<p class="im-muted">还没有保存 Slack 应用凭证。</p>
+<button class="btn btn-primary" data-im-cred-swap="" type="button">填写 Bot Token / Signing Secret…</button>
+</div>
+<form class="im-credentials-form" data-im-cred-form="" hidden="">
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">Bot Token</span><input class="im-field-input" placeholder="xoxb-…" spellcheck="false"/></label>
+<label class="im-field"><span class="im-field-label">Signing Secret</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">App ID</span><input class="im-field-input"/></label>
+<label class="im-field"><span class="im-field-label">Client ID</span><input class="im-field-input"/></label>
+</div>
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>高级字段</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">Client Secret</span><input class="im-field-input" type="password"/></label>
+<label class="im-field"><span class="im-field-label">Verification Token</span><input class="im-field-input" type="password"/></label>
+</div>
+</div>
+<div class="btn-pair"><button class="btn btn-primary" data-im-cred-save="" type="button">保存并连接</button><button class="btn btn-ghost" data-im-cred-cancel="" type="button">取消</button></div>
+</form>
+</div>
+<div class="im-block">
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>Slack 接入指引</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<ol class="im-guide">
+<li><p>在 Slack API 创建应用，或直接导入 Manifest。</p></li>
+<li><p>开启 Socket Mode（无需公网回调）。</p></li>
+<li><p>订阅 <code class="im-identifier">message.im</code> 等事件并授予权限。</p></li>
+</ol>
+</div>
+</div>
+</section>
+<!-- 通用：Gateway 与设备 -->
+<section class="im-view" data-im-view="gateway" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">Gateway 与设备</h4><p class="im-detail-hint">内置 Gateway 开箱即用；团队模式连接共享服务。</p></div>
+</header>
+<div class="im-block">
+<h4>模式</h4>
+<div class="im-mode-cards">
+<label class="im-mode-card"><input checked="" name="gwMode" type="radio" value="builtin"/><strong>内置 Gateway</strong><small>本机自启，无需配置</small></label>
+<label class="im-mode-card"><input name="gwMode" type="radio" value="team"/><strong>团队 Gateway</strong><small>连接团队共享服务</small></label>
+</div>
+</div>
+<div class="im-block im-team-form" hidden="" id="imTeamForm">
+<h4>团队连接</h4>
 <div class="form-grid">
 <label class="im-field"><span class="im-field-label">服务地址</span><input class="im-field-input" placeholder="https://gw.example.com" spellcheck="false"/></label>
 <label class="im-field"><span class="im-field-label">设备名</span><input class="im-field-input" placeholder="nicky 的 Mac"/></label>
 <label class="im-field field-wide"><span class="im-field-label">管理凭据</span><input class="im-field-input" placeholder="仅注册时使用，不落盘" type="password"/></label>
 </div>
-<p class="im-fine" data-im-team-result hidden role="status"></p><div class="setting-row"><span class="sp"></span><div class="btn-pair"><button class="btn btn-primary" data-im-team-register="" type="button">注册</button><code class="im-identifier">dev-3f9a</code></div></div>
+<div class="setting-row"><span class="sp"></span><div class="btn-pair"><button class="btn btn-primary" data-toast="已注册设备（演示）" type="button">注册</button><code class="im-identifier">dev-3f9a</code></div></div>
+</div>
+</section>
+<!-- 通用：配对与账号 -->
+<section class="im-view" data-im-view="pairing" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">配对与账号</h4><p class="im-detail-hint">在 IM 会话中回复配对指令，把个人账号绑定到这台设备。</p></div>
+</header>
+<div class="im-block">
+<div class="im-code-card">
+<div class="im-pair-head"><span aria-hidden="true" class="im-dot pending"></span><strong>配对码 · <span class="im-countdown" id="imCountdown">4:32</span> 内有效</strong></div>
+<code class="im-identifier lg">/pair 7K2Q-XR9M</code>
+<button class="btn btn-primary" data-copy-pair="" type="button">复制配对指令</button>
+</div>
 </div>
 <div class="im-block">
-<h4>连接诊断</h4><p class="im-fine" data-im-diagnostic-result hidden role="status"></p>
-<div class="setting-row"><div><div class="label">诊断</div><div class="desc">检查服务、机器人、账号和项目授权</div></div><span class="sp"></span><button class="btn btn-ghost" data-im-diagnose="" type="button">运行诊断</button></div>
-</div>
-
-</div>
-</div>
-</div>
-</section>
-<!-- ② 接入渠道并绑定账号（合并原②③：按渠道线性推进——凭据 → 平台接收 → 绑定账号） -->
-<section class="im-card" data-im-card="channel">
-<button aria-controls="imCardBodyChannel" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">2</span><span class="im-card-title">接入渠道并绑定账号</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyChannel">
-<p class="im-muted">选一个渠道：先把机器人接进来，再绑定你自己的账号——同一步里线性完成，先接一个渠道就够用。</p>
-<div class="im-channel-tabs" data-im-channel-tabs="" role="tablist" aria-label="选择渠道"></div>
-<ul class="im-platform-rows" data-im-platform-rows=""></ul>
-<p class="im-fine">指令速查：<span class="im-chips"><button class="im-chip" type="button"><code>/pair</code><span aria-hidden="true">⧉</span></button><button class="im-chip" type="button"><code>/help</code><span aria-hidden="true">⧉</span></button><button class="im-chip" type="button"><code>/status</code><span aria-hidden="true">⧉</span></button><button class="im-chip" type="button"><code>/stop</code><span aria-hidden="true">⧉</span></button></span></p>
-<!-- 顺手验证（可选）：原④并入②尾部折叠段——不计入三步完成链，随时可做可跳过 -->
-<div class="im-verify" data-im-verify="">
-<button aria-controls="imVerifyBody" aria-expanded="false" class="im-guide-toggle" data-im-fold="" data-im-verify-toggle="" type="button"><span>顺手验证（可选）：发一条真实消息走通全链路</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
-<div class="im-fold-body" hidden="" id="imVerifyBody">
-<p class="im-fine">配置成功不等于端到端成功。绑定账号后随时可发；跳过不影响使用，之后再验证也一样。</p>
-<div data-im-test-commands=""></div>
-<ol class="im-track" data-im-track="" hidden=""></ol>
-<div class="im-sim-row" data-im-test-actions=""></div>
-<p class="im-fine im-test-error" data-im-test-error="" hidden="" role="alert"></p>
-<div data-im-test-confirm="" hidden="">
-<button class="btn btn-primary" data-im-test-confirm-btn="" type="button">我已收到回复</button>
-<p class="im-fine">只标记你的确认，不做系统验证。</p>
-</div>
-<div class="im-test-done" data-im-test-done="" hidden="">
-<p class="im-ready-title">✓ 全链路走通（你已确认）</p>
-<div class="btn-pair"><button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作（可选）</button></div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- ③ 允许手机操作的项目（生产对齐：行内即时生效 + 授权配置弹窗 + 默认项目徽章） -->
-<section class="im-card" data-im-card="projects">
-<button aria-controls="imCardBodyProjects" aria-expanded="false" class="im-card-head" data-im-card-head="" type="button"><span aria-hidden="true" class="im-card-num">3</span><span class="im-card-title">允许手机操作的项目</span><span class="im-card-summary" data-im-summary=""></span><span class="im-card-badge" data-im-badge=""></span><span class="im-card-alerts" data-im-alerts="" hidden=""></span><span aria-hidden="true" class="im-card-caret" data-im-caret="">▾</span></button>
-<div class="im-card-body" id="imCardBodyProjects">
-<p class="im-muted" data-im-projects-guide="">临时会话始终可用（内置授权，不可关闭）；要让手机操作具体项目，勾选即生效。</p>
-<p class="im-fine">没有想授权的项目？<button class="im-demo-link" data-im-open-project="" type="button">先打开项目</button>，再回来勾选；模式与范围点行内「授权配置」调整。</p>
-<ul class="im-project-list" data-im-project-rows=""></ul>
-<p class="im-fine">之后随时改：手机上发 <code class="im-identifier">/projects</code> 就能查看和调整授权的项目。</p>
-<p class="im-fine" data-im-audience="">回复仅发给你绑定的单聊；群分享在「群协作」里单独配置。</p>
-<p class="im-fine im-grant-error" data-im-grant-error="" hidden="" role="alert"></p>
-<p class="im-fine im-grant-partial" data-im-grant-partial="" hidden="">授权已保存，连接未启用。<button class="btn btn-ghost" data-im-retry-enable="" type="button">重试启用</button></p>
-<!-- 完成仪式（三步版）：三步完成链全✓后出现；验证引导指向②尾部可选验证段 -->
-<div class="im-ceremony" data-im-ceremony="" hidden="">
-<p class="im-ready-title">✓ 三步配置完成，手机现在可以派活了</p>
-<div class="btn-pair">
-<button class="btn btn-primary" data-im-finish="" type="button">开始使用</button>
-<button class="btn btn-ghost" data-im-verify-now="" type="button">发测试消息验证（可选）</button>
-<button class="btn btn-ghost" data-im-open-group-flow="" type="button">设置群协作（可选）</button>
-<button class="btn btn-ghost" data-im-view-overview="" type="button">查看连接概览</button>
-</div>
-<p class="im-fine">没验证也能用：第 ② 步底部的「顺手验证」随时可以补做。</p>
-</div>
-</div>
-</section>
-</div>
-<!-- 群协作独立第二流程（D2：从主流程抽离；完成设置后经⑤或概览进入） -->
-<div class="im-group-flow" data-im-group-flow="" hidden="">
-<button class="im-demo-link" data-im-group-back="" type="button">← 返回单聊设置</button>
-<h4 class="im-group-flow-title">群协作</h4>
-<p class="im-muted">把机器人拉进群，和绑定的账号一起协作；不设置不影响单聊使用。</p>
-<ol class="im-substages" data-im-group-steps="">
-<li data-gstep="1">发现群</li>
-<li data-gstep="2">选择群与成员</li>
-<li data-gstep="3">各群确认</li>
-<li data-gstep="4">授权我的项目</li>
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>试试第一条任务</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<ol class="im-guide">
+<li><p>在绑定的 IM 会话中发送：</p><div class="im-chips"><button class="im-chip" type="button"><code>总结当前分支的改动</code><span aria-hidden="true">⧉</span></button></div></li>
+<li><p>Artemis 会在本机执行并回传结果；复杂任务会先给出计划。</p></li>
 </ol>
-<div data-im-group-body=""></div>
-<p aria-live="polite" class="im-fine" data-im-group-state=""></p>
 </div>
-<!-- 完成后连接概览（D1/PT-8）：五分区 + 三态分开表达 + 总开关新家 -->
-<div class="im-overview" data-im-overview="" hidden="">
-<h4 class="im-group-flow-title">连接概览</h4>
-<div class="im-ov-trio" data-im-ov-trio=""></div>
-<div class="im-ov-actions">
-<button class="im-demo-link" data-im-continue-setup="" hidden="" type="button">继续设置 →</button>
-<button class="im-demo-link" data-im-back-setup="" type="button">← 返回设置步骤</button>
 </div>
-<div class="im-ov-sections" data-im-ov-sections=""></div>
+</section>
+<!-- 通用：项目授权 -->
+<section class="im-view" data-im-view="projects" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">项目授权</h4><p class="im-detail-hint">勾选可被 IM 驱动的本地项目，并为其配置授权。</p></div>
+</header>
+<div class="im-block">
+<ul class="im-project-list">
+<li class="im-project">
+<label class="settings-checkbox im-project-head"><input checked="" type="checkbox"/><span><strong>Artemis</strong><small>~/Documents/Artemis-feat-im-feishu</small></span></label>
+<button aria-expanded="true" class="im-guide-toggle" data-im-fold="" type="button"><span>授权设置</span><span aria-hidden="true" class="im-guide-caret">▾</span></button>
+<div class="im-fold-body">
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option>Plan</option><option selected="">Execute</option><option>Review</option></select></label>
+<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option><option>每步确认</option></select></label>
+<label class="im-field"><span class="im-field-label">沙箱</span><select class="im-field-input"><option selected="">默认（Seatbelt / AppContainer）</option><option>完整本机访问</option></select></label>
+<label class="im-field"><span class="im-field-label">网络</span><select class="im-field-input"><option selected="">按服务器</option><option>允许全部</option></select></label>
+<label class="im-field"><span class="im-field-label">协作空间 ID</span><input class="im-field-input" placeholder="留空自动"/></label>
+<label class="im-field"><span class="im-field-label">到期</span><input class="im-field-input" type="date" value="2026-10-05"/></label>
 </div>
-<!-- ============================================================
-     imDemoConsole —— 原型模拟专用「条件设置口」，与真实 UI 严格隔离。
-     面板内所有演示条件（场景重放、失败分支、各步结果选择）集中于此；
-     迁移到生产代码时整块删除 #imDemoConsole，并删除 workspace.js 中
-     以 IM DEMO CONSOLE 标记的接线段，即可剥离全部模拟逻辑。
-     ============================================================ -->
-<div class="im-demo-console" id="imDemoConsole" data-im-demo-console="">
-<details class="im-simulation"><summary>演示场景与条件设置（原型专用）</summary><p class="im-fine">可重放设置流程和异常恢复，切换前会确认清空当前输入。真实产品无此区块。</p><div class="btn-pair im-scene-buttons">
-<button type="button" class="btn btn-ghost" data-im-scene="empty">首次设置</button><button type="button" class="btn btn-ghost" data-im-scene="progress">等待配对</button><button type="button" class="btn btn-ghost" data-im-scene="ready">全部就绪</button><button type="button" class="btn btn-ghost" data-im-scene="alert">混合故障</button><button type="button" class="btn btn-ghost" data-im-scene="offline">服务断连</button><button type="button" class="btn btn-ghost" data-im-scene="expired">配对码过期</button><button type="button" class="btn btn-ghost" data-im-scene="team">团队服务</button>
+<div class="setting-row"><div class="label">到期自动续期</div><span class="sp"></span><button aria-checked="true" aria-label="到期自动续期" class="switch on" role="switch" type="button"></button></div>
 </div>
-<div class="btn-pair im-scene-buttons">
-<button type="button" class="btn btn-ghost" data-im-save-failure aria-pressed="false">保存失败模拟</button><button type="button" class="btn btn-ghost" data-im-enable-failure aria-pressed="false">启用失败模拟</button>
+</li>
+<li class="im-project">
+<label class="settings-checkbox im-project-head"><input type="checkbox"/><span><strong>token-lab</strong><small>~/Documents/token-lab</small></span></label>
+<button aria-expanded="false" class="im-guide-toggle" data-im-fold="" type="button"><span>授权设置</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body" hidden="">
+<div class="form-grid">
+<label class="im-field"><span class="im-field-label">模式</span><select class="im-field-input"><option selected="">Plan</option><option>Execute</option></select></label>
+<label class="im-field"><span class="im-field-label">审批</span><select class="im-field-input"><option selected="">智能审批</option></select></label>
 </div>
-<div class="im-demo-outcomes">
-<div class="im-sim-row">启动结果：<select aria-label="启动结果" class="im-sim-outcome" data-im-service-outcome=""><option value="ok">成功</option><option value="port">端口被占用</option><option value="register">注册失败</option></select></div>
-<div class="im-sim-row">飞书保存结果：<select aria-label="飞书保存结果" class="im-sim-outcome" data-im-cred-outcome="feishu"><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option></select></div>
-<div class="im-sim-row">企业微信保存结果：<select aria-label="企业微信保存结果" class="im-sim-outcome" data-im-cred-outcome="wecom"><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option></select></div>
-<div class="im-sim-row">Slack 保存结果：<select aria-label="Slack 保存结果" class="im-sim-outcome" data-im-cred-outcome="slack"><option value="ok">成功</option><option value="bad">密钥失效</option><option value="offline">网络中断</option><option value="permission">平台权限不足</option><option value="mismatch">两 Token 不同应用</option></select></div>
 </div>
-<div class="im-sim-reset"><button class="im-demo-link" data-im-sim-reset="" type="button">演示：从头再来一遍</button></div>
-</details>
+</li>
+</ul>
+</div>
+<div class="im-block">
+<div class="setting-row"><div class="label">默认项目</div><span class="sp"></span><select aria-label="默认项目" class="select-pill"><option selected="">Artemis</option><option>token-lab</option></select></div>
+<div class="setting-row"><span class="sp"></span><button class="btn btn-primary" data-toast="已保存并启用（演示）" type="button">保存并启用</button></div>
+</div>
+</section>
+<!-- 群消息接入：直接显示管理内容，高级 JSON 保留折叠。 -->
+<section class="im-view" data-im-view="group" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">创建与连接 IM 群协作空间</h4><p class="im-detail-hint">连接同平台或跨平台的群与频道，支持企业微信、飞书、Lark 和 Slack。跨电脑协作需连接同一个可访问的团队 Gateway。</p></div>
+</header>
+<div class="im-block">
+<button aria-expanded="true" class="im-guide-toggle" data-im-fold="" type="button"><span>协作空间管理</span><span aria-hidden="true" class="im-guide-caret">▸</span></button>
+<div class="im-fold-body">
+<div class="setting-row"><div><div class="label">空间诊断</div><div class="desc">检查成员同步与网关连通性。</div></div><span class="sp"></span><button class="btn btn-ghost" data-toast="诊断完成：全部正常（演示）" type="button">运行诊断</button></div>
+<p class="im-muted">先绑定账号，再在群中 @机器人并发送 /help（Slack 发 help）发现群。仅机器人任务、公开进度和成果在空间中共享。</p><button class="btn btn-ghost" data-im-goto="pairing" type="button">先去绑定账号</button><button class="btn btn-ghost" data-toast="群和成员已刷新（演示）" type="button">刷新群和成员</button><ul class="im-binding-list">
+<li class="im-binding-row"><div class="im-binding-main"><strong>artemis-ui-评审群</strong><span class="im-binding-meta">5 名成员 · feishu</span></div></li>
+<li class="im-binding-row"><div class="im-binding-main"><strong>packaging-standby</strong><span class="im-binding-meta">2 名成员 · wecom</span></div></li>
+</ul>
+<details><summary>高级 JSON 配置</summary><label class="im-field"><span class="im-field-label">空间 JSON</span><textarea class="editor-area mono" rows="8" spellcheck="false">{
+  "members": ["u_9f3a", "u_2c71"],
+  "gateway": "conn-1",
+  "defaultMode": "plan"
+}</textarea></label></details>
+</div>
+</div>
+</section>
+<!-- 通用：设置指引（六步清单 + 平台差异；单份 markup，向导态由 JS 搬走） -->
+<section class="im-view" data-im-view="guide" hidden="">
+<header class="im-detail-header">
+<div><h4 class="im-view-title">设置指引</h4><p class="im-detail-hint">六步完成接入；已完成的项目会标记出来，当前步骤可直接跳转。</p></div>
+</header>
+<div id="imGuideBody">
+<div id="imGuideContent">
+<ol class="im-steps">
+<li class="done"><span aria-hidden="true" class="im-step-mark">✓</span><div class="im-step-copy"><strong>准备 Gateway</strong><small>启动内置 Gateway，或连接团队服务</small></div><span class="im-step-state">已完成</span></li>
+<li class="done"><span aria-hidden="true" class="im-step-mark">✓</span><div class="im-step-copy"><strong>注册这台电脑</strong><small>设备编号 <code class="im-identifier">dev-3f9a</code> · 无需重复注册</small></div><span class="im-step-state">已完成</span></li>
+<li class="current"><span aria-hidden="true" class="im-step-mark">●</span><div class="im-step-copy"><strong>连接一个机器人</strong><small>选择平台并填入应用凭证</small></div><span class="im-step-cta"><button class="btn btn-primary" data-im-goto="feishu" type="button">去设置 →</button></span></li>
+<li><span aria-hidden="true" class="im-step-mark">○</span><div class="im-step-copy"><strong>绑定你的 IM 账号</strong><small>在 IM 中回复配对码完成绑定</small></div><span class="im-step-state">待办</span></li>
+<li><span aria-hidden="true" class="im-step-mark">○</span><div class="im-step-copy"><strong>选择项目并启用</strong><small>授权可被 IM 驱动的项目</small></div><span class="im-step-state">待办</span></li>
+<li><span aria-hidden="true" class="im-step-mark">○</span><div class="im-step-copy"><strong>发送第一条任务</strong><small>在 IM 会话中直接派发</small></div><span class="im-step-state">待办</span></li>
+</ol>
+<div class="im-platforms-head">支持的平台</div>
+<div class="im-platform-cards">
+<div class="im-platform-card"><strong>企业微信</strong><small>无需公网 · 长连接</small></div>
+<div class="im-platform-card"><strong>飞书</strong><small>需 HTTPS 回调</small></div>
+<div class="im-platform-card"><strong>Slack</strong><small>无需公网 · Manifest 导入</small></div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
 </div>
 </div>
 <!-- Agent 配置（对齐真实：并发容量 / 全局 AGENTS.md / 导入现有配置） -->
@@ -1042,9 +1490,9 @@
 <label class="environment-git-include"><input type="checkbox" id="commitIncludeUnstaged" checked=""/><strong>包含未暂存的更改</strong><span class="environment-diff-total"><i>+42</i> <b>−12</b></span></label>
 <div class="environment-git-actions"><button class="primary" type="button" data-commit-action="commit"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M2 12h6m8 0h6"/></svg><strong>提交</strong><kbd>⌘↵</kbd></button><button type="button" data-commit-action="commit-push"><svg aria-hidden="true" data-artemis-icon="push" fill="none" focusable="false" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="16"><path d="M12 16V4.5M8 8.5l4-4 4 4"></path><path d="M5 19.5h14"></path></svg><strong>提交并推送</strong></button><button type="button" data-commit-action="push" disabled="" title="请先提交更改"><svg aria-hidden="true" data-artemis-icon="push" fill="none" focusable="false" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="16"><path d="M12 16V4.5M8 8.5l4-4 4 4"></path><path d="M5 19.5h14"></path></svg><strong>推送</strong></button></div><p id="commitFeedback" class="im-muted" role="status">演示表单，不写入仓库。</p>
 </form></dialog><!-- 归档确认（真实 archiveConfirm / deleteTaskConfirm 共用一枚危险确认） -->
-<dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js?v=1"></script>
+<dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js?v=122"></script>
-<script src="workspace/fixtures.js?v=1"></script>
-<script src="workspace/workspace.js?v=168"></script>
+<script src="workspace/fixtures.js"></script>
+<script src="workspace/workspace.js?v=166"></script>
 </body>
 </html>
