@@ -1,6 +1,6 @@
 # Office 工作台与共享能力包
 
-当前分支包含协议、宿主管理器、原生桥接和预览工作台。Office Runtime 1.0.0 的 macOS arm64 包已独立发布到 [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases/tag/office-runtime-v1.0.0)，可信目录已接入本分支和独立测试宿主。公开客户端 v1.6.8 尚未包含此入口，需要后续客户端发布才能向正式版用户开放。原生兼容性门槛和剩余工作见[验收记录](../../projects/office-workbench/README.md)；完整复杂格式保真尚未放行，生产入口仍禁止原生引擎覆盖原文件。
+v1.6.9 包含协议、宿主管理器、原生桥接和预览工作台。Office Runtime 1.0.0 的 macOS arm64 包已独立发布到 [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases/tag/office-runtime-v1.0.0)，可信目录已接入 v1.6.9 客户端和独立测试宿主。原生兼容性门槛和剩余工作见[验收记录](../../projects/office-workbench/README.md)；完整复杂格式保真尚未放行，生产入口仍禁止原生引擎覆盖原文件。
 
 本次平台验收范围为 macOS arm64 与 Windows x64；macOS x64 已按用户要求排除。
 

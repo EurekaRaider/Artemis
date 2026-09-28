@@ -1,35 +1,35 @@
-# Artemis v1.6.8
+# Artemis v1.6.9
 
 ## 中文
 
 ### 本次更新
 
-- **新增 macOS Computer Use 插件**：在资源中心安装后，可使用当前支持图片的模型操作 Artemis 内置浏览器与原生应用。插件自带原生助手，无需额外安装运行时或配置模型密钥；仅在 Execute 模式使用，要求 macOS 14 或更新版本。
-- **应用授权与操作接管**：支持仅本轮或长期应用授权，并可随时撤销。原生坐标点击、按键和滚动需要单独允许本轮前台操作；后台操作不移动系统鼠标。点击停止或手动操作目标界面会暂停控制，并保留暂停原因，恢复前不能重新打开目标绕过暂停。
-- **更可靠的连续操作**：一次最多执行八步，逐步核验填写结果与界面变化；原生控件 ID 保持稳定，读数变化不会无故打断后续操作。结果直接返回新观察、已完成和剩余步骤，减少重复截图与模型往返。
-- **修复浏览器观察与填写**：等待浏览器面板尺寸稳定后返回首次观察；短暂截图失败会有限重试，不重放输入。修复嵌入式网页输入框聚焦、替换已有内容及中文填写行为，并刷新导航后的目标名称。
-- **优化控制界面**：控制条随输入区排布，保留停止与恢复入口；macOS 使用原生侧边栏玻璃材质，并提供原生浮动停止按钮。Windows 不展示此 macOS 专用插件，也不连接迁移配置中遗留的 Computer Use 服务。
-- **调整插件安装后的启用行为**：新增 MCP 服务及 Connectors 默认启用，缺少配置、授权或连接失败时显示设置状态；更新保留用户已经关闭的服务，关闭的插件不会因更新重新启用。
+- **Office 工作台**：DOCX、PPTX、XLSX 使用右侧文档面板，支持原生页面预览、缩放、页码与工作表切换、区域选取及批注。文件树和文档链接复用同一入口，未安装能力包时可直接进入升级面板。
+- **本地编辑、自动保存与撤销**：原位修改可定位的 Word 段落、幻灯片对象文字，以及工作表 A1:Z50 内的值和公式；CSV 支持单元格与原文编辑。输入停顿后自动保存，支持中文输入法、撤销与重做；保存失败保留草稿，外部修改冲突时拒绝覆盖。Office 文档保存到同目录工作副本，保留原文件；UTF-8 CSV 经冲突检查后写回原文件。编辑和保存要求 Execute 模式，无需经过模型或云端转换。
+- **共享 Office 能力包管理**：Documents、Presentations、Spreadsheets 共用可选的增强引擎，支持在线安装、单个 `.artemis-office` 文件离线导入、检查更新、修复与卸载。签名和文件摘要验证保持强制执行；检查失败不显示“已是最新”，在用组件受租约保护，卸载保留用户文档并恢复 Lite。
+- **Office 会话恢复与一致性**：使用版本化事件、操作日志和独立基线恢复已确认修改；旧预览不能覆盖新版本。干净会话可重新加载外部修改，存在草稿时保留内容并提示冲突。
+- **Computer Use 授权与工具图标**：显式授予的任务及指定应用权限可跨轮复用，前台权限仍单独授权且可撤销；授权内动作复用现有本地模型审批判断。工具卡片在运行、完成和失败时保留插件身份。浏览器接管事件绑定当前目标，保留停止、接管和恢复边界。
+- **更新与活动提示**：成功检查且没有新版本时明确显示已是最新；活动热力图提示跟随滚动容器定位，避免被面板边缘遮挡。
 
 ### 安装与范围
 
-- **macOS Apple Silicon（arm64）**：Developer ID 签名、公证的 DMG/ZIP，支持应用内更新。原生应用操作仍需要 macOS 辅助功能与屏幕录制授权。
-- **Windows x64**：无签名 ZIP。解压到新文件夹，退出旧版后启动新版；保留 `%APPDATA%` 中的 Artemis 用户数据。应用提示新版本后手动下载替换。
-- 本版 CD 发布 macOS arm64 和 Windows x64；macOS Intel x64 仍为本地打包目标。Computer Use 不包含外部 Chrome 扩展；自动化检查不代表真实模型路由、所有应用工作流或 Intel 安装包已经完成验收。
+- **macOS Apple Silicon（arm64）**：Developer ID 签名、公证的 DMG/ZIP，支持应用内更新。Office Runtime 1.0.0 为独立下载的可选组件；本版复用已发布的 macOS arm64 运行时，不在客户端 CD 中重建或替换它。
+- **Windows x64**：无签名 ZIP，下载后退出旧版并解压到新文件夹启动，保留 `%APPDATA%` 中的 Artemis 用户数据。Windows 客户端发布不代表 Windows Office 增强运行时已经正式发布；运行时可用性以平台目录为准。
+- 复杂 Office 排版和完整格式保真尚未全面放行；旋转文字、无法唯一定位的文字及跨页段落保持只读，旧版 DOC/PPT/XLS 需先转换。新增编辑文案提供中文及英文回退，其余既有 Office 文案保留 14 种语言。原始 #226 Codex 暂停报告仍未确认，不能视为已全面解决。macOS Intel x64 不包含在本次 CD 产物中。
 
 ## English
 
 ### What's changed
 
-- **New Computer Use plugin for macOS**: install it from the Resource Center to operate Artemis Browser and native apps with the current image-capable model. The native helper is bundled, with no extra runtime or model key required. Available in Execute mode on macOS 14 or later.
-- **App permissions and user takeover**: grant access for one turn or persistently, and revoke it at any time. Native coordinate clicks, keys and scrolling require separate foreground permission for the current turn; background actions leave the system pointer in place. Stop or manual interaction with the target pauses control, preserves the reason and prevents reopening the target to bypass the pause.
-- **More reliable action batches**: run up to eight actions with per-step checks of field values and interface changes. Native control IDs remain stable, and changing readouts no longer interrupt otherwise valid actions. Results include a fresh observation, completed actions and remaining steps, reducing redundant captures and model round trips.
-- **Browser capture and form fixes**: the first observation waits for the browser panel to settle. Transient capture failures receive bounded retries without replaying input. Embedded fields now focus and replace existing text correctly, including Chinese input, and target names refresh after navigation.
-- **Refined control UI**: the control bar follows the composer with Stop and Resume controls. macOS uses the native sidebar glass material and a floating native Stop button. Windows hides this macOS-only plugin and skips legacy Computer Use connections imported from another platform.
-- **Plugin enablement after installation**: new MCP services and Connectors start enabled, with setup states for missing configuration, authorization or failed connections. Updates preserve manually disabled services and do not re-enable disabled plugins.
+- **Office workbench**: DOCX, PPTX and XLSX share the right-hand document panel with native page previews, zoom, page and sheet navigation, region selection and annotations. File-tree entries and document links use the same entry point, with direct access to component installation when the runtime is missing.
+- **Local editing, autosave and undo**: edit identifiable Word paragraphs, slide object text, and worksheet values and formulas within A1:Z50. CSV supports cell and source editing. Autosave respects input composition; undo and redo remain available after saves. Failed saves retain drafts, and external changes block conflicting writes. Office files save to a working copy alongside the original; UTF-8 CSV writes back after conflict checks. Editing and saving require Execute mode and run locally without model calls or cloud conversion.
+- **Shared Office runtime management**: Documents, Presentations and Spreadsheets use one optional enhanced engine, with online installation, single-file `.artemis-office` import, update checks, repair and removal. Signature and file-digest verification remain mandatory. Failed checks never claim the runtime is current; leases protect active components, and removal preserves user documents while restoring Lite.
+- **Office recovery and consistency**: versioned events, operation journals and independent baselines recover acknowledged changes. Stale previews cannot replace newer revisions. Clean sessions reload external changes, while dirty sessions preserve drafts and report conflicts.
+- **Computer Use permissions and tool identity**: explicitly granted task and app permissions can be reused across turns, with separate, revocable foreground permission. Authorized actions reuse the existing local model-approval decision. Tool cards retain plugin identity while running, completed or failed. Browser takeover events bind to the current target, preserving Stop, takeover and recovery boundaries.
+- **Update and activity feedback**: successful checks explicitly confirm when no newer version exists. Activity heatmap tooltips track their scrolling container and remain visible near panel edges.
 
 ### Installation and scope
 
-- **macOS Apple Silicon (arm64)**: Developer ID signed and notarized DMG/ZIP, with in-app updates. Native app control still requires macOS Accessibility and Screen Recording permission.
-- **Windows x64**: unsigned ZIP. Extract into a new folder, quit the old version and launch the new one. Preserve Artemis user data in `%APPDATA%`; download and replace the app manually when an update is announced.
-- This CD release ships macOS arm64 and Windows x64; Intel macOS x64 remains a local packaging target. Computer Use does not include an external Chrome extension. Automated checks do not establish real-model routing accuracy, acceptance for every app workflow or Intel package acceptance.
+- **macOS Apple Silicon (arm64)**: Developer ID signed and notarized DMG/ZIP, with in-app updates. Office Runtime 1.0.0 is an optional separate download. Client CD reuses the published macOS arm64 runtime without rebuilding or replacing it.
+- **Windows x64**: unsigned ZIP. Quit the old version, extract into a new folder and launch the new app, preserving Artemis user data in `%APPDATA%`. Shipping the Windows client does not establish a public Windows enhanced Office runtime; availability follows the platform catalog.
+- Full Office layout and format fidelity remain limited. Rotated text, ambiguous targets and paragraphs spanning pages stay read-only; legacy DOC/PPT/XLS files require conversion. New editing strings include Chinese and English fallback; existing Office strings retain 14 languages. The original #226 Codex pause report remains unconfirmed. Intel macOS x64 is outside this CD artifact set.
