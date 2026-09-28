@@ -1,6 +1,11 @@
 name: Release Windows Office runtime
 on:
   workflow_dispatch:
+    inputs:
+      verify_only:
+        description: Verify the already published immutable Windows runtime
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -9,6 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    if: ${{ !inputs.verify_only }}
     runs-on: windows-2025
     timeout-minutes: 40
     defaults:
@@ -50,6 +56,7 @@ jobs:
         run: node scripts/office/publish-windows-release.mjs
   verify-online-install:
     needs: publish
+    if: always() && (needs.publish.result == 'success' || inputs.verify_only)
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 40
     defaults:

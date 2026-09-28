@@ -1,11 +1,37 @@
 // Exercise the production host against the anonymous public HTTPS installer.
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  stat,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createOfficeWorkbench } from "../../apps/desktop/src/main/office-workbench.js";
 import { UnoOfficeEngine } from "../../apps/desktop/src/main/office-uno-engine.js";
 if (process.platform !== "win32" || !process.env.LOCALAPPDATA)
   throw Error("Windows user profile required");
+for (const name of await readdir(process.env.LOCALAPPDATA)) {
+  if (!name.startsWith("Artemis Office 发布验收-")) continue;
+  const packs = join(process.env.LOCALAPPDATA, name, "capability-packs");
+  for (const stage of await readdir(packs).catch(() => [] as string[])) {
+    if (!stage.startsWith(".stage-")) continue;
+    const archive = await stat(join(packs, stage, "download.zip")).catch(
+      () => undefined,
+    );
+    console.log(
+      "OFFICE_PREVIOUS_DOWNLOAD",
+      JSON.stringify({
+        bytes: archive?.size,
+        modified: archive?.mtime.toISOString(),
+      }),
+    );
+  }
+}
 const base = await mkdtemp(
   join(process.env.LOCALAPPDATA, "Artemis Office 发布验收-"),
 );
@@ -21,6 +47,34 @@ const workbench = await createOfficeWorkbench({
   dependents: async () => [],
   emit: () => {},
 });
+let lastBytes = -1;
+let lastTransfer = Date.now();
+let stalled = false;
+const progress = setInterval(() => {
+  void workbench.packs
+    .status()
+    .then(async ({ phase, downloadedBytes, totalBytes }) => {
+      if (downloadedBytes !== lastBytes) {
+        lastBytes = downloadedBytes;
+        lastTransfer = Date.now();
+      }
+      const status = {
+        phase,
+        downloadedBytes,
+        totalBytes,
+        at: new Date().toISOString(),
+      };
+      console.log(`OFFICE_PUBLIC_PROGRESS ${JSON.stringify(status)}`);
+      await writeFile(join(out, "progress.json"), JSON.stringify(status));
+      if (phase === "downloading" && Date.now() - lastTransfer > 300_000) {
+        stalled = true;
+        workbench.packs.cancel();
+      }
+    })
+    .catch((error) =>
+      console.error("Progress observation failed:", error.message),
+    );
+}, 30_000);
 let lease: Awaited<ReturnType<typeof workbench.packs.acquire>> | undefined;
 try {
   const manifest = workbench.updates.available();
@@ -32,10 +86,19 @@ try {
     throw Error("Production catalog lacks the Windows release");
   if ((await workbench.status()).availableVersion !== "1.0.1")
     throw Error("The Windows host does not advertise online installation");
-  await workbench.packs.install(manifest); // No archive path, token or fetch override.
+  console.log("OFFICE_PUBLIC_STAGE online-install", manifest.archive.url);
+  await workbench.packs.install(manifest).catch((error) => {
+    if (stalled)
+      throw new Error("Public download made no progress for five minutes", {
+        cause: error,
+      });
+    throw error;
+  }); // No archive path, token or fetch override.
+  console.log("OFFICE_PUBLIC_STAGE installed");
   if ((await workbench.status()).activeVersion !== "1.0.1")
     throw Error("Online installation did not activate");
   lease = await workbench.packs.acquire();
+  console.log("OFFICE_PUBLIC_STAGE acquired");
   const workspace = join(base, "验证文档");
   await cp("artifacts/office/corpus", workspace, { recursive: true });
   const engine = await UnoOfficeEngine.create(
@@ -50,6 +113,7 @@ try {
       ["sheets/fontSize.xlsx", "excel"],
       ["slides/ShapePlusImage.pptx", "powerpoint"],
     ] as const) {
+      console.log("OFFICE_PUBLIC_STAGE native-preview", format);
       const snapshot = await engine.open(join(workspace, file), format);
       if (!snapshot.targets.length) throw Error(`No native content: ${file}`);
       await engine.render(join(out, `${format}.pdf`));
@@ -65,6 +129,7 @@ try {
     ),
     OFFICE_INSTALLED_ROOT: lease.root,
   };
+  console.log("OFFICE_PUBLIC_STAGE final-acl");
   const acl = JSON.parse(
     execFileSync(
       "powershell.exe",
@@ -92,6 +157,7 @@ try {
   await writeFile(join(out, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } finally {
+  clearInterval(progress);
   lease?.release();
   await workbench.sessions.dispose();
   await rm(base, {
