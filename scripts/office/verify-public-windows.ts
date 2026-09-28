@@ -103,7 +103,7 @@ try {
   await cp("artifacts/office/corpus", workspace, { recursive: true });
   for (const [file, format] of [
     ["word/2col-header.docx", "word"],
-    ["sheets/fontSize.xlsx", "excel"],
+    ["sheets/hyperlink_formula.xlsx", "excel"],
     ["slides/ShapePlusImage.pptx", "powerpoint"],
   ] as const) {
     const engine = await UnoOfficeEngine.create(
@@ -116,7 +116,16 @@ try {
       console.log("OFFICE_PUBLIC_STAGE native-preview", format);
       const snapshot = await engine.open(join(workspace, file), format);
       if (!snapshot.targets.length) throw Error(`No native content: ${file}`);
-      await engine.render(join(out, `${format}.pdf`));
+      if (
+        format === "excel" &&
+        (!snapshot.sheets.length ||
+          !snapshot.targets.some((target) => target.formula))
+      )
+        throw Error("Native spreadsheet snapshot lacks its sheet or formula");
+      const pdf = join(out, `${format}.pdf`);
+      await engine.render(pdf);
+      if (!(await readFile(pdf)).subarray(0, 5).equals(Buffer.from("%PDF-")))
+        throw Error(`Invalid native PDF: ${format}`);
     } finally {
       await engine.close();
     }
