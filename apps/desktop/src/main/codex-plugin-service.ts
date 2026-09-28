@@ -1598,6 +1598,10 @@ function validateStoredPlugin(value: unknown): StoredPlugin {
 
   return {
     id,
+    capabilityDependencies: capabilityDependencySchema
+      .array()
+      .max(10)
+      .parse(input.capabilityDependencies ?? []),
     name,
     displayName,
     version,

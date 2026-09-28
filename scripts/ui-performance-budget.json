@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 440000,
+      "desktopCssBytes": 452000,
       "desktopJsBytes": 4500000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -54,6 +54,25 @@
     }
   },
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-09-28",
+      "baseDesktopCssBytes": 450899,
+      "measuredDesktopCssBytes": 451644,
+      "desktopCssIncreaseBytes": 745,
+      "previousDesktopCssMaximumBytes": 450000,
+      "desktopCssMaximumBytes": 452000,
+      "reason": "Office preview opening adds a bounded CSV table and a flex sizing correction for the native Office panel. An isolated Vite build of the pre-fix App and file panel with the same existing Office styles and installed dependencies measures 450899 CSS bytes, already 899 above the old ceiling. The candidate adds 745 bytes (0.17%) and measures 451644. Set a 452000-byte hard ceiling; JavaScript, shared UI, gallery, startup and workload budgets are unchanged."
+    },
+    {
+      "date": "2026-09-27",
+      "measurementHead": "519b0b2116446ea02ffc86404e2ba2384552d706",
+      "baseDesktopCssBytes": 439938,
+      "measuredDesktopCssBytes": 449236,
+      "desktopCssIncreaseBytes": 9298,
+      "previousDesktopCssMaximumBytes": 440000,
+      "desktopCssMaximumBytes": 450000,
+      "reason": "The Office panel redesign adds compact file/toolbars, a contextual annotation popover, fit-to-panel paper framing, a bounded spreadsheet value grid with range selection, bottom sheet/slide navigation, and responsive theme-aware styles. The same installed dependencies and Vite production pipeline measure baseline and candidate by substituting only office-workbench.css in memory. The previous ceiling had 62 bytes of headroom; the new CSS adds 9298 bytes (2.11%) and retains a hard ceiling with 764 bytes of headroom. JavaScript, shared UI, gallery, startup and workload budgets are unchanged."
+    },
     {
       "date": "2026-09-09",
       "baseHead": "adca24db4ee6f2c0eac6973f3bc05c06450046fb",

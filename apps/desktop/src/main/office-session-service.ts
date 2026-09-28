@@ -3,6 +3,7 @@ import { watchFile, unwatchFile } from "node:fs";
 import {
   copyFile,
   lstat,
+  link,
   mkdir,
   readFile,
   realpath,
@@ -22,6 +23,7 @@ import {
   artifactOperationSchema,
   artifactSessionRequestSchema,
   artifactSnapshotSchema,
+  officeDocumentFormatForPath,
   type ArtifactEvent,
   type ArtifactOperation,
   type ArtifactSelection,
@@ -76,6 +78,11 @@ const journalSchema = z
     snapshot: artifactSnapshotSchema,
     operations: z.array(operationRecordSchema).max(10_000),
     pending: operationRecordSchema.optional(),
+    autoSave: z.boolean().optional(),
+    copyHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/u)
+      .optional(),
   })
   .strict()
   .refine(
@@ -96,11 +103,14 @@ interface LiveSession {
   watcher?: { close(): void };
   externalTimer?: ReturnType<typeof setTimeout>;
   rendering?: Promise<void>;
+  autoSaveTimer?: ReturnType<typeof setTimeout>;
+  autoSaveDeadline?: ReturnType<typeof setTimeout>;
 }
 interface OfficeSessionOptions {
   root: string;
   createEngine(): Promise<OfficeEngine>;
   emit(threadId: string, event: ArtifactEvent): void;
+  canAutoSave?(threadId: string): boolean;
   /** Fail closed until the native compatibility gate accepts the imported file. */
   canSaveOriginal(
     path: string,
@@ -225,9 +235,29 @@ export class OfficeSessionService {
     return result;
   }
 
+  async openFile(
+    path: string,
+    context: OfficeSessionContext,
+  ): Promise<ArtifactSnapshot> {
+    const format = officeDocumentFormatForPath(path);
+    if (!format || format === "pdf")
+      throw new Error("Unsupported Office session format");
+    return this.execute(
+      {
+        protocolVersion: 2,
+        requestId: randomUUID(),
+        operation: "open",
+        format,
+        path,
+      },
+      context,
+    );
+  }
+
   async execute(
     input: ArtifactSessionRequest,
     context: OfficeSessionContext,
+    fromUi = false,
   ): Promise<ArtifactSnapshot> {
     // This precedes schema-dependent paths, storage, engine construction and recovery.
     if (context.mode !== "execute")
@@ -260,14 +290,22 @@ export class OfficeSessionService {
         throw new Error("Office session is closed");
       if (request.operation === "snapshot")
         return structuredClone(live.journal.snapshot);
-      if (request.operation === "apply") return this.apply(live, request);
+      if (request.operation === "apply") {
+        if (fromUi) live.journal.autoSave = true;
+        const result = await this.apply(live, request);
+        if (live.journal.autoSave) this.scheduleSave(live);
+        return result;
+      }
       if (request.operation === "save")
-        return this.save(live, request.expectedVersion);
+        return fromUi
+          ? this.saveAutomatically(live, request.expectedVersion)
+          : this.save(live, request.expectedVersion);
       if (session.version !== session.savedVersion && !request.discard)
         throw new Error(
           "Office session has unsaved changes; save or explicitly discard them",
         );
       live.watcher?.close();
+      this.clearAutoSave(live);
       if (live.externalTimer) clearTimeout(live.externalTimer);
       await live.engine.close();
       session.status = "closed";
@@ -275,6 +313,138 @@ export class OfficeSessionService {
       this.sessions.delete(session.sessionId);
       return structuredClone(live.journal.snapshot);
     });
+  }
+
+  /** Manual edits use the same versioned queue and Execute boundary as agent edits. */
+  async executeFromUi(
+    input: ArtifactSessionRequest,
+    context: OfficeSessionContext,
+  ) {
+    if (context.mode !== "execute")
+      throw new Error(`${context.mode} mode rejects Office sessions`);
+    if (input.operation !== "apply" && input.operation !== "save")
+      throw new Error("The editor accepts only edit and save requests");
+    return this.execute(input, context, true);
+  }
+
+  private clearAutoSave(live: LiveSession): void {
+    clearTimeout(live.autoSaveTimer);
+    clearTimeout(live.autoSaveDeadline);
+    delete live.autoSaveTimer;
+    delete live.autoSaveDeadline;
+  }
+
+  private scheduleSave(live: LiveSession): void {
+    clearTimeout(live.autoSaveTimer);
+    const flush = () => {
+      this.clearAutoSave(live);
+      void this.serialize(live.journal.snapshot.session.sessionId, async () => {
+        if (
+          this.disposed ||
+          this.sessions.get(live.journal.snapshot.session.sessionId) !== live ||
+          this.options.canAutoSave?.(live.journal.threadId) !== true
+        )
+          return;
+        try {
+          await this.saveAutomatically(
+            live,
+            live.journal.snapshot.session.version,
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          if (live.journal.snapshot.session.error !== message) {
+            live.journal.snapshot.session.error = message;
+            await this.publish(live, "failed");
+          }
+        }
+      }).catch(() => undefined);
+    };
+    live.autoSaveTimer = setTimeout(flush, 1500);
+    live.autoSaveDeadline ??= setTimeout(flush, 10_000);
+  }
+
+  private async saveAutomatically(
+    live: LiveSession,
+    expectedVersion: number,
+  ): Promise<ArtifactSnapshot> {
+    this.clearAutoSave(live);
+    const journal = live.journal;
+    const session = journal.snapshot.session;
+    if (
+      expectedVersion !== session.version ||
+      session.status === "conflict" ||
+      session.status === "failed"
+    )
+      throw new Error(
+        "Office document version conflict; preserve the draft before reopening",
+      );
+    if (session.version === session.savedVersion)
+      return structuredClone(journal.snapshot);
+    if (
+      !journal.copyHash &&
+      (await this.options.canSaveOriginal(journal.original, session.format))
+    )
+      return this.save(live, expectedVersion);
+    const extension = extname(journal.original);
+    const destination = `${journal.original.slice(0, -extension.length)}.artemis-${session.sessionId}${extension}`;
+    const check = async () => {
+      if (
+        (await realpath(dirname(destination))) !== dirname(journal.original) ||
+        (await fileSha256(journal.original)) !== journal.diskHash
+      )
+        throw new Error(
+          "Source changed outside Artemis; the draft is preserved",
+        );
+      const info = await lstat(destination).catch(
+        (error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return undefined;
+          throw error;
+        },
+      );
+      if (
+        journal.copyHash
+          ? !info?.isFile() ||
+            info.isSymbolicLink() ||
+            (await fileSha256(destination)) !== journal.copyHash
+          : !!info
+      )
+        throw new Error(
+          "Working copy changed outside Artemis; overwrite is blocked",
+        );
+    };
+    const temporary = join(
+      dirname(destination),
+      `.artemis-save-${randomUUID()}${extension}`,
+    );
+    try {
+      await check();
+      session.status = "saving";
+      delete session.error;
+      await this.publish(live, "saving");
+      await live.engine.save(temporary);
+      await check();
+      const hash = await fileSha256(temporary);
+      // link creates the first copy atomically and refuses existing files.
+      if (journal.copyHash) await rename(temporary, destination);
+      else await link(temporary, destination);
+      journal.copyHash = hash;
+      session.savePath = relative(journal.workspace, destination).replaceAll(
+        "\\",
+        "/",
+      );
+      session.savedVersion = session.version;
+      session.status = "saved";
+      await this.publish(live, "saved");
+      return structuredClone(journal.snapshot);
+    } catch (error) {
+      session.status = "editing";
+      session.error = error instanceof Error ? error.message : String(error);
+      await this.publish(live, "failed");
+      throw error;
+    } finally {
+      await rm(temporary, { force: true });
+    }
   }
 
   private async open(
@@ -423,6 +593,8 @@ export class OfficeSessionService {
       await this.publish(live, "recovered");
       this.observe(live);
       this.render(live);
+      if (journal.autoSave && journal.snapshot.session.status === "editing")
+        this.scheduleSave(live);
       return live;
     } catch (error) {
       this.sessions.delete(sessionId);
@@ -678,6 +850,7 @@ export class OfficeSessionService {
             // This event is explicitly save-level; no fabricated paragraph/cell operation.
             if (
               hash !== "missing" &&
+              !journal.copyHash &&
               journal.snapshot.session.version ===
                 journal.snapshot.session.savedVersion
             ) {
@@ -752,6 +925,22 @@ export class OfficeSessionService {
       ...this.queues.values(),
     ]);
     const sessions = [...this.sessions.values()];
+    for (const live of sessions) {
+      this.clearAutoSave(live);
+      if (
+        live.journal.autoSave &&
+        this.options.canAutoSave?.(live.journal.threadId) === true
+      ) {
+        try {
+          await this.saveAutomatically(
+            live,
+            live.journal.snapshot.session.version,
+          );
+        } catch {
+          /* The durable operation log remains available for recovery. */
+        }
+      }
+    }
     this.sessions.clear();
     for (const live of sessions) {
       live.watcher?.close();

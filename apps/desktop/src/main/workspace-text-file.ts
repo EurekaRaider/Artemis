@@ -3,6 +3,7 @@ import { dirname, extname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveWorkspacePath } from "@artemis/platform";
+import { atomicWrite } from "./office-file-utils.js";
 
 import type {
   WorkspaceDirectoryEntry,
@@ -227,6 +228,7 @@ export async function writeWorkspaceFile(
   workspacePath: string,
   path: string,
   content: string,
+  expectedContent?: string,
 ): Promise<WorkspaceFileContent> {
   const requestedPath = path.trim();
   const absolutePath = resolveWorkspacePath(workspacePath, requestedPath);
@@ -241,9 +243,32 @@ export async function writeWorkspaceFile(
     throw new Error("Binary workspace files cannot be edited.");
   }
 
-  await writeFile(absolutePath, content, "utf8");
+  if (expectedContent !== undefined) {
+    const previous = csvWrites.get(absolutePath) ?? Promise.resolve();
+    const write = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const bytes = await readFile(absolutePath);
+        if (!Buffer.from(bytes.toString("utf8"), "utf8").equals(bytes))
+          throw new Error(
+            "CSV encoding is not UTF-8. Convert a copy to UTF-8 before editing.",
+          );
+        if (bytes.toString("utf8") !== expectedContent)
+          throw new Error(
+            "CSV changed outside Artemis. Your draft is preserved; reopen the file to resolve the conflict.",
+          );
+        await atomicWrite(absolutePath, content);
+      });
+    csvWrites.set(absolutePath, write);
+    try {
+      await write;
+    } finally {
+      if (csvWrites.get(absolutePath) === write) csvWrites.delete(absolutePath);
+    }
+  } else await writeFile(absolutePath, content, "utf8");
   if (/\.svg$/iu.test(requestedPath)) {
     return readWorkspaceFile(workspacePath, requestedPath);
   }
   return { path: requestedPath, binary: false, content };
 }
+const csvWrites = new Map<string, Promise<void>>();

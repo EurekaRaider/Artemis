@@ -146,8 +146,12 @@ try {
   await service.activate(first.version);
   release();
   release = undefined;
-  await reject(service.uninstall(first.version), "shared");
-  checkpoint("rollback", "shared-plugin-uninstall-protected");
+  checkpoint("rollback");
+  await service.uninstall(first.version);
+  if ((await service.status()).activeVersion)
+    throw Error("Explicit shared pack removal did not return plugins to Lite");
+  checkpoint("shared-plugin-uninstall-restores-lite");
+  await service.install(first, archive);
   await writeFile(
     join(root, "office-core", first.version, "manifest.json"),
     "{interrupted receipt",

@@ -79,6 +79,7 @@ async function fixture() {
     createEngine: factory,
     emit: (_thread: string, event: ArtifactEvent) => events.push(event),
     canSaveOriginal: async () => true,
+    canAutoSave: () => true,
   };
   const service = new OfficeSessionService(options);
   services.push(service);
@@ -121,6 +122,147 @@ async function fixture() {
 }
 
 describe("native Office session host", () => {
+  it("autosaves UI edits to one working copy while preserving an unaccepted original", async () => {
+    const f = await fixture();
+    f.options.canSaveOriginal = async () => false;
+    const changed = await f.service.executeFromUi(
+      f.apply("manual", 0),
+      f.context,
+    );
+    expect(changed.session.savedVersion).toBe(0);
+    await vi.waitFor(
+      async () => {
+        expect(
+          (await f.service.snapshotForUi(f.opened.session.sessionId, "task"))
+            .session.savedVersion,
+        ).toBe(1);
+      },
+      { timeout: 4000 },
+    );
+    const saved = await f.service.snapshotForUi(
+      f.opened.session.sessionId,
+      "task",
+    );
+    expect(saved.session.savePath).toMatch(/\.artemis-.*\.docx$/);
+    expect(await readFile(join(f.root, saved.session.savePath!), "utf8")).toBe(
+      "Edited",
+    );
+    expect(await readFile(join(f.root, f.base.path), "utf8")).toBe("Original");
+    await f.service.executeFromUi(f.apply("manual-2", 1, "Again"), f.context);
+    await f.service.executeFromUi(
+      {
+        ...f.base,
+        operation: "save",
+        sessionId: f.opened.session.sessionId,
+        expectedVersion: 2,
+      },
+      f.context,
+    );
+    expect(await readFile(join(f.root, saved.session.savePath!), "utf8")).toBe(
+      "Again",
+    );
+  });
+
+  it("preserves an externally modified working copy and the pending draft", async () => {
+    const f = await fixture();
+    f.options.canSaveOriginal = async () => false;
+    await f.service.executeFromUi(f.apply("manual", 0), f.context);
+    const request = {
+      ...f.base,
+      operation: "save" as const,
+      sessionId: f.opened.session.sessionId,
+      expectedVersion: 1,
+    };
+    const saved = await f.service.executeFromUi(request, f.context);
+    await writeFile(join(f.root, saved.session.savePath!), "External");
+    await f.service.executeFromUi(f.apply("manual-2", 1, "Draft"), f.context);
+    await expect(
+      f.service.executeFromUi({ ...request, expectedVersion: 2 }, f.context),
+    ).rejects.toThrow(/Working copy changed/);
+    expect(await readFile(join(f.root, saved.session.savePath!), "utf8")).toBe(
+      "External",
+    );
+    expect(
+      (await f.service.snapshotForUi(request.sessionId, "task")).session
+        .savedVersion,
+    ).toBe(1);
+  });
+  it("does not background-save after Execute permission is withdrawn", async () => {
+    const f = await fixture();
+    f.options.canSaveOriginal = async () => false;
+    await f.service.executeFromUi(f.apply("manual", 0), f.context);
+    f.options.canAutoSave = () => false;
+    const save = vi.spyOn(f.engines[0]!, "save");
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    await f.service.dispose();
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      (await f.service.snapshotForUi(f.opened.session.sessionId, "task"))
+        .session.savedVersion,
+    ).toBe(0);
+  });
+
+  it.each(["plan", "review"] as const)(
+    "rejects manual %s edits before accessing a session",
+    async (mode) => {
+      const f = await fixture();
+      await expect(
+        f.service.executeFromUi(f.apply("denied", 0), { ...f.context, mode }),
+      ).rejects.toThrow("rejects Office sessions");
+      expect(f.engines[0]!.text).toBe("Original");
+    },
+  );
+
+  it("flushes pending autosave on shutdown and reopens the saved copy", async () => {
+    const f = await fixture();
+    f.options.canSaveOriginal = async () => false;
+    await f.service.executeFromUi(f.apply("manual", 0), f.context);
+    await f.service.dispose();
+    const saved = await f.service.snapshotForUi(
+      f.opened.session.sessionId,
+      "task",
+    );
+    expect(saved.session.savedVersion).toBe(1);
+    const restarted = new OfficeSessionService(f.options);
+    services.push(restarted);
+    const reopened = await restarted.openFile(
+      saved.session.savePath!,
+      f.context,
+    );
+    expect(reopened.targets[0]!.text).toBe("Edited");
+  });
+  it("opens a file from the UI with inferred format and reuses its session", async () => {
+    const { service, context, opened, factory } = await fixture();
+    const next = await service.openFile("稿件.docx", context);
+    expect(next.session.sessionId).toBe(opened.session.sessionId);
+    expect(factory).toHaveBeenCalledTimes(1);
+    await expect(service.openFile("old.doc", context)).rejects.toThrow(
+      /format/i,
+    );
+  });
+
+  it.each(["plan", "review"] as const)(
+    "rejects UI opening in %s before filesystem access",
+    async (mode) => {
+      const factory = vi.fn();
+      const service = new OfficeSessionService({
+        root: "/does-not-exist",
+        createEngine: factory,
+        emit: vi.fn(),
+        canSaveOriginal: async () => false,
+      });
+      services.push(service);
+      await expect(
+        service.openFile("missing.docx", {
+          workspacePath: "/does-not-exist",
+          threadId: "task",
+          mode,
+        }),
+      ).rejects.toThrow(`${mode} mode rejects Office sessions`);
+      expect(factory).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["plan", "review"] as const)(
     "rejects %s before constructing an engine or touching storage",
     async (mode) => {

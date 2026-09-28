@@ -356,7 +356,7 @@ export interface WorkspaceFileContent {
 
 export interface WorkspaceFileLink {
   path: string;
-  viewer: "markdown" | "browser" | "file";
+  viewer: "markdown" | "browser" | "file" | "office";
   executable: boolean;
   line?: number;
   column?: number;
@@ -1017,10 +1017,24 @@ export interface ArtemisApi {
   addReviewComment(input: AddReviewCommentInput): Promise<ReviewComment>;
   deleteReviewComment(threadId: string, commentId: string): Promise<void>;
   openWorkspacePdf(threadId: string, path: string): Promise<string>;
+  openOfficeFile(
+    threadId: string,
+    path: string,
+  ): Promise<import("@artemis/protocol").ArtifactSnapshot>;
   readOfficeSnapshot(
     threadId: string,
     sessionId: string,
   ): Promise<import("@artemis/protocol").ArtifactSnapshot>;
+  editOfficeFile(
+    threadId: string,
+    request: import("@artemis/protocol").ArtifactSessionRequest,
+  ): Promise<import("@artemis/protocol").ArtifactSnapshot>;
+  saveWorkspaceCsv(
+    threadId: string,
+    path: string,
+    content: string,
+    expectedContent: string,
+  ): Promise<WorkspaceFileContent>;
   openOfficePreview(
     threadId: string,
     sessionId: string,
@@ -1029,6 +1043,7 @@ export interface ArtemisApi {
   officeCapabilityStatus(): Promise<
     import("@artemis/protocol").CapabilityPackStatus
   >;
+  checkOfficeCapabilityUpdates(): Promise<void>;
   installOfficeCapability(): Promise<void>;
   importOfficeCapability(): Promise<void>;
   cancelOfficeCapability(): Promise<void>;
@@ -1340,9 +1355,13 @@ export const IPC = {
   reviewCommentAdd: "artemis:review-comment-add",
   reviewCommentDelete: "artemis:review-comment-delete",
   workspacePdfOpen: "artemis:workspace-pdf-open",
+  officeOpen: "artemis:office-open",
   officeSnapshot: "artemis:office-snapshot",
+  officeEdit: "artemis:office-edit",
+  workspaceCsvSave: "artemis:workspace-csv-save",
   officePreview: "artemis:office-preview",
   officeCapabilityStatus: "artemis:office-capability-status",
+  officeCapabilityCheckUpdates: "artemis:office-capability-check-updates",
   officeCapabilityInstall: "artemis:office-capability-install",
   officeCapabilityImport: "artemis:office-capability-import",
   officeCapabilityCancel: "artemis:office-capability-cancel",

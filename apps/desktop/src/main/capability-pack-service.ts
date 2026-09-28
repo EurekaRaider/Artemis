@@ -1,7 +1,6 @@
 import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import {
-  copyFile,
   link,
   lstat,
   mkdir,
@@ -12,6 +11,7 @@ import {
   rm,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { satisfies, validRange } from "semver";
 import {
   canonicalCapabilityJson,
@@ -205,6 +205,53 @@ export class CapabilityPackService {
   /** Online and offline bytes enter the same verification and atomic-install path. */
   install(input: unknown, offlineArchive?: string): Promise<void> {
     const manifest = verifyCapabilityManifest(input, this.options);
+    return this.startInstall(
+      manifest,
+      offlineArchive ? { path: offlineArchive, offset: 0 } : undefined,
+    );
+  }
+
+  /** A single .artemis-office file contains the signed manifest and original ZIP. */
+  async installOffline(path: string): Promise<void> {
+    if (!(await lstat(path)).isFile())
+      throw new Error("Invalid Office offline pack");
+    const file = await open(path, "r");
+    let manifest: CapabilityPackManifest;
+    let offset: number;
+    try {
+      const header = Buffer.alloc(12);
+      const { bytesRead } = await file.read(header, 0, header.length, 0);
+      if (
+        bytesRead !== 12 ||
+        !header.subarray(0, 8).equals(Buffer.from("ARTOFF1\n"))
+      )
+        throw new Error("Invalid Office offline pack header");
+      const length = header.readUInt32BE(8);
+      const info = await file.stat();
+      offset = header.length + length;
+      if (!length || length > 16 * 1024 * 1024 || offset >= info.size)
+        throw new Error("Invalid Office offline manifest size");
+      const json = Buffer.alloc(length);
+      if (
+        (await file.read(json, 0, length, header.length)).bytesRead !== length
+      )
+        throw new Error("Incomplete Office offline manifest");
+      manifest = verifyCapabilityManifest(
+        JSON.parse(json.toString("utf8")),
+        this.options,
+      );
+      if (info.size - offset !== manifest.archive.downloadBytes)
+        throw new Error("Offline capability size mismatch");
+    } finally {
+      await file.close();
+    }
+    await this.startInstall(manifest, { path, offset });
+  }
+
+  private startInstall(
+    manifest: CapabilityPackManifest,
+    offlineArchive?: { path: string; offset: number },
+  ): Promise<void> {
     if (this.pending)
       return Promise.reject(
         new Error("A capability installation is already running"),
@@ -310,7 +357,7 @@ export class CapabilityPackService {
 
   private async installVerified(
     manifest: CapabilityPackManifest,
-    offline: string | undefined,
+    offline: { path: string; offset: number } | undefined,
     signal: AbortSignal,
   ): Promise<void> {
     const releaseLock = await this.lock();
@@ -356,12 +403,25 @@ export class CapabilityPackService {
       await mkdir(stage, { mode: 0o700 });
       const archive = join(stage, "download.zip");
       if (offline) {
+        await this.progress("verifying");
+        const info = await lstat(offline.path);
         if (
-          !(await lstat(offline)).isFile() ||
-          (await lstat(offline)).size !== manifest.archive.downloadBytes
+          !info.isFile() ||
+          info.size !== offline.offset + manifest.archive.downloadBytes
         )
           throw new Error("Offline capability size mismatch");
-        await copyFile(offline, archive);
+        await pipeline(
+          createReadStream(offline.path, {
+            start: offline.offset,
+            end: info.size - 1,
+          }),
+          createWriteStream(archive, { flags: "wx", mode: 0o600 }),
+          { signal },
+        ).catch((error: unknown) => {
+          signal.throwIfAborted();
+          throw error;
+        });
+        this.downloadedBytes = manifest.archive.downloadBytes;
       } else {
         await this.progress("downloading");
         const response = await (this.options.fetch ?? fetch)(
@@ -504,20 +564,15 @@ export class CapabilityPackService {
   }
 
   async uninstall(version: string): Promise<void> {
+    const path = this.versionPath(version);
     await this.maintain(async () => {
       if ((this.leases.get(version) ?? 0) > 0)
         throw new Error("Capability version is in use");
-      const dependents =
-        (await this.active()) === version
-          ? await this.options.dependents(version)
-          : [];
-      if (dependents.length)
-        throw new Error(`Capability is shared by: ${dependents.join(", ")}`);
-      if ((this.leases.get(version) ?? 0) > 0)
-        throw new Error("Capability version is in use");
+      // Office dependencies are optional; explicit removal returns them to Lite.
+      // The maintenance lock prevents a new document lease during removal.
       if ((await this.active()) === version)
         await rm(join(this.options.root, "active.json"), { force: true });
-      await rm(this.versionPath(version), { recursive: true, force: true });
+      await rm(path, { recursive: true, force: true });
     });
   }
 }

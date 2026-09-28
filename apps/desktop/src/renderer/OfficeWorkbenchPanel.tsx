@@ -1,141 +1,29 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   artifactAnnotationSchema,
+  artifactSelectionSchema,
   type AppLocale,
   type ArtifactAnnotation,
   type ArtifactSelection,
   type ArtifactSnapshot,
   type ArtifactViewState,
 } from "@artemis/protocol";
-import { Button } from "@artemis/ui/actions";
-import { Checkbox, Select, TextAreaField, TextField } from "@artemis/ui/forms";
+import { Button, IconButton } from "@artemis/ui/actions";
+import { Switch, Select, TextAreaField, TextField } from "@artemis/ui/forms";
 import { InlineNotice } from "@artemis/ui/feedback";
-import type {
-  PDFDocumentLoadingTask,
-  PDFDocumentProxy,
-  RenderTask,
-} from "pdfjs-dist";
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import { OfficePreviewPage } from "./OfficePreviewPage.js";
+import { OfficeSpreadsheet } from "./OfficeSpreadsheet.js";
 import { officeCopy } from "./office-copy.js";
 import "./office-workbench.css";
-
-function OfficePage({
-  document,
-  page,
-  zoom,
-  version,
-  onRegion,
-  thumbnail = false,
-  label,
-}: {
-  document: PDFDocumentProxy;
-  page: number;
-  zoom: number;
-  version: number;
-  onRegion?(selection: ArtifactSelection, version: number): void;
-  thumbnail?: boolean;
-  label: string;
-}) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const start = useRef<{ x: number; y: number } | undefined>(undefined);
-  const [error, setError] = useState<string>();
-  useEffect(() => {
-    let active = true;
-    let task: RenderTask | undefined;
-    setError(undefined);
-    void document
-      .getPage(page)
-      .then(async (pdfPage) => {
-        const viewport = pdfPage.getViewport({
-          scale: thumbnail
-            ? 96 / pdfPage.getViewport({ scale: 1 }).width
-            : zoom,
-        });
-        const scale = Math.min(
-          window.devicePixelRatio || 1,
-          2,
-          Math.sqrt(16_000_000 / (viewport.width * viewport.height)),
-        );
-        const temporary = window.document.createElement("canvas");
-        temporary.width = Math.ceil(viewport.width * scale);
-        temporary.height = Math.ceil(viewport.height * scale);
-        task = pdfPage.render({
-          canvas: temporary,
-          viewport,
-          transform: [scale, 0, 0, scale, 0, 0],
-        });
-        await task.promise;
-        if (!active || !canvas.current) return;
-        const output = canvas.current;
-        output.width = temporary.width;
-        output.height = temporary.height;
-        output.style.width = `${viewport.width}px`;
-        output.style.height = `${viewport.height}px`;
-        output.getContext("2d")!.drawImage(temporary, 0, 0);
-        output.dataset.previewVersion = String(version);
-        output.dataset.previewPage = String(page);
-        window.dispatchEvent(
-          new CustomEvent("artemis-office-preview-painted", {
-            detail: { version, page, at: performance.now() },
-          }),
-        );
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(String(reason));
-      });
-    return () => {
-      active = false;
-      task?.cancel();
-    };
-  }, [document, page, version, zoom, thumbnail]);
-  const point = (event: PointerEvent<HTMLCanvasElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
-      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
-    };
-  };
-  return (
-    <>
-      <canvas
-        ref={canvas}
-        aria-label={label}
-        onPointerDown={(event) => {
-          if (!onRegion) return;
-          start.current = point(event);
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerUp={(event) => {
-          const initial = start.current;
-          start.current = undefined;
-          if (
-            !initial ||
-            !onRegion ||
-            Number(event.currentTarget.dataset.previewPage) !== page ||
-            Number(event.currentTarget.dataset.previewVersion) !== version
-          )
-            return;
-          const end = point(event);
-          const width = Math.abs(end.x - initial.x),
-            height = Math.abs(end.y - initial.y);
-          if (width > 0.005 && height > 0.005)
-            onRegion(
-              {
-                kind: "region",
-                page,
-                x: Math.min(initial.x, end.x),
-                y: Math.min(initial.y, end.y),
-                width,
-                height,
-              },
-              version,
-            );
-        }}
-      />
-      {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
-    </>
-  );
-}
+import { officeEditor } from "./office-editor-state.js";
+import { officeEditCopy } from "./office-edit-copy.js";
+import documentsIcon from "../../resources/bundled-artifact-plugins/plugins/documents/assets/icon.png";
+import presentationsIcon from "../../resources/bundled-artifact-plugins/plugins/presentations/assets/icon.png";
+import spreadsheetsIcon from "../../resources/bundled-artifact-plugins/plugins/spreadsheets/assets/icon.png";
+import { useWorkspaceEditHistory } from "./workspace-edit-history.js";
 
 export function OfficeWorkbenchPanel({
   threadId,
@@ -157,7 +45,12 @@ export function OfficeWorkbenchPanel({
     version: number;
   }>();
   const [page, setPage] = useState(1);
-  const [zoom, setZoom] = useState("1");
+  const [zoom, setZoom] = useState(
+    view.session.format === "powerpoint" ? "page" : "width",
+  );
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [sheetView, setSheetView] = useState("grid");
   const [follow, setFollow] = useState(true);
   const [sheet, setSheet] = useState("");
   const [sheetPages, setSheetPages] = useState<Record<string, number>>({});
@@ -170,6 +63,30 @@ export function OfficeWorkbenchPanel({
   }>();
   const [error, setError] = useState<string>();
   const sessionId = view.session.sessionId;
+  const editCopy = officeEditCopy(locale);
+  const [, refreshEditor] = useState(0);
+  const editor = useMemo(
+    () => officeEditor(threadId, sessionId, view.session.path),
+    [threadId, sessionId, view.session.path],
+  );
+  const historyRef = useWorkspaceEditHistory<HTMLElement>(editor);
+  useEffect(
+    () =>
+      editor.subscribe(() => {
+        refreshEditor((value) => value + 1);
+        if (editor.snapshot)
+          setSnapshot((previous) =>
+            !previous ||
+            editor.snapshot!.session.sequence >= previous.session.sequence
+              ? editor.snapshot
+              : previous,
+          );
+      }),
+    [editor],
+  );
+  useEffect(() => {
+    if (snapshot) editor.update(snapshot);
+  }, [editor, snapshot]);
   useEffect(() => {
     let active = true;
     void window.artemis
@@ -221,7 +138,7 @@ export function OfficeWorkbenchPanel({
     };
   }, [assetId, sessionId, threadId]);
   useEffect(() => {
-    if (!follow || !view.selection) return;
+    if (!follow || !view.selection || annotationOpen) return;
     const value = view.selection;
     setSelection({ value, version: view.session.version });
     if (value.kind === "object" || value.kind === "region") setPage(value.page);
@@ -229,10 +146,11 @@ export function OfficeWorkbenchPanel({
       setSheet(value.sheet);
       setRange(value.range);
     }
-  }, [follow, view.selection, view.session.version]);
+  }, [follow, view.selection, view.session.version, annotationOpen]);
   useEffect(() => {
     if (
       !follow ||
+      annotationOpen ||
       !pdf ||
       view.selection?.kind !== "paragraph" ||
       !snapshot ||
@@ -269,7 +187,7 @@ export function OfficeWorkbenchPanel({
     return () => {
       active = false;
     };
-  }, [follow, pdf, snapshot, view.selection]);
+  }, [follow, pdf, snapshot, view.selection, annotationOpen]);
   const currentSheet = sheet || snapshot?.sheets[0] || "";
   useEffect(() => {
     setSheetPages({});
@@ -339,167 +257,461 @@ export function OfficeWorkbenchPanel({
     }
     onAnnotate(parsed.data);
     setNote("");
+    setAnnotationOpen(false);
+    setSelection(undefined);
   }
+  const isSheet = session.format === "excel";
+  const showGrid = isSheet && sheetView === "grid";
+  const pageCount = pdf?.document.numPages ?? 1;
+  const currentPage = Math.min(page, pageCount);
+  const slides = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const strip = slides.current;
+    if (!strip) return;
+    const revealCurrentSlide = () =>
+      strip
+        .querySelector('[aria-pressed="true"]')
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const observer = new ResizeObserver(revealCurrentSlide);
+    observer.observe(strip);
+    revealCurrentSlide();
+    return () => observer.disconnect();
+  }, [currentPage, pdf]);
+  const fileName = session.path.split(/[\\/]/u).pop() ?? session.path;
+  const selectedValue = selection ? JSON.stringify(selection.value) : "";
+  const validSelection =
+    selection && artifactSelectionSchema.safeParse(selection.value).success;
+  const quote =
+    selection?.version === session.version
+      ? targets.find(
+          (target) => JSON.stringify(target.selection) === selectedValue,
+        )?.text
+      : undefined;
+  const targetOptions = (isSheet ? [] : targets)
+    .filter(
+      (target) =>
+        target.selection.kind !== "object" ||
+        target.selection.page === currentPage,
+    )
+    .slice(0, 2_000)
+    .map((target) => ({
+      value: JSON.stringify(target.selection),
+      label:
+        selectionLabel(target.selection) +
+        (target.text ? ` · ${target.text.slice(0, 100)}` : ""),
+    }));
+  if (
+    !isSheet &&
+    selection &&
+    !targetOptions.some((target) => target.value === selectedValue)
+  ) {
+    targetOptions.push({
+      value: selectedValue,
+      label: selectionLabel(selection.value),
+    });
+  }
+  const chooseSelection = (
+    value: ArtifactSelection,
+    version = session.version,
+  ) => {
+    setSelection({ value, version });
+    setAnnotationOpen(true);
+    if (value.kind === "cells") setRange(value.range);
+  };
+
   return (
     <section
+      ref={historyRef}
+      tabIndex={-1}
       className="office-workbench"
       aria-label={session.path}
       data-document-version={session.version}
+      data-format={session.format}
+      onKeyDown={(event) => {
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key.toLowerCase() === "s"
+        ) {
+          event.preventDefault();
+          void editor.flush().catch(() => undefined);
+          return;
+        }
+        if (event.defaultPrevented || !annotationOpen) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setAnnotationOpen(false);
+        } else if (
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey) &&
+          validSelection &&
+          note.trim()
+        ) {
+          event.preventDefault();
+          addNote();
+        }
+      }}
     >
-      <header className="office-toolbar">
-        <span role="status">
-          {t[session.status]} · {t.version} {session.version} · {t.preview}{" "}
-          {session.previewVersion ?? "—"}
-        </span>
-        <Checkbox
+      <header className="office-header">
+        <img
+          className="office-file-icon"
+          alt=""
+          draggable={false}
+          src={
+            isSheet
+              ? spreadsheetsIcon
+              : session.format === "powerpoint"
+                ? presentationsIcon
+                : documentsIcon
+          }
+        />
+        <div className="office-file-info">
+          <strong title={session.path}>{fileName}</strong>
+          <span
+            className="office-status"
+            role="status"
+            data-status={session.status}
+            title={
+              session.savePath
+                ? `${editCopy.destination}: ${session.savePath}`
+                : editCopy.copy
+            }
+          >
+            <ArtemisIcon
+              name={
+                session.status === "saved"
+                  ? "check"
+                  : session.status === "failed" || session.status === "conflict"
+                    ? "warning"
+                    : "clock"
+              }
+            />
+            {editor.busy
+              ? t.saving
+              : editor.drafts.size
+                ? editCopy.pending
+                : t[session.status]}{" "}
+            <span>
+              · {t.version} {session.version}
+            </span>
+            {session.previewVersion !== session.version ? (
+              <span>
+                · {t.preview} {session.previewVersion ?? "—"}
+              </span>
+            ) : null}
+          </span>
+        </div>
+        <Switch
+          className="office-follow"
           label={t.follow}
           checked={follow}
           onCheckedChange={setFollow}
         />
       </header>
-      {error || session.error ? (
-        <InlineNotice tone="warning">{error ?? session.error}</InlineNotice>
+      {error || session.error || editor.error ? (
+        <InlineNotice tone="warning">
+          {editor.error ?? error ?? session.error}
+        </InlineNotice>
       ) : null}
-      <div className="office-toolbar">
-        <Select
-          label={t.page}
-          value={String(page)}
-          onValueChange={(value) => setPage(Number(value))}
-          options={Array.from(
-            { length: pdf?.document.numPages ?? 1 },
-            (_, index) => ({
-              value: String(index + 1),
-              label: String(index + 1),
-            }),
-          )}
-        />
-        <Select
-          label={t.zoom}
-          value={zoom}
-          onValueChange={setZoom}
-          options={["0.5", "0.75", "1", "1.25", "1.5", "2"].map((value) => ({
-            value,
-            label: `${Number(value) * 100}%`,
-          }))}
-        />
-        {snapshot?.sheets.length ? (
+      <div className="office-toolbar" role="group" aria-label={t.preview}>
+        {isSheet ? (
+          <div className="office-view-modes">
+            <Button
+              variant="quiet"
+              selected={showGrid}
+              icon={<ArtemisIcon name="spreadsheet" />}
+              onClick={() => setSheetView("grid")}
+            >
+              {t.grid}
+            </Button>
+            <Button
+              variant="quiet"
+              selected={!showGrid}
+              icon={<ArtemisIcon name="file" />}
+              onClick={() => setSheetView("print")}
+            >
+              {t.printPreview}
+            </Button>
+          </div>
+        ) : null}
+        {!showGrid ? (
+          <div className="office-page-navigation">
+            <IconButton
+              label={t.previousPage}
+              disabled={!pdf || currentPage <= 1}
+              icon={<ArtemisIcon name="chev-left" />}
+              onClick={() => setPage(currentPage - 1)}
+            />
+            <Select
+              className="office-page-picker"
+              size="compact"
+              label={t.page}
+              value={String(currentPage)}
+              disabled={!pdf}
+              onValueChange={(value) => setPage(Number(value))}
+              options={Array.from({ length: pageCount }, (_, index) => ({
+                value: String(index + 1),
+                label: `${index + 1} / ${pageCount}`,
+              }))}
+            />
+            <IconButton
+              label={t.nextPage}
+              disabled={!pdf || currentPage >= pageCount}
+              icon={<ArtemisIcon name="chev-right" />}
+              onClick={() => setPage(currentPage + 1)}
+            />
+          </div>
+        ) : null}
+        {!showGrid ? (
           <Select
-            label={t.sheet}
-            value={currentSheet}
-            onValueChange={setSheet}
-            options={snapshot.sheets.map((value) => ({ value, label: value }))}
+            className="office-zoom-picker"
+            label={t.zoom}
+            size="compact"
+            value={zoom}
+            onValueChange={setZoom}
+            options={[
+              { value: "width", label: t.fitWidth },
+              { value: "page", label: t.fitPage },
+              ...["0.5", "0.75", "1", "1.25", "1.5", "2"].map((value) => ({
+                value,
+                label: `${Number(value) * 100}%`,
+              })),
+            ]}
           />
         ) : null}
+        <Button
+          className="office-note-toggle"
+          variant="quiet"
+          selected={annotationOpen}
+          icon={<ArtemisIcon name="message" />}
+          onClick={() => setAnnotationOpen((open) => !open)}
+        >
+          {t.note}
+        </Button>
       </div>
-      {pdf && session.format === "powerpoint" ? (
-        <nav className="office-toolbar" aria-label={t.slides}>
-          {Array.from(
-            { length: Math.min(5, pdf.document.numPages) },
-            (_, index) =>
-              Math.max(1, Math.min(page - 2, pdf.document.numPages - 4)) +
-              index,
-          ).map((number) => (
-            <Button
-              key={number}
-              label={`${t.page} ${number}`}
-              selected={number === page}
-              variant="quiet"
-              onClick={() => setPage(number)}
-            >
-              <OfficePage
-                document={pdf.document}
-                page={number}
-                zoom={1}
-                version={pdf.version}
-                thumbnail
-                label={`${t.page} ${number}`}
+      <div className="office-stage">
+        <div
+          className="office-page-scroll"
+          data-view={showGrid ? "grid" : "print"}
+        >
+          {showGrid && snapshot ? (
+            <OfficeSpreadsheet
+              key={currentSheet}
+              targets={snapshot.targets}
+              sheet={currentSheet}
+              selection={
+                selection?.version === session.version
+                  ? selection.value
+                  : undefined
+              }
+              label={t.grid}
+              editor={editor}
+              onSelect={(value) => {
+                setRange(value);
+                setSelection({
+                  value: {
+                    kind: "cells",
+                    sheet: currentSheet,
+                    range: value,
+                  },
+                  version: session.version,
+                });
+              }}
+            />
+          ) : pdf && !showGrid ? (
+            <OfficePreviewPage
+              editor={isSheet || annotationOpen ? undefined : editor}
+              editLabel={editCopy.text}
+              document={pdf.document}
+              page={currentPage}
+              zoom={zoom}
+              version={pdf.version}
+              label={`${t.page} ${currentPage}`}
+              selection={
+                selection?.version === pdf.version ? selection.value : undefined
+              }
+              onRegion={chooseSelection}
+            />
+          ) : (
+            <div className="office-preview-empty" role="status">
+              <ArtemisIcon name="document" />
+              <p>{t.noPreview}</p>
+            </div>
+          )}
+        </div>
+        {annotationOpen ? (
+          <section className="office-annotation" aria-label={t.note}>
+            <div className="office-annotation-heading">
+              <ArtemisIcon name="message" />
+              <strong>
+                {selection ? selectionLabel(selection.value) : t.note}
+              </strong>
+              <IconButton
+                label={t.close}
+                icon={<ArtemisIcon name="close" />}
+                onClick={() => setAnnotationOpen(false)}
               />
-              {number}
+            </div>
+            {selection ? (
+              <small className="office-annotation-version">
+                {t.version} {selection.version}
+              </small>
+            ) : null}
+            {targetOptions.length ? (
+              <Select
+                label={t.selection}
+                size="compact"
+                value={selectedValue}
+                onValueChange={(value) =>
+                  chooseSelection(JSON.parse(value) as ArtifactSelection)
+                }
+                options={[
+                  { value: "", label: t.select, disabled: true },
+                  ...targetOptions,
+                ]}
+              />
+            ) : null}
+            {isSheet ? (
+              <TextField
+                label={t.range}
+                size="compact"
+                value={range}
+                placeholder="A1:B4"
+                error={
+                  selection?.value.kind === "cells" && !validSelection
+                    ? t.invalidRange
+                    : undefined
+                }
+                onValueChange={(value) => {
+                  setRange(value);
+                  setSelection({
+                    value: {
+                      kind: "cells",
+                      sheet: currentSheet,
+                      range: value.toUpperCase(),
+                    },
+                    version: session.version,
+                  });
+                }}
+              />
+            ) : null}
+            {quote ? (
+              <blockquote className="office-selection-quote">
+                {quote.slice(0, 180)}
+              </blockquote>
+            ) : null}
+            {!selection ? (
+              <small>{showGrid ? t.cellHint : t.region}</small>
+            ) : null}
+            <TextAreaField
+              label={t.note}
+              labelVisibility="hidden"
+              placeholder={t.notePlaceholder}
+              value={note}
+              onValueChange={setNote}
+              rows={3}
+              maxLength={8_192}
+            />
+            <div className="office-annotation-actions">
+              <span>Esc</span>
+              <Button
+                variant="primary"
+                icon={<ArtemisIcon name="send" />}
+                disabled={!validSelection || !note.trim()}
+                onClick={addNote}
+              >
+                {t.addNote}
+              </Button>
+            </div>
+          </section>
+        ) : null}
+      </div>
+      {isSheet && snapshot?.sheets.length ? (
+        <nav className="office-sheet-tabs" aria-label={t.sheet}>
+          {snapshot.sheets.map((name) => (
+            <Button
+              key={name}
+              variant="quiet"
+              selected={name === currentSheet}
+              onClick={() => setSheet(name)}
+            >
+              {name}
             </Button>
           ))}
         </nav>
       ) : null}
-      <div className="office-page-scroll">
-        {pdf ? (
-          <OfficePage
-            document={pdf.document}
-            page={Math.min(page, pdf.document.numPages)}
-            zoom={Number(zoom)}
-            version={pdf.version}
-            label={`${t.page} ${Math.min(page, pdf.document.numPages)}`}
-            onRegion={(value, version) => setSelection({ value, version })}
-          />
-        ) : (
-          <p role="status">{t.noPreview}</p>
-        )}
-      </div>
-      <div className="office-annotation">
-        <small>{t.region}</small>
-        {targets.length ? (
-          <Select
-            label={t.selection}
-            value={selection ? JSON.stringify(selection.value) : ""}
-            onValueChange={(value) =>
-              setSelection({
-                value: JSON.parse(value) as ArtifactSelection,
-                version: session.version,
-              })
-            }
-            options={[
-              { value: "", label: t.select, disabled: true },
-              ...targets.slice(0, 2_000).map((target) => ({
-                value: JSON.stringify(target.selection),
-                label:
-                  selectionLabel(target.selection) +
-                  (target.text ? ` · ${target.text.slice(0, 100)}` : ""),
-              })),
-              ...(selection &&
-              !targets.some(
-                (target) =>
-                  JSON.stringify(target.selection) ===
-                  JSON.stringify(selection.value),
-              )
-                ? [
-                    {
-                      value: JSON.stringify(selection.value),
-                      label: `${selectionLabel(selection.value)} · ${t.version} ${selection.version}`,
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        ) : null}
-        {snapshot?.sheets.length ? (
-          <TextField
-            label={t.range}
-            value={range}
-            onValueChange={(value) => {
-              setRange(value);
-              setSelection({
-                value: { kind: "cells", sheet: currentSheet, range: value },
-                version: session.version,
-              });
-            }}
-          />
-        ) : null}
-        <TextAreaField
-          label={t.note}
-          value={note}
-          onValueChange={setNote}
-          rows={2}
-          maxLength={8_192}
-        />
-        <Button disabled={!selection || !note.trim()} onClick={addNote}>
-          {t.addNote}
-        </Button>
-        {snapshot?.warnings.map((warning) => (
-          <small key={warning}>
-            {warning.startsWith("Cell selection index covers A1:Z50 per sheet;")
-              ? t.cellLimit
-              : warning}
+      {pdf && session.format === "powerpoint" ? (
+        <nav ref={slides} className="office-slide-strip" aria-label={t.slides}>
+          {Array.from(
+            { length: Math.min(5, pageCount) },
+            (_, index) =>
+              Math.max(1, Math.min(currentPage - 2, pageCount - 4)) + index,
+          ).map((number) => (
+            <Button
+              className="office-slide"
+              key={number}
+              label={`${t.page} ${number}`}
+              selected={number === currentPage}
+              variant="quiet"
+              onClick={() => setPage(number)}
+            >
+              <OfficePreviewPage
+                document={pdf.document}
+                page={number}
+                zoom="1"
+                version={pdf.version}
+                thumbnail
+                label={`${t.page} ${number}`}
+              />
+              <span>{number}</span>
+            </Button>
+          ))}
+        </nav>
+      ) : null}
+      {showGrid ? <p className="office-grid-hint">{t.gridHint}</p> : null}
+      {detailsOpen ? (
+        <div className="office-preview-details">
+          <small>
+            {session.savePath
+              ? `${editCopy.destination}: ${session.savePath}`
+              : editCopy.copy}
           </small>
-        ))}
-      </div>
+          <small>
+            {t.version} {session.version} · {t.preview}{" "}
+            {session.previewVersion ?? "—"}
+          </small>
+          {snapshot?.warnings.map((warning) => (
+            <small key={warning}>
+              {warning.startsWith(
+                "Cell selection index covers A1:Z50 per sheet;",
+              )
+                ? t.cellLimit
+                : warning}
+            </small>
+          ))}
+        </div>
+      ) : null}
+      <footer className="office-footer">
+        <span>
+          {selection
+            ? selectionLabel(selection.value)
+            : showGrid
+              ? t.cellHint
+              : annotationOpen
+                ? t.region
+                : editCopy.hint}
+        </span>
+        {!showGrid && pdf ? (
+          <span>
+            {currentPage} / {pageCount}
+          </span>
+        ) : null}
+        <IconButton
+          label={t.previewDetails}
+          aria-expanded={detailsOpen}
+          icon={<ArtemisIcon name="info" />}
+          onClick={() => setDetailsOpen((open) => !open)}
+        />
+      </footer>
     </section>
   );
 }

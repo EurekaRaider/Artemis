@@ -142,13 +142,15 @@ app.whenReady().then(async()=>{
  for(const [index,sample] of ${JSON.stringify(nativeCases.map(({ format, path }) => ({ format, path })))}.entries()) {
    win.setContentSize(760,960);
    await js('window.advance('+(index+3)+')');
-   await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "'+(index+3)+'"');
    await wait('document.querySelector(".office-workbench")?.getAttribute("aria-label") === '+JSON.stringify(sample.path));
+   if(sample.format==='excel') {
+     await wait('document.querySelector(".office-sheet-grid")');
+     await js('[...document.querySelectorAll(".office-view-modes button")].find(button=>button.textContent.includes("打印预览")).click()');
+   }
+   await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewVersion === "'+(index+3)+'"');
    if(sample.format==='powerpoint') await wait('[...document.querySelectorAll("nav canvas")].length>0 && [...document.querySelectorAll("nav canvas")].every(canvas=>canvas.dataset.previewVersion==="'+(index+3)+'")');
    if(index===3) {
-     await js('[...document.querySelectorAll("[data-artemis-component=select]")].find(control=>control.querySelector("[data-part=label]").textContent==="工作表").querySelector("button").click()');
-     await wait('[...document.querySelectorAll("[role=option]")].some(option=>option.textContent==="Sheet1")');
-     await js('[...document.querySelectorAll("[role=option]")].find(option=>option.textContent==="Sheet1").click()');
+     await js('[...document.querySelectorAll(".office-sheet-tabs button")].find(button=>button.querySelector("[data-part=label]").textContent==="Sheet1").click()');
      await wait('document.querySelector(".office-page-scroll canvas")?.dataset.previewPage==="2"');
      sheetPageMappingVerified=true;
      continue;

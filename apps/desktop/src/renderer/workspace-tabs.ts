@@ -1,3 +1,5 @@
+import type { ArtifactSession } from "@artemis/protocol";
+
 export type WorkspaceTabKind =
   | "review"
   | "terminal"
@@ -19,12 +21,36 @@ export interface WorkspaceTab {
   url?: string | undefined;
   childAgentId?: string;
   agentTeamId?: string;
-  artifactSessionId?: string;
+  artifactSessionId?: string | undefined;
 }
 
 export interface WorkspaceTabsState {
   tabs: WorkspaceTab[];
   activeTabId: string | undefined;
+}
+
+export interface WorkspaceTabOpenOptions {
+  forceNew?: boolean;
+  path?: string;
+  reuseKind?: boolean;
+  revision?: string;
+  url?: string;
+}
+
+export function findReusableWorkspaceTab(
+  state: WorkspaceTabsState,
+  kind: WorkspaceTabKind,
+  options: WorkspaceTabOpenOptions = {},
+): WorkspaceTab | undefined {
+  if (options.forceNew) return undefined;
+  return state.tabs.find(
+    (tab) =>
+      tab.kind === kind &&
+      (options.reuseKind ||
+        (!options.path && !options.url) ||
+        (Boolean(options.path) && tab.path === options.path) ||
+        (Boolean(options.url) && tab.url === options.url)),
+  );
 }
 
 export type WorkspaceTabAction =
@@ -36,7 +62,10 @@ export type WorkspaceTabAction =
       type: "update";
       tabId: string;
       updates: Partial<
-        Pick<WorkspaceTab, "title" | "path" | "revision" | "url">
+        Pick<
+          WorkspaceTab,
+          "title" | "path" | "revision" | "url" | "artifactSessionId"
+        >
       >;
     };
 
@@ -44,6 +73,32 @@ export const emptyWorkspaceTabs = (): WorkspaceTabsState => ({
   tabs: [],
   activeTabId: undefined,
 });
+
+export function reconcileOfficeWorkspaceTab(
+  state: WorkspaceTabsState,
+  session: ArtifactSession,
+): WorkspaceTabsState {
+  if (session.status === "closed") return state;
+  const pathKey = (path: string) =>
+    path.replaceAll("\\", "/").replace(/^\.\//u, "");
+  const existing = state.tabs.find(
+    (tab) =>
+      tab.kind === "office" &&
+      (tab.artifactSessionId === session.sessionId ||
+        (tab.path && pathKey(tab.path) === pathKey(session.path))),
+  );
+  if (existing?.artifactSessionId === session.sessionId) return state;
+  return reduceWorkspaceTabs(state, {
+    type: "ensure",
+    tab: {
+      id: existing?.id ?? `office:${session.sessionId}`,
+      kind: "office",
+      title: session.path.split(/[\\/]/u).at(-1) ?? session.path,
+      path: session.path,
+      artifactSessionId: session.sessionId,
+    },
+  });
+}
 
 export function workspaceTabFocusTargetAfterClose(
   tabs: readonly WorkspaceTab[],
@@ -182,7 +237,15 @@ export function reduceWorkspaceTabs(
     return {
       ...state,
       tabs: state.tabs.map((tab) =>
-        tab.id === action.tabId ? { ...tab, ...action.updates } : tab,
+        tab.id === action.tabId
+          ? {
+              ...tab,
+              ...action.updates,
+              ...("path" in action.updates && action.updates.path !== tab.path
+                ? { artifactSessionId: undefined }
+                : {}),
+            }
+          : tab,
       ),
     };
   }

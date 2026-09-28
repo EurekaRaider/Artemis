@@ -224,6 +224,8 @@ export function ResourceCenter({
   const [pluginInstallDraft, setPluginInstallDraft] =
     useState<CodexPluginPreview>();
   const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
+  const [officeCapabilityInstalled, setOfficeCapabilityInstalled] =
+    useState<boolean>();
   const [pluginUninstallDraft, setPluginUninstallDraft] =
     useState<InstalledCodexPlugin>();
   const [resourceRemovalDraft, setResourceRemovalDraft] =
@@ -254,6 +256,38 @@ export function ResourceCenter({
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const operationPendingRef = useRef(false);
   const t = labels[locale];
+  const office = officeCopy(locale);
+  // Older installed receipts may lack dependencies that are present in the
+  // current catalog used to render the Office entry buttons.
+  const hasOfficePlugins = [
+    ...installedPlugins,
+    ...(runtimeMarketplace?.plugins ?? []),
+    ...localPluginResults,
+  ].some((plugin) =>
+    plugin.capabilityDependencies?.some(
+      (dependency) => dependency.id === "office-core",
+    ),
+  );
+
+  useEffect(() => {
+    if (!hasOfficePlugins) return;
+    let active = true;
+    const refresh = () =>
+      void window.artemis
+        .officeCapabilityStatus()
+        .then((status) => {
+          if (active) setOfficeCapabilityInstalled(status.versions.length > 0);
+        })
+        .catch((error: unknown) => {
+          if (active) setMessage(String(error));
+        });
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refresh);
+    };
+  }, [hasOfficePlugins]);
 
   useEffect(() => {
     let mounted = true;
@@ -1710,6 +1744,8 @@ export function ResourceCenter({
       return (
         <OfficeCapabilityPanel
           locale={locale}
+          installed={officeCapabilityInstalled !== false}
+          onInstalledChange={setOfficeCapabilityInstalled}
           onClose={() => setOfficeCapabilityOpen(false)}
         />
       );
@@ -1737,6 +1773,9 @@ export function ResourceCenter({
     const conflict = installed ? undefined : pluginSkillConflict(plugin);
     const displayName = pluginDisplayName(plugin);
     const description = pluginDescription(plugin);
+    const hasOfficeCapability = plugin.capabilityDependencies?.some(
+      (dependency) => dependency.id === "office-core",
+    );
     const source =
       plugin.source.kind === "builtin" ||
       plugin.source.kind === "bundled" ||
@@ -1785,6 +1824,7 @@ export function ResourceCenter({
           <div
             className="plugin-market-card-actions"
             data-installed={installed && Boolean(installedPlugin)}
+            data-office={hasOfficeCapability || undefined}
           >
             {installed && plugin.hasHooks && onReviewHooks && (
               <Button
@@ -1800,14 +1840,27 @@ export function ResourceCenter({
             )}
             {installed && installedPlugin ? (
               <>
-                {plugin.capabilityDependencies?.some(
-                  (dependency) => dependency.id === "office-core",
-                ) ? (
+                {hasOfficeCapability ? (
                   <Button
+                    className="plugin-market-configure-action"
+                    icon={
+                      <ArtemisIcon
+                        name={
+                          officeCapabilityInstalled === false ? "push" : "gear"
+                        }
+                      />
+                    }
                     variant="secondary"
+                    title={
+                      officeCapabilityInstalled === false
+                        ? office.shared
+                        : office.manageDescription
+                    }
                     onClick={() => setOfficeCapabilityOpen(true)}
                   >
-                    {officeCopy(locale).runtime}
+                    {officeCapabilityInstalled === false
+                      ? office.runtime
+                      : office.manage}
                   </Button>
                 ) : null}
                 {pluginHasConnection(installedPlugin) && (

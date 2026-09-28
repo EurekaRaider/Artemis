@@ -72,6 +72,7 @@ import {
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   PiAdapter,
   officeDocumentRequestSchema,
+  officeDocumentFormatForPath,
   artifactSessionRequestSchema,
   type AgentPayload,
   type AgentTeamMessagePayload,
@@ -4266,12 +4267,20 @@ export class ArtemisAgentHost {
               }),
             ]),
           ),
-          format: Type.Union([
-            Type.Literal("pdf"),
-            Type.Literal("excel"),
-            Type.Literal("word"),
-            Type.Literal("powerpoint"),
-          ]),
+          format: Type.Optional(
+            Type.Union(
+              [
+                Type.Literal("pdf"),
+                Type.Literal("excel"),
+                Type.Literal("word"),
+                Type.Literal("powerpoint"),
+              ],
+              {
+                description:
+                  "Document format. Inferred from the path extension when omitted.",
+              },
+            ),
+          ),
           path: Type.String({
             description:
               "Safe workspace-relative path with .pdf, .xlsx, .docx, or .pptx extension.",
@@ -4383,7 +4392,8 @@ export class ArtemisAgentHost {
                 protocolVersion: 2,
                 requestId: randomUUID(),
                 operation: params.operation,
-                format: params.format,
+                format:
+                  params.format ?? officeDocumentFormatForPath(params.path),
                 path: params.path,
                 ...(params.session_id === undefined
                   ? {}
@@ -4405,7 +4415,8 @@ export class ArtemisAgentHost {
                 protocolVersion: OFFICE_DOCUMENT_PROTOCOL_VERSION,
                 requestId: randomUUID(),
                 operation: params.operation,
-                format: params.format,
+                format:
+                  params.format ?? officeDocumentFormatForPath(params.path),
                 path: params.path,
                 ...(params.content === undefined
                   ? {}

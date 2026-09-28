@@ -1758,7 +1758,7 @@ describe("CodexPluginService", () => {
     expect(
       marketplace?.plugins.every(
         (plugin) =>
-          plugin.version === "1.0.1" &&
+          plugin.version === (plugin.name === "pdf" ? "1.0.1" : "1.0.2") &&
           plugin.iconDataUrl?.startsWith("data:image/png;base64,"),
       ),
     ).toBe(true);
@@ -1780,6 +1780,10 @@ describe("CodexPluginService", () => {
         "utf8",
       );
       expect(skillSource).toContain("`office_document`");
+      if (plugin.name !== "pdf")
+        expect(skillSource).toContain(
+          "https://github.com/EurekaRaider/ArtemisRelease/releases",
+        );
       expect(skillSource).toContain(
         "Do not call `load_workspace_dependencies`",
       );
@@ -1792,6 +1796,18 @@ describe("CodexPluginService", () => {
         (plugin) => plugin.capabilityDependencies?.[0]?.id === "office-core",
       ),
     ).toHaveLength(3);
+    const reloaded = createService(root, { bundledArtifactRoot }).service;
+    expect(
+      (await reloaded.listInstalled()).map((plugin) => ({
+        name: plugin.name,
+        dependencies: plugin.capabilityDependencies,
+      })),
+    ).toEqual(
+      (await service.listInstalled()).map((plugin) => ({
+        name: plugin.name,
+        dependencies: plugin.capabilityDependencies,
+      })),
+    );
   });
 
   it("adopts matching standalone Skills when bundled plugins are installed", async () => {

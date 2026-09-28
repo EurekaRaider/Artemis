@@ -1,16 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ArtifactEvent, CapabilityPackManifest } from "@artemis/protocol";
+import type { ArtifactEvent } from "@artemis/protocol";
+import { rcompare } from "semver";
 import { CapabilityPackService } from "./capability-pack-service.js";
 import { OfficeSessionService } from "./office-session-service.js";
 import { UnoOfficeEngine, verifyOfficeNative } from "./office-uno-engine.js";
-
-export interface OfficeRuntimeCatalog {
-  schemaVersion: 1;
-  publicKeys: Record<string, string>;
-  manifests: CapabilityPackManifest[];
-}
+import {
+  OfficeCapabilityUpdates,
+  type OfficeRuntimeCatalog,
+} from "./office-capability-updates.js";
 
 export async function createOfficeWorkbench(options: {
   userData: string;
@@ -18,6 +17,7 @@ export async function createOfficeWorkbench(options: {
   hostVersion: string;
   dependents(version: string): Promise<string[]>;
   emit(threadId: string, event: ArtifactEvent): void;
+  canAutoSave?(threadId: string): boolean;
 }) {
   const catalog = JSON.parse(
     await readFile(options.catalogPath, "utf8"),
@@ -37,9 +37,22 @@ export async function createOfficeWorkbench(options: {
     dependents: options.dependents,
     verifyNative: verifyOfficeNative,
   });
+  const updates = new OfficeCapabilityUpdates(catalog, {
+    hostVersion: options.hostVersion,
+    platform: process.platform,
+    arch: process.arch,
+  });
+  async function status() {
+    const current = await packs.status();
+    const installed =
+      current.activeVersion ??
+      current.versions.map((version) => version.version).sort(rcompare)[0];
+    return { ...current, ...updates.status(installed) };
+  }
   const sessions = new OfficeSessionService({
     root: join(options.userData, "office-sessions"),
     emit: options.emit,
+    canAutoSave: (threadId) => options.canAutoSave?.(threadId) ?? false,
     createEngine: async () => {
       const lease = await packs.acquire();
       try {
@@ -57,5 +70,5 @@ export async function createOfficeWorkbench(options: {
     // Enable only after the native round-trip matrix accepts an explicit support policy.
     canSaveOriginal: async () => false,
   });
-  return { packs, sessions, catalog };
+  return { packs, sessions, catalog, updates, status };
 }

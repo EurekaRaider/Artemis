@@ -1,4 +1,6 @@
 import {
+  findReusableWorkspaceTab,
+  reduceWorkspaceTabs,
   workspaceTabFocusTargetAfterClose,
   workspaceTabIdForKey,
 } from "../src/renderer/workspace-tabs.js";
@@ -54,6 +56,98 @@ interface WorkspaceTabsModule {
 }
 
 const workspaceTabsModule = "../src/renderer/workspace-tabs.js";
+
+describe("workspace file link targets", () => {
+  it.each(["office", "file", "markdown", "browser"] as const)(
+    "keeps different local files in independent %s tabs and reselects the exact file",
+    (kind) => {
+      const first = {
+        id: "first",
+        kind,
+        title: "Brief.docx",
+        path: "Brief.docx",
+      };
+      const second = {
+        id: "second",
+        kind,
+        title: "Budget.xlsx",
+        path: "Budget.xlsx",
+      };
+      let state = { tabs: [first], activeTabId: first.id };
+      expect(
+        findReusableWorkspaceTab(state, kind, { path: second.path }),
+      ).toBeUndefined();
+      state = { tabs: [first, second], activeTabId: first.id };
+      expect(findReusableWorkspaceTab(state, kind, { path: second.path })).toBe(
+        second,
+      );
+      expect(
+        findReusableWorkspaceTab(state, kind, { path: "other/Budget.xlsx" }),
+      ).toBeUndefined();
+    },
+  );
+
+  it("does not treat absent paths as matching browser addresses", () => {
+    const tab = {
+      id: "browser",
+      kind: "browser" as const,
+      title: "Web",
+      url: "https://example.com/a",
+    };
+    const state = { tabs: [tab], activeTabId: tab.id };
+    expect(
+      findReusableWorkspaceTab(state, "browser", {
+        url: "https://example.com/b",
+      }),
+    ).toBeUndefined();
+    expect(findReusableWorkspaceTab(state, "browser", { url: tab.url })).toBe(
+      tab,
+    );
+    expect(
+      findReusableWorkspaceTab(state, "browser", {
+        reuseKind: true,
+        url: "https://example.com/b",
+      }),
+    ).toBe(tab);
+    expect(
+      findReusableWorkspaceTab(state, "browser", {
+        forceNew: true,
+        url: tab.url,
+      }),
+    ).toBeUndefined();
+    expect(findReusableWorkspaceTab(state, "terminal")).toBeUndefined();
+    expect(findReusableWorkspaceTab(state, "browser")).toBe(tab);
+  });
+
+  it("clears the previous Office session when a tab is retargeted", () => {
+    const state = {
+      tabs: [
+        {
+          id: "office",
+          kind: "office" as const,
+          title: "Brief.docx",
+          path: "Brief.docx",
+          artifactSessionId: "word-session",
+        },
+      ],
+      activeTabId: "office",
+    };
+    const next = reduceWorkspaceTabs(state, {
+      type: "update",
+      tabId: "office",
+      updates: { path: "Budget.xlsx", title: "Budget.xlsx" },
+    });
+    expect(next.tabs[0]?.artifactSessionId).toBeUndefined();
+    expect(next.tabs[0]?.path).toBe("Budget.xlsx");
+    expect(
+      reduceWorkspaceTabs(state, {
+        type: "update",
+        tabId: "office",
+        updates: { path: "Brief.docx" },
+      }).tabs[0]?.artifactSessionId,
+    ).toBe("word-session");
+  });
+});
 
 async function loadReducer(): Promise<
   WorkspaceTabsModule["reduceWorkspaceTabs"]

@@ -149,6 +149,8 @@ export const artifactSessionSchema = z
     engineVersion: z.string().min(1).max(100),
     version,
     savedVersion: version,
+    /** Actual autosave destination; the source path remains the tab identity. */
+    savePath: officeDocumentPathSchema.optional(),
     previewVersion: version.nullable(),
     sequence: version,
     status: z.enum([

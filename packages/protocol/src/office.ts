@@ -10,6 +10,24 @@ export const officeDocumentFormatSchema = z.enum([
 ]);
 export type OfficeDocumentFormat = z.infer<typeof officeDocumentFormatSchema>;
 
+export function officeDocumentFormatForPath(
+  path: string,
+): OfficeDocumentFormat | undefined {
+  const extension = path.match(/\.([^./\\]+)$/u)?.[1]?.toLowerCase();
+  switch (extension) {
+    case "docx":
+      return "word";
+    case "pptx":
+      return "powerpoint";
+    case "xlsx":
+      return "excel";
+    case "pdf":
+      return "pdf";
+    default:
+      return undefined;
+  }
+}
+
 export const officeDocumentOperationSchema = z.enum([
   "create",
   "write",

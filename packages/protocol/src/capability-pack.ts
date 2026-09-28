@@ -158,6 +158,10 @@ export type CapabilityPackManifest = z.infer<
 export interface CapabilityPackStatus {
   id: "office-core";
   availableVersion?: string;
+  updateVersion?: string;
+  canCheckUpdates?: boolean;
+  updateCheck?: "idle" | "checking" | "checked" | "error";
+  updateError?: string;
   activeVersion?: string;
   versions: Array<{
     version: string;

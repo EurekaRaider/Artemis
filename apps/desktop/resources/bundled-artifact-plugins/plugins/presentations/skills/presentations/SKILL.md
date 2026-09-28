@@ -29,7 +29,7 @@ This workflow preserves normalized slide text. It does not promise fidelity for 
 
 ## Optional native Office sessions
 
-The host-managed `office-core` capability enhances this same plugin. Documents, Presentations and Spreadsheets share one installation. Never download or install the runtime with bash, npm or an extension; the user manages it through the plugin's Office capability panel, including verified offline import.
+The host-managed `office-core` capability enhances this same plugin. Documents, Presentations and Spreadsheets share one installation. Never download or install the runtime with bash, npm or an extension; the user manages it through the plugin's Office capability panel, including online installation, update checks, and verified offline import. The official runtime source is https://github.com/EurekaRaider/ArtemisRelease/releases; the host maps this plugin's optional `office-core` dependency to its bundled trusted release catalog. Once installed, the entry is called “Manage Office configuration”.
 
 - Lite remains available without the capability. Imported originals and files changed outside Lite cannot be overwritten through Lite `write` or `modify`. Preserve the original and create a separate file when a normalized copy is wanted.
 - For continuous edits with an installed, accepted capability, call `office_document` with `operation: "open"`. Reuse the returned `sessionId` as `session_id`.

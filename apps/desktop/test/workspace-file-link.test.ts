@@ -46,6 +46,11 @@ async function createWorkspace() {
 }
 
 describe("workspace file links", () => {
+  it.each(["report.docx", "Slides.PPTX", "预算.xlsx"])(
+    "routes %s to the Office viewer",
+    (path) => expect(workspaceFileViewer(path)).toBe("office"),
+  );
+
   it("resolves relative, encoded, absolute, and line-addressed links", async () => {
     const { workspace } = await createWorkspace();
 

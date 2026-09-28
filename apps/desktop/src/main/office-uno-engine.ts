@@ -4,7 +4,7 @@ import {
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -129,6 +129,9 @@ export class UnoOfficeEngine implements OfficeEngine {
       ...(process.platform === "win32"
         ? { SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR }
         : {}),
+      ...(process.platform === "darwin"
+        ? { FONTCONFIG_FILE: join(profile, "fonts.conf") }
+        : {}),
     };
     this.office = spawn(
       executable,
@@ -211,6 +214,34 @@ export class UnoOfficeEngine implements OfficeEngine {
     release: () => void,
   ): Promise<UnoOfficeEngine> {
     await mkdir(profile, { recursive: true, mode: 0o700 });
+    if (process.platform === "darwin") {
+      // Headless LibreOffice needs Fontconfig to discover macOS CJK fonts.
+      const xmlPath = (path: string) =>
+        path
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      const bundledFonts = join(
+        dirname(join(root, manifest.officeExecutable)),
+        "..",
+        "Resources",
+        "fonts",
+      );
+      const cache = join(profile, "font-cache");
+      await mkdir(cache, { recursive: true, mode: 0o700 });
+      await writeFile(
+        join(profile, "fonts.conf"),
+        `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+<dir>/System/Library/Fonts</dir>
+<dir>/Library/Fonts</dir>
+<dir>${xmlPath(bundledFonts)}</dir>
+<cachedir>${xmlPath(cache)}</cachedir>
+</fontconfig>\n`,
+        { encoding: "utf8", mode: 0o600 },
+      );
+    }
     return new UnoOfficeEngine(root, manifest, profile, release);
   }
 

@@ -219,6 +219,7 @@ import {
   WorkspaceFileIcon,
   WorkspaceFilesPanel,
 } from "./WorkspaceFilesPanel.js";
+import { flushWorkspaceEdits } from "./workspace-autosave.js";
 import {
   MarkdownReaderPanel,
   WorkspaceBrowserPanel,
@@ -228,9 +229,9 @@ import {
   deriveRunPresentation,
   formatRunDuration,
 } from "./run-presentation.js";
-const OfficeWorkbenchPanel = lazy(() =>
-  import("./OfficeWorkbenchPanel.js").then((module) => ({
-    default: module.OfficeWorkbenchPanel,
+const OfficeFilePanel = lazy(() =>
+  import("./OfficeFilePanel.js").then((module) => ({
+    default: module.OfficeFilePanel,
   })),
 );
 import { nextRunMode, parseRunModeCommand } from "./run-mode-controls.js";
@@ -293,11 +294,14 @@ import {
   childAgentWorkspaceTab,
   closesLastWorkspaceTab,
   emptyWorkspaceTabs,
+  findReusableWorkspaceTab,
   reconcileAgentTeamWorkspaceTab,
+  reconcileOfficeWorkspaceTab,
   reduceWorkspaceTabs,
   type WorkspaceTab,
   type WorkspaceTabAction,
   type WorkspaceTabKind,
+  type WorkspaceTabOpenOptions,
   type WorkspaceTabsState,
   handleWorkspaceTabBarKeyDown,
   workspaceTabDomId,
@@ -377,14 +381,6 @@ interface ProjectSidebarDrag {
   pointerId: number;
   startWidth: number;
   startX: number;
-}
-
-interface WorkspaceTabOpenOptions {
-  forceNew?: boolean;
-  path?: string;
-  reuseKind?: boolean;
-  revision?: string;
-  url?: string;
 }
 
 interface WorkspaceTabScrollState {
@@ -2305,7 +2301,13 @@ export function App() {
   );
 
   const closeWorkspaceTab = useCallback(
-    (tabId: string, options?: { moveFocus?: boolean }) => {
+    async (tabId: string, options?: { moveFocus?: boolean }) => {
+      const tab = workspaceTabs.tabs.find((value) => value.id === tabId);
+      try {
+        if (tab?.path) await flushWorkspaceEdits(activeThreadId, tab.path);
+      } catch {
+        return;
+      }
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
       const focusTarget = workspaceTabFocusTargetAfterClose(
         workspaceTabs.tabs,
@@ -2324,7 +2326,7 @@ export function App() {
         focusWorkspaceTab(focusTarget);
       }
     },
-    [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
+    [activeThreadId, dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
 
   const openWorkspaceTabForThread = useCallback(
@@ -2335,16 +2337,7 @@ export function App() {
     ) => {
       setWorkspaceTabsByThread((current) => {
         const state = current[threadId] ?? emptyWorkspaceTabs();
-        const existing = options.forceNew
-          ? undefined
-          : state.tabs.find(
-              (tab) =>
-                tab.kind === kind &&
-                (options.reuseKind ||
-                  (!options.path && !options.url) ||
-                  tab.path === options.path ||
-                  tab.url === options.url),
-            );
+        const existing = findReusableWorkspaceTab(state, kind, options);
         const pathTitle = options.path?.replaceAll("\\", "/").split("/").at(-1);
         const baseTitle = workspaceTabBaseTitle(kind);
         if (existing) {
@@ -3696,43 +3689,6 @@ export function App() {
   const activeEvents = activeThread
     ? (snapshot?.events[activeThread.id] ?? [])
     : [];
-  const openedOfficeTabs = useRef(new Set<string>());
-  useEffect(() => {
-    if (!activeThreadId) return;
-    const opened = activeEvents.filter(
-      (event) =>
-        event.payload.type === "artifact.event" &&
-        event.payload.event.kind === "opened" &&
-        !openedOfficeTabs.current.has(event.payload.event.session.sessionId),
-    );
-    if (!opened.length) return;
-    for (const event of opened)
-      if (event.payload.type === "artifact.event")
-        openedOfficeTabs.current.add(event.payload.event.session.sessionId);
-    setWorkspaceTabsByThread((current) => {
-      let state = current[activeThreadId] ?? emptyWorkspaceTabs();
-      for (const event of opened) {
-        if (event.payload.type !== "artifact.event") continue;
-        const session = event.payload.event.session;
-        const id = `office:${session.sessionId}`;
-        if (state.tabs.some((tab) => tab.id === id)) continue;
-        state = reduceWorkspaceTabs(state, {
-          type: "ensure",
-          tab: {
-            id,
-            kind: "office",
-            title: session.path.split(/[\\/]/u).at(-1) ?? session.path,
-            path: session.path,
-            artifactSessionId: session.sessionId,
-          },
-        });
-      }
-      return state === current[activeThreadId]
-        ? current
-        : { ...current, [activeThreadId]: state };
-    });
-    setWorkspaceDockOpen(true);
-  }, [activeEvents, activeThreadId]);
   useTaskNotificationRead(
     activeView === "workspace" &&
       activeThreadId &&
@@ -3904,6 +3860,30 @@ export function App() {
     activeThread?.mode,
     liveChildActivities,
   ]);
+  const openedOfficeTabs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeThreadId || !threadState) return;
+    // History pages retain artifact state but omit raw artifact presentation events.
+    const sessions = Object.values(threadState.artifacts ?? {})
+      .map((view) => view.session)
+      .filter(
+        (session) =>
+          session.status !== "closed" &&
+          !openedOfficeTabs.current.has(session.sessionId),
+      );
+    if (!sessions.length) return;
+    for (const session of sessions)
+      openedOfficeTabs.current.add(session.sessionId);
+    setWorkspaceTabsByThread((current) => {
+      let state = current[activeThreadId] ?? emptyWorkspaceTabs();
+      for (const session of sessions)
+        state = reconcileOfficeWorkspaceTab(state, session);
+      return state === current[activeThreadId]
+        ? current
+        : { ...current, [activeThreadId]: state };
+    });
+    setWorkspaceDockOpen(true);
+  }, [activeThreadId, threadState]);
   const activePromptHistory = useMemo(() => {
     if (!threadState?.order.length) {
       return promptHistoryForConversation(promptHistory, undefined);
@@ -9485,13 +9465,26 @@ ${model.providerId} · ${model.modelId}`}
                           )}
                           {tab.kind === "office" &&
                           activeThreadId &&
-                          tab.artifactSessionId &&
-                          threadState?.artifacts?.[tab.artifactSessionId] ? (
+                          tab.path ? (
                             <Suspense fallback={<span>…</span>}>
-                              <OfficeWorkbenchPanel
+                              <OfficeFilePanel
+                                key={`${activeThreadId}:${tab.id}`}
                                 threadId={activeThreadId}
+                                path={tab.path}
+                                retryLabel={t.refreshPreview}
+                                onOpened={(artifactSessionId) =>
+                                  dispatchWorkspaceTab({
+                                    type: "update",
+                                    tabId: tab.id,
+                                    updates: { artifactSessionId },
+                                  })
+                                }
                                 view={
-                                  threadState.artifacts[tab.artifactSessionId]!
+                                  tab.artifactSessionId
+                                    ? threadState?.artifacts?.[
+                                        tab.artifactSessionId
+                                      ]
+                                    : undefined
                                 }
                                 locale={locale}
                                 onSnapshot={recoverOfficeSnapshot}
@@ -9506,6 +9499,10 @@ ${model.providerId} · ${model.modelId}`}
                           ) : null}
                           {tab.kind === "file" && (
                             <WorkspaceFilesPanel
+                              locale={locale}
+                              onOpenOffice={(path) =>
+                                openWorkspaceTab("office", { path })
+                              }
                               previewLabel={t.previewFile}
                               binaryMessage={t.binaryFile}
                               editFileLabel={t.editFile}

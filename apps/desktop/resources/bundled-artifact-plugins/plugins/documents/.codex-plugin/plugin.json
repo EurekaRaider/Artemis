@@ -1,6 +1,6 @@
 {
   "name": "documents",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Runtime-free basic Word document workflows using Artemis's normalized Office document service.",
   "skills": "./skills/",
   "interface": {

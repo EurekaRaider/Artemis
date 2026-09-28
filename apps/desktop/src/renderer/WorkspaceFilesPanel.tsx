@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArtemisIcon } from "@artemis/ui/icons";
+import { officeDocumentFormatForPath, type AppLocale } from "@artemis/protocol";
 import {
   WorkspaceContentState,
   WorkspaceFileHeader,
@@ -13,6 +14,8 @@ import type {
   WorkspaceFileContent,
 } from "../shared/api.js";
 import { WorkspaceFileEditor } from "./WorkspaceFileEditor.js";
+import { WorkspaceCsvFileEditor } from "./WorkspaceCsvFileEditor.js";
+import { OfficePreviewGate } from "./OfficePreviewGate.js";
 import { WorkspaceMarkdownEditor } from "./WorkspaceMarkdownEditor.js";
 import {
   filePresentation,
@@ -23,6 +26,7 @@ import { setiFileIcon } from "./seti-file-icon.js";
 export { setiFileIcon } from "./seti-file-icon.js";
 
 interface WorkspaceFilesPanelProps {
+  locale?: AppLocale;
   threadId: string | undefined;
   selectedPath: string | undefined;
   title: string;
@@ -40,6 +44,7 @@ interface WorkspaceFilesPanelProps {
   sourceLabel: string;
   unsavedLabel: string;
   onOpenHtml(path: string): void;
+  onOpenOffice?: (path: string) => void;
   onOpenReader?: (path: string) => void;
   readerLabel?: string;
   onFileSelected(path: string): void;
@@ -185,6 +190,7 @@ function isBrowserPath(path: string): boolean {
 }
 
 export function WorkspaceFilesPanel({
+  locale = "en",
   threadId,
   selectedPath,
   title,
@@ -195,17 +201,21 @@ export function WorkspaceFilesPanel({
   editFileLabel,
   refreshLabel,
   richLabel,
+  previewLabel,
   saveLabel,
   savedLabel,
   savingLabel,
   sourceLabel,
   unsavedLabel,
   onOpenHtml,
+  onOpenOffice,
   onOpenReader,
   readerLabel,
   onFileSelected,
 }: WorkspaceFilesPanelProps) {
   const activeThreadId = useRef(threadId);
+  const openOffice = useRef(onOpenOffice);
+  openOffice.current = onOpenOffice;
   const [childrenByDirectory, setChildrenByDirectory] = useState<
     Record<string, WorkspaceDirectoryEntry[] | undefined>
   >({});
@@ -272,6 +282,11 @@ export function WorkspaceFilesPanel({
     if (!threadId || !selectedPath || selectedFile?.path === selectedPath) {
       return;
     }
+    const format = officeDocumentFormatForPath(selectedPath);
+    if (format && format !== "pdf" && openOffice.current) {
+      openOffice.current(selectedPath);
+      return;
+    }
     const requestedThreadId = threadId;
     setError(undefined);
     void window.artemis
@@ -307,6 +322,11 @@ export function WorkspaceFilesPanel({
 
   const openFile = (entry: WorkspaceDirectoryEntry) => {
     if (!threadId) return;
+    const format = officeDocumentFormatForPath(entry.path);
+    if (format && format !== "pdf" && onOpenOffice) {
+      onOpenOffice(entry.path);
+      return;
+    }
     if (isBrowserPath(entry.path)) {
       onOpenHtml(entry.path);
       return;
@@ -429,6 +449,31 @@ export function WorkspaceFilesPanel({
                 threadId={threadId}
                 unsavedLabel={unsavedLabel}
               />
+            ) : /\.csv$/iu.test(selectedFile.path) && !selectedFile.binary ? (
+              <OfficePreviewGate locale={locale}>
+                <WorkspaceCsvFileEditor
+                  key={selectedFile.path}
+                  ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
+                  threadId={threadId!}
+                  content={selectedFile.content ?? ""}
+                  locale={locale}
+                  path={selectedFile.path}
+                  previewLabel={previewLabel}
+                  sourceLabel={sourceLabel}
+                  saveLabel={saveLabel}
+                  savedLabel={savedLabel}
+                  savingLabel={savingLabel}
+                  unsavedLabel={unsavedLabel}
+                />
+              </OfficePreviewGate>
+            ) : /\.(?:docx?|pptx?|xlsx?|csv)$/iu.test(selectedFile.path) ? (
+              <OfficePreviewGate locale={locale}>
+                <WorkspaceContentState state="read-only" label={binaryMessage}>
+                  {locale.startsWith("zh")
+                    ? "请将旧版 Office 文件转换为 DOCX、PPTX 或 XLSX；CSV 请使用 UTF-8 编码，然后重新打开。"
+                    : "Convert legacy Office files to DOCX, PPTX or XLSX, or convert CSV to UTF-8, then reopen the file."}
+                </WorkspaceContentState>
+              </OfficePreviewGate>
             ) : selectedFile.binary ? (
               <>
                 <WorkspaceFileHeader path={selectedFile.path} readOnly />

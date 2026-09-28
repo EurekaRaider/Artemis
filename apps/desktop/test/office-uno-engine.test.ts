@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -62,6 +62,24 @@ afterEach(async () => {
 });
 
 describe("UnoOfficeEngine startup", () => {
+  it.skipIf(process.platform !== "darwin")(
+    "makes system CJK fonts available with an isolated font cache",
+    async () => {
+      const { office } = await fixture();
+      const options = vi.mocked(spawn).mock.calls[0]?.[2];
+      const profile = options?.env?.HOME;
+      expect(profile).toBeTruthy();
+      expect(options?.env?.FONTCONFIG_FILE).toBe(join(profile!, "fonts.conf"));
+      const config = await readFile(options!.env!.FONTCONFIG_FILE!, "utf8");
+      expect(config).toContain("<dir>/System/Library/Fonts</dir>");
+      expect(config).toContain("<dir>/Library/Fonts</dir>");
+      expect(config).toContain(
+        `<cachedir>${join(profile!, "font-cache")}</cachedir>`,
+      );
+      office.emit("error", new Error("test cleanup"));
+    },
+  );
+
   it("allows a slow first response while retaining the operation deadline afterwards", async () => {
     const { engine, bridge, office, release } = await fixture();
     const settled = vi.fn();

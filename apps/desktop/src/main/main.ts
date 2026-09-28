@@ -17,6 +17,7 @@ import { ThreadHistoryService } from "./thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
 import { statusText } from "../shared/status-text.js";
 import { uiText } from "../shared/ui-text.js";
+import { installWorkspaceHistoryShortcuts } from "./workspace-history-shortcuts.js";
 import {
   WorkspacePdfPreview,
   WORKSPACE_PDF_SCHEME,
@@ -217,6 +218,10 @@ function getOfficeWorkbench() {
         )
       : join(app.getAppPath(), "resources", "office-runtime", "catalog.json"),
     hostVersion: app.getVersion(),
+    canAutoSave: (threadId) => {
+      const thread = store?.getThread(threadId);
+      return !!thread && !thread.archived && thread.mode === "execute";
+    },
     dependents: async (version) =>
       ((await codexPluginService?.listInstalled()) ?? [])
         .filter((plugin) =>
@@ -9731,6 +9736,26 @@ function registerIpc(): void {
     },
   );
   ipcMain.handle(
+    IPC.officeOpen,
+    async (_event, threadId: string, path: string) => {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) throw new Error("Active task not found");
+      // Opening starts an engine and writes a working copy, even for preview.
+      if (thread.mode !== "execute")
+        throw new Error(`${thread.mode} mode rejects Office sessions`);
+      const context = await resolveThreadWorkspace(thread);
+      const workbench = await getOfficeWorkbench();
+      const current = store?.getThread(threadId);
+      if (!current || current.archived)
+        throw new Error("Active task not found");
+      return workbench.sessions.openFile(String(path ?? ""), {
+        workspacePath: context.workspacePath,
+        threadId,
+        mode: current.mode,
+      });
+    },
+  );
+  ipcMain.handle(
     IPC.officeSnapshot,
     async (_event, threadId: string, sessionId: string) => {
       if (!store?.getThread(threadId) || store.getThread(threadId)?.archived)
@@ -9738,6 +9763,61 @@ function registerIpc(): void {
       return (await getOfficeWorkbench()).sessions.snapshotForUi(
         sessionId,
         threadId,
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.officeEdit,
+    async (
+      _event,
+      threadId: string,
+      request: import("@artemis/protocol").ArtifactSessionRequest,
+    ) => {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) throw new Error("Active task not found");
+      if (thread.mode !== "execute")
+        throw new Error(`${thread.mode} mode rejects Office sessions`);
+      const context = await resolveThreadWorkspace(thread);
+      const workbench = await getOfficeWorkbench();
+      const current = store?.getThread(threadId);
+      if (!current || current.archived)
+        throw new Error("Active task not found");
+      return workbench.sessions.executeFromUi(request, {
+        threadId,
+        workspacePath: context.workspacePath,
+        mode: current.mode,
+      });
+    },
+  );
+  ipcMain.handle(
+    IPC.workspaceCsvSave,
+    async (
+      _event,
+      threadId: string,
+      path: string,
+      content: string,
+      expectedContent: string,
+    ) => {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) throw new Error("Active task not found");
+      if (thread.mode !== "execute")
+        throw new Error(`${thread.mode} mode rejects CSV edits`);
+      if (
+        typeof path !== "string" ||
+        !/\.csv$/iu.test(path) ||
+        typeof content !== "string" ||
+        typeof expectedContent !== "string"
+      )
+        throw new Error("Invalid CSV save request");
+      const context = await resolveThreadWorkspace(thread);
+      const current = store?.getThread(threadId);
+      if (!current || current.archived || current.mode !== "execute")
+        throw new Error("CSV editing is no longer allowed");
+      return writeWorkspaceFile(
+        context.workspacePath,
+        path,
+        content,
+        expectedContent,
       );
     },
   );
@@ -9760,25 +9840,14 @@ function registerIpc(): void {
     },
   );
   ipcMain.handle(IPC.officeCapabilityStatus, async () => {
-    const workbench = await getOfficeWorkbench();
-    const status = await workbench.packs.status();
-    const available = workbench.catalog.manifests.find(
-      (manifest) =>
-        manifest.platform === process.platform &&
-        manifest.arch === process.arch,
-    );
-    return {
-      ...status,
-      ...(available ? { availableVersion: available.version } : {}),
-    };
+    return (await getOfficeWorkbench()).status();
+  });
+  ipcMain.handle(IPC.officeCapabilityCheckUpdates, async () => {
+    await (await getOfficeWorkbench()).updates.check();
   });
   ipcMain.handle(IPC.officeCapabilityInstall, async () => {
     const workbench = await getOfficeWorkbench();
-    const manifest = workbench.catalog.manifests.find(
-      (candidate) =>
-        candidate.platform === process.platform &&
-        candidate.arch === process.arch,
-    );
+    const manifest = workbench.updates.available();
     if (!manifest)
       throw new Error(
         "No verified Office capability release is available for this platform yet. Lite workflows remain available.",
@@ -9787,25 +9856,16 @@ function registerIpc(): void {
   });
   ipcMain.handle(IPC.officeCapabilityImport, async () => {
     const selected = await dialog.showOpenDialog({
-      title: "Import signed Office capability manifest",
+      title: "Import Office offline pack",
       properties: ["openFile"],
-      filters: [{ name: "Signed manifest", extensions: ["json"] }],
+      filters: [
+        { name: "Office offline pack", extensions: ["artemis-office"] },
+      ],
     });
     if (selected.canceled || !selected.filePaths[0]) return;
-    if ((await stat(selected.filePaths[0])).size > 16 * 1024 * 1024)
-      throw new Error("Capability manifest is too large");
-    const manifest = JSON.parse(
-      await readFile(selected.filePaths[0], "utf8"),
-    ) as unknown;
-    const archive = await dialog.showOpenDialog({
-      title: "Select Office capability ZIP",
-      properties: ["openFile"],
-      filters: [{ name: "Office capability", extensions: ["zip"] }],
-    });
-    if (archive.canceled || !archive.filePaths[0]) return;
     await (
       await getOfficeWorkbench()
-    ).packs.install(manifest, archive.filePaths[0]);
+    ).packs.installOffline(selected.filePaths[0]);
   });
   ipcMain.handle(IPC.officeCapabilityCancel, async () =>
     (await getOfficeWorkbench()).packs.cancel(),
@@ -16641,6 +16701,27 @@ function createMainWindow(): BrowserWindow {
     // Set the final content viewport before React initializes its sidebar state.
     window.setContentSize(smokeWidth, smokeHeight);
   }
+  let editorsFlushed = false;
+  let flushingEditors = false;
+  window.on("close", (event) => {
+    if (editorsFlushed || hookSessionsEnded || window.webContents.isDestroyed())
+      return;
+    event.preventDefault();
+    if (flushingEditors) return;
+    flushingEditors = true;
+    void window.webContents
+      .executeJavaScript("window.artemisFlushWorkspaceEdits?.()")
+      .then(() => {
+        editorsFlushed = true;
+        window.close();
+      })
+      .catch((error: unknown) => {
+        dialog.showErrorBox("Document save failed", String(error));
+      })
+      .finally(() => {
+        flushingEditors = false;
+      });
+  });
   window.on("closed", () => {
     if (mainWindow === window) {
       computerUseHost?.service.stopAll("Artemis window closed");
@@ -16726,6 +16807,7 @@ function createMainWindow(): BrowserWindow {
     "index.html",
   );
   const rendererEntry = devServer ?? pathToFileURL(productionEntry).href;
+  installWorkspaceHistoryShortcuts(window.webContents);
   window.webContents.on("will-navigate", (event, url) => {
     if (!isRendererNavigationAllowed(url, rendererEntry, Boolean(devServer))) {
       event.preventDefault();
@@ -22523,24 +22605,33 @@ app.on("before-quit", (event) => {
   computerUseHost?.dispose();
   if (
     !hookSessionsEnded &&
-    ((openedThreads.size && canRunLicensed()) || officeWorkbench)
+    ((openedThreads.size && canRunLicensed()) || officeWorkbench || mainWindow)
   ) {
     event.preventDefault();
     if (!endingHookSessions) {
       endingHookSessions = true;
-      shuttingDown = true;
-      hooksService?.dispose();
-      void Promise.allSettled([
-        ...(canRunLicensed()
-          ? [...openedThreads].map((id) => endHookSession(id))
-          : []),
-        officeWorkbench?.then(async (workbench) => {
-          workbench.packs.cancel();
-          await workbench.sessions.dispose();
-        }),
-      ]).finally(() => {
+      void (async () => {
+        if (mainWindow && !mainWindow.webContents.isDestroyed())
+          await mainWindow.webContents.executeJavaScript(
+            "window.artemisFlushWorkspaceEdits?.()",
+          );
+        shuttingDown = true;
+        hooksService?.dispose();
+        await Promise.allSettled([
+          ...(canRunLicensed()
+            ? [...openedThreads].map((id) => endHookSession(id))
+            : []),
+          officeWorkbench?.then(async (workbench) => {
+            workbench.packs.cancel();
+            await workbench.sessions.dispose();
+          }),
+        ]);
         hookSessionsEnded = true;
         app.quit();
+      })().catch((error: unknown) => {
+        endingHookSessions = false;
+        shuttingDown = false;
+        dialog.showErrorBox("Document save failed", String(error));
       });
     }
     return;
