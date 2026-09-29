@@ -5,7 +5,7 @@ Hooks are explicitly trusted local command scripts attached to the existing Pi l
 ## Configure and authorize
 
 1. Create `~/.artemis/hooks.json` for all local projects, or `<workspace>/.artemis/hooks.json` for one project. For managed worktrees, use that worktree's configuration.
-2. Put managed scripts in the sibling `hooks/` directory. Copy the [examples](examples/hooks/hooks.json), placing the three `.mjs` scripts in `.artemis/hooks/`. The examples require Node.js; the completion example assumes an npm project with a `test` script.
+2. Put managed scripts in the sibling `hooks/` directory. Copy the [examples](../../examples/hooks/hooks.json), placing the three `.mjs` scripts in `.artemis/hooks/`. The examples require Node.js; the completion example assumes an npm project with a `test` script.
 3. Open **Settings → Hooks**. Project menus and installed plugin cards link to the same review surface. Execute tasks also show a pending-review notice above the composer.
 4. Inspect the source, command, matcher, working directory, timeout, script contents and changes. Select individual hooks, choose their authorization scope, then click **Trust and enable**. Nothing is selected automatically.
 5. Unchanged trusted hooks run automatically. New, changed or untrusted hooks are skipped, without repeatedly prompting. Approval never replays past events.
@@ -66,7 +66,7 @@ Combined stdout/stderr is limited to 256 KiB; exceeding it fails and terminates 
 
 ## Plugins
 
-A manifest may declare `"hooks": "./hooks/hooks.json"`, an array of relative paths, an inline hooks object, or an array of inline objects. Without a declaration, `hooks/hooks.json` is discovered. Paths must remain inside the plugin root. Scripts receive `PLUGIN_ROOT`, `PLUGIN_DATA` and their `CLAUDE_PLUGIN_*` aliases. The [example plugin](examples/hooks/plugin/.codex-plugin/plugin.json) supplies a session-start hook. Installing it does not authorize it.
+A manifest may declare `"hooks": "./hooks/hooks.json"`, an array of relative paths, an inline hooks object, or an array of inline objects. Without a declaration, `hooks/hooks.json` is discovered. Paths must remain inside the plugin root. Scripts receive `PLUGIN_ROOT`, `PLUGIN_DATA` and their `CLAUDE_PLUGIN_*` aliases. The [example plugin](../../examples/hooks/plugin/.codex-plugin/plugin.json) supplies a session-start hook. Installing it does not authorize it.
 
 ## Verification
 

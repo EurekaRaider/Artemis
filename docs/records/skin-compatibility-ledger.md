@@ -1,15 +1,12 @@
 # Artemis Skin v1 compatibility ledger
 
-Status: Skin v1 compatibility remains fixed through merged MIG5B base
-`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 is Draft PR #147. Its sole
-post-PR review completed on initial source head `ebe6741`; CI run `33768726913`
-passed the full macOS arm64 and Windows x64 convergence aggregates plus the
-Windows package boundary. Follow-up CI run `33818824213` repeated those arm64
-and Windows passes while macOS x64 identified the remaining screenshot-evidence
-case as a zoom-only duplicate now under repair. Fresh exact-head native CI and
-merge remain pending. SKIN1 has not started. This document records what is
-enforced now and which runtime behavior remains owned by later serialized
-milestones.
+Maintenance baseline: September 29, 2026. MIG6 merged as `fb571820` on September 4 and is included in the current main branch. The CL0–CL4 sections below preserve the scope and evidence of those milestones; their candidate/merged labels are historical, not a description of today's release readiness. No new SKIN1 acceptance is asserted by this documentation cleanup.
+
+## Ongoing UI review conventions
+
+Use the shared component and semantic token contracts for canvas, panels, popovers, controls, focus and hover states. Check light/dark themes, narrow windows, long labels, RTL, keyboard navigation, dismissal and focus restoration against the current renderer; old issue screenshots and pixel measurements are not a second source of truth.
+
+Keep valid, missing and corrupt attachment previews distinguishable, and reject late results from a previous task. Inspect renderer errors as well as screenshots. Synthetic local fixtures do not establish live-provider, cross-platform or final-package acceptance. Current validation entry points and evidence rules are in [CI maintenance](ci-reliability.md).
 
 ## v1 package contract
 
@@ -371,11 +368,7 @@ is approved:
 - marketplace, remote download, update, signing, or revocation;
 - arbitrary CSS, selector, JavaScript, React, or Electron extension points.
 
-They belong to the independent SKIN1 sequence after MIG6. The MIG6 candidate
-adds convergence governance and evidence only; it does not implement any item
-above. SKIN1 may start only after the exact MIG6 PR head passes native CI and
-merges. The one permitted post-PR review is already complete and remains scoped
-to initial head `ebe6741`; the combined repair will not receive a second review.
+They belong to the independent SKIN1 sequence after MIG6. MIG6 added convergence governance and evidence only; its merge did not implement these user-facing skin capabilities. A future SKIN1 change still needs its own approved scope and native acceptance evidence.
 A packable workspace tarball and an outside consumer proof are packaging tests,
 not publication or a user-install feature.
 

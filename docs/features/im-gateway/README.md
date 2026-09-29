@@ -10,7 +10,7 @@ IM 功能默认关闭。Gateway 可内置运行或独立部署；桌面通过认
 
 ## 独立部署（团队管理员）
 
-在第 1 步展开“高级”，点击“导出独立运行包”。把包复制到服务器并解压，安装 Node.js 24 或更新版本后，在解压目录执行：
+在服务设置中展开“高级”，点击“导出独立运行包”。把包复制到服务器并解压，安装 Node.js 24 或更新版本后，在解压目录执行：
 
 ```sh
 node gateway.mjs
@@ -30,7 +30,7 @@ node gateway.mjs
 
 飞书与 Lark 共用群协作实现，并分别使用对应区域 API：分页读取人类成员，接收成员加入、移除、主动退出、机器人进群、机器人被移出及群解散事件。机器人被移出或群解散后，当前群授权停用；旧于授权的事件不能停用新的授权。长连接与签名 HTTPS 回调均处理这些事件。
 
-启用 `im:chat:readonly`、`im:chat.members:read`，并订阅 `im.chat.member.user.added_v1`、`im.chat.member.user.deleted_v1`、`im.chat.member.user.withdrawn_v1`、`im.chat.member.bot.added_v1`、`im.chat.member.bot.deleted_v1`、`im.chat.disbanded_v1`，发布应用后生效。
+群与成员权限、完整事件订阅及扫码最小权限见[飞书 / Lark 权限清单](feishu-scan-permissions.md)，发布应用后生效。
 
 官方成员接口不返回机器人，目录显示为不完整。其他机器人通过已认证的群消息发现；观察到身份不等于获得派工权限。主人允许派工后，系统发起指定机器人的 IM 往返验证，验证成功才允许自动委派。接收方还需配置包含机器人消息的群 @ 接收权限；具体应用及区域是否可用，以开发者后台和双机器人实测为准。人类复制协议文本不能派工，普通机器人文本不会直接启动任务。
 
@@ -42,14 +42,14 @@ node gateway.mjs
 
 ## 配置桌面与平台
 
-桌面“消息接入”设置内置三步引导（连接服务 → 接入渠道并绑定账号 → 项目与协作权限），并提供可选测试任务、平台字段说明、成功标志、可复制的配对与测试指令，以及常见问题排查；完成后进入连接概览。团队成员请让服务管理员协助输入管理凭据，不要在群里传递管理员密钥。
+桌面“消息接入”设置按服务与项目、渠道管理组织两栏，渠道详情中完成机器人配置、本人配对和收发验证；群授权使用独立管理入口。服务已连接、机器人已连接、账号已配对和项目已授权分别计算，不能用一个成功状态替代其余步骤。团队成员请让服务管理员协助输入管理凭据，不要在群里传递管理员密钥。
 
 1. 点击“一键启动并注册”。如果使用团队服务，展开手动注册表单填写管理员提供的地址和凭据。
-2. 在第②步“接入渠道”配置机器人；企业微信填写企业 ID、Bot ID / Secret，飞书默认长连接，填写 App ID / Secret 并选择飞书／Lark 区域——Tenant Key 与 Bot Open ID 可留空，保存后自动获取；选择 HTTPS 回调时额外填写 Verification Token、Encrypt Key。外部管理凭据不会保存；内置服务自动管理凭据，无需填写。机器人密钥只送到 Gateway 并加密保存。Slack 只需 Bot User OAuth Token 和 App-Level Token；工作区、应用和机器人编号自动识别。
+2. 在渠道详情配置机器人。飞书 / Lark 可扫码创建应用，也可手动填写 App ID / Secret 并选择区域；Tenant Key 与 Bot Open ID 可留空，保存后自动获取，HTTPS 回调额外填写 Verification Token、Encrypt Key。Slack 提供[本机 CLI 自动设置](slack-cli-setup.md)，也保留 Bot User OAuth Token 与 App-Level Token 手动输入，工作区、应用和机器人编号自动识别。企业微信填写企业 ID、Bot ID / Secret。外部管理凭据不会保存；内置服务自动管理凭据。机器人密钥只送到 Gateway 并加密保存。
 3. 企业微信由 Gateway 连接 `wss://openws.work.weixin.qq.com`，独占订阅智能机器人。请勿让其他客户端同时连接同一个 Bot ID。
 4. 飞书在开放平台订阅 `im.message.receive_v1` 和 `card.action.trigger`。长连接选择“使用长连接接收事件”，无需公网地址。HTTPS 回调的真实地址由 Gateway 提供，保存后在桌面复制（路径 `/channels/feishu/{connectionId}`）。同一连接只启用一种传输；修改配置会先关闭旧订阅。启用与实际单聊、@群消息及图片/文件资源相符的应用权限；发布应用版本并安装到对应企业。Bot Open ID 必须是本机器人稳定的 open_id，不能填写 App ID。事件签名、应用、企业及时间窗口均会校验。
 5. 保存机器人后自动生成配对码，也可手动更新；在**本人机器人单聊**发送配对指令，五分钟内有效。企业微信、飞书使用 `/pair 配对码`；Slack 使用普通消息 `pair 配对码`（不带 `/`，避免被 Slack 输入框拦截）。一个平台身份只能绑定一台设备，换设备前先解除旧绑定。
-6. 选择远程项目、默认项目、任务模式档位（Plan 只读分析 / Review 只读审查 / Execute 允许修改，Plan 与 Review 默认可读整个项目、不可写任何文件）、命令及网络权限、每次确认或范围内自动执行，点击“保存并启用”。这是两阶段组合入口：先保存授权，成功后再启用；启用失败会显示“授权已保存，连接未启用”并仅提供“重试启用”。选中首个项目时自动设为默认项目。连接尚未启用时也能刷新配对结果，此操作不会启动任务。
+6. 选择远程项目、默认项目、任务模式档位（Plan 只读分析 / Review 只读审查 / Execute 允许修改）、文件范围、命令及网络权限，以及每次确认或范围内自动执行，然后确认保存授权。底层先保存授权、成功后再启用；启用失败显示“授权已保存，连接未启用”，通过重试启用恢复。连接尚未启用时也能刷新配对结果，此操作不会启动任务。
 
 Execute 在本机沙箱启动、项目外读写探针通过后才能开放。当前远程工具集包含项目内读写、沙箱命令、澄清、计划和受限本地团队；远程 MCP、扩展、个人记忆、私有技能目录及完整桌面 shell 不开放。网络权限当前是沙箱命令的整体开关，不是按域名授权。
 
@@ -60,6 +60,12 @@ Execute 在本机沙箱启动、项目外读写探针通过后才能开放。当
 Slack 设置提供可复制的应用清单：在 Slack 创建应用时选择 From a manifest，可自动配置 Socket Mode、`message.im`、`app_mention` 以及 `chat:write`、`im:history`、`app_mentions:read`、`files:read`、`users:read`。`users:read` 用于通过 `bots.info` 校验并自动识别机器人。用户仍需在 Slack 安装应用到工作区，并创建带 `connections:write` 的 App-Level Token。每个 Slack 应用只连接一份 Gateway，且只绑定一个工作区连接；多工作区使用各自的应用，以免 Socket Mode 在多个连接间分配事件而漏收。两个令牌必须来自同一应用；Gateway 会校验机器人身份和 Socket Mode 握手中的应用 ID。Socket Mode 连接断开时自动重连，只在事件写入持久队列后确认接收。
 
 平台参考：[Slack Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/)、[Slack 应用清单](https://docs.slack.dev/reference/app-manifest/)、[企业微信智能机器人长连接](https://developer.work.weixin.qq.com/document/path/101463)、[飞书接收消息事件](https://open.feishu.cn/document/server-docs/im-v1/message/events/receive?lang=zh-CN)。
+
+## 设置维护约定
+
+取消、关闭或失败保留可恢复草稿；保存项目授权和启用服务是两个阶段，授权保存成功不等于连接已经启用。配对码过期禁止继续复制旧码；用户手动确认平台设置或“已收到回复”不作为系统端到端验收证据。已有连接、本人身份与群身份变化后重新计算就绪状态，不能保留失效的完成标记。
+
+项目授权仍按设备、项目和分享对象校验，渠道详情的显示分组不会自动产生渠道级隔离。完整权限、群授权事务和任务控制语义见[安全边界](../im-security/README.md)，原生群的功能与待验收范围见[原生群协作](native-groups.md)。
 
 ## 单聊命令
 

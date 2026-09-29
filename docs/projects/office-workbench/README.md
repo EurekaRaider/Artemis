@@ -1,6 +1,6 @@
 # Office 工作台技术验证与交付状态
 
-验证日期：2026-09-28。分支：`codex/office-workbench`，基于 `7134a85093a5822a0fc930f330efbc249d304021`。
+维护日期：2026-09-29。以下样本与候选包证据采集于 2026-09-28，原工作分支为 `codex/office-workbench`，基于 `7134a85093a5822a0fc930f330efbc249d304021`。相关实现已进入 main，当前客户端源码版本为 1.6.11。
 
 **当前状态：本轮 Windows 未签名候选包验收已完成。macOS arm64、托管 Windows 普通用户、Windows 11 非管理员服务账户均为 30/30 原生样本流程通过；两个 Windows 环境各 44 项回归与 12 项安装生命周期检查均通过。** macOS 最新报告为 `artifacts/office/probe-macos-startup/report.json`。这些结果不等于复杂格式保真或正式发行验收；`compatibilityAccepted` 和 `releaseAccepted` 仍为 `false`。
 
@@ -28,28 +28,28 @@ Windows Authenticode 证书不是验收前提。候选包使用明确允许未�
 
 使用全新隔离配置从公开 GitHub 地址完成真实在线安装（245,361,497 字节），安装器的正式签名、逐文件摘要及原生信任校验全部通过；随后从公开更新源检查得到当前 1.0.0 已是最新。匿名读取的更新目录与随宿主配置的文件逐字节相同。另用签名测试源验证发现新版、显式更新、检查失败和禁止降级；相关 92 项回归及桌面 typecheck 通过。浅色、深色和 390/800/1280 宽度的管理界面已实际渲染检查。
 
-本次公开运行时不代表复杂格式保真验收通过，历史报告中的 `releaseAccepted: false` 保持原样；原件覆盖继续禁用。正式版 v1.6.8 尚无 Office 工作台入口，用户需使用本分支构建或后续正式客户端。独立本地测试宿主已接入公开源，并保留此前离线测试包的公钥以兼容已有手动安装。
+公开运行时不代表复杂格式保真验收通过，历史候选报告中的 `releaseAccepted: false` 保持原样，不作为当前运行时是否公开发布的状态字段。客户端从 v1.6.9 起包含 Office 入口，v1.6.11 的批注选择和失败草稿恢复见[当前发布说明](../../records/release-notes.md)。独立本地测试宿主保留此前离线测试包公钥以兼容手动安装，生产信任根不因此扩大。
 
 ## 已实现与边界
 
-| 工作项 | 当前状态 |
-| --- | --- |
-| 三个插件共用可选 `office-core`，v1/v2 工具路由 | 已实现，插件安装测试验证依赖保留 |
-| 签名、平台、版本、摘要、限额、原子安装、离线复用同一验证路径 | 已用真实裁剪候选 ZIP 验证；候选密钥独立于生产信任根 |
-| 取消、修复、切换、单文件离线导入和卸载 | 已实现并有回归；显式卸载共享组件后恢复 Lite，在用文档仍受租约保护；异常断电遗留目录清理待补 |
-| Execute 边界、来源保护、版本去重、日志恢复和原件冲突保护 | 已实现并有回归 |
-| 原生 C++ UNO 桥、内存文档操作与 PDF 导出 | macOS arm64、Windows 管理员及安装候选包的普通用户均 30/30 |
-| 页面预览、区域批注、旧结果抑制、滚动与缩放 | 真实 Electron 渲染验证通过，数据为合成 IPC |
-| Windows 普通用户、用户数据目录及中文工作区路径 | 托管普通用户与 Windows 11 非管理员服务账户均已通过；后者不等同于桌面普通用户 |
-| 全局事件缺口恢复后的修改跟随 | 已实现并通过协议和 Electron 补快照回归 |
-| 外部文件保存后刷新 | 干净会话自动重载，脏会话保留草稿并报冲突 |
-| 幻灯片缩略图、工作表与页面映射、完整语言覆盖 | 已实现；Windows 候选包生成的 PDF 在真实 Electron 面板中通过复验 |
-| 主程序 CD 只验证并复用已有运行时资产 | 已接入只读脚本；空目录不启用增强能力 |
-| 轻量商店目录迁移和独立运行时发布 CD | 未发布、未完成正式发布链路 |
-| Windows 最终安装目录有效 ACL | 13,700 个目录/文件逐项通过；无非预期写入者 |
-| macOS Developer ID、公证 Accepted、staple | 2026-09-28 复验通过，Gatekeeper 接受；发布 ZIP 摘要保持不变 |
-| 候选包离线安装、启动、流式升级/回退 | 真实安装器已通过；流式传输使用本机 HTTP 测试端点 |
-| 公开 HTTPS 下载及生产目录 | macOS arm64 的 Office Runtime 1.0.0 已发布，真实公开下载、在线安装和检查更新均通过；客户端发布单独处理 |
+| 工作项                                                       | 当前状态                                                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| 三个插件共用可选 `office-core`，v1/v2 工具路由               | 已实现，插件安装测试验证依赖保留                                                                |
+| 签名、平台、版本、摘要、限额、原子安装、离线复用同一验证路径 | 已用真实裁剪候选 ZIP 验证；候选密钥独立于生产信任根                                             |
+| 取消、修复、切换、单文件离线导入和卸载                       | 已实现并有回归；显式卸载共享组件后恢复 Lite，在用文档仍受租约保护；异常断电遗留目录清理待补     |
+| Execute 边界、来源保护、版本去重、日志恢复和原件冲突保护     | 已实现并有回归                                                                                  |
+| 原生 C++ UNO 桥、内存文档操作与 PDF 导出                     | macOS arm64、Windows 管理员及安装候选包的普通用户均 30/30                                       |
+| 页面预览、区域批注、旧结果抑制、滚动与缩放                   | 真实 Electron 渲染验证通过，数据为合成 IPC                                                      |
+| Windows 普通用户、用户数据目录及中文工作区路径               | 托管普通用户与 Windows 11 非管理员服务账户均已通过；后者不等同于桌面普通用户                    |
+| 全局事件缺口恢复后的修改跟随                                 | 已实现并通过协议和 Electron 补快照回归                                                          |
+| 外部文件保存后刷新                                           | 干净会话自动重载，脏会话保留草稿并报冲突                                                        |
+| 幻灯片缩略图、工作表与页面映射、完整语言覆盖                 | 已实现；Windows 候选包生成的 PDF 在真实 Electron 面板中通过复验                                 |
+| 主程序 CD 与独立运行时发布                                   | 主程序复用已有运行时；运行时验证由独立工作流负责                                                |
+| 轻量商店目录迁移                                             | 与运行时公开发布分别验收；本记录未提供迁移完成证据                                              |
+| Windows 最终安装目录有效 ACL                                 | 13,700 个目录/文件逐项通过；无非预期写入者                                                      |
+| macOS Developer ID、公证 Accepted、staple                    | 2026-09-28 复验通过，Gatekeeper 接受；发布 ZIP 摘要保持不变                                     |
+| 候选包离线安装、启动、流式升级/回退                          | 真实安装器已通过；流式传输使用本机 HTTP 测试端点                                                |
+| 公开 HTTPS 下载及生产目录                                    | macOS arm64 1.0.0 与 Windows x64 1.0.1 已公开发布；安装证据与限制见上文，客户端与运行时分别验收 |
 
 ## 固定输入与复现
 
@@ -77,10 +77,10 @@ Windows 使用 `office-bridge.exe`。官方输入的挂载、解包和编译步�
 
 [最终复验 CI](https://github.com/EurekaRaider/Artemis/actions/runs/36323202452) 的两个作业均通过。验收代码为 `a880d249d2bcab55b56a26256b51681966b158b4`，候选包构建代码为 `f49232f414e5f653cfd6c1e2c4476c05cca409c6`；两者之间仅调整测试和验收脚本，产品源码相同。两个环境先核对相同 ZIP 的实际 SHA-256，再通过生产 `CapabilityPackService` 安装，并使用生产 `UnoOfficeEngine` 执行。
 
-| 环境 | 账户 | 回归测试 | 安装生命周期 | 安装后原生样本 | 最终 ACL |
-| --- | --- | --- | --- | --- | --- |
-| Windows Server 2025 x64 / Build 26100 | 新建真实普通用户，非管理员 | 44 / 44 | 12 / 12 | 30 / 30 | 13,700 项，无非预期写入者 |
-| Windows 11 Pro x64 / Build 26200 | NETWORK SERVICE，非管理员 | 44 / 44 | 12 / 12 | 30 / 30 | 13,700 项，无非预期写入者 |
+| 环境                                  | 账户                       | 回归测试 | 安装生命周期 | 安装后原生样本 | 最终 ACL                  |
+| ------------------------------------- | -------------------------- | -------- | ------------ | -------------- | ------------------------- |
+| Windows Server 2025 x64 / Build 26100 | 新建真实普通用户，非管理员 | 44 / 44  | 12 / 12      | 30 / 30        | 13,700 项，无非预期写入者 |
+| Windows 11 Pro x64 / Build 26200      | NETWORK SERVICE，非管理员  | 44 / 44  | 12 / 12      | 30 / 30        | 13,700 项，无非预期写入者 |
 
 Windows 11 runner 的实际 SID 为 `S-1-5-20`。这是服务账户的真实客户端验证，不能称为 Windows 11 桌面普通用户验收。普通用户证据来自托管 Windows Server。两端均使用用户所属的 LocalAppData 安装目录和中文文档路径，Windows 11 的本次临时安装已清理。
 
@@ -94,14 +94,14 @@ Windows 11 runner 的实际 SID 为 `S-1-5-20`。这是服务账户的真实客�
 
 Artifact 配额已满，最终复验通过 CI 日志恢复托管端 100 个、客户端 99 个文件，逐个验证 SHA-256。大于 16 MiB 的 PDF 仅记录大小和摘要，不声称完整视觉验收。日志不包含引擎用户配置或候选私钥。主要报告位于：
 
-| 证据 | 本地路径 |
-| --- | --- |
-| 托管普通用户安装、生命周期和 ACL | `artifacts/office/windows-ci-36323202452-host/ordinary-user/report.json` |
-| 托管普通用户 30/30 | `artifacts/office/windows-ci-36323202452-host/ordinary-user/native/report.json` |
-| Windows 11 服务账户安装、生命周期和 ACL | `artifacts/office/windows-ci-36323202452-client/client/report.json` |
-| Windows 11 服务账户 30/30 | `artifacts/office/windows-ci-36323202452-client/client/native/report.json` |
-| 构建提交、验收提交及归档摘要绑定 | 两个最终目录中的 `evidence/identity.json` |
-| 管理员 30/30 | `artifacts/office/windows-ci-36321959853-host/probe/report.json` |
+| 证据                                    | 本地路径                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------- |
+| 托管普通用户安装、生命周期和 ACL        | `artifacts/office/windows-ci-36323202452-host/ordinary-user/report.json`        |
+| 托管普通用户 30/30                      | `artifacts/office/windows-ci-36323202452-host/ordinary-user/native/report.json` |
+| Windows 11 服务账户安装、生命周期和 ACL | `artifacts/office/windows-ci-36323202452-client/client/report.json`             |
+| Windows 11 服务账户 30/30               | `artifacts/office/windows-ci-36323202452-client/client/native/report.json`      |
+| 构建提交、验收提交及归档摘要绑定        | 两个最终目录中的 `evidence/identity.json`                                       |
+| 管理员 30/30                            | `artifacts/office/windows-ci-36321959853-host/probe/report.json`                |
 
 Electron 检查使用真实 PDF.js 和受控 IPC，验证过期结果抑制、批注源版本、滚动保留、缩略图、事件缺口恢复和工作表 PDF 页码映射；它不等同于完整 Artemis 主窗口的端到端验收。按用户最新要求，交付仅输出验收报告，不再处理或展示截图。
 
@@ -109,57 +109,57 @@ Electron 检查使用真实 PDF.js 和受控 IPC，验证过期结果抑制、�
 
 “流程通过”表示实际打开、局部修改、PDF 导出、保存副本、重开后目标核对通过；图片页检查位移，空页检查新插入文字。它不表示字体、样式、图片、图表、母版、动画、公式缓存等特性已经无损保留。
 
-| 样本 | macOS arm64 流程 | 格式保真 | Windows x64 |
-| --- | --- | --- | --- |
-| `word/2col-header.docx` | 通过 | 未验收 | 通过 |
-| `word/ImageCrop.docx` | 通过 | 未验收 | 通过 |
-| `word/EmbeddedExcelChart.docx` | 通过 | 未验收 | 通过 |
-| `word/TableWithAboveCaptions.docx` | 通过 | 未验收 | 通过 |
-| `word/dml-groupshape-runfonts.docx` | 通过 | 未验收 | 通过 |
-| `word/numbering-font.docx` | 通过 | 未验收 | 通过 |
-| `word/style-inheritance.docx` | 通过 | 未验收 | 通过 |
-| `word/tdf120344_FontTypes.docx` | 通过 | 未验收 | 通过 |
-| `word/table-style-border.docx` | 通过 | 未验收 | 通过 |
-| `word/section_break_numbering.docx` | 通过 | 未验收 | 通过 |
-| `slides/ShapePlusImage.pptx` | 通过 | 未验收 | 通过 |
-| `slides/font-scale.pptx` | 通过 | 未验收 | 通过 |
-| `slides/master-slides.pptx` | 通过 | 未验收 | 通过 |
-| `slides/onemaster-twolayouts.pptx` | 通过 | 未验收 | 通过 |
-| `slides/chart_pt_color_bg1.pptx` | 通过 | 未验收 | 通过 |
-| `slides/connector-shape-animations.pptx` | 通过 | 未验收 | 通过 |
-| `slides/smartart-org-chart.pptx` | 通过 | 未验收 | 通过 |
-| `slides/tableBorderLineStyle.pptx` | 通过 | 未验收 | 通过 |
-| `slides/shape-text-rotate.pptx` | 通过 | 未验收 | 通过 |
-| `slides/customshape-bitmapfill-srcrect.pptx` | 通过 | 未验收 | 通过 |
-| `sheets/fontSize.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/testDrawCircleInMergeCells.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/cond_format_formula_listener.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/tdf151755_stylesLostOnXLSXExport.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/TableStyleTest.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/image_hyperlink.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/hyperlink_formula.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/PivotTable_CachedDefinitionAndDataInSync.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/column-style-autofilter.xlsx` | 通过 | 未验收 | 通过 |
-| `sheets/chart_hyperlink.xlsx` | 通过 | 未验收 | 通过 |
+| 样本                                                   | macOS arm64 流程 | 格式保真 | Windows x64 |
+| ------------------------------------------------------ | ---------------- | -------- | ----------- |
+| `word/2col-header.docx`                                | 通过             | 未验收   | 通过        |
+| `word/ImageCrop.docx`                                  | 通过             | 未验收   | 通过        |
+| `word/EmbeddedExcelChart.docx`                         | 通过             | 未验收   | 通过        |
+| `word/TableWithAboveCaptions.docx`                     | 通过             | 未验收   | 通过        |
+| `word/dml-groupshape-runfonts.docx`                    | 通过             | 未验收   | 通过        |
+| `word/numbering-font.docx`                             | 通过             | 未验收   | 通过        |
+| `word/style-inheritance.docx`                          | 通过             | 未验收   | 通过        |
+| `word/tdf120344_FontTypes.docx`                        | 通过             | 未验收   | 通过        |
+| `word/table-style-border.docx`                         | 通过             | 未验收   | 通过        |
+| `word/section_break_numbering.docx`                    | 通过             | 未验收   | 通过        |
+| `slides/ShapePlusImage.pptx`                           | 通过             | 未验收   | 通过        |
+| `slides/font-scale.pptx`                               | 通过             | 未验收   | 通过        |
+| `slides/master-slides.pptx`                            | 通过             | 未验收   | 通过        |
+| `slides/onemaster-twolayouts.pptx`                     | 通过             | 未验收   | 通过        |
+| `slides/chart_pt_color_bg1.pptx`                       | 通过             | 未验收   | 通过        |
+| `slides/connector-shape-animations.pptx`               | 通过             | 未验收   | 通过        |
+| `slides/smartart-org-chart.pptx`                       | 通过             | 未验收   | 通过        |
+| `slides/tableBorderLineStyle.pptx`                     | 通过             | 未验收   | 通过        |
+| `slides/shape-text-rotate.pptx`                        | 通过             | 未验收   | 通过        |
+| `slides/customshape-bitmapfill-srcrect.pptx`           | 通过             | 未验收   | 通过        |
+| `sheets/fontSize.xlsx`                                 | 通过             | 未验收   | 通过        |
+| `sheets/testDrawCircleInMergeCells.xlsx`               | 通过             | 未验收   | 通过        |
+| `sheets/cond_format_formula_listener.xlsx`             | 通过             | 未验收   | 通过        |
+| `sheets/tdf151755_stylesLostOnXLSXExport.xlsx`         | 通过             | 未验收   | 通过        |
+| `sheets/TableStyleTest.xlsx`                           | 通过             | 未验收   | 通过        |
+| `sheets/image_hyperlink.xlsx`                          | 通过             | 未验收   | 通过        |
+| `sheets/hyperlink_formula.xlsx`                        | 通过             | 未验收   | 通过        |
+| `sheets/PivotTable_CachedDefinitionAndDataInSync.xlsx` | 通过             | 未验收   | 通过        |
+| `sheets/column-style-autofilter.xlsx`                  | 通过             | 未验收   | 通过        |
+| `sheets/chart_hyperlink.xlsx`                          | 通过             | 未验收   | 通过        |
 
 ## 计时与体积
 
 以下为完整 30 份样本的单次测量，P95 使用 nearest-rank；每类只有 10 份，故此处 P95 等于该类最大值。`snapshotMs` 从修改开始计时，包含操作确认，表中记为“操作加快照”，不是纯快照耗时。
 
-| 平台 / 账户 | 格式 | 流程通过 | 原生操作确认 P95 | 操作加快照 P95 | 原生 PDF 导出 P95 |
-| --- | --- | --- | --- | --- | --- |
-| macOS arm64 | Word | 10 / 10 | 23.40 ms | 51.71 ms | 24.98 ms |
-| macOS arm64 | PowerPoint | 10 / 10 | 19.99 ms | 28.45 ms | 26.99 ms |
-| macOS arm64 | Excel | 10 / 10 | 0.59 ms | 16.65 ms | 700.44 ms |
-| 托管 Windows 管理员 | Word | 10 / 10 | 91.16 ms | 209.96 ms | 57.35 ms |
-| 托管 Windows 管理员 | PowerPoint | 10 / 10 | 75.95 ms | 98.78 ms | 44.98 ms |
-| 托管 Windows 管理员 | Excel | 10 / 10 | 2.10 ms | 74.07 ms | 3264.85 ms |
-| 托管 Windows 候选包普通用户 | Word | 10 / 10 | 264.62 ms | 473.62 ms | 237.10 ms |
-| 托管 Windows 候选包普通用户 | PowerPoint | 10 / 10 | 122.93 ms | 179.03 ms | 77.79 ms |
-| 托管 Windows 候选包普通用户 | Excel | 10 / 10 | 4.03 ms | 87.74 ms | 3302.11 ms |
-| Windows 11 服务账户 | Word | 10 / 10 | 56.55 ms | 115.56 ms | 84.40 ms |
-| Windows 11 服务账户 | PowerPoint | 10 / 10 | 43.03 ms | 60.93 ms | 69.00 ms |
-| Windows 11 服务账户 | Excel | 10 / 10 | 1.30 ms | 43.87 ms | 2626.29 ms |
+| 平台 / 账户                 | 格式       | 流程通过 | 原生操作确认 P95 | 操作加快照 P95 | 原生 PDF 导出 P95 |
+| --------------------------- | ---------- | -------- | ---------------- | -------------- | ----------------- |
+| macOS arm64                 | Word       | 10 / 10  | 23.40 ms         | 51.71 ms       | 24.98 ms          |
+| macOS arm64                 | PowerPoint | 10 / 10  | 19.99 ms         | 28.45 ms       | 26.99 ms          |
+| macOS arm64                 | Excel      | 10 / 10  | 0.59 ms          | 16.65 ms       | 700.44 ms         |
+| 托管 Windows 管理员         | Word       | 10 / 10  | 91.16 ms         | 209.96 ms      | 57.35 ms          |
+| 托管 Windows 管理员         | PowerPoint | 10 / 10  | 75.95 ms         | 98.78 ms       | 44.98 ms          |
+| 托管 Windows 管理员         | Excel      | 10 / 10  | 2.10 ms          | 74.07 ms       | 3264.85 ms        |
+| 托管 Windows 候选包普通用户 | Word       | 10 / 10  | 264.62 ms        | 473.62 ms      | 237.10 ms         |
+| 托管 Windows 候选包普通用户 | PowerPoint | 10 / 10  | 122.93 ms        | 179.03 ms      | 77.79 ms          |
+| 托管 Windows 候选包普通用户 | Excel      | 10 / 10  | 4.03 ms          | 87.74 ms       | 3302.11 ms        |
+| Windows 11 服务账户         | Word       | 10 / 10  | 56.55 ms         | 115.56 ms      | 84.40 ms          |
+| Windows 11 服务账户         | PowerPoint | 10 / 10  | 43.03 ms         | 60.93 ms       | 69.00 ms          |
+| Windows 11 服务账户         | Excel      | 10 / 10  | 1.30 ms          | 43.87 ms       | 2626.29 ms        |
 
 Calc 批量读取将本机大表格的操作加快照从此前约 2.91 秒降至 16.65 ms；托管 Windows 普通用户从此前约 19.0 秒降至 87.74 ms。大表格的 Windows 原生 PDF 导出仍约 2.6–3.3 秒。以上不包含完整宿主队列、IPC、PDF.js 解码和屏幕呈现，**不能宣布 UI 状态 P95 ≤ 300 ms 或可见内容 P95 ≤ 1 秒达标**。
 
@@ -176,17 +176,17 @@ Windows 实际候选 ZIP 为 479,661,270 字节（457.44 MiB），展开 1,523,4
 - 原有主分支的热力图 tooltip 样式与 CSS 契约存在三处差异。本分支只将契约更新到已存在的 `width: max-content`、`white-space: normal`、`overflow-wrap: anywhere`，没有改变该 UI 或提高性能预算。
 - 生产 catalog 已包含 macOS arm64 与 Windows x64 的正式签名清单和更新源。临时候选密钥不会加入生产信任根，自动化验证继续使用独立用户目录。
 
-## 发布前流程
+## 后续发行约定与剩余验收
 
-此节是正式发布仍需实现和验收的约定，不表示已经有可用的签名发行包。
+现有 Runtime 已公开发行。以下是后续版本的发行约定及尚未闭合的验收，已完成的签名、归档和发布步骤不再作为现有版本待办。
 
 1. 对已通过流程的固定样本逐项核对复杂特性与像素保真，并测量真实宿主 UI 延迟；Windows 10 和 Windows 11 桌面普通用户尚未验收。生产原件覆盖继续禁用。
-2. Windows 已完成裁剪候选包和中文路径验收；仍需制作 macOS arm64 最终能力包，补充字体缺失、文件占用、引擎崩溃与干净系统检查。异常断电遗留目录自动清理仍待完成。
+2. macOS arm64 最终能力包及 Windows x64 运行时已完成发行；仍需补充字体缺失、文件占用、引擎崩溃与干净系统检查。异常断电遗留目录自动清理仍待完成。
 3. macOS 组织成 `ArtemisOfficeRuntime.app`，依次完成嵌套代码和外层 Developer ID 签名、Hardened Runtime、公证 Accepted、对 app staple、离线验证，再生成最终 ZIP。Windows 校验清单中明确声明的签名或未签名策略、最终安装目录 ACL 和真实执行；无需为候选包购买签名证书。
 4. 以最终字节生成逐文件清单、归档摘要及 Ed25519 签名。把可信公钥和经双平台验收的清单加入宿主目录；不能让离线包自行信任其公钥。
 5. 创建独立 `office-runtime-vX.Y.Z` Release，明确 `make_latest: false`。发布前后读取 `/releases/latest`，证明主程序更新目标没有变化；已发布同版本内容必须一致，禁止覆盖。
 6. 运行时 CD 按源文件、依赖和产物配置版本触发。保存构建摘要、签名产物、公证 submission ID 与成功回执、staple 后最终归档摘要及上传资产 ID。失败重跑先校验并复用完成阶段，不能重新签名或重新打包已发布产物。
-7. 轻量插件与 Skills 放入 `EurekaRaider/ArtemisRelease:main` 的商店目录；大型运行时只在独立 Release 中。普通主程序 CD 继续只读验证固定版本资产，不重新生成能力包。
-8. 从真实下载和安装路径验收首次下载、中断/取消重试、缓存复用、离线导入、升级、回退和共享卸载后，才开放功能及原件写入。
+7. 轻量插件与 Skills 放入 `EurekaRaider/ArtemisRelease:main` 的商店目录；大型运行时只在独立 Release 中。普通主程序 CD 复用运行时，运行时验证由独立工作流负责。
+8. 后续版本继续从真实下载和安装路径验收首次下载、中断/取消重试、缓存复用、离线导入、升级、回退和共享卸载。开放原件写入还须独立满足复杂格式保真及冲突保护门槛。
 
-在上述原生门槛通过前，不合并为已验收功能，不公开发布能力包，不以简化预览或协议测试替代平台证据。
+已发行能力只承诺相应版本明确验证的范围；新增能力不得在对应门槛通过前宣称完成，不以简化预览或协议测试替代平台证据。

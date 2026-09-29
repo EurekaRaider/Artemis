@@ -5,7 +5,7 @@
 ## 配置与授权
 
 1. 用户级配置放在 `~/.artemis/hooks.json`，项目级配置放在当前工作区的 `.artemis/hooks.json`。工作树读取自己的配置。
-2. 将受检测脚本放在同目录下的 `hooks/`。可以复制[示例配置](examples/hooks/hooks.json)，并将三个 `.mjs` 文件放入 `.artemis/hooks/`。示例需要 Node.js；完成检查示例需要项目提供 npm `test` 脚本。
+2. 将受检测脚本放在同目录下的 `hooks/`。可以复制[示例配置](../../examples/hooks/hooks.json)，并将三个 `.mjs` 文件放入 `.artemis/hooks/`。示例需要 Node.js；完成检查示例需要项目提供 npm `test` 脚本。
 3. 打开「设置 → 钩子」。项目菜单、已安装插件卡片和输入框上方的待审核提示都进入同一个审核界面。
 4. 查看来源、事件、匹配条件、完整命令、工作目录、超时、脚本内容和变更；主动勾选钩子，选择范围，点击「信任并启用」。不会自动全选。
 5. 未审核钩子跳过运行；已信任且未变化的钩子自动运行，不逐次确认。授权从下一个匹配事件生效，不补跑历史事件。
@@ -18,7 +18,7 @@ Plan、Review 不执行命令钩子，跳过钩子后仍可正常对话。Execut
 
 ## 命令接口
 
-配置采用 Codex 风格的「事件 → matcher → hooks」JSON 结构。参见[示例](examples/hooks/hooks.json)和[英文接口表](hooks.en.md#configuration-and-command-protocol)。多个来源累加，同事件处理器并发执行，拒绝优先；多个参数改写发生冲突时阻止调用。
+配置采用 Codex 风格的「事件 → matcher → hooks」JSON 结构。参见[示例](../../examples/hooks/hooks.json)和[英文接口表](guide-en.md#configuration-and-command-protocol)。多个来源累加，同事件处理器并发执行，拒绝优先；多个参数改写发生冲突时阻止调用。
 
 `matcher` 使用有长度限制的 JavaScript 正则（不支持量化分组、环视、反向引用及超过两个重复量词）；省略、空串或 `*` 匹配全部。`UserPromptSubmit` 和 `Stop` 不使用 matcher。优先使用 Artemis 实际工具名；`shell` 也匹配 `Bash`，`write` 也匹配 `Write`、`Edit`。`tool_input` 保留 Artemis 参数结构及必需的审批元数据，因此这是明确的 Codex 风格兼容子集，并非所有工具脚本可以原样迁移。
 
@@ -43,7 +43,7 @@ stdout/stderr 合计上限 256 KiB，超限终止进程。模型反馈最多 10,
 
 ## 插件开发
 
-manifest 可通过 `hooks` 声明 `./` 开头的相对路径、路径数组、内联配置或内联配置数组；无声明则发现 `hooks/hooks.json`。路径必须留在插件根目录。脚本环境提供 `PLUGIN_ROOT`、`PLUGIN_DATA` 及对应 `CLAUDE_PLUGIN_*` 别名。[示例插件](examples/hooks/plugin/.codex-plugin/plugin.json)包含会话开始钩子，安装后仍需单独审核。
+manifest 可通过 `hooks` 声明 `./` 开头的相对路径、路径数组、内联配置或内联配置数组；无声明则发现 `hooks/hooks.json`。路径必须留在插件根目录。脚本环境提供 `PLUGIN_ROOT`、`PLUGIN_DATA` 及对应 `CLAUDE_PLUGIN_*` 别名。[示例插件](../../examples/hooks/plugin/.codex-plugin/plugin.json)包含会话开始钩子，安装后仍需单独审核。
 
 ## 验证
 

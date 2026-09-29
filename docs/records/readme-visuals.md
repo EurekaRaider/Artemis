@@ -58,7 +58,7 @@ Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插�
 
 ## 复现与验证
 
-先使用 Node 24 运行 `npm run build`。采集脚本使用现有 Playwright 的 Electron
+复现时使用与当前 CI 一致的 Node.js 26 运行 `npm run build`。采集脚本使用现有 Playwright 的 Electron
 接口；本次会话没有 Browser 插件，使用环境提供的 Playwright，未新增项目依赖。
 
 ```bash

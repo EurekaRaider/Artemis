@@ -1,83 +1,41 @@
 # 插件 OAuth v2 配对验收
 
-记录日期：2026-09-23。此记录区分代码验证、真实平台授权与安装包验证；目前不能作为发布完成证明。
+本记录保留 2026-09-23 已取得的代码、网络诊断证据和仍待补的真实平台验收。声明与信任规则见 [OAuth v2 功能文档](../../features/plugin-oauth/README.md)，此记录不能作为当前最终安装包或全部账号流程已经通过的证明。
 
-## 已完成的代码验证
+## 当前实现与配对基线
 
-- 新增纯数据 v2 契约和 `connector-oauth-v2` 能力要求。三类流程按声明执行；OAuth 引擎没有 Google、Microsoft、GitHub、Slack 平台分支，也不读取旧客户端配置文件。
-- 公网 HTTPS、实际连接时 DNS 检查和地址固定、禁止重定向、端点按用途隔离、发现结果限制、scope/issuer/resource/client 绑定、公共客户端注册和错误信息过滤。
-- 签名所有者参与凭据绑定；更新/卸载/取消使旧结果失效，覆盖信任校验期间发生更新的竞态。仅显示文案变化保留连接；QQ Mail 使用升级前相同的凭据哈希算法。
-- 现有弹窗展示应用、发布者来源、授权域名、权限、资源和后端；14 种语言增加通用文案，旧 OAuth 插件提示更新并禁止授权。
-- PluginShop 的 Gmail、Workspace、GitHub 迁移为 0.3.0。其他 OAuth 候选插件更新为未上架示例；QQ Mail、Figma 保留原版本和协议。
-- 四类声明示例、校验 CLI、双仓契约一致性检查、开发者后端协议、私钥/凭据 JSON 打包拒绝测试已交付。
+- 签名插件声明 v2 契约及 `connector-oauth-v2` 能力，宿主按声明执行 PKCE、Device Flow 和开发者后端流程；不读取旧 `connector-clients.json`。
+- 连接与执行绑定签名身份、内容摘要、配置、provider、scope、issuer、resource 和 client。更新、卸载、取消使旧异步结果失效；仅显示文案变化保留连接。
+- 公网端点、DNS 与实际地址、重定向、发现结果及错误信息按宿主网络规则校验。TUN/Fake-IP 使用加密 DNS 与真实公网 IP 固定连接，不通过允许保留地址绕过检查。
+- 宿主 OAuth 请求携带通用 User-Agent。普通服务器机密仍禁止进入插件；显式 `native-public` PKCE 可携带原生公共客户端可分发的兼容参数，仅用于 token 交换与刷新。
+- 该次修正对应 Gmail/Workspace 0.3.1，沿用原商城签名身份；宿主和插件均须更新后重新连接。旧“Google 一律不得带兼容 secret”的诊断结论已被此声明取代。
 
-## 测试及构建证据
+配对离线包为 `ArtemisPluginShop-offline-0.3.1.tar.gz`，SHA-256：`021b6cdb18739e64f7257bf3ed63c87b2ac914697ec417c7bc4c5e287d7cb297`。这是该轮验收输入，不代表最新商城版本。
 
-| 范围 | 结果与限制 |
-| --- | --- |
-| OAuth、签名信任、更新、UI、SDK、离线包相关测试 | 9 文件、88 项通过；包括 Device Flow、三种 MCP 注册方式、恶意端点/发现/重定向、issuer、scope、跨签名凭据复用、刷新取消及更新竞态 |
-| 固定宿主构建 | 先 bundle 宿主 OAuth 引擎，再生成并安装全新 provider 的签名插件；授权、实际 stdio MCP 工具调用、刷新、实例重建后读取凭据、断开及更新绑定均通过，宿主 bundle 哈希不变。授权服务和加密适配器使用测试替身，不代表原生安装包验收 |
-| 独立后端资源 | Device Flow 测试验证独立资源 token、无 secret 交换及资源变更失效；不代表实际第三方后端已部署或完成服务端安全审计 |
-| Artemis 类型检查与生产构建 | 全工作区类型检查及生产构建通过；最终服务改动后再次通过桌面类型检查和构建 |
-| Artemis `npm test` | 未全绿：前置 UI convergence 校验被现有 `.update-btn.downloaded` 样式组合阻断 |
-| 桌面串行回归 | 在 `apps/desktop` 执行 `vitest run --no-file-parallelism`：232 文件通过、4 文件失败、2 跳过；2232 测试通过、84 失败、12 跳过。失败位于 IM sandbox、IM flow derive、IM settings panel、task notification shutdown，未修改这些功能以消除失败 |
-| PluginShop `npm run check` | 通过：类型、30 项测试、构建、5 个插件签名、darwin-arm64 运行时冒烟、离线包验证和格式检查 |
-| 双仓规则一致性 | 两个契约源文件逐字比较通过（仅 `.ts`/`.js` 导入后缀归一化）；配对离线包导入、安装与签名信任校验通过 |
+## 已有证据
 
-离线包：`ArtemisPluginShop/dist/ArtemisPluginShop-offline-0.3.0.tar.gz`。
+| 范围                     | 已证明内容与限制                                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| 契约、信任、更新与离线包 | 初始 v2 回归 9 文件、88 项通过，覆盖 Device Flow、注册方式、端点及发现攻击、scope/issuer、凭据绑定、刷新取消和更新竞态 |
+| 固定宿主与全新签名插件   | 授权、stdio MCP 调用、刷新、凭据恢复及断开/更新绑定通过；授权服务和加密适配器为测试替身，不是原生安装包证据            |
+| Artemis 与 PluginShop    | 当轮类型检查、生产构建、双仓契约一致性、PluginShop 检查和配对导入通过                                                  |
+| TUN 连通性               | 修复后的网络层无凭据访问真实 Google/GitHub 端点获得 HTTP 响应；不等于授权成功                                          |
+| Google 兼容参数          | 使用故意无效的授权码/刷新令牌返回 `invalid_grant`，不再提示缺少 `client_secret`；只证明参数检查通过                    |
 
-SHA-256：`9edaee392b7f95c922b648fa76a889112dd3fb5e3ed4f63e3715fa399b4ce586`。
+该轮 Artemis 全量检查曾受 UI convergence 和 IM 等既有失败影响；当时串行 desktop 为 232 文件通过、4 文件失败、2 跳过。历史失败不直接表明当前源码仍失败，历史局部通过也不替代最终配对版本的质量门禁。
 
-商城继续使用原有签名身份，没有生成或替换发布者密钥。没有提交、推送或发布。
+## 待验收
 
-## 真实平台：按用户要求延期
+真实账号验收此前按用户要求延期，尚无在此记录中补齐的完成证据：
 
-使用隔离 Electron 配置和系统 safeStorage，安装已签名 Gmail 插件后打开了真实 Google 授权页面。凭据交换被公网地址校验阻断：本机代理 DNS 将 Google/GitHub 解析为 `198.18.x.x` 保留地址。没有放宽网络规则，也没有加入 client secret。
+1. Gmail 和 Workspace 分别完成授权、同账户约束、按 `native-public` 声明刷新、受控读写及撤销。
+2. GitHub 真实 Device Flow、账号查询、MCP 读写、重授权和撤销。
+3. 实际开发者后端或独立模拟部署的 audience、token 轮换与撤销端到端验收。
+4. 按所声明支持的平台，验证最终安装包的浏览器回调、系统加密、重启恢复、沙箱及不含旧客户端文件。已有构建配置排除不等于安装包检查已通过。
+5. 使用最终宿主与商城输入重跑两仓门禁，记录源码 SHA、插件签名、归档摘要与结果。
 
-**尚不能判断现有 Google Desktop 客户端能否无 secret 完成授权和刷新。** 用户决定先完成代码，将真实网络验收留待后续。重新测试前须使用返回真实公网地址的网络。
+## 重跑入口
 
-待补：
+在 Artemis 根目录执行类型检查、生产构建及 OAuth/Connector 相关回归；使用 `ARTEMIS_CONNECTOR_MARKETPLACE_ARCHIVE` 指向本次要验收的配对归档，勿沿用旧 0.3.0 文件名。在 PluginShop 执行 `npm run check` 和 `npm run verify:oauth-contract -- /path/to/Artemis`。
 
-1. Gmail 和 Workspace 分别授权、同账户约束、无 secret 刷新、受控读写及撤销。
-2. GitHub 真实 Device Flow、MCP 工具读写、重授权及撤销。
-3. 实际开发者后端或独立模拟部署的端到端 audience、token 轮换与撤销验收。
-4. macOS arm64/x64 和 Windows 最终安装包中的浏览器回调、OS 加密、重启恢复和不含平台客户端文件检查。当前仅证明构建配置排除这些文件，未宣称完成安装包验收。
-5. 修复上述全量检查阻断后，再执行两仓最终质量门禁。
-
-任何模拟测试、类型检查或源码构建都不代替这些发布条件。
-
-## 重跑命令
-
-Artemis 根目录：
-
-```sh
-npm run typecheck
-npm run build
-ARTEMIS_CONNECTOR_MARKETPLACE_ARCHIVE=/path/to/ArtemisPluginShop/dist/ArtemisPluginShop-offline-0.3.0.tar.gz npx vitest run apps/desktop/test/connector-service.test.ts apps/desktop/test/connector-contract.test.ts apps/desktop/test/connector-oauth-v2.test.ts apps/desktop/test/connector-oauth-network.test.ts apps/desktop/test/connector-oauth-parity.test.ts apps/desktop/test/codex-plugin-service.test.ts apps/desktop/test/connector-marketplace-acceptance.test.ts apps/desktop/test/plugin-connection-flow.test.tsx apps/desktop/test/mcp-oauth.test.ts
-```
-
-PluginShop：
-
-```sh
-npm run check
-npm run verify:oauth-contract -- /path/to/Artemis
-```
-
-## TUN 兼容修复补验（2026-09-23）
-
-用户确认使用 TUN。新增 Fake-IP 的加密 DNS 解析和真实公网 IP 固定连接；取消系统浏览器打开前的宿主 DNS 拦截。保持 TUN 开启，用实际修复后的网络层无凭据访问 Google token 和 GitHub device 端点，两者均返回 HTTP 响应（GET 返回 404 属于端点方法/路由响应，不是授权成功）。此前保留地址拦截已排除。
-
-真实账号授权/刷新仍遵循用户的延期决定。本次不将网络连通性验证记为真实 OAuth 验收。
-
-## 账号授权后的失败定位（2026-09-23）
-
-- GitHub：实际网络层未发送 User-Agent。无凭据 `/user` 对照请求无该头返回 403（响应明确要求 User-Agent），添加该头后返回预期的未登录 401。已为所有宿主 OAuth HTTP 请求补充通用 `User-Agent: Artemis`，不新增平台分支。修复后仍需重新完成真实授权才能证明账号查询和 MCP 均成功。
-- Google：对插件当前公开 client ID 使用故意无效的诊断码、不携带 secret 调用 token 端点，返回 400 / `invalid_request`，错误明确要求 `client_secret`。该注册不满足当前公共客户端交换方式，不能把浏览器回调成功算作授权完成。现有 Google 插件迁移仍为发布阻断项；不得通过恢复宿主/插件内置 secret 绕过，需要兼容注册或开发者后端。宿主已增加固定的具体错误提示，不显示原始服务端错误正文。
-
-## 后续修正：原生公共客户端兼容（用户已批准）
-
-本节取代上述 Google 无 secret 发布条件及禁止任何插件内 client secret 的旧结论。新增仅用于 PKCE 的 `native-public` 声明，允许原生公共客户端可分发兼容参数，继续禁止服务器机密。Gmail/Workspace 升级至 0.3.1，商城沿用原信任密钥重新签名；宿主和插件均需更新后重新连接。
-
-真实 Google token 端点使用故意无效的诊断授权码及刷新令牌，携带对应 Desktop 兼容参数后均返回 `invalid_grant`，不再返回缺少 `client_secret`。这仅证明客户端参数检查通过；真实账号的完整授权、刷新、读写及撤销仍待验收。
-
-离线包：`ArtemisPluginShop-offline-0.3.1.tar.gz`。SHA-256：`021b6cdb18739e64f7257bf3ed63c87b2ac914697ec417c7bc4c5e287d7cb297`。
+源码验证、网络诊断、真实账号验收和安装包验收分别记录。故意无效凭据的端点响应不能用来宣布真实授权、刷新或撤销成功。

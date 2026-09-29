@@ -225,11 +225,11 @@ Build third-party plugins and your own Git marketplace:
 [English guide](docs/features/plugin-marketplaces/guide-en.md) ·
 [中文开发指南](docs/features/plugin-marketplaces/README.md).
 Covers manifests, Skills, MCP, Connector/OAuth, signing, publishing and updates.
-See also [connector architecture and publisher setup](docs/connectors.md).
+See also [connector architecture and publisher setup](docs/features/connectors/README.md).
 
 ### Lifecycle hooks
 
-Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Execute mode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan and Review skip hooks and continue normally. See the [English guide](docs/hooks.en.md), [中文开发指南](docs/hooks.md), and [examples](docs/examples/hooks/hooks.json).
+Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Execute mode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan and Review skip hooks and continue normally. See the [English guide](docs/features/hooks/guide-en.md), [中文开发指南](docs/features/hooks/README.md), and [examples](docs/examples/hooks/hooks.json).
 
 ### Parallel Agents
 
@@ -244,7 +244,7 @@ idle task's composer or enable automatic delegation for eligible definitions.
 Each accepted instance keeps a fixed definition and tool-policy snapshot.
 Access stays within the task mode, parent permissions and specialist policy;
 revocation blocks further calls. Unavailable definitions return an error.
-See [custom sub-agent details](docs/features/custom-subagents/implementation-status.md).
+See [custom sub-agent details](docs/features/custom-subagents/README.md).
 
 ### IM access and native group collaboration
 
@@ -456,7 +456,7 @@ Manual language selections remain saved across restarts.
 Version 1.6.4 adds offline device-bound licensing with a persistent 14-language
 activation-page selector. The private license issuer is
 never included in client packages or public release assets. See the
-[offline licensing guide](docs/offline-licensing.md).
+[offline licensing guide](docs/features/offline-licensing/README.md).
 
 Version 1.6.3 restores plugin icons in conversation history immediately after
 restart, without requiring the skill menu to be opened. Saved DeepSeek Flash

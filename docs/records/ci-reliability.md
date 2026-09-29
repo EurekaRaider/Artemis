@@ -1,124 +1,39 @@
-# CI reliability audit — 2026-09-21
+# CI 与验证维护
 
-The latest failing main run was [35516126166](https://github.com/EurekaRaider/Artemis/actions/runs/35516126166), for `0d7209e1791dd8135187d643130bfd264919f079`.
-Its Windows visual, Windows sandbox, and macOS arm64 jobs passed. The two
-failures had independent causes:
+维护基线：2026-09-29，Artemis 1.6.11。执行入口以[根 package.json](../../package.json)、[CI 工作流](../../.github/workflows/ci.yml)和[Release 工作流](../../.github/workflows/release.yml)为准；本文件保留长期验证约定，不把历史测试数量或旧流水线耗时当作当前结果。
 
-- The Markdown renderer test required CI and React badges removed by a
-  README-only edit. Renderer examples now use fixed input. Tests no longer read the repository
-  README, including the release-version check.
-- The macOS x64 package scan attempted another Electron download and failed
-  with `getaddrinfo ENOTFOUND github.com`. The scan now packages the installed
-  Electron distribution already exercised by its native smoke checks. This
-  applies only to the host-architecture verification package, not cross-builds
-  or release configuration. Initial dependency installation still needs network.
+## 环境与检查入口
 
-## Recurring failures
+当前 CI 使用 Node.js 26，安装依赖运行 `npm ci`。本地复现应使用与目标 CI 相同的 Node 发行版、版本和平台；本机 Homebrew 原生库布局与 CI 不同造成的失败须单独诊断。
 
-| Runs                                                                                                                                                             | Evidence                                                                            | Treatment                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [35453149862](https://github.com/EurekaRaider/Artemis/actions/runs/35453149862), [35512822294](https://github.com/EurekaRaider/Artemis/actions/runs/35512822294) | CSS/source expectations and accessibility evidence no longer matched the changed UI | These checks catch changes in UI contracts. Update intended behavior and its evidence together; do not globally disable the contracts. Later main commits already repaired these failures.                                                                                                                                                                                                                    |
-| [35478491374](https://github.com/EurekaRaider/Artemis/actions/runs/35478491374), [35486744244](https://github.com/EurekaRaider/Artemis/actions/runs/35486744244) | Concurrent Goal smoke renderers exceeded their startup deadline                     | The existing main fix increased the initialization deadline within the aggregate workload budget. It is already present in this repair's base.                                                                                                                                                                                                                                                                |
-| [35491224206](https://github.com/EurekaRaider/Artemis/actions/runs/35491224206), [35503223593](https://github.com/EurekaRaider/Artemis/actions/runs/35503223593) | Windows renderer startup exceeded the 4-second warm maximum                         | Screenshot launches are serial. The first run measured 5793.1 ms for Chinese and 4381.3 ms for Japanese, while later launches were substantially faster. The later repair run reproduced first-use CJK delays. The harness gave every variant a fresh profile but classified all except the first English launch as warm. Measure a cold/warm pair for each variant instead of classifying by array position. |
+| 入口                                | 用途                                                     |
+| ----------------------------------- | -------------------------------------------------------- |
+| `npm test`                          | 构建、workspace 测试、皮肤/UI 契约、边界和性能等仓库检查 |
+| `npm run typecheck`                 | 核心及 UI 库构建后的工作区类型检查                       |
+| `npm run format:check`              | 按仓库 Prettier 配置检查格式；README 与原型有显式排除    |
+| `npm run verify:ci`                 | CI 聚合入口；以执行脚本决定顺序和依赖审计                |
+| `npm run verify:visual-convergence` | 构建后对候选提交运行真实 Electron 视觉及原生工作负载     |
+| `npm run test:im`                   | IM 策略、协议及集成回归                                  |
+| `git diff --check`                  | 变更中的空白错误                                         |
 
-The screenshot matrix now writes its complete manifest, including startup
-violations, before rejecting a performance failure. Previously that rejection
-prevented the aggregate manifest from being saved, although individual a11y
-files remained available. All performance thresholds remain unchanged.
+独立修改文档时检查本地链接、引用、格式和 diff；涉及图片、脚本、清单或原型时，还要执行对应消费者的验证。文档清理不能顺便放宽业务、权限或性能门禁。
 
-The repair's first remote run, [35557046786](https://github.com/EurekaRaider/Artemis/actions/runs/35557046786),
-also exposed a Windows shell permission test with a 30-second launcher budget.
-It returned empty output after 53.1 seconds including the preceding native file
-snapshot. Native helper compilation takes about 23 seconds per request on
-these runners, leaving little room for shell initialization. The functional
-test now allows 60 seconds for the launcher within a 180-second test deadline,
-and explicitly checks cancellation and exit status before checking output.
-The file-grant, protected-data and writeback assertions remain intact. Product
-shell timeouts and startup performance thresholds are unchanged; Windows-native
-CI is required to validate this test adjustment.
+## 当前工作流范围
 
-## Verification discipline
+常规 CI 的便携验证、Slack CLI 原生兼容、视觉收敛和 Hooks 原生检查分别在 macOS arm64 与 Windows x64 上运行。手动 `hooks_only=true` 可只运行 Hooks 验收。任务是否调度还受仓库、事件及来源条件限制；准确条件见工作流。
 
-- Run `npm run verify:ci` with Node 24 before publishing code changes.
-  README-only pushes and pull requests skip CI; the main pre-push hook also
-  skips these updates. README files are excluded from formatting checks.
-- Use fixed examples for renderer feature tests. Do not read the actual README
-  from CI tests or require its versions, badges, or copy to match code.
-- Run native visual checks from a clean checkout of the candidate SHA.
-  Local macOS results do not establish Windows or macOS x64 acceptance.
-- Inspect the failing step and uploaded evidence before retrying. An external
-  download failure and a failed application assertion require different fixes.
-- Require every job for the final remote SHA to pass. Cancellation by a newer
-  push is not a test failure; a historical failed SHA does not become repaired
-  when a different SHA passes.
+最终发布与普通 CI 是不同验收层次。Release 消费[当前中英文发布说明](release-notes.md)，并校验版本标题；此文件不能作为旧审计稿删除。Office Runtime 由独立发布流程维护，主程序发布复用已有运行时，不能据主程序 CI 推断运行时已经完成发布。
 
-These changes address confirmed causes and improve diagnosis. They do not
-promise that future regressions or hosted-runner/network failures cannot occur.
+## 失败诊断与证据
 
-## Cold and warm startup measurements
+- 先核对候选源码 SHA、构建摘要和原生环境，再分析失败步骤及上传产物。旧提交失败不会因另一个提交通过而自动变成通过。
+- 网络下载、运行时缺失、框架启动和应用断言失败分开定位。准备 Electron 运行时的时间不应混入渲染启动测量。
+- 冷启动使用新配置，热启动复用同一配置；语言、主题、缩放等变体按自己的冷/热配对记录，不能按数组次序把后续新配置算作热启动。
+- 失败时仍保留完整 manifest、计时、截图与诊断，不删除慢样本、不用无界重试掩盖问题。性能上限由当前预算文件管理。
+- 测试时间预算与产品性能预算不同。原生 helper 编译等环境开销可以单独解释，不能据此提高产品延迟阈值。
+- UI 契约变更同时更新预期行为与证据，不整体关闭 CSS、无障碍、renderer 边界或 Windows ACL 门禁。
+- Renderer 测试使用固定输入，不读取真实 README 去锁定版本、徽章或文案。删除重复检查前确认剩余覆盖和主动放弃的断言；读取源码的测试不自动等于无用。
+- macOS 本机、模拟 Gateway、协议测试和开发构建只能证明各自范围。Windows 最终运行路径的 ACL、macOS 签名/公证、真实账号和双机验收分别记录。
+- 发布结论必须对应最终远端 SHA、实际安装包和公开资产读回；未运行或被跳过的检查不能标为通过。
 
-[35557936054](https://github.com/EurekaRaider/Artemis/actions/runs/35557936054)
-reproduced Windows startup failures: Traditional Chinese took 4582.7 ms and
-Japanese 5304.8 ms; subsequent scaled Japanese took 918.7 ms. The previous
-harness created a new user profile for every variant while classifying only
-the first English launch as cold. Different fresh profiles and first-use locale
-resources were therefore compared against a warm-start ceiling.
-
-Manifest version 4 records two fixed launches per variant: a fresh-profile
-cold sample and a warm sample reusing the same profile. Both launches run the
-visual, accessibility and runtime-security assertions and retain their evidence.
-All 27 cold samples must satisfy the existing 10-second ceiling; all 27 warm
-samples (including English) must satisfy the existing 4-second ceiling and
-warm-outlier limit. There are no retries or discarded timing samples. The
-aggregate screenshot workload budget is 360 seconds for 54 launches, preserving
-the previous 180-second allowance per 27 launches. Missing, mismatched,
-slow-cold and slow-warm sample fixtures verify that the gate still fails closed.
-
-Renderer stage marks and navigation timing are retained in both samples to
-distinguish module loading, skin initialization, state retrieval and the first
-ready render. The 10-second cold ceiling is a failure guard, not a product
-latency target; passing it alone does not establish acceptable startup UX.
-
-## Runtime provisioning outside performance measurement
-
-In [35558702205](https://github.com/EurekaRaider/Artemis/actions/runs/35558702205),
-macOS x64 exhausted the screenshot workload deadline after completing only part
-of the matrix. Its output included `Downloading Electron binary...`. Electron
-43.2.0 no longer has a package postinstall; its `index.js` invokes `install.js`
-on the first `require("electron")` when the executable is absent. Thus `npm ci`
-does not guarantee a provisioned binary, and the first visual workload also
-paid the download/extraction cost. The orchestrator now prepares the runtime
-in a separate, bounded five-minute phase and records that duration separately.
-Per-launch performance limits remain unchanged. The subsequent run
-35559229807 still exhausted the 180-second aggregate deadline after provisioning
-completed, so the doubled matrix receives twice its former aggregate allowance.
-
-## First-profile database initialization
-
-Windows paired evidence from run 35558702205 put the slowest cold sample at
-5479 ms, including 4874 ms between diagnostics-ready and core-state-ready;
-its renderer initialization took about 525 ms. All warm samples passed, with
-a maximum of 872 ms. This identifies main-process state initialization as the
-next optimization target, rather than establishing a language-specific delay.
-
-Initial table and index creation now shares one transaction, retaining WAL,
-foreign keys and the existing versioned migrations. A regression test first
-reproduced partially committed schema after an incompatible table, then passed
-with atomic rollback. Twenty local fresh-database constructor samples improved
-from a 3.47 ms median to 1.87 ms; this microbenchmark is not proof of the Windows
-end-to-end improvement. A database-ready stage makes that remote measurement
-explicit.
-
-## Routine CI platform scope
-
-Per the owner's September 21 request, routine CI no longer schedules macOS x64.
-It retains portable checks, Windows native sandbox integration, Windows x64
-visual/package verification and macOS arm64 visual verification. The release
-workflow still builds Intel macOS artifacts when a release tag is pushed.
-
-At `1ae564379c9b9aee16fd2db372fcf96b77b0e2da`, run 35559859474 passed all four
-retained jobs. Only the still-running macOS x64 job was canceled at the owner's
-request. Windows fresh-profile renderer-ready timings were 714 ms median and
-1612 ms maximum across 27 samples; warm timings were 581 ms median and 789 ms
-maximum. Database initialization was at most 230 ms. These are CI stage timings,
-not a controlled cross-run comparison or installed-app click-to-ready timings.
+历史 CI 精简与故障修复的逐次记录保存在 Git 历史中。

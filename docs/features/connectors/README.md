@@ -80,7 +80,7 @@ sends are never automatically retried after an uncertain outcome.
 
 ## Publisher configuration
 
-OAuth v2 is configured entirely in the signed plugin. See the [v2 declaration and developer backend contract](features/plugin-oauth/README.md).
+OAuth v2 is configured entirely in the signed plugin. See the [v2 declaration and developer backend contract](../plugin-oauth/README.md).
 Artemis no longer reads `connector-clients.json`; packaging excludes legacy client files. Confidential server secrets remain forbidden. Explicit `native-public` PKCE declarations may include a distributable native-client compatibility secret, used only for token exchange and refresh. Google Desktop uses this declaration; real account authorization and refresh remain release acceptance requirements.
 
 Figma desktop and QQ Mail retain their non-OAuth configuration. Candidate services without validated registrations must remain outside the published marketplace.
@@ -105,4 +105,4 @@ ID or ask end users to register developer applications.
 
 ## Local validation
 
-The current implementation and outstanding live/platform evidence are recorded in the [OAuth v2 acceptance matrix](projects/plugin-oauth-acceptance/README.md). Earlier v1 test counts are not v2 acceptance evidence.
+The current implementation and outstanding live/platform evidence are recorded in the [OAuth v2 acceptance matrix](../../projects/plugin-oauth-acceptance/README.md). Earlier v1 test counts are not v2 acceptance evidence.
