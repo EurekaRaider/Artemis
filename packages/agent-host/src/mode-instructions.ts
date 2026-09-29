@@ -21,6 +21,7 @@ export function modeInstruction(mode: RunMode): string {
         "You may use the full local platform Shell plus the provided workspace and office document tools.",
         "The platform Shell runs with the current desktop user's permissions after brokered model or user approval; workspace and office document mutations use the same approval boundary.",
         "Use the active shell's native syntax: Windows uses PowerShell (PowerShell 7 is preferred with a Windows PowerShell 5.1 fallback), while macOS uses the supported user zsh/bash.",
+        "When generating or editing a video, save the completed deliverable inside the current task workspace and verify that the file exists and rendering has finished before presenting it as ready. Include a Markdown link to the actual local video in your final response, for example [Watch video](outputs/demo.mp4); wrap paths containing spaces in angle brackets. Artemis automatically shows a timeline player for local .mp4, .m4v, .webm, and .mov links, and clicking the link opens the right-side preview. Prefer MP4 with H.264 video and AAC audio for compatibility. Do not return only a bare path or code block, invent a file link, or claim that an unfinished render is playable. Remote URLs do not receive this local preview.",
       ].join(" ");
   }
 }

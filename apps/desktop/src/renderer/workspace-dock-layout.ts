@@ -1,7 +1,6 @@
 export const MIN_CONVERSATION_WIDTH = 320;
 export const MIN_WORKSPACE_DOCK_WIDTH = 320;
 export const DEFAULT_WORKSPACE_DOCK_WIDTH = 328;
-export const MAX_WORKSPACE_DOCK_WIDTH = 1_080;
 export const WORKSPACE_DOCK_RESIZER_WIDTH = 7;
 
 export interface WorkspaceDockWidthBounds {
@@ -24,10 +23,7 @@ export function workspaceDockWidthBounds(
       WORKSPACE_DOCK_RESIZER_WIDTH -
       Math.max(0, reservedWorkspaceWidth),
   );
-  const max = Math.max(
-    MIN_WORKSPACE_DOCK_WIDTH,
-    Math.min(MAX_WORKSPACE_DOCK_WIDTH, availableMaximum),
-  );
+  const max = Math.max(MIN_WORKSPACE_DOCK_WIDTH, availableMaximum);
   return {
     min: MIN_WORKSPACE_DOCK_WIDTH,
     max,

@@ -8899,12 +8899,11 @@ kbd {
 }
 
 .view-notice {
-  left: 50%;
-  max-width: min(960px, calc(100vw - 40px));
-  position: fixed;
-  top: 72px;
-  transform: translateX(-50%);
-  z-index: 30;
+  align-self: center;
+  flex: 0 0 auto;
+  margin: 12px 20px 0;
+  max-width: 960px;
+  width: calc(100% - 40px);
 }
 
 .transient-notice.error {
@@ -11514,11 +11513,6 @@ kbd {
   border-top: var(--artemis-border-width-default) solid
     var(--artemis-color-border-default);
   padding-top: var(--artemis-space-4);
-}
-
-.custom-agent-dialog .custom-agent-model-select [data-part="menu"] {
-  inset-block-start: auto;
-  inset-block-end: calc(100% + var(--artemis-space-1));
 }
 
 .custom-agent-dialog-section:first-of-type {

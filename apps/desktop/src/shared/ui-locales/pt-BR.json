@@ -1616,5 +1616,10 @@
   "Hooks.title": "Hooks",
   "Hooks.review": "Revisar hooks",
   "Hooks.pendingNotice": "{{count}} hooks precisam de revisão. Eles ainda não estão ativados.",
-  "Hooks.skipped": "Hooks de comando não são executados em tarefas Plan, Review ou IM."
+  "Hooks.skipped": "Hooks de comando não são executados em tarefas Plan, Review ou IM.",
+  "Video.loading": "Carregando vídeo…",
+  "Video.unavailable": "O vídeo está indisponível, ausente ou ainda não está pronto. Tente novamente quando o arquivo estiver pronto.",
+  "Video.decodeFailed": "O vídeo está danificado ou usa um codec não compatível.",
+  "Video.retry": "Tentar novamente",
+  "WorkspaceFilesPanel.fileTooLarge": "O arquivo excede o limite de pré-visualização de {{limit}} MiB. Divida-o, reduza seu tamanho ou abra-o em outro aplicativo."
 }

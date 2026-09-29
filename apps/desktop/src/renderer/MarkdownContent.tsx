@@ -10,6 +10,11 @@ import {
 } from "react";
 
 import { workspaceFileLinkIcon } from "./seti-file-icon.js";
+import type { AppLocale } from "@artemis/protocol";
+import {
+  isLocalVideoHref,
+  MarkdownVideoContent,
+} from "./MarkdownVideoContent.js";
 
 const allowedTags = [
   "a",
@@ -253,12 +258,17 @@ function markdownRenderer(
   fileLinkIcons: boolean,
   delegateExternalLinks: boolean,
   externalLinkIcons: boolean,
+  videosEnabled = false,
 ) {
   const renderer = new marked.Renderer();
   const headingCounts = new Map<string, number>();
   renderer.html = ({ text }) => (imagesEnabled ? readerHtmlMarkup(text) : "");
   renderer.image = ({ href, title, text }) =>
-    imagesEnabled ? imageMarkup(href, text, title) : "";
+    videosEnabled && isLocalVideoHref(href)
+      ? `<span data-workspace-video="${escapeAttribute(href)}"></span>`
+      : imagesEnabled
+        ? imageMarkup(href, text, title)
+        : "";
   renderer.heading = function ({ tokens, depth }) {
     const label = this.parser.parseInline(tokens);
     const baseSlug = headingSlug(
@@ -334,6 +344,8 @@ export const MarkdownContent = memo(function MarkdownContent({
   onFileLink,
   onFileLinkContextMenu,
   resolveImage,
+  videoThreadId,
+  locale = "en",
   text,
 }: {
   className?: string;
@@ -347,6 +359,8 @@ export const MarkdownContent = memo(function MarkdownContent({
     position: { x: number; y: number },
   ) => void;
   resolveImage?: ImageResolver;
+  videoThreadId?: string;
+  locale?: AppLocale;
   text: string;
 }) {
   const contentRoot = useRef<HTMLElement>(null);
@@ -358,6 +372,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       fileLinkIcons,
       delegateExternalLinks,
       externalLinkIcons,
+      Boolean(videoThreadId),
     );
     const parsed = marked.parse(text, { async: false, renderer });
     return typeof DOMPurify.sanitize === "function"
@@ -370,6 +385,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             "data-external-http",
             "data-workspace-file",
             "data-workspace-image",
+            "data-workspace-video",
             "href",
             "height",
             "id",
@@ -390,6 +406,7 @@ export const MarkdownContent = memo(function MarkdownContent({
     fileLinkIcons,
     imagesEnabled,
     text,
+    videoThreadId,
   ]);
 
   // Keep React from resetting the HTML on callback-only renders and removing
@@ -522,10 +539,19 @@ export const MarkdownContent = memo(function MarkdownContent({
   return (
     <article
       className={className ? `${className} markdown-body` : "markdown-body"}
-      dangerouslySetInnerHTML={markup}
+      dangerouslySetInnerHTML={videoThreadId ? undefined : markup}
       onClick={openDelegatedLink}
       onContextMenu={openFileLinkMenu}
       ref={contentRoot}
-    />
+    >
+      {videoThreadId ? (
+        <MarkdownVideoContent
+          key={videoThreadId}
+          html={html}
+          threadId={videoThreadId}
+          locale={locale}
+        />
+      ) : undefined}
+    </article>
   );
 });

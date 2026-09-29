@@ -1616,5 +1616,10 @@
   "Hooks.title": "Hook",
   "Hooks.review": "Esamina hook",
   "Hooks.pendingNotice": "{{count}} hook richiedono una verifica. Non sono ancora attivi.",
-  "Hooks.skipped": "Gli hook di comando non vengono eseguiti nelle attività Plan, Review o IM."
+  "Hooks.skipped": "Gli hook di comando non vengono eseguiti nelle attività Plan, Review o IM.",
+  "Video.loading": "Caricamento video…",
+  "Video.unavailable": "Il video non è disponibile, manca o non è ancora pronto. Riprova quando il file sarà pronto.",
+  "Video.decodeFailed": "Il video è danneggiato o usa un codec non supportato.",
+  "Video.retry": "Riprova",
+  "WorkspaceFilesPanel.fileTooLarge": "Il file supera il limite di anteprima di {{limit}} MiB. Dividilo, riducine le dimensioni o aprilo in un’altra app."
 }

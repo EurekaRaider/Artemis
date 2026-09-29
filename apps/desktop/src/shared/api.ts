@@ -1030,6 +1030,11 @@ export interface ArtemisApi {
   addReviewComment(input: AddReviewCommentInput): Promise<ReviewComment>;
   deleteReviewComment(threadId: string, commentId: string): Promise<void>;
   openWorkspacePdf(threadId: string, path: string): Promise<string>;
+  openWorkspaceVideo(
+    threadId: string,
+    href: string,
+  ): Promise<import("./workspace-video.js").WorkspaceVideoSource>;
+  releaseWorkspaceVideo(threadId: string, url: string): Promise<void>;
   openOfficeFile(
     threadId: string,
     path: string,
@@ -1368,6 +1373,8 @@ export const IPC = {
   reviewCommentAdd: "artemis:review-comment-add",
   reviewCommentDelete: "artemis:review-comment-delete",
   workspacePdfOpen: "artemis:workspace-pdf-open",
+  workspaceVideoOpen: "artemis:workspace-video-open",
+  workspaceVideoRelease: "artemis:workspace-video-release",
   officeOpen: "artemis:office-open",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",

@@ -188,3 +188,36 @@ describe("workspace media preview", () => {
     expect(readText).not.toHaveBeenCalled();
   });
 });
+
+it.each([false, true])(
+  "explains oversized files for tree/restored selection: %s",
+  async (restored) => {
+    stubWindowArtemis({
+      listWorkspaceDirectory: async () => [
+        { name: "large.txt", path: "large.txt", kind: "file" },
+      ],
+      readWorkspaceFile: async () => {
+        throw new Error(
+          "Error invoking remote method 'artemis:workspace-file-read': Error: Workspace file exceeds 4 MiB.",
+        );
+      },
+    });
+    render(
+      <WorkspaceFilesPanel
+        {...labels}
+        locale="zh-CN"
+        threadId="task"
+        selectedPath={restored ? "large.txt" : undefined}
+        onOpenHtml={vi.fn()}
+        onFileSelected={vi.fn()}
+      />,
+    );
+    if (!restored) fireEvent.click(await screen.findByText("large.txt"));
+    expect(
+      await screen.findByText(
+        "文件超过 4 MiB 的预览限制。请拆分文件、减小文件大小，或使用其他应用打开。",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/artemis:workspace-file-read/)).toBeNull();
+  },
+);

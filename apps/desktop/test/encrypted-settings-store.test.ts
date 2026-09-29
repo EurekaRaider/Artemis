@@ -223,19 +223,19 @@ describe("EncryptedSettingsStore", () => {
   it("persists a validated workspace dock width", async () => {
     const { filePath, store } = await createStore();
     await expect(store.workspaceDockWidth()).resolves.toBeUndefined();
-    await expect(store.setWorkspaceDockWidth(720)).resolves.toBe(720);
+    await expect(store.setWorkspaceDockWidth(1_673)).resolves.toBe(1_673);
 
     const reopened = new EncryptedSettingsStore(
       filePath,
       new FakeSafeStorage(),
     );
-    await expect(reopened.workspaceDockWidth()).resolves.toBe(720);
+    await expect(reopened.workspaceDockWidth()).resolves.toBe(1_673);
     await expect(reopened.setWorkspaceDockWidth(319)).rejects.toThrow(
-      "320 to 1080",
+      "at least 320",
     );
-    await expect(reopened.setWorkspaceDockWidth(1_081)).rejects.toThrow(
-      "320 to 1080",
-    );
+    await expect(
+      reopened.setWorkspaceDockWidth(Number.MAX_SAFE_INTEGER + 1),
+    ).rejects.toThrow("safe integer");
     await expect(reopened.setWorkspaceDockWidth(640.5)).rejects.toThrow(
       "integer",
     );

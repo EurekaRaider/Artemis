@@ -1616,5 +1616,10 @@
   "Hooks.title": "Hooks",
   "Hooks.review": "Hooks prüfen",
   "Hooks.pendingNotice": "{{count}} Hooks müssen geprüft werden. Sie sind noch nicht aktiviert.",
-  "Hooks.skipped": "Befehls-Hooks laufen nicht in Plan-, Review- oder IM-Aufgaben."
+  "Hooks.skipped": "Befehls-Hooks laufen nicht in Plan-, Review- oder IM-Aufgaben.",
+  "Video.loading": "Video wird geladen…",
+  "Video.unavailable": "Das Video ist nicht verfügbar, fehlt oder ist noch nicht fertig. Versuchen Sie es erneut, sobald die Datei bereit ist.",
+  "Video.decodeFailed": "Das Video ist beschädigt oder verwendet einen nicht unterstützten Codec.",
+  "Video.retry": "Erneut versuchen",
+  "WorkspaceFilesPanel.fileTooLarge": "Die Datei überschreitet das Vorschaulimit von {{limit}} MiB. Teilen oder verkleinern Sie sie, oder öffnen Sie sie in einer anderen App."
 }

@@ -245,6 +245,10 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.reviewCommentDelete, threadId, commentId),
   openWorkspacePdf: (threadId, path) =>
     ipcRenderer.invoke(IPC.workspacePdfOpen, threadId, path),
+  openWorkspaceVideo: (threadId, href) =>
+    ipcRenderer.invoke(IPC.workspaceVideoOpen, threadId, href),
+  releaseWorkspaceVideo: (threadId, url) =>
+    ipcRenderer.invoke(IPC.workspaceVideoRelease, threadId, url),
   openOfficeFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.officeOpen, threadId, path),
   readOfficeSnapshot: (threadId, sessionId) =>

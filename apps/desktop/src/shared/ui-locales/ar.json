@@ -1616,5 +1616,10 @@
   "Hooks.title": "الخطافات",
   "Hooks.review": "مراجعة الخطافات",
   "Hooks.pendingNotice": "هناك {{count}} خطافات تحتاج إلى مراجعة. لم يتم تفعيلها بعد.",
-  "Hooks.skipped": "لا تعمل خطافات الأوامر في مهام Plan أو Review أو IM."
+  "Hooks.skipped": "لا تعمل خطافات الأوامر في مهام Plan أو Review أو IM.",
+  "Video.loading": "جارٍ تحميل الفيديو…",
+  "Video.unavailable": "الفيديو غير متاح أو مفقود أو لم يكتمل بعد. أعد المحاولة عندما يصبح الملف جاهزًا.",
+  "Video.decodeFailed": "الفيديو تالف أو يستخدم برنامج ترميز غير مدعوم.",
+  "Video.retry": "إعادة المحاولة",
+  "WorkspaceFilesPanel.fileTooLarge": "يتجاوز الملف حد المعاينة البالغ {{limit}} MiB. قسّمه أو قلّل حجمه أو افتحه في تطبيق آخر."
 }

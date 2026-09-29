@@ -1,0 +1,34 @@
+.workspace-video-player {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  margin-block: var(--artemis-space-3);
+}
+
+.workspace-video-player video {
+  display: block;
+  width: 100%;
+  max-height: 65vh;
+  min-height: 120px;
+  object-fit: contain;
+  background: #000;
+  border-radius: var(--artemis-radius-md, 8px);
+}
+
+.workspace-video-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--artemis-space-2);
+  padding-block: var(--artemis-space-2);
+}
+
+.workspace-file-video {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  overflow: auto;
+  padding: var(--artemis-space-4);
+}

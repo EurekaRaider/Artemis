@@ -1616,5 +1616,10 @@
   "Hooks.title": "鉤子",
   "Hooks.review": "審核鉤子",
   "Hooks.pendingNotice": "有 {{count}} 個鉤子待審核。這些鉤子尚未啟用。",
-  "Hooks.skipped": "Plan／Review 和 IM 任務不執行命令鉤子。"
+  "Hooks.skipped": "Plan／Review 和 IM 任務不執行命令鉤子。",
+  "Video.loading": "正在載入影片…",
+  "Video.unavailable": "影片無法使用、檔案遺失或尚未產生完成，請在檔案就緒後重試。",
+  "Video.decodeFailed": "影片損壞或使用了不支援的編碼。",
+  "Video.retry": "重試",
+  "WorkspaceFilesPanel.fileTooLarge": "檔案超過 {{limit}} MiB 的預覽限制。請分割檔案、縮小檔案大小，或使用其他應用程式開啟。"
 }

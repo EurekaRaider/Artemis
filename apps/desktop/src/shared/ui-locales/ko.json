@@ -1616,5 +1616,10 @@
   "Hooks.title": "훅",
   "Hooks.review": "훅 검토",
   "Hooks.pendingNotice": "{{count}}개의 훅을 검토해야 합니다. 아직 활성화되지 않았습니다.",
-  "Hooks.skipped": "Plan／Review 및 IM 작업에서는 명령 훅을 실행하지 않습니다."
+  "Hooks.skipped": "Plan／Review 및 IM 작업에서는 명령 훅을 실행하지 않습니다.",
+  "Video.loading": "동영상 불러오는 중…",
+  "Video.unavailable": "동영상을 사용할 수 없거나 파일이 없거나 생성 중입니다. 파일이 준비되면 다시 시도하세요.",
+  "Video.decodeFailed": "동영상이 손상되었거나 지원하지 않는 코덱입니다.",
+  "Video.retry": "다시 시도",
+  "WorkspaceFilesPanel.fileTooLarge": "파일이 미리 보기 제한 {{limit}} MiB를 초과합니다. 파일을 나누거나 크기를 줄이거나 다른 앱에서 여세요."
 }

@@ -144,6 +144,20 @@ describe("reported screenshot regressions", () => {
     expect(container.querySelector(".tool-summary-label")).toHaveTextContent(
       "工具调用",
     );
+    const disclosure = container.querySelector<HTMLButtonElement>(
+      '[data-part="disclosure"]',
+    )!;
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    rerender(
+      <ToolActivityGroupCard
+        {...props}
+        tools={[...tools, { ...tools[0]!, id: "three" }]}
+      />,
+    );
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(disclosure);
+    rerender(<ToolActivityGroupCard {...props} />);
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
     expect(container.querySelectorAll(".tool-activity-list > li")).toHaveLength(
       2,
     );
@@ -152,9 +166,6 @@ describe("reported screenshot regressions", () => {
     ).toHaveLength(1);
     await userEvent.click(screen.getByRole("button", { name: "App.tsx" }));
     expect(onFileLink).toHaveBeenCalledWith("App.tsx");
-    const disclosure = container.querySelector<HTMLButtonElement>(
-      '[data-part="disclosure"]',
-    )!;
     expect(disclosure).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(disclosure);
     rerender(

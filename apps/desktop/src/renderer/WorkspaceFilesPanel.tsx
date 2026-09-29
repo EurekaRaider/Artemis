@@ -1,3 +1,4 @@
+import { workspaceFileError } from "./workspace-file-error.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { officeDocumentFormatForPath, type AppLocale } from "@artemis/protocol";
@@ -14,6 +15,8 @@ import type {
   WorkspaceFileContent,
 } from "../shared/api.js";
 import { WorkspaceFileEditor } from "./WorkspaceFileEditor.js";
+import { WorkspaceVideoPlayer } from "./WorkspaceVideoPlayer.js";
+import { workspaceVideoMimeType } from "../shared/workspace-video.js";
 import { WorkspaceCsvFileEditor } from "./WorkspaceCsvFileEditor.js";
 import { OfficePreviewGate } from "./OfficePreviewGate.js";
 import { WorkspaceMarkdownEditor } from "./WorkspaceMarkdownEditor.js";
@@ -214,6 +217,7 @@ export function WorkspaceFilesPanel({
   onFileSelected,
 }: WorkspaceFilesPanelProps) {
   const activeThreadId = useRef(threadId);
+  const fileRequest = useRef(0);
   const openOffice = useRef(onOpenOffice);
   openOffice.current = onOpenOffice;
   const [childrenByDirectory, setChildrenByDirectory] = useState<
@@ -252,7 +256,7 @@ export function WorkspaceFilesPanel({
         }));
       } catch (reason) {
         if (activeThreadId.current !== requestedThreadId) return;
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(workspaceFileError(reason, locale));
       } finally {
         if (activeThreadId.current === requestedThreadId) {
           setLoadingDirectories((current) => {
@@ -267,6 +271,7 @@ export function WorkspaceFilesPanel({
   );
 
   useEffect(() => {
+    fileRequest.current += 1;
     setChildrenByDirectory({});
     setExpanded(new Set());
     setSelectedFile(undefined);
@@ -282,17 +287,27 @@ export function WorkspaceFilesPanel({
     if (!threadId || !selectedPath || selectedFile?.path === selectedPath) {
       return;
     }
+    const request = ++fileRequest.current;
     const format = officeDocumentFormatForPath(selectedPath);
     if (format && format !== "pdf" && openOffice.current) {
       openOffice.current(selectedPath);
       return;
     }
     const requestedThreadId = threadId;
+    if (workspaceVideoMimeType(selectedPath)) {
+      setSelectedFile({ path: selectedPath, binary: true });
+      setError(undefined);
+      return;
+    }
     setError(undefined);
     void window.artemis
       .readWorkspaceFile(threadId, selectedPath)
       .then((file) => {
-        if (activeThreadId.current !== requestedThreadId) return;
+        if (
+          activeThreadId.current !== requestedThreadId ||
+          request !== fileRequest.current
+        )
+          return;
         setImageFailed(false);
         setSelectedFile(file);
         setDraft(file.content ?? "");
@@ -300,10 +315,14 @@ export function WorkspaceFilesPanel({
         setSaveError(undefined);
       })
       .catch((reason) => {
-        if (activeThreadId.current !== requestedThreadId) return;
+        if (
+          activeThreadId.current !== requestedThreadId ||
+          request !== fileRequest.current
+        )
+          return;
         setSelectedFile(undefined);
         setDraft("");
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(workspaceFileError(reason, locale));
       });
   }, [selectedFile?.path, selectedPath, threadId]);
 
@@ -322,6 +341,13 @@ export function WorkspaceFilesPanel({
 
   const openFile = (entry: WorkspaceDirectoryEntry) => {
     if (!threadId) return;
+    const request = ++fileRequest.current;
+    if (workspaceVideoMimeType(entry.path)) {
+      setSelectedFile({ path: entry.path, binary: true });
+      setError(undefined);
+      onFileSelected(entry.path);
+      return;
+    }
     const format = officeDocumentFormatForPath(entry.path);
     if (format && format !== "pdf" && onOpenOffice) {
       onOpenOffice(entry.path);
@@ -336,6 +362,7 @@ export function WorkspaceFilesPanel({
     void window.artemis
       .readWorkspaceFile(threadId, entry.path)
       .then((file) => {
+        if (request !== fileRequest.current) return;
         setImageFailed(false);
         setSelectedFile(file);
         setDraft(file.content ?? "");
@@ -344,9 +371,10 @@ export function WorkspaceFilesPanel({
         onFileSelected(entry.path);
       })
       .catch((reason) => {
+        if (request !== fileRequest.current) return;
         setSelectedFile(undefined);
         setDraft("");
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(workspaceFileError(reason, locale));
       });
   };
 
@@ -371,7 +399,7 @@ export function WorkspaceFilesPanel({
       })
       .catch((reason) => {
         setSaveState("idle");
-        setSaveError(reason instanceof Error ? reason.message : String(reason));
+        setSaveError(workspaceFileError(reason, locale));
       });
   };
 
@@ -402,7 +430,19 @@ export function WorkspaceFilesPanel({
         label={title}
         viewer={
           selectedFile ? (
-            imageSelected && selectedFile.preview ? (
+            workspaceVideoMimeType(selectedFile.path) && threadId ? (
+              <>
+                <WorkspaceFileHeader path={selectedFile.path} readOnly />
+                <div className="workspace-file-video">
+                  <WorkspaceVideoPlayer
+                    key={`${threadId}:${selectedFile.path}`}
+                    threadId={threadId}
+                    href={selectedFile.path}
+                    locale={locale}
+                  />
+                </div>
+              </>
+            ) : imageSelected && selectedFile.preview ? (
               <>
                 <WorkspaceFileHeader path={selectedFile.path} readOnly />
                 {imageFailed ? (

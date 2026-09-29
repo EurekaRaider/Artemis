@@ -21,6 +21,7 @@ interface ComposerContextBarProps {
   activeProject?: Project;
   threadId?: string | undefined;
   branchActionsDisabled: boolean;
+  projectActionsDisabled?: boolean;
   locale: Locale;
   mode: RunMode;
   modeActionsDisabled: boolean;
@@ -94,6 +95,7 @@ export function ComposerContextBar({
   activeProject,
   threadId,
   branchActionsDisabled,
+  projectActionsDisabled = false,
   locale,
   mode,
   modeActionsDisabled,
@@ -123,6 +125,10 @@ export function ComposerContextBar({
   const [creatingBranch, setCreatingBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [menuLayout, setMenuLayout] = useState<ContextMenuLayout>();
+
+  useEffect(() => {
+    if (projectActionsDisabled) setProjectMenuOpen(false);
+  }, [projectActionsDisabled]);
 
   const loadGitInfo = useCallback(async () => {
     const request = ++branchRequest.current;
@@ -349,7 +355,8 @@ export function ComposerContextBar({
     <div className="composer-context" ref={rootRef}>
       <div className="composer-context-control" ref={projectControlRef}>
         <button
-          aria-expanded={projectMenuOpen}
+          aria-expanded={projectMenuOpen && !projectActionsDisabled}
+          disabled={projectActionsDisabled}
           aria-haspopup="menu"
           className="composer-context-trigger project-context-trigger"
           onClick={() => {
@@ -363,7 +370,7 @@ export function ComposerContextBar({
           <strong>{activeProject?.name ?? t.temporaryConversation}</strong>
           <ArtemisIcon name="chevron" width={10} height={10} />
         </button>
-        {projectMenuOpen && (
+        {projectMenuOpen && !projectActionsDisabled && (
           <div
             aria-label={t.projectMenu}
             className="composer-context-menu project-context-menu"

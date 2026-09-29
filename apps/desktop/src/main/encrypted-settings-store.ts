@@ -81,7 +81,6 @@ const EMPTY_SETTINGS: PersistedSettings = {
 };
 
 export const WORKSPACE_DOCK_WIDTH_MIN = 320;
-export const WORKSPACE_DOCK_WIDTH_MAX = 1_080;
 export const PROJECT_SIDEBAR_WIDTH_MIN = 208;
 export const PROJECT_SIDEBAR_WIDTH_MAX = 420;
 const PROFILE_AVATAR_MAX_BYTES = 512 * 1024;
@@ -174,13 +173,9 @@ function validateAddedModel(
 }
 
 function validateWorkspaceDockWidth(width: number): number {
-  if (
-    !Number.isInteger(width) ||
-    width < WORKSPACE_DOCK_WIDTH_MIN ||
-    width > WORKSPACE_DOCK_WIDTH_MAX
-  ) {
+  if (!Number.isSafeInteger(width) || width < WORKSPACE_DOCK_WIDTH_MIN) {
     throw new Error(
-      `Workspace dock width must be an integer from ${WORKSPACE_DOCK_WIDTH_MIN} to ${WORKSPACE_DOCK_WIDTH_MAX}`,
+      `Workspace dock width must be a safe integer of at least ${WORKSPACE_DOCK_WIDTH_MIN}`,
     );
   }
   return width;

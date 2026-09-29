@@ -18,8 +18,13 @@ import { LicenseService } from "./service.js";
 import { setLicenseService, stopLicensedRuntime } from "./runtime.js";
 
 import { WORKSPACE_PDF_SCHEME } from "../main/workspace-pdf-preview.js";
+import { WORKSPACE_VIDEO_SCHEME } from "../shared/workspace-video.js";
 
 protocol.registerSchemesAsPrivileged([
+  {
+    scheme: WORKSPACE_VIDEO_SCHEME,
+    privileges: { standard: true, secure: true, stream: true },
+  },
   {
     scheme: WORKSPACE_PDF_SCHEME,
     privileges: {

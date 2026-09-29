@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.12** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.13** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -373,15 +373,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.12` local packaging configuration produces:
+The `1.6.13` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.12.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.12.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.12.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.13.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.13.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.13.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.12`, and
+Releases are started manually through **Release**, using tag `v1.6.13`, and
 published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -398,7 +398,9 @@ Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
 
-Version 1.6.12 refreshes scheduled tasks with clearer execution and schedule
+Version 1.6.13 adds local video playback, locks project selection after a conversation starts, and explains file preview size limits in all 14 languages. It also expands workspace panel resizing and collapses tool activity groups by default.
+
+Version 1.6.12 introduced scheduled tasks with clearer execution and schedule
 settings, a model picker and supported reasoning levels. Each automation retains
 its own model selection without changing the global default; execution-setting
 changes renew the existing authorization when required. Workspace tabs, the

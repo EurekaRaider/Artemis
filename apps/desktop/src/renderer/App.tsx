@@ -7125,6 +7125,14 @@ export function App() {
             </div>
           </Toolbar>
         )}
+        {toast && (activeView !== "workspace" || activeThread?.archived) && (
+          <TransientNotice
+            dismissLabel={t.dismissNotice}
+            notice={toast}
+            onDismiss={() => setToast(undefined)}
+            placement="view"
+          />
+        )}
         {activeView === "token-usage" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
             <TokenUsagePage
@@ -7822,6 +7830,17 @@ export function App() {
                               key={environmentWorkspaceKey}
                               threadId={activeThread?.id}
                               {...(activeProject ? { activeProject } : {})}
+                              projectActionsDisabled={
+                                busy ||
+                                turnActive ||
+                                Boolean(
+                                  activeThread &&
+                                  (!loadedEventThreads.current.has(
+                                    activeThread.id,
+                                  ) ||
+                                    (threadState?.order.length ?? 0) > 0),
+                                )
+                              }
                               branchActionsDisabled={
                                 projectBranchActionsDisabled
                               }
@@ -10041,15 +10060,6 @@ ${model.providerId} · ${model.modelId}`}
           </div>
         </div>
       )}
-
-      {toast && (activeView !== "workspace" || activeThread?.archived) && (
-        <TransientNotice
-          dismissLabel={t.dismissNotice}
-          notice={toast}
-          onDismiss={() => setToast(undefined)}
-          placement="view"
-        />
-      )}
     </ApplicationShell>
   );
 }
@@ -10585,8 +10595,7 @@ export function ToolActivityGroupCard({
   tools: readonly ToolState[];
   pluginForTool?: (tool: ToolState) => ToolPlugin | undefined;
 }) {
-  const [expanded, setExpanded] = useState<boolean>();
-  const open = expanded ?? tools.length > 1;
+  const [open, setExpanded] = useState(false);
   const view = toolActivityPatternView(tools, active, locale);
   const firstPlugin = tools[0] && pluginForTool?.(tools[0]);
   const plugin =
@@ -11172,6 +11181,8 @@ export function Timeline({
         >
           <MarkdownContent
             fileLinkIcons
+            videoThreadId={state.threadId}
+            locale={locale}
             onExternalLink={onExternalLink}
             onFileLink={onFileLink}
             onFileLinkContextMenu={onFileLinkContextMenu}

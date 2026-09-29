@@ -1616,5 +1616,10 @@
   "Hooks.title": "Hooks",
   "Hooks.review": "Review hooks",
   "Hooks.pendingNotice": "{{count}} hooks need review. These hooks are not enabled.",
-  "Hooks.skipped": "Command hooks do not run in Plan, Review, or IM tasks."
+  "Hooks.skipped": "Command hooks do not run in Plan, Review, or IM tasks.",
+  "Video.loading": "Loading video…",
+  "Video.unavailable": "Video is unavailable, missing, or not finished. Retry after the file is ready.",
+  "Video.decodeFailed": "This video is damaged or uses an unsupported codec.",
+  "Video.retry": "Retry",
+  "WorkspaceFilesPanel.fileTooLarge": "This file exceeds the {{limit}} MiB preview limit. Split it, reduce its size, or open it in another app."
 }

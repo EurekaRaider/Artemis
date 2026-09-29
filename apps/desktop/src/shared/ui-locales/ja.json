@@ -1616,5 +1616,10 @@
   "Hooks.title": "フック",
   "Hooks.review": "フックを確認",
   "Hooks.pendingNotice": "{{count}} 件のフックが確認待ちです。まだ有効ではありません。",
-  "Hooks.skipped": "Plan／Review と IM タスクではコマンドフックを実行しません。"
+  "Hooks.skipped": "Plan／Review と IM タスクではコマンドフックを実行しません。",
+  "Video.loading": "動画を読み込み中…",
+  "Video.unavailable": "動画が利用できないか、ファイルがないか、生成が未完了です。準備ができたら再試行してください。",
+  "Video.decodeFailed": "動画が破損しているか、コーデックがサポートされていません。",
+  "Video.retry": "再試行",
+  "WorkspaceFilesPanel.fileTooLarge": "ファイルがプレビューの上限 {{limit}} MiB を超えています。分割するか、サイズを小さくするか、別のアプリで開いてください。"
 }

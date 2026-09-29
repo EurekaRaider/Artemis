@@ -1616,5 +1616,10 @@
   "Hooks.title": "Hook",
   "Hooks.review": "Tinjau hook",
   "Hooks.pendingNotice": "{{count}} hook perlu ditinjau. Hook tersebut belum aktif.",
-  "Hooks.skipped": "Hook perintah tidak berjalan dalam tugas Plan, Review, atau IM."
+  "Hooks.skipped": "Hook perintah tidak berjalan dalam tugas Plan, Review, atau IM.",
+  "Video.loading": "Memuat video…",
+  "Video.unavailable": "Video tidak tersedia, hilang, atau belum selesai. Coba lagi setelah berkas siap.",
+  "Video.decodeFailed": "Video rusak atau menggunakan codec yang tidak didukung.",
+  "Video.retry": "Coba lagi",
+  "WorkspaceFilesPanel.fileTooLarge": "File melebihi batas pratinjau {{limit}} MiB. Pisahkan file, kurangi ukurannya, atau buka di aplikasi lain."
 }

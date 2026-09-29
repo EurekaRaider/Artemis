@@ -9,6 +9,19 @@ import {
 } from "../src/renderer/workspace-dock-layout.js";
 
 describe("workspace dock layout", () => {
+  it("lets wide-screen previews grow past 1080px while retaining a 320px conversation", () => {
+    const bounds = workspaceDockWidthBounds(2_000, 2_048);
+    expect(bounds).toEqual({ min: 320, max: 1_673 });
+    expect(workspaceDockWidthAfterPointer(1_080, 920, 327, "ltr", bounds)).toBe(
+      1_673,
+    );
+    expect(
+      workspaceDockWidthAfterKey(1_080, "End", "ltr", bounds, 2_000, 24),
+    ).toBe(1_673);
+    expect(
+      clampWorkspaceDockWidth(1_673, workspaceDockWidthBounds(900, 1_000)),
+    ).toBe(573);
+  });
   it("uses a compact default and resets to it without narrowing saved widths", () => {
     const bounds = workspaceDockWidthBounds(1_400, 1_400);
     expect(clampWorkspaceDockWidth(DEFAULT_WORKSPACE_DOCK_WIDTH, bounds)).toBe(

@@ -24,6 +24,10 @@ import {
   WORKSPACE_PDF_SCHEME,
 } from "./workspace-pdf-preview.js";
 import { createHash } from "node:crypto";
+import {
+  WorkspaceVideoPreview,
+  WORKSPACE_VIDEO_SCHEME,
+} from "./workspace-video-preview.js";
 import { AttachmentStore } from "./attachment-store.js";
 import {
   customAgentRequestFingerprint,
@@ -1148,6 +1152,12 @@ const workspacePdfPreview = new WorkspacePdfPreview(async (threadId, path) => {
   if (!thread || thread.archived) throw new Error("Active task not found.");
   const context = await resolveThreadWorkspace(thread);
   return readWorkspaceFile(context.workspacePath, path);
+});
+
+const workspaceVideoPreview = new WorkspaceVideoPreview(async (threadId) => {
+  const thread = store?.getThread(threadId);
+  if (!thread || thread.archived) throw new Error("Active task not found.");
+  return (await resolveThreadWorkspace(thread)).workspacePath;
 });
 
 function configureBrowserLocaleSession(): void {
@@ -9805,6 +9815,30 @@ function registerIpc(): void {
       return workspacePdfPreview.open(threadId, file.path);
     },
   );
+  const assertVideoSender = (event: Electron.IpcMainInvokeEvent) => {
+    if (
+      !mainWindow ||
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== mainWindow.webContents.mainFrame
+    )
+      throw new Error("Video preview requires the application window.");
+  };
+  ipcMain.handle(
+    IPC.workspaceVideoOpen,
+    async (event, threadId: string, href: string) => {
+      assertVideoSender(event);
+      if (typeof threadId !== "string" || typeof href !== "string")
+        throw new Error("Invalid video request.");
+      return workspaceVideoPreview.open(threadId, href);
+    },
+  );
+  ipcMain.handle(
+    IPC.workspaceVideoRelease,
+    (event, threadId: string, url: string) => {
+      assertVideoSender(event);
+      workspaceVideoPreview.release(threadId, url);
+    },
+  );
   ipcMain.handle(
     IPC.officeOpen,
     async (_event, threadId: string, path: string) => {
@@ -16822,6 +16856,7 @@ function createMainWindow(): BrowserWindow {
   });
   window.on("closed", () => {
     if (mainWindow === window) {
+      workspaceVideoPreview.clear();
       computerUseHost?.service.stopAll("Artemis window closed");
       computerUseHost?.native.dispose();
       mainWindow = undefined;
@@ -16832,6 +16867,7 @@ function createMainWindow(): BrowserWindow {
     "did-start-navigation",
     (_event, _url, _inPlace, isMainFrame) => {
       if (isMainFrame) {
+        if (!_inPlace) workspaceVideoPreview.clear();
         notificationRendererReady = false;
         if (taskNotifications) taskNotifications.viewedThreadId = undefined;
       }
@@ -22036,6 +22072,7 @@ app.on("web-contents-created", (_event, contents) => {
 
 app.on("render-process-gone", (_event, _contents, details) => {
   if (_contents === mainWindow?.webContents) {
+    workspaceVideoPreview.clear();
     computerUseHost?.service.stopAll("Artemis renderer stopped");
     computerUseHost?.native.dispose();
   }
@@ -22345,6 +22382,11 @@ app
     );
     markStartupStage("core-state-ready");
     configureBrowserLocaleSession();
+    // Browser previews use a separate partition and cannot access this protocol.
+    electronSession.defaultSession.protocol.handle(
+      WORKSPACE_VIDEO_SCHEME,
+      (request) => workspaceVideoPreview.respond(request),
+    );
     electronSession
       .fromPartition(BROWSER_SESSION_PARTITION)
       .protocol.handle(WORKSPACE_PDF_SCHEME, (request) =>
