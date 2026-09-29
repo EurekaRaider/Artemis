@@ -20907,6 +20907,7 @@ function createMainWindow(): BrowserWindow {
                           },
                           components: {
                             button: publicComponentCount("button"),
+                            iconButton: publicComponentCount("icon-button"),
                             dataHeatmap: publicComponentCount("data-heatmap"),
                             dataStat: publicComponentCount("data-stat"),
                             dataSurface: publicComponentCount("data-surface"),
@@ -20978,6 +20979,16 @@ function createMainWindow(): BrowserWindow {
                                         '[data-artemis-component="select"]',
                                     ),
                                   ),
+                                  moreActionsPresent: (() => {
+                                    const button = root?.querySelector(
+                                      '.automation-actions [data-artemis-component="icon-button"]',
+                                    );
+                                    return (
+                                      button?.tagName === "BUTTON" &&
+                                      Boolean(button.getAttribute("aria-label")?.trim()) &&
+                                      button.getAttribute("aria-expanded") === "false"
+                                    );
+                                  })(),
                                 }
                               : null,
                         };

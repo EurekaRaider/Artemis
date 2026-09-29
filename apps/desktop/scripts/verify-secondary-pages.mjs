@@ -375,9 +375,11 @@ try {
         "automation-public-controls",
         secondary?.automations?.projectFilterPresent === true &&
           secondary?.components?.select === 1 &&
-          secondary?.components?.button >= 5,
+          secondary?.components?.button >= 4 &&
+          secondary?.components?.iconButton === 1 &&
+          secondary?.automations?.moreActionsPresent === true,
         secondary?.components,
-        "public project filter and actions",
+        "public project filter, actions and a named overflow control",
       );
     }
 
