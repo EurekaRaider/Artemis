@@ -1557,6 +1557,7 @@ lines.on("line", async (line) => {
   let insideWrite = false;
   let outsideWrite = false;
   let networkAccess = false;
+  const networkErrors = [];
   try {
     await writeFile(insidePath, "inside", "utf8");
     insideWrite = true;
@@ -1571,13 +1572,23 @@ lines.on("line", async (line) => {
   } finally {
     await rm(outsidePath, { force: true }).catch(() => {});
   }
-  try {
-    const response = await fetch("https://example.com", {
-      signal: AbortSignal.timeout(2_000),
-    });
-    networkAccess = response.ok;
-  } catch {
-    networkAccess = false;
+  // Keep the capability assertion independent of a public site's response code
+  // and tolerate bounded DNS/TLS delays on the shared Windows runner.
+  for (let attempt = 0; attempt < 3 && !networkAccess; attempt++) {
+    try {
+      const response = await fetch("https://example.com", {
+        signal: AbortSignal.timeout(10_000),
+      });
+      networkAccess = true;
+      await response.body?.cancel();
+    } catch (error) {
+      networkErrors.push(
+        error instanceof Error
+          ? error.name + ": " + error.message +
+            (error.cause ? " (" + String(error.cause) + ")" : "")
+          : String(error),
+      );
+    }
   }
   send({
     jsonrpc: "2.0",
@@ -1590,6 +1601,7 @@ lines.on("line", async (line) => {
             insideWrite,
             outsideWrite,
             networkAccess,
+            networkErrors,
             retainedArtifact,
           }),
         },
@@ -1670,9 +1682,13 @@ lines.on("line", async (line) => {
           insideWrite: boolean;
           outsideWrite: boolean;
           networkAccess: boolean;
+          networkErrors: string[];
           retainedArtifact: string;
         };
-        expect(runtimeProbe).toMatchObject({
+        expect(
+          runtimeProbe,
+          runtimeProbe.networkErrors.join("; "),
+        ).toMatchObject({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
@@ -1706,9 +1722,13 @@ lines.on("line", async (line) => {
           insideWrite: boolean;
           outsideWrite: boolean;
           networkAccess: boolean;
+          networkErrors: string[];
           retainedArtifact: string;
         };
-        expect(taskProbeResult).toMatchObject({
+        expect(
+          taskProbeResult,
+          taskProbeResult.networkErrors.join("; "),
+        ).toMatchObject({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
