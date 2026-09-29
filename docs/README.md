@@ -42,7 +42,7 @@
 | [OAuth 配对验收](projects/plugin-oauth-acceptance/README.md)              | 宿主/插件配对、真实账号及安装包待验收项        |
 | [Computer Use 后续计划](projects/issues-225-227/repair-plan.md)           | #226 原始暂停场景的复现输入和验收要求          |
 | [Issues 225–227 验证](projects/issues-225-227/verification.md)            | #225/#227 修复证据与 #226 未闭合边界           |
-| [设计模式探索](projects/design-mode-proposal/README.md)                   | 插件项目类型、双向面板交互及资料缺口           |
+| [设计模式方案](projects/design-mode-proposal/README.md)                   | 当前代码审核、插件面板与设计工作流完整实施方案 |
 | [OpenDesign 参考附件](projects/design-mode-proposal/references/README.md) | 外部固定版本材料；原仓库引用按附件导读回源查阅 |
 
 ## records/ · 长期台账
