@@ -301,7 +301,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(total).toBe(8);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
-    ).toContain('<ArtemisIcon height={16} name="skill" width={16} />');
+    ).toMatch(/<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u);
   });
 
   it("uses the Artemis prototype glyph catalog instead of substitute icons", () => {
