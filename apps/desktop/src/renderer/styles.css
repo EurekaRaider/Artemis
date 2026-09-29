@@ -2722,6 +2722,11 @@ button.environment-row:disabled {
   overflow: hidden;
 }
 
+.user-message-capability-icon .resource-avatar {
+  height: 100%;
+  width: 100%;
+}
+
 .user-message-capability-icon img {
   display: block;
   height: 100%;

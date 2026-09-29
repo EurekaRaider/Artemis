@@ -11102,17 +11102,13 @@ export function Timeline({
                         <span
                           className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
                         >
-                          {plugin?.iconDataUrl ? (
-                            <img
-                              alt=""
-                              draggable={false}
-                              src={plugin.iconDataUrl}
-                            />
-                          ) : plugin ? (
-                            <ResourceIcon />
-                          ) : (
-                            <ArtemisIcon height={16} name="skill" width={16} />
-                          )}
+                          <ResourceAvatar
+                            kind="skill"
+                            name={name}
+                            pluginName={plugin?.name}
+                            iconDataUrl={plugin?.iconDataUrl}
+                            brandColor={plugin?.brandColor}
+                          />
                         </span>
                         <strong>{skill?.name ?? name}</strong>
                       </span>
