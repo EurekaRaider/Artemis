@@ -12,4 +12,5 @@ export * from "./im.js";
 export * from "./im-security.js";
 export * from "./text-tokens.js";
 export * from "./hooks.js";
+export * from "./design-plugin.js";
 export * from "./computer-use.js";

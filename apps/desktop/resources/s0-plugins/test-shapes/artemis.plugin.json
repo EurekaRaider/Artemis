@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "com.artemis.s0.test-shapes",
+  "version": "0.1.0",
+  "engines": { "artemisPluginApi": "1" },
+  "projectTypes": [
+    {
+      "id": "s0-shapes",
+      "title": { "zh-CN": "S0 图形（测试插件）", "en": "S0 Shapes (test plugin)" },
+      "targets": ["project", "temporary"],
+      "panelIds": ["shapes"]
+    }
+  ],
+  "panels": [{ "id": "shapes", "entry": "panel/index.html" }],
+  "runtime": { "entry": "runtime/index.mjs", "protocolVersion": 1 },
+  "tools": [
+    {
+      "name": "shapes_add",
+      "description": "Add a shape to the S0 shapes document.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "shapes_list",
+      "description": "List all shapes in the S0 shapes document.",
+      "effect": "state-read"
+    }
+  ],
+  "capabilities": {
+    "artifactStore": "thread",
+    "projectFiles": "explicit-import",
+    "network": "none",
+    "sessionInput": "host-user-action"
+  }
+}
