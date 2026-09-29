@@ -29,6 +29,12 @@ import spreadsheetsIcon from "../../resources/bundled-artifact-plugins/plugins/s
 import { readLocalDraft, writeLocalDraft } from "./workspace-autosave.js";
 import { officeReviewCopy } from "./office-review-copy.js";
 import { useWorkspaceEditHistory } from "./workspace-edit-history.js";
+import {
+  booleanUiState,
+  officeZoomState,
+  officeSheetViewState,
+  usePersistentUiState,
+} from "./ui-state.js";
 
 const reviewDraftSchema = z.object({
   protocolVersion: z.literal(1),
@@ -87,15 +93,34 @@ function OfficeWorkbenchContent({
       ? savedDraft.selection.value.page
       : 1,
   );
-  const [zoom, setZoom] = useState(
+  const [zoom, setZoom] = usePersistentUiState<string>(
+    `artemis-office-zoom:${view.session.format}`,
+    officeZoomState,
     view.session.format === "powerpoint" ? "page" : "width",
   );
   const [annotationOpen, setAnnotationOpen] = useState(
     savedDraft?.open === true,
   );
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [sheetView, setSheetView] = useState("grid");
-  const [follow, setFollow] = useState(!savedDraft?.selection);
+  const [preferredSheetView, setPreferredSheetView] =
+    usePersistentUiState<string>(
+      "artemis-office-sheet-view",
+      officeSheetViewState,
+      "grid",
+    );
+  const [sheetViewOverride, setSheetViewOverride] = useState<string>();
+  const sheetView = sheetViewOverride ?? preferredSheetView;
+  const setSheetView = (value: string) => {
+    setSheetViewOverride(undefined);
+    setPreferredSheetView(value);
+  };
+  const [followPreference, setFollowPreference] = usePersistentUiState(
+    "artemis-office-follow",
+    booleanUiState,
+    true,
+  );
+  const [followPaused, setFollowPaused] = useState(false);
+  const follow = followPreference && !followPaused;
   const [sheet, setSheet] = useState(
     savedDraft?.selection?.value.kind === "cells"
       ? savedDraft.selection.value.sheet
@@ -245,7 +270,7 @@ function OfficeWorkbenchContent({
     )
       return;
     handledFocus.current = annotationFocus;
-    setFollow(false);
+    setFollowPaused(true);
     setAnnotationOpen(false);
     const sameVersion =
       annotationFocus.documentId === snapshot.session.documentId &&
@@ -262,7 +287,7 @@ function OfficeWorkbenchContent({
     if (value.kind === "cells") {
       setSheet(value.sheet);
       setRange(value.range);
-      setSheetView("grid");
+      setSheetViewOverride("grid");
     }
   }, [annotationFocus, snapshot, sessionId]);
   useEffect(() => {
@@ -410,7 +435,7 @@ function OfficeWorkbenchContent({
   }, [displayedError]);
   const clearSelection = () => {
     setSelection(undefined);
-    setFollow(false);
+    setFollowPaused(true);
   };
   const slides = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -464,7 +489,7 @@ function OfficeWorkbenchContent({
     version = session.version,
     quote?: string,
   ) => {
-    setFollow(false);
+    setFollowPaused(true);
     setSelection({ value, version, ...(quote ? { quote } : {}) });
     setAnnotationOpen(true);
     if (value.kind === "cells") setRange(value.range);
@@ -562,7 +587,10 @@ function OfficeWorkbenchContent({
               : "Jump to the latest AI edit. Turn off to keep your reading position; saving is unaffected."
           }
           checked={follow}
-          onCheckedChange={setFollow}
+          onCheckedChange={(value) => {
+            setFollowPreference(value);
+            setFollowPaused(false);
+          }}
         />
       </header>
       {staleAnnotation ? (

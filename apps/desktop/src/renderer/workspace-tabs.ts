@@ -27,6 +27,7 @@ export interface WorkspaceTab {
 export interface WorkspaceTabsState {
   tabs: WorkspaceTab[];
   activeTabId: string | undefined;
+  dockOpen?: boolean | undefined;
 }
 
 export interface WorkspaceTabOpenOptions {
@@ -77,6 +78,7 @@ export const emptyWorkspaceTabs = (): WorkspaceTabsState => ({
 export function reconcileOfficeWorkspaceTab(
   state: WorkspaceTabsState,
   session: ArtifactSession,
+  openIfMissing = false,
 ): WorkspaceTabsState {
   if (session.status === "closed") return state;
   const pathKey = (path: string) =>
@@ -87,6 +89,8 @@ export function reconcileOfficeWorkspaceTab(
       (tab.artifactSessionId === session.sessionId ||
         (tab.path && pathKey(tab.path) === pathKey(session.path))),
   );
+  // Replayed document history describes artifacts, not the user's open tabs.
+  if (!existing && !openIfMissing) return state;
   if (existing?.artifactSessionId === session.sessionId) return state;
   return reduceWorkspaceTabs(state, {
     type: "ensure",
@@ -192,6 +196,7 @@ export function reconcileAgentTeamWorkspaceTab(
   }
 
   return {
+    ...state,
     tabs: [
       ...state.tabs.filter(
         (existing) =>
@@ -218,6 +223,7 @@ export function reduceWorkspaceTabs(
             index === existingIndex ? action.tab : tab,
           );
     return {
+      ...state,
       tabs,
       activeTabId:
         action.type === "ensure" && state.activeTabId
@@ -255,6 +261,8 @@ export function reduceWorkspaceTabs(
   const tabs = state.tabs.filter((tab) => tab.id !== action.tabId);
   if (state.activeTabId !== action.tabId) return { ...state, tabs };
   return {
+    ...state,
+    ...(tabs.length ? {} : { dockOpen: false }),
     tabs,
     activeTabId:
       state.tabs[closingIndex + 1]?.id ??

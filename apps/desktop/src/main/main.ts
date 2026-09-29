@@ -7047,12 +7047,21 @@ async function saveAutomation(input: SaveAutomationInput): Promise<Automation> {
   validateAutomationSchedule(schedule);
   const mode = runModeSchema.parse(input.mode);
   const target = automationTargetSchema.parse(input.target);
+  const modelSelection = input.modelSelection
+    ? (
+        await resolveModelSelection(
+          input.modelSelection,
+          current?.modelSelection,
+        )
+      ).selection
+    : current?.modelSelection;
   const draft = {
     projectId: input.projectId,
     prompt: input.prompt.trim(),
     mode,
     target,
     schedule,
+    ...(modelSelection ? { modelSelection } : {}),
   };
   const fingerprint = automationAuthorizationFingerprint(draft);
   const authorizationRemainsValid =
@@ -7069,6 +7078,7 @@ async function saveAutomation(input: SaveAutomationInput): Promise<Automation> {
     prompt: draft.prompt,
     mode,
     target,
+    ...(modelSelection ? { modelSelection } : {}),
     schedule,
     enabled,
     authorizationState: requiresAuthorization
@@ -13423,6 +13433,31 @@ async function seedSmokeInputFieldsFixture(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
+  // The editor requires an explicit available model. Keep this fixture local
+  // and credential-free; its far-future automation is never dispatched.
+  await settingsStore?.saveProviderConnection({
+    id: "smoke-input-fields",
+    name: "Synthetic input fields provider",
+    baseUrl: "http://127.0.0.1:1/v1",
+    models: [
+      {
+        id: "synthetic-model",
+        name: "Synthetic Model",
+        reasoning: false,
+        input: ["text"],
+        contextWindow: 128_000,
+        maxTokens: 4096,
+      },
+    ],
+  });
+  await settingsStore?.setModel(
+    {
+      providerId: "smoke-input-fields",
+      modelId: "synthetic-model",
+      thinkingLevel: "off",
+    },
+    128_000,
+  );
 }
 
 async function seedSmokeSecondaryPagesFixture(): Promise<void> {
@@ -22563,6 +22598,12 @@ app
       notify: automationRunNotification,
       launch: async (automation, run, linkThread) => {
         assertLicense();
+        const modelSettings = automation.modelSelection
+          ? await resolveModelSelection(
+              automation.modelSelection,
+              automation.modelSelection,
+            )
+          : undefined;
         const scheduledLabel = new Intl.DateTimeFormat(currentLocale(), {
           dateStyle: "short",
           timeStyle: "short",
@@ -22582,6 +22623,12 @@ app
           throw new Error("Scheduled task creation was cancelled.");
         }
         linkThread(thread.id);
+        if (modelSettings) {
+          store!.updateThread(thread.id, {
+            modelSelection: modelSettings.selection,
+            contextWindow: modelSettings.contextWindow,
+          });
+        }
         await startTaskTurn({
           threadId: thread.id,
           text: automation.prompt,

@@ -1879,7 +1879,8 @@ describe("renderer layout contract", () => {
     const launcherSource = appSource.slice(launcherStart, launcherEnd);
 
     expect(appSource).toContain('from "./workspace-tabs.js"');
-    expect(appSource).toContain("const [workspaceTabsByThread");
+    expect(appSource).toContain("tabsByThread: workspaceTabsByThread");
+    expect(appSource).toContain("useWorkspaceUiState(activeThreadId)");
     expect(appSource).toContain('className="right-sidebar-toggle"');
     expect(appSource).toContain("<WorkspaceTabBar");
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
@@ -2050,7 +2051,9 @@ describe("renderer layout contract", () => {
 
   it("switches the Markdown reader between rich and source views", () => {
     expect(workspacePreviewSource).toContain("<MarkdownContent");
-    expect(workspacePreviewSource).toContain('useState<"rich" | "source">');
+    expect(workspacePreviewSource).toMatch(
+      /usePersistentUiState\(\s*"artemis-markdown-view",\s*markdownViewState,\s*"rich",?\s*\)/u,
+    );
     expect(workspacePreviewSource).toContain("onChange: setView");
     expect(workspacePreviewSource).toContain("richLabel: props.richLabel");
     expect(workspacePreviewSource).toContain("sourceLabel: props.sourceLabel");

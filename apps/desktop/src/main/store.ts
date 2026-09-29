@@ -119,6 +119,7 @@ interface AutomationRow {
   mode: RunMode;
   target: AutomationTarget;
   schedule_json: string;
+  model_selection_json: string | null;
   enabled: number;
   authorization_state: Automation["authorizationState"];
   authorization_fingerprint: string | null;
@@ -409,6 +410,9 @@ function automationFromRow(row: AutomationRow): Automation {
     mode: row.mode,
     target: row.target,
     schedule: JSON.parse(row.schedule_json),
+    ...(row.model_selection_json
+      ? { modelSelection: JSON.parse(row.model_selection_json) }
+      : {}),
     enabled: row.enabled === 1,
     authorizationState: row.authorization_state,
     ...(row.authorization_fingerprint
@@ -661,6 +665,7 @@ export class AppStore {
         mode TEXT NOT NULL CHECK(mode IN ('execute', 'plan', 'review')),
         target TEXT NOT NULL CHECK(target IN ('local', 'managed-worktree')),
         schedule_json TEXT NOT NULL,
+        model_selection_json TEXT,
         enabled INTEGER NOT NULL DEFAULT 0,
         authorization_state TEXT NOT NULL
           CHECK(authorization_state IN ('not-required', 'required', 'authorized')),
@@ -763,6 +768,19 @@ export class AppStore {
       .get() as { user_version: number };
     if (customAgentsVersion.user_version < CUSTOM_AGENTS_DATABASE_VERSION) {
       this.advanceDatabaseVersion(CUSTOM_AGENTS_DATABASE_VERSION);
+    }
+    // Run after legacy mode migrations, which rebuild the automations table.
+    const automationColumns = this.database
+      .prepare("PRAGMA table_info(automations)")
+      .all() as Array<{ name: string }>;
+    if (
+      !automationColumns.some(
+        (column) => column.name === "model_selection_json",
+      )
+    ) {
+      this.database.exec(
+        "ALTER TABLE automations ADD COLUMN model_selection_json TEXT",
+      );
     }
     this.notifications = new TaskNotificationStore(this.database);
   }
@@ -1897,8 +1915,8 @@ export class AppStore {
         `INSERT INTO automations (
           id, project_id, name, prompt, mode, target, schedule_json, enabled,
           authorization_state, authorization_fingerprint, authorized_at,
-          next_run_at, last_run_at, deleted_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          next_run_at, last_run_at, deleted_at, created_at, updated_at, model_selection_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         value.id,
@@ -1917,6 +1935,7 @@ export class AppStore {
         value.deletedAt ?? null,
         value.createdAt,
         value.updatedAt,
+        value.modelSelection ? JSON.stringify(value.modelSelection) : null,
       );
     return this.getAutomation(value.id)!;
   }
@@ -1973,7 +1992,8 @@ export class AppStore {
          SET name = ?, prompt = ?, mode = ?, target = ?, schedule_json = ?,
              enabled = ?, authorization_state = ?,
              authorization_fingerprint = ?, authorized_at = ?,
-             next_run_at = ?, last_run_at = ?, deleted_at = ?, updated_at = ?
+             next_run_at = ?, last_run_at = ?, deleted_at = ?, updated_at = ?,
+             model_selection_json = ?
          WHERE id = ?`,
       )
       .run(
@@ -1990,6 +2010,7 @@ export class AppStore {
         value.lastRunAt ?? null,
         value.deletedAt ?? null,
         value.updatedAt,
+        value.modelSelection ? JSON.stringify(value.modelSelection) : null,
         value.id,
       );
     return this.getAutomation(value.id)!;

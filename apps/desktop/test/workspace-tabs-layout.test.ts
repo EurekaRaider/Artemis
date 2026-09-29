@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { describe, expect, it } from "vitest";
+import { reduceWorkspaceTabs } from "../src/renderer/workspace-tabs.js";
 
 import {
   WorkspaceFileEditor,
@@ -238,7 +239,22 @@ describe("Codex-like workspace tab layout contract", () => {
       "closesLastWorkspaceTab(workspaceTabs, tabId)",
     );
     expect(handlerSource).toContain('type: "close"');
-    expect(handlerSource).toContain("setWorkspaceDockOpen(false)");
+    const remaining = reduceWorkspaceTabs(
+      {
+        tabs: [
+          { id: "review", kind: "review", title: "Review" },
+          { id: "terminal", kind: "terminal", title: "Terminal" },
+        ],
+        activeTabId: "review",
+        dockOpen: true,
+      },
+      { type: "close", tabId: "review" },
+    );
+    expect(remaining.dockOpen).toBe(true);
+    expect(
+      reduceWorkspaceTabs(remaining, { type: "close", tabId: "terminal" })
+        .dockOpen,
+    ).toBe(false);
     expect(appSource).toContain(
       "onClose={() =>\n                            closeWorkspaceTab(tab.id, { moveFocus: true })",
     );
@@ -696,7 +712,9 @@ describe("Codex-like workspace tab layout contract", () => {
       /<WorkspaceFilesPanel[\s\S]{0,800}?onOpenMarkdown=/u,
     );
     expect(fileEditorSources).toContain("<MarkdownContent");
-    expect(fileEditorSources).toContain('useState<"rich" | "source">');
+    expect(workspaceMarkdownEditorSource).toMatch(
+      /usePersistentUiState\(\s*"artemis-markdown-view",\s*markdownViewState,\s*"rich",?\s*\)/u,
+    );
     expect(fileEditorSources).toContain('setView("rich")');
     expect(fileEditorSources).toContain('setView("source")');
     expect(workspaceFilesSource).toContain("threadId={threadId}");

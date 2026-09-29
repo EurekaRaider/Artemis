@@ -555,6 +555,59 @@ it("restores the comment draft after leaving and returning to a document", async
   expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
 });
 
+it.each(["word", "powerpoint", "excel"] as const)(
+  "remembers both explicit follow choices in %s after reopening",
+  async (format) => {
+    const first = fixture(format);
+    const toggle = () => screen.getByRole("switch");
+    expect(toggle()).toBeChecked();
+    fireEvent.click(toggle());
+    first.unmount();
+    const second = fixture(format);
+    expect(toggle()).not.toBeChecked();
+    fireEvent.click(toggle());
+    second.advance(
+      format === "excel"
+        ? { kind: "cells", sheet: "Budget", range: "B2" }
+        : { kind: "region", page: 2, x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+    );
+    second.unmount();
+    fixture(format);
+    expect(toggle()).toBeChecked();
+  },
+);
+
+it("remembers Office zoom and spreadsheet view after reopening", async () => {
+  const first = fixture("excel");
+  fireEvent.click(screen.getByRole("button", { name: "Print preview" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zoom Fit width" }));
+  fireEvent.click(screen.getByRole("option", { name: "150%" }));
+  first.unmount();
+  fixture("excel");
+  expect(screen.getByRole("button", { name: "Print preview" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "Zoom 150%" })).toBeVisible();
+});
+
+it("pauses follow for annotation focus without replacing the saved choice", async () => {
+  const first = fixture();
+  first.focus({
+    protocolVersion: 1,
+    id: "note",
+    documentId: "document",
+    sessionId: "session",
+    sourceVersion: 4,
+    text: "Review",
+    selection: { kind: "paragraph", index: 0, start: 0, end: 5 },
+  });
+  await waitFor(() => expect(screen.getByRole("switch")).not.toBeChecked());
+  first.unmount();
+  fixture();
+  expect(screen.getByRole("switch")).toBeChecked();
+});
+
 it("renders Word pages in one scroll area with a single page picker", async () => {
   const { container } = fixture();
   await waitFor(() =>

@@ -3,6 +3,7 @@ import type {
   AutomationAuthorizationState,
   AutomationSchedule,
   AutomationTarget,
+  ModelSelection,
   RunMode,
 } from "@artemis/protocol";
 import { AUTOMATION_AUTHORIZATION_VERSION } from "@artemis/protocol";
@@ -12,6 +13,7 @@ export interface AutomationAuthorizationInput {
   prompt: string;
   mode: RunMode;
   target: AutomationTarget;
+  modelSelection?: ModelSelection | undefined;
   schedule: AutomationSchedule;
 }
 
@@ -38,6 +40,16 @@ export function automationAuthorizationFingerprint(
         mode: input.mode,
         target: input.target,
         schedule: canonicalSchedule(input.schedule),
+        ...(input.modelSelection
+          ? {
+              modelSelection: {
+                providerId: input.modelSelection.providerId,
+                modelId: input.modelSelection.modelId,
+                thinkingLevel: input.modelSelection.thinkingLevel,
+                ...(input.modelSelection.ultraMode ? { ultraMode: true } : {}),
+              },
+            }
+          : {}),
       }),
     )
     .digest("hex");

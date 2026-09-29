@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import {
   WorkspaceEditorToolbar,
   WorkspacePreview,
@@ -8,6 +8,7 @@ import {
 
 import { MarkdownContent } from "./MarkdownContent.js";
 import { handleWorkspaceEditorSaveShortcut } from "./workspace-editor-shortcut.js";
+import { markdownViewState, usePersistentUiState } from "./ui-state.js";
 
 interface WorkspaceMarkdownEditorProps {
   ariaLabel: string;
@@ -48,7 +49,11 @@ export function WorkspaceMarkdownEditor({
   onChange,
   onSave,
 }: WorkspaceMarkdownEditorProps) {
-  const [view, setView] = useState<"rich" | "source">("rich");
+  const [view, setView] = usePersistentUiState(
+    "artemis-markdown-view",
+    markdownViewState,
+    "rich",
+  );
   const resolveImage = useCallback(
     async (href: string) => {
       if (!threadId) return undefined;

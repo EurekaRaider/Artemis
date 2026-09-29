@@ -197,6 +197,14 @@ async function openAutomationDraftDialog() {
   render(
     <AutomationPage
       locale="en"
+      settings={settingsSnapshot({
+        models: [syntheticModel],
+        selection: {
+          providerId: syntheticModel.providerId,
+          modelId: syntheticModel.modelId,
+          thinkingLevel: "off",
+        },
+      })}
       projects={[syntheticProject]}
       onConfirm={() => Promise.resolve(true)}
       onOpenThread={() => {}}

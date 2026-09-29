@@ -67,7 +67,7 @@ function fixture(turns = 65) {
 }
 
 describe("paged history projections", () => {
-  it("restores an Office tab from reduced history even when presentation events omit its open event", () => {
+  it("restores Office history without reopening dismissed tabs, and opens live sessions", () => {
     const { reader, add } = fixture(1);
     const session = {
       protocolVersion: 1 as const,
@@ -95,9 +95,16 @@ describe("paged history projections", () => {
     expect(
       page.events.some((event) => event.payload.type === "artifact.event"),
     ).toBe(false);
+    expect(
+      reconcileOfficeWorkspaceTab(
+        emptyWorkspaceTabs(),
+        page.state.artifacts.session!.session,
+      ).tabs,
+    ).toEqual([]);
     const restored = reconcileOfficeWorkspaceTab(
       emptyWorkspaceTabs(),
       page.state.artifacts.session!.session,
+      true,
     );
     expect(restored.tabs).toEqual([
       expect.objectContaining({

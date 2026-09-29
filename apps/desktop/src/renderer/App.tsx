@@ -320,12 +320,13 @@ import {
   type WorkspaceTabAction,
   type WorkspaceTabKind,
   type WorkspaceTabOpenOptions,
-  type WorkspaceTabsState,
   handleWorkspaceTabBarKeyDown,
   workspaceTabDomId,
   workspaceTabFocusTargetAfterClose,
   workspaceTabIdForKey,
 } from "./workspace-tabs.js";
+import { useWorkspaceUiState } from "./workspace-ui-state.js";
+import { booleanUiState, usePersistentUiState } from "./ui-state.js";
 import {
   clampWorkspaceDockWidth,
   DEFAULT_WORKSPACE_DOCK_WIDTH,
@@ -358,6 +359,7 @@ import {
 import {
   selectionForModelSwitch,
   thinkingLevelsForModel,
+  thinkingLevelLabel,
 } from "./model-selection.js";
 
 type Locale = AppLocale;
@@ -776,19 +778,6 @@ function statusLabel(
   }
 }
 
-function thinkingLevelLabel(level: ThinkingLevel, locale: Locale): string {
-  const key = {
-    off: "thinkingOff",
-    minimal: "thinkingMinimal",
-    low: "thinkingLow",
-    medium: "thinkingMedium",
-    high: "thinkingHigh",
-    xhigh: "thinkingXHigh",
-    max: "thinkingMax",
-  } as const;
-  return I18N_RESOURCES[locale].settings[key[level]];
-}
-
 function updateThreadStatus(
   thread: Thread,
   event: AgentEvent,
@@ -1074,7 +1063,11 @@ export function App() {
     useState<ModelPickerSection>("model");
   const [mode, setMode] = useState<RunMode>("execute");
   const [query, setQuery] = useState("");
-  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [projectsOpen, setProjectsOpen] = usePersistentUiState(
+    "artemis-projects-open",
+    booleanUiState,
+    true,
+  );
   const [temporaryConversationsOpen, setTemporaryConversationsOpen] =
     useState(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
@@ -1108,7 +1101,7 @@ export function App() {
     projectsSearchQueryRef.current = query;
     if (isSearching && !wasSearching) {
       setProjectsExpanded(true);
-    } else if (!isSearching && wasSearching) {
+    } else if (!isSearching) {
       setProjectsExpanded(projectsOpen);
     }
   }, [projectsOpen, query]);
@@ -1149,13 +1142,15 @@ export function App() {
     threadId: string;
     title: string;
   }>();
-  const [workspaceTabsByThread, setWorkspaceTabsByThread] = useState<
-    Record<string, WorkspaceTabsState>
-  >({});
+  const {
+    tabsByThread: workspaceTabsByThread,
+    setTabsByThread: setWorkspaceTabsByThread,
+    dockOpen: workspaceDockOpen,
+    setDockOpen: setWorkspaceDockOpen,
+  } = useWorkspaceUiState(activeThreadId);
   const [officeAnnotationFocus, setOfficeAnnotationFocus] = useState<
     OfficeAnnotationReference & { threadId: string }
   >();
-  const [workspaceDockOpen, setWorkspaceDockOpen] = useState(false);
   const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
   const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
   const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
@@ -1163,7 +1158,6 @@ export function App() {
     useState<WorkspaceTabScrollState>(EMPTY_WORKSPACE_TAB_SCROLL_STATE);
   const [fileLinkContextMenu, setFileLinkContextMenu] =
     useState<FileLinkContextMenuState>();
-  const workspaceTabSerial = useRef(0);
   const workspaceTabMenuRoot = useRef<HTMLDivElement>(null);
   const workspaceTabScroll = useRef<HTMLDivElement>(null);
   const workspaceTabTrack = useRef<HTMLDivElement>(null);
@@ -1200,7 +1194,9 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hooksQuery, setHooksQuery] = useState<HookQuery>({});
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
-  const [sidebarOpen, setSidebarOpen] = useState(
+  const [sidebarOpen, setSidebarOpen] = usePersistentUiState(
+    "artemis-sidebar-open",
+    booleanUiState,
     () => window.innerWidth > 1060,
   );
   const [sidebarPeek, setSidebarPeek] = useState(false);
@@ -1805,7 +1801,6 @@ export function App() {
       );
       promptHistoryNavigation.current = { index: -1, draft: "" };
       setSkillMenuDismissed(false);
-      setWorkspaceDockOpen(false);
       setProjectMenuId(undefined);
       setThreadMenuId(undefined);
       window.requestAnimationFrame(() => promptInput.current?.focus());
@@ -1823,7 +1818,6 @@ export function App() {
     );
     promptHistoryNavigation.current = { index: -1, draft: "" };
     setSkillMenuDismissed(false);
-    setWorkspaceDockOpen(false);
     setProjectMenuId(undefined);
     setThreadMenuId(undefined);
     window.requestAnimationFrame(() => promptInput.current?.focus());
@@ -2395,8 +2389,8 @@ export function App() {
         workspaceTabs.activeTabId,
       );
       dispatchWorkspaceTab({ type: "close", tabId });
+      if (activeThreadIdRef.current !== activeThreadId) return;
       if (closesLastTab) {
-        setWorkspaceDockOpen(false);
         if (options?.moveFocus) {
           workspaceDockToggleElement.current?.focus();
         }
@@ -2439,16 +2433,19 @@ export function App() {
           });
           return {
             ...current,
-            [threadId]: reduceWorkspaceTabs(updated, {
-              type: "activate",
-              tabId: existing.id,
-            }),
+            [threadId]: {
+              ...reduceWorkspaceTabs(updated, {
+                type: "activate",
+                tabId: existing.id,
+              }),
+              dockOpen: true,
+            },
           };
         }
 
         const index = state.tabs.filter((tab) => tab.kind === kind).length + 1;
         const tab: WorkspaceTab = {
-          id: `${threadId}-${kind}-${++workspaceTabSerial.current}`,
+          id: `${threadId}-${kind}-${crypto.randomUUID()}`,
           kind,
           title: pathTitle ?? (index > 1 ? `${baseTitle} ${index}` : baseTitle),
           ...(options.path ? { path: options.path } : {}),
@@ -2457,10 +2454,13 @@ export function App() {
         };
         return {
           ...current,
-          [threadId]: reduceWorkspaceTabs(state, {
-            type: "open",
-            tab,
-          }),
+          [threadId]: {
+            ...reduceWorkspaceTabs(state, {
+              type: "open",
+              tab,
+            }),
+            dockOpen: true,
+          },
         };
       });
     },
@@ -3285,6 +3285,12 @@ export function App() {
       const finishedThreadIds = new Set<string>();
       for (const event of events) {
         if (
+          event.payload.type === "artifact.event" &&
+          event.payload.event.kind === "opened"
+        ) {
+          liveOfficeTabs.current.add(event.payload.event.session.sessionId);
+        }
+        if (
           event.payload.type === "agent-team.status" &&
           !knownAgentTeamTabs.current.has(event.payload.teamId)
         ) {
@@ -3941,6 +3947,7 @@ export function App() {
     liveChildActivities,
   ]);
   const openedOfficeTabs = useRef(new Set<string>());
+  const liveOfficeTabs = useRef(new Set<string>());
   useEffect(() => {
     if (!activeThreadId || !threadState) return;
     // History pages retain artifact state but omit raw artifact presentation events.
@@ -3956,13 +3963,15 @@ export function App() {
       openedOfficeTabs.current.add(session.sessionId);
     setWorkspaceTabsByThread((current) => {
       let state = current[activeThreadId] ?? emptyWorkspaceTabs();
-      for (const session of sessions)
-        state = reconcileOfficeWorkspaceTab(state, session);
+      for (const session of sessions) {
+        const live = liveOfficeTabs.current.delete(session.sessionId);
+        const next = reconcileOfficeWorkspaceTab(state, session, live);
+        state = live && next !== state ? { ...next, dockOpen: true } : next;
+      }
       return state === current[activeThreadId]
         ? current
         : { ...current, [activeThreadId]: state };
     });
-    setWorkspaceDockOpen(true);
   }, [activeThreadId, threadState]);
   const activePromptHistory = useMemo(() => {
     if (!threadState?.order.length) {
@@ -4878,7 +4887,6 @@ export function App() {
         if (activeThreadId === thread.id) {
           setActiveThreadId(nextThread?.id);
           setMode(nextThread?.mode ?? "execute");
-          setWorkspaceDockOpen(false);
           window.requestAnimationFrame(() => promptInput.current?.focus());
         }
       } catch (error) {
@@ -4941,6 +4949,11 @@ export function App() {
             loadedEventThreads.current.delete(thread.id);
             loadingEventThreads.current.delete(thread.id);
             threadStateCache.current.delete(thread.id);
+            setWorkspaceTabsByThread((current) => {
+              const next = { ...current };
+              delete next[thread.id];
+              return next;
+            });
             setComposerDrafts((current) =>
               clearComposerDraft(
                 current,
@@ -4962,7 +4975,6 @@ export function App() {
         );
         setActiveThreadId(next?.id);
         setMode(next?.mode ?? "execute");
-        setWorkspaceDockOpen(false);
       }
       setToast(
         failed.length
@@ -7127,6 +7139,7 @@ export function App() {
           <Suspense fallback={<div className="view-loading">…</div>}>
             <AutomationPage
               locale={locale}
+              settings={runtimeSettings}
               onConfirm={requestConfirmation}
               onOpenThread={(threadId) => void openAutomationThread(threadId)}
               projects={projects}

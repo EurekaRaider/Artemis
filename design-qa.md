@@ -165,3 +165,34 @@ final result: passed
 - The approved image is a presentation board. Production opens one interactive dialog at a time and retains Artemis navigation, list density and deterministic theme surfaces.
 - Real MCP servers and installed skills were not removed during validation. This verifies local source and the isolated production renderer; it does not establish packaged installation or Windows native acceptance.
 - Existing plugin dialogs and unrelated workspace changes are preserved. This task has not committed, pushed, packaged or installed Artemis.
+
+---
+
+# Scheduled tasks option 2 — 2026-09-29
+
+Result: the selected layout and model-selection scope passed. Four stale workspace layout assertions were subsequently updated during v1.6.12 release preparation.
+
+## Reference and visual evidence
+
+- User approved revised option 2: `/Users/williamji/.codex/generated_images/01a0eba9-77b4-7151-884e-3c325ff1afc4/exec-76ac1ee4-a505-4837-b868-f862a38503de.png`.
+- Actual native Electron captures: `artifacts/automation-redesign/`. The reference and desktop screenshots were opened together for visual comparison.
+- Wide viewport: 1440 × 900 CSS pixels, 2× scale. `list-dark.png`, `dialog-dark.png`, `model-menu-dark.png`, `time-menu-dark.png`, `dialog-light.png`, `empty-dark.png`.
+- Narrow stress viewport: 680 × 820 CSS pixels, below the normal application minimum width. `list-narrow.png`, `dialog-narrow.png`, `dialog-narrow-settings.png`. No horizontal page overflow; the dialog scrolls and its footer remains reachable and visible.
+- The original `apps/desktop/src/renderer/assets/automation-header-icon.png` is unchanged. The task header, compact separated rows, two-column form, full-width model/effort controls, right-column schedule section and footer follow the selected reference. Narrow layouts put the form sections in one column and keep the logo beside the title.
+- Deterministic existing theme surfaces, public components, typography and navigation are retained. Model names in screenshots are isolated test catalog entries, never production hard-coded choices. The timezone remains an editable field for existing schedule compatibility.
+- Visual adjustments during QA: expanded the timezone field across the right column, kept the narrow header compact and grouped empty-state content. The final dark/light views and both dropdowns were inspected.
+
+## Functional evidence
+
+- The editor initializes from the actual default selection and displays the catalog model name. It filters unavailable models, restricts effort choices to supported levels, and disables reasoning for models without it.
+- Model and reasoning settings persist with the automation, survive editing and database reopening, and leave the global default unchanged. Legacy database rows without a model are preserved and use the existing default behavior until edited.
+- Unavailable saved models prevent saving until the user selects an available one. A failed save retains the draft and displays the error in the dialog. Deletion still uses the existing explicit confirmation.
+- `apps/desktop/scripts/verify-automation-models.mjs` runs the built renderer and real IPC/store/scheduler/Pi dispatch with an isolated temporary profile, the repository's signed development license fixture, and a loopback-only mock provider. The fixture restores the original Electron bundle after verification.
+- Native dispatch completed successfully: the task stored reasoning `low` while the global default remained `max`; the loopback provider received model `reasoner` and `reasoning_effort: low`. See `artifacts/automation-redesign/report.json` and `dispatch.json`.
+- Screenshot tests exercised creation, model switching, supported-effort changes, date selection, saving, reopening, theme reload, narrow layouts and the empty state. No uncaught renderer errors were recorded.
+- Desktop targeted tests: 12 files, 129 tests passed (`artifacts/automation-redesign/tests.json`). Protocol automation tests: 5 passed. Desktop typecheck, production build, UI convergence and negative fixtures, UI boundary checks and negative fixtures, skin conformance, Prettier and whitespace checks passed. The build retains the existing large-chunk warning.
+
+## Existing failures and acceptance boundary
+
+- The initial `renderer-layout.test.ts` run had two source-string failures that expected the old workspace and Markdown state declarations. Full release validation found two related assertions in `workspace-tabs-layout.test.ts`. All four now check the persistence integration, and closing-tab coverage verifies that the reducer keeps the dock open until its last tab closes. The four affected layout/state suites pass all 173 tests.
+- The design acceptance evidence above covers local source and a native macOS development build. External-provider availability and installation into the user's released app are not established by these checks. Release preparation, requested subsequently, uses exact-commit CI and the existing platform packaging gates for publication.

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { PROTOCOL_VERSION, runModeSchema } from "./schema.js";
+import {
+  PROTOCOL_VERSION,
+  modelSelectionSchema,
+  runModeSchema,
+} from "./schema.js";
 
 export const AUTOMATION_AUTHORIZATION_VERSION = 1 as const;
 
@@ -72,6 +76,7 @@ export const automationSchema = z.object({
     .max(32 * 1024),
   mode: runModeSchema,
   target: automationTargetSchema,
+  modelSelection: modelSelectionSchema.optional(),
   schedule: automationScheduleSchema,
   enabled: z.boolean(),
   authorizationState: automationAuthorizationStateSchema,

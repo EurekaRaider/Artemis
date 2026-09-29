@@ -44,6 +44,48 @@ describe("automation authorization", () => {
     ).toMatch(/^[a-f0-9]{64}$/u);
   });
 
+  it("invalidates authorization when the model or reasoning settings change", () => {
+    const modelSelection = {
+      providerId: "sample",
+      modelId: "reasoner",
+      thinkingLevel: "high" as const,
+    };
+    const fingerprint = automationAuthorizationFingerprint({
+      ...input,
+      modelSelection,
+    });
+    for (const change of [
+      { modelId: "fast" },
+      { providerId: "alternate" },
+      { thinkingLevel: "low" as const },
+      { ultraMode: true },
+    ]) {
+      expect(
+        automationAuthorizationFingerprint({
+          ...input,
+          modelSelection: { ...modelSelection, ...change },
+        }),
+      ).not.toBe(fingerprint);
+    }
+    expect(
+      automationAuthorizationFingerprint({
+        ...input,
+        modelSelection: {
+          thinkingLevel: "high",
+          modelId: "reasoner",
+          providerId: "sample",
+          ultraMode: false,
+        },
+      }),
+    ).toBe(fingerprint);
+    expect(
+      automationAuthorizationFingerprint({
+        ...input,
+        modelSelection: undefined,
+      }),
+    ).toBe(automationAuthorizationFingerprint(input));
+  });
+
   it("auto-approves only a linked active Execute automation turn", () => {
     expect(
       automationMayAutoApprove({

@@ -39,6 +39,7 @@ import {
 } from "./browser-navigation.js";
 import { MarkdownContent } from "./MarkdownContent.js";
 import { handleWorkspaceEditorSaveShortcut } from "./workspace-editor-shortcut.js";
+import { markdownViewState, usePersistentUiState } from "./ui-state.js";
 
 interface WorkspacePreviewProps {
   threadId: string | undefined;
@@ -405,7 +406,11 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
 }
 
 export function MarkdownReaderPanel(props: MarkdownReaderProps) {
-  const [view, setView] = useState<"rich" | "source">("rich");
+  const [view, setView] = usePersistentUiState(
+    "artemis-markdown-view",
+    markdownViewState,
+    "rich",
+  );
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle",

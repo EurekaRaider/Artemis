@@ -29,6 +29,23 @@ const automation = automationSchema.parse({
 });
 
 describe("automation protocol", () => {
+  it("preserves explicit model settings while accepting legacy tasks without them", () => {
+    const modelSelection = {
+      providerId: "sample",
+      modelId: "reasoner",
+      thinkingLevel: "high",
+    };
+    expect(
+      automationSchema.parse({ ...automation, modelSelection }).modelSelection,
+    ).toEqual(modelSelection);
+    expect(automation).not.toHaveProperty("modelSelection");
+    expect(() =>
+      automationSchema.parse({
+        ...automation,
+        modelSelection: { ...modelSelection, thinkingLevel: "unsupported" },
+      }),
+    ).toThrow();
+  });
   it("accepts the supported local schedule and target boundary", () => {
     expect(automation.schedule.kind).toBe("weekly");
     expect(() =>

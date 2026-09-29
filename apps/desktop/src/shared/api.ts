@@ -157,6 +157,7 @@ export interface SaveAutomationInput {
   prompt: string;
   mode: RunMode;
   target: AutomationTarget;
+  modelSelection?: ModelSelection;
   schedule: AutomationSchedule;
   enabled: boolean;
 }

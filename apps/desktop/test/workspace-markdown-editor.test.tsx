@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import "./renderer-test-utils.js";
 import { WorkspaceMarkdownEditor } from "../src/renderer/WorkspaceMarkdownEditor.js";
@@ -18,6 +18,8 @@ const labels = {
 };
 
 const content = "# Meeting notes";
+
+beforeEach(() => localStorage.clear());
 
 type EditorHandlers = {
   onChange: ReturnType<typeof vi.fn>;
@@ -91,6 +93,14 @@ async function openSourceView() {
 }
 
 describe("WorkspaceMarkdownEditor shared toolbar wiring (D#76 PR7 item 3)", () => {
+  it("remembers source mode after reopening", () => {
+    const first = renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: labels.sourceLabel }));
+    first.unmount();
+    const second = renderEditor();
+    expect(second.sourceTextarea()).toHaveValue(content);
+  });
+
   it("renders the save status as a polite live region following dirty/saving/saved props", () => {
     const { rerenderEditor } = renderEditor({ dirty: true });
     const status = screen.getByRole("status");

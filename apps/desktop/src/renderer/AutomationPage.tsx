@@ -1,6 +1,13 @@
 import { statusText } from "../shared/status-text.js";
-import { makeUiCopy } from "../shared/ui-text.js";
+import { makeUiCopy, uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
+import type { SettingsSnapshot } from "../shared/api.js";
+import {
+  selectionForModelSwitch,
+  thinkingLevelLabel,
+  thinkingLevelsForModel,
+} from "./model-selection.js";
 import automationHeaderIcon from "./assets/automation-header-icon.png";
 import { Temporal } from "@js-temporal/polyfill";
 import {
@@ -11,6 +18,7 @@ import {
   type AutomationTarget,
   type AppLocale,
   type AutomationViewState,
+  type ModelSelection,
   type Project,
   type RunMode,
 } from "@artemis/protocol";
@@ -23,7 +31,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { Button, Status } from "@artemis/ui/actions";
+import { Button, IconButton, Status } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import {
@@ -31,6 +39,7 @@ import {
   EmptyState,
   ErrorState,
   InlineNotice,
+  Popover,
 } from "@artemis/ui/feedback";
 import { Checkbox, Select, TextAreaField, TextField } from "@artemis/ui/forms";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
@@ -62,6 +71,7 @@ interface AutomationDraft {
   windowEnd: string;
   windowIntervalUnit: WindowedIntervalUnit;
   enabled: boolean;
+  modelSelection?: ModelSelection | undefined;
 }
 
 const text = UI_COPY.AutomationPage_text;
@@ -490,7 +500,10 @@ function formatDate(value: string | undefined, locale: Locale): string {
   }).format(new Date(value));
 }
 
-function scheduleLabel(automation: Automation, locale: Locale): string {
+function scheduleLabel(
+  automation: Pick<Automation, "schedule">,
+  locale: Locale,
+): string {
   const schedule = automation.schedule;
   const labels = text[locale];
   if (schedule.kind === "interval") {
@@ -505,15 +518,27 @@ function scheduleLabel(automation: Automation, locale: Locale): string {
   if (schedule.kind === "once") {
     return `${labels.once} · ${formatDate(schedule.at, locale)} · ${schedule.timeZone}`;
   }
-  const days = schedule.daysOfWeek
-    .map((day) => weekLabels[locale][day - 1])
-    .join(" ");
+  const dayKey = [...schedule.daysOfWeek].sort((a, b) => a - b).join(",");
+  const days =
+    dayKey === "1,2,3,4,5,6,7"
+      ? labels.daily
+      : dayKey === "1,2,3,4,5"
+        ? labels.weekdays
+        : `${labels.weekly} ${schedule.daysOfWeek
+            .map((day) => weekLabels[locale][day - 1])
+            .join(" ")}`;
   return `${days} · ${schedule.localTime} · ${schedule.timeZone}`;
 }
 
 export function AutomationPage(props: {
   locale: Locale;
   projects: Project[];
+  settings?:
+    | Pick<
+        SettingsSnapshot,
+        "models" | "addedModels" | "providers" | "selection"
+      >
+    | undefined;
   onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
   onOpenThread(threadId: string): void;
 }) {
@@ -525,6 +550,83 @@ export function AutomationPage(props: {
   const [draft, setDraft] = useState<AutomationDraft>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [moreAutomation, setMoreAutomation] = useState<string>();
+  const moreAnchor = useRef<HTMLElement | null>(null);
+  const modelKey = (model: Pick<ModelSelection, "providerId" | "modelId">) =>
+    JSON.stringify([model.providerId, model.modelId]);
+  const models = useMemo(() => {
+    const settings = props.settings;
+    if (!settings) return [];
+    const added = new Set(settings.addedModels.map(modelKey));
+    return settings.models
+      .filter(
+        (model) =>
+          model.configured &&
+          (added.has(modelKey(model)) ||
+            settings.providers.some(
+              (provider) =>
+                provider.id === model.providerId &&
+                provider.models.some((item) => item.id === model.modelId),
+            ) ||
+            (settings.selection &&
+              modelKey(model) === modelKey(settings.selection)) ||
+            (draft?.modelSelection &&
+              modelKey(model) === modelKey(draft.modelSelection))),
+      )
+      .sort(
+        (a, b) =>
+          a.name.localeCompare(b.name, props.locale) ||
+          a.providerId.localeCompare(b.providerId),
+      );
+  }, [props.settings, props.locale, draft?.modelSelection]);
+  const selection = draft?.modelSelection ?? props.settings?.selection;
+  const selectedModel = models.find(
+    (model) => selection && modelKey(model) === modelKey(selection),
+  );
+  const selectedModelKey = selection ? modelKey(selection) : "";
+  const thinkingLevels = thinkingLevelsForModel(selectedModel);
+  const normalizedSelection = selectedModel
+    ? selectionForModelSwitch(selectedModel, selection)
+    : undefined;
+  const modelOptions = models.map((model) => ({
+    value: modelKey(model),
+    label:
+      models.filter((item) => item.name === model.name).length > 1
+        ? `${model.name} · ${model.providerId}`
+        : model.name,
+  }));
+  if (!selectedModel)
+    modelOptions.unshift({
+      value: selectedModelKey,
+      label: selection?.modelId ?? t.chooseModel,
+    });
+  let draftScheduleLabel = "";
+  if (draft) {
+    try {
+      draftScheduleLabel = scheduleLabel(
+        { schedule: scheduleForDraft(draft) },
+        props.locale,
+      );
+    } catch {
+      /* Keep the form editable while a date or time zone is incomplete. */
+    }
+  }
+  const openDraft = (automation?: Automation) => {
+    setMessage(undefined);
+    setDraft(
+      automation
+        ? {
+            ...draftForAutomation(automation),
+            modelSelection:
+              automation.modelSelection ?? props.settings?.selection,
+          }
+        : {
+            ...defaultDraft(projectFilter || props.projects[0]?.id || ""),
+            modelSelection: props.settings?.selection,
+          },
+    );
+  };
   const filterProjectOptions = useMemo(
     () => projectSelectOptions(props.projects, [t.allProjects]),
     [props.projects, t.allProjects],
@@ -571,7 +673,8 @@ export function AutomationPage(props: {
           seenEventIds: current.seenEventIds,
         }));
       })
-      .catch((error) => setMessage(String(error)));
+      .catch((error) => mounted && setMessage(String(error)))
+      .finally(() => mounted && setLoading(false));
     return () => {
       mounted = false;
       unsubscribe();
@@ -591,7 +694,7 @@ export function AutomationPage(props: {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (!draft) return;
+    if (!draft || !normalizedSelection || busy) return;
     setBusy(true);
     setMessage(undefined);
     try {
@@ -602,6 +705,7 @@ export function AutomationPage(props: {
         prompt: draft.prompt,
         mode: draft.mode,
         target: draft.target,
+        modelSelection: normalizedSelection,
         schedule: scheduleForDraft(draft),
         enabled: draft.enabled,
       });
@@ -648,11 +752,7 @@ export function AutomationPage(props: {
                 width={16}
               />
             }
-            onClick={() =>
-              setDraft(
-                defaultDraft(projectFilter || props.projects[0]?.id || ""),
-              )
-            }
+            onClick={() => openDraft()}
             variant="primary"
           >
             {t.create}
@@ -666,7 +766,7 @@ export function AutomationPage(props: {
           />
         }
         className="automation-header"
-        description={t.subtitle}
+        description={t.pageSubtitle}
         title={t.title}
       />
 
@@ -682,7 +782,12 @@ export function AutomationPage(props: {
           size="compact"
           value={projectFilter}
         />
-        {message ? (
+        <span className="automation-count">
+          {uiText(props.locale, "AutomationPage_text.taskCount", {
+            count: automations.length,
+          })}
+        </span>
+        {message && !draft ? (
           <ErrorState className="automation-message">{message}</ErrorState>
         ) : null}
       </div>
@@ -697,6 +802,12 @@ export function AutomationPage(props: {
           const project = props.projects.find(
             (candidate) => candidate.id === automation.projectId,
           );
+          const taskSelection =
+            automation.modelSelection ?? props.settings?.selection;
+          const taskModel = props.settings?.models.find(
+            (model) =>
+              taskSelection && modelKey(model) === modelKey(taskSelection),
+          );
           const statusLabel =
             automation.authorizationState === "required"
               ? t.authorizationRequired
@@ -708,7 +819,11 @@ export function AutomationPage(props: {
               <div className="automation-card-heading">
                 <div>
                   <h2>{automation.name}</h2>
-                  <span>{project?.name}</span>
+                  <span>
+                    {project?.name ?? t.unavailableProject} ·{" "}
+                    {uiText(props.locale, `App_copy.${automation.mode}`)} ·{" "}
+                    {automation.target === "local" ? t.local : t.managed}
+                  </span>
                 </div>
                 <Status
                   className="automation-state"
@@ -725,129 +840,196 @@ export function AutomationPage(props: {
               </div>
               <p className="automation-prompt">{automation.prompt}</p>
               <div className="automation-meta">
-                <span>{scheduleLabel(automation, props.locale)}</span>
-                <span>
-                  {automation.mode.toUpperCase()} ·{" "}
-                  {automation.target === "local" ? t.local : t.managed}
+                <span className="automation-schedule-label">
+                  <ArtemisIcon name="clock" />
+                  {scheduleLabel(automation, props.locale)}
                 </span>
                 <span>
-                  {t.nextRun}: {formatDate(automation.nextRunAt, props.locale)}
-                </span>
-                <span>
-                  {t.lastRun}: {formatDate(automation.lastRunAt, props.locale)}
+                  {automation.enabled
+                    ? `${t.nextRun}: ${formatDate(automation.nextRunAt, props.locale)}`
+                    : t.pausedUntilEnabled}
                 </span>
               </div>
-              <div className="automation-actions">
-                {automation.authorizationState === "required" && (
+              <p className="automation-model-summary">
+                {t.model}:{" "}
+                {taskModel?.name ?? taskSelection?.modelId ?? t.chooseModel}
+                {taskSelection && (
+                  <>
+                    {" "}
+                    · {t.thinking}:{" "}
+                    {taskSelection.ultraMode
+                      ? UI_COPY.App_copy[props.locale].ultraMode
+                      : thinkingLevelLabel(
+                          taskSelection.thinkingLevel,
+                          props.locale,
+                        )}
+                  </>
+                )}
+              </p>
+              <div className="automation-card-footer">
+                <div className="automation-actions">
+                  {automation.authorizationState === "required" && (
+                    <Button
+                      icon={<ArtemisIcon name="approval" />}
+                      disabled={busy}
+                      onClick={() =>
+                        void invoke(() =>
+                          window.artemis.authorizeAutomation(automation.id),
+                        )
+                      }
+                    >
+                      {t.authorize}
+                    </Button>
+                  )}
                   <Button
-                    icon={<ArtemisIcon name="approval" />}
-                    disabled={busy}
+                    icon={<ArtemisIcon name="send" />}
+                    disabled={
+                      busy || automation.authorizationState === "required"
+                    }
                     onClick={() =>
                       void invoke(() =>
-                        window.artemis.authorizeAutomation(automation.id),
+                        window.artemis.runAutomationNow(automation.id),
                       )
                     }
                   >
-                    {t.authorize}
+                    {t.runNow}
                   </Button>
-                )}
-                <Button
-                  icon={<ArtemisIcon name="send" />}
-                  disabled={
-                    busy || automation.authorizationState === "required"
-                  }
-                  onClick={() =>
-                    void invoke(() =>
-                      window.artemis.runAutomationNow(automation.id),
-                    )
-                  }
-                >
-                  {t.runNow}
-                </Button>
-                <Button
-                  icon={
-                    automation.enabled ? (
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                      >
-                        <path d="M9 5v14M15 5v14" />
-                      </svg>
+                  <Button
+                    icon={
+                      automation.enabled ? (
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
+                          <path d="M9 5v14M15 5v14" />
+                        </svg>
+                      ) : (
+                        <ArtemisIcon name="send" />
+                      )
+                    }
+                    disabled={busy}
+                    onClick={() =>
+                      void invoke(() =>
+                        window.artemis.setAutomationEnabled(
+                          automation.id,
+                          !automation.enabled,
+                        ),
+                      )
+                    }
+                  >
+                    {automation.enabled ? t.pauseTask : t.enableTask}
+                  </Button>
+                  <Button
+                    icon={<ArtemisIcon name="edit" />}
+                    disabled={busy}
+                    onClick={() => openDraft(automation)}
+                  >
+                    {t.edit}
+                  </Button>
+                  <IconButton
+                    disabled={busy}
+                    label={t.moreActions}
+                    aria-expanded={moreAutomation === automation.id}
+                    icon={<ArtemisIcon name="more" />}
+                    onClick={(event) => {
+                      moreAnchor.current = event.currentTarget;
+                      setMoreAutomation(
+                        moreAutomation === automation.id
+                          ? undefined
+                          : automation.id,
+                      );
+                    }}
+                  />
+                </div>
+                <details className="automation-history">
+                  <summary>
+                    {t.history}
+                    <ArtemisIcon name="chevron" />
+                  </summary>
+                  <div className="automation-history-content">
+                    <span>
+                      {t.lastRun}:{" "}
+                      {formatDate(automation.lastRunAt, props.locale)}
+                    </span>
+                    {runs.length === 0 ? (
+                      <span>{t.noRuns}</span>
                     ) : (
-                      <ArtemisIcon name="send" />
-                    )
-                  }
-                  disabled={busy}
-                  onClick={() =>
-                    void invoke(() =>
-                      window.artemis.setAutomationEnabled(
-                        automation.id,
-                        !automation.enabled,
-                      ),
-                    )
-                  }
-                >
-                  {automation.enabled ? t.pauseTask : t.enableTask}
-                </Button>
-                <Button
-                  icon={<ArtemisIcon name="edit" />}
-                  disabled={busy}
-                  onClick={() => setDraft(draftForAutomation(automation))}
-                >
-                  {t.edit}
-                </Button>
-                <Button
-                  className="management-destructive-action"
-                  icon={<ArtemisIcon name="trash" />}
-                  disabled={busy}
-                  onClick={() =>
-                    void invoke(async () => {
-                      if (!(await props.onConfirm(t.deleteConfirm, "danger"))) {
-                        return;
-                      }
-                      await window.artemis.deleteAutomation(automation.id);
-                    })
-                  }
-                  variant="quiet"
-                >
-                  {t.delete}
-                </Button>
-              </div>
-              <div className="automation-history">
-                <strong>{t.history}</strong>
-                {runs.length === 0 ? (
-                  <span>{t.noRuns}</span>
-                ) : (
-                  runs.slice(0, 5).map((run) => (
-                    <Button
-                      align="start"
-                      className="automation-history-row"
-                      disabled={!run.threadId}
-                      key={run.id}
-                      onClick={() =>
-                        run.threadId && props.onOpenThread(run.threadId)
-                      }
-                      variant="quiet"
-                    >
-                      <span className={`automation-run-dot ${run.state}`} />
-                      <span>{formatDate(run.scheduledFor, props.locale)}</span>
-                      <span>{statusText(props.locale, run.state)}</span>
-                      {run.reason && <small>{run.reason}</small>}
-                    </Button>
-                  ))
-                )}
+                      runs.slice(0, 5).map((run) => (
+                        <Button
+                          align="start"
+                          className="automation-history-row"
+                          disabled={!run.threadId}
+                          key={run.id}
+                          onClick={() =>
+                            run.threadId && props.onOpenThread(run.threadId)
+                          }
+                          variant="quiet"
+                        >
+                          <span className={`automation-run-dot ${run.state}`} />
+                          <span>
+                            {formatDate(run.scheduledFor, props.locale)}
+                          </span>
+                          <span>{statusText(props.locale, run.state)}</span>
+                          {run.reason && <small>{run.reason}</small>}
+                        </Button>
+                      ))
+                    )}
+                  </div>
+                </details>
               </div>
             </ManagementCard>
           );
         })}
-        {automations.length === 0 && (
-          <EmptyState className="automation-empty" title={t.empty} />
-        )}
+        {loading ? (
+          <div className="automation-loading" aria-busy="true">
+            <div />
+            <div />
+          </div>
+        ) : automations.length === 0 && !message ? (
+          <EmptyState
+            className="automation-empty"
+            title={t.empty}
+            description={t.emptyDescription}
+            icon={<ArtemisIcon name="automation" />}
+          />
+        ) : null}
       </div>
 
+      <p className="automation-local-note">
+        <ArtemisIcon name="info" />
+        {t.subtitle}
+      </p>
+      <Popover
+        className="automation-more-menu"
+        align="end"
+        anchorRef={moreAnchor}
+        label={t.moreActions}
+        open={moreAutomation !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setMoreAutomation(undefined);
+        }}
+      >
+        <Button
+          className="management-destructive-action"
+          icon={<ArtemisIcon name="trash" />}
+          disabled={busy}
+          variant="quiet"
+          onClick={() => {
+            const id = moreAutomation;
+            setMoreAutomation(undefined);
+            if (id)
+              void invoke(async () => {
+                if (await props.onConfirm(t.deleteConfirm, "danger"))
+                  await window.artemis.deleteAutomation(id);
+              });
+          }}
+        >
+          {t.delete}
+        </Button>
+      </Popover>
       <Dialog
         className="automation-dialog-shell"
         closeOnBackdrop={!busy}
@@ -863,238 +1045,356 @@ export function AutomationPage(props: {
             className="automation-dialog"
             onSubmit={(event) => void save(event)}
           >
-            <h2>{draft.id ? t.edit : t.create}</h2>
-            <Select
-              disabled={Boolean(draft.id)}
-              label={t.project}
-              onValueChange={(projectId) => setDraft({ ...draft, projectId })}
-              options={editorProjectOptions}
-              value={draft.projectId}
-            />
-            <TextField
-              label={t.name}
-              maxLength={120}
-              onValueChange={(name) => setDraft({ ...draft, name })}
-              required
-              value={draft.name}
-            />
-            <TextAreaField
-              label={t.prompt}
-              maxLength={32 * 1024}
-              onValueChange={(prompt) => setDraft({ ...draft, prompt })}
-              required
-              rows={6}
-              value={draft.prompt}
-            />
-            <div className="automation-form-grid">
-              <Select
-                label={t.mode}
-                onValueChange={(mode) => {
-                  setDraft({
-                    ...draft,
-                    mode,
-                    target:
-                      mode === "execute" ? "managed-worktree" : draft.target,
-                  });
-                }}
-                options={(["plan", "execute", "review"] as const).map(
-                  (mode) => ({ label: mode, value: mode }),
-                )}
-                value={draft.mode}
+            <div className="automation-dialog-heading">
+              <div>
+                <h2>{draft.id ? t.edit : t.create}</h2>
+                <p>{t.editorSubtitle}</p>
+              </div>
+              <IconButton
+                disabled={busy}
+                label={I18N_RESOURCES[props.locale].settings.close}
+                icon={<ArtemisIcon name="close" />}
+                onClick={() => setDraft(undefined)}
               />
-              <Select
-                label={t.target}
-                onValueChange={(target) => setDraft({ ...draft, target })}
-                options={[
-                  { label: t.local, value: "local" },
-                  { label: t.managed, value: "managed-worktree" },
-                ]}
-                value={draft.target}
-              />
-              <Select
-                label={t.schedule}
-                onValueChange={(preset) => setDraft({ ...draft, preset })}
-                options={(
-                  [
-                    "once",
-                    "interval",
-                    "windowed-interval",
-                    "daily",
-                    "weekdays",
-                    "weekly",
-                  ] as const
-                ).map((preset) => ({
-                  label:
-                    preset === "windowed-interval"
-                      ? t.windowedInterval
-                      : t[preset],
-                  value: preset,
-                }))}
-                value={draft.preset}
-              />
-              {draft.preset === "once" && (
-                <label>
-                  <span>{t.date}</span>
-                  <input
-                    disabled={busy}
-                    onChange={(event) =>
-                      setDraft({ ...draft, date: event.target.value })
-                    }
-                    required
-                    type="date"
-                    value={draft.date}
+            </div>
+            <fieldset className="automation-editor-body" disabled={busy}>
+              <section className="automation-instructions">
+                <TextField
+                  label={t.name}
+                  maxLength={120}
+                  onValueChange={(name) => setDraft({ ...draft, name })}
+                  required
+                  value={draft.name}
+                />
+                <Select
+                  labelVisibility="visible"
+                  disabled={Boolean(draft.id)}
+                  label={t.project}
+                  onValueChange={(projectId) =>
+                    setDraft({ ...draft, projectId })
+                  }
+                  options={editorProjectOptions}
+                  value={draft.projectId}
+                />
+                <TextAreaField
+                  label={t.prompt}
+                  maxLength={32 * 1024}
+                  onValueChange={(prompt) => setDraft({ ...draft, prompt })}
+                  required
+                  className="automation-prompt-field"
+                  rows={8}
+                  value={draft.prompt}
+                />
+              </section>
+              <section className="automation-configuration">
+                <h3>{t.executionSettings}</h3>
+                <div className="automation-form-grid">
+                  <Select
+                    labelVisibility="visible"
+                    label={t.mode}
+                    onValueChange={(mode) => {
+                      setDraft({
+                        ...draft,
+                        mode,
+                        target:
+                          mode === "execute"
+                            ? "managed-worktree"
+                            : draft.target,
+                      });
+                    }}
+                    options={(["plan", "execute", "review"] as const).map(
+                      (mode) => ({
+                        label: uiText(props.locale, `App_copy.${mode}`),
+                        value: mode,
+                      }),
+                    )}
+                    value={draft.mode}
                   />
-                </label>
-              )}
-              {(draft.preset === "interval" ||
-                draft.preset === "windowed-interval") && (
-                <div className="automation-interval-field">
-                  <div className="automation-interval-controls">
-                    <TextField
-                      label={t.interval}
-                      max={10_000}
-                      min={1}
-                      onValueChange={(value) =>
-                        setDraft({
-                          ...draft,
-                          intervalEvery: Number(value),
-                        })
-                      }
-                      required
-                      type="number"
-                      value={String(draft.intervalEvery)}
-                    />
-                    <Select
-                      label={t.intervalUnit}
-                      onValueChange={(unit) => {
-                        setDraft(
-                          draft.preset === "windowed-interval"
-                            ? {
-                                ...draft,
-                                windowIntervalUnit:
-                                  unit as WindowedIntervalUnit,
-                              }
-                            : { ...draft, intervalUnit: unit as IntervalUnit },
-                        );
-                      }}
-                      options={(draft.preset === "windowed-interval"
-                        ? (["minutes", "hours"] as const)
-                        : (["minutes", "hours", "days"] as const)
-                      ).map((unit) => ({ label: t[unit], value: unit }))}
-                      value={
-                        draft.preset === "windowed-interval"
-                          ? draft.windowIntervalUnit
-                          : draft.intervalUnit
-                      }
-                    />
-                  </div>
+                  <Select
+                    labelVisibility="visible"
+                    label={t.target}
+                    onValueChange={(target) => setDraft({ ...draft, target })}
+                    options={[
+                      { label: t.local, value: "local" },
+                      { label: t.managed, value: "managed-worktree" },
+                    ]}
+                    value={draft.target}
+                  />
                 </div>
-              )}
-              {draft.preset !== "interval" && (
-                <>
-                  {draft.preset === "windowed-interval" ? (
-                    <div className="automation-window-fields">
-                      <div className="automation-time-field">
-                        <span>{t.windowStart}</span>
-                        <TimePicker
-                          hourLabel={t.hour}
-                          label={t.windowStart}
-                          minuteLabel={t.minute}
-                          onChange={(windowStart) =>
-                            setDraft({ ...draft, windowStart })
-                          }
-                          value={draft.windowStart}
-                        />
-                      </div>
-                      <div className="automation-time-field">
-                        <span>{t.windowEnd}</span>
-                        <TimePicker
-                          hourLabel={t.hour}
-                          label={t.windowEnd}
-                          minuteLabel={t.minute}
-                          onChange={(windowEnd) =>
-                            setDraft({ ...draft, windowEnd })
-                          }
-                          value={draft.windowEnd}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="automation-time-field">
-                      <span>{t.time}</span>
-                      <TimePicker
-                        hourLabel={t.hour}
-                        label={t.chooseTime}
-                        minuteLabel={t.minute}
-                        onChange={(time) => setDraft({ ...draft, time })}
-                        value={draft.time}
+                <Select
+                  labelVisibility="visible"
+                  label={t.model}
+                  disabled={busy || models.length === 0}
+                  error={
+                    !selectedModel
+                      ? models.length === 0
+                        ? t.noModels
+                        : t.modelUnavailable
+                      : undefined
+                  }
+                  value={selectedModelKey}
+                  options={modelOptions}
+                  onValueChange={(value) => {
+                    const model = models.find(
+                      (item) => modelKey(item) === value,
+                    );
+                    if (model)
+                      setDraft({
+                        ...draft,
+                        modelSelection: selectionForModelSwitch(
+                          model,
+                          selection,
+                        ),
+                      });
+                  }}
+                />
+                <Select
+                  labelVisibility="visible"
+                  label={t.thinking}
+                  disabled={busy || !selectedModel?.reasoning}
+                  description={t.reasoningHint}
+                  value={
+                    normalizedSelection?.ultraMode
+                      ? "ultra"
+                      : (normalizedSelection?.thinkingLevel ?? "off")
+                  }
+                  options={[
+                    ...(thinkingLevels.length
+                      ? thinkingLevels
+                      : ["off" as const]
+                    ).map((level) => ({
+                      label: thinkingLevelLabel(level, props.locale),
+                      value: level as string,
+                    })),
+                    ...(normalizedSelection?.ultraMode
+                      ? [
+                          {
+                            label: UI_COPY.App_copy[props.locale].ultraMode,
+                            value: "ultra",
+                          },
+                        ]
+                      : []),
+                  ]}
+                  onValueChange={(value) => {
+                    if (!normalizedSelection || value === "ultra") return;
+                    setDraft({
+                      ...draft,
+                      modelSelection: {
+                        providerId: normalizedSelection.providerId,
+                        modelId: normalizedSelection.modelId,
+                        thinkingLevel: value as ModelSelection["thinkingLevel"],
+                      },
+                    });
+                  }}
+                />
+                <h3 className="automation-schedule-heading">
+                  {t.scheduleSettings}
+                </h3>
+                <div className="automation-form-grid">
+                  <Select
+                    labelVisibility="visible"
+                    label={t.schedule}
+                    onValueChange={(preset) => setDraft({ ...draft, preset })}
+                    options={(
+                      [
+                        "once",
+                        "interval",
+                        "windowed-interval",
+                        "daily",
+                        "weekdays",
+                        "weekly",
+                      ] as const
+                    ).map((preset) => ({
+                      label:
+                        preset === "windowed-interval"
+                          ? t.windowedInterval
+                          : t[preset],
+                      value: preset,
+                    }))}
+                    value={draft.preset}
+                  />
+                  {draft.preset === "once" && (
+                    <label>
+                      <span>{t.date}</span>
+                      <input
+                        disabled={busy}
+                        onChange={(event) =>
+                          setDraft({ ...draft, date: event.target.value })
+                        }
+                        required
+                        type="date"
+                        value={draft.date}
                       />
+                    </label>
+                  )}
+                  {(draft.preset === "interval" ||
+                    draft.preset === "windowed-interval") && (
+                    <div className="automation-interval-field">
+                      <div className="automation-interval-controls">
+                        <TextField
+                          label={t.interval}
+                          max={10_000}
+                          min={1}
+                          onValueChange={(value) =>
+                            setDraft({
+                              ...draft,
+                              intervalEvery: Number(value),
+                            })
+                          }
+                          required
+                          type="number"
+                          value={String(draft.intervalEvery)}
+                        />
+                        <Select
+                          labelVisibility="visible"
+                          label={t.intervalUnit}
+                          onValueChange={(unit) => {
+                            setDraft(
+                              draft.preset === "windowed-interval"
+                                ? {
+                                    ...draft,
+                                    windowIntervalUnit:
+                                      unit as WindowedIntervalUnit,
+                                  }
+                                : {
+                                    ...draft,
+                                    intervalUnit: unit as IntervalUnit,
+                                  },
+                            );
+                          }}
+                          options={(draft.preset === "windowed-interval"
+                            ? (["minutes", "hours"] as const)
+                            : (["minutes", "hours", "days"] as const)
+                          ).map((unit) => ({ label: t[unit], value: unit }))}
+                          value={
+                            draft.preset === "windowed-interval"
+                              ? draft.windowIntervalUnit
+                              : draft.intervalUnit
+                          }
+                        />
+                      </div>
                     </div>
                   )}
-                  <TextField
-                    label={t.timeZone}
-                    onValueChange={(timeZone) =>
-                      setDraft({ ...draft, timeZone })
-                    }
-                    required
-                    value={draft.timeZone}
-                  />
-                </>
-              )}
-            </div>
-            {(draft.preset === "weekly" ||
-              draft.preset === "windowed-interval") && (
-              <div className="automation-weekdays">
-                {weekLabels[props.locale].map((label, index) => {
-                  const day = index + 1;
-                  return (
-                    <Checkbox
-                      checked={draft.daysOfWeek.includes(day)}
-                      key={day}
-                      label={label}
-                      onCheckedChange={(checked) =>
-                        setDraft({
-                          ...draft,
-                          daysOfWeek: checked
-                            ? [...draft.daysOfWeek, day]
-                            : draft.daysOfWeek.filter(
-                                (candidate) => candidate !== day,
-                              ),
-                        })
-                      }
-                    />
-                  );
-                })}
+                  {draft.preset !== "interval" && (
+                    <>
+                      {draft.preset === "windowed-interval" ? (
+                        <div className="automation-window-fields">
+                          <div className="automation-time-field">
+                            <span>{t.windowStart}</span>
+                            <TimePicker
+                              hourLabel={t.hour}
+                              label={t.windowStart}
+                              minuteLabel={t.minute}
+                              onChange={(windowStart) =>
+                                setDraft({ ...draft, windowStart })
+                              }
+                              value={draft.windowStart}
+                            />
+                          </div>
+                          <div className="automation-time-field">
+                            <span>{t.windowEnd}</span>
+                            <TimePicker
+                              hourLabel={t.hour}
+                              label={t.windowEnd}
+                              minuteLabel={t.minute}
+                              onChange={(windowEnd) =>
+                                setDraft({ ...draft, windowEnd })
+                              }
+                              value={draft.windowEnd}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="automation-time-field">
+                          <span>{t.time}</span>
+                          <TimePicker
+                            hourLabel={t.hour}
+                            label={t.chooseTime}
+                            minuteLabel={t.minute}
+                            onChange={(time) => setDraft({ ...draft, time })}
+                            value={draft.time}
+                          />
+                        </div>
+                      )}
+                      <TextField
+                        className="automation-time-zone"
+                        label={t.timeZone}
+                        onValueChange={(timeZone) =>
+                          setDraft({ ...draft, timeZone })
+                        }
+                        required
+                        value={draft.timeZone}
+                      />
+                    </>
+                  )}
+                </div>
+                {(draft.preset === "weekly" ||
+                  draft.preset === "windowed-interval") && (
+                  <div className="automation-weekdays">
+                    {weekLabels[props.locale].map((label, index) => {
+                      const day = index + 1;
+                      return (
+                        <Checkbox
+                          checked={draft.daysOfWeek.includes(day)}
+                          key={day}
+                          label={label}
+                          onCheckedChange={(checked) =>
+                            setDraft({
+                              ...draft,
+                              daysOfWeek: checked
+                                ? [...draft.daysOfWeek, day]
+                                : draft.daysOfWeek.filter(
+                                    (candidate) => candidate !== day,
+                                  ),
+                            })
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+                {draft.mode === "execute" && (
+                  <InlineNotice className="automation-warning" tone="warning">
+                    {t.executeWarning}
+                  </InlineNotice>
+                )}
+              </section>
+            </fieldset>
+            {message ? (
+              <ErrorState className="automation-message" role="alert">
+                {message}
+              </ErrorState>
+            ) : null}
+            <div className="automation-dialog-footer">
+              <span className="automation-schedule-summary">
+                <ArtemisIcon name="clock" />
+                {draftScheduleLabel}
+              </span>
+              <div className="automation-dialog-actions">
+                <Button disabled={busy} onClick={() => setDraft(undefined)}>
+                  {t.cancel}
+                </Button>
+                <Button
+                  disabled={
+                    busy ||
+                    !normalizedSelection ||
+                    ((draft.preset === "weekly" ||
+                      draft.preset === "windowed-interval") &&
+                      draft.daysOfWeek.length === 0) ||
+                    ((draft.preset === "interval" ||
+                      draft.preset === "windowed-interval") &&
+                      (!Number.isInteger(draft.intervalEvery) ||
+                        draft.intervalEvery < 1 ||
+                        draft.intervalEvery > 10_000)) ||
+                    (draft.preset === "windowed-interval" &&
+                      draft.windowStart === draft.windowEnd)
+                  }
+                  type="submit"
+                  variant="primary"
+                >
+                  {t.save}
+                </Button>
               </div>
-            )}
-            {draft.mode === "execute" && (
-              <InlineNotice className="automation-warning" tone="warning">
-                {t.executeWarning}
-              </InlineNotice>
-            )}
-            <div className="automation-dialog-actions">
-              <Button disabled={busy} onClick={() => setDraft(undefined)}>
-                {t.cancel}
-              </Button>
-              <Button
-                disabled={
-                  busy ||
-                  ((draft.preset === "weekly" ||
-                    draft.preset === "windowed-interval") &&
-                    draft.daysOfWeek.length === 0) ||
-                  ((draft.preset === "interval" ||
-                    draft.preset === "windowed-interval") &&
-                    (!Number.isInteger(draft.intervalEvery) ||
-                      draft.intervalEvery < 1 ||
-                      draft.intervalEvery > 10_000)) ||
-                  (draft.preset === "windowed-interval" &&
-                    draft.windowStart === draft.windowEnd)
-                }
-                type="submit"
-                variant="primary"
-              >
-                {t.save}
-              </Button>
             </div>
           </form>
         ) : null}

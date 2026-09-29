@@ -1,4 +1,26 @@
-import type { AgentModelInfo, ModelSelection } from "@artemis/protocol";
+import type {
+  AgentModelInfo,
+  AppLocale,
+  ModelSelection,
+  ThinkingLevel,
+} from "@artemis/protocol";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
+
+export function thinkingLevelLabel(
+  level: ThinkingLevel,
+  locale: AppLocale,
+): string {
+  const key = {
+    off: "thinkingOff",
+    minimal: "thinkingMinimal",
+    low: "thinkingLow",
+    medium: "thinkingMedium",
+    high: "thinkingHigh",
+    xhigh: "thinkingXHigh",
+    max: "thinkingMax",
+  } as const;
+  return I18N_RESOURCES[locale].settings[key[level]];
+}
 
 const selectableThinkingLevels: ModelSelection["thinkingLevel"][] = [
   "minimal",

@@ -286,7 +286,7 @@ describe("workspace tab state", () => {
       "file-1",
     ]);
     expect(afterRightClose.activeTabId).toBe("review-1");
-    expect(afterLastClose).toEqual(emptyState());
+    expect(afterLastClose).toEqual({ ...emptyState(), dockOpen: false });
   });
 
   it("distinguishes closing the sole tab from an already-empty or populated dock", async () => {
