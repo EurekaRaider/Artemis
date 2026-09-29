@@ -149,16 +149,6 @@ jobs:
       - name: Verify offline license activation and expiry in Electron
         run: npm run verify:license-native
 
-      - name: Upload visual convergence evidence
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v6
-        with:
-          name: visual-convergence-${{ matrix.platform }}
-          path: ${{ runner.temp }}/artemis-visual-convergence
-          if-no-files-found: error
-          retention-days: 1
-
   hooks-native:
     name: Hooks native acceptance (${{ matrix.platform }})
     env:
