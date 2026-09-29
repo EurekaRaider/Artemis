@@ -51,10 +51,21 @@ describe("private workspace video streaming", () => {
   });
   it("rejects traversal, outside symlinks, unsupported files and unissued URLs", async () => {
     const f = await fixture();
-    await writeFile(join(f.root, "outside.mp4"), "secret");
-    await symlink(join(f.root, "outside.mp4"), join(f.workspace, "escape.mp4"));
+    const outside = join(f.root, "outside");
+    await mkdir(outside);
+    await writeFile(join(outside, "outside.mp4"), "secret");
+    // Windows runners can create junctions without symlink privileges.
+    await symlink(
+      outside,
+      join(f.workspace, "escape"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     await writeFile(join(f.workspace, "file.txt"), "text");
-    for (const path of ["../outside.mp4", "escape.mp4", "file.txt"])
+    for (const path of [
+      "../outside/outside.mp4",
+      "escape/outside.mp4",
+      "file.txt",
+    ])
       await expect(f.service.open("task", path)).rejects.toThrow();
     expect(
       (await f.service.respond(new Request("artemis-media://video/unknown")))
