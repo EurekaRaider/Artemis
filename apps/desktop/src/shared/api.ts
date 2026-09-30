@@ -1060,6 +1060,8 @@ export interface ArtemisApi {
     credential: string;
     submissionId: string;
   }>;
+  /** Discard the card: accepted → cancelled, credential voided. */
+  discardDesignPanelCandidate(credential: string): Promise<void>;
   /** Consume the credential once; returns the text for the composer. */
   consumeDesignPanelSend(credential: string): Promise<{
     threadId: string;
@@ -1429,6 +1431,7 @@ export const IPC = {
   designPanelCandidate: "artemis:design-panel-candidate",
   designPanelCandidateAccept: "artemis:design-panel-candidate-accept",
   designPanelSendConsume: "artemis:design-panel-send-consume",
+  designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",
   designPanelSendOutcome: "artemis:design-panel-send-outcome",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",

@@ -276,6 +276,41 @@ describe("S2 runtime isolation", () => {
     ctx.store.close();
   }, 30_000);
 
+  it("hot reload: same plugin, new contentHash retires the old worker and spawns a new one", async () => {
+    const scratch = join(directory, `hot-${randomUUID().slice(0, 6)}`);
+    const manager = new ThreadRuntimeManager({
+      threadId: "t-hot",
+      scratchRoot: scratch,
+      revisionsRoot: join(directory, "unused"),
+    });
+    const entry = join(packageRoot, "artemis-design", "runtime/index.mjs");
+    await manager.invoke({
+      entry,
+      pluginId: "com.artemis.design",
+      contentHash: "hash-old",
+      toolName: "get_snapshot",
+      args: {},
+    });
+    const oldPid = manager.childPidOf("com.artemis.design");
+    expect(oldPid).toBeTruthy();
+    // 同 plugin 新 hash：热刷新——旧 worker 退役、新 worker 起来
+    await manager.invoke({
+      entry,
+      pluginId: "com.artemis.design",
+      contentHash: "hash-new",
+      toolName: "get_snapshot",
+      args: {},
+    });
+    const newPid = manager.childPidOf("com.artemis.design");
+    expect(newPid).toBeTruthy();
+    expect(newPid).not.toBe(oldPid);
+    // 旧进程确实退出
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(childAlive(oldPid)).toBe(false);
+    expect(childAlive(newPid)).toBe(true);
+    manager.closeThread();
+  }, 30_000);
+
   it("sandbox probe failure -> invoke refuses, no child process", async () => {
     const manager = new ThreadRuntimeManager({
       threadId: "t-nosandbox",

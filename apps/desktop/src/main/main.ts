@@ -2810,6 +2810,7 @@ function applyPayloadSideEffects(
     }
     case "turn.completed":
       store.updateThread(threadId, { status: "idle" });
+      panelSendEntry?.reconcileTurnOutcome(threadId, "completed");
       {
         const completion = store.completeAutomationRunForThread(threadId);
         publishAutomationRun(completion?.run);
@@ -2868,6 +2869,7 @@ function applyPayloadSideEffects(
     }
     case "turn.failed":
       store.updateThread(threadId, { status: "failed" });
+      panelSendEntry?.reconcileTurnOutcome(threadId, "failed");
       publishAutomationRun(
         store.updateAutomationRunForThread(threadId, "failed", payload.message),
       );
@@ -10024,6 +10026,12 @@ function registerIpc(): void {
         candidateText: consumed.candidateText,
         submissionId: credential.split(".")[0] ?? "",
       };
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelCandidateDiscard,
+    async (_event, credential: string) => {
+      panelSendEntry?.discardCandidate(credential);
     },
   );
   ipcMain.handle(
@@ -22327,6 +22335,23 @@ app
   // S3 host send entry: panel candidates enter the ledger here and are
   // consumed exactly once via one-time credentials.
   panelSendEntry = new PanelSendEntryService(store);
+  // Crash-window recovery (§9.3): rows stuck in dispatching/running from a
+  // previous run are outcome-unknown — marked, never blindly re-sent.
+  {
+    let recoveredSubmissions = 0;
+    for (const row of store.listThreads()) {
+      recoveredSubmissions += panelSendEntry.recoverInterruptedSubmissions(
+        row.id,
+      );
+    }
+    if (recoveredSubmissions > 0) {
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "warning",
+        message: `Marked ${recoveredSubmissions} plugin prompt submission(s) outcome-unknown after restart.`,
+      });
+    }
+  }
   // S2 trusted dispatch: every plugin tool call from a restricted thread
   // lands here; the trust chain (revision hash + grant + mode) is enforced
   // in the main process before any runtime spawn.

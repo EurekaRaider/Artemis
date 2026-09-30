@@ -11,7 +11,7 @@
 //   - host window destruction does NOT destroy child WebContentsView
 //     webContents; dispose() closes them explicitly while holding refs.
 
-import { BrowserWindow, WebContentsView, session } from "electron";
+import { BrowserWindow, MessageChannelMain, WebContentsView, session } from "electron";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -27,6 +27,8 @@ interface LivePanel {
   view: WebContentsView;
   /** Held from creation: view.webContents is nulled after close. */
   webContents: Electron.WebContents;
+  /** Host side of the S3 MessagePort bridge (panel got the other end). */
+  hostPort: Electron.MessagePortMain;
   pluginId: string;
   panelId: string;
   /** Last renderer-reported bounds, restored by setVisible(true). */
@@ -142,30 +144,50 @@ export class DesignPanelHost {
     this.hostWindow = window;
     window.contentView.addChildView(view);
 
-    // S1 candidate stub: the panel may only emit DOM events. We observe the
-    // console relay the panel ships (its composer logs "[candidate] ..." on
-    // dispatch) and forward a structured candidate to the renderer sink.
-    // The full MessagePort bridge lands with S3.
-    webContents.on("console-message", (_event, _level, message) => {
-      if (!message.startsWith("[candidate]")) return;
-      this.candidateSink?.({
-        kind: "candidate-prompt",
-        threadId,
-        panelId,
-        text: message.slice("[candidate]".length).trim(),
-        source: "panel",
-        occurredAt: new Date().toISOString(),
-      });
+    // S3 MessagePort bridge: the panel receives its port end via the
+    // window "artemis:port" event; the host keeps the other end. The
+    // panel posts candidate messages upstream; the host pushes snapshots
+    // downstream. No Node, no IPC channel to the panel itself.
+    const { port1: hostPort, port2: panelPort } = new MessageChannelMain();
+    hostPort.on("message", (event) => {
+      const data = event.data as { type?: string; text?: string } | undefined;
+      if (data?.type === "candidate-prompt" && typeof data.text === "string") {
+        this.candidateSink?.({
+          kind: "candidate-prompt",
+          threadId,
+          panelId,
+          text: data.text,
+          source: "panel",
+          occurredAt: new Date().toISOString(),
+        });
+      }
     });
+    hostPort.start();
 
     this.panels.set(this.key(threadId, panelId), {
       view,
       webContents,
+      hostPort,
       pluginId: owner.manifest.id,
       panelId,
     });
     await webContents.loadURL(entryUrl);
+    webContents.postMessage("artemis:port", null, [panelPort]);
     return { panelId, pluginId: owner.manifest.id, entryUrl };
+  }
+
+  /**
+   * Push a state snapshot to the panel over the port bridge (S3
+   * downstream). Silently no-ops when the panel is gone.
+   */
+  pushSnapshot(
+    threadId: string,
+    panelId: string,
+    snapshot: Record<string, unknown>,
+  ): void {
+    this.panels
+      .get(this.key(threadId, panelId))
+      ?.hostPort.postMessage({ type: "snapshot", snapshot });
   }
 
   /** Position a panel. Renderer reports the dock pane's content bounds. */
@@ -202,6 +224,11 @@ export class DesignPanelHost {
       this.threadCatalogRoots.delete(threadId);
     }
     try {
+      live.hostPort.close();
+    } catch {
+      // Port may already be closed with the renderer.
+    }
+    try {
       // Electron 43: destroying the host does not close child
       // WebContentsView webContents, and view.webContents is nulled after
       // close — remove through the window, close through the held ref.
@@ -215,6 +242,11 @@ export class DesignPanelHost {
   /** Destroy every panel (window closed / app shutdown). */
   disposeAll(): void {
     for (const live of this.panels.values()) {
+      try {
+        live.hostPort.close();
+      } catch {
+        // Best effort during teardown.
+      }
       try {
         this.hostWindow?.contentView.removeChildView(live.view);
         if (!live.webContents.isDestroyed()) live.webContents.close();

@@ -149,3 +149,72 @@ describe("S3 panel send entry", () => {
     ).toThrow(/refusing to overwrite/i);
   });
 });
+
+describe("S3 send-entry closure (discard / reconcile / recover)", () => {
+  it("discard transitions accepted → cancelled and voids the credential", () => {
+    const service = new PanelSendEntryService(store);
+    const accepted = service.acceptCandidate({
+      threadId,
+      candidateText: "丢弃验证",
+      bindingRevision: "rev-test",
+    });
+    service.discardCandidate(accepted.credential);
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("cancelled");
+    // 丢弃后凭证不可再消费（consumed 或 wrong-state 均为合法拒绝）
+    expect(() => service.consumeCredential(accepted.credential)).toThrow(
+      /wrong-state|consumed/,
+    );
+  });
+
+  it("turn reconciliation advances dispatching/running rows to the outcome", () => {
+    const service = new PanelSendEntryService(store);
+    const accepted = service.acceptCandidate({
+      threadId,
+      candidateText: "对账验证",
+      bindingRevision: "rev-test",
+    });
+    service.consumeCredential(accepted.credential);
+    // dispatching → completed（turn.completed 模拟）
+    service.reconcileTurnOutcome(threadId, "completed");
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("completed");
+    // 幂等：再对账不动终态
+    service.reconcileTurnOutcome(threadId, "failed");
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("completed");
+  });
+
+  it("restart recovery marks stuck dispatching/running rows unknown (never re-dispatch)", () => {
+    const service = new PanelSendEntryService(store);
+    const a = service.acceptCandidate({
+      threadId,
+      candidateText: "卡在派发",
+      bindingRevision: "rev-test",
+    });
+    service.consumeCredential(a.credential);
+    const b = service.acceptCandidate({
+      threadId,
+      candidateText: "卡在运行",
+      bindingRevision: "rev-test",
+    });
+    service.consumeCredential(b.credential);
+    service.markRunning(b.submission.submissionId, undefined);
+    // 重启恢复（新实例模拟）
+    const restarted = new PanelSendEntryService(store);
+    const recovered = restarted.recoverInterruptedSubmissions(threadId);
+    expect(recovered).toBeGreaterThanOrEqual(2);
+    expect(store.getPromptSubmission(a.submission.submissionId)?.state).toBe("unknown");
+    expect(store.getPromptSubmission(b.submission.submissionId)?.state).toBe("unknown");
+    // accepted 行不受影响
+    const fresh = restarted.acceptCandidate({
+      threadId,
+      candidateText: "恢复后新候选",
+      bindingRevision: "rev-test",
+    });
+    expect(fresh.submission.state).toBe("accepted");
+  });
+});

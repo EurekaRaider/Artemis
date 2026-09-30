@@ -29,6 +29,7 @@ export interface SendEntryStore {
     bindingRevision: string;
   }): SubmissionLedgerRecord;
   getPromptSubmission(submissionId: string): SubmissionLedgerRecord | undefined;
+  listPromptSubmissions(threadId: string): SubmissionLedgerRecord[];
   transitionPromptSubmission(
     submissionId: string,
     nextState: SubmissionLedgerRecord["state"],
@@ -132,6 +133,87 @@ export class PanelSendEntryService {
       return turnId ? running : running;
     }
     return record;
+  }
+
+  /** User discarded the card: accepted → cancelled, credential voided. */
+  discardCandidate(credential: string): void {
+    const [submissionId, nonce] = credential.split(".");
+    if (!submissionId || !nonce) {
+      throw new SendEntryCredentialError("unknown", "malformed credential");
+    }
+    const record = this.store.getPromptSubmission(submissionId);
+    if (!record || credential !== `${record.submissionId}.${nonce}`) {
+      throw new SendEntryCredentialError("unknown", "credential does not match");
+    }
+    if (record.state === "accepted") {
+      this.store.transitionPromptSubmission(submissionId, "cancelled", "user-discard");
+      this.consumed.add(credential);
+    }
+  }
+
+  /**
+   * Turn-outcome reconciliation hook: transitions every dispatching/running
+   * row of this thread to the turn outcome. Idempotent — terminal rows are
+   * returned untouched. Called from applyPayloadSideEffects so both the
+   * single-event and batch paths reconcile.
+   */
+  reconcileTurnOutcome(
+    threadId: string,
+    outcome: "completed" | "failed",
+  ): void {
+    for (const record of this.store.listPromptSubmissions(threadId)) {
+      if (outcome === "failed") {
+        // dispatching/running both allow -> failed directly.
+        if (record.state === "dispatching" || record.state === "running") {
+          this.store.transitionPromptSubmission(
+            record.submissionId,
+            "failed",
+            "turn-failed",
+          );
+        }
+        continue;
+      }
+      if (record.state === "dispatching") {
+        // dispatching has no direct completed edge; pass through running.
+        this.store.transitionPromptSubmission(
+          record.submissionId,
+          "running",
+          "turn-started",
+        );
+        this.store.transitionPromptSubmission(
+          record.submissionId,
+          "completed",
+          "turn-completed",
+        );
+      } else if (record.state === "running") {
+        this.store.transitionPromptSubmission(
+          record.submissionId,
+          "completed",
+          "turn-completed",
+        );
+      }
+    }
+  }
+
+  /**
+   * Crash-window recovery at startup: a row still in dispatching/running
+   * when the app restarts can never be confirmed — mark unknown (never
+   * blindly re-dispatched). Accepted rows stay accepted so their cards can
+   * reappear via candidate re-emit.
+   */
+  recoverInterruptedSubmissions(threadId: string): number {
+    let recovered = 0;
+    for (const record of this.store.listPromptSubmissions(threadId)) {
+      if (record.state === "dispatching" || record.state === "running") {
+        this.store.transitionPromptSubmission(
+          record.submissionId,
+          "unknown",
+          "restart-recovery",
+        );
+        recovered += 1;
+      }
+    }
+    return recovered;
   }
 
   /** Turn finished (completed/failed) — idempotent terminal recording. */

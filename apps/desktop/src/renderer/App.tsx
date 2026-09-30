@@ -5705,12 +5705,9 @@ export function App() {
       return;
     }
     setPrompt(consumed.candidateText);
-    // Report running once the composer has the text; outcome recording
-    // rides on the turn lifecycle (completed/failed below).
-    void window.artemis.reportDesignPanelSendOutcome(
-      consumed.submissionId,
-      "completed",
-    );
+    // Terminal outcome comes from turn reconciliation (turn.completed /
+    // turn.failed in applyPayloadSideEffects), never from the send action
+    // itself — the ledger only advances on observed turn outcomes.
     await sendPrompt();
   }, [panelCandidate, activeThreadId, locale, setPrompt, setToast, sendPrompt]);
 
@@ -7201,7 +7198,14 @@ export function App() {
             </span>
             <span>{panelCandidate.text.slice(0, 160)}</span>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setPanelCandidate(undefined)}>
+              <button
+                type="button"
+                onClick={() => {
+                  const credential = panelCandidate.credential;
+                  setPanelCandidate(undefined);
+                  void window.artemis.discardDesignPanelCandidate(credential);
+                }}
+              >
                 {locale.startsWith("zh") ? "丢弃" : "Discard"}
               </button>
               <button

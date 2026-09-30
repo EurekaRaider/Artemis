@@ -528,6 +528,21 @@
     });
   });
 
+  // ---- S3 MessagePort 桥：宿主经 window "artemis:port" 事件递来端口 ----
+  // 候选经 port 上行；宿主快照经 port 下行。仍不做任何 fetch/ipc/父窗口调用。
+  var hostPort = null;
+  window.addEventListener("message", function (event) {
+    if (event.source === window && event.data === "artemis:port-init") {
+      hostPort = event.ports[0] || null;
+      if (hostPort) hostPort.start();
+    }
+  });
+  // 宿主用 postMessage(channel) 的 Electron 形态：ports 随 "artemis:port" 事件到达
+  window.addEventListener("artemis:port", function (event) {
+    hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
+    if (hostPort) hostPort.start();
+  });
+
   // ---- 创作输入：发送仅 dispatch candidate-prompt 事件，不做任何 fetch/ipc/父窗口调用 ----
   var composerInput = document.querySelector(".design-composer-input");
   var composerSend = document.getElementById("dzComposerSend");
@@ -544,6 +559,9 @@
         bubbles: true
       })
     );
+    // S3：候选经宿主递来的 MessagePort 上行（无 port 时退化为仅事件——
+    // 独立打开面板的预览场景）。
+    if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
     composerInput.textContent = "";
     syncSendState();
     showToast("已发送到对话输入框");

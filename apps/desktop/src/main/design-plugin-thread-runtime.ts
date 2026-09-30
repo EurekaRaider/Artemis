@@ -101,8 +101,14 @@ export class ThreadRuntimeManager {
     this.probe = options.sandboxProbe ?? defaultProbe;
   }
 
-  private key(pluginId: string, contentHash: string): string {
-    return `${this.options.threadId}\0${pluginId}\0${contentHash}`;
+  /**
+   * S3 hot reload: the live-worker key is (thread, plugin) — NOT the
+   * content hash. A dispatch with a different hash finds the existing
+   * worker under the same key, kills it, and spawns the new revision in
+   * one motion, so no stale code serves a rebound thread.
+   */
+  private key(pluginId: string): string {
+    return `${this.options.threadId}\0${pluginId}`;
   }
 
   /**
@@ -139,9 +145,14 @@ export class ThreadRuntimeManager {
     pluginId: string;
     contentHash: string;
   }): Promise<LiveRuntime> {
-    const key = this.key(input.pluginId, input.contentHash);
+    const key = this.key(input.pluginId);
     const existing = this.runtimes.get(key);
-    if (existing && !existing.worker.isDisposed()) return existing;
+    if (existing && !existing.worker.isDisposed()) {
+      if (existing.contentHash === input.contentHash) return existing;
+      // Hot reload: same plugin, new revision — retire the old worker
+      // before its replacement exists (no overlap serving requests).
+      this.disposeRuntime(existing);
+    }
 
     const probeResult = this.probe();
     if (!probeResult.ok) {
@@ -218,7 +229,7 @@ export class ThreadRuntimeManager {
   }
 
   private disposeRuntime(live: LiveRuntime): void {
-    const key = this.key(live.pluginId, live.contentHash);
+    const key = this.key(live.pluginId);
     this.runtimes.delete(key);
     if (live.idleTimer) clearTimeout(live.idleTimer);
     live.worker.dispose();
@@ -237,17 +248,17 @@ export class ThreadRuntimeManager {
 
   /** Test/telemetry access: is a live worker present for this binding? */
   hasRuntime(pluginId: string, contentHash: string): boolean {
-    const live = this.runtimes.get(this.key(pluginId, contentHash));
+    const live = this.runtimes.get(this.key(pluginId));
     return !!live && !live.worker.isDisposed();
   }
 
   childPidOf(pluginId: string, contentHash: string): number | undefined {
-    return this.runtimes.get(this.key(pluginId, contentHash))?.childPid;
+    return this.runtimes.get(this.key(pluginId))?.childPid;
   }
 
   pendingCount(pluginId: string, contentHash: string): number {
     return (
-      this.runtimes.get(this.key(pluginId, contentHash))?.queue.length ?? 0
+      this.runtimes.get(this.key(pluginId))?.queue.length ?? 0
     );
   }
 
