@@ -47,6 +47,55 @@ function provider(
 }
 
 describe("agent runtime configuration", () => {
+  it.each(["execute", "plan", "review"] as const)(
+    "keeps Pi built-in orchestration disabled in %s mode",
+    async (mode) => {
+      const workspacePath = await mkdtemp(join(tmpdir(), "artemis-pi-tools-"));
+      cleanupPaths.push(workspacePath);
+      const host = new ArtemisAgentHost(
+        {
+          async request() {
+            throw new Error("No external calls expected");
+          },
+        },
+        { emit() {} },
+        { agentDir: join(workspacePath, "agent") },
+      );
+      try {
+        await host.openThread({
+          threadId: "thread",
+          workspacePath,
+          target: "local",
+        });
+        const session = (
+          host as unknown as { threads: Map<string, { session: AgentSession }> }
+        ).threads.get("thread")!.session;
+        const prompt = vi
+          .spyOn(session, "prompt")
+          .mockImplementation(async () => {
+            const allTools = session.getAllTools().map((tool) => tool.name);
+            expect(allTools).not.toContain("codemode");
+            expect(allTools).not.toContain("tool_search");
+            const active = session.agent.state.tools.map((tool) => tool.name);
+            expect(active).toContain("read");
+            if (mode !== "execute") {
+              for (const name of [
+                "bash",
+                "shell",
+                "write",
+                "local_file_write",
+                "search_mcp_tools",
+              ])
+                expect(active).not.toContain(name);
+            }
+          });
+        await host.prompt("thread", "turn", "Inspect this project", mode);
+        expect(prompt).toHaveBeenCalledOnce();
+      } finally {
+        host.dispose();
+      }
+    },
+  );
   it("registers installed MCP tools for the next turn without replacing the session or exposing them in Plan", async () => {
     const workspacePath = await mkdtemp(join(tmpdir(), "artemis-mcp-refresh-"));
     cleanupPaths.push(workspacePath);

@@ -398,6 +398,8 @@ Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
 
+Version 1.6.15 upgrades the Pi engine and model catalog to **0.99.1**, with Artemis continuing to control tool exposure and execution permissions. Patched HTTP and glob dependencies address high-severity findings from the release audit.
+
 Version 1.6.15 displays local animated SVG files directly in the conversation timeline, from image syntax or file links. CSS and SMIL animations remain active, duplicate references share one preview, and streamed text preserves the current image. SVG scripts remain disabled in image context.
 
 Version 1.6.14 fixes timeline skill icons: Computer Use displays its monitor artwork, plugin-provided images remain preferred, and missing or failed images fall back to bundled brand or semantic artwork.

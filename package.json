@@ -20,6 +20,7 @@
     "npm": ">=11.0.0"
   },
   "dependencies": {
+    "brace-expansion": "5.0.12",
     "image-size": "file:./vendor/image-size-disabled",
     "officeparser": "7.5.1",
     "pdfjs-dist": "6.2.108",
@@ -72,12 +73,13 @@
     "verify:skin-package": "npm run build:ui-libraries && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs",
     "verify:skin-conformance": "npm run build:ui-foundation && npm run test -w @artemis/ui && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs",
     "test": "node --test scripts/test-pre-push.mjs scripts/test-slack-cli.mjs && npm run test:audit-production && npm run build && npm run test -w @artemis/gateway && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && node scripts/verify-ui-performance.mjs && node scripts/test-ui-performance.mjs && node scripts/verify-ui-gallery.mjs && npm run test -w @artemis/desktop",
-    "test:audit-production": "node scripts/test-audit-production-dependencies.mjs",
+    "test:audit-production": "node scripts/test-audit-production-dependencies.mjs && node scripts/test-patch-pi-dependencies.mjs",
     "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop",
     "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify-latest-dock.mjs",
     "verify:ci": "node scripts/verify-ci.mjs",
     "verify:computer-use": "npm run build:core && node apps/desktop/scripts/verify-computer-use.mjs",
     "verify:prepush": "node scripts/verify-pre-push.mjs",
+    "postinstall": "node scripts/patch-pi-dependencies.mjs",
     "prepare": "node scripts/install-git-hooks.mjs",
     "verify:slack-cli": "node scripts/verify-slack-cli.mjs",
     "update:slack-cli": "node scripts/update-slack-cli.mjs",
