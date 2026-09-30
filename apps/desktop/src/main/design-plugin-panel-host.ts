@@ -91,6 +91,7 @@ export class DesignPanelHost {
 
   /** Point the host at the installed design-plugin packages root. */
   setCatalogRoot(root: string): void {
+    console.log(`[design-panel] catalog root set: ${root}`);
     this.catalogRoot = root;
   }
 
@@ -146,6 +147,7 @@ export class DesignPanelHost {
     threadId: string,
     panelId: string,
   ): Promise<PluginPanelHandle> {
+    console.log(`[design-panel] ensurePanel called: ${panelId} / ${threadId}`);
     const existing = this.panels.get(this.key(threadId, panelId));
     if (existing) {
       return {
@@ -363,6 +365,14 @@ export class DesignPanelHost {
     });
     await webContents.loadURL(entryUrl);
     webContents.postMessage("artemis:port", null, [panelPort]);
+    console.log(
+      `[design-panel] ensured ${panelId} for ${threadId}: url=${entryUrl}`,
+    );
+    webContents.on("did-fail-load", (_e, code, desc, url) => {
+      console.error(
+        `[design-panel] load failed ${code} ${desc} ${url ?? ""}`,
+      );
+    });
     return { panelId, pluginId: owner.manifest.id, entryUrl };
   }
 
@@ -386,7 +396,12 @@ export class DesignPanelHost {
     panelId: string,
     bounds: { x: number; y: number; width: number; height: number },
   ): void {
-    this.panels.get(this.key(threadId, panelId))?.view.setBounds(bounds);
+    const panel = this.panels.get(this.key(threadId, panelId));
+    if (!panel) {
+      console.warn(`[design-panel] setBounds before ensure: ${panelId}`);
+      return;
+    }
+    panel.view.setBounds(bounds);
   }
 
   /** Hide/show a panel when its dock tab deactivates/reactivates. */
