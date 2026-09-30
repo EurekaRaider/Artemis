@@ -10,6 +10,7 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Artemis Design · 工作区</title>
 <style>
+  [hidden] { display: none !important; }
   :root {
     --bg: #101216;
     --bg-panel: #16191f;
@@ -544,6 +545,8 @@
 
   // ---- 版本历史：请求宿主拉真实版本列表（S4）----
   document.getElementById("dzHistoryBtn").addEventListener("click", function () {
+    var panel = document.getElementById("dzHistory");
+    if (panel) panel.hidden = !panel.hidden;
     requestVersions();
   });
 
@@ -656,10 +659,21 @@
       }
       if (data.type === "versions" && data.versions) {
         var out = JSON.parse(data.versions.output || "{}");
-        var list = (out.versions || [])
+        lastVersions = out.versions || [];
+        var list = lastVersions
           .map(function (v) { return "v" + v.sequence + " (" + v.revision.slice(0, 8) + ")"; })
           .join(" ← ");
         showToast(currentDocument ? currentDocument.name + "：" + list : list);
+        renderHistoryList();
+      }
+      if (data.type === "restore-result") {
+        restoreRequested = false;
+        if (data.ok && data.documentHtml) {
+          renderDocument(data.documentHtml, data.name, data.subtitle || "已恢复");
+          showToast("已恢复并生成新版本");
+        } else {
+          showToast("恢复失败：" + (data.error || "未知原因"));
+        }
       }
       if (data.type === "document-html" && data.html) {
         renderDocument(data.html, data.name, data.subtitle);
@@ -673,6 +687,40 @@
       bindPortListener(hostPort);
     }
   });
+  function renderHistoryList() {
+    var host = document.getElementById("dzViewport");
+    if (!host) return;
+    var panel = document.getElementById("dzHistory");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "dzHistory";
+      panel.hidden = true;
+      panel.style.cssText = "position:absolute;top:48px;right:12px;bottom:12px;width:240px;overflow:auto;background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:12px;padding:8px;z-index:15";
+      host.style.position = "relative";
+      host.appendChild(panel);
+    }
+    panel.innerHTML = "";
+    if (!lastVersions.length) {
+      panel.innerHTML = '<div style="color:var(--text-2,#9399b2);font-size:12px;padding:8px">暂无版本</div>';
+    }
+    lastVersions.forEach(function (v, idx) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "dz-history-item" + (idx === 0 ? " active" : "");
+      item.setAttribute("data-dz-revision", v.revision);
+      item.style.cssText = "display:block;width:100%;text-align:left;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--text,#e6e9f5);font-size:12px;cursor:pointer";
+      item.textContent = "v" + v.sequence + " · " + v.revision.slice(0, 8) + (idx === 0 ? " · 当前" : "");
+      item.addEventListener("click", function () {
+        panel.querySelectorAll(".dz-history-item").forEach(function (o) { o.classList.remove("active"); });
+        item.classList.add("active");
+        pendingRestoreRevision = v.revision;
+        document.getElementById("dzConfirmText").textContent =
+          "恢复到 v" + v.sequence + "（" + v.revision.slice(0, 8) + "）？当前内容会保留为新版本。";
+        document.getElementById("dzConfirm").hidden = false;
+      });
+      panel.appendChild(item);
+    });
+  }
   function requestExport() {
     if (!hostPort) { showToast("导出需要宿主连接"); return; }
     if (!currentDocument) { showToast("尚无可导出的文档"); return; }
@@ -793,28 +841,22 @@
     showToast("已请求宿主截图");
   });
 
-  // ---- B: 历史项点击 → 确认弹层 → port restore 请求 ----
+  // ---- B: 历史恢复（版本列表来自宿主下行快照，dzConfirm 门控 restore 请求）----
   var pendingRestoreRevision = null;
-  document.querySelectorAll("#dzHistory .dz-history-item").forEach(function (item) {
-    item.addEventListener("click", function () {
-      document.querySelectorAll("#dzHistory .dz-history-item").forEach(function (o) { o.classList.remove("active"); });
-      item.classList.add("active");
-      pendingRestoreRevision = item.getAttribute("data-dz-revision") || null;
-      document.getElementById("dzConfirm").hidden = false;
-    });
-  });
+  var lastVersions = []; // [{ revision }]
+  var restoreRequested = false; // restore-request 单飞：未收到 restore-result 前忽略重复确认
   document.getElementById("dzConfirmCancel").addEventListener("click", function () {
     document.getElementById("dzConfirm").hidden = true;
   });
   document.getElementById("dzConfirmOk").addEventListener("click", function () {
     document.getElementById("dzConfirm").hidden = true;
-    document.getElementById("dzHistory").hidden = true;
-    if (pendingRestoreRevision && hostPort && currentDocument) {
+    if (pendingRestoreRevision && hostPort && currentDocument && !restoreRequested) {
       hostPort.postMessage({
         type: "restore-request",
         documentId: currentDocument.documentId,
         revision: pendingRestoreRevision,
       });
+      restoreRequested = true;
       showToast("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
     }
     pendingRestoreRevision = null;

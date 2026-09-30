@@ -61,6 +61,17 @@ export interface PanelRequestHandlers {
     threadId: string;
     documentId: string;
   }): Promise<{ html: string; name: string } | undefined>;
+  /** Restore is host-owned: it dispatches apply_edit/undo through the
+   * trusted runtime and returns the restored document HTML. */
+  restoreDocument(input: {
+    threadId: string;
+    documentId: string;
+    revision?: string;
+  }): Promise<{ ok: boolean; html?: string; name?: string; error?: string }>;
+  captureScreenshot(input: {
+    threadId: string;
+    documentId: string;
+  }): Promise<{ path: string }>;
 }
 
 export class DesignPanelHost {
@@ -193,7 +204,12 @@ export class DesignPanelHost {
     const { port1: hostPort, port2: panelPort } = new MessageChannelMain();
     hostPort.on("message", (event) => {
       const data = event.data as
-        | { type?: string; text?: string; documentId?: string; revision?: string }
+        | {
+            type?: string;
+            text?: string;
+            documentId?: string;
+            revision?: string;
+          }
         | undefined;
       if (data?.type === "candidate-prompt" && typeof data.text === "string") {
         this.candidateSink?.({
@@ -259,6 +275,40 @@ export class DesignPanelHost {
               error: String(error),
             });
           });
+        return;
+      }
+      if (data?.type === "restore-request" && data.documentId) {
+        void this.requestHandlers
+          ?.restoreDocument({
+            threadId,
+            documentId: data.documentId,
+            ...(data.revision ? { revision: data.revision } : {}),
+          })
+          .then((result) => {
+            hostPort.postMessage({ type: "restore-result", ...result });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "restore-result",
+              ok: false,
+              error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "screenshot-request" && data.documentId) {
+        void this.requestHandlers
+          ?.captureScreenshot({ threadId, documentId: data.documentId })
+          .then((result) => {
+            hostPort.postMessage({ type: "screenshot-result", ...result });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "screenshot-result",
+              error: String(error),
+            });
+          });
+        return;
       }
     });
     hostPort.start();

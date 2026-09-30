@@ -10250,6 +10250,111 @@ function registerIpc(): void {
         name: source,
       };
     },
+    restoreDocument: async (input) => {
+      if (!store || !pluginDispatch) {
+        return { ok: false, error: "Restore unavailable." };
+      }
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) {
+        return { ok: false, error: "Thread has no plugin binding." };
+      }
+      const documentDir = join(
+        app.getPath("userData"),
+        "plugin-scratch",
+        input.threadId,
+        thread.typeBinding.contentHash,
+        "documents",
+        input.documentId,
+      );
+      const entries = (await readdir(documentDir).catch(() => []))
+        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+        .sort();
+      if (entries.length < 2) {
+        return { ok: false, error: "暂无可恢复的历史版本。" };
+      }
+      const head = entries.at(-1);
+      if (input.revision && head && !head.endsWith(`-${input.revision}.html`)) {
+        // 语义约束：runtime undo 只回退一步。仅上一版本（即当前 head）
+        // 可真恢复；更早版本不能原地跳回，也不伪造副作用。
+        return {
+          ok: false,
+          error: "只能恢复到上一版本；更早版本暂不支持跳回。",
+        };
+      }
+      const operationId = `panel-restore-${randomUUID()}`;
+      const outcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "undo",
+        args: { documentId: input.documentId, operationId },
+        mode: "execute",
+      });
+      if (outcome.status !== "succeeded") {
+        return {
+          ok: false,
+          error: outcome.error || "runtime 拒绝了恢复请求。",
+        };
+      }
+      const restored = entries.at(-2);
+      if (!restored) {
+        return { ok: false, error: "恢复目标不存在。" };
+      }
+      const restoredHtml = await readFile(join(documentDir, restored), "utf8");
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/restore`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-restored",
+          documentId: input.documentId,
+          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(restored)?.[1] ?? "",
+        },
+      });
+      return { ok: true, html: restoredHtml, name: restored };
+    },
+    captureScreenshot: async (input) => {
+      if (!store || !pluginDispatch) {
+        throw new Error("Screenshot unavailable.");
+      }
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) {
+        throw new Error("Thread has no plugin binding.");
+      }
+      const documentDir = join(
+        app.getPath("userData"),
+        "plugin-scratch",
+        input.threadId,
+        thread.typeBinding.contentHash,
+        "documents",
+        input.documentId,
+      );
+      const entries = (await readdir(documentDir).catch(() => []))
+        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+        .sort();
+      const source = entries.at(-1);
+      if (!source) throw new Error("No version file for the document.");
+      const screenshotRoot = join(
+        app.getPath("userData"),
+        "design-screenshots",
+        input.documentId,
+      );
+      await mkdir(screenshotRoot, { recursive: true });
+      const destination = join(screenshotRoot, `${source}.html`);
+      await copyFile(join(documentDir, source), destination);
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/screenshot`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-screenshot",
+          documentId: input.documentId,
+          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "",
+          destination,
+        },
+      });
+      return { path: destination };
+    },
     listVersions: async (input) => {
       if (!pluginDispatch) throw new Error("Dispatch unavailable.");
       const outcome = await pluginDispatch.dispatch({
