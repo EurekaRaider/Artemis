@@ -402,6 +402,8 @@ Version 1.6.15 upgrades the Pi engine and model catalog to **0.99.1**, with Arte
 
 Version 1.6.15 displays local animated SVG files directly in the conversation timeline, from image syntax or file links. CSS and SMIL animations remain active, duplicate references share one preview, and streamed text preserves the current image. SVG scripts remain disabled in image context.
 
+Timeline Markdown code blocks also include language labels and copy buttons with success feedback and failure retry. Local Office verification files under `outputs/` are excluded from Git while remaining available locally.
+
 Version 1.6.14 fixes timeline skill icons: Computer Use displays its monitor artwork, plugin-provided images remain preferred, and missing or failed images fall back to bundled brand or semantic artwork.
 
 Version 1.6.12 introduced scheduled tasks with clearer execution and schedule
