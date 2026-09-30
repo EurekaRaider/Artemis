@@ -72,6 +72,13 @@ export interface PanelRequestHandlers {
     threadId: string;
     documentId: string;
   }): Promise<{ path: string }>;
+  listDocuments(input: {
+    threadId: string;
+  }): Promise<{ documents: unknown[]; projectName: string }>;
+  handoff(input: {
+    threadId: string;
+    documentId: string;
+  }): Promise<{ threadId: string; created: boolean }>;
 }
 
 export class DesignPanelHost {
@@ -291,6 +298,34 @@ export class DesignPanelHost {
             hostPort.postMessage({
               type: "restore-result",
               ok: false,
+              error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "list-documents-request") {
+        void this.requestHandlers
+          ?.listDocuments({ threadId })
+          .then((snapshot) => {
+            hostPort.postMessage({ type: "snapshot", snapshot });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "snapshot-error",
+              error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "handoff-request" && data.documentId) {
+        void this.requestHandlers
+          ?.handoff({ threadId, documentId: data.documentId })
+          .then((result) => {
+            hostPort.postMessage({ type: "handoff-result", ...result });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "handoff-result",
               error: String(error),
             });
           });

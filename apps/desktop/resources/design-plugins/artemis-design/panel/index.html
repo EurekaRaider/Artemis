@@ -1,855 +1,2371 @@
-<!DOCTYPE html>
-<!-- artemis-design 工作区面板（S1 目标 5）
-     视觉基线：docs/ui-prototype/artemis-ui.html design 面板（约 467-600 行），类名不得偏离。
-     自包含单文件：内联 CSS + 内联 SVG，暗色主题，静态 mock 数据。
-     安全衔接：dzComposerSend 仅 dispatch CustomEvent("artemis:candidate-prompt")，
-     不发起任何 fetch / ipc / 父窗口调用。 -->
-<html lang="zh-CN">
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Artemis Design · 工作区</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计面板</title>
 <style>
-  [hidden] { display: none !important; }
+
   :root {
-    --bg: #101216;
-    --bg-panel: #16191f;
-    --bg-raised: #1c2028;
-    --bg-hover: #232833;
-    --border: #2a2f3a;
-    --text: #e6e9ef;
-    --text-dim: #9aa3b2;
-    --accent: #5b8cff;
-    --accent-soft: rgba(91, 140, 255, 0.16);
-    --danger: #ff6b6b;
-    --radius: 10px;
-    --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-    color-scheme: dark;
+    --t-quick: 180ms cubic-bezier(0.32, 0.72, 0, 1);
+    --t-med: 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    --ui-font: ui-sans-serif, system-ui, sans-serif;
+    --mono-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --r-sm: 8px; --r-md: 10px; --r-lg: 12px; --r-card: 16px;
+    --sp-btn-y: 9px; --sp-btn-x: 15px; --fs: 14px;
+    --surface: #ffffff; --surface-2: #f5f5f5; --surface-3: #e5e5e5;
+    --popover: #ffffff;
+    --text: #27272a; --text-2: #60646c; --text-3: #717680;
+    --border: rgba(10,10,10,.1); --border-soft: rgba(10,10,10,.06);
+    --accent: #171717; --accent-strong: #0a0a0a;
+    --brand: #0369a1; --accent-contrast: #fafafa; --accent-text: #171717;
+    --success: #16a34a; --danger: #dc2626;
+    --danger-solid: #dc2626; --accent-hover: #262626;
+    --focus-ring: #0369a1;
+    --shadow-overlay: 0 12px 40px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.06);
+    --selected: rgba(10,10,10,.1);
   }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 13px/1.5 -apple-system, "PingFang SC", "Segoe UI", sans-serif;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  html[data-theme="dark"] {
+    --surface: #202020; --surface-2: #262626; --surface-3: #303030;
+    --popover: #2b2b2b;
+    --text: #e5e5e5; --text-2: #a8a8ad; --text-3: #898990;
+    --border: rgba(250,250,250,.1); --border-soft: rgba(250,250,250,.06);
+    --accent: #f5f5f5; --accent-strong: #fafafa;
+    --brand: #38bdf8; --accent-contrast: #0a0a0a; --accent-text: #f5f5f5;
+    --danger: #ef4444; --danger-solid: #ef4444;
+    --accent-hover: #e5e5e5; --focus-ring: #38bdf8;
+    --shadow-overlay: 0 12px 40px rgba(0,0,0,.5);
+    --selected: rgba(229,229,229,.1);
   }
+
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: var(--surface-2); color: var(--text); font-family: var(--ui-font); font-size: var(--fs); }
+  .design-panel-root { height: 100%; display: flex; flex-direction: column; min-height: 0; position: relative; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: var(--r-sm); background: var(--surface-3); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 590; padding: var(--sp-btn-y) var(--sp-btn-x); cursor: pointer; }
+  .btn:hover { filter: brightness(.97); }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); }
+  .btn-quiet { background: transparent; color: var(--text-2); }
+  .btn-quiet:hover { background: var(--surface-2); }
+  .btn[disabled] { opacity: .45; cursor: default; pointer-events: none; }
+  .card-sub { font-size: 12px; color: var(--text-2); }
   .sp { flex: 1; }
-
-  /* ---- 页签条（原型 .design-ws-tabs / .design-ws-tab / .design-ws-label / .design-ws-x / .design-ws-add） ---- */
-  .design-ws-tabs {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 10px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-    flex: none;
-  }
-  .design-ws-tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    max-width: 180px;
-    padding: 5px 10px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--text-dim);
-    font: inherit;
-    cursor: pointer;
-  }
-  .design-ws-tab:hover { background: var(--bg-hover); color: var(--text); }
-  .design-ws-tab.active { background: var(--accent-soft); color: var(--text); }
-  .design-ws-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .design-ws-x {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    border-radius: 4px;
-    color: var(--text-dim);
-  }
-  .design-ws-x:hover { background: var(--bg-hover); color: var(--danger); }
-  .dz-plus { position: relative; }
-  .design-ws-add {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--text-dim);
-    cursor: pointer;
-  }
-  .design-ws-add:hover { background: var(--bg-hover); color: var(--text); }
-
-  /* ---- 动作区（原型 .design-ws-actions / .design-ws-present / .design-ws-iconbtn / .design-ws-export） ---- */
-  .design-ws-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .design-ws-present { position: relative; }
-  .design-ws-iconbtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--text-dim);
-    cursor: pointer;
-  }
-  .design-ws-iconbtn:hover { background: var(--bg-hover); color: var(--text); }
-  .design-ws-export {
-    padding: 5px 14px;
-    border: 0;
-    border-radius: 7px;
-    background: var(--accent);
-    color: #fff;
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .design-ws-export:hover { filter: brightness(1.1); }
-  .dz-export { position: relative; }
-
-  /* ---- 弹出菜单（原型 .dz-menu / .dz-menu-item / .dz-plus-menu / .dz-present-menu / .dz-export-menu） ---- */
-  .dz-menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 30;
-    min-width: 172px;
-    padding: 5px;
-    background: var(--bg-raised);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--menu-shadow);
-  }
-  .dz-plus-menu { left: 0; }
-  .dz-present-menu, .dz-export-menu { right: 0; left: auto; }
-  .dz-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 6px 9px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .dz-menu-item:hover { background: var(--bg-hover); }
-
-  /* ---- 文件浏览视图（原型 .design-files / .design-crumb / .design-cats / .design-file-card） ---- */
-  .design-files {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 14px 16px 0;
-  }
-  .design-crumb {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .design-crumb-project { font-weight: 600; }
-  .design-cats {
-    display: flex;
-    gap: 6px;
-    margin: 12px 0;
-    flex-wrap: wrap;
-  }
-  .design-cat {
-    padding: 3px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: transparent;
-    color: var(--text-dim);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .design-cat.active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
-  .design-cat-count { opacity: 0.65; margin-left: 2px; }
-  .design-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 10px;
-    padding-bottom: 16px;
-  }
-  .design-file-card {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-panel);
-    color: var(--text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .design-file-card:hover { border-color: var(--accent); }
-  .design-file-thumb {
-    display: block;
-    height: 84px;
-    border-radius: 7px;
-    background: var(--bg-raised);
-    border: 1px solid var(--border);
-  }
-  .design-file-name { font-weight: 600; }
-  .design-file-sub { color: var(--text-dim); font-size: 12px; }
-
-  /* ---- 创作输入（原型 .design-composer / .design-composer-input / .design-composer-actions） ---- */
-  .design-composer {
-    flex: none;
-    margin: 0 16px 14px;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-panel);
-  }
-  .design-composer-input {
-    min-height: 40px;
-    max-height: 120px;
-    overflow-y: auto;
-    outline: none;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .design-composer-input:empty::before {
-    content: attr(data-placeholder);
-    color: var(--text-dim);
-  }
-  .design-composer-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .design-composer-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    background: transparent;
-    color: var(--text-dim);
-    cursor: pointer;
-  }
-  .design-composer-btn:hover { background: var(--bg-hover); color: var(--text); }
-  .design-composer-send {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 0;
-    border-radius: 7px;
-    background: var(--accent);
-    color: #fff;
-    cursor: pointer;
-  }
-  .design-composer-send:disabled { opacity: 0.4; cursor: default; }
-
-  /* ---- 预览视图（原型 .design-preview-view / .dz-toolbar / .dz-mode-tab） ---- */
-  .design-preview-view {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .dz-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
-    flex: none;
-  }
-  .dz-toolbar-left { display: flex; align-items: center; gap: 8px; }
-  .dz-mode {
-    display: flex;
-    padding: 2px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-panel);
-  }
-  .dz-mode-tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-dim);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .dz-mode-tab.active { background: var(--accent-soft); color: var(--text); }
-  .dz-viewport {
-    flex: 1;
-    overflow: auto;
-    padding: 20px;
-  }
-  .dz-stage {
-    max-width: 560px;
-    margin: 0 auto;
-    padding: 24px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-panel);
-  }
-  .dz-source {
-    flex: 1;
-    margin: 0;
-    padding: 16px;
-    overflow: auto;
-    color: var(--text-dim);
-    font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
-    white-space: pre;
-  }
-
-  /* ---- toast（原型 .dz-toast） ---- */
-  .dz-toast {
-    position: fixed;
-    left: 50%;
-    bottom: 24px;
-    transform: translateX(-50%);
-    z-index: 60;
-    padding: 8px 16px;
-    border-radius: 8px;
-    background: var(--bg-raised);
-    border: 1px solid var(--border);
-    box-shadow: var(--menu-shadow);
-    color: var(--text);
-  }
+  .mono { font-family: var(--mono-font); }
+  .dz-empty { color: var(--text-2); font-size: 12.5px; text-align: center; padding: 24px 12px; }
+  .mock-empty { color: var(--text-2); font-size: 13px; text-align: center; padding: 48px 16px; }
+  .dz-present-body { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 24px; }
+  .dz-source .ln { display: inline-block; min-width: 3ch; margin-right: 12px; color: var(--text-3); text-align: right; user-select: none; }
+  .design-file-card { cursor: pointer; }
+/* ① 工作区标签条：固定「设计文件」标签 + 文件标签（× 关闭）+ 新建 */
+.design-ws-tabs{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  /* 不可加 overflow-x:auto：会把 overflow-y 计算为 auto，42px 高的标签条将裁掉
+     所有向下弹出的下拉菜单（导出/新建/演示）。溢出由外层 dock 面板兜底。 */
+}
+.design-ws-tab{
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 168px;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font: 500 12px/1.4 var(--font-ui);
+  cursor: pointer;
+}
+.design-ws-tab:hover{ color: var(--text); background: var(--surface-2); }
+.design-ws-tab.active{
+  background: var(--surface);
+  border-color: var(--border-soft);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.design-ws-tab svg{ flex: none; }
+.design-ws-label{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.design-ws-x{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  margin-right: -3px;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+.design-ws-x:hover{ background: var(--surface-3); color: var(--text); }
+.design-ws-add{
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.design-ws-add:hover{ background: var(--surface-2); color: var(--text); }
+.design-ws-actions{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-soft);
+}
+.design-ws-iconbtn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.design-ws-iconbtn:hover{ background: var(--surface-2); color: var(--text); }
+.design-ws-export{ min-height: 26px; padding: 3px 12px; font-size: 11.5px; }
+.design-ws-share{ min-height: 26px; padding: 3px 12px; font-size: 11.5px; border: 1px solid var(--border); }
+/* ② 文件浏览视图 */
+.design-files{
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.design-crumb{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 2px;
+}
+.design-crumb-project{
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.design-crumb-menu{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.design-crumb-menu:hover{ background: var(--surface-2); color: var(--text); }
+/* 分类胶囊行：无底条、只有胶囊读作 UI（对齐 open-design 的 df-tabs） */
+.design-cats{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 8px 14px 10px;
+}
+.design-cat{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font: 500 12.5px/1.2 var(--font-ui);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-quick), color var(--t-quick);
+}
+.design-cat:hover{ color: var(--text); background: var(--surface-2); }
+.design-cat.active{ color: var(--text); background: var(--surface-3); font-weight: 600; }
+.design-cat-count{
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.design-cat.active .design-cat-count{ color: var(--text-2); }
+.design-file-card{
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color var(--t-quick), box-shadow var(--t-quick);
+}
+.design-file-card:hover{
+  border-color: var(--border);
+  box-shadow: var(--shadow-card, 0 4px 14px rgba(0, 0, 0, 0.08));
+}
+.design-file-card:hover .design-file-menu{ opacity: 1; }
+.design-file-thumb{
+  display: flex;
+  gap: 5px;
+  height: 118px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+.design-file-thumb i, .design-file-thumb b{ display: block; border-radius: 2px; background: var(--border); opacity: .7; }
+.design-file-thumb{ flex-direction: column; }
+.design-file-thumb .t-top{ flex: none; height: 10px; }
+.design-file-thumb .t-row{ flex: 1; display: flex; gap: 5px; min-height: 0; }
+.design-file-thumb .t-side{ flex: 0 0 26%; }
+.design-file-thumb .t-col{ flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.design-file-thumb .t-col b, .design-file-thumb .t-grid b{ flex: 1; }
+.design-file-thumb .t-col b.w60, .design-file-thumb .t-grid b.w60{ flex: .6; }
+.design-file-thumb .t-grid{ flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.design-file-thumb .t-side.on, .design-file-thumb i.on{ background: var(--text-3); }
+.design-file-meta{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px 9px;
+  min-width: 0;
+}
+.design-file-name{
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.design-file-sub{
+  font-size: 11px;
+  color: var(--text-2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.design-file-menu{
+  position: absolute;
+  top: 6px; right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity var(--t-quick);
+}
+.design-file-menu:hover{ color: var(--text); }
+/* 底部生成 composer：输入条 + 添加上下文 + 圆形发送（黑白反差） */
+.design-composer{
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0 14px 12px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.design-composer:focus-within{ border-color: var(--border); }
+.design-composer-input{
+  flex: 1;
+  min-height: 22px;
+  max-height: 96px;
+  overflow-y: auto;
+  font: 400 12.5px/1.5 var(--font-ui);
+  color: var(--text);
+  outline: none;
+  word-break: break-word;
+}
+.design-composer-input:empty::before{
+  content: attr(data-placeholder);
+  color: var(--text-3);
+}
+.design-composer-actions{ flex: none; display: flex; align-items: center; gap: 6px; }
+.design-composer-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.design-composer-btn:hover{ background: var(--surface-2); color: var(--text); }
+.design-composer-send{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+}
+.design-composer-send:disabled{ opacity: var(--opacity-disabled, .4); cursor: default; }
+/* ③ 预览态：工具条（刷新 + 预览|代码 + 设备 ｜ 截图/评论/标注·编辑·评论列表/缩放）+ viewport */
+.design-preview-view{
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dz-toolbar{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.dz-toolbar-left{ display: flex; align-items: center; gap: 7px; min-width: 0; }
+.dz-toolbar-actions{ display: flex; align-items: center; gap: 3px; }
+.dz-iconbtn{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-iconbtn:hover{ background: var(--surface-2); color: var(--text); }
+.dz-iconbtn.active{
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+}
+/* 点击「预览」触发一次重新渲染淡入（模拟页面重载） */
+.dz-stage.dz-rendering > *{
+  animation: dz-render-in 280ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* 预览 | 代码：两段胶囊（两个目的地常驻可见，激活一眼可辨） */
+.dz-mode{
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.dz-mode-tab{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3.5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-2);
+  font: 550 11.5px/1.3 var(--font-ui);
+  cursor: pointer;
+}
+.dz-mode-tab:hover{ color: var(--text); }
+.dz-mode-tab.active{
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+/* 设备切换下拉（桌面端/平板/手机） */
+.dz-device{ position: relative; }
+.dz-device-trigger, .dz-zoom-trigger{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font: 550 11.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-device-trigger:hover, .dz-zoom-trigger:hover{ color: var(--text); border-color: var(--border); }
+.dz-zoom-trigger{ font-variant-numeric: tabular-nums; min-width: 48px; justify-content: center; }
+.dz-menu{
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 172px;
+  padding: 5px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dz-menu-item{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6.5px 9px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  font: 500 12px/1.3 var(--font-ui);
+  text-align: start;
+  cursor: pointer;
+}
+.dz-menu-item:hover{ background: var(--surface-2); color: var(--text); }
+.dz-menu-item.active{ color: var(--text); font-weight: 600; }
+.dz-menu-item.active::after{ content: "✓"; margin-left: auto; font-size: 11px; color: var(--text-2); }
+.dz-menu-sub{ margin-left: auto; font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.dz-divider{ width: 1px; height: 16px; margin: 0 4px; background: var(--border-soft); }
+.dz-comment-count .dz-count{
+  position: absolute;
+  top: 1px; right: 1px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: 650 8.5px/13px var(--font-ui);
+  text-align: center;
+}
+/* viewport：设备画布居中，桌面=自由宽，平板/手机=定宽样机 */
+.dz-viewport{
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(16px, 5cqw, 40px);
+  background: var(--surface-2);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.dz-stage{
+  position: relative;
+  display: flex;
+  justify-content: center;
+  transition: width var(--t-quick), transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* 手机样机：深色边框 + 刘海 + 状态栏（对齐真实设备框渲染） */
+.dz-phone{
+  position: relative;
+  width: 100%;
+  border: 8px solid var(--text);
+  border-radius: 30px;
+  background: var(--surface);
+  padding: 26px 12px 16px;
+  box-shadow: var(--shadow-card, 0 4px 14px rgba(0, 0, 0, 0.08));
+}
+.dz-phone-notch{
+  position: absolute;
+  top: 8px; left: 50%;
+  transform: translateX(-50%);
+  width: 74px; height: 16px;
+  border-radius: 999px;
+  background: var(--text);
+}
+.dz-phone-status{
+  position: absolute;
+  top: 9px; left: 22px; right: 22px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-2);
+  font: 600 9px/1 var(--font-ui);
+}
+.dz-phone .mock-row{ padding: 8px 0; }
+.dz-phone .mock-head{ margin-bottom: 10px; }
+.dz-phone .mock-head b{ font-size: 13px; }
+/* 代码视图：行号 + 等宽 */
+.dz-source{
+  flex: none;
+  width: min(640px, 100%);
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-family: var(--mono-font);
+  font-size: 11px;
+  line-height: 1.75;
+  color: var(--text);
+  overflow: auto;
+  box-shadow: var(--shadow-card, 0 4px 14px rgba(0, 0, 0, 0.08));
+}
+.dz-source .ln{ display: inline-block; width: 30px; color: var(--text-3); user-select: none; }
+/* 工具提示条（评论/标注/编辑模式引导） */
+.dz-tool-hint{
+  position: sticky;
+  bottom: 12px;
+  align-self: center;
+  padding: 5px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-top: auto;
+}
+/* 注释仿真（对照 open-design CommentPreviewOverlays / BoardComposerPopover）：
+   取色沿用 open-design 原值 —— pin #d96a46、拾取高亮 #1677ff、面板强调 #ff5a3c，仅作用于本仿真层 */
+.dz-pin-layer{
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  pointer-events: none;
+}
+.dz-pin{
+  position: absolute;
+  left: 0; top: 0;
+  width: 42px; height: 42px;
+  padding: 0;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 10px;
+  background: #d96a46;
+  color: #fff;
+  font: 700 18px/36px var(--font-ui);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 10px 22px rgba(33, 24, 18, 0.22);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.dz-pin:hover{
+  background: #c95e3e;
+  transform: translate(-50%, calc(-50% - 1px));
+}
+/* 注释模式下预览整体 crosshair（对照 html[data-od-comment-mode] body *） */
+.dz-viewport.dz-picking .dz-stage,
+.dz-viewport.dz-picking .dz-stage *{ cursor: crosshair !important; }
+/* hover 样式摘要卡（AnnotationHoverPopover）：只读，随光标 +14px，越界翻转 */
+.dz-pick-card{
+  position: absolute;
+  z-index: 40;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.dz-pick-row{
+  display: grid;
+  grid-template-columns: minmax(52px, max-content) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.dz-pick-row > span{ color: var(--text-2); font-weight: 500; }
+.dz-pick-row > b{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-pick-row i{
+  flex: none;
+  width: 14px; height: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+}
+/* 注释 composer（comment-popover-composer）：可拖拽标题栏 + 样式行 + 输入 + 双 CTA */
+.dz-note-composer{
+  position: absolute;
+  z-index: 41;
+  width: min(320px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+}
+.dz-note-titlebar{ display: flex; align-items: center; gap: 8px; min-height: 24px; margin: -2px 0 8px; }
+.dz-note-grip{
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: grab;
+  touch-action: none;
+}
+.dz-note-grip:hover{ background: var(--surface-2); color: var(--text); }
+.dz-note-grip span{
+  width: 12px; height: 16px;
+  background-image: radial-gradient(currentColor 1.3px, transparent 1.4px);
+  background-position: 0 0;
+  background-size: 6px 5px;
+}
+.dz-note-title{
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-note-viewall{
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dz-note-viewall:hover{ color: var(--text); }
+.dz-note-body{ display: grid; gap: 10px; max-height: 250px; overflow: auto; }
+.dz-note-rows{ display: grid; gap: 8px; min-width: 220px; }
+.dz-note-images{ display: flex; flex-wrap: wrap; gap: 6px; }
+.dz-note-img{ position: relative; flex: none; }
+.dz-note-img img{
+  display: block;
+  width: 48px; height: 48px;
+  object-fit: cover;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.dz-note-img button{
+  position: absolute;
+  top: -6px; right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+.dz-note-img button:hover{ background: var(--surface-2); }
+.dz-note-input{
+  width: 100%;
+  height: 112px;
+  max-height: 112px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font: 400 12px/1.5 var(--font-ui);
+  color: var(--text);
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+}
+.dz-note-actions{ display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.dz-note-actions-start, .dz-note-actions-end{ display: inline-flex; align-items: center; min-width: 0; }
+.dz-note-actions-start{ gap: 6px; }
+.dz-note-actions-end{ gap: 8px; }
+.dz-note-ic{
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  line-height: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.dz-note-ic:hover{ background: var(--surface-2); color: var(--text); }
+.dz-note-danger:hover{ color: var(--danger); }
+.dz-note-actions .btn{ min-height: 26px; padding: 3px 10px; font-size: 11px; }
+/* 编辑检查浮层 → 已由 contenteditable 直接编辑替代；
+   标记工具条 + 文字标注（对照 open-design PreviewDrawOverlay 工具组） */
+.dz-draw-tools{
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.dz-draw-seg{
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.dz-draw-tool, .dz-draw-act{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: calc(var(--r-sm) - 1px);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-draw-tool.active{ background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.dz-draw-tool:hover, .dz-draw-act:hover{ color: var(--text); }
+.dz-draw-tools .dz-divider{ height: 14px; }
+.dz-draw-send{ min-height: 24px; padding: 3px 10px; font-size: 11px; }
+.dz-draw-text{
+  position: absolute;
+  z-index: 18;
+  min-width: 24px;
+  padding: 1px 4px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  font: 550 12px/1.4 var(--font-ui);
+  color: var(--text);
+  outline: none;
+  white-space: nowrap;
+  cursor: text;
+}
+/* 版本历史浮层 */
+.dz-history{
+  position: absolute;
+  top: 10px; right: 12px;
+  z-index: 25;
+  width: min(300px, calc(100% - 24px));
+  padding: 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dz-history > strong{ font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+.dz-history-item{
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  text-align: start;
+  cursor: pointer;
+}
+.dz-history-item:hover{ background: var(--surface-2); }
+.dz-history-item.active{ background: var(--surface-3); }
+.dz-history-dot{
+  flex: none;
+  width: 8px; height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  border: 2px solid var(--text-3);
+  background: var(--surface);
+}
+.dz-history-item.active .dz-history-dot{ border-color: var(--text); background: var(--text); }
+.dz-history-copy{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dz-history-copy b{ font-size: 11.5px; font-weight: 600; }
+.dz-history-copy small{ font-size: 10.5px; color: var(--text-2); }
+.dz-history-id{ font-size: 9.5px; color: var(--text-3); flex: none; margin-top: 3px; }
+/* 标注绘制层：激活标注时覆盖 viewport，自由画笔 */
+.dz-draw-layer{
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+.dz-viewport.dz-drawing .dz-draw-layer{ pointer-events: auto; cursor: crosshair; }
+.dz-draw-layer path, .dz-draw-layer rect{
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .9;
+}
+/* 评论列表侧浮层（CommentSidePanel：320px 卡 + #ff5a3c 活动态内嵌条） */
+.dz-comment-panel{
+  position: absolute;
+  top: 10px; right: 12px;
+  z-index: 22;
+  width: min(320px, calc(100% - 24px));
+  max-height: min(460px, 80%);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+.dz-comment-panel-head{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.dz-comment-panel-head strong{
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+}
+.dz-count-badge{
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  font: 650 10px/1.5 var(--font-ui);
+  color: var(--text-2);
+}
+.dz-panel-close{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.dz-panel-close:hover{ background: var(--surface-2); color: var(--text); }
+.dz-comment-list{
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dz-comment-empty{ padding: 24px 12px; font-size: 11.5px; text-align: center; }
+.dz-comment-item{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.dz-comment-item:hover{ background: var(--surface-2); }
+.dz-comment-item.active{
+  background: color-mix(in srgb, #ff5a3c 14%, var(--surface));
+  border-color: color-mix(in srgb, #ff5a3c 52%, var(--border-soft));
+  box-shadow: inset 3px 0 0 #ff5a3c;
+}
+.dz-comment-item-head{ display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.dz-comment-item-head b{ color: var(--text); font-weight: 650; }
+.dz-comment-item-head .dz-comment-time{
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.dz-comment-item p{
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.dz-comment-atts{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.dz-comment-atts img{
+  display: block;
+  width: 56px; height: 56px;
+  object-fit: cover;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+/* 版本恢复确认小卡 */
+.dz-confirm{
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 26;
+  width: min(300px, calc(100% - 24px));
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dz-confirm > strong{ font-size: 12.5px; }
+.dz-confirm-actions{ display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.dz-confirm-actions .btn{ min-height: 25px; padding: 3px 11px; font-size: 11px; }
+/* toast：底部居中，2.6s 自动消失 */
+.dz-toast{
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 7px 15px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 演示模式：全屏层，stage 整体移入居中放大，Esc/× 退出 */
+.dz-present{
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  animation: dz-present-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.dz-present-bar{
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-soft);
+}
+.dz-present-title{ font-size: 12.5px; font-weight: 600; }
+.dz-present .dz-stage{
+  width: min(920px, 92vw) !important;
+  margin: auto;
+  padding: 0;
+}
+/* 截图快门闪光 */
+.dz-flash{
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  background: var(--surface);
+  opacity: .55;
+  pointer-events: none;
+  animation: dz-flash-out 320ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+.dz-menu-item.danger{ color: var(--danger-text); }
+/* 分类空态 */
+.dz-empty{
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 34px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  text-align: center;
+}
+/* 标签条/面包屑内的下拉定位容器 */
+.dz-export, .dz-plus, .design-ws-present{ position: relative; }
+.dz-export-menu{ left: auto; right: 0; top: calc(100% + 8px); }
+.dz-present-menu{ left: auto; right: 0; top: calc(100% + 8px); }
+.dz-plus-menu{ top: calc(100% + 8px); left: 0; }
+.dz-more{ position: relative; }
+.dz-more-menu{ left: auto; right: 0; top: calc(100% + 8px); min-width: 196px; }
+.dz-menu-sep{ height: 1px; margin: 4px 7px; background: var(--border-soft); }
+/* 工具条容器查询（对照 open-design viewer/core.css）：宽面板 ⋯ 隐藏、
+   ≤720px ⋯ 出现并把模式 tab 收成纯图标，≤600px 整组内联工具隐藏只留 ⋯。 */
+.dz-toolbar{ container-type: inline-size; }
+.dz-more{ display: none; align-items: center; }
+.dz-mode-tab{ width: 30px; min-width: 30px; padding-inline: 0; justify-content: center; }
+.dz-mode-label{ display: none; }
+.dz-more{ display: inline-flex; }
+.dz-toolbar-actions{ display: none; }
+/* 交付（Handoff）分体按钮与「编辑器/CLI」菜单 */
+.dz-handoff{ position: relative; }
+.dz-handoff-split{
+  display: inline-flex;
+  align-items: stretch;
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.dz-handoff-trigger{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 7px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 550 11.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-trigger:hover{ background: var(--surface-2); }
+.dz-handoff-caret{
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--border-soft);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-handoff-caret:hover{ background: var(--surface-2); color: var(--text); }
+.dz-handoff-caret[aria-expanded="true"]{ color: var(--text); background: var(--surface-2); }
+.dz-handoff-logo{ display: inline-flex; align-items: center; }
+.dz-handoff-logo.sm svg{ width: 16px; height: 16px; }
+.dz-handoff-menu{
+  left: auto;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 288px;
+  padding: 8px;
+  gap: 6px;
+}
+.dz-handoff-tabs{
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.dz-handoff-tabs [role="tab"]{
+  flex: 1;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: calc(var(--r-sm) - 1px);
+  background: none;
+  color: var(--text-2);
+  font: 550 11px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-tabs [role="tab"].active{ background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.dz-handoff-path{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+}
+.dz-handoff-path .mono{
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.dz-handoff-copy{
+  flex: none;
+  padding: 3.5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-2);
+  font: 550 10.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-copy:hover{ color: var(--text); border-color: var(--text-3); }
+.dz-handoff-copy:disabled{ color: var(--text); border-color: transparent; cursor: default; }
+.dz-handoff-group-title{ padding: 2px 6px; font: 550 10px/1.4 var(--font-ui); color: var(--text-3); letter-spacing: 0.02em; }
+.dz-handoff-rail{ display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.dz-handoff-item{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  font: 500 11.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-item svg{ flex: none; }
+.dz-handoff-item span:not(.dz-handoff-logo){ flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-handoff-item:hover{ background: var(--surface-2); }
+.dz-handoff-rail.dim .dz-handoff-item{ color: var(--text-3); opacity: 0.72; }
+.dz-handoff-frameworks{ display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px; }
+.dz-handoff-chip{
+  padding: 3.5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-2);
+  font: 500 10.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.dz-handoff-chip:hover{ color: var(--text); }
+.dz-handoff-chip.active{ background: var(--surface-3); color: var(--text); border-color: transparent; }
+.dz-handoff-cli{ display: flex; flex-direction: column; gap: 2px; }
+.dz-handoff-cli-row{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
+}
+.dz-handoff-cli-row:hover{ background: var(--surface-2); }
+.dz-handoff-cli-name{ flex: 1; font: 500 11.5px/1 var(--font-ui); color: var(--text); }
+.dz-handoff-cli-row code{ font-size: 10.5px; color: var(--text-3); }
+/* 截图草稿卡：当前预览的迷你克隆 + 说明 + 垃圾桶移除 */
+.dz-shot-card{
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 32;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  animation: dz-shot-in 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.dz-shot-mini{
+  width: 148px;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+}
+.dz-shot-mini .dz-stage{
+  width: 920px !important;
+  margin: 0;
+  transform: none !important;
+  zoom: 0.16;
+}
+.dz-shot-cap{
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 150px;
+  color: var(--text-2);
+  font: 500 11px/1.45 var(--font-ui);
+}
+.dz-shot-cap b{ font-size: 12px; color: var(--text); font-weight: 600; }
+.dz-shot-x{
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.dz-shot-x:hover{ background: var(--surface-2); color: var(--text); }
+.design-crumb{ position: relative; }
+.dz-crumb-menu{ top: calc(100% + 4px); left: 0; }
+/* 文件卡菜单跟随卡片的浮层 */
+.dz-file-menu-pop{
+  position: fixed;
+  z-index: 60;
+  min-width: 148px;
+}
+.mock-side{
+  flex: 0 0 auto;
+  width: clamp(84px, 26%, 128px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+.mock-side i{ height: 9px; border-radius: 2px; background: var(--border); opacity: .7; }
+.mock-side i.on{ background: var(--text-3); opacity: 1; }
+.mock-main{ flex: 1; min-width: 0; padding: 18px clamp(12px, 4%, 20px); }
+.mock-head{ display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.mock-head b{ font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+.mock-head span{ font-size: 11px; color: var(--text-2); }
+.mock-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.mock-row label{ font-size: 12px; color: var(--text-2); }
+.mock-field{
+  min-width: 0;
+  width: min(112px, 42%);
+  padding: 5px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  font-style: normal;
+  color: var(--text);
+}
+.mock-switch{
+  width: 30px; height: 17px;
+  border-radius: 999px;
+  background: var(--success);
+  position: relative;
+  opacity: .85;
+}
+.mock-switch::after{
+  content: "";
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+.mock-actions{ display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.mock-btn{
+  padding: 7px 16px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-style: normal;
+}
+.mock-btn.ghost{ border: 1px solid var(--border-soft); color: var(--text-2); }
+.mock-btn.primary{ background: var(--accent); color: var(--accent-contrast); }
+.mock-btn.is-selected{ outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 <body>
-<!-- 文件页签区：视觉基线 docs/ui-prototype/artemis-ui.html 467-479 行 -->
+<div class="design-panel-root">
+<!-- 设计面板：结构严格对齐 docs/ui-prototype/artemis-ui.html 的 dockPanelDesign
+     （原型 468-745 行）与 workspace.js 1763-3040 行的全部交互。
+     类名一律沿用原型（design-ws-* / dz-* / mock-*），不自创。
+     安全约束（goal 冻结）：面板零 Node、零 IPC、零 fetch；候选经 MessagePort 上行；
+     导出/版本历史/恢复/截图/交接全部是宿主动作。 -->
 <div aria-label="页面" class="design-ws-tabs" role="tablist">
-  <button aria-selected="true" class="design-ws-tab active" data-dz-view="files" id="dzTabFiles" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg><span class="design-ws-label">设计文件</span></button>
-  <button aria-selected="false" class="design-ws-tab" data-dz-file="customer.html" data-dz-title="客户档案" id="dzTabCustomer" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="design-ws-label">customer.html</span><span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button>
-  <div class="dz-plus"><button aria-label="新建标签页" aria-expanded="false" class="design-ws-add" id="dzPlusBtn" title="新建标签页" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="13"><path d="M12 5v14M5 12h14"></path></svg></button>
-  <div class="dz-menu dz-plus-menu" hidden="" id="dzPlusMenu" role="menu">
-  <button class="dz-menu-item" data-dz-open="files" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg>设计文件</button>
-  <button class="dz-menu-item" data-dz-open="customer.html" data-dz-title="客户档案" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg>customer.html</button>
-  </div>
-  </div>
-  <span class="sp"></span>
-  <!-- 动作区：演示菜单 + 版本历史 + 导出（原型 480-499 行） -->
-  <div class="design-ws-actions">
-  <div class="design-ws-present">
-  <button aria-expanded="false" aria-haspopup="menu" aria-label="演示" class="design-ws-iconbtn" id="dzPresentBtn" title="演示" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M10.3 9.6v4.8l4.3-2.4z" fill="currentColor" stroke="none"></path></svg></button>
-  <div class="dz-menu dz-present-menu" hidden="" id="dzPresentMenu" role="menu">
-  <button class="dz-menu-item" data-dz-toast="已在当前标签页开始演示" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M2.8 12S6 6.2 12 6.2 21.2 12 21.2 12 18 17.8 12 17.8 2.8 12 2.8 12z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>在当前标签页</button>
-  <button class="dz-menu-item" data-dz-toast="已进入全屏演示" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M8.2 5.8v12.4L18.4 12z"></path></svg>全屏</button>
-  </div>
-  </div>
-  <button aria-label="版本历史" class="design-ws-iconbtn" id="dzHistoryBtn" title="版本历史" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></button>
-  <div class="dz-export">
-  <button class="design-ws-export" id="dzExportBtn" type="button">导出</button>
-  <div class="dz-menu dz-export-menu" hidden="" id="dzExportMenu" role="menu">
-  <button class="dz-menu-item" data-dz-export="html" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M12 4v11M7.5 11.5 12 16l4.5-4.5"></path><path d="M4.5 19.5h15"></path></svg>下载 HTML</button>
-  <button class="dz-menu-item" data-dz-toast="截图已保存到下载文件夹" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg>下载截图</button>
-  <button class="dz-menu-item" data-dz-toast="分享链接已复制" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M9.5 14.5 14.5 9.5"></path><path d="M11 6.5 12.8 4.7a4 4 0 0 1 5.7 5.7L16.7 12"></path><path d="M13 17.5 11.2 19.3a4 4 0 0 1-5.7-5.7L7.3 12"></path></svg>复制分享链接</button>
-  </div>
-  </div>
-  </div>
+<button aria-selected="true" class="design-ws-tab active" data-dz-view="files" id="dzTabFiles" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg><span class="design-ws-label">设计文件</span></button>
+<button aria-selected="false" class="design-ws-tab" data-dz-file="customer.html" data-dz-title="客户档案" id="dzTabCustomer" role="tab" type="button"><svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="design-ws-label">customer.html</span><span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button>
+<div class="dz-plus"><button aria-label="新建标签页" aria-expanded="false" class="design-ws-add" id="dzPlusBtn" title="新建标签页" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="13"><path d="M12 5v14M5 12h14"></path></svg></button>
+<div class="dz-menu dz-plus-menu" hidden="" id="dzPlusMenu" role="menu">
+<button class="dz-menu-item" data-dz-open="files" role="menuitem" type="button">设计文件</button>
+<button class="dz-menu-item" data-dz-open="customer.html" data-dz-title="客户档案" role="menuitem" type="button">customer.html</button>
 </div>
-<!-- 文件浏览视图（允许静态 mock 简化） -->
+</div>
+<span class="sp"></span>
+<div class="design-ws-actions">
+<div class="design-ws-present">
+<button aria-expanded="false" aria-haspopup="menu" aria-label="演示" class="design-ws-iconbtn" id="dzPresentBtn" title="演示" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M10.3 9.6v4.8l4.3-2.4z" fill="currentColor" stroke="none"></path></svg></button>
+<div class="dz-menu dz-present-menu" hidden="" id="dzPresentMenu" role="menu">
+<button class="dz-menu-item" data-dz-present="tab" role="menuitem" type="button">在当前标签页</button>
+<button class="dz-menu-item" data-dz-present="fullscreen" role="menuitem" type="button">全屏</button>
+<button class="dz-menu-item" data-dz-present="newtab" role="menuitem" type="button">新标签页</button>
+</div>
+</div>
+<button aria-label="版本历史" class="design-ws-iconbtn" id="dzHistoryBtn" title="版本历史" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="14"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></button>
+<div class="dz-export">
+<button class="btn btn-primary design-ws-export" id="dzExportBtn" type="button">导出</button>
+<div class="dz-menu dz-export-menu" hidden="" id="dzExportMenu" role="menu">
+<button class="dz-menu-item" data-dz-export="html" role="menuitem" type="button">下载 HTML</button>
+<button class="dz-menu-item" data-dz-export="shot" role="menuitem" type="button">下载截图</button>
+</div>
+</div>
+<button class="btn btn-quiet design-ws-share" id="dzShareBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M14 4h6v6"></path><path d="M20 4l-8.5 8.5"></path><path d="M18.5 13.5V18A1.5 1.5 0 0 1 17 19.5H6A1.5 1.5 0 0 1 4.5 18V7A1.5 1.5 0 0 1 6 5.5h4.5"></path></svg><span id="dzShareLabel">分享</span></button>
+<button aria-label="创建编码任务" class="design-ws-handoff" id="dzHandoffMain" title="创建编码任务（把设计交给开发实现）" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4 7l6.5 5L4 17"></path><path d="M12 17h8"></path></svg><span id="dzHandoffLabel">交接</span></button>
+</div>
+</div>
+<!-- 文件浏览视图（原型 design-files） -->
 <div class="design-files" id="dzViewFiles">
-  <nav aria-label="项目" class="design-crumb">
-  <span class="design-crumb-project">2B_Hifi</span>
-  <span class="sp"></span>
-  </nav>
-  <div class="design-cats">
-  <button class="design-cat active" type="button">页面 <span class="design-cat-count">1</span></button>
-  <button class="design-cat" type="button">图片 <span class="design-cat-count">1</span></button>
-  </div>
-  <div class="design-cards" id="dzCards">
-  <button class="design-file-card" data-dz-cat="pages" data-dz-open="customer.html" data-dz-title="客户档案" type="button">
-  <span aria-hidden="true" class="design-file-thumb"></span>
-  <span class="design-file-meta"><span class="design-file-name">customer.html</span><span class="design-file-sub">HTML 页面 · 3 周前</span></span>
-  </button>
-  </div>
-  <!-- 创作输入：视觉基线原型 557-563 行 -->
-  <div class="design-composer">
-  <div class="design-composer-input" contenteditable="true" data-placeholder="描述你想生成的内容…" role="textbox"></div>
-  <div class="design-composer-actions">
-  <button aria-label="添加上下文" class="design-composer-btn" title="添加上下文" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="15"><path d="M12 5v14M5 12h14"></path></svg></button>
-  <span class="sp"></span>
-  <button aria-label="发送" class="design-composer-send" disabled="" id="dzComposerSend" title="发送" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="15"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"></path></svg></button>
-  </div>
-  </div>
+<nav aria-label="项目" class="design-crumb">
+<span class="design-crumb-project" id="dzProjectName">设计任务</span>
+<span class="sp"></span>
+<button aria-label="项目操作" aria-expanded="false" class="design-crumb-menu" id="dzProjectBtn" title="项目操作" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></button>
+<div class="dz-menu dz-crumb-menu" hidden="" id="dzProjectMenu" role="menu">
+<button class="dz-menu-item" data-dz-refresh="files" role="menuitem" type="button">刷新文件</button>
 </div>
-<!-- 预览视图：视觉基线原型 565-572 行 -->
+</nav>
+<div class="design-cats" id="dzCats">
+<button class="design-cat active" type="button">页面 <span class="design-cat-count">0</span></button>
+</div>
+<div class="design-cards" id="dzCards"></div>
+<p class="dz-empty" hidden="" id="dzCatEmpty">这个分类还没有内容</p>
+<div class="design-composer">
+<div class="design-composer-input" contenteditable="true" data-placeholder="描述你想生成的内容…" role="textbox"></div>
+<div class="design-composer-actions">
+<button aria-label="添加上下文" class="design-composer-btn" title="添加上下文" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="15"><path d="M12 5v14M5 12h14"></path></svg></button>
+<span class="sp"></span>
+<button aria-label="发送" class="design-composer-send" disabled="" id="dzComposerSend" title="发送" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="15"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"></path></svg></button>
+</div>
+</div>
+</div>
+<!-- 文件预览视图（原型 design-preview-view，含完整工具条） -->
 <div class="design-preview-view" hidden="" id="dzViewPreview">
-  <div class="dz-toolbar">
-  <div class="dz-toolbar-left">
-  <button aria-label="重新加载" class="dz-iconbtn" id="dzReload" title="重新加载" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v4h-4"></path></svg></button>
-  <div aria-label="视图模式" class="dz-mode" role="tablist">
-  <button aria-selected="true" class="dz-mode-tab active" data-dz-mode="preview" id="dzModePreview" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9h17"></path><path d="M7 13h6.5M7 16h9"></path></svg><span class="dz-mode-label">预览</span></button>
-  <button aria-selected="false" class="dz-mode-tab" data-dz-mode="source" id="dzModeSource" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="dz-mode-label">代码</span></button>
-  </div>
-  </div>
-  <div class="dz-toolbar-right" style="display:flex;gap:6px;align-items:center;margin-left:auto">
-  <div class="dz-device" style="position:relative">
-  <button aria-expanded="false" aria-haspopup="menu" class="dz-iconbtn" id="dzDeviceBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg> <span id="dzDeviceLabel" style="font-size:12px">桌面端</span></button>
-  <div class="dz-menu" hidden="" id="dzDeviceMenu" role="menu" style="right:0;left:auto;top:calc(100% + 4px)">
-  <button class="dz-menu-item" data-dz-device="desktop" role="menuitem" type="button">桌面端</button>
-  <button class="dz-menu-item" data-dz-device="tablet" role="menuitem" type="button">平板</button>
-  <button class="dz-menu-item" data-dz-device="mobile" role="menuitem" type="button">手机</button>
-  </div>
-  </div>
-  <div class="dz-zoom" style="position:relative">
-  <button aria-expanded="false" aria-haspopup="menu" class="dz-iconbtn" id="dzZoomBtn" title="缩放" type="button"><span id="dzZoomLabel" style="font-size:12px">100%</span></button>
-  <div class="dz-menu" hidden="" id="dzZoomMenu" role="menu" style="right:0;left:auto;top:calc(100% + 4px)">
-  <button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button">50%</button>
-  <button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button">75%</button>
-  <button class="dz-menu-item" data-dz-zoom="100" role="menuitem" type="button">100%</button>
-  <button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
-  </div>
-  </div>
-  <button aria-label="截图" class="dz-iconbtn" id="dzShotBtn" title="截图" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg></button>
-  </div>
-  </div>
-  <div class="dz-viewport" id="dzViewport">
-  <div class="dz-stage">
-  <div class="mock-head"><b>客户档案</b><span>管理客户的基础信息与偏好</span></div>
-  </div>
-  </div>
-  <pre class="dz-source" hidden="" id="dzSource" tabindex="0">&lt;section class="customer-summary"&gt;
-  &lt;header&gt;&lt;h2&gt;客户档案&lt;/h2&gt;&lt;/header&gt;
-&lt;/section&gt;</pre>
+<div class="dz-toolbar">
+<div class="dz-toolbar-left">
+<button aria-label="刷新预览" class="dz-iconbtn" id="dzReload" title="刷新预览" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20 12a8 8 0 1 1-2.5-5.8"></path><path d="M20 4v4h-4"></path></svg></button>
+<div aria-label="视图模式" class="dz-mode" role="tablist">
+<button aria-selected="true" class="dz-mode-tab active" data-dz-mode="preview" id="dzModePreview" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9h17"></path><path d="M7 13h6.5M7 16h9"></path></svg><span class="dz-mode-label">预览</span></button>
+<button aria-selected="false" class="dz-mode-tab" data-dz-mode="source" id="dzModeSource" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="dz-mode-label">代码</span></button>
 </div>
-<!-- 历史恢复确认（原型 dzConfirm） -->
-<div class="dz-confirm" hidden="" id="dzConfirm" style="position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)">
-  <div style="background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:12px;padding:20px;width:280px">
-    <strong style="display:block;margin-bottom:8px">恢复到此版本？</strong>
-    <p style="font-size:12px;color:var(--text-2,#9399b2);margin-bottom:16px" id="dzConfirmText">当前编辑将作为新版本保留，不会丢失。</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="dz-menu-item" id="dzConfirmCancel" style="border:1px solid #262b3d;border-radius:8px" type="button">取消</button>
-      <button class="dz-menu-item" id="dzConfirmOk" style="background:var(--accent,#2997ff);border-radius:8px;color:#fff" type="button">恢复</button>
-    </div>
-  </div>
+<div class="dz-device">
+<button aria-expanded="false" aria-haspopup="menu" class="dz-device-trigger" id="dzDeviceBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg><span id="dzDeviceLabel">桌面端</span><svg aria-hidden="true" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="10"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"></path></svg></button>
+<div class="dz-menu" hidden="" id="dzDeviceMenu" role="menu">
+<button class="dz-menu-item active" data-dz-device="desktop" role="menuitem" type="button">桌面端<span class="dz-menu-sub">自适应</span></button>
+<button class="dz-menu-item" data-dz-device="tablet" role="menuitem" type="button">平板<span class="dz-menu-sub">820 × 1180</span></button>
+<button class="dz-menu-item" data-dz-device="mobile" role="menuitem" type="button">手机<span class="dz-menu-sub">390 × 844</span></button>
 </div>
-<!-- 批注钉层 + 选框（原型 dzPinLayer/dzPickBox/dzToolHint/dzPickCard） -->
-<div aria-label="批注钉层" hidden="" id="dzPinLayer" style="position:absolute;inset:0;z-index:20;pointer-events:none"></div>
-<!-- 批注弹层（原型 dzNoteComposer，含发送到聊天） -->
-<div aria-label="批注" class="dz-note-composer" hidden="" id="dzNoteComposer" role="dialog" style="position:absolute;z-index:25;right:12px;bottom:12px;width:280px;background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:12px;padding:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <strong id="dzNoteTitle" style="font-size:13px">添加批注</strong>
-    <span style="display:flex;gap:4px">
-      <button aria-label="删除批注" hidden="" id="dzNoteDelete" type="button">🗑</button>
-      <button aria-label="关闭" id="dzNoteClose" type="button">✕</button>
-    </span>
-  </div>
-  <textarea id="dzNoteInput" placeholder="写批注…" style="width:100%;min-height:56px;background:transparent;border:1px solid #262b3d;border-radius:8px;padding:8px;color:var(--text,#e6e9f5);font:inherit;resize:vertical"></textarea>
-  <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
-    <button class="dz-menu-item" id="dzNoteSendChat" style="border:1px solid #262b3d;border-radius:8px" type="button">发给 AI</button>
-    <button class="dz-menu-item" id="dzNoteSave" disabled="" style="background:var(--accent,#2997ff);border-radius:8px;color:#fff" type="button">保存</button>
-  </div>
 </div>
-<!-- 画板工具（原型 dzDrawTools） -->
-<div aria-label="标记工具" class="dz-draw-tools" hidden="" id="dzDrawTools" role="toolbar" style="position:absolute;z-index:22;top:52px;left:12px;display:flex;gap:6px;background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:10px;padding:6px">
-  <button aria-label="画笔" class="dz-draw-tool active" data-dz-draw="pen" type="button">✏️</button>
-  <button aria-label="橡皮" class="dz-draw-tool" data-dz-draw="erase" type="button">🧽</button>
-  <button aria-label="撤销笔画" id="dzDrawUndo" type="button">↶</button>
-  <button aria-label="重做笔画" id="dzDrawRedo" type="button">↷</button>
-  <button aria-label="把标记发给 AI" id="dzDrawSend" style="border-left:1px solid #262b3d;padding-left:6px" type="button">发给 AI</button>
 </div>
-<!-- 演示全屏层（原型 dzPresentLayer） -->
-<div hidden="" id="dzPresentLayer" style="position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center">
-  <span id="dzPresentTitle" style="position:absolute;top:16px;left:20px;color:#9399b2;font-size:12px"></span>
-  <button aria-label="退出演示" id="dzPresentExit" style="position:absolute;top:12px;right:16px;background:#171a26;color:#e6e9f5;border:1px solid #262b3d;border-radius:8px;padding:6px 12px" type="button">退出演示</button>
-  <iframe sandbox="" style="width:100%;height:100%;border:0;background:#fff" title="演示"></iframe>
+<span class="sp"></span>
+<div class="dz-toolbar-actions">
+<button aria-label="截图发送到对话输入框" class="dz-iconbtn" id="dzShotBtn" title="截图发送到对话输入框" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg></button>
+<button aria-label="注释" class="dz-iconbtn" id="dzCommentBtn" title="注释" type="button"><svg fill="currentColor" height="14" viewbox="0 0 24 24" width="14"><path d="M14 3V5H4V18.3851L5.76282 17H20V10H22V18C22 18.5523 21.5523 19 21 19H6.45455L2 22.5V4C2 3.44772 2.44772 3 3 3H14ZM19 3V0H21V3H24V5H21V8H19V5H16V3H19Z"></path></svg></button>
+<button aria-label="标记" class="dz-iconbtn" id="dzDrawBtn" title="标记" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
+<span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="评论" class="dz-iconbtn dz-comment-count" id="dzCommentListBtn" title="评论" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg><span class="dz-count" id="dzCount">0</span></button>
+<div class="dz-zoom">
+<button aria-expanded="false" aria-haspopup="menu" class="dz-zoom-trigger" id="dzZoomBtn" title="重置缩放" type="button"><span id="dzZoomLabel">100%</span></button>
+<div class="dz-menu" hidden="" id="dzZoomMenu" role="menu">
+<button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button">50%</button>
+<button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button">75%</button>
+<button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button">100%</button>
+<button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button">125%</button>
+<button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
+</div>
+</div>
+</div>
+</div>
+<div class="dz-viewport" id="dzViewport">
+<div class="dz-stage" id="dzStage">
+<div class="design-mock" id="dzMockDesktop"><div class="mock-empty">尚无文档</div></div>
+</div>
+<div aria-hidden="true" class="dz-pin-layer" id="dzPinLayer"></div>
+<div hidden="" id="dzPickBox"></div>
+</div>
+<pre class="dz-source" hidden="" id="dzSource" tabindex="0"></pre>
+<div class="dz-tool-hint" hidden="" id="dzToolHint">在预览里点击要评论的元素</div>
+<div class="dz-pick-card" hidden="" id="dzPickCard" role="tooltip"></div>
+<div aria-label="注释" class="dz-note-composer" hidden="" id="dzNoteComposer" role="dialog">
+<div class="dz-note-titlebar">
+<button aria-label="移动注释框" class="dz-note-grip" id="dzNoteGrip" title="移动注释框" type="button"><span aria-hidden="true"></span></button>
+<span class="dz-note-title" id="dzNoteTitle" title=""></span>
+<button class="dz-note-viewall" id="dzNoteViewAll" type="button">查看全部评论</button>
+</div>
+<div class="dz-note-body">
+<div class="dz-note-rows" id="dzNoteRows"></div>
+<textarea aria-label="评论此元素" class="dz-note-input" id="dzNoteInput" placeholder="评论此元素…"></textarea>
+</div>
+<div class="dz-note-actions">
+<div class="dz-note-actions-start">
+<button aria-label="删除" class="dz-note-ic dz-note-danger" hidden="" id="dzNoteDelete" title="删除" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l1 12.5a1 1 0 0 0 1 .5h7a1 1 0 0 0 1-.5l1-12.5"></path><path d="M10 11v5M14 11v5"></path></svg></button>
+<button aria-label="关闭" class="dz-note-ic" id="dzNoteClose" title="关闭" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div class="dz-note-actions-end">
+<button class="btn btn-quiet" id="dzNoteSendChat" type="button">发送到聊天</button>
+<button class="btn btn-primary" id="dzNoteSave" type="button" disabled="">评论</button>
+</div>
+</div>
+</div>
+<svg aria-hidden="true" class="dz-draw-layer" id="dzDrawLayer"></svg>
+<div class="dz-draw-tools" hidden="" id="dzDrawTools" role="toolbar" aria-label="标记工具">
+<div class="dz-draw-seg">
+<button aria-label="画笔" class="dz-draw-tool active" data-dz-dtool="pen" title="画笔" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
+<button aria-label="方框" class="dz-draw-tool" data-dz-dtool="box" title="方框" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="13" rx="1.5" width="15" x="4.5" y="5.5"></rect></svg></button>
+</div>
+<span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="撤销" class="dz-draw-act" id="dzDrawUndo" title="撤销" type="button">↶</button>
+<button aria-label="重做" class="dz-draw-act" id="dzDrawRedo" title="重做" type="button">↷</button>
+<span aria-hidden="true" class="dz-divider"></span>
+<button class="btn btn-primary dz-draw-send" id="dzDrawSend" type="button">发送到输入框</button>
+</div>
+<aside aria-label="评论列表" class="dz-comment-panel" hidden="" id="dzCommentPanel">
+<div class="dz-comment-panel-head"><strong>评论</strong><span class="dz-count-badge" id="dzPanelCount">0</span><span class="sp"></span><button aria-label="关闭评论列表" class="dz-panel-close" id="dzCommentPanelClose" type="button"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="12"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+<div class="dz-comment-list" id="dzCommentList"></div>
+<p class="dz-empty dz-comment-empty" id="dzCommentEmpty">没有已保存的评论。</p>
+</aside>
+<div class="dz-confirm" hidden="" id="dzConfirm">
+<strong id="dzConfirmTitle">恢复到这个版本？</strong>
+<span class="card-sub">会存成一个新版本，不会丢现在的。</span>
+<div class="dz-confirm-actions"><span class="sp"></span><button class="btn btn-quiet" id="dzConfirmCancel" type="button">取消</button><button class="btn btn-primary" id="dzConfirmOk" type="button">恢复</button></div>
 </div>
 <div class="dz-toast" hidden="" id="dzToast" role="status"></div>
+<div class="dz-history" hidden="" id="dzHistory">
+<strong>版本历史</strong>
+<div id="dzHistoryItems"></div>
+<span class="card-sub">恢复会存成一个新版本，不会丢现在的。</span>
+</div>
+<div aria-label="演示模式" class="dz-present" hidden="" id="dzPresentLayer" role="dialog">
+<div class="dz-present-bar">
+<span class="dz-present-title" id="dzPresentTitle"></span>
+<span class="card-sub">按 Esc 退出演示</span>
+<span class="sp"></span>
+<button aria-label="退出演示" class="dz-iconbtn" id="dzPresentExit" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div class="dz-present-body" id="dzPresentBody"></div>
+</div>
+</div>
 <script>
+/* 设计面板脚本：结构对齐 docs/ui-prototype/workspace/workspace.js（1763-3040 行）。
+   安全约束不变：零 fetch/IPC/父窗口访问；候选只经 MessagePort 上行；
+   导出/版本历史/恢复/截图/交接是宿主动作。
+   与原型的核心差异（有意）：
+   1. dzStage 渲染的是宿主下行的真实文档（DOMParser 解析后的 DOM，非 mock 数据）；
+   2. dzHandoff 语义按提案 §10.3 = 创建编码任务，非"编辑器打开文件夹"；
+   3. 「编辑」工具暂缺：依赖 §10.1 元素定位契约（未建）。 */
 (function () {
   "use strict";
-  // 交互模式照原型：菜单开合、data-dz-toast、页签切换、composer 发送。
-  var toast = document.getElementById("dzToast");
-  var toastTimer = null;
-  function showToast(text) {
-    toast.textContent = text;
+  function $(sel) { return document.querySelector(sel); }
+  function $$(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+
+  var dzPanel = document.querySelector(".design-panel-root");
+  var dzViewFiles = $("#dzViewFiles");
+  var dzViewPreview = $("#dzViewPreview");
+  var dzFilesTab = $("#dzTabFiles");
+  var dzFileTabs = $$('.design-ws-tab[data-dz-file]');
+  var dzStage = $("#dzStage");
+  var dzMockDesktop = $("#dzMockDesktop");
+  var dzSource = $("#dzSource");
+  var dzToolHint = $("#dzToolHint");
+  var dzMode = "preview";
+  var dzDevice = "desktop";
+  var dzZoom = 100;
+  var dzCommentMode = false;
+  var dzComments = [];
+  var dzToastTimer = 0;
+
+  /* ============ 数据链路 ============ */
+  var hostPort = null;
+  var currentDocument = null; // { documentId, name, headRevision, versionCount }
+  var lastDocumentHtml = "";
+  var lastVersions = [];
+  var openFiles = []; // 当前打开的文件页签（从宿主快照生成）
+
+  function dzToast(message) {
+    var toast = $("#dzToast");
+    toast.textContent = message;
     toast.hidden = false;
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toast.hidden = true; }, 2200);
+    window.clearTimeout(dzToastTimer);
+    dzToastTimer = window.setTimeout(function () { toast.hidden = true; }, 2600);
   }
-
-  // ---- 弹出菜单（plus / present / export）----
-  var menus = [
-    { btn: document.getElementById("dzPlusBtn"), menu: document.getElementById("dzPlusMenu") },
-    { btn: document.getElementById("dzPresentBtn"), menu: document.getElementById("dzPresentMenu") },
-    { btn: document.getElementById("dzExportBtn"), menu: document.getElementById("dzExportMenu") }
-  ];
-  function closeMenus(except) {
-    menus.forEach(function (m) {
-      if (m.menu !== except) {
-        m.menu.hidden = true;
-        m.btn.setAttribute("aria-expanded", "false");
-      }
+  function dzCloseMenus() {
+    $$(".dz-menu").forEach(function (m) { m.hidden = true; });
+    $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzHandoffCaret").forEach(function (b) {
+      b.setAttribute("aria-expanded", "false");
     });
   }
-  menus.forEach(function (m) {
-    m.btn.addEventListener("click", function (event) {
-      event.stopPropagation();
-      var willOpen = m.menu.hidden;
-      closeMenus(m.menu);
-      m.menu.hidden = !willOpen;
-      m.btn.setAttribute("aria-expanded", String(!m.menu.hidden));
+
+  /* ============ 视图切换（原型 dzShow） ============ */
+  function dzClearTools() {
+    dzCommentMode = false;
+    [$("#dzCommentBtn"), $("#dzDrawBtn")].forEach(function (b) {
+      b.classList.remove("active");
+      b.setAttribute("aria-pressed", "false");
     });
-  });
-  document.addEventListener("click", function () { closeMenus(null); });
-  document.addEventListener("click", function (event) {
-    var exportTarget = event.target.closest("[data-dz-export]");
-    if (exportTarget) {
-      requestExport();
-      closeMenus(null);
-      return;
-    }
-    var target = event.target.closest("[data-dz-toast]");
-    if (target) {
-      showToast(target.getAttribute("data-dz-toast"));
-      closeMenus(null);
-    }
-  });
-
-  // ---- 版本历史：请求宿主拉真实版本列表（S4）----
-  document.getElementById("dzHistoryBtn").addEventListener("click", function () {
-    var panel = document.getElementById("dzHistory");
-    if (panel) panel.hidden = !panel.hidden;
-    requestVersions();
-  });
-
-  // ---- 页签切换：files 视图 <-> preview 视图 ----
-  var viewFiles = document.getElementById("dzViewFiles");
-  var viewPreview = document.getElementById("dzViewPreview");
-  var tabs = Array.prototype.slice.call(document.querySelectorAll(".design-ws-tab"));
-  function selectTab(tab) {
-    tabs.forEach(function (t) {
-      var active = t === tab;
+    dzDrawExit(false);
+    dzHint("");
+    dzCloseComposer();
+    dzSetPicking(false);
+  }
+  function dzShow(view, file) {
+    var files = view === "files";
+    dzViewFiles.hidden = !files;
+    dzViewPreview.hidden = files;
+    dzFilesTab.classList.toggle("active", files);
+    dzFilesTab.setAttribute("aria-selected", String(files));
+    dzFileTabs.forEach(function (t) {
+      var active = !files && t.dataset.dzFile === file;
       t.classList.toggle("active", active);
       t.setAttribute("aria-selected", String(active));
+      if (file && t.dataset.dzFile === file) t.hidden = false;
     });
-    var isFiles = tab.getAttribute("data-dz-view") === "files";
-    viewFiles.hidden = !isFiles;
-    viewPreview.hidden = isFiles;
-    closeMenus(null);
+    if (!files) dzClearTools();
   }
-  tabs.forEach(function (tab) {
-    tab.addEventListener("click", function (event) {
-      if (event.target.closest(".design-ws-x")) {
-        // 关闭钮：切回文件视图（静态 mock，原型会移除标签）
-        selectTab(tabs[0]);
+  dzFilesTab.addEventListener("click", function () { dzShow("files"); });
+  dzFileTabs.forEach(function (t) {
+    t.addEventListener("click", function (e) {
+      if (e.target.closest(".design-ws-x")) {
+        e.stopPropagation();
+        t.hidden = true;
+        var remaining = dzFileTabs.filter(function (o) { return !o.hidden; });
+        if (t.classList.contains("active")) {
+          if (remaining.length) dzShow("preview", remaining[0].dataset.dzFile);
+          else dzShow("files");
+        }
         return;
       }
-      selectTab(tab);
-    });
-  });
-  document.querySelectorAll("[data-dz-open]").forEach(function (item) {
-    item.addEventListener("click", function () {
-      var file = item.getAttribute("data-dz-open");
-      var fileTab = tabs.find(function (t) { return t.getAttribute("data-dz-file") === file; });
-      if (fileTab) selectTab(fileTab);
-      closeMenus(null);
+      dzShow("preview", t.dataset.dzFile, t.dataset.dzTitle);
+      dzRequestDocument(t.dataset.dzFile);
     });
   });
 
-  // ---- 预览 | 代码 切换 ----
-  var viewport = document.getElementById("dzViewport");
-  var source = document.getElementById("dzSource");
-  document.querySelectorAll(".dz-mode-tab").forEach(function (tab) {
-    tab.addEventListener("click", function () {
-      document.querySelectorAll(".dz-mode-tab").forEach(function (t) {
-        var active = t === tab;
-        t.classList.toggle("active", active);
-        t.setAttribute("aria-selected", String(active));
+  /* ============ 文件卡片（真实数据渲染） ============ */
+  function dzRenderFiles(documents) {
+    var cards = $("#dzCards");
+    cards.replaceChildren();
+    var pages = documents.filter(function (d) { return /\.html?$/.test(d.name) || d.kind === "page"; });
+    // 分类计数
+    var cats = $("#dzCats");
+    cats.replaceChildren();
+    var groups = [
+      ["页面", pages.length],
+      ["其他", documents.length - pages.length],
+    ];
+    groups.forEach(function (g, i) {
+      var b = document.createElement("button");
+      b.className = "design-cat" + (i === 0 ? " active" : "");
+      b.type = "button";
+      b.textContent = g[0];
+      var count = document.createElement("span");
+      count.className = "design-cat-count";
+      count.textContent = String(g[1]);
+      b.appendChild(count);
+      b.addEventListener("click", function () {
+        $$(".design-cat").forEach(function (o) { o.classList.toggle("active", o === b); });
+        var key = g[0] === "页面" ? "pages" : "other";
+        var shown = 0;
+        $$(".design-file-card").forEach(function (card) {
+          var match = card.dataset.dzCat === key;
+          card.hidden = !match;
+          if (match) shown += 1;
+        });
+        $("#dzCatEmpty").hidden = shown > 0;
       });
-      var isSource = tab.getAttribute("data-dz-mode") === "source";
-      viewport.hidden = isSource;
-      source.hidden = !isSource;
+      cats.appendChild(b);
+    });
+    pages.forEach(function (doc) {
+      var card = document.createElement("button");
+      card.className = "design-file-card";
+      card.type = "button";
+      card.setAttribute("data-dz-cat", "pages");
+      card.setAttribute("data-dz-open", doc.name);
+      card.setAttribute("data-dz-title", doc.name.replace(/\.html?$/, ""));
+      card.innerHTML =
+        '<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>' +
+        '<span class="design-file-meta"><span class="design-file-name">' + doc.name + '</span><span class="design-file-sub">HTML 页面 · v' + (doc.versionCount || 1) + '</span></span>';
+      card.addEventListener("click", function () {
+        dzShow("preview", doc.name);
+        dzLoadDocument(doc);
+      });
+      cards.appendChild(card);
+    });
+    $("#dzCatEmpty").hidden = pages.length > 0;
+  }
+
+  /* ============ 真实文档渲染（核心新能力：结构解析） ============ */
+  function dzLoadDocument(doc) {
+    currentDocument = doc;
+    if (hostPort) {
+      hostPort.postMessage({ type: "read-document-request", documentId: doc.documentId });
+    }
+  }
+  function dzRenderDocument(html, name, subtitle) {
+    lastDocumentHtml = html;
+    // 标题行
+    var label = $("#dzTabCustomer .design-ws-label");
+    if (label && name) {
+      label.textContent = name;
+      $("#dzTabCustomer").setAttribute("data-dz-file", name);
+      $("#dzTabCustomer").setAttribute("data-dz-title", (subtitle || name).replace(/\.html?$/, ""));
+    }
+    // DOMParser 解析（比 innerHTML 更可控：能剥 script/事件属性）
+    var parsed = new DOMParser().parseFromString(html, "text/html");
+    // 提取文档自己的 <style> 保留进舞台（scoped 到舞台内）
+    var docStyles = "";
+    parsed.querySelectorAll("style").forEach(function (s) { docStyles += s.textContent; });
+    parsed.querySelectorAll("script, link, meta, title, style").forEach(function (n) { n.remove(); });
+    // 剥内联事件属性（on*）；form 内 button 显式 type=button 防止预览内提交
+    parsed.querySelectorAll("*").forEach(function (el) {
+      Array.prototype.slice.call(el.attributes).forEach(function (a) {
+        if (/^on/i.test(a.name)) el.removeAttribute(a.name);
+      });
+      if (el.tagName === "BUTTON" && !el.getAttribute("type")) {
+        el.setAttribute("type", "button");
+      }
+      if (el.tagName === "FORM") {
+        el.addEventListener = undefined; // 解析文档的 form 不接监听
+      }
+    });
+    // 阻止解析文档内表单默认提交（预览是只读舞台）
+    parsed.querySelectorAll("form").forEach(function (f) {
+      f.setAttribute("onsubmit", "return false");
+    });
+    dzMockDesktop.replaceChildren();
+    var main = parsed.body || document.createElement("div");
+    dzMockDesktop.appendChild(document.importNode(main, true));
+    if (docStyles) {
+      var scoped = document.createElement("style");
+      scoped.textContent = docStyles;
+      dzMockDesktop.appendChild(scoped);
+    }
+    // 源码视图（带行号）
+    dzRenderSource(html);
+    dzApplyStage();
+    dzToast("已加载 " + (name || "文档"));
+  }
+  function dzRenderSource(html) {
+    dzSource.replaceChildren();
+    html.split("\n").forEach(function (line, i) {
+      var ln = document.createElement("span");
+      ln.className = "ln";
+      ln.textContent = String(i + 1);
+      dzSource.appendChild(ln);
+      dzSource.appendChild(document.createTextNode("  " + line + "\n"));
+    });
+  }
+
+  /* ============ 预览 | 代码 ============ */
+  $$(".dz-mode-tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      dzMode = tab.dataset.dzMode;
+      $$(".dz-mode-tab").forEach(function (o) {
+        var active = o === tab;
+        o.classList.toggle("active", active);
+        o.setAttribute("aria-selected", String(active));
+      });
+      dzSource.hidden = dzMode !== "source";
+      dzStage.hidden = dzMode === "source";
+      dzClearTools();
+      if (dzMode === "preview") {
+        dzStage.classList.remove("dz-rendering");
+        void dzStage.offsetWidth;
+        dzStage.classList.add("dz-rendering");
+      }
     });
   });
 
-  // ---- S3 MessagePort 桥：宿主经 window "artemis:port" 事件递来端口 ----
-  // 候选经 port 上行；宿主快照经 port 下行。仍不做任何 fetch/ipc/父窗口调用。
-  var hostPort = null;
-  window.addEventListener("message", function (event) {
-    if (event.source === window && event.data === "artemis:port-init") {
-      hostPort = event.ports[0] || null;
-      if (hostPort) hostPort.start();
+  /* ============ 设备 / 缩放（原型 dzApplyStage） ============ */
+  function dzApplyStage() {
+    var widths = { desktop: "min(560px, 100%)", tablet: "min(430px, 100%)", mobile: "min(300px, 100%)" };
+    dzStage.style.width = widths[dzDevice];
+    dzStage.style.transform = dzZoom === 100 ? "" : "scale(" + dzZoom / 100 + ")";
+  }
+  function dzToggleMenu(btn, menu) {
+    var open = menu.hidden;
+    dzCloseMenus();
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(!menu.hidden));
+  }
+  function dzSetDevice(id) {
+    dzDevice = id;
+    $("#dzDeviceLabel").textContent = id === "mobile" ? "手机" : id === "tablet" ? "平板" : "桌面端";
+    $$('.dz-menu [data-dz-device]').forEach(function (o) {
+      o.classList.toggle("active", o.dataset.dzDevice === id);
+    });
+    dzApplyStage();
+  }
+  function dzSetZoom(level) {
+    dzZoom = level;
+    $("#dzZoomLabel").textContent = level + "%";
+    $$('.dz-menu [data-dz-zoom]').forEach(function (o) {
+      o.classList.toggle("active", Number(o.dataset.dzZoom) === level);
+    });
+    dzApplyStage();
+  }
+  $("#dzDeviceBtn").addEventListener("click", function () {
+    dzToggleMenu($("#dzDeviceBtn"), $("#dzDeviceMenu"));
+  });
+  $$('#dzDeviceMenu .dz-menu-item').forEach(function (item) {
+    item.addEventListener("click", function () {
+      dzSetDevice(item.dataset.dzDevice);
+      $("#dzDeviceMenu").hidden = true;
+      $("#dzDeviceBtn").setAttribute("aria-expanded", "false");
+    });
+  });
+  $("#dzZoomBtn").addEventListener("click", function () {
+    dzToggleMenu($("#dzZoomBtn"), $("#dzZoomMenu"));
+  });
+  $$('#dzZoomMenu .dz-menu-item').forEach(function (item) {
+    item.addEventListener("click", function () {
+      dzSetZoom(Number(item.dataset.dzZoom));
+      $("#dzZoomMenu").hidden = true;
+      $("#dzZoomBtn").setAttribute("aria-expanded", "false");
+    });
+  });
+
+  /* ============ 刷新 ============ */
+  $("#dzReload").addEventListener("click", function () {
+    var icon = $("#dzReload svg");
+    icon.style.transition = "transform .5s cubic-bezier(0.23,1,0.32,1)";
+    icon.style.transform = "rotate(360deg)";
+    window.setTimeout(function () { icon.style.transition = ""; icon.style.transform = ""; }, 520);
+    if (currentDocument && hostPort) {
+      hostPort.postMessage({ type: "read-document-request", documentId: currentDocument.documentId });
+    }
+    if (dzMode === "preview" && !dzStage.hidden) {
+      dzStage.classList.remove("dz-rendering");
+      void dzStage.offsetWidth;
+      dzStage.classList.add("dz-rendering");
     }
   });
 
-
-  // ---- S4：导出/版本历史经 port 请求宿主（宿主动作），下行快照驱动 UI ----
-  var currentDocument = null; // { documentId, name, headRevision, versionCount }
-  window.addEventListener("message", function (event) {
-    if (event.source === window && event.data === "artemis:port-init") {
-      hostPort = event.ports[0] || null;
-      if (hostPort) hostPort.start();
+  /* ============ 注释工具（选元素→composer→pin） ============ */
+  function dzToolState(btn, on) {
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", String(on));
+  }
+  function dzHint(text) {
+    if (!text) { dzToolHint.hidden = true; return; }
+    dzToolHint.textContent = text;
+    dzToolHint.hidden = false;
+  }
+  // 候选目标：文档内常见的可注释元素（原型用 mock 类；真实文档用通用选择器）
+  var DZ_TARGET_SEL = "button, a, input, select, textarea, label, h1, h2, h3, h4, h5, h6, img, p.mock-row, header, nav, section, article, form";
+  var dzSeq = 0;
+  var dzActiveCommentId = null;
+  var dzEditTarget = null;
+  var dzComposerCtx = null;
+  function dzScale() { return dzZoom / 100; }
+  function dzSetPicking(on) {
+    $("#dzViewport").classList.toggle("dz-picking", on);
+    if (!on) {
+      $("#dzPickCard").hidden = true;
+      $("#dzPickBox").hidden = true;
+    }
+  }
+  function dzPickTarget(el) {
+    if (!el || !el.closest) return null;
+    if (!dzStage.contains(el)) return null;
+    return el.closest(DZ_TARGET_SEL);
+  }
+  function dzTargetLabel(el, free) {
+    if (free || !el) return "pin";
+    var named = el.getAttribute("data-dz-target") || el.getAttribute("data-design-id") || el.getAttribute("id");
+    if (named) return named;
+    var tag = el.tagName.toLowerCase();
+    var cls = typeof el.className === "string" && el.className.trim()
+      ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
+      : "";
+    return tag + cls;
+  }
+  function dzTargetKind(el, free) {
+    if (free || !el) return "pin";
+    var tag = el.tagName.toLowerCase();
+    if (["button", "a", "input", "select", "textarea"].indexOf(tag) > -1) return "control";
+    if (["label", "header", "nav", "section", "article", "form"].indexOf(tag) > -1) return "area";
+    return "text";
+  }
+  function dzCssToHex(color) {
+    var m = color.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\)/);
+    if (!m) return /^#[0-9a-f]{3,8}$/i.test(color.trim()) ? color.trim() : "";
+    if (m[4] !== undefined && Number(m[4]) === 0) return "";
+    return "#" + [1, 2, 3].map(function (i) {
+      var v = Math.max(0, Math.min(255, Math.round(Number(m[i])))).toString(16);
+      return v.length === 1 ? "0" + v : v;
+    }).join("");
+  }
+  function dzStyleRows(el) {
+    var s = dzScale();
+    var rect = el.getBoundingClientRect();
+    var cs = getComputedStyle(el);
+    var rows = [];
+    var w = Math.round(rect.width / s), h = Math.round(rect.height / s);
+    if (w > 0 && h > 0) rows.push({ k: "Size", v: w + "x" + h });
+    var color = dzCssToHex(cs.color);
+    if (color) rows.push({ k: "Color", v: color, sw: color });
+    var bg = dzCssToHex(cs.backgroundColor);
+    if (bg) rows.push({ k: "Bg", v: bg, sw: bg });
+    var font = [cs.fontSize];
+    if (cs.fontWeight && cs.fontWeight !== "400") font.push(cs.fontWeight);
+    font.push(cs.fontFamily.split(",")[0].replace(/["']/g, "").trim());
+    rows.push({ k: "Font", v: font.join(" ") });
+    return rows;
+  }
+  function dzRenderRows(container, rows) {
+    container.replaceChildren();
+    rows.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "dz-pick-row";
+      var label = document.createElement("span");
+      label.textContent = r.k;
+      var val = document.createElement("b");
+      if (r.sw) {
+        var swatch = document.createElement("i");
+        swatch.style.background = r.sw;
+        val.appendChild(swatch);
+      }
+      val.appendChild(document.createTextNode(r.v));
+      row.append(label, val);
+      container.appendChild(row);
+    });
+  }
+  function dzPlaceFloating(card, cx, cy) {
+    var vp = $("#dzViewport");
+    var vr = vp.getBoundingClientRect();
+    var cw = card.offsetWidth, ch = card.offsetHeight;
+    var minL = 8, minT = 8;
+    var maxL = Math.max(minL, vr.width - cw - 8);
+    var maxT = Math.max(minT, vr.height - ch - 8);
+    var left = cx + 14, top = cy + 14;
+    if (left > maxL) {
+      var flipL = cx - cw - 14;
+      left = flipL >= minL ? flipL : maxL;
+    }
+    if (top > maxT) {
+      var flipT = cy - ch - 14;
+      top = flipT >= minT ? flipT : maxT;
+    }
+    card.style.left = Math.max(minL, left) + "px";
+    card.style.top = Math.max(minT, top) + "px";
+  }
+  var dzHoverEl = null;
+  function dzHideHover() {
+    dzHoverEl = null;
+    $("#dzPickCard").hidden = true;
+  }
+  $("#dzViewport").addEventListener("mousemove", function (e) {
+    if (!dzCommentMode || !$("#dzNoteComposer").hidden) return;
+    var target = dzPickTarget(e.target);
+    if (target && target === dzHoverEl) return;
+    dzHoverEl = target;
+    var box = $("#dzPickBox");
+    if (!target) {
+      box.hidden = true;
+      dzHideHover();
       return;
     }
-    if (event.source === window && event.data === "artemis:export-result") {
-      showToast("已导出：" + (event.detail && event.detail.path));
-    }
+    var s = dzScale();
+    var sr = dzStage.getBoundingClientRect();
+    var r = target.getBoundingClientRect();
+    box.style.left = (r.left - sr.left) / s + "px";
+    box.style.top = (r.top - sr.top) / s + "px";
+    box.style.width = r.width / s + "px";
+    box.style.height = r.height / s + "px";
+    box.hidden = false;
+    var card = $("#dzPickCard");
+    dzRenderRows(card, dzStyleRows(target));
+    card.hidden = false;
+    var vr = $("#dzViewport").getBoundingClientRect();
+    dzPlaceFloating(card, e.clientX - vr.left, e.clientY - vr.top);
   });
-  var previewStage = document.querySelector("#dzViewport .dz-stage");
-  var sourcePane = document.getElementById("dzSource");
-  function renderDocument(html, name, subtitle) {
-    lastDocumentHtml = html;
-    if (previewStage) {
-      previewStage.innerHTML =
-        '<div class="mock-head"><b></b><span></span></div>' +
-        '<iframe style="width:100%;height:100%;border:0;background:#fff;border-radius:10px" sandbox=""></iframe>';
-      var head = previewStage.querySelector(".mock-head");
-      if (head) {
-        head.querySelector("b").textContent = name || "设计文档";
-        head.querySelector("span").textContent = subtitle || "";
-      }
-      var frame = previewStage.querySelector("iframe");
-      if (frame) frame.srcdoc = html;
-    }
-    if (sourcePane) sourcePane.textContent = html || "";
-  }
-  function bindPortListener(port) {
-    port.addEventListener("message", function (event) {
-      var data = event.data || {};
-      if (data.type === "snapshot" && data.snapshot) {
-        var docs = data.snapshot.documents || [];
-        currentDocument = docs.length ? docs[docs.length - 1] : null;
-        if (currentDocument && hostPort) {
-          hostPort.postMessage({
-            type: "read-document-request",
-            documentId: currentDocument.documentId,
-          });
-        }
-      }
-      if (data.type === "export-result" && data.path) {
-        showToast("已导出：" + data.path);
-      }
-      if (data.type === "versions" && data.versions) {
-        var out = JSON.parse(data.versions.output || "{}");
-        lastVersions = out.versions || [];
-        var list = lastVersions
-          .map(function (v) { return "v" + v.sequence + " (" + v.revision.slice(0, 8) + ")"; })
-          .join(" ← ");
-        showToast(currentDocument ? currentDocument.name + "：" + list : list);
-        renderHistoryList();
-      }
-      if (data.type === "restore-result") {
-        restoreRequested = false;
-        if (data.ok && data.documentHtml) {
-          renderDocument(data.documentHtml, data.name, data.subtitle || "已恢复");
-          showToast("已恢复并生成新版本");
-        } else {
-          showToast("恢复失败：" + (data.error || "未知原因"));
-        }
-      }
-      if (data.type === "document-html" && data.html) {
-        renderDocument(data.html, data.name, data.subtitle);
-      }
-    });
-  }
-  window.addEventListener("artemis:port", function (event) {
-    hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
-    if (hostPort) {
-      hostPort.start();
-      bindPortListener(hostPort);
-    }
+  $("#dzViewport").addEventListener("mouseleave", function () {
+    if (!$("#dzNoteComposer").hidden) return;
+    $("#dzPickBox").hidden = true;
+    dzHideHover();
   });
-  function renderHistoryList() {
-    var host = document.getElementById("dzViewport");
-    if (!host) return;
-    var panel = document.getElementById("dzHistory");
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = "dzHistory";
-      panel.hidden = true;
-      panel.style.cssText = "position:absolute;top:48px;right:12px;bottom:12px;width:240px;overflow:auto;background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:12px;padding:8px;z-index:15";
-      host.style.position = "relative";
-      host.appendChild(panel);
-    }
-    panel.innerHTML = "";
-    if (!lastVersions.length) {
-      panel.innerHTML = '<div style="color:var(--text-2,#9399b2);font-size:12px;padding:8px">暂无版本</div>';
-    }
-    lastVersions.forEach(function (v, idx) {
-      var item = document.createElement("button");
-      item.type = "button";
-      item.className = "dz-history-item" + (idx === 0 ? " active" : "");
-      item.setAttribute("data-dz-revision", v.revision);
-      item.style.cssText = "display:block;width:100%;text-align:left;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--text,#e6e9f5);font-size:12px;cursor:pointer";
-      item.textContent = "v" + v.sequence + " · " + v.revision.slice(0, 8) + (idx === 0 ? " · 当前" : "");
-      item.addEventListener("click", function () {
-        panel.querySelectorAll(".dz-history-item").forEach(function (o) { o.classList.remove("active"); });
-        item.classList.add("active");
-        pendingRestoreRevision = v.revision;
-        document.getElementById("dzConfirmText").textContent =
-          "恢复到 v" + v.sequence + "（" + v.revision.slice(0, 8) + "）？当前内容会保留为新版本。";
-        document.getElementById("dzConfirm").hidden = false;
-      });
-      panel.appendChild(item);
+  dzStage.addEventListener("click", function (e) {
+    if (!dzCommentMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var target = dzPickTarget(e.target);
+    var sr = dzStage.getBoundingClientRect();
+    var s = dzScale();
+    dzOpenComposer({
+      el: target,
+      free: !target,
+      x: (e.clientX - sr.left) / s,
+      y: (e.clientY - sr.top) / s,
     });
-  }
-  function requestExport() {
-    if (!hostPort) { showToast("导出需要宿主连接"); return; }
-    if (!currentDocument) { showToast("尚无可导出的文档"); return; }
-    hostPort.postMessage({
-      type: "export-request",
-      documentId: currentDocument.documentId,
-      revision: currentDocument.headRevision,
-    });
-    showToast("已请求宿主导出 " + currentDocument.name);
-  }
-  function requestVersions() {
-    if (!hostPort) { showToast("版本历史（未连接宿主）"); return; }
-    if (!currentDocument) { showToast("尚无文档版本"); return; }
-    hostPort.postMessage({
-      type: "list-versions-request",
-      documentId: currentDocument.documentId,
-    });
-    showToast("已请求 " + currentDocument.name + " 的版本历史");
-  }
-
-  // ---- 创作输入：发送仅 dispatch candidate-prompt 事件，不做任何 fetch/ipc/父窗口调用 ----
-  var composerInput = document.querySelector(".design-composer-input");
-  var composerSend = document.getElementById("dzComposerSend");
-  function syncSendState() {
-    composerSend.disabled = composerInput.textContent.trim().length === 0;
-  }
-  composerInput.addEventListener("input", syncSendState);
-  composerSend.addEventListener("click", function () {
-    var text = composerInput.textContent.trim();
-    if (!text) return;
-    composerInput.dispatchEvent(
-      new CustomEvent("artemis:candidate-prompt", {
-        detail: { text: text, source: "panel" },
-        bubbles: true
-      })
-    );
-    // S3：候选经宿主递来的 MessagePort 上行（无 port 时退化为仅事件——
-    // 独立打开面板的预览场景）。
-    if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
-    composerInput.textContent = "";
-    syncSendState();
-    showToast("已发送到对话输入框");
   });
-
-  // ================= S4 对齐补齐：原型交互全量 =================
-  var lastDocumentHtml = "";
-
-  function getPreviewFrame() {
-    return previewStage ? previewStage.querySelector("iframe") : null;
+  function dzSyncComposerButtons() {
+    var text = $("#dzNoteInput").value.trim();
+    $("#dzNoteSave").disabled = !text || (dzEditTarget ? text === dzEditTarget.text : false);
   }
-
-  // ---- A: dzReload 重载（重设 srcdoc）----
-  document.getElementById("dzReload").addEventListener("click", function () {
-    var frame = getPreviewFrame();
-    if (frame && lastDocumentHtml) {
-      frame.srcdoc = lastDocumentHtml;
-      showToast("已重新加载");
+  function dzOpenComposer(opts) {
+    var composer = $("#dzNoteComposer");
+    dzEditTarget = opts.comment || null;
+    dzActiveCommentId = dzEditTarget ? dzEditTarget.id : null;
+    var free = dzEditTarget ? dzEditTarget.free : opts.free;
+    var label = dzEditTarget ? dzEditTarget.label : dzTargetLabel(opts.el, opts.free);
+    $("#dzNoteTitle").textContent = label;
+    $("#dzNoteTitle").title = label;
+    if (dzEditTarget) {
+      $("#dzNoteInput").value = dzEditTarget.text;
+      dzRenderRows($("#dzNoteRows"), dzEditTarget.el && dzEditTarget.el.isConnected ? dzStyleRows(dzEditTarget.el) : []);
+      $("#dzNoteDelete").hidden = false;
+      $("#dzNoteClose").hidden = true;
     } else {
-      showToast("暂无可重载的文档");
+      $("#dzNoteInput").value = "";
+      dzComposerCtx = {
+        label: label,
+        kind: dzTargetKind(opts.el, opts.free),
+        free: free,
+        el: opts.el || null,
+        x: opts.x, y: opts.y,
+      };
+      dzRenderRows($("#dzNoteRows"), opts.el ? dzStyleRows(opts.el) : []);
+      $("#dzNoteDelete").hidden = true;
+      $("#dzNoteClose").hidden = false;
+    }
+    dzSyncComposerButtons();
+    dzHideHover();
+    var box = $("#dzPickBox");
+    var boxEl = dzEditTarget ? dzEditTarget.el : opts.el;
+    if (boxEl && boxEl.isConnected) {
+      var s = dzScale();
+      var sr = dzStage.getBoundingClientRect();
+      var r = boxEl.getBoundingClientRect();
+      box.style.left = (r.left - sr.left) / s + "px";
+      box.style.top = (r.top - sr.top) / s + "px";
+      box.style.width = r.width / s + "px";
+      box.style.height = r.height / s + "px";
+      box.classList.add("selected");
+      box.hidden = false;
+    } else {
+      box.classList.remove("selected");
+      box.hidden = true;
+    }
+    composer.hidden = false;
+    dzPlaceFloating(composer, opts.x, opts.y);
+    $("#dzNoteInput").focus();
+  }
+  function dzCloseComposer() {
+    var composer = $("#dzNoteComposer");
+    if (!composer.hidden) composer.hidden = true;
+    dzEditTarget = null;
+    dzActiveCommentId = null;
+    $("#dzPickBox").classList.remove("selected");
+    $("#dzPickBox").hidden = true;
+    dzRenderComments();
+    dzRenderPins();
+  }
+  function dzDisplayLabel(c) {
+    if (c.free) return "图钉";
+    if (c.kind === "control") return "控件";
+    if (c.kind === "text") return "文本";
+    return "区域";
+  }
+  function dzRenderComments() {
+    var list = $("#dzCommentList");
+    var empty = $("#dzCommentEmpty");
+    $("#dzPanelCount").textContent = String(dzComments.length);
+    $("#dzCount").textContent = String(dzComments.length);
+    list.replaceChildren();
+    empty.hidden = dzComments.length > 0;
+    dzComments.forEach(function (c) {
+      var item = document.createElement("div");
+      item.className = "dz-comment-item";
+      if (c.id === dzActiveCommentId) item.classList.add("active");
+      item.setAttribute("role", "button");
+      item.tabIndex = 0;
+      var head = document.createElement("div");
+      head.className = "dz-comment-item-head";
+      var title = document.createElement("b");
+      title.textContent = c.seq + ". " + dzDisplayLabel(c);
+      var time = document.createElement("span");
+      time.className = "dz-comment-time";
+      time.textContent = c.at;
+      head.append(title, time);
+      var body = document.createElement("p");
+      body.textContent = c.text;
+      item.append(head, body);
+      function open() { dzOpenComment(c); }
+      item.addEventListener("click", open);
+      item.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        open();
+      });
+      list.appendChild(item);
+    });
+  }
+  function dzRenderPins() {
+    var layer = $("#dzPinLayer");
+    layer.replaceChildren();
+    dzComments.forEach(function (c) {
+      var pin = document.createElement("button");
+      pin.type = "button";
+      pin.className = "dz-pin";
+      pin.textContent = String(c.seq);
+      pin.style.left = c.x + "px";
+      pin.style.top = c.y + "px";
+      pin.title = c.seq + ". " + dzDisplayLabel(c) + "：" + c.text;
+      pin.setAttribute("aria-label", "打开评论 " + c.seq + "（" + dzDisplayLabel(c) + "）");
+      pin.addEventListener("click", function (e) {
+        e.stopPropagation();
+        dzOpenComment(c);
+      });
+      layer.appendChild(pin);
+    });
+  }
+  function dzOpenComment(c) {
+    $("#dzCommentPanel").hidden = false;
+    dzOpenComposer({ comment: c });
+    dzRenderComments();
+  }
+  function dzSaveComment() {
+    var text = $("#dzNoteInput").value.trim();
+    if (!text) return;
+    if (dzEditTarget) {
+      dzEditTarget.text = text;
+      dzEditTarget.at = "刚刚";
+    } else {
+      dzSeq += 1;
+      dzComments.push({
+        id: "c" + dzSeq + "-" + Date.now().toString(36),
+        seq: dzSeq,
+        label: dzComposerCtx.label,
+        kind: dzComposerCtx.kind,
+        free: dzComposerCtx.free,
+        el: dzComposerCtx.el,
+        x: dzComposerCtx.x, y: dzComposerCtx.y,
+        text: text,
+        at: "刚刚",
+      });
+    }
+    dzToast("评论已保存");
+    dzCloseComposer();
+    dzCommentMode = false;
+    dzToolState($("#dzCommentBtn"), false);
+    dzSetPicking(false);
+    dzHint("");
+  }
+  $("#dzNoteInput").addEventListener("input", dzSyncComposerButtons);
+  $("#dzNoteInput").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    if (!$("#dzNoteSave").disabled) dzSaveComment();
+  });
+  $("#dzNoteSave").addEventListener("click", dzSaveComment);
+  $("#dzNoteClose").addEventListener("click", dzCloseComposer);
+  $("#dzNoteDelete").addEventListener("click", function () {
+    if (!dzEditTarget) return;
+    dzComments = dzComments.filter(function (c) { return c.id !== dzEditTarget.id; });
+    dzToast("评论已删除");
+    dzCloseComposer();
+  });
+  $("#dzNoteSendChat").addEventListener("click", function () {
+    var text = $("#dzNoteInput").value.trim();
+    if (text && hostPort) {
+      hostPort.postMessage({
+        type: "candidate-prompt",
+        text: "【注释】" + ($("#dzNoteTitle").textContent || "") + "：" + text,
+      });
+    }
+    if (text) dzToast("已发送到对话");
+    if (dzEditTarget) {
+      dzComments = dzComments.filter(function (c) { return c.id !== dzEditTarget.id; });
+    }
+    dzCloseComposer();
+  });
+  $("#dzNoteViewAll").addEventListener("click", function () {
+    $("#dzCommentPanel").hidden = false;
+  });
+  /* 拖拽 composer */
+  (function () {
+    var grip = $("#dzNoteGrip");
+    var composer = $("#dzNoteComposer");
+    var drag = null;
+    grip.addEventListener("pointerdown", function (e) {
+      if (composer.hidden) return;
+      e.preventDefault();
+      var r = composer.getBoundingClientRect();
+      var vr = $("#dzViewport").getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, vx: vr.left, vy: vr.top };
+      grip.setPointerCapture(e.pointerId);
+    });
+    grip.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      composer.style.left = e.clientX - drag.vx - drag.dx + "px";
+      composer.style.top = e.clientY - drag.vy - drag.dy + "px";
+    });
+    grip.addEventListener("pointerup", function () { drag = null; });
+    grip.addEventListener("pointercancel", function () { drag = null; });
+  })();
+  $("#dzCommentBtn").addEventListener("click", function () {
+    dzCommentMode = !dzCommentMode;
+    dzToolState($("#dzCommentBtn"), dzCommentMode);
+    if (dzCommentMode) {
+      dzDrawExit(false);
+      dzSetPicking(true);
+      dzHint("点击要注释的元素");
+    } else {
+      dzCloseComposer();
+      dzSetPicking(false);
+      dzHint("");
     }
   });
 
-  // ---- A: 视口切换（device menu）----
-  document.getElementById("dzDeviceBtn").addEventListener("click", function (event) {
-    event.stopPropagation();
-    var menu = document.getElementById("dzDeviceMenu");
-    menu.hidden = !menu.hidden;
-    this.setAttribute("aria-expanded", String(!menu.hidden));
+  /* ============ 评论面板 ============ */
+  $("#dzCommentListBtn").addEventListener("click", function () {
+    var panel = $("#dzCommentPanel");
+    var open = panel.hidden;
+    panel.hidden = !open;
+    dzToolState($("#dzCommentListBtn"), open);
+    if (open) {
+      dzCommentMode = true;
+      dzToolState($("#dzCommentBtn"), true);
+      dzDrawExit(false);
+      dzHint("点击要注释的元素");
+    } else {
+      dzCommentMode = false;
+      dzToolState($("#dzCommentBtn"), false);
+      dzHint("");
+    }
   });
-  document.querySelectorAll("[data-dz-device]").forEach(function (item) {
-    item.addEventListener("click", function () {
-      var id = item.getAttribute("data-dz-device");
-      document.getElementById("dzDeviceLabel").textContent =
-        id === "mobile" ? "手机" : id === "tablet" ? "平板" : "桌面端";
-      document.getElementById("dzDeviceMenu").hidden = true;
-      var frame = getPreviewFrame();
-      if (frame) {
-        frame.style.width = id === "mobile" ? "390px" : id === "tablet" ? "768px" : "100%";
-        frame.style.margin = id === "desktop" ? "0" : "0 auto";
-      }
-    });
-  });
-
-  // ---- A: 缩放（zoom menu）----
-  document.getElementById("dzZoomBtn").addEventListener("click", function (event) {
-    event.stopPropagation();
-    var menu = document.getElementById("dzZoomMenu");
-    menu.hidden = !menu.hidden;
-    this.setAttribute("aria-expanded", String(!menu.hidden));
-  });
-  document.querySelectorAll("[data-dz-zoom]").forEach(function (item) {
-    item.addEventListener("click", function () {
-      var level = item.getAttribute("data-dz-zoom");
-      document.getElementById("dzZoomLabel").textContent = level + "%";
-      document.getElementById("dzZoomMenu").hidden = true;
-      var frame = getPreviewFrame();
-      if (frame) {
-        frame.style.transform = "scale(" + level / 100 + ")";
-        frame.style.transformOrigin = "top center";
-      }
-    });
+  $("#dzCommentPanelClose").addEventListener("click", function () {
+    $("#dzCommentPanel").hidden = true;
+    dzToolState($("#dzCommentListBtn"), false);
+    dzCommentMode = false;
+    dzToolState($("#dzCommentBtn"), false);
+    dzHint("");
   });
 
-  // ---- A: 截图（闪光 + 宿主请求）----
-  document.getElementById("dzShotBtn").addEventListener("click", function () {
-    var frame = getPreviewFrame();
-    if (frame && hostPort && currentDocument) {
+  /* ============ 画板（SVG 画笔/方框 + 撤销重做 + 发送） ============ */
+  var drawLayer = $("#dzDrawLayer");
+  var drawViewport = $("#dzViewport");
+  var drawPath = null;
+  var drawRect = null;
+  var drawStart = null;
+  var dzDrawTool = "pen";
+  var dzDrawOps = [];
+  var dzDrawRedo = [];
+  function dzDrawing() {
+    return drawViewport.classList.contains("dz-drawing");
+  }
+  function dzDrawPush(op) {
+    dzDrawOps.push(op);
+    dzDrawRedo.length = 0;
+  }
+  function dzDrawExit(notify) {
+    var had = dzDrawOps.length > 0;
+    dzDrawOps.forEach(function (op) { op.el.remove(); });
+    dzDrawOps.length = 0;
+    dzDrawRedo.length = 0;
+    drawLayer.replaceChildren();
+    drawViewport.classList.remove("dz-drawing");
+    $("#dzDrawTools").hidden = true;
+    dzToolState($("#dzDrawBtn"), false);
+    dzHint("");
+    if (notify && had) {
+      if (hostPort) {
+        hostPort.postMessage({
+          type: "candidate-prompt",
+          text: "【画板标记】请按标记修改设计（共 " + 0 + " 处标记已清除）",
+        });
+      }
+      dzToast("标记已发送到对话输入框");
+    }
+  }
+  drawViewport.addEventListener("mousedown", function (e) {
+    if (!dzDrawing() || e.button !== 0 || e.target.closest(".dz-draw-tools")) return;
+    var rect = drawLayer.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    if (dzDrawTool === "pen") {
+      e.preventDefault();
+      drawPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      drawPath.setAttribute("d", "M" + x + " " + y);
+      drawLayer.appendChild(drawPath);
+    } else if (dzDrawTool === "box") {
+      e.preventDefault();
+      drawStart = { x: x, y: y };
+      drawRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      drawRect.setAttribute("x", x);
+      drawRect.setAttribute("y", y);
+      drawRect.setAttribute("width", 0);
+      drawRect.setAttribute("height", 0);
+      drawLayer.appendChild(drawRect);
+    }
+  });
+  drawViewport.addEventListener("mousemove", function (e) {
+    if (!dzDrawing()) return;
+    var rect = drawLayer.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    if (drawPath) {
+      drawPath.setAttribute("d", drawPath.getAttribute("d") + " L" + x + " " + y);
+    } else if (drawRect && drawStart) {
+      drawRect.setAttribute("x", Math.min(drawStart.x, x));
+      drawRect.setAttribute("y", Math.min(drawStart.y, y));
+      drawRect.setAttribute("width", Math.abs(x - drawStart.x));
+      drawRect.setAttribute("height", Math.abs(y - drawStart.y));
+    }
+  });
+  window.addEventListener("mouseup", function () {
+    if (drawPath) {
+      if (drawPath.getAttribute("d").indexOf("L") > -1) dzDrawPush({ type: "path", el: drawPath });
+      else drawPath.remove();
+      drawPath = null;
+    }
+    if (drawRect) {
+      if (Number(drawRect.getAttribute("width")) > 4) dzDrawPush({ type: "rect", el: drawRect });
+      else drawRect.remove();
+      drawRect = null;
+      drawStart = null;
+    }
+  });
+  $$("#dzDrawTools .dz-draw-tool").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      dzDrawTool = btn.dataset.dzDtool;
+      $$("#dzDrawTools .dz-draw-tool").forEach(function (o) {
+        o.classList.toggle("active", o === btn);
+      });
+    });
+  });
+  $("#dzDrawUndo").addEventListener("click", function () {
+    var op = dzDrawOps.pop();
+    if (!op) return;
+    op.el.remove();
+    dzDrawRedo.push(op);
+  });
+  $("#dzDrawRedo").addEventListener("click", function () {
+    var op = dzDrawRedo.pop();
+    if (!op) return;
+    drawLayer.appendChild(op.el);
+    dzDrawOps.push(op);
+  });
+  $("#dzDrawSend").addEventListener("click", function () {
+    var count = dzDrawOps.length;
+    if (hostPort && count > 0) {
+      hostPort.postMessage({
+        type: "candidate-prompt",
+        text: "【画板标记】请按标记修改设计（共 " + count + " 处标记）",
+      });
+    }
+    dzDrawExit(true);
+  });
+  $("#dzDrawBtn").addEventListener("click", function () {
+    if ($("#dzDrawBtn").classList.contains("active")) {
+      dzDrawExit(true);
+      return;
+    }
+    dzToolState($("#dzDrawBtn"), true);
+    dzCommentMode = false;
+    dzToolState($("#dzCommentBtn"), false);
+    drawViewport.classList.add("dz-drawing");
+    $("#dzDrawTools").hidden = false;
+    dzHint("在预览上标记：画笔或方框");
+  });
+
+  /* ============ 截图（宿主动作） ============ */
+  $("#dzShotBtn").addEventListener("click", function () {
+    var flash = document.createElement("span");
+    flash.className = "dz-flash";
+    $("#dzViewport").appendChild(flash);
+    window.setTimeout(function () { flash.remove(); }, 320);
+    if (hostPort && currentDocument) {
       hostPort.postMessage({
         type: "screenshot-request",
         documentId: currentDocument.documentId,
       });
     }
-    var flash = document.createElement("div");
-    flash.style.cssText = "position:absolute;inset:0;background:#fff;opacity:.7;transition:opacity .3s;pointer-events:none;z-index:50";
-    (viewport || document.body).appendChild(flash);
-    setTimeout(function () { flash.style.opacity = "0"; }, 60);
-    setTimeout(function () { flash.remove(); }, 400);
-    showToast("已请求宿主截图");
+    dzToast("截图已请求宿主");
   });
 
-  // ---- B: 历史恢复（版本列表来自宿主下行快照，dzConfirm 门控 restore 请求）----
+  /* ============ 版本历史（真实数据 + 恢复确认） ============ */
   var pendingRestoreRevision = null;
-  var lastVersions = []; // [{ revision }]
-  var restoreRequested = false; // restore-request 单飞：未收到 restore-result 前忽略重复确认
-  document.getElementById("dzConfirmCancel").addEventListener("click", function () {
-    document.getElementById("dzConfirm").hidden = true;
+  var restoreRequested = false;
+  function dzRenderHistoryList() {
+    var wrap = $("#dzHistoryItems");
+    wrap.replaceChildren();
+    lastVersions.forEach(function (v, idx) {
+      var item = document.createElement("button");
+      item.className = "dz-history-item" + (idx === 0 ? " active" : "");
+      item.type = "button";
+      item.setAttribute("data-dz-revision", v.revision);
+      var dot = document.createElement("span");
+      dot.className = "dz-history-dot";
+      var copy = document.createElement("span");
+      copy.className = "dz-history-copy";
+      var b = document.createElement("b");
+      b.textContent = "v" + v.sequence + (idx === 0 ? " · 当前" : "");
+      var small = document.createElement("small");
+      small.textContent = "版本 " + v.revision.slice(0, 8);
+      copy.append(b, small);
+      var id = document.createElement("span");
+      id.className = "mono dz-history-id";
+      id.textContent = v.revision.slice(0, 8);
+      item.append(dot, copy, id);
+      item.addEventListener("click", function () {
+        $$("#dzHistory .dz-history-item").forEach(function (o) {
+          o.classList.toggle("active", o === item);
+        });
+        pendingRestoreRevision = v.revision;
+        $("#dzConfirm").hidden = false;
+      });
+      wrap.appendChild(item);
+    });
+  }
+  $("#dzHistoryBtn").addEventListener("click", function () {
+    $("#dzHistory").hidden = !$("#dzHistory").hidden;
+    if (!$("#dzHistory").hidden && hostPort && currentDocument) {
+      hostPort.postMessage({
+        type: "list-versions-request",
+        documentId: currentDocument.documentId,
+      });
+    }
   });
-  document.getElementById("dzConfirmOk").addEventListener("click", function () {
-    document.getElementById("dzConfirm").hidden = true;
+  $("#dzConfirmCancel").addEventListener("click", function () {
+    $("#dzConfirm").hidden = true;
+  });
+  $("#dzConfirmOk").addEventListener("click", function () {
+    $("#dzConfirm").hidden = true;
+    $("#dzHistory").hidden = true;
     if (pendingRestoreRevision && hostPort && currentDocument && !restoreRequested) {
       hostPort.postMessage({
         type: "restore-request",
@@ -857,160 +2373,247 @@
         revision: pendingRestoreRevision,
       });
       restoreRequested = true;
-      showToast("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
+      showToast2("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
     }
     pendingRestoreRevision = null;
   });
+  function showToast2(msg) { dzToast(msg); }
 
-  // ---- B: 批注（弹层 → 保存钉子；发给 AI → 候选）----
-  var annotations = [];
-  var dzNoteComposer = document.getElementById("dzNoteComposer");
-  var dzNoteInput = document.getElementById("dzNoteInput");
-  var dzNoteSave = document.getElementById("dzNoteSave");
-  var dzPinLayer = document.getElementById("dzPinLayer");
-  function syncNoteButtons() {
-    dzNoteSave.disabled = dzNoteInput.value.trim().length === 0;
+  /* ============ 演示模式（stage 移入全屏层） ============ */
+  var presentLayer = $("#dzPresentLayer");
+  var presentReturnTo = null;
+  var dzPresentBtn = $("#dzPresentBtn");
+  function dzPresentEnter(fullscreen) {
+    if (!dzViewFiles.hidden) dzShow("preview", dzFileTabs.filter(function (t) { return !t.hidden; })[0] ? dzFileTabs.filter(function (t) { return !t.hidden; })[0].dataset.dzFile : "customer.html");
+    var file = $(".design-ws-tab.active .design-ws-label");
+    $("#dzPresentTitle").textContent = (file ? file.textContent : "文档") + " · 演示中";
+    presentReturnTo = dzStage.nextSibling;
+    $("#dzPresentBody").appendChild(dzStage);
+    presentLayer.hidden = false;
+    dzPresentBtn.classList.add("active");
+    if (fullscreen && presentLayer.requestFullscreen) {
+      presentLayer.requestFullscreen().catch(function () {});
+    }
   }
-  dzNoteInput.addEventListener("input", syncNoteButtons);
-  dzNoteInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !dzNoteSave.disabled) dzNoteSave.click();
+  function dzPresentExit() {
+    if (presentLayer.hidden) return;
+    presentLayer.hidden = true;
+    if (presentReturnTo && presentReturnTo.parentNode) {
+      presentReturnTo.parentNode.insertBefore(dzStage, presentReturnTo);
+    } else {
+      $("#dzViewport").insertBefore(dzStage, $("#dzPinLayer"));
+    }
+    dzPresentBtn.classList.remove("active");
+    if (document.fullscreenElement === presentLayer && document.exitFullscreen) {
+      document.exitFullscreen().catch(function () {});
+    }
+  }
+  $("#dzPresentMenu").addEventListener("click", function (e) {
+    var item = e.target.closest(".dz-menu-item");
+    if (!item) return;
+    $("#dzPresentMenu").hidden = true;
+    dzPresentBtn.setAttribute("aria-expanded", "false");
+    if (item.dataset.dzPresent === "tab") dzPresentEnter(false);
+    else if (item.dataset.dzPresent === "fullscreen") dzPresentEnter(true);
+    else {
+      // 新标签页演示：stage 克隆到独立文档（原型 dzPresentNewTab）
+      var file = $(".design-ws-tab.active .design-ws-label");
+      var name = file ? file.textContent : "document.html";
+      var doc = "<!doctype html><html><head><meta charset='utf-8'><title>" + name + " · 演示</title></head><body style='margin:0;display:flex;flex-direction:column;align-items:center;background:#f5f5f7;font-family:system-ui'>" +
+        "<div style='padding:10px 14px;font-size:12.5px;font-weight:600;background:#fff;border-bottom:1px solid rgba(0,0,0,.1);width:100%;box-sizing:border-box'>" + name + " · 演示</div>" +
+        "<div style='flex:1;padding:24px;overflow:auto'>" + lastDocumentHtml + "</div></body></html>";
+      var url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
+      if (window.open(url, "_blank")) return;
+      dzPresentEnter(false);
+      dzToast("弹窗被拦截，已改为当前标签页演示");
+    }
   });
-  document.getElementById("dzNoteClose").addEventListener("click", function () {
-    dzNoteComposer.hidden = true;
+  $("#dzPresentExit").addEventListener("click", dzPresentExit);
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    if (!$("#dzNoteComposer").hidden) {
+      e.preventDefault();
+      dzCloseComposer();
+      return;
+    }
+    if (!$("#dzCommentPanel").hidden) {
+      e.preventDefault();
+      $("#dzCommentPanel").hidden = true;
+      return;
+    }
+    if (!presentLayer.hidden) {
+      e.stopPropagation();
+      dzPresentExit();
+    }
   });
-  dzNoteSave.addEventListener("click", function () {
-    var text = dzNoteInput.value.trim();
-    if (!text) return;
-    var pin = document.createElement("div");
-    pin.title = text;
-    pin.style.cssText = "position:absolute;width:18px;height:18px;border-radius:50% 50% 50% 0;background:var(--accent,#2997ff);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:auto";
-    pin.style.left = (20 + Math.random() * 200) + "px";
-    pin.style.top = (30 + Math.random() * 160) + "px";
-    pin.addEventListener("click", function () {
-      dzNoteInput.value = text;
-      dzNoteComposer.hidden = false;
-      syncNoteButtons();
+
+  /* ============ 导出 / 新建 / 项目菜单 ============ */
+  [["#dzExportBtn", "#dzExportMenu"], ["#dzPlusBtn", "#dzPlusMenu"], ["#dzProjectBtn", "#dzProjectMenu"], ["#dzPresentBtn", "#dzPresentMenu"]].forEach(function (pair) {
+    $(pair[0]).addEventListener("click", function (e) {
+      e.stopPropagation();
+      var menu = $(pair[1]);
+      var open = menu.hidden;
+      dzCloseMenus();
+      menu.hidden = !open;
+      $(pair[0]).setAttribute("aria-expanded", String(!menu.hidden));
     });
-    dzPinLayer.appendChild(pin);
-    annotations.push({ text: text });
-    dzNoteInput.value = "";
-    dzNoteComposer.hidden = true;
-    showToast("批注已保存（" + annotations.length + " 条）");
   });
-  document.getElementById("dzNoteSendChat").addEventListener("click", function () {
-    var text = dzNoteInput.value.trim();
+  $("#dzExportMenu").addEventListener("click", function (e) {
+    var item = e.target.closest("[data-dz-export]");
+    if (!item) return;
+    dzCloseMenus();
+    if (item.dataset.dzExport === "html") {
+      if (hostPort && currentDocument) {
+        hostPort.postMessage({
+          type: "export-request",
+          documentId: currentDocument.documentId,
+          revision: currentDocument.headRevision,
+        });
+        dzToast("已请求宿主导出");
+      } else dzToast("导出需要宿主连接");
+    } else if (item.dataset.dzExport === "shot") {
+      $("#dzShotBtn").click();
+    }
+  });
+  $$("#dzPlusMenu .dz-menu-item").forEach(function (item) {
+    item.addEventListener("click", function () {
+      dzCloseMenus();
+      if (item.dataset.dzOpen === "files") dzShow("files");
+      else {
+        dzShow("preview", item.dataset.dzOpen, item.dataset.dzTitle);
+        var doc = (currentDocument && currentDocument.name === item.dataset.dzOpen) ? currentDocument : null;
+        if (doc) dzLoadDocument(doc);
+      }
+    });
+  });
+  $("#dzProjectMenu").addEventListener("click", function (e) {
+    if (!e.target.closest("[data-dz-refresh]")) return;
+    dzCloseMenus();
+    if (hostPort) hostPort.postMessage({ type: "list-documents-request" });
+    dzToast("文件列表已刷新");
+  });
+
+  /* ============ 分享 / 交接 ============ */
+  $("#dzShareBtn").addEventListener("click", function () {
+    var shared = $("#dzShareBtn").classList.toggle("shared");
+    $("#dzShareLabel").textContent = shared ? "已分享" : "分享";
+    dzToast(shared ? "分享已开启" : "分享已关闭");
+  });
+  $("#dzHandoffMain").addEventListener("click", function () {
+    if (!hostPort || !currentDocument) {
+      dzToast("交接需要已打开的文档");
+      return;
+    }
+    hostPort.postMessage({
+      type: "handoff-request",
+      documentId: currentDocument.documentId,
+    });
+    dzToast("已请求创建编码任务");
+  });
+
+  /* ============ 全局点外收起 ============ */
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-handoff") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-present-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-crumb-menu")) {
+      dzCloseMenus();
+    }
+    if (!e.target.closest("#dzHistory") && !e.target.closest("#dzHistoryBtn")) {
+      $("#dzHistory").hidden = true;
+    }
+  });
+
+  /* ============ composer（文件视图底部输入） ============ */
+  var composerInput = $(".design-composer-input");
+  var composerSend = $("#dzComposerSend");
+  function syncSendState() {
+    composerSend.disabled = composerInput.textContent.trim().length === 0;
+  }
+  composerInput.addEventListener("input", syncSendState);
+  composerInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!composerSend.disabled) composerSend.click();
+    }
+  });
+  composerSend.addEventListener("click", function () {
+    var text = composerInput.textContent.trim();
     if (!text) return;
     composerInput.dispatchEvent(
-      new CustomEvent("artemis:candidate-prompt", {
-        detail: { text: text, source: "panel" },
-        bubbles: true
-      })
+      new CustomEvent("artemis:candidate-prompt", { detail: { text: text, source: "panel" }, bubbles: true })
     );
     if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
-    dzNoteInput.value = "";
-    dzNoteComposer.hidden = true;
-    showToast("批注已作为候选发送");
+    composerInput.textContent = "";
+    syncSendState();
+    dzToast("已发送到对话输入框");
   });
 
-  // ---- C: 画板（canvas 手绘 + 撤销重做 + 发给 AI）----
-  var drawBtn = document.createElement("button");
-  drawBtn.className = "dz-iconbtn";
-  drawBtn.id = "dzDrawBtn";
-  drawBtn.type = "button";
-  drawBtn.title = "画板标记";
-  drawBtn.textContent = "✏️";
-  document.querySelector(".dz-toolbar-right").appendChild(drawBtn);
-  var drawCanvas = null;
-  var drawCtx = null;
-  var drawStrokes = [];
-  var undoneStrokes = [];
-  var drawActive = false;
-  function ensureDrawCanvas() {
-    if (drawCanvas) return;
-    drawCanvas = document.createElement("canvas");
-    drawCanvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:21;pointer-events:auto";
-    drawCtx = drawCanvas.getContext("2d");
-    var stage = previewStage || document.getElementById("dzViewport");
-    stage.style.position = "relative";
-    stage.appendChild(drawCanvas);
-    var drawing = false;
-    function pos(e) {
-      var rect = drawCanvas.getBoundingClientRect();
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  /* ============ 宿主 port 桥 ============ */
+  function dzRequestDocument(name) {
+    if (!hostPort || !currentDocument) return;
+    if (currentDocument.name === name) {
+      hostPort.postMessage({ type: "read-document-request", documentId: currentDocument.documentId });
     }
-    drawCanvas.addEventListener("pointerdown", function (e) {
-      drawing = true;
-      undoneStrokes = [];
-      drawStrokes.push({ points: [pos(e)] });
-    });
-    drawCanvas.addEventListener("pointermove", function (e) {
-      if (!drawing) return;
-      drawStrokes[drawStrokes.length - 1].points.push(pos(e));
-      drawCanvas.redraw();
-    });
-    window.addEventListener("pointerup", function () { drawing = false; });
-    drawCanvas.redraw = function () {
-      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-      drawCtx.strokeStyle = "#ff5c5c";
-      drawCtx.lineWidth = 2.5;
-      drawCtx.lineCap = "round";
-      drawStrokes.forEach(function (s) {
-        drawCtx.beginPath();
-        s.points.forEach(function (p, i) { if (i) drawCtx.lineTo(p.x, p.y); else drawCtx.moveTo(p.x, p.y); });
-        drawCtx.stroke();
-      });
-    };
   }
-  drawBtn.addEventListener("click", function () {
-    drawActive = !drawActive;
-    drawBtn.classList.toggle("active", drawActive);
-    document.getElementById("dzDrawTools").hidden = !drawActive;
-    if (drawActive) { ensureDrawCanvas(); drawCanvas.style.display = "block"; }
-    else if (drawCanvas) drawCanvas.style.display = "none";
-  });
-  document.getElementById("dzDrawUndo").addEventListener("click", function () {
-    if (drawStrokes.length) { undoneStrokes.push(drawStrokes.pop()); if (drawCanvas) drawCanvas.redraw(); }
-  });
-  document.getElementById("dzDrawRedo").addEventListener("click", function () {
-    if (undoneStrokes.length) { drawStrokes.push(undoneStrokes.pop()); if (drawCanvas) drawCanvas.redraw(); }
-  });
-  document.getElementById("dzDrawSend").addEventListener("click", function () {
-    var text = "请根据画板标记修改设计（共 " + drawStrokes.length + " 处标记）";
-    composerInput.dispatchEvent(new CustomEvent("artemis:candidate-prompt", { detail: { text: text, source: "panel" }, bubbles: true }));
-    if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
-    showToast("标记已作为候选发送");
-  });
-
-  // ---- C: 演示层（全屏 iframe + 退出）----
-  function enterPresent() {
-    var layer = document.getElementById("dzPresentLayer");
-    layer.querySelector("iframe").srcdoc = lastDocumentHtml || "";
-    document.getElementById("dzPresentTitle").textContent =
-      (currentDocument ? currentDocument.name : "设计文档") + " · 演示中";
-    layer.hidden = false;
+  function bindPortListener(port) {
+    port.addEventListener("message", function (event) {
+      var data = event.data || {};
+      if (data.type === "snapshot" && data.snapshot) {
+        var docs = data.snapshot.documents || [];
+        currentDocument = docs.length ? docs[docs.length - 1] : null;
+        dzRenderFiles(docs);
+        $("#dzProjectName").textContent = data.snapshot.projectName || "设计任务";
+        if (currentDocument) {
+          hostPort.postMessage({
+            type: "read-document-request",
+            documentId: currentDocument.documentId,
+          });
+        }
+      }
+      if (data.type === "document-html" && data.html) {
+        dzRenderDocument(data.html, data.name, data.subtitle);
+      }
+      if (data.type === "export-result" && data.path) {
+        dzToast("已导出：" + data.path);
+      }
+      if (data.type === "screenshot-result") {
+        dzToast(data.path ? "截图已保存：" + data.path : "截图失败");
+      }
+      if (data.type === "versions" && data.versions) {
+        var out = {};
+        try { out = JSON.parse(data.versions.output || "{}"); } catch (err) { out = {}; }
+        lastVersions = out.versions || [];
+        dzRenderHistoryList();
+      }
+      if (data.type === "restore-result") {
+        restoreRequested = false;
+        if (data.ok && data.documentHtml) {
+          dzRenderDocument(data.documentHtml, data.name, "已恢复");
+          dzToast("已恢复，并存成一个新版本");
+        } else {
+          dzToast("恢复失败：" + (data.error || "未知原因"));
+        }
+      }
+      if (data.type === "handoff-result") {
+        dzToast(data.created ? "编码任务已创建" : "编码任务已存在");
+      }
+    });
   }
-  document.querySelectorAll("#dzPresentMenu .dz-menu-item").forEach(function (item) {
-    item.addEventListener("click", function () { enterPresent(); });
+  window.addEventListener("message", function (event) {
+    if (event.source === window && event.data === "artemis:port-init") {
+      hostPort = event.ports[0] || null;
+      if (hostPort) hostPort.start();
+      return;
+    }
   });
-  document.getElementById("dzPresentExit").addEventListener("click", function () {
-    document.getElementById("dzPresentLayer").hidden = true;
+  window.addEventListener("artemis:port", function (event) {
+    hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
+    if (hostPort) {
+      hostPort.start();
+      bindPortListener(hostPort);
+    }
   });
-
-  // ---- C: 分享钮（动作区尾部）----
-  var shareBtn = document.createElement("button");
-  shareBtn.className = "design-ws-iconbtn";
-  shareBtn.id = "dzShareBtn";
-  shareBtn.type = "button";
-  shareBtn.title = "分享";
-  shareBtn.textContent = "分享";
-  shareBtn.style.cssText = "font-size:12px;padding:0 8px";
-  shareBtn.addEventListener("click", function () {
-    var shared = shareBtn.classList.toggle("shared");
-    shareBtn.textContent = shared ? "已分享" : "分享";
-    showToast(shared ? "分享已开启（本机演示）" : "分享已关闭");
-  });
-  document.querySelector(".design-ws-actions").appendChild(shareBtn);
 })();
+
 </script>
+</div>
 </body>
 </html>

@@ -9963,7 +9963,11 @@ function registerIpc(): void {
           revisionRoot,
         });
       }
-      return designPanelHost.ensurePanel(window, threadId, panelId);
+      const handle = await designPanelHost.ensurePanel(window, threadId, panelId);
+      // S4: push an initial snapshot so the panel can render the file list
+      // and load the head document without waiting for a renderer event.
+      void pushDesignSnapshot(threadId, panelId);
+      return handle;
     },
   );
   ipcMain.handle(
@@ -10184,6 +10188,38 @@ function registerIpc(): void {
       panelSendEntry?.markOutcome(submissionId, outcome);
     },
   );
+  // S4: snapshot downlink — the panel renders its file list from this.
+  async function pushDesignSnapshot(
+    threadId: string,
+    panelId: string,
+  ): Promise<void> {
+    if (!pluginDispatch || !designPanelHost) return;
+    const outcome = await pluginDispatch.dispatch({
+      threadId,
+      toolName: "get_snapshot",
+      args: {},
+      mode: "execute",
+    });
+    if (outcome.status !== "succeeded" || !outcome.result) return;
+    let documents: unknown[] = [];
+    try {
+      const parsed = JSON.parse(
+        (outcome.result as { output?: string }).output ?? "{}",
+      ) as { documents?: unknown[] };
+      documents = parsed.documents ?? [];
+    } catch {
+      documents = [];
+    }
+    const thread = store?.getThread(threadId);
+    const project = thread?.projectId
+      ? store?.getProject(thread.projectId)
+      : undefined;
+    designPanelHost.pushSnapshot(threadId, panelId, {
+      documents,
+      projectName: project?.name ?? "设计任务",
+    });
+  }
+
   // S4: panel-originated requests (export / versions) run as host actions.
   designPanelHost?.setRequestHandlers({
     exportDocument: async (input) => {
@@ -10249,6 +10285,99 @@ function registerIpc(): void {
         html: await readFile(join(documentDir, source), "utf8"),
         name: source,
       };
+    },
+    listDocuments: async (input) => {
+      if (!pluginDispatch) throw new Error("Dispatch unavailable.");
+      const outcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "get_snapshot",
+        args: {},
+        mode: "execute",
+      });
+      let documents: unknown[] = [];
+      if (outcome.status === "succeeded" && outcome.result) {
+        try {
+          const parsed = JSON.parse(
+            (outcome.result as { output?: string }).output ?? "{}",
+          ) as { documents?: unknown[] };
+          documents = parsed.documents ?? [];
+        } catch {
+          documents = [];
+        }
+      }
+      const thread = store?.getThread(input.threadId);
+      const project = thread?.projectId
+        ? store?.getProject(thread.projectId)
+        : undefined;
+      return {
+        documents,
+        projectName: project?.name ?? "设计任务",
+      };
+    },
+    handoff: async (input) => {
+      // §10.3 复用既有 IPC 处理器语义：幂等创建编码任务。
+      const handoffId = randomUUID();
+      // 复用 designPanelHandoff 的幂等记录（operationId = handoff:<id>）
+      const source = store?.getThread(input.threadId);
+      if (!store || !source?.typeBinding) {
+        throw new Error("Source thread has no plugin binding.");
+      }
+      const operationId = `handoff:${handoffId}`;
+      store.recordPluginOperation({
+        operationId,
+        threadId: input.threadId,
+        pluginId: source.typeBinding.pluginId,
+        toolName: "handoff",
+        requestDigest: `${input.documentId}`,
+        state: "succeeded",
+        resultRef: handoffId,
+      });
+      const snapshotOutcome = await pluginDispatch?.dispatch({
+        threadId: input.threadId,
+        toolName: "get_snapshot",
+        args: {},
+        mode: "execute",
+      });
+      let documentName = input.documentId;
+      if (snapshotOutcome?.status === "succeeded" && snapshotOutcome.result) {
+        try {
+          const parsed = JSON.parse(
+            (snapshotOutcome.result as { output?: string }).output ?? "{}",
+          ) as { documents?: Array<{ documentId: string; name: string }> };
+          documentName =
+            parsed.documents?.find(
+              (doc) => doc.documentId === input.documentId,
+            )?.name ?? documentName;
+        } catch {
+          /* keep the id as the name */
+        }
+      }
+      const now = new Date().toISOString();
+      const handoffThread: Parameters<typeof store.createThread>[0] = {
+        id: handoffId,
+        ...(source.projectId ? { projectId: source.projectId } : {}),
+        title: `[设计交接] ${documentName}（文档 ${input.documentId}）`,
+        mode: "execute",
+        target: source.target,
+        status: "idle",
+        pinned: false,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      store.createThread(handoffThread);
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/handoff`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "handoff-created",
+          documentId: input.documentId,
+          handoffThreadId: handoffId,
+        },
+      });
+      return { threadId: handoffId, created: true };
     },
     restoreDocument: async (input) => {
       if (!store || !pluginDispatch) {

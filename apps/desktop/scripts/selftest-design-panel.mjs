@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// 面板交互自测：真实加载 index.html（file://），断言遮罩默认隐藏、
-// 全部新控件可点击且行为正确、模拟宿主 port 下行走通恢复链路。
+// 面板自测 v2：原型结构对齐 + 真实文档结构解析 + 全交互。
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,16 +45,8 @@ function check(name, condition, detail) {
   }
 }
 
-// jsdom 没有 HTMLCanvasElement.getContext —— 面板脚本在画板激活前不会调用；
-// 为防 ensureDrawCanvas 里 getContext 抛错，打个最小桩。
 window.HTMLCanvasElement.prototype.getContext = function () {
-  return {
-    clearRect() {},
-    beginPath() {},
-    moveTo() {},
-    lineTo() {},
-    stroke() {},
-  };
+  return { clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} };
 };
 
 await new Promise((resolve) => setTimeout(resolve, 50));
@@ -67,183 +58,244 @@ const visible = (el) => {
   return style.display !== "none";
 };
 
-console.log("== 1. 致命 bug 回归：遮罩默认必须不可见 ==");
-check("dzConfirm 默认隐藏", !visible(document.getElementById("dzConfirm")));
-check("dzPresentLayer 默认隐藏", !visible(document.getElementById("dzPresentLayer")));
-check("dzDrawTools 默认隐藏", !visible(document.getElementById("dzDrawTools")));
-check("dzNoteComposer 默认隐藏", !visible(document.getElementById("dzNoteComposer")));
-check(
-  "[hidden]{display:none!important} 规则已注入",
-  document.querySelector("style")?.textContent.includes("[hidden]"),
-);
-
-console.log("== 2. 全部新控件存在 ==");
-for (const id of [
-  "dzReload", "dzDeviceBtn", "dzDeviceMenu", "dzZoomBtn", "dzZoomMenu",
-  "dzShotBtn", "dzHistoryBtn", "dzNoteClose", "dzNoteSave", "dzNoteSendChat",
-  "dzDrawUndo", "dzDrawRedo", "dzDrawSend", "dzPresentExit", "dzConfirmCancel", "dzConfirmOk",
+console.log("== 1. 原型结构对齐（关键容器/类名） ==");
+for (const sel of [
+  ".design-ws-tabs", "#dzTabFiles", "#dzTabCustomer", "#dzPlusBtn", "#dzPlusMenu",
+  "#dzPresentBtn", "#dzPresentMenu", "#dzHistoryBtn", "#dzExportBtn", "#dzExportMenu",
+  "#dzShareBtn", "#dzHandoffMain", "#dzViewFiles", "#dzViewPreview",
+  "#dzProjectBtn", "#dzProjectMenu", "#dzCats", "#dzCards", "#dzCatEmpty",
+  "#dzReload", "#dzModePreview", "#dzModeSource", "#dzDeviceBtn", "#dzDeviceMenu",
+  "#dzShotBtn", "#dzCommentBtn", "#dzDrawBtn", "#dzCommentListBtn",
+  "#dzZoomBtn", "#dzZoomMenu", "#dzViewport", "#dzStage", "#dzMockDesktop",
+  "#dzSource", "#dzToolHint", "#dzPickCard", "#dzNoteComposer", "#dzNoteGrip",
+  "#dzNoteInput", "#dzNoteSave", "#dzNoteSendChat", "#dzNoteDelete", "#dzNoteClose",
+  "#dzNoteViewAll", "#dzDrawLayer", "#dzDrawTools", "#dzDrawUndo", "#dzDrawRedo",
+  "#dzDrawSend", "#dzCommentPanel", "#dzCommentList", "#dzCommentEmpty",
+  "#dzConfirm", "#dzToast", "#dzHistory", "#dzPresentLayer", "#dzPresentExit",
+  "#dzPinLayer", "#dzPickBox", ".design-composer-input", "#dzComposerSend",
 ]) {
-  check(`#${id} 存在`, !!document.getElementById(id));
+  check(`${sel} 存在`, !!document.querySelector(sel));
 }
-check("dzDrawBtn 已注入工具条", !!document.getElementById("dzDrawBtn"));
-check("dzShareBtn 已注入动作区", !!document.getElementById("dzShareBtn"));
 
-console.log("== 3. 模拟宿主 port：快照 + 版本列表下行 ==");
+console.log("== 2. 浮层默认隐藏 ==");
+for (const id of ["dzPresentLayer", "dzDrawTools", "dzNoteComposer", "dzCommentPanel", "dzConfirm", "dzHistory", "dzViewPreview"]) {
+  check(`#${id} 默认隐藏`, !visible(document.getElementById(id)));
+}
+
+console.log("== 3. 宿主 port：快照下行 → 文件列表 + 文档解析 ==");
 const sent = [];
 const fakePort = {
   postMessage: (msg) => sent.push(msg),
-  addEventListener: (type, listener) => {
-    fakePort[`on${type}`] = listener;
-  },
+  addEventListener: (type, listener) => { fakePort[`on${type}`] = listener; },
   start() {},
 };
-// 面板两条 port 接入路径都试：优先 artemis:port 自定义事件
 const portEvent = new window.Event("artemis:port");
 portEvent.ports = [fakePort];
 window.dispatchEvent(portEvent);
-if (!fakePort.onmessage) {
-  // fallback: artemis:port-init message 路径
-  const initEvent = new window.MessageEvent("message", {
-    source: window,
-    data: "artemis:port-init",
-    ports: [fakePort],
-  });
-  window.dispatchEvent(initEvent);
-}
-check("面板已绑定 port onmessage", typeof fakePort.onmessage === "function");
+check("port onmessage 已绑定", typeof fakePort.onmessage === "function");
+function fromHost(msg) { fakePort.onmessage({ data: msg }); }
 
-function fromHost(msg) {
-  fakePort.onmessage({ data: msg });
-}
+const docHtml = `<!doctype html>
+<html><head><style>.hero{padding:24px}h1{color:#333}</style></head>
+<body>
+<header><nav><a href="#">首页</a><a href="#">产品</a></nav></header>
+<main>
+  <section class="hero"><h1>账户设置</h1><p>管理你的偏好与连接</p></section>
+  <form>
+    <label>主题</label><select><option>深色</option></select>
+    <label>语言</label><input value="简体中文">
+    <button class="ghost">取消</button><button class="primary">保存设置</button>
+  </form>
+</main>
+<script>alert("evil")</${"script"}>
+</body></html>`;
 
 fromHost({
   type: "snapshot",
-  snapshot: { documents: [{ documentId: "doc-1", name: "落地页", headRevision: "abc", versionCount: 3 }] },
-});
-check("快照后触发 read-document-request", sent.some((m) => m.type === "read-document-request"));
-
-fromHost({
-  type: "document-html",
-  html: "<html><body><h1>Hello</h1></body></html>",
-  name: "v3-abc.html",
-  subtitle: "落地页",
-});
-check(
-  "document-html 渲染出预览 iframe",
-  !!document.querySelector("#dzViewport iframe"),
-);
-
-fromHost({
-  type: "versions",
-  versions: {
-    status: "succeeded",
-    output: JSON.stringify({
-      versions: [
-        { sequence: 3, revision: "cccc3333cccc3333" },
-        { sequence: 2, revision: "bbbb2222bbbb2222" },
-        { sequence: 1, revision: "aaaa1111aaaa1111" },
-      ],
-    }),
+  snapshot: {
+    documents: [
+      { documentId: "doc-1", name: "customer.html", headRevision: "abc123", versionCount: 3 },
+    ],
+    projectName: "2B_Hifi",
   },
 });
-const historyItems = document.querySelectorAll("#dzHistory .dz-history-item");
-check("版本下行后渲染历史列表（3 项）", historyItems.length === 3, `实际 ${historyItems.length}`);
+check("快照后渲染文件卡", document.querySelectorAll(".design-file-card").length === 1, `实际 ${document.querySelectorAll(".design-file-card").length}`);
+check("项目名写入面包屑", document.getElementById("dzProjectName").textContent === "2B_Hifi");
+check("快照后请求读文档", sent.some((m) => m.type === "read-document-request"));
 
-console.log("== 4. 历史恢复链路 ==");
-historyItems[1].click(); // 选 v2（非当前）
-check("点历史项弹出确认层", visible(document.getElementById("dzConfirm")));
-check("确认层带目标版本说明", document.getElementById("dzConfirmText").textContent.includes("v2"));
-document.getElementById("dzConfirmOk").click();
-check("确认后发出 restore-request", sent.some((m) => m.type === "restore-request" && m.revision === "bbbb2222bbbb2222"));
-const restoreCount = sent.filter((m) => m.type === "restore-request").length;
-document.getElementById("dzConfirmOk").click(); // 重复确认
-check(
-  "restore-request 单飞（重复确认不重复发）",
-  sent.filter((m) => m.type === "restore-request").length === restoreCount,
-);
-fromHost({
-  type: "restore-result",
-  ok: true,
-  documentHtml: "<html><body><h1>Restored</h1></body></html>",
-  name: "v2-bbbb2222.html",
-});
-check(
-  "restore-result 后预览刷新",
-  document.querySelector("#dzViewport iframe")?.srcdoc.includes("Restored"),
-);
-check("单飞标记已释放（可再次恢复）", !document.getElementById("dzConfirm").hidden || true);
+fromHost({ type: "document-html", html: docHtml, name: "customer.html", subtitle: "客户档案" });
+// 核心断言：文档被解析成真实 DOM 渲染在舞台上（不是 iframe 黑盒）
+const stageButtons = document.querySelectorAll("#dzMockDesktop button");
+check("文档解析：按钮成为舞台真实 DOM", stageButtons.length === 2, `实际 ${stageButtons.length}`);
+check("文档解析：导航链接存在", document.querySelectorAll("#dzMockDesktop nav a").length === 2);
+check("script 标签被剥离", !document.querySelector("#dzMockDesktop script"));
+check("文档内联样式保留（scoped）", !!document.querySelector("#dzMockDesktop style"));
+check("源码视图带行号", document.querySelectorAll("#dzSource .ln").length > 5);
+check("页签标题同步", document.querySelector("#dzTabCustomer .design-ws-label").textContent === "customer.html");
 
-console.log("== 5. 工具条交互 ==");
-document.getElementById("dzReload").click();
-check("dzReload 点击无异常", pageErrors.length === 0, pageErrors.join("; "));
+console.log("== 4. 文件卡点击进入预览 ==");
+document.querySelector(".design-file-card").click();
+check("点文件卡切到预览视图", !document.getElementById("dzViewPreview").hidden);
+check("页签激活", document.getElementById("dzTabCustomer").classList.contains("active"));
+
+console.log("== 5. 视图切换 ==");
+document.getElementById("dzTabFiles").click();
+check("设计文件页签回文件视图", !document.getElementById("dzViewFiles").hidden);
+document.getElementById("dzTabCustomer").click();
+check("文件页签回预览", !document.getElementById("dzViewPreview").hidden);
+
+console.log("== 6. 预览|代码 ==");
+document.getElementById("dzModeSource").click();
+check("代码模式显示源码", !document.getElementById("dzSource").hidden);
+check("代码模式隐藏舞台", document.getElementById("dzStage").hidden);
+document.getElementById("dzModePreview").click();
+check("预览模式恢复舞台", !document.getElementById("dzStage").hidden);
+
+console.log("== 7. 设备/缩放（原型 dzApplyStage） ==");
 document.getElementById("dzDeviceBtn").click();
-check("dzDeviceBtn 打开视口菜单", visible(document.getElementById("dzDeviceMenu")));
+check("设备菜单打开", !document.getElementById("dzDeviceMenu").hidden);
 document.querySelector('[data-dz-device="mobile"]').click();
-check(
-  "选手机后视口标签更新",
-  document.getElementById("dzDeviceLabel").textContent === "手机",
-);
+check("手机标签", document.getElementById("dzDeviceLabel").textContent === "手机");
+// jsdom CSSOM 不支持 min()（值会被丢弃），用菜单 active 态断言；宽度在真实 Chromium 生效
+check("手机菜单项 active", document.querySelector('[data-dz-device="mobile"]').classList.contains("active"));
+document.querySelector('[data-dz-device="desktop"]').click();
+check("回桌面 active 复位", document.querySelector('[data-dz-device="desktop"]').classList.contains("active"));
 document.getElementById("dzZoomBtn").click();
 document.querySelector('[data-dz-zoom="150"]').click();
-check("缩放 150% 后标签更新", document.getElementById("dzZoomLabel").textContent === "150%");
+check("缩放 150%", document.getElementById("dzZoomLabel").textContent === "150%");
+check("transform 应用", document.getElementById("dzStage").style.transform === "scale(1.5)");
 
-const frame = document.querySelector("#dzViewport iframe");
-const widthBefore = frame.style.width;
-document.getElementById("dzShotBtn").click();
-check("dzShotBtn 发出 screenshot-request", sent.some((m) => m.type === "screenshot-request"));
-check("截图不改变视口宽度", frame.style.width === widthBefore);
-
-console.log("== 6. 画板 ==");
-document.getElementById("dzDrawBtn").click();
-check("画板开启显示工具条", visible(document.getElementById("dzDrawTools")));
-const canvas = document.querySelector("#dzViewport canvas");
-check("画板开启后注入 canvas", !!canvas);
-document.getElementById("dzDrawSend").click();
-check(
-  "画板'发给 AI'发出候选",
-  sent.some((m) => m.type === "candidate-prompt" && m.text.includes("画板标记")),
-);
-document.getElementById("dzDrawBtn").click();
-check("画板再点关闭工具条", !visible(document.getElementById("dzDrawTools")));
-
-console.log("== 7. 批注 ==");
+console.log("== 8. 注释模式（真实元素选中） ==");
+document.getElementById("dzCommentBtn").click();
+check("注释模式激活", document.getElementById("dzCommentBtn").classList.contains("active"));
+check("提示显示", !document.getElementById("dzToolHint").hidden);
+// 直接调用舞台 click（模拟点中保存按钮）
+const saveBtn = document.querySelectorAll("#dzMockDesktop button")[1];
+check("目标元素存在于舞台", !!saveBtn && saveBtn.textContent === "保存设置");
+// 模拟点击 stage 内元素（dzStage click 处理器用 e.target.closest）
+saveBtn.click(); // 注意：dzCommentMode 时 stage click 拦截
+check("注释 composer 打开", !document.getElementById("dzNoteComposer").hidden);
+check("composer 标题显示元素标签", document.getElementById("dzNoteTitle").textContent.length > 0);
 const noteInput = document.getElementById("dzNoteInput");
-noteInput.textContent = "这里的间距太大";
+noteInput.value = "这个按钮颜色太浅";
 noteInput.dispatchEvent(new window.Event("input", { bubbles: true }));
-const noteSave = document.getElementById("dzNoteSave");
-check("输入后保存钮可用", !noteSave.disabled, `disabled=${noteSave.disabled}`);
-document.getElementById("dzNoteComposer").hidden = false;
-noteSave.click();
-check("保存后生成钉子", document.querySelectorAll("#dzPinLayer > *").length >= 1);
-// 设计语义：保存=存钉子（不发候选）；发送是独立的"发给 AI"按钮。
-check("保存不自动发候选（独立发送按钮语义）", !sent.some((m) => m.text?.includes("间距")));
-// textarea 曾被 .value 赋值后为 dirty，测试须继续用 .value 设置
-noteInput.value = "字号再大一点";
+check("输入后评论钮可用", !document.getElementById("dzNoteSave").disabled);
+document.getElementById("dzNoteSave").click();
+check("评论保存后生成 pin", document.querySelectorAll("#dzPinLayer .dz-pin").length === 1);
+check("计数更新", document.getElementById("dzCount").textContent === "1");
+check("保存后退出注释模式", !document.getElementById("dzCommentBtn").classList.contains("active"));
+
+console.log("== 9. 评论面板 ==");
+document.getElementById("dzCommentListBtn").click();
+check("评论面板打开", !document.getElementById("dzCommentPanel").hidden);
+check("评论列表渲染", document.querySelectorAll("#dzCommentList .dz-comment-item").length === 1);
+// 点 pin 重开 composer
+document.querySelector("#dzPinLayer .dz-pin").click();
+check("点 pin 重开 composer", !document.getElementById("dzNoteComposer").hidden);
+check("编辑模式显示删除钮", !document.getElementById("dzNoteDelete").hidden);
+document.getElementById("dzNoteClose").click();
+check("关闭 composer", document.getElementById("dzNoteComposer").hidden);
+
+console.log("== 10. 发送到聊天（候选路径） ==");
+document.getElementById("dzCommentBtn").click();
+document.querySelectorAll("#dzMockDesktop button")[0].click();
+noteInput.value = "取消按钮太靠左";
 noteInput.dispatchEvent(new window.Event("input", { bubbles: true }));
-document.getElementById("dzNoteComposer").hidden = false;
+const beforeChat = sent.filter((m) => m.type === "candidate-prompt").length;
 document.getElementById("dzNoteSendChat").click();
-check(
-  "'发给 AI'走候选通道",
-  sent.some((m) => m.type === "candidate-prompt" && m.text.includes("字号")),
-);
+check("发送到聊天发候选", sent.filter((m) => m.type === "candidate-prompt").length === beforeChat + 1);
+check("候选文本带注释标记", sent.some((m) => m.text?.includes("注释") && m.text?.includes("取消按钮")));
 
-console.log("== 8. 演示层 ==");
-const presentLayer = document.getElementById("dzPresentLayer");
-const presentFrame = presentLayer.querySelector("iframe");
-presentFrame.srcdoc = "demo";
-presentLayer.hidden = false;
-check("演示层可显示", visible(presentLayer));
+console.log("== 11. 画板 ==");
+document.getElementById("dzDrawBtn").click();
+check("画板模式激活", document.getElementById("dzDrawBtn").classList.contains("active"));
+check("画板工具显示", !document.getElementById("dzDrawTools").hidden);
+check("viewport 进入 drawing 态", document.getElementById("dzViewport").classList.contains("dz-drawing"));
+const beforeDraw = sent.filter((m) => m.type === "candidate-prompt").length;
+// 无笔画时发送：不发候选只退出
+document.getElementById("dzDrawSend").click();
+check("空画板发送退出但不发候选", sent.filter((m) => m.type === "candidate-prompt").length === beforeDraw);
+check("画板退出", !document.getElementById("dzDrawBtn").classList.contains("active"));
+
+console.log("== 12. 截图 ==");
+const beforeShot = sent.length;
+document.getElementById("dzShotBtn").click();
+check("截图请求发出", sent.some((m) => m.type === "screenshot-request"));
+fromHost({ type: "screenshot-result", path: "/tmp/design-screenshots/doc-1/v3.html" });
+check("截图结果 toast", document.getElementById("dzToast").textContent.includes("截图"));
+
+console.log("== 13. 版本历史与恢复 ==");
+document.getElementById("dzHistoryBtn").click();
+check("历史浮层打开", !document.getElementById("dzHistory").hidden);
+check("请求版本列表", sent.some((m) => m.type === "list-versions-request"));
+fromHost({
+  type: "versions",
+  versions: { status: "succeeded", output: JSON.stringify({
+    versions: [
+      { sequence: 3, revision: "cccc3333cccc3333" },
+      { sequence: 2, revision: "bbbb2222bbbb2222" },
+      { sequence: 1, revision: "aaaa1111aaaa1111" },
+    ],
+  }) },
+});
+check("历史列表渲染 3 项", document.querySelectorAll("#dzHistory .dz-history-item").length === 3);
+const items = document.querySelectorAll("#dzHistory .dz-history-item");
+// 恢复 v2（上一版）：确认层 → ok（注意约束：只能恢复到上一版）
+items[1].click();
+check("点历史项弹确认", !document.getElementById("dzConfirm").hidden);
+document.getElementById("dzConfirmOk").click();
+check("确认发 restore-request", sent.some((m) => m.type === "restore-request" && m.revision === "bbbb2222bbbb2222"));
+const rc = sent.filter((m) => m.type === "restore-request").length;
+items[1].click();
+document.getElementById("dzConfirmOk").click();
+check("单飞（重复确认不重发）", sent.filter((m) => m.type === "restore-request").length === rc);
+fromHost({ type: "restore-result", ok: true, documentHtml: docHtml.replace("保存设置", "保存"), name: "customer.html" });
+check("恢复后预览刷新", document.querySelectorAll("#dzMockDesktop button")[1]?.textContent === "保存");
+// 恢复更早版本被拒（约束）
+document.getElementById("dzHistoryBtn").click();
+document.querySelectorAll("#dzHistory .dz-history-item")[2].click();
+document.getElementById("dzConfirmOk").click();
+fromHost({ type: "restore-result", ok: false, error: "只能恢复到上一版本；更早版本暂不支持跳回。" });
+check("更早版本拒绝有提示", document.getElementById("dzToast").textContent.includes("只能恢复到上一版本"));
+
+console.log("== 14. 演示模式 ==");
+document.getElementById("dzPresentBtn").click();
+document.querySelector('[data-dz-present="tab"]').click();
+check("演示层打开", !document.getElementById("dzPresentLayer").hidden);
+check("stage 移入演示层", document.getElementById("dzPresentLayer").contains(document.getElementById("dzStage")));
+check("演示标题", document.getElementById("dzPresentTitle").textContent.includes("演示中"));
 document.getElementById("dzPresentExit").click();
-check("退出后演示层隐藏", !visible(presentLayer));
+check("退出后 stage 归位", document.getElementById("dzViewport").contains(document.getElementById("dzStage")));
 
-console.log("== 9. 分享钮 ==");
-const shareBtn = document.getElementById("dzShareBtn");
-shareBtn.click();
-check("分享 toggle 文案切换", shareBtn.textContent === "已分享");
-shareBtn.click();
-check("再点切回", shareBtn.textContent === "分享");
+console.log("== 15. 导出 ==");
+document.getElementById("dzExportBtn").click();
+check("导出菜单打开", !document.getElementById("dzExportMenu").hidden);
+document.querySelector('[data-dz-export="html"]').click();
+check("导出请求发出", sent.some((m) => m.type === "export-request"));
+fromHost({ type: "export-result", path: "/tmp/design-exports/doc-1/v3.html" });
+check("导出结果 toast", document.getElementById("dzToast").textContent.includes("已导出"));
 
-console.log("== 10. 页面错误汇总 ==");
+console.log("== 16. 交接（§10.3 语义） ==");
+document.getElementById("dzHandoffMain").click();
+check("交接请求发出", sent.some((m) => m.type === "handoff-request"));
+fromHost({ type: "handoff-result", threadId: "t-1", created: true });
+check("交接结果 toast", document.getElementById("dzToast").textContent.includes("编码任务"));
+
+console.log("== 17. 分享 ==");
+document.getElementById("dzShareBtn").click();
+check("分享切换", document.getElementById("dzShareLabel").textContent === "已分享");
+
+console.log("== 18. composer 候选 ==");
+const composer = document.querySelector(".design-composer-input");
+document.getElementById("dzTabFiles").click();
+composer.textContent = "生成一个深色的设置页";
+composer.dispatchEvent(new window.Event("input", { bubbles: true }));
+check("composer 输入启用发送", !document.getElementById("dzComposerSend").disabled);
+document.getElementById("dzComposerSend").click();
+check("composer 候选发出", sent.some((m) => m.text === "生成一个深色的设置页"));
+check("发送后清空", composer.textContent === "");
+
+console.log("== 19. 错误汇总 ==");
 check("全程无未捕获 JS 错误", pageErrors.length === 0, pageErrors.join("; "));
 
 console.log(`\n结果：${passed} passed, ${failed} failed`);
