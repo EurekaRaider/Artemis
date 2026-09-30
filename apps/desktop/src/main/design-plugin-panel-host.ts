@@ -55,6 +55,10 @@ export interface PanelRequestHandlers {
     threadId: string;
     documentId: string;
   }): Promise<unknown>;
+  readDocument(input: {
+    threadId: string;
+    documentId: string;
+  }): Promise<{ html: string; name: string } | undefined>;
 }
 
 export class DesignPanelHost {
@@ -199,6 +203,26 @@ export class DesignPanelHost {
           .catch((error: unknown) => {
             hostPort.postMessage({
               type: "export-error",
+              error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "read-document-request" && data.documentId) {
+        void this.requestHandlers
+          ?.readDocument({ threadId, documentId: data.documentId })
+          .then((document) => {
+            hostPort.postMessage({
+              type: "document-html",
+              html: document?.html ?? "",
+              name: document?.name ?? "",
+            });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "document-html",
+              html: "",
+              name: "",
               error: String(error),
             });
           });

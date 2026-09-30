@@ -1078,6 +1078,16 @@ export interface ArtemisApi {
     documentId: string;
     revision?: string;
   }): Promise<{ path: string; revision: string }>;
+  /**
+   * S4 handoff (§10.3 coding handoff): create a NORMAL coding task from
+   * the selected design with a handoff summary. Idempotent by handoffId —
+   * a repeat call returns the existing task, never a duplicate.
+   */
+  handoffDesignToProject(input: {
+    threadId: string;
+    documentId: string;
+    handoffId: string;
+  }): Promise<{ threadId: string; created: boolean }>;
   /** Record the composer outcome (running/completed/failed). */
   reportDesignPanelSendOutcome(
     submissionId: string,
@@ -1443,6 +1453,7 @@ export const IPC = {
   designPanelSendConsume: "artemis:design-panel-send-consume",
   designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",
   designPanelExport: "artemis:design-panel-export",
+  designPanelHandoff: "artemis:design-panel-handoff",
   designPanelSendOutcome: "artemis:design-panel-send-outcome",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",

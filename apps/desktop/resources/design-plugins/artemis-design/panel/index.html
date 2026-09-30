@@ -543,11 +543,7 @@
       if (hostPort) hostPort.start();
     }
   });
-  // 宿主用 postMessage(channel) 的 Electron 形态：ports 随 "artemis:port" 事件到达
-  window.addEventListener("artemis:port", function (event) {
-    hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
-    if (hostPort) hostPort.start();
-  });
+
 
   // ---- S4：导出/版本历史经 port 请求宿主（宿主动作），下行快照驱动 UI ----
   var currentDocument = null; // { documentId, name, headRevision, versionCount }
@@ -561,15 +557,58 @@
       showToast("已导出：" + (event.detail && event.detail.path));
     }
   });
-  if (hostPort) {
-    hostPort.addEventListener("message", function (event) {
+  var previewStage = document.querySelector("#dzViewport .dz-stage");
+  var sourcePane = document.getElementById("dzSource");
+  function renderDocument(html, name, subtitle) {
+    if (previewStage) {
+      previewStage.innerHTML =
+        '<div class="mock-head"><b></b><span></span></div>' +
+        '<iframe style="width:100%;height:100%;border:0;background:#fff;border-radius:10px" sandbox=""></iframe>';
+      var head = previewStage.querySelector(".mock-head");
+      if (head) {
+        head.querySelector("b").textContent = name || "设计文档";
+        head.querySelector("span").textContent = subtitle || "";
+      }
+      var frame = previewStage.querySelector("iframe");
+      if (frame) frame.srcdoc = html;
+    }
+    if (sourcePane) sourcePane.textContent = html || "";
+  }
+  function bindPortListener(port) {
+    port.addEventListener("message", function (event) {
       var data = event.data || {};
       if (data.type === "snapshot" && data.snapshot) {
         var docs = data.snapshot.documents || [];
         currentDocument = docs.length ? docs[docs.length - 1] : null;
+        if (currentDocument && hostPort) {
+          hostPort.postMessage({
+            type: "read-document-request",
+            documentId: currentDocument.documentId,
+          });
+        }
+      }
+      if (data.type === "export-result" && data.path) {
+        showToast("已导出：" + data.path);
+      }
+      if (data.type === "versions" && data.versions) {
+        var out = JSON.parse(data.versions.output || "{}");
+        var list = (out.versions || [])
+          .map(function (v) { return "v" + v.sequence + " (" + v.revision.slice(0, 8) + ")"; })
+          .join(" ← ");
+        showToast(currentDocument ? currentDocument.name + "：" + list : list);
+      }
+      if (data.type === "document-html" && data.html) {
+        renderDocument(data.html, data.name, data.subtitle);
       }
     });
   }
+  window.addEventListener("artemis:port", function (event) {
+    hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
+    if (hostPort) {
+      hostPort.start();
+      bindPortListener(hostPort);
+    }
+  });
   function requestExport() {
     if (!hostPort) { showToast("导出需要宿主连接"); return; }
     if (!currentDocument) { showToast("尚无可导出的文档"); return; }

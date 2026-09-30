@@ -165,3 +165,134 @@ describe("S4 design document loop", () => {
     expect(String(result.error)).toMatch(/ambiguous/i);
   });
 });
+
+describe("S4 undo/redo (auditable head moves)", () => {
+  let documentId = "";
+  let v1Revision = "";
+  let v2Revision = "";
+
+  it("undo restores the previous version as head; files are kept", async () => {
+    const created = output(
+      await worker.invoke("create_document", {
+        name: "撤销验证",
+        brief: "撤销与重做的审计验证",
+      }),
+    );
+    documentId = String(created.documentId);
+    v1Revision = String(created.revision);
+    const edited = output(
+      await worker.invoke("apply_edit", {
+        documentId,
+        expectedRevision: v1Revision,
+        operationId: "op-undo-base",
+        find: "撤销与重做的审计验证",
+        replace: "已编辑的审计验证",
+      }),
+    );
+    v2Revision = String(edited.revision);
+    // undo: head 回到 v1
+    const undone = output(
+      await worker.invoke("undo", {
+        documentId,
+        operationId: "op-undo-1",
+      }),
+    );
+    expect(undone.headRevision).toBe(v1Revision);
+    expect(undone.undoneRevision).toBe(v2Revision);
+    // get_snapshot 尊重 HEAD 标记
+    const snapshot = output(await worker.invoke("get_snapshot", {}));
+    const doc = (snapshot.documents as Array<Record<string, unknown>>).find(
+      (d) => d.documentId === documentId,
+    );
+    expect(doc!.headRevision).toBe(v1Revision);
+    // v2 文件仍在（不可变历史）
+    const listed = output(await worker.invoke("list_versions", { documentId }));
+    expect(listed.versions).toHaveLength(2);
+  });
+
+  it("redo restores the undone version as head", async () => {
+    const redone = output(
+      await worker.invoke("redo", {
+        documentId,
+        operationId: "op-redo-1",
+      }),
+    );
+    expect(redone.headRevision).toBe(v2Revision);
+    const snapshot = output(await worker.invoke("get_snapshot", {}));
+    const doc = (snapshot.documents as Array<Record<string, unknown>>).find(
+      (d) => d.documentId === documentId,
+    );
+    expect(doc!.headRevision).toBe(v2Revision);
+  });
+
+  it("undo on a single-version document is refused", async () => {
+    const created = output(
+      await worker.invoke("create_document", {
+        name: "单版本",
+        brief: "无版本可撤销",
+      }),
+    );
+    const result = await worker.invoke("undo", {
+      documentId: String(created.documentId),
+      operationId: "op-undo-solo",
+    });
+    expect(result.status).toBe("failed");
+    expect(String(result.error)).toMatch(/nothing to undo/i);
+  });
+});
+
+describe("S4 handoff idempotency (store-level)", () => {
+  it("same handoffId never creates twice (operation dedup)", async () => {
+    const { AppStore } = await import("../src/main/store.js");
+    const { randomUUID } = await import("node:crypto");
+    const store = new AppStore(join(directory, "handoff.sqlite"));
+    const now = new Date().toISOString();
+    const threadId = randomUUID();
+    store.createThread({
+      id: threadId,
+      title: "handoff源",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      typeBinding: {
+        installationId: "com.artemis.design",
+        pluginId: "com.artemis.design",
+        typeId: "artemis-design",
+        pluginVersion: "0.1.0",
+        contentHash: "a".repeat(64),
+        bindingRevision: "rev-s4",
+      },
+      executionProfile: "plugin-restricted-v1",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const handoffId = randomUUID();
+    const record = () =>
+      store.recordPluginOperation({
+        operationId: `handoff:${handoffId}`,
+        threadId,
+        pluginId: "com.artemis.design",
+        toolName: "handoff",
+        requestDigest: "doc-1",
+        state: "succeeded",
+        resultRef: handoffId,
+      });
+    record();
+    // 第二次同 ID 同摘要：幂等（不抛错=created:false 路径）
+    expect(() => record()).not.toThrow();
+    // 同 ID 不同摘要：拒绝（账本完整性）
+    expect(() =>
+      store.recordPluginOperation({
+        operationId: `handoff:${handoffId}`,
+        threadId,
+        pluginId: "com.artemis.design",
+        toolName: "handoff",
+        requestDigest: "doc-2",
+        state: "succeeded",
+      }),
+    ).toThrow(/refusing/i);
+    store.close();
+  });
+});

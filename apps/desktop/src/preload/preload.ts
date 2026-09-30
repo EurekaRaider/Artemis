@@ -259,6 +259,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.designPanelRelease, threadId, panelId),
   acceptDesignPanelCandidate: (threadId, candidateText) =>
     ipcRenderer.invoke(IPC.designPanelCandidateAccept, threadId, candidateText),
+  handoffDesignToProject: (input) =>
+    ipcRenderer.invoke(IPC.designPanelHandoff, input),
   exportDesignDocument: (input) =>
     ipcRenderer.invoke(IPC.designPanelExport, input),
   discardDesignPanelCandidate: (credential) =>

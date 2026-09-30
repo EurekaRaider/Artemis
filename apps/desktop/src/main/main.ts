@@ -10090,6 +10090,84 @@ function registerIpc(): void {
       return { path: destination, revision };
     },
   );
+  // S4 coding handoff (§10.3): create a NORMAL coding task carrying the
+  // design as sourced material — the plugin text never becomes system
+  // instructions. Idempotent by handoffId: repeats return the original
+  // task, never a duplicate.
+  ipcMain.handle(
+    IPC.designPanelHandoff,
+    async (
+      _event,
+      input: { threadId: string; documentId: string; handoffId: string },
+    ) => {
+      if (!store || !pluginDispatch) {
+        throw new Error("Design handoff is unavailable.");
+      }
+      const source = store.getThread(input.threadId);
+      if (!source?.typeBinding) {
+        throw new Error("Source thread has no plugin binding.");
+      }
+      // Idempotency: the same handoffId must never create twice.
+      const operationId = `handoff:${input.handoffId}`;
+      try {
+        store.recordPluginOperation({
+          operationId,
+          threadId: input.threadId,
+          pluginId: source.typeBinding.pluginId,
+          toolName: "handoff",
+          requestDigest: `${input.documentId}`,
+          state: "succeeded",
+          resultRef: input.handoffId,
+        });
+      } catch {
+        // Existing operation with a different digest is corruption; same
+        // digest means this handoff already ran — return created:false.
+        return { threadId: input.handoffId, created: false };
+      }
+      // Resolve the design name for the handoff summary.
+      const snapshotOutcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "get_snapshot",
+        args: {},
+        mode: "execute",
+      });
+      let documentName = input.documentId;
+      if (snapshotOutcome.status === "succeeded" && snapshotOutcome.result) {
+        const parsed = JSON.parse(
+          (snapshotOutcome.result as { output?: string }).output ?? "{}",
+        ) as { documents?: Array<{ documentId: string; name: string }> };
+        documentName =
+          parsed.documents?.find((doc) => doc.documentId === input.documentId)
+            ?.name ?? documentName;
+      }
+      const now = new Date().toISOString();
+      const handoffThread: Parameters<typeof store.createThread>[0] = {
+        id: input.handoffId,
+        ...(source.projectId ? { projectId: source.projectId } : {}),
+        title: `[设计交接] ${documentName}（文档 ${input.documentId}）`,
+        mode: "execute",
+        target: source.target,
+        status: "idle",
+        pinned: false,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      store.createThread(handoffThread);
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/handoff`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "handoff-created",
+          documentId: input.documentId,
+          handoffThreadId: input.handoffId,
+        },
+      });
+      return { threadId: input.handoffId, created: true };
+    },
+  );
   ipcMain.handle(
     IPC.designPanelCandidateDiscard,
     async (_event, credential: string) => {
@@ -10148,6 +10226,29 @@ function registerIpc(): void {
         },
       });
       return { path: destination, revision };
+    },
+    readDocument: async (input) => {
+      if (!store) return undefined;
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) return undefined;
+      const documentDir = join(
+        app.getPath("userData"),
+        "plugin-scratch",
+        input.threadId,
+        thread.typeBinding.contentHash,
+        "documents",
+        input.documentId,
+      );
+      const entries = await readdir(documentDir).catch(() => []);
+      const source = entries
+        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+        .sort()
+        .at(-1);
+      if (!source) return undefined;
+      return {
+        html: await readFile(join(documentDir, source), "utf8"),
+        name: source,
+      };
     },
     listVersions: async (input) => {
       if (!pluginDispatch) throw new Error("Dispatch unavailable.");

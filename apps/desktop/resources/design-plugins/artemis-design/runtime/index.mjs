@@ -145,7 +145,17 @@ async function readVersions(documentId) {
 
 async function headVersion(documentId) {
   const versions = await readVersions(documentId);
-  return versions.at(-1);
+  if (versions.length === 0) return undefined;
+  const marker = await readFile(
+    join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
+    "utf8",
+  ).catch(() => null);
+  if (!marker) return versions.at(-1);
+  const [seq, rev] = marker.trim().split("-");
+  const restored = versions.find(
+    (version) => String(version.sequence) === seq && version.revision === rev,
+  );
+  return restored ?? versions.at(-1);
 }
 
 const tools = {
@@ -295,6 +305,79 @@ const tools = {
         revision: nextRevision,
         version: nextSequence,
         operationId,
+      }),
+    };
+  },
+
+  async undo(args) {
+    const documentId = String(args?.documentId ?? "");
+    const operationId = String(args?.operationId ?? "");
+    if (!documentId || !operationId) {
+      return { status: "failed", error: "documentId and operationId are required" };
+    }
+    const versions = await readVersions(documentId);
+    if (versions.length < 2) {
+      return { status: "failed", error: "nothing to undo (head is the first version)" };
+    }
+    const head = versions.at(-1);
+    const previous = versions.at(-2);
+    // Undo moves the HEAD marker; version files stay (auditable history).
+    // Implemented as head-state file: documents/<id>/HEAD names the current.
+    await writeFile(
+      join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
+      `${previous.sequence}-${previous.revision}\n`,
+      "utf8",
+    );
+    await appendLedger({
+      id: documentId,
+      operationId,
+      undoneRevision: head.revision,
+      restoredRevision: previous.revision,
+      undoneAt: new Date().toISOString(),
+    });
+    return {
+      status: "succeeded",
+      output: JSON.stringify({
+        documentId,
+        headRevision: previous.revision,
+        undoneRevision: head.revision,
+      }),
+    };
+  },
+
+  async redo(args) {
+    const documentId = String(args?.documentId ?? "");
+    const operationId = String(args?.operationId ?? "");
+    if (!documentId || !operationId) {
+      return { status: "failed", error: "documentId and operationId are required" };
+    }
+    // Redo is only valid right after an undo of the latest version.
+    const versions = await readVersions(documentId);
+    const headMarker = await readFile(
+      join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
+      "utf8",
+    ).catch(() => null);
+    if (!headMarker) {
+      return { status: "failed", error: "nothing to redo (no undo in effect)" };
+    }
+    const latest = versions.at(-1);
+    await writeFile(
+      join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
+      `${latest.sequence}-${latest.revision}\n`,
+      "utf8",
+    );
+    await appendLedger({
+      id: documentId,
+      operationId,
+      redoneRevision: latest.revision,
+      redoneAt: new Date().toISOString(),
+    });
+    return {
+      status: "succeeded",
+      output: JSON.stringify({
+        documentId,
+        headRevision: latest.revision,
+        redoneRevision: latest.revision,
       }),
     };
   },
