@@ -8,7 +8,7 @@
 
 ## 阅读顺序建议
 
-先读本目录下的 `opendesign-ui-design-interpretation.md`（调研解读，含全部结论与交叉引用），再按需要查原文。
+先读本目录下的 `opendesign-artemis-design-interpretation.md`（调研解读，含全部结论与交叉引用），再按需要查原文。
 
 ## 文件清单
 
@@ -16,7 +16,7 @@
 
 | 文件 | 说明 |
 |---|---|
-| `opendesign-ui-design-interpretation.md` | 本次调研解读：产品定位、界面结构、聊天面板交互、画布直接操纵、错误 UX 五原则、设计理念总结 |
+| `opendesign-artemis-design-interpretation.md` | 本次调研解读：产品定位、界面结构、聊天面板交互、画布直接操纵、错误 UX 五原则、设计理念总结 |
 
 ### 产品与架构层（docs/）
 

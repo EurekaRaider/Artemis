@@ -10,13 +10,13 @@ import {
 
 const validManifest = {
   schemaVersion: 1,
-  id: "com.artemis.ui-design",
+  id: "com.artemis.design",
   version: "0.1.0",
   engines: { artemisPluginApi: "1" },
   projectTypes: [
     {
-      id: "ui-design",
-      title: { "zh-CN": "界面设计", en: "UI Design" },
+      id: "artemis-design",
+      title: { "zh-CN": "设计", en: "Design" },
       targets: ["project", "temporary"],
       panelIds: ["studio"],
     },
