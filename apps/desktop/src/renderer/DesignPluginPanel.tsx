@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./design-plugin-panel.css";
 
 /**
  * S1 design-plugin panel mount.
