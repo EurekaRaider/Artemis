@@ -83,6 +83,7 @@ export interface PanelRequestHandlers {
 
 export class DesignPanelHost {
   private readonly panels = new Map<string, LivePanel>();
+  private readonly pendingEnsures = new Map<string, Promise<PluginPanelHandle>>();
   private readonly catalog = new DesignPluginCatalog();
   private catalogRoot: string | undefined;
   private hostWindow: BrowserWindow | undefined;
@@ -149,6 +150,11 @@ export class DesignPanelHost {
   ): Promise<PluginPanelHandle> {
     console.log(`[design-panel] ensurePanel called: ${panelId} / ${threadId}`);
     const existing = this.panels.get(this.key(threadId, panelId));
+    const pending = this.pendingEnsures.get(this.key(threadId, panelId));
+    // React StrictMode double-mounts effects in dev: two ensures race on
+    // the same key while the first loadURL is still in flight, which
+    // used to stack two views and clobber the panel registry. Coalesce.
+    if (pending) return pending;
     if (existing) {
       return {
         panelId,
@@ -356,24 +362,32 @@ export class DesignPanelHost {
     });
     hostPort.start();
 
-    this.panels.set(this.key(threadId, panelId), {
-      view,
-      webContents,
-      hostPort,
-      pluginId: owner.manifest.id,
-      panelId,
-    });
-    await webContents.loadURL(entryUrl);
-    webContents.postMessage("artemis:port", null, [panelPort]);
-    console.log(
-      `[design-panel] ensured ${panelId} for ${threadId}: url=${entryUrl}`,
-    );
-    webContents.on("did-fail-load", (_e, code, desc, url) => {
-      console.error(
-        `[design-panel] load failed ${code} ${desc} ${url ?? ""}`,
+    const finish = (async () => {
+      this.panels.set(this.key(threadId, panelId), {
+        view,
+        webContents,
+        hostPort,
+        pluginId: owner.manifest.id,
+        panelId,
+      });
+      await webContents.loadURL(entryUrl);
+      webContents.postMessage("artemis:port", null, [panelPort]);
+      console.log(
+        `[design-panel] ensured ${panelId} for ${threadId}: url=${entryUrl}`,
       );
-    });
-    return { panelId, pluginId: owner.manifest.id, entryUrl };
+      webContents.on("did-fail-load", (_e, code, desc, url) => {
+        console.error(
+          `[design-panel] load failed ${code} ${desc} ${url ?? ""}`,
+        );
+      });
+      return { panelId, pluginId: owner.manifest.id, entryUrl };
+    })();
+    this.pendingEnsures.set(this.key(threadId, panelId), finish);
+    try {
+      return await finish;
+    } finally {
+      this.pendingEnsures.delete(this.key(threadId, panelId));
+    }
   }
 
   /**
@@ -438,6 +452,7 @@ export class DesignPanelHost {
   releasePanel(threadId: string, panelId: string): void {
     const live = this.panels.get(this.key(threadId, panelId));
     if (!live) return;
+    console.log(`[design-panel] releasePanel ${panelId} / ${threadId}`);
     this.panels.delete(this.key(threadId, panelId));
     if (!this.listPanels(threadId).length) {
       this.threadCatalogRoots.delete(threadId);

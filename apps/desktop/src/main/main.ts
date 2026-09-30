@@ -10210,7 +10210,12 @@ function registerIpc(): void {
       args: {},
       mode: "execute",
     });
-    if (outcome.status !== "succeeded" || !outcome.result) return;
+    if (outcome.status !== "succeeded" || !outcome.result) {
+      console.error(
+        `[design-panel] snapshot dispatch failed: ${JSON.stringify(outcome).slice(0, 300)}`,
+      );
+      return;
+    }
     let documents: unknown[] = [];
     try {
       const parsed = JSON.parse(
