@@ -12,7 +12,9 @@
 //     webContents; dispose() closes them explicitly while holding refs.
 
 import { BrowserWindow, MessageChannelMain, WebContentsView, session } from "electron";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pluginManifestSchema } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 
 import { DesignPluginCatalog } from "./design-plugin-catalog.js";
@@ -111,9 +113,11 @@ export class DesignPanelHost {
       );
     }
     this.threadCatalogRoots.set(input.threadId, input.revisionRoot);
+    this.threadBindingHashes.set(input.threadId, input.contentHash);
   }
 
   private threadCatalogRoots = new Map<string, string>();
+  private threadBindingHashes = new Map<string, string>();
 
   /**
    * Ensure a panel exists for (threadId, panelId) and return its handle.
@@ -134,15 +138,30 @@ export class DesignPanelHost {
     }
     // Prefer the thread's verified revision root; fall back to the
     // resources catalog only when no revision binding exists (S1 path).
-    const catalogRoot =
-      this.threadCatalogRoots.get(threadId) ?? this.catalogRoot;
-    if (!catalogRoot) {
-      throw new Error("Design panel catalog root is not configured.");
+    const revisionRoot = this.threadCatalogRoots.get(threadId);
+    let owner;
+    if (revisionRoot) {
+      // A revision root IS the package (manifest at its root), verified
+      // by setThreadBinding — parse it directly instead of scanning
+      // child directories (a single-package layout has none).
+      const manifestPath = join(revisionRoot, "artemis.plugin.json");
+      const manifest = pluginManifestSchema.parse(
+        JSON.parse((await readFile(manifestPath, "utf8")) || "{}"),
+      );
+      owner = {
+        root: revisionRoot,
+        manifest,
+        contentHash: this.threadBindingHashes.get(threadId) ?? "",
+      };
+    } else {
+      if (!this.catalogRoot) {
+        throw new Error("Design panel catalog root is not configured.");
+      }
+      const plugins = await this.catalog.load(this.catalogRoot);
+      owner = plugins.find((plugin) =>
+        plugin.manifest.panels.some((panel) => panel.id === panelId),
+      );
     }
-    const plugins = await this.catalog.load(catalogRoot);
-    const owner = plugins.find((plugin) =>
-      plugin.manifest.panels.some((panel) => panel.id === panelId),
-    );
     if (!owner) {
       throw new Error(`No installed plugin provides panel "${panelId}".`);
     }

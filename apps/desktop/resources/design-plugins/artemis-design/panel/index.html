@@ -412,10 +412,31 @@
 <div class="design-preview-view" hidden="" id="dzViewPreview">
   <div class="dz-toolbar">
   <div class="dz-toolbar-left">
+  <button aria-label="重新加载" class="dz-iconbtn" id="dzReload" title="重新加载" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v4h-4"></path></svg></button>
   <div aria-label="视图模式" class="dz-mode" role="tablist">
   <button aria-selected="true" class="dz-mode-tab active" data-dz-mode="preview" id="dzModePreview" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9h17"></path><path d="M7 13h6.5M7 16h9"></path></svg><span class="dz-mode-label">预览</span></button>
   <button aria-selected="false" class="dz-mode-tab" data-dz-mode="source" id="dzModeSource" role="tab" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg><span class="dz-mode-label">代码</span></button>
   </div>
+  </div>
+  <div class="dz-toolbar-right" style="display:flex;gap:6px;align-items:center;margin-left:auto">
+  <div class="dz-device" style="position:relative">
+  <button aria-expanded="false" aria-haspopup="menu" class="dz-iconbtn" id="dzDeviceBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="14" rx="2" width="18" x="3" y="4"></rect><path d="M2 20h20"></path></svg> <span id="dzDeviceLabel" style="font-size:12px">桌面端</span></button>
+  <div class="dz-menu" hidden="" id="dzDeviceMenu" role="menu" style="right:0;left:auto;top:calc(100% + 4px)">
+  <button class="dz-menu-item" data-dz-device="desktop" role="menuitem" type="button">桌面端</button>
+  <button class="dz-menu-item" data-dz-device="tablet" role="menuitem" type="button">平板</button>
+  <button class="dz-menu-item" data-dz-device="mobile" role="menuitem" type="button">手机</button>
+  </div>
+  </div>
+  <div class="dz-zoom" style="position:relative">
+  <button aria-expanded="false" aria-haspopup="menu" class="dz-iconbtn" id="dzZoomBtn" title="缩放" type="button"><span id="dzZoomLabel" style="font-size:12px">100%</span></button>
+  <div class="dz-menu" hidden="" id="dzZoomMenu" role="menu" style="right:0;left:auto;top:calc(100% + 4px)">
+  <button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button">50%</button>
+  <button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button">75%</button>
+  <button class="dz-menu-item" data-dz-zoom="100" role="menuitem" type="button">100%</button>
+  <button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
+  </div>
+  </div>
+  <button aria-label="截图" class="dz-iconbtn" id="dzShotBtn" title="截图" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg></button>
   </div>
   </div>
   <div class="dz-viewport" id="dzViewport">
@@ -426,6 +447,48 @@
   <pre class="dz-source" hidden="" id="dzSource" tabindex="0">&lt;section class="customer-summary"&gt;
   &lt;header&gt;&lt;h2&gt;客户档案&lt;/h2&gt;&lt;/header&gt;
 &lt;/section&gt;</pre>
+</div>
+<!-- 历史恢复确认（原型 dzConfirm） -->
+<div class="dz-confirm" hidden="" id="dzConfirm" style="position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)">
+  <div style="background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:12px;padding:20px;width:280px">
+    <strong style="display:block;margin-bottom:8px">恢复到此版本？</strong>
+    <p style="font-size:12px;color:var(--text-2,#9399b2);margin-bottom:16px" id="dzConfirmText">当前编辑将作为新版本保留，不会丢失。</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="dz-menu-item" id="dzConfirmCancel" style="border:1px solid #262b3d;border-radius:8px" type="button">取消</button>
+      <button class="dz-menu-item" id="dzConfirmOk" style="background:var(--accent,#2997ff);border-radius:8px;color:#fff" type="button">恢复</button>
+    </div>
+  </div>
+</div>
+<!-- 批注钉层 + 选框（原型 dzPinLayer/dzPickBox/dzToolHint/dzPickCard） -->
+<div aria-label="批注钉层" hidden="" id="dzPinLayer" style="position:absolute;inset:0;z-index:20;pointer-events:none"></div>
+<!-- 批注弹层（原型 dzNoteComposer，含发送到聊天） -->
+<div aria-label="批注" class="dz-note-composer" hidden="" id="dzNoteComposer" role="dialog" style="position:absolute;z-index:25;right:12px;bottom:12px;width:280px;background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:12px;padding:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <strong id="dzNoteTitle" style="font-size:13px">添加批注</strong>
+    <span style="display:flex;gap:4px">
+      <button aria-label="删除批注" hidden="" id="dzNoteDelete" type="button">🗑</button>
+      <button aria-label="关闭" id="dzNoteClose" type="button">✕</button>
+    </span>
+  </div>
+  <textarea id="dzNoteInput" placeholder="写批注…" style="width:100%;min-height:56px;background:transparent;border:1px solid #262b3d;border-radius:8px;padding:8px;color:var(--text,#e6e9f5);font:inherit;resize:vertical"></textarea>
+  <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
+    <button class="dz-menu-item" id="dzNoteSendChat" style="border:1px solid #262b3d;border-radius:8px" type="button">发给 AI</button>
+    <button class="dz-menu-item" id="dzNoteSave" disabled="" style="background:var(--accent,#2997ff);border-radius:8px;color:#fff" type="button">保存</button>
+  </div>
+</div>
+<!-- 画板工具（原型 dzDrawTools） -->
+<div aria-label="标记工具" class="dz-draw-tools" hidden="" id="dzDrawTools" role="toolbar" style="position:absolute;z-index:22;top:52px;left:12px;display:flex;gap:6px;background:var(--panel-1,#171a26);border:1px solid #262b3d;border-radius:10px;padding:6px">
+  <button aria-label="画笔" class="dz-draw-tool active" data-dz-draw="pen" type="button">✏️</button>
+  <button aria-label="橡皮" class="dz-draw-tool" data-dz-draw="erase" type="button">🧽</button>
+  <button aria-label="撤销笔画" id="dzDrawUndo" type="button">↶</button>
+  <button aria-label="重做笔画" id="dzDrawRedo" type="button">↷</button>
+  <button aria-label="把标记发给 AI" id="dzDrawSend" style="border-left:1px solid #262b3d;padding-left:6px" type="button">发给 AI</button>
+</div>
+<!-- 演示全屏层（原型 dzPresentLayer） -->
+<div hidden="" id="dzPresentLayer" style="position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center">
+  <span id="dzPresentTitle" style="position:absolute;top:16px;left:20px;color:#9399b2;font-size:12px"></span>
+  <button aria-label="退出演示" id="dzPresentExit" style="position:absolute;top:12px;right:16px;background:#171a26;color:#e6e9f5;border:1px solid #262b3d;border-radius:8px;padding:6px 12px" type="button">退出演示</button>
+  <iframe sandbox="" style="width:100%;height:100%;border:0;background:#fff" title="演示"></iframe>
 </div>
 <div class="dz-toast" hidden="" id="dzToast" role="status"></div>
 <script>
@@ -560,6 +623,7 @@
   var previewStage = document.querySelector("#dzViewport .dz-stage");
   var sourcePane = document.getElementById("dzSource");
   function renderDocument(html, name, subtitle) {
+    lastDocumentHtml = html;
     if (previewStage) {
       previewStage.innerHTML =
         '<div class="mock-head"><b></b><span></span></div>' +
@@ -652,6 +716,258 @@
     syncSendState();
     showToast("已发送到对话输入框");
   });
+
+  // ================= S4 对齐补齐：原型交互全量 =================
+  var lastDocumentHtml = "";
+
+  function getPreviewFrame() {
+    return previewStage ? previewStage.querySelector("iframe") : null;
+  }
+
+  // ---- A: dzReload 重载（重设 srcdoc）----
+  document.getElementById("dzReload").addEventListener("click", function () {
+    var frame = getPreviewFrame();
+    if (frame && lastDocumentHtml) {
+      frame.srcdoc = lastDocumentHtml;
+      showToast("已重新加载");
+    } else {
+      showToast("暂无可重载的文档");
+    }
+  });
+
+  // ---- A: 视口切换（device menu）----
+  document.getElementById("dzDeviceBtn").addEventListener("click", function (event) {
+    event.stopPropagation();
+    var menu = document.getElementById("dzDeviceMenu");
+    menu.hidden = !menu.hidden;
+    this.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  document.querySelectorAll("[data-dz-device]").forEach(function (item) {
+    item.addEventListener("click", function () {
+      var id = item.getAttribute("data-dz-device");
+      document.getElementById("dzDeviceLabel").textContent =
+        id === "mobile" ? "手机" : id === "tablet" ? "平板" : "桌面端";
+      document.getElementById("dzDeviceMenu").hidden = true;
+      var frame = getPreviewFrame();
+      if (frame) {
+        frame.style.width = id === "mobile" ? "390px" : id === "tablet" ? "768px" : "100%";
+        frame.style.margin = id === "desktop" ? "0" : "0 auto";
+      }
+    });
+  });
+
+  // ---- A: 缩放（zoom menu）----
+  document.getElementById("dzZoomBtn").addEventListener("click", function (event) {
+    event.stopPropagation();
+    var menu = document.getElementById("dzZoomMenu");
+    menu.hidden = !menu.hidden;
+    this.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  document.querySelectorAll("[data-dz-zoom]").forEach(function (item) {
+    item.addEventListener("click", function () {
+      var level = item.getAttribute("data-dz-zoom");
+      document.getElementById("dzZoomLabel").textContent = level + "%";
+      document.getElementById("dzZoomMenu").hidden = true;
+      var frame = getPreviewFrame();
+      if (frame) {
+        frame.style.transform = "scale(" + level / 100 + ")";
+        frame.style.transformOrigin = "top center";
+      }
+    });
+  });
+
+  // ---- A: 截图（闪光 + 宿主请求）----
+  document.getElementById("dzShotBtn").addEventListener("click", function () {
+    var frame = getPreviewFrame();
+    if (frame && hostPort && currentDocument) {
+      hostPort.postMessage({
+        type: "screenshot-request",
+        documentId: currentDocument.documentId,
+      });
+    }
+    var flash = document.createElement("div");
+    flash.style.cssText = "position:absolute;inset:0;background:#fff;opacity:.7;transition:opacity .3s;pointer-events:none;z-index:50";
+    (viewport || document.body).appendChild(flash);
+    setTimeout(function () { flash.style.opacity = "0"; }, 60);
+    setTimeout(function () { flash.remove(); }, 400);
+    showToast("已请求宿主截图");
+  });
+
+  // ---- B: 历史项点击 → 确认弹层 → port restore 请求 ----
+  var pendingRestoreRevision = null;
+  document.querySelectorAll("#dzHistory .dz-history-item").forEach(function (item) {
+    item.addEventListener("click", function () {
+      document.querySelectorAll("#dzHistory .dz-history-item").forEach(function (o) { o.classList.remove("active"); });
+      item.classList.add("active");
+      pendingRestoreRevision = item.getAttribute("data-dz-revision") || null;
+      document.getElementById("dzConfirm").hidden = false;
+    });
+  });
+  document.getElementById("dzConfirmCancel").addEventListener("click", function () {
+    document.getElementById("dzConfirm").hidden = true;
+  });
+  document.getElementById("dzConfirmOk").addEventListener("click", function () {
+    document.getElementById("dzConfirm").hidden = true;
+    document.getElementById("dzHistory").hidden = true;
+    if (pendingRestoreRevision && hostPort && currentDocument) {
+      hostPort.postMessage({
+        type: "restore-request",
+        documentId: currentDocument.documentId,
+        revision: pendingRestoreRevision,
+      });
+      showToast("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
+    }
+    pendingRestoreRevision = null;
+  });
+
+  // ---- B: 批注（弹层 → 保存钉子；发给 AI → 候选）----
+  var annotations = [];
+  var dzNoteComposer = document.getElementById("dzNoteComposer");
+  var dzNoteInput = document.getElementById("dzNoteInput");
+  var dzNoteSave = document.getElementById("dzNoteSave");
+  var dzPinLayer = document.getElementById("dzPinLayer");
+  function syncNoteButtons() {
+    dzNoteSave.disabled = dzNoteInput.value.trim().length === 0;
+  }
+  dzNoteInput.addEventListener("input", syncNoteButtons);
+  dzNoteInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !dzNoteSave.disabled) dzNoteSave.click();
+  });
+  document.getElementById("dzNoteClose").addEventListener("click", function () {
+    dzNoteComposer.hidden = true;
+  });
+  dzNoteSave.addEventListener("click", function () {
+    var text = dzNoteInput.value.trim();
+    if (!text) return;
+    var pin = document.createElement("div");
+    pin.title = text;
+    pin.style.cssText = "position:absolute;width:18px;height:18px;border-radius:50% 50% 50% 0;background:var(--accent,#2997ff);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:auto";
+    pin.style.left = (20 + Math.random() * 200) + "px";
+    pin.style.top = (30 + Math.random() * 160) + "px";
+    pin.addEventListener("click", function () {
+      dzNoteInput.value = text;
+      dzNoteComposer.hidden = false;
+      syncNoteButtons();
+    });
+    dzPinLayer.appendChild(pin);
+    annotations.push({ text: text });
+    dzNoteInput.value = "";
+    dzNoteComposer.hidden = true;
+    showToast("批注已保存（" + annotations.length + " 条）");
+  });
+  document.getElementById("dzNoteSendChat").addEventListener("click", function () {
+    var text = dzNoteInput.value.trim();
+    if (!text) return;
+    composerInput.dispatchEvent(
+      new CustomEvent("artemis:candidate-prompt", {
+        detail: { text: text, source: "panel" },
+        bubbles: true
+      })
+    );
+    if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
+    dzNoteInput.value = "";
+    dzNoteComposer.hidden = true;
+    showToast("批注已作为候选发送");
+  });
+
+  // ---- C: 画板（canvas 手绘 + 撤销重做 + 发给 AI）----
+  var drawBtn = document.createElement("button");
+  drawBtn.className = "dz-iconbtn";
+  drawBtn.id = "dzDrawBtn";
+  drawBtn.type = "button";
+  drawBtn.title = "画板标记";
+  drawBtn.textContent = "✏️";
+  document.querySelector(".dz-toolbar-right").appendChild(drawBtn);
+  var drawCanvas = null;
+  var drawCtx = null;
+  var drawStrokes = [];
+  var undoneStrokes = [];
+  var drawActive = false;
+  function ensureDrawCanvas() {
+    if (drawCanvas) return;
+    drawCanvas = document.createElement("canvas");
+    drawCanvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:21;pointer-events:auto";
+    drawCtx = drawCanvas.getContext("2d");
+    var stage = previewStage || document.getElementById("dzViewport");
+    stage.style.position = "relative";
+    stage.appendChild(drawCanvas);
+    var drawing = false;
+    function pos(e) {
+      var rect = drawCanvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    drawCanvas.addEventListener("pointerdown", function (e) {
+      drawing = true;
+      undoneStrokes = [];
+      drawStrokes.push({ points: [pos(e)] });
+    });
+    drawCanvas.addEventListener("pointermove", function (e) {
+      if (!drawing) return;
+      drawStrokes[drawStrokes.length - 1].points.push(pos(e));
+      drawCanvas.redraw();
+    });
+    window.addEventListener("pointerup", function () { drawing = false; });
+    drawCanvas.redraw = function () {
+      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      drawCtx.strokeStyle = "#ff5c5c";
+      drawCtx.lineWidth = 2.5;
+      drawCtx.lineCap = "round";
+      drawStrokes.forEach(function (s) {
+        drawCtx.beginPath();
+        s.points.forEach(function (p, i) { if (i) drawCtx.lineTo(p.x, p.y); else drawCtx.moveTo(p.x, p.y); });
+        drawCtx.stroke();
+      });
+    };
+  }
+  drawBtn.addEventListener("click", function () {
+    drawActive = !drawActive;
+    drawBtn.classList.toggle("active", drawActive);
+    document.getElementById("dzDrawTools").hidden = !drawActive;
+    if (drawActive) { ensureDrawCanvas(); drawCanvas.style.display = "block"; }
+    else if (drawCanvas) drawCanvas.style.display = "none";
+  });
+  document.getElementById("dzDrawUndo").addEventListener("click", function () {
+    if (drawStrokes.length) { undoneStrokes.push(drawStrokes.pop()); if (drawCanvas) drawCanvas.redraw(); }
+  });
+  document.getElementById("dzDrawRedo").addEventListener("click", function () {
+    if (undoneStrokes.length) { drawStrokes.push(undoneStrokes.pop()); if (drawCanvas) drawCanvas.redraw(); }
+  });
+  document.getElementById("dzDrawSend").addEventListener("click", function () {
+    var text = "请根据画板标记修改设计（共 " + drawStrokes.length + " 处标记）";
+    composerInput.dispatchEvent(new CustomEvent("artemis:candidate-prompt", { detail: { text: text, source: "panel" }, bubbles: true }));
+    if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
+    showToast("标记已作为候选发送");
+  });
+
+  // ---- C: 演示层（全屏 iframe + 退出）----
+  function enterPresent() {
+    var layer = document.getElementById("dzPresentLayer");
+    layer.querySelector("iframe").srcdoc = lastDocumentHtml || "";
+    document.getElementById("dzPresentTitle").textContent =
+      (currentDocument ? currentDocument.name : "设计文档") + " · 演示中";
+    layer.hidden = false;
+  }
+  document.querySelectorAll("#dzPresentMenu .dz-menu-item").forEach(function (item) {
+    item.addEventListener("click", function () { enterPresent(); });
+  });
+  document.getElementById("dzPresentExit").addEventListener("click", function () {
+    document.getElementById("dzPresentLayer").hidden = true;
+  });
+
+  // ---- C: 分享钮（动作区尾部）----
+  var shareBtn = document.createElement("button");
+  shareBtn.className = "design-ws-iconbtn";
+  shareBtn.id = "dzShareBtn";
+  shareBtn.type = "button";
+  shareBtn.title = "分享";
+  shareBtn.textContent = "分享";
+  shareBtn.style.cssText = "font-size:12px;padding:0 8px";
+  shareBtn.addEventListener("click", function () {
+    var shared = shareBtn.classList.toggle("shared");
+    shareBtn.textContent = shared ? "已分享" : "分享";
+    showToast(shared ? "分享已开启（本机演示）" : "分享已关闭");
+  });
+  document.querySelector(".design-ws-actions").appendChild(shareBtn);
 })();
 </script>
 </body>
