@@ -1318,7 +1318,6 @@
 </div>
 </div>
 <button class="btn btn-quiet design-ws-share" id="dzShareBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M14 4h6v6"></path><path d="M20 4l-8.5 8.5"></path><path d="M18.5 13.5V18A1.5 1.5 0 0 1 17 19.5H6A1.5 1.5 0 0 1 4.5 18V7A1.5 1.5 0 0 1 6 5.5h4.5"></path></svg><span id="dzShareLabel">分享</span></button>
-<button aria-label="创建编码任务" class="design-ws-handoff" id="dzHandoffMain" title="创建编码任务（把设计交给开发实现）" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4 7l6.5 5L4 17"></path><path d="M12 17h8"></path></svg><span id="dzHandoffLabel">交接</span></button>
 </div>
 </div>
 <!-- 文件浏览视图（原型 design-files） -->
@@ -1520,7 +1519,7 @@
   }
   function dzCloseMenus() {
     $$(".dz-menu").forEach(function (m) { m.hidden = true; });
-    $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzHandoffCaret, #dzMoreBtn").forEach(function (b) {
+    $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzMoreBtn").forEach(function (b) {
       b.setAttribute("aria-expanded", "false");
     });
   }
@@ -2733,17 +2732,6 @@
     var shared = $("#dzShareBtn").classList.toggle("shared");
     $("#dzShareLabel").textContent = shared ? "已分享" : "分享";
     dzToast(shared ? "分享已开启" : "分享已关闭");
-  });
-  $("#dzHandoffMain").addEventListener("click", function () {
-    if (!hostPort || !currentDocument) {
-      dzToast("交接需要已打开的文档");
-      return;
-    }
-    hostPort.postMessage({
-      type: "handoff-request",
-      documentId: currentDocument.documentId,
-    });
-    dzToast("已请求创建编码任务");
   });
 
   /* ============ 全局点外收起 ============ */

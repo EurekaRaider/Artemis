@@ -62,7 +62,7 @@ console.log("== 1. 原型结构对齐（关键容器/类名） ==");
 for (const sel of [
   ".design-ws-tabs", "#dzTabFiles", "#dzTabCustomer", "#dzPlusBtn", "#dzPlusMenu",
   "#dzPresentBtn", "#dzPresentMenu", "#dzHistoryBtn", "#dzExportBtn", "#dzExportMenu",
-  "#dzShareBtn", "#dzHandoffMain", "#dzViewFiles", "#dzViewPreview",
+  "#dzShareBtn", "#dzViewFiles", "#dzViewPreview",
   "#dzProjectBtn", "#dzProjectMenu", "#dzCats", "#dzCards", "#dzCatEmpty",
   "#dzReload", "#dzModePreview", "#dzModeSource", "#dzDeviceBtn", "#dzDeviceMenu",
   "#dzShotBtn", "#dzCommentBtn", "#dzDrawBtn", "#dzCommentListBtn",
@@ -276,10 +276,8 @@ fromHost({ type: "export-result", path: "/tmp/design-exports/doc-1/v3.html" });
 check("导出结果 toast", document.getElementById("dzToast").textContent.includes("已导出"));
 
 console.log("== 16. 交接（§10.3 语义） ==");
-document.getElementById("dzHandoffMain").click();
-check("交接请求发出", sent.some((m) => m.type === "handoff-request"));
-fromHost({ type: "handoff-result", threadId: "t-1", created: true });
-check("交接结果 toast", document.getElementById("dzToast").textContent.includes("编码任务"));
+check("工具栏交接按钮已移除", document.getElementById("dzHandoffMain") === null);
+check("无残留 handoff 入口", !document.querySelector(".design-ws-handoff"));
 
 console.log("== 17. 分享 ==");
 document.getElementById("dzShareBtn").click();
