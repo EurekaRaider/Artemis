@@ -324,7 +324,14 @@ test("release uploads resume verified assets without replacing complete files", 
       scenario === "existing" || scenario === "mismatch"
         ? [{ ...expected }]
         : scenario === "starter"
-          ? [{ ...expected, state: "starter", size: 0, digest: null }]
+          ? [
+              {
+                ...expected,
+                state: "starter",
+                size: bytes.length,
+                digest: null,
+              },
+            ]
           : [];
     if (scenario === "mismatch") assets[0].digest = `sha256:${"0".repeat(64)}`;
     const uploads = [],

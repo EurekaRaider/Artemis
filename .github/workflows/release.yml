@@ -526,7 +526,7 @@ jobs:
             const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
             for (let attempt = 0; ; attempt++) {
               let asset = (await api(`releases/${release.id}/assets?per_page=100`)).find(item => item.name === name);
-              if (asset?.state === 'starter' && asset.size === 0 && !asset.digest) {
+              if (asset?.state === 'starter' && !asset.digest) {
                 try { gh('api', '--method', 'DELETE', `repos/${repository}/releases/assets/${asset.id}`); }
                 catch (error) {
                   if (attempt === 3) throw error;
