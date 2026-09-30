@@ -295,7 +295,49 @@ document.getElementById("dzComposerSend").click();
 check("composer 候选发出", sent.some((m) => m.text === "生成一个深色的设置页"));
 check("发送后清空", composer.textContent === "");
 
-console.log("== 19. 错误汇总 ==");
+console.log("== 19. 审查修复回归：新控件 ==");
+check("dzEditBtn 存在且禁用（有意裁剪可见化）", (() => { const b = document.getElementById("dzEditBtn"); return !!b && b.disabled; })());
+check("dzMoreBtn/dzMoreMenu 存在", !!document.getElementById("dzMoreBtn") && !!document.getElementById("dzMoreMenu"));
+document.getElementById("dzMoreBtn").click();
+check("更多菜单打开", !document.getElementById("dzMoreMenu").hidden);
+const moreComment = document.querySelector('#dzMoreMenu [data-dz-more="comment"]');
+moreComment.click();
+check("更多菜单→注释分发", document.getElementById("dzCommentBtn").classList.contains("active"));
+document.getElementById("dzCommentBtn").click(); // 关闭
+document.getElementById("dzMoreBtn").click();
+document.querySelector('#dzMoreMenu [data-dz-zoom="200"]').click();
+check("更多菜单 200% 缩放生效", document.getElementById("dzZoomLabel").textContent === "200%");
+check("dzZoomMenu 含 200% 档", !!document.querySelector('#dzZoomMenu [data-dz-zoom="200"]'));
+check("手机样机存在", !!document.getElementById("dzMockPhone"));
+document.querySelector('[data-dz-device="mobile"]').click();
+check("手机态样机显示", !document.getElementById("dzMockPhone").hidden);
+check("手机屏镜像文档", document.querySelectorAll("#dzPhoneScreen button").length === 2);
+document.querySelector('[data-dz-device="desktop"]').click();
+check("桌面态样机隐藏", document.getElementById("dzMockPhone").hidden);
+check("注释附件钮/输入存在", !!document.getElementById("dzNoteAttach") && !!document.getElementById("dzNoteFile") && !!document.getElementById("dzNoteImages"));
+check("文件卡 ⋯ 菜单钮存在", !!document.querySelector(".design-file-card .design-file-menu"));
+document.getElementById("dzTabFiles").click();
+document.querySelector(".design-file-card .design-file-menu").click();
+check("文件菜单浮层打开", !!document.querySelector(".dz-file-menu-pop"));
+document.body.click();
+check("点外关闭文件菜单", !document.querySelector(".dz-file-menu-pop"));
+check("分类 6 类", document.querySelectorAll(".design-cat").length === 6, `实际 ${document.querySelectorAll(".design-cat").length}`);
+const cats = document.querySelectorAll(".design-cat");
+cats[2].click(); // 样式表（0 个）
+check("空分类显示空态", !document.getElementById("dzCatEmpty").hidden);
+cats[1].click(); // 页面
+check("页面分类恢复卡片", !document.querySelector(".design-file-card").hidden);
+check("文字工具存在", !!document.querySelector('[data-dz-dtool="text"]'));
+// scoped CSS 验证
+const styleEl = document.querySelector("#dzMockDesktop style");
+check("文档样式已 scoped（选择器带前缀）", styleEl && styleEl.textContent.includes("#dzMockDesktop .hero"));
+check("文档样式无裸 body 规则", styleEl && !/^body\s*\{/m.test(styleEl.textContent));
+// 外部资源剥离（锚点 # 保留是正确行为；只断言外部 URL 不存在）
+const externalRes = Array.from(document.querySelectorAll('#dzMockDesktop [src], #dzMockDesktop [href]'))
+  .filter((el) => { const v = el.getAttribute("src") || el.getAttribute("href"); return v && !v.startsWith("#"); });
+check("外部 href/src 已剥离（锚点保留）", externalRes.length === 0);
+
+console.log("== 20. 错误汇总 ==");
 check("全程无未捕获 JS 错误", pageErrors.length === 0, pageErrors.join("; "));
 
 console.log(`\n结果：${passed} passed, ${failed} failed`);

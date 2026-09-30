@@ -10315,23 +10315,31 @@ function registerIpc(): void {
       };
     },
     handoff: async (input) => {
-      // §10.3 复用既有 IPC 处理器语义：幂等创建编码任务。
-      const handoffId = randomUUID();
-      // 复用 designPanelHandoff 的幂等记录（operationId = handoff:<id>）
+      // §10.3 幂等创建编码任务。handoffId 从 (threadId, documentId) 确定性
+      // 派生：同一文档重复点交接永远命中同一 operationId，去重才有效。
+      const handoffId = createHash("sha256")
+        .update(`handoff:${input.threadId}:${input.documentId}`)
+        .digest("hex")
+        .slice(0, 32);
       const source = store?.getThread(input.threadId);
       if (!store || !source?.typeBinding) {
         throw new Error("Source thread has no plugin binding.");
       }
       const operationId = `handoff:${handoffId}`;
-      store.recordPluginOperation({
-        operationId,
-        threadId: input.threadId,
-        pluginId: source.typeBinding.pluginId,
-        toolName: "handoff",
-        requestDigest: `${input.documentId}`,
-        state: "succeeded",
-        resultRef: handoffId,
-      });
+      try {
+        store.recordPluginOperation({
+          operationId,
+          threadId: input.threadId,
+          pluginId: source.typeBinding.pluginId,
+          toolName: "handoff",
+          requestDigest: `${input.documentId}`,
+          state: "succeeded",
+          resultRef: handoffId,
+        });
+      } catch {
+        // 已存在同 operationId（同文档的重复交接）：不重复创建。
+        return { threadId: handoffId, created: false };
+      }
       const snapshotOutcome = await pluginDispatch?.dispatch({
         threadId: input.threadId,
         toolName: "get_snapshot",

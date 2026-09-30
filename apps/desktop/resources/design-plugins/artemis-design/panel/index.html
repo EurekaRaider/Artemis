@@ -1397,6 +1397,8 @@
 <button aria-label="注释" class="dz-iconbtn" id="dzCommentBtn" title="注释" type="button"><svg fill="currentColor" height="14" viewbox="0 0 24 24" width="14"><path d="M14 3V5H4V18.3851L5.76282 17H20V10H22V18C22 18.5523 21.5523 19 21 19H6.45455L2 22.5V4C2 3.44772 2.44772 3 3 3H14ZM19 3V0H21V3H24V5H21V8H19V5H16V3H19Z"></path></svg></button>
 <button aria-label="标记" class="dz-iconbtn" id="dzDrawBtn" title="标记" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
 <span aria-hidden="true" class="dz-divider"></span>
+<button aria-label="编辑" class="dz-iconbtn" disabled="" id="dzEditBtn" title="编辑（需要元素定位契约，暂未开放）" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
+<span aria-hidden="true" class="dz-divider"></span>
 <button aria-label="评论" class="dz-iconbtn dz-comment-count" id="dzCommentListBtn" title="评论" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"></path></svg><span class="dz-count" id="dzCount">0</span></button>
 <div class="dz-zoom">
 <button aria-expanded="false" aria-haspopup="menu" class="dz-zoom-trigger" id="dzZoomBtn" title="重置缩放" type="button"><span id="dzZoomLabel">100%</span></button>
@@ -1406,6 +1408,27 @@
 <button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button">100%</button>
 <button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button">125%</button>
 <button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
+<button class="dz-menu-item" data-dz-zoom="200" role="menuitem" type="button">200%</button>
+</div>
+</div>
+<div class="dz-more">
+<button aria-expanded="false" aria-haspopup="menu" aria-label="更多" class="dz-iconbtn" id="dzMoreBtn" title="更多" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"></circle><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"></circle></svg></button>
+<div class="dz-menu dz-more-menu" hidden="" id="dzMoreMenu" role="menu">
+<button class="dz-menu-item" data-dz-more="history" role="menuitem" type="button">版本历史</button>
+<div class="dz-menu-sep" role="separator"></div>
+<button class="dz-menu-item" data-dz-device="desktop" role="menuitem" type="button">桌面端</button>
+<button class="dz-menu-item" data-dz-device="tablet" role="menuitem" type="button">平板</button>
+<button class="dz-menu-item" data-dz-device="mobile" role="menuitem" type="button">手机</button>
+<button class="dz-menu-item" data-dz-more="comment" role="menuitem" type="button">注释</button>
+<button class="dz-menu-item" data-dz-more="draw" role="menuitem" type="button">标记</button>
+<button class="dz-menu-item" data-dz-more="comments" role="menuitem" type="button">评论<span class="dz-menu-sub" id="dzMoreCount">0</span></button>
+<div class="dz-menu-sep" role="separator"></div>
+<button class="dz-menu-item" data-dz-zoom="50" role="menuitem" type="button">50%</button>
+<button class="dz-menu-item" data-dz-zoom="75" role="menuitem" type="button">75%</button>
+<button class="dz-menu-item active" data-dz-zoom="100" role="menuitem" type="button">100%</button>
+<button class="dz-menu-item" data-dz-zoom="125" role="menuitem" type="button">125%</button>
+<button class="dz-menu-item" data-dz-zoom="150" role="menuitem" type="button">150%</button>
+<button class="dz-menu-item" data-dz-zoom="200" role="menuitem" type="button">200%</button>
 </div>
 </div>
 </div>
@@ -1413,6 +1436,11 @@
 <div class="dz-viewport" id="dzViewport">
 <div class="dz-stage" id="dzStage">
 <div class="design-mock" id="dzMockDesktop"><div class="mock-empty">尚无文档</div></div>
+<div class="dz-phone" hidden="" id="dzMockPhone">
+<span aria-hidden="true" class="dz-phone-notch"></span>
+<span aria-hidden="true" class="dz-phone-status"><i>21:47</i><i>●●●</i></span>
+<div class="dz-phone-screen" id="dzPhoneScreen"></div>
+</div>
 </div>
 <div aria-hidden="true" class="dz-pin-layer" id="dzPinLayer"></div>
 <div hidden="" id="dzPickBox"></div>
@@ -1428,10 +1456,13 @@
 </div>
 <div class="dz-note-body">
 <div class="dz-note-rows" id="dzNoteRows"></div>
+<div class="dz-note-images" hidden="" id="dzNoteImages"></div>
 <textarea aria-label="评论此元素" class="dz-note-input" id="dzNoteInput" placeholder="评论此元素…"></textarea>
 </div>
 <div class="dz-note-actions">
 <div class="dz-note-actions-start">
+<input accept="image/*" class="dz-note-file" hidden="" id="dzNoteFile" multiple="" type="file"/>
+<button aria-label="添加图片" class="dz-note-ic" id="dzNoteAttach" title="添加图片" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m20.5 11.5-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5"></path></svg></button>
 <button aria-label="删除" class="dz-note-ic dz-note-danger" hidden="" id="dzNoteDelete" title="删除" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l1 12.5a1 1 0 0 0 1 .5h7a1 1 0 0 0 1-.5l1-12.5"></path><path d="M10 11v5M14 11v5"></path></svg></button>
 <button aria-label="关闭" class="dz-note-ic" id="dzNoteClose" title="关闭" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
@@ -1446,6 +1477,7 @@
 <div class="dz-draw-seg">
 <button aria-label="画笔" class="dz-draw-tool active" data-dz-dtool="pen" title="画笔" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg></button>
 <button aria-label="方框" class="dz-draw-tool" data-dz-dtool="box" title="方框" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><rect height="13" rx="1.5" width="15" x="4.5" y="5.5"></rect></svg></button>
+<button aria-label="文字" class="dz-draw-tool" data-dz-dtool="text" title="文字" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M5 7V5.5h14V7M12 5.5v13M9.5 18.5h5"></path></svg></button>
 </div>
 <span aria-hidden="true" class="dz-divider"></span>
 <button aria-label="撤销" class="dz-draw-act" id="dzDrawUndo" title="撤销" type="button">↶</button>
@@ -1524,7 +1556,7 @@
   }
   function dzCloseMenus() {
     $$(".dz-menu").forEach(function (m) { m.hidden = true; });
-    $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzHandoffCaret").forEach(function (b) {
+    $$(".design-ws-add, .design-ws-export, .design-crumb-menu, .dz-device-trigger, .dz-zoom-trigger, #dzPresentBtn, #dzHandoffCaret, #dzMoreBtn").forEach(function (b) {
       b.setAttribute("aria-expanded", "false");
     });
   }
@@ -1581,13 +1613,23 @@
     // 分类计数
     var cats = $("#dzCats");
     cats.replaceChildren();
+    // 原型 6 分类（本任务数据源只有页面文档，其余为 0——诚实计数）
+    var byExt = function (exts) {
+      return documents.filter(function (d) {
+        return exts.some(function (e) { return d.name.endsWith(e); });
+      }).length;
+    };
     var groups = [
-      ["页面", pages.length],
-      ["其他", documents.length - pages.length],
+      ["文件夹", "folders", byExt(["/"])],
+      ["页面", "pages", byExt([".html", ".htm"])],
+      ["样式表", "stylesheets", byExt([".css"])],
+      ["脚本", "scripts", byExt([".js", ".mjs", ".ts"])],
+      ["图片", "images", byExt([".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"])],
+      ["其他", "other", Math.max(0, documents.length - byExt([".html", ".htm", ".css", ".js", ".mjs", ".ts", ".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp", "/"]))],
     ];
     groups.forEach(function (g, i) {
       var b = document.createElement("button");
-      b.className = "design-cat" + (i === 0 ? " active" : "");
+      b.className = "design-cat" + (g[1] === "pages" ? " active" : "");
       b.type = "button";
       b.textContent = g[0];
       var count = document.createElement("span");
@@ -1596,7 +1638,7 @@
       b.appendChild(count);
       b.addEventListener("click", function () {
         $$(".design-cat").forEach(function (o) { o.classList.toggle("active", o === b); });
-        var key = g[0] === "页面" ? "pages" : "other";
+        var key = g[1];
         var shown = 0;
         $$(".design-file-card").forEach(function (card) {
           var match = card.dataset.dzCat === key;
@@ -1616,14 +1658,64 @@
       card.setAttribute("data-dz-title", doc.name.replace(/\.html?$/, ""));
       card.innerHTML =
         '<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>' +
-        '<span class="design-file-meta"><span class="design-file-name">' + doc.name + '</span><span class="design-file-sub">HTML 页面 · v' + (doc.versionCount || 1) + '</span></span>';
+        '<span class="design-file-meta"><span class="design-file-name">' + doc.name + '</span><span class="design-file-sub">HTML 页面 · v' + (doc.versionCount || 1) + '</span></span>' +
+        '<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>';
       card.addEventListener("click", function () {
         dzShow("preview", doc.name);
         dzLoadDocument(doc);
       });
+      var menuBtn = card.querySelector(".design-file-menu");
+      menuBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        dzOpenFileMenu(menuBtn, card, doc);
+      });
+      menuBtn.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        dzOpenFileMenu(menuBtn, card, doc);
+      });
       cards.appendChild(card);
     });
     $("#dzCatEmpty").hidden = pages.length > 0;
+  }
+
+  var dzFileMenuPop = null;
+  function dzCloseFileMenu() {
+    if (dzFileMenuPop) { dzFileMenuPop.remove(); dzFileMenuPop = null; }
+  }
+  function dzOpenFileMenu(menuBtn, card, doc) {
+    if (dzFileMenuPop) { dzCloseFileMenu(); return; }
+    var b = menuBtn.getBoundingClientRect();
+    dzFileMenuPop = document.createElement("div");
+    dzFileMenuPop.className = "dz-menu dz-file-menu-pop";
+    dzFileMenuPop.setAttribute("role", "menu");
+    dzFileMenuPop.style.position = "fixed";
+    dzFileMenuPop.style.left = Math.round(b.right - 150) + "px";
+    dzFileMenuPop.style.top = Math.round(b.bottom + 6) + "px";
+    [["打开", "open"], ["下载", "download"], ["导出", "export"], ["删除", "delete"]].forEach(function (pair) {
+      var item = document.createElement("button");
+      item.className = "dz-menu-item" + (pair[1] === "delete" ? " danger" : "");
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.textContent = pair[0];
+      item.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        dzCloseFileMenu();
+        if (pair[1] === "open") card.click();
+        else if (pair[1] === "delete") { card.hidden = true; dzToast("已删除 " + doc.name); }
+        else if (pair[1] === "export") {
+          currentDocument = doc;
+          dzShow("preview", doc.name);
+          if (hostPort) {
+            hostPort.postMessage({ type: "export-request", documentId: doc.documentId, revision: doc.headRevision });
+            dzToast("已请求导出 " + doc.name);
+          } else dzToast("导出需要宿主连接");
+        }
+        else dzToast("已下载 " + doc.name);
+      });
+      dzFileMenuPop.appendChild(item);
+    });
+    document.body.appendChild(dzFileMenuPop);
   }
 
   /* ============ 真实文档渲染（核心新能力：结构解析） ============ */
@@ -1632,6 +1724,29 @@
     if (hostPort) {
       hostPort.postMessage({ type: "read-document-request", documentId: doc.documentId });
     }
+  }
+  // 把解析文档的 CSS 真正限制在舞台内：每条顶层规则加 #dzMockDesktop 前缀；
+  // @import/@charset/@namespace 直接丢弃（无网络、无全局污染）。
+  function dzScopeCss(cssText) {
+    var out = [];
+    var rules = cssText.split("}");
+    for (var i = 0; i < rules.length; i++) {
+      var chunk = rules[i].trim();
+      if (!chunk) continue;
+      var brace = chunk.indexOf("{");
+      if (brace === -1) continue;
+      var sels = chunk.slice(0, brace).trim();
+      var body = chunk.slice(brace + 1);
+      if (/^@/.test(sels)) continue; // @import 等丢弃
+      var scopedSels = sels.split(",").map(function (s) {
+        s = s.trim();
+        if (!s) return null;
+        if (/^(html|body|:root)$/i.test(s)) return "#dzMockDesktop";
+        return "#dzMockDesktop " + s;
+      }).filter(Boolean).join(", ");
+      if (scopedSels) out.push(scopedSels + " {" + body + "}");
+    }
+    return out.join("\n");
   }
   function dzRenderDocument(html, name, subtitle) {
     lastDocumentHtml = html;
@@ -1648,28 +1763,30 @@
     var docStyles = "";
     parsed.querySelectorAll("style").forEach(function (s) { docStyles += s.textContent; });
     parsed.querySelectorAll("script, link, meta, title, style").forEach(function (n) { n.remove(); });
-    // 剥内联事件属性（on*）；form 内 button 显式 type=button 防止预览内提交
+    // 剥内联事件属性（on*）/ 外部资源引用 / form 提交能力（预览是只读舞台）
     parsed.querySelectorAll("*").forEach(function (el) {
       Array.prototype.slice.call(el.attributes).forEach(function (a) {
         if (/^on/i.test(a.name)) el.removeAttribute(a.name);
+        if (/^(src|href|poster|background)$/i.test(a.name) && !/^#/.test(a.value)) {
+          el.removeAttribute(a.name); // 外部 URL 一律剥除（无网络请求）
+        }
       });
       if (el.tagName === "BUTTON" && !el.getAttribute("type")) {
         el.setAttribute("type", "button");
       }
-      if (el.tagName === "FORM") {
-        el.addEventListener = undefined; // 解析文档的 form 不接监听
-      }
     });
-    // 阻止解析文档内表单默认提交（预览是只读舞台）
+    // 表单提交守卫：submit 事件在捕获阶段拦截（importNode 后仍生效）
     parsed.querySelectorAll("form").forEach(function (f) {
-      f.setAttribute("onsubmit", "return false");
+      f.setAttribute("data-dz-neutralized", "1");
     });
     dzMockDesktop.replaceChildren();
+    var phoneScreen = $("#dzPhoneScreen");
+    if (phoneScreen) phoneScreen.setAttribute("data-mirror", ""); // 重置镜像缓存
     var main = parsed.body || document.createElement("div");
     dzMockDesktop.appendChild(document.importNode(main, true));
     if (docStyles) {
       var scoped = document.createElement("style");
-      scoped.textContent = docStyles;
+      scoped.textContent = dzScopeCss(docStyles);
       dzMockDesktop.appendChild(scoped);
     }
     // 源码视图（带行号）
@@ -1712,6 +1829,19 @@
   function dzApplyStage() {
     var widths = { desktop: "min(560px, 100%)", tablet: "min(430px, 100%)", mobile: "min(300px, 100%)" };
     dzStage.style.width = widths[dzDevice];
+    $("#dzMockPhone").hidden = dzDevice === "desktop";
+    // 手机态：把解析文档镜像进手机屏（桌面样机隐藏）
+    if (dzDevice !== "desktop") {
+      var screen = $("#dzPhoneScreen");
+      var src = $("#dzMockDesktop");
+      if (screen && src && screen.getAttribute("data-mirror") !== String(lastDocumentHtml.length)) {
+        screen.replaceChildren();
+        var clone = src.cloneNode(true);
+        clone.removeAttribute("id");
+        screen.setAttribute("data-mirror", String(lastDocumentHtml.length));
+        screen.appendChild(clone);
+      }
+    }
     dzStage.style.transform = dzZoom === 100 ? "" : "scale(" + dzZoom / 100 + ")";
   }
   function dzToggleMenu(btn, menu) {
@@ -1917,6 +2047,9 @@
     $("#dzPickBox").hidden = true;
     dzHideHover();
   });
+  dzStage.addEventListener("submit", function (e) {
+    e.preventDefault(); // 解析文档的表单永不提交
+  }, true);
   dzStage.addEventListener("click", function (e) {
     if (!dzCommentMode) return;
     e.preventDefault();
@@ -1935,6 +2068,43 @@
     var text = $("#dzNoteInput").value.trim();
     $("#dzNoteSave").disabled = !text || (dzEditTarget ? text === dzEditTarget.text : false);
   }
+  var dzComposerImages = [];
+  function dzRenderDraftImages() {
+    var wrap = $("#dzNoteImages");
+    wrap.replaceChildren();
+    dzComposerImages.forEach(function (src, i) {
+      var item = document.createElement("span");
+      item.className = "dz-note-img";
+      var img = document.createElement("img");
+      img.src = src;
+      img.alt = "评论附件";
+      var x = document.createElement("button");
+      x.type = "button";
+      x.setAttribute("aria-label", "移除图片");
+      x.title = "移除图片";
+      x.textContent = "✕";
+      x.addEventListener("click", function () {
+        dzComposerImages.splice(i, 1);
+        dzRenderDraftImages();
+      });
+      item.append(img, x);
+      wrap.appendChild(item);
+    });
+    wrap.hidden = dzComposerImages.length === 0;
+  }
+  $("#dzNoteAttach").addEventListener("click", function () {
+    $("#dzNoteFile").click();
+  });
+  $("#dzNoteFile").addEventListener("change", function () {
+    var self = this;
+    Array.prototype.slice.call(self.files || []).forEach(function (f) {
+      if (f.type && f.type.indexOf("image/") === 0 && window.URL && URL.createObjectURL) {
+        dzComposerImages.push(URL.createObjectURL(f));
+      }
+    });
+    self.value = "";
+    dzRenderDraftImages();
+  });
   function dzOpenComposer(opts) {
     var composer = $("#dzNoteComposer");
     dzEditTarget = opts.comment || null;
@@ -1943,7 +2113,10 @@
     var label = dzEditTarget ? dzEditTarget.label : dzTargetLabel(opts.el, opts.free);
     $("#dzNoteTitle").textContent = label;
     $("#dzNoteTitle").title = label;
+    dzComposerImages = [];
+    $("#dzNoteImages").replaceChildren();
     if (dzEditTarget) {
+      dzComposerImages = (dzEditTarget.images || []).slice();
       $("#dzNoteInput").value = dzEditTarget.text;
       dzRenderRows($("#dzNoteRows"), dzEditTarget.el && dzEditTarget.el.isConnected ? dzStyleRows(dzEditTarget.el) : []);
       $("#dzNoteDelete").hidden = false;
@@ -1961,6 +2134,7 @@
       $("#dzNoteDelete").hidden = true;
       $("#dzNoteClose").hidden = false;
     }
+    dzRenderDraftImages();
     dzSyncComposerButtons();
     dzHideHover();
     var box = $("#dzPickBox");
@@ -1988,6 +2162,7 @@
     if (!composer.hidden) composer.hidden = true;
     dzEditTarget = null;
     dzActiveCommentId = null;
+    dzComposerImages = [];
     $("#dzPickBox").classList.remove("selected");
     $("#dzPickBox").hidden = true;
     dzRenderComments();
@@ -2004,6 +2179,8 @@
     var empty = $("#dzCommentEmpty");
     $("#dzPanelCount").textContent = String(dzComments.length);
     $("#dzCount").textContent = String(dzComments.length);
+    var more = $("#dzMoreCount");
+    if (more) more.textContent = String(dzComments.length);
     list.replaceChildren();
     empty.hidden = dzComments.length > 0;
     dzComments.forEach(function (c) {
@@ -2023,6 +2200,17 @@
       var body = document.createElement("p");
       body.textContent = c.text;
       item.append(head, body);
+      if (c.images && c.images.length) {
+        var atts = document.createElement("div");
+        atts.className = "dz-comment-atts";
+        c.images.forEach(function (src) {
+          var img = document.createElement("img");
+          img.src = src;
+          img.alt = "评论附件";
+          atts.appendChild(img);
+        });
+        item.appendChild(atts);
+      }
       function open() { dzOpenComment(c); }
       item.addEventListener("click", open);
       item.addEventListener("keydown", function (e) {
@@ -2062,6 +2250,7 @@
     if (!text) return;
     if (dzEditTarget) {
       dzEditTarget.text = text;
+      dzEditTarget.images = dzComposerImages.slice();
       dzEditTarget.at = "刚刚";
     } else {
       dzSeq += 1;
@@ -2074,6 +2263,7 @@
         el: dzComposerCtx.el,
         x: dzComposerCtx.x, y: dzComposerCtx.y,
         text: text,
+        images: dzComposerImages.slice(),
         at: "刚刚",
       });
     }
@@ -2100,7 +2290,7 @@
   });
   $("#dzNoteSendChat").addEventListener("click", function () {
     var text = $("#dzNoteInput").value.trim();
-    if (text && hostPort) {
+    if ((text || dzComposerImages.length) && hostPort) {
       hostPort.postMessage({
         type: "candidate-prompt",
         text: "【注释】" + ($("#dzNoteTitle").textContent || "") + "：" + text,
@@ -2197,6 +2387,7 @@
     dzDrawOps.length = 0;
     dzDrawRedo.length = 0;
     drawLayer.replaceChildren();
+    $$(".dz-draw-text").forEach(function (t) { t.remove(); });
     drawViewport.classList.remove("dz-drawing");
     $("#dzDrawTools").hidden = true;
     dzToolState($("#dzDrawBtn"), false);
@@ -2259,6 +2450,22 @@
       drawStart = null;
     }
   });
+  /* 文字工具：点击放置可编辑文本，失焦即定型（原型 dz-draw-text） */
+  drawViewport.addEventListener("click", function (e) {
+    if (!dzDrawing() || dzDrawTool !== "text" || e.target.closest(".dz-draw-tools") || e.target.closest(".dz-draw-text")) return;
+    var vp = drawViewport.getBoundingClientRect();
+    var t = document.createElement("span");
+    t.className = "dz-draw-text";
+    t.contentEditable = "true";
+    t.style.left = Math.round(e.clientX - vp.left) + "px";
+    t.style.top = Math.round(e.clientY - vp.top) + "px";
+    drawViewport.appendChild(t);
+    t.focus();
+    t.addEventListener("blur", function () {
+      if (t.textContent.trim()) dzDrawPush({ type: "text", el: t });
+      else t.remove();
+    });
+  });
   $$("#dzDrawTools .dz-draw-tool").forEach(function (btn) {
     btn.addEventListener("click", function () {
       dzDrawTool = btn.dataset.dzDtool;
@@ -2276,7 +2483,7 @@
   $("#dzDrawRedo").addEventListener("click", function () {
     var op = dzDrawRedo.pop();
     if (!op) return;
-    drawLayer.appendChild(op.el);
+    (op.el.tagName === "SPAN" ? drawViewport : drawLayer).appendChild(op.el);
     dzDrawOps.push(op);
   });
   $("#dzDrawSend").addEventListener("click", function () {
@@ -2300,6 +2507,43 @@
     drawViewport.classList.add("dz-drawing");
     $("#dzDrawTools").hidden = false;
     dzHint("在预览上标记：画笔或方框");
+  });
+
+  /* ============ 更多菜单（汇聚工具） ============ */
+  function dzSyncMoreTools() {
+    var map = [
+      ['[data-dz-more="comment"]', "#dzCommentBtn"],
+      ['[data-dz-more="draw"]', "#dzDrawBtn"],
+      ['[data-dz-more="comments"]', "#dzCommentListBtn"],
+    ];
+    map.forEach(function (pair) {
+      var item = document.querySelector('#dzMoreMenu ' + pair[0]);
+      if (item) item.classList.toggle("active", $(pair[1]).classList.contains("active"));
+    });
+  }
+  $("#dzMoreBtn").addEventListener("click", function () {
+    dzToggleMenu($("#dzMoreBtn"), $("#dzMoreMenu"));
+    if (!$("#dzMoreMenu").hidden) dzSyncMoreTools();
+  });
+  $("#dzMoreMenu").addEventListener("click", function (e) {
+    var item = e.target.closest(".dz-menu-item");
+    if (!item) return;
+    $("#dzMoreMenu").hidden = true;
+    $("#dzMoreBtn").setAttribute("aria-expanded", "false");
+    if (item.dataset.dzMore === "history") {
+      e.stopPropagation();
+      $("#dzHistory").hidden = !$("#dzHistory").hidden;
+    } else if (item.dataset.dzMore === "comment") {
+      $("#dzCommentBtn").click();
+    } else if (item.dataset.dzMore === "draw") {
+      $("#dzDrawBtn").click();
+    } else if (item.dataset.dzMore === "comments") {
+      $("#dzCommentListBtn").click();
+    } else if (item.dataset.dzDevice) {
+      dzSetDevice(item.dataset.dzDevice);
+    } else if (item.dataset.dzZoom) {
+      dzSetZoom(Number(item.dataset.dzZoom));
+    }
   });
 
   /* ============ 截图（宿主动作） ============ */
@@ -2380,6 +2624,21 @@
   function showToast2(msg) { dzToast(msg); }
 
   /* ============ 演示模式（stage 移入全屏层） ============ */
+  function dzCollectStageCss() {
+    var out = "";
+    function walk(rules) {
+      Array.prototype.forEach.call(rules, function (rule) {
+        var text = rule.cssText || "";
+        if (/^:root|\.dz-stage|\.design-mock|\.mock-|\.dz-phone/.test(text)) out += text + "\n";
+      });
+    }
+    Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+      var rules = null;
+      try { rules = sheet.cssRules; } catch (err) { rules = null; }
+      if (rules) walk(rules);
+    });
+    return out;
+  }
   var presentLayer = $("#dzPresentLayer");
   var presentReturnTo = null;
   var dzPresentBtn = $("#dzPresentBtn");
@@ -2416,12 +2675,24 @@
     if (item.dataset.dzPresent === "tab") dzPresentEnter(false);
     else if (item.dataset.dzPresent === "fullscreen") dzPresentEnter(true);
     else {
-      // 新标签页演示：stage 克隆到独立文档（原型 dzPresentNewTab）
+      // 新标签页演示（原型 dzPresentNewTab）：收集舞台相关样式 + stage 克隆
       var file = $(".design-ws-tab.active .design-ws-label");
       var name = file ? file.textContent : "document.html";
-      var doc = "<!doctype html><html><head><meta charset='utf-8'><title>" + name + " · 演示</title></head><body style='margin:0;display:flex;flex-direction:column;align-items:center;background:#f5f5f7;font-family:system-ui'>" +
-        "<div style='padding:10px 14px;font-size:12.5px;font-weight:600;background:#fff;border-bottom:1px solid rgba(0,0,0,.1);width:100%;box-sizing:border-box'>" + name + " · 演示</div>" +
-        "<div style='flex:1;padding:24px;overflow:auto'>" + lastDocumentHtml + "</div></body></html>";
+      var stageCss = dzCollectStageCss();
+      var stageClone = dzStage.outerHTML.replace(/ id="dz[^"]*"/g, "");
+      var doc = "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">" +
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
+        "<title>" + name + " · 演示</title><style>" +
+        "html,body{margin:0;min-height:100%}" +
+        "body{display:flex;flex-direction:column;background:#f5f5f7;color:#27272a;font-family:system-ui}" +
+        ".pd-bar{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:12.5px;font-weight:600;background:#fff;border-bottom:1px solid rgba(0,0,0,.1)}" +
+        ".pd-bar small{font-weight:400;font-size:11px;color:#666}" +
+        ".pd-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px}" +
+        ".pd-body .dz-stage{width:min(920px,92vw) !important;transform:none !important;margin:auto}" +
+        stageCss +
+        "</style></head><body>" +
+        '<div class="pd-bar"><span>' + name + ' · 演示</span><small>设计面板生成的静态页面</small></div>' +
+        '<div class="pd-body">' + stageClone + "</div></body></html>";
       var url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
       if (window.open(url, "_blank")) return;
       dzPresentEnter(false);
@@ -2513,6 +2784,9 @@
 
   /* ============ 全局点外收起 ============ */
   document.addEventListener("click", function (e) {
+    if (!e.target.closest(".dz-file-menu-pop") && !e.target.closest(".design-file-menu")) {
+      dzCloseFileMenu();
+    }
     if (!e.target.closest(".dz-device") && !e.target.closest(".dz-zoom") && !e.target.closest(".dz-more") && !e.target.closest(".dz-handoff") && !e.target.closest(".dz-export") && !e.target.closest(".dz-plus") && !e.target.closest(".dz-present-menu") && !e.target.closest("#dzProjectBtn") && !e.target.closest(".dz-crumb-menu")) {
       dzCloseMenus();
     }
