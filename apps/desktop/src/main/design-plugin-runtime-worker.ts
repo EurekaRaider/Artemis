@@ -151,6 +151,11 @@ export class PluginRuntimeWorker {
     return this.disposed;
   }
 
+  /** Host-side PID of the runtime child; undefined before start(). */
+  childPid(): number | undefined {
+    return this.child?.pid;
+  }
+
   stdoutEnded(): boolean {
     return this.stdoutClosed;
   }

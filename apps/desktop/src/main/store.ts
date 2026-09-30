@@ -1294,6 +1294,26 @@ export class AppStore {
       );
   }
 
+  /**
+   * S2 trust chain: revoke every non-revoked grant for one installation.
+   * Dispatch checks treat a revoked grant as no grant, so plugin tool calls
+   * are refused from the moment this commits.
+   */
+  revokePluginGrants(installationId: string): number {
+    const result = this.database
+      .prepare(
+        `UPDATE plugin_grants
+            SET revoked_at = ?, updated_at = ?
+          WHERE installation_id = ? AND revoked_at IS NULL`,
+      )
+      .run(
+        new Date().toISOString(),
+        new Date().toISOString(),
+        installationId,
+      );
+    return Number(result.changes);
+  }
+
   listPluginGrants(scopeId: string): Array<Record<string, unknown>> {
     return this.database
       .prepare("SELECT * FROM plugin_grants WHERE scope_id = ?")
@@ -1401,6 +1421,97 @@ export class AppStore {
       )
       .get(threadId) as { max: number };
     return row.max + 1;
+  }
+
+  /**
+   * S2 state transactions: run work inside BEGIN IMMEDIATE / COMMIT with
+   * rollback on throw. The design-plugin state layer uses this to commit
+   * snapshot + head + event as one atomic unit (proposal §6.1).
+   */
+  commitPluginStateTransaction<T>(work: () => T): T {
+    this.database.exec("BEGIN IMMEDIATE;");
+    try {
+      const result = work();
+      this.database.exec("COMMIT;");
+      return result;
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK;");
+      } catch {
+        // The transaction may have failed before BEGIN returned.
+      }
+      throw error;
+    }
+  }
+
+  /** Read one plugin state head; undefined when the plugin has no state. */
+  readPluginStateHead(input: {
+    threadId: string;
+    pluginId: string;
+    stateSchemaVersion: number;
+  }):
+    | {
+        stateRevision: string;
+        snapshotId: string;
+        bindingRevision: string;
+        updatedAt: string;
+      }
+    | undefined {
+    return this.database
+      .prepare(
+        `SELECT state_revision AS stateRevision, snapshot_id AS snapshotId,
+                binding_revision AS bindingRevision, updated_at AS updatedAt
+           FROM plugin_state_heads
+          WHERE thread_id = ? AND plugin_id = ? AND state_schema_version = ?`,
+      )
+      .get(
+        input.threadId,
+        input.pluginId,
+        input.stateSchemaVersion,
+      ) as
+      | {
+          stateRevision: string;
+          snapshotId: string;
+          bindingRevision: string;
+          updatedAt: string;
+        }
+      | undefined;
+  }
+
+  /**
+   * Insert-or-advance one plugin state head (UPSERT). Writers must prefer
+   * commitPluginStateChange() which CAS-guards this write; this raw method
+   * exists for the initial head creation and store-internal recovery paths.
+   */
+  upsertPluginStateHead(input: {
+    threadId: string;
+    pluginId: string;
+    stateSchemaVersion: number;
+    bindingRevision: string;
+    stateRevision: string;
+    snapshotId: string;
+  }): void {
+    this.database
+      .prepare(
+        `INSERT INTO plugin_state_heads (
+           thread_id, plugin_id, binding_revision, state_schema_version,
+           state_revision, snapshot_id, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (thread_id, plugin_id, state_schema_version) DO UPDATE SET
+           binding_revision = excluded.binding_revision,
+           state_revision = excluded.state_revision,
+           snapshot_id = excluded.snapshot_id,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        input.threadId,
+        input.pluginId,
+        input.bindingRevision,
+        input.stateSchemaVersion,
+        input.stateRevision,
+        input.snapshotId,
+        new Date().toISOString(),
+      );
   }
 
   /** Insert an immutable plugin snapshot row. */

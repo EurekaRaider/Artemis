@@ -1,4 +1,8 @@
 import { DesignPanelHost } from "./design-plugin-panel-host.js";
+import {
+  createDispatchPluginTool,
+  type PluginDispatch,
+} from "./design-plugin-dispatch.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
@@ -482,6 +486,7 @@ let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
 // S1 design-plugin panel host; created in the ready handler below.
 let designPanelHost: DesignPanelHost | undefined;
+let pluginDispatch: PluginDispatch | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
@@ -4311,6 +4316,39 @@ async function openAgentThread(
         contextWindow,
       });
     }
+    // S2: threads with a frozen typeBinding open plugin-restricted; the
+    // declared tools are resolved from the published revision so the
+    // agent-host injects them as broker-mediated customTools only for
+    // execute-restricted sessions.
+    let pluginTools:
+      | Array<{ name: string; description: string; effect: string }>
+      | undefined;
+    if (thread.typeBinding) {
+      try {
+        const manifestBytes = await readFile(
+          join(
+            app.getPath("userData"),
+            "plugins",
+            "plugin-revisions",
+            thread.typeBinding.installationId,
+            thread.typeBinding.contentHash,
+            "artemis.plugin.json",
+          ),
+          "utf8",
+        );
+        const manifest = JSON.parse(manifestBytes) as {
+          tools: Array<{
+            name: string;
+            description: string;
+            effect: string;
+          }>;
+        };
+        pluginTools = manifest.tools;
+      } catch {
+        // Missing revision: open without plugin tools. The dispatcher
+        // refuses any tool call for this binding (revision-missing).
+      }
+    }
     const data = await agentProcess.request<{ sessionFile?: string }>({
       type: "thread.open",
       ...(imService?.profile(thread.id)
@@ -4326,6 +4364,11 @@ async function openAgentThread(
       ...(thread.sessionFile ? { sessionFile: thread.sessionFile } : {}),
       ...(selection ? { selection } : {}),
       ...(contextWindow ? { contextWindow } : {}),
+      ...(thread.typeBinding ? { typeBinding: thread.typeBinding } : {}),
+      ...(thread.executionProfile
+        ? { executionProfile: thread.executionProfile }
+        : {}),
+      ...(pluginTools ? { pluginTools } : {}),
     });
     if (data.sessionFile) {
       store.updateThread(thread.id, { sessionFile: data.sessionFile });
@@ -4577,6 +4620,9 @@ async function handleBrokerRequest(
       return;
     case "office.document":
       await handleOfficeDocumentBrokerRequest(workerRequestId, request);
+      return;
+    case "plugin.tool":
+      await handlePluginToolBrokerRequest(workerRequestId, request);
       return;
   }
   const decision = evaluateModePolicy(request.mode, {
@@ -5204,6 +5250,50 @@ async function handleOfficeDocumentBrokerRequest(
       : "deny",
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
+  });
+}
+
+async function handlePluginToolBrokerRequest(
+  workerRequestId: string,
+  request: Extract<BrokerExecutionRequest, { kind: "plugin.tool" }>,
+): Promise<void> {
+  if (!store || !pluginDispatch) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Design-plugin dispatch is not available.",
+    );
+    return;
+  }
+  const outcome = await pluginDispatch.dispatch({
+    threadId: request.threadId,
+    toolName: request.toolName,
+    args: request.args,
+    mode: request.mode,
+  });
+  if (outcome.status === "refused") {
+    rejectBrokerRequest(workerRequestId, request, outcome.error ?? "refused");
+    return;
+  }
+  if (outcome.status === "failed") {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      outcome.error ?? "plugin tool failed",
+    );
+    return;
+  }
+  agentProcess?.post({
+    type: "broker.resolve",
+    requestId: workerRequestId,
+    resolution: {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    },
+    result: outcome.result ?? {},
   });
 }
 
@@ -9850,6 +9940,24 @@ function registerIpc(): void {
       if (!window) throw new Error("Host window is not available.");
       const thread = store?.getThread(threadId);
       if (!thread) throw new Error("Active task not found.");
+      // S2: verify the thread's revision binding before mounting; a
+      // tampered revision refuses the load with a repair hint.
+      const boundThread = store?.getThread(threadId);
+      if (boundThread?.typeBinding) {
+        const revisionRoot = join(
+          app.getPath("userData"),
+          "plugins",
+          "plugin-revisions",
+          boundThread.typeBinding.installationId,
+          boundThread.typeBinding.contentHash,
+        );
+        await designPanelHost.setThreadBinding({
+          threadId,
+          installationId: boundThread.typeBinding.installationId,
+          contentHash: boundThread.typeBinding.contentHash,
+          revisionRoot,
+        });
+      }
       return designPanelHost.ensurePanel(window, threadId, panelId);
     },
   );
@@ -22160,6 +22268,42 @@ app
   designPanelHost.setCatalogRoot(
     join(app.getAppPath(), "resources", "design-plugins"),
   );
+  // S2 trusted dispatch: every plugin tool call from a restricted thread
+  // lands here; the trust chain (revision hash + grant + mode) is enforced
+  // in the main process before any runtime spawn.
+  pluginDispatch = createDispatchPluginTool({
+    store,
+    revisionsRoot: join(
+      app.getPath("userData"),
+      "plugins",
+      "plugin-revisions",
+    ),
+    scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
+    loadPublishedManifest: async (input) => {
+      const revisionRoot = join(
+        app.getPath("userData"),
+        "plugins",
+        "plugin-revisions",
+        input.installationId,
+        input.contentHash,
+      );
+      const manifestPath = join(revisionRoot, "artemis.plugin.json");
+      try {
+        const bytes = await readFile(manifestPath, "utf8");
+        const manifest = JSON.parse(bytes) as {
+          tools: Array<{ name: string; effect: string }>;
+          runtime: { entry: string };
+        };
+        return {
+          tools: manifest.tools,
+          runtimeEntry: join(revisionRoot, manifest.runtime.entry),
+          revisionRoot,
+        };
+      } catch {
+        return undefined;
+      }
+    },
+  });
     markStartupStage("database-ready");
     threadHistoryService = new ThreadHistoryService(
       join(app.getPath("userData"), "artemis.sqlite"),

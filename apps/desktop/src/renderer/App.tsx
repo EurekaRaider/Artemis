@@ -8896,7 +8896,10 @@ ${model.providerId} · ${model.modelId}`}
                                   ["terminal", t.terminal, <TerminalIcon />],
                                   ["browser", t.browser, <BrowserIcon />],
                                   ["file", t.files, <FilesIcon />],
-                                  ["design", t.designTab, <FilesIcon />],
+                                  ...(activeThread?.typeBinding?.typeId ===
+                                  "artemis-design"
+                                    ? ([["design", t.designTab, <FilesIcon />]] as const)
+                                    : []),
                                 ] as const
                               ).map(([kind, label, icon]) => (
                                 <button
@@ -9642,6 +9645,8 @@ ${model.providerId} · ${model.modelId}`}
                             />
                           )}
                           {tab.kind === "design" && activeThreadId ? (
+                            activeThread?.typeBinding?.typeId ===
+                            "artemis-design" ? (
                             <Suspense fallback={<span>…</span>}>
                               <DesignPluginPanel
                                 key={`${activeThreadId}:${tab.id}`}
@@ -9655,6 +9660,23 @@ ${model.providerId} · ${model.modelId}`}
                                 failureMessage={t.designTab}
                               />
                             </Suspense>
+                            ) : (
+                              <div
+                                className="design-plugin-panel-disabled"
+                                style={{
+                                  display: "flex",
+                                  flex: 1,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: 24,
+                                  color: "var(--artemis-color-text-secondary, #9399b2)",
+                                }}
+                              >
+                                {locale.startsWith("zh")
+                                  ? "此任务不是设计类型任务，无法打开设计面板。"
+                                  : "This task is not a design-type task; the design panel is unavailable."}
+                              </div>
+                            )
                           ) : null}
                           {tab.kind === "office" &&
                           activeThreadId &&

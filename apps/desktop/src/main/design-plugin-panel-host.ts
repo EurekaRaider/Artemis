@@ -64,6 +64,33 @@ export class DesignPanelHost {
   }
 
   /**
+   * S2: bind the catalog view to the thread's frozen revision. When the
+   * published revision no longer matches the binding's contentHash the
+   * panel load is refused (tampered / republished revision).
+   */
+  async setThreadBinding(input: {
+    threadId: string;
+    installationId: string;
+    contentHash: string;
+    revisionRoot: string;
+  }): Promise<void> {
+    const { PluginRevisionStore } = await import(
+      "./design-plugin-revision-store.js"
+    );
+    const actual = await PluginRevisionStore.computeContentHash(
+      input.revisionRoot,
+    );
+    if (actual !== input.contentHash) {
+      throw new Error(
+        `Panel revision mismatch for ${input.installationId}: binding expects ${input.contentHash} but revision hashes to ${actual}. Reinstall the plugin to repair.`,
+      );
+    }
+    this.threadCatalogRoots.set(input.threadId, input.revisionRoot);
+  }
+
+  private threadCatalogRoots = new Map<string, string>();
+
+  /**
    * Ensure a panel exists for (threadId, panelId) and return its handle.
    * The view is hidden until setBounds() is first called by the renderer.
    */
@@ -80,10 +107,14 @@ export class DesignPanelHost {
         entryUrl: existing.webContents.getURL(),
       };
     }
-    if (!this.catalogRoot) {
+    // Prefer the thread's verified revision root; fall back to the
+    // resources catalog only when no revision binding exists (S1 path).
+    const catalogRoot =
+      this.threadCatalogRoots.get(threadId) ?? this.catalogRoot;
+    if (!catalogRoot) {
       throw new Error("Design panel catalog root is not configured.");
     }
-    const plugins = await this.catalog.load(this.catalogRoot);
+    const plugins = await this.catalog.load(catalogRoot);
     const owner = plugins.find((plugin) =>
       plugin.manifest.panels.some((panel) => panel.id === panelId),
     );
@@ -167,6 +198,9 @@ export class DesignPanelHost {
     const live = this.panels.get(this.key(threadId, panelId));
     if (!live) return;
     this.panels.delete(this.key(threadId, panelId));
+    if (!this.listPanels(threadId).length) {
+      this.threadCatalogRoots.delete(threadId);
+    }
     try {
       // Electron 43: destroying the host does not close child
       // WebContentsView webContents, and view.webContents is nulled after

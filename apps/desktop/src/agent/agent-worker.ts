@@ -148,6 +148,12 @@ async function handle(command: AgentHostCommand): Promise<void> {
           ...(command.contextWindow
             ? { contextWindow: command.contextWindow }
             : {}),
+          ...(command.typeBinding
+            ? { typeBinding: command.typeBinding }
+            : {}),
+          ...(command.executionProfile
+            ? { executionProfile: command.executionProfile }
+            : {}),
         });
         break;
       case "thread.model.set":

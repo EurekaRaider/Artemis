@@ -3286,6 +3286,7 @@ export class CodexPluginService {
       updatedAt: plugin.updatedAt,
       skillNames: plugin.skills.map((skill) => skill.name),
       mcpServerIds: plugin.mcpServers.map((server) => server.id),
+      ...(plugin.designPlugin ? { designPlugin: plugin.designPlugin } : {}),
     };
   }
 
@@ -3612,6 +3613,11 @@ export class CodexPluginService {
       hasHooks: parsed.hasHooks ?? false,
       unsupported: [...parsed.unsupported],
       warnings: [...parsed.warnings],
+      // S2: publish an immutable revision for design-plugin packages so
+      // thread bindings and the dispatcher have a verifiable target.
+      ...(parsed.designPluginManifest
+        ? { designPlugin: await this.publishDesignPluginRevision(parsed) }
+        : {}),
     };
     const nextStore: PluginStore = {
       version: 1,
@@ -3625,6 +3631,35 @@ export class CodexPluginService {
     return {
       plugin: this.installedPlugin(stored),
       warnings: [...stored.warnings],
+    };
+  }
+
+  /**
+   * S2: publish the parsed package's design-plugin payload as an immutable
+   * revision under plugin-revisions/<installationId>/<contentHash>/.
+   */
+  private async publishDesignPluginRevision(
+    parsed: ParsedPlugin,
+  ): Promise<NonNullable<StoredPlugin["designPlugin"]>> {
+    const manifest = parsed.designPluginManifest!;
+    const revisionsRoot = join(this.options.pluginsRoot, "plugin-revisions");
+    const revisionStore = new PluginRevisionStore(revisionsRoot);
+    // The revision content is the plugin directory the install parsed
+    // (artemis.plugin.json + panel + runtime + schema).
+    const sourceRoot = parsed.root;
+    const contentHash = await PluginRevisionStore.computeContentHash(
+      sourceRoot,
+    );
+    const published = await revisionStore.publish({
+      installationId: manifest.id,
+      contentHash,
+      sourceRoot,
+    });
+    return {
+      installationId: manifest.id,
+      contentHash: published.contentHash,
+      revisionRoot: published.revisionRoot,
+      version: manifest.version,
     };
   }
 

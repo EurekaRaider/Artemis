@@ -878,6 +878,29 @@ export interface OpenThreadRequest {
    * direct call cannot widen the profile.
    */
   executionProfile?: string;
+  /**
+   * S2 design-plugin binding snapshot for this thread. Threads opened with
+   * a binding get the plugin's declared tools injected as broker-mediated
+   * customTools (the tool body always round-trips to the main process
+   * dispatcher; the agent-host never spawns plugin runtimes itself).
+   */
+  typeBinding?: {
+    installationId: string;
+    pluginId: string;
+    typeId: string;
+    pluginVersion: string;
+    contentHash: string;
+    bindingRevision: string;
+  };
+  /**
+   * Declared plugin tools for the bound plugin (resolved by the main
+   * process from the published revision manifest before open).
+   */
+  pluginTools?: Array<{
+    name: string;
+    description: string;
+    effect: "artifact-write" | "state-read";
+  }>;
 }
 
 interface HostedThread {
@@ -6326,21 +6349,76 @@ export class ArtemisAgentHost {
       ...extensionTools,
     ];
 
+    // S2 plugin tools (proposal §5/§7): tools declared by the bound plugin's
+    // published manifest are injected as broker-mediated customTools. The
+    // execute body carries no capability of its own — it round-trips to the
+    // main-process dispatcher which re-verifies the trust chain (content
+    // hash recomputed from disk + unrevoked grant + mode gate) before any
+    // runtime spawn. Plan/Review never sees plugin tools at all.
+    const pluginBrokerTools =
+      request.executionProfile === RESTRICTED_PROFILE_ID && request.typeBinding
+        ? (request.pluginTools ?? []).map((declared) =>
+            defineTool({
+              name: `plugin_${declared.name}`,
+              label: declared.name,
+              description: declared.description,
+              parameters: Type.Object(
+                {
+                  input: Type.Optional(
+                    Type.Record(Type.String(), Type.Unknown()),
+                  ),
+                },
+                { additionalProperties: true },
+              ),
+              execute: async () => {
+                const hosted = this.threads.get(request.threadId);
+                const result = await this.broker.request({
+                  kind: "plugin.tool",
+                  approvalId: randomUUID(),
+                  threadId: request.threadId,
+                  turnId: hosted?.currentTurnId ?? request.threadId,
+                  mode: hosted?.currentMode ?? "execute",
+                  pluginId: request.typeBinding!.pluginId,
+                  toolName: declared.name,
+                  args: {},
+                });
+                if (!result.approved) {
+                  throw new Error(
+                    result.error ?? "Plugin tool dispatch was refused.",
+                  );
+                }
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: JSON.stringify(result.data ?? {}, null, 2),
+                    },
+                  ],
+                  details: result.data,
+                };
+              },
+            }),
+          )
+        : [];
+
     // Restricted-profile gating (proposal §7): for plugin-restricted threads,
     // layer 1 filters denied tools out of the model-visible list and layer 2
     // wraps every surviving tool's execute with a pre-dispatch guard.
     const restrictedThread =
       request.executionProfile === RESTRICTED_PROFILE_ID;
     const customTools = restrictedThread
-      ? assembledToolsAll
-          .filter((tool) => !isToolDeniedForRestrictedThread(tool.name))
-          .map((tool) => ({
-            ...tool,
-            execute: (async (...args: Parameters<typeof tool.execute>) => {
-              assertToolAllowedForRestrictedThread(tool.name);
-              return tool.execute(...args);
-            }) as typeof tool.execute,
-          }))
+      ? [
+          ...assembledToolsAll
+            .filter((tool) => !isToolDeniedForRestrictedThread(tool.name))
+            .map((tool) => ({
+              ...tool,
+              execute: (async (...args: Parameters<typeof tool.execute>) => {
+                assertToolAllowedForRestrictedThread(tool.name);
+                return tool.execute(...args);
+              }) as typeof tool.execute,
+            })),
+          ...pluginBrokerTools,
+        ]
       : assembledToolsAll;
     const { session } = await createAgentSession({
       cwd: request.workspacePath,

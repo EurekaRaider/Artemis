@@ -1,0 +1,360 @@
+// S2 runtime-isolation acceptance suite.
+//
+// Covers the goal's exception matrix against the real artemis-design
+// package and the real PluginRevisionStore / ThreadRuntimeManager /
+// dispatcher chain (no mocks except where a failing dependency is the
+// scenario under test):
+//   - tampered revision -> panel load AND dispatch both refused
+//   - revoked grant -> dispatch refused
+//   - CAS conflict detectable; snapshot+event atomic (mid-work throw rolls
+//     everything back)
+//   - sandbox probe failure -> no child process
+//   - worker reuse: two invokes, one spawn; closeThread kills the tree
+//   - concurrent invokes serialize (single in-flight, queue drains)
+// Results feed docs/projects/design-mode-proposal/s2-rejection-matrix.md.
+
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { execSync } from "node:child_process";
+
+import { PluginRevisionStore } from "../src/main/design-plugin-revision-store.js";
+import {
+  ThreadRuntimeManager,
+  probeMacOsSeatbelt,
+} from "../src/main/design-plugin-thread-runtime.js";
+import { commitPluginStateChange } from "../src/main/design-plugin-state-store.js";
+import { createDispatchPluginTool } from "../src/main/design-plugin-dispatch.js";
+import { AppStore } from "../src/main/store.js";
+import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
+
+let directory: string;
+const packageRoot = join(
+  fileURLToPath(new URL("..", import.meta.url)),
+  "resources/design-plugins",
+);
+
+beforeAll(async () => {
+  directory = await mkdtemp(join(tmpdir(), "s2-runtime-"));
+});
+
+afterAll(async () => {
+  await rm(directory, { recursive: true, force: true });
+});
+
+function childAlive(pid: number | undefined): boolean {
+  if (!pid) return false;
+  try {
+    execSync(`ps -p ${pid} > /dev/null 2>&1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function setupBoundThread() {
+  const revisionsRoot = join(directory, `plugin-revisions-${randomUUID().slice(0, 6)}`);
+  const scratchRoot = join(directory, `scratch-${randomUUID().slice(0, 6)}`);
+  const databasePath = join(directory, `state-${randomUUID().slice(0, 6)}.sqlite`);
+  const store = new AppStore(databasePath);
+
+  const contentHash = await PluginRevisionStore.computeContentHash(
+    join(packageRoot, "artemis-design"),
+  );
+  const revisionStore = new PluginRevisionStore(revisionsRoot);
+  const published = await revisionStore.publish({
+    installationId: "com.artemis.design",
+    contentHash,
+    sourceRoot: join(packageRoot, "artemis-design"),
+  });
+
+  const threadId = randomUUID();
+  const now = new Date().toISOString();
+  const binding = {
+    installationId: "com.artemis.design",
+    pluginId: "com.artemis.design",
+    typeId: "artemis-design",
+    pluginVersion: "0.1.0",
+    contentHash,
+    bindingRevision: `rev-${contentHash.slice(0, 12)}`,
+  };
+  store.createThread({
+    id: threadId,
+    title: "s2",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    typeBinding: binding,
+    executionProfile: RESTRICTED_PROFILE_ID,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.insertPluginGrant({
+    grantId: randomUUID(),
+    installationId: binding.installationId,
+    pluginId: binding.pluginId,
+    contentHash,
+    scope: "thread",
+    scopeId: threadId,
+    capabilities: { artifactStore: "thread" },
+    resourceRefs: { revisionsRoot },
+    grantRevision: binding.bindingRevision,
+  });
+
+  const dispatch = createDispatchPluginTool({
+    store,
+    revisionsRoot,
+    scratchRoot,
+    loadPublishedManifest: async (input) => {
+      const revisionRoot = join(revisionsRoot, input.installationId, input.contentHash);
+      try {
+        const bytes = await readFile(join(revisionRoot, "artemis.plugin.json"), "utf8");
+        const manifest = JSON.parse(bytes) as {
+          tools: Array<{ name: string; effect: string }>;
+          runtime: { entry: string };
+        };
+        return {
+          tools: manifest.tools,
+          runtimeEntry: join(revisionRoot, manifest.runtime.entry),
+          revisionRoot,
+        };
+      } catch {
+        return undefined;
+      }
+    },
+  });
+  return { store, dispatch, threadId, binding, published, revisionsRoot, scratchRoot, databasePath };
+}
+
+describe("S2 runtime isolation", () => {
+  it("macOS seatbelt probe succeeds on this host", () => {
+    const probe = probeMacOsSeatbelt();
+    expect(probe.ok).toBe(true);
+  });
+
+  it("happy path: dispatch through trust chain runs create_document on a real child", async () => {
+    const ctx = await setupBoundThread();
+    const outcome = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "create_document",
+      args: { name: "S2验收页", brief: "深色档案页" },
+      mode: "execute",
+    });
+    expect(outcome.status).toBe("succeeded");
+    ctx.store.close();
+  }, 30_000);
+
+  it("tampered revision -> dispatch refused with content-hash-mismatch", async () => {
+    const ctx = await setupBoundThread();
+    // 篡改已发布 revision 的内容（追加一个文件改变清单哈希）
+    await writeFile(
+      join(ctx.published.revisionRoot, "tamper.txt"),
+      "tampered after publish",
+      "utf8",
+    );
+    const outcome = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "create_document",
+      args: {},
+      mode: "execute",
+    });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.error).toContain("content-hash-mismatch");
+    // 拒绝事件已留痕
+    const events = ctx.store.database
+      .prepare("SELECT payload_json FROM plugin_events WHERE thread_id = ?")
+      .all(ctx.threadId) as Array<{ payload_json: string }>;
+    expect(
+      events.some((event) => event.payload_json.includes("dispatch-refused")),
+    ).toBe(true);
+    ctx.store.close();
+  }, 30_000);
+
+  it("revoked grant -> dispatch refused with grant-revoked", async () => {
+    const ctx = await setupBoundThread();
+    ctx.store.revokePluginGrants("com.artemis.design");
+    const outcome = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "create_document",
+      args: {},
+      mode: "execute",
+    });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.error).toContain("grant-revoked");
+    ctx.store.close();
+  }, 30_000);
+
+  it("plan mode -> dispatch refused with mode-denied", async () => {
+    const ctx = await setupBoundThread();
+    const outcome = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "create_document",
+      args: {},
+      mode: "plan",
+    });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.error).toContain("mode-denied");
+    ctx.store.close();
+  }, 30_000);
+
+  it("undeclared tool -> refused with tool-not-declared", async () => {
+    const ctx = await setupBoundThread();
+    const outcome = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "exfiltrate_everything",
+      args: {},
+      mode: "execute",
+    });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.error).toContain("tool-not-declared");
+    ctx.store.close();
+  }, 30_000);
+
+  it("worker lifecycle: reuse one child, queue concurrent calls, kill tree on close", async () => {
+    const scratch = join(directory, `wl-${randomUUID().slice(0, 6)}`);
+    const manager = new ThreadRuntimeManager({
+      threadId: "t-wl",
+      scratchRoot: scratch,
+      revisionsRoot: join(directory, "unused"),
+    });
+    const entry = join(packageRoot, "artemis-design", "runtime/index.mjs");
+    const base = {
+      entry,
+      pluginId: "com.artemis.design",
+      contentHash: "lifecycle-test",
+    };
+    const first = await manager.invoke({ ...base, toolName: "get_snapshot", args: {} });
+    const pid = manager.childPidOf("com.artemis.design", "lifecycle-test");
+    expect(pid).toBeTruthy();
+    expect(childAlive(pid)).toBe(true);
+
+    // 第二次调用复用同一实例（同 PID）
+    await manager.invoke({ ...base, toolName: "get_snapshot", args: {} });
+    expect(manager.childPidOf("com.artemis.design", "lifecycle-test")).toBe(pid);
+
+    // 并发两个调用：排队串行完成，都成功
+    const [a, b] = await Promise.all([
+      manager.invoke({ ...base, toolName: "get_snapshot", args: {} }),
+      manager.invoke({ ...base, toolName: "get_snapshot", args: {} }),
+    ]);
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+
+    // 关闭线程：进程树确实退出
+    const closed = manager.closeThread();
+    expect(closed).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(childAlive(pid)).toBe(false);
+  }, 30_000);
+
+  it("sandbox probe failure -> invoke refuses, no child process", async () => {
+    const manager = new ThreadRuntimeManager({
+      threadId: "t-nosandbox",
+      scratchRoot: join(directory, "nosandbox"),
+      revisionsRoot: join(directory, "unused"),
+      sandboxProbe: () => ({ ok: false, reason: "probe disabled by test" }),
+    });
+    await expect(
+      manager.invoke({
+        entry: join(packageRoot, "artemis-design", "runtime/index.mjs"),
+        pluginId: "com.artemis.design",
+        contentHash: "no-sandbox-test",
+        toolName: "get_snapshot",
+        args: {},
+      }),
+    ).rejects.toThrow(/sandbox/i);
+    expect(
+      manager.childPidOf("com.artemis.design", "no-sandbox-test"),
+    ).toBeUndefined();
+  });
+
+  it("CAS state: second writer with stale revision gets a typed conflict", async () => {
+    const ctx = await setupBoundThread();
+    const head0 = ctx.store.readPluginStateHead({
+      threadId: ctx.threadId,
+      pluginId: "com.artemis.design",
+      stateSchemaVersion: 1,
+    });
+    const base = {
+      threadId: ctx.threadId,
+      pluginId: "com.artemis.design",
+      bindingRevision: ctx.binding.bindingRevision,
+      stateSchemaVersion: 1,
+      snapshot: {
+        files: [{ path: "design-documents.jsonl", hash: "h1" }],
+        packageRevision: ctx.binding.contentHash,
+      },
+      event: {
+        streamId: `thread/${ctx.threadId}/design`,
+        schemaVersion: 1,
+        payload: { kind: "snapshot-created" },
+      },
+    };
+    // 第一个写者从空 head 建立
+    const first = commitPluginStateChange(ctx.store, {
+      ...base,
+      expectedStateRevision: head0?.stateRevision ?? "none",
+      nextStateRevision: "state-1",
+    });
+    expect(first.stateRevision).toBe("state-1");
+    // 第二个写者仍基于旧 head -> CAS 冲突
+    expect(() =>
+      commitPluginStateChange(ctx.store, {
+        ...base,
+        expectedStateRevision: head0?.stateRevision ?? "none",
+        nextStateRevision: "state-2",
+      }),
+    ).toThrowError(/conflict/i);
+    ctx.store.close();
+  });
+
+  it("state atomicity: a throw mid-transaction leaves no snapshot or event", async () => {
+    const ctx = await setupBoundThread();
+    const counts = () => ({
+      snapshots: Number(
+        (ctx.store.database
+          .prepare("SELECT COUNT(*) AS n FROM plugin_snapshots")
+          .get() as { n: number }).n,
+      ),
+      events: Number(
+        (ctx.store.database
+          .prepare("SELECT COUNT(*) AS n FROM plugin_events")
+          .get() as { n: number }).n,
+      ),
+    });
+    const before = counts();
+    // 原型链委托覆盖：保留 AppStore 全部方法，仅让事件写入中途抛错
+    const failingStore = Object.create(ctx.store) as typeof ctx.store;
+    (failingStore as unknown as {
+      appendPluginEvent: () => void;
+    }).appendPluginEvent = () => {
+      throw new Error("mid-transaction failure (test)");
+    };
+    expect(() =>
+      commitPluginStateChange(failingStore as never, {
+        threadId: ctx.threadId,
+        pluginId: "com.artemis.design",
+        expectedStateRevision: "none",
+        bindingRevision: ctx.binding.bindingRevision,
+        stateSchemaVersion: 1,
+        nextStateRevision: "state-x",
+        snapshot: {
+          files: [{ path: "design-documents.jsonl", hash: "h" }],
+          packageRevision: ctx.binding.contentHash,
+        },
+        event: {
+          streamId: `thread/${ctx.threadId}/design`,
+          schemaVersion: 1,
+          payload: { kind: "snapshot-created" },
+        },
+      }),
+    ).toThrowError(/mid-transaction failure/);
+    expect(counts()).toEqual(before);
+    ctx.store.close();
+  });
+});
