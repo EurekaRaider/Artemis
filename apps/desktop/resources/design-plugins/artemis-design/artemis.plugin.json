@@ -2,17 +2,35 @@
   "schemaVersion": 1,
   "id": "com.artemis.design",
   "version": "0.1.0",
-  "engines": { "artemisPluginApi": "1" },
+  "engines": {
+    "artemisPluginApi": "1"
+  },
   "projectTypes": [
     {
       "id": "artemis-design",
-      "title": { "zh-CN": "设计", "en": "Design" },
-      "targets": ["project", "temporary"],
-      "panelIds": ["workspace"]
+      "title": {
+        "zh-CN": "设计",
+        "en": "Design"
+      },
+      "targets": [
+        "project",
+        "temporary"
+      ],
+      "panelIds": [
+        "workspace"
+      ]
     }
   ],
-  "panels": [{ "id": "workspace", "entry": "panel/index.html" }],
-  "runtime": { "entry": "runtime/index.mjs", "protocolVersion": 1 },
+  "panels": [
+    {
+      "id": "workspace",
+      "entry": "panel/index.html"
+    }
+  ],
+  "runtime": {
+    "entry": "runtime/index.mjs",
+    "protocolVersion": 1
+  },
   "tools": [
     {
       "name": "create_document",
@@ -23,6 +41,16 @@
       "name": "get_snapshot",
       "description": "Get the current snapshot of the design document.",
       "effect": "state-read"
+    },
+    {
+      "name": "list_versions",
+      "description": "List the published versions of a design document.",
+      "effect": "state-read"
+    },
+    {
+      "name": "apply_edit",
+      "description": "Apply a CAS-guarded text edit as a new document version.",
+      "effect": "artifact-write"
     }
   ],
   "capabilities": {

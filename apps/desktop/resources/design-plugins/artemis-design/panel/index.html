@@ -375,7 +375,7 @@
   <div class="dz-export">
   <button class="design-ws-export" id="dzExportBtn" type="button">导出</button>
   <div class="dz-menu dz-export-menu" hidden="" id="dzExportMenu" role="menu">
-  <button class="dz-menu-item" data-dz-toast="已下载 customer.html（静态 HTML）" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M12 4v11M7.5 11.5 12 16l4.5-4.5"></path><path d="M4.5 19.5h15"></path></svg>下载 HTML</button>
+  <button class="dz-menu-item" data-dz-export="html" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M12 4v11M7.5 11.5 12 16l4.5-4.5"></path><path d="M4.5 19.5h15"></path></svg>下载 HTML</button>
   <button class="dz-menu-item" data-dz-toast="截图已保存到下载文件夹" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M4.5 8.5A1.5 1.5 0 0 1 6 7h2l1.2-1.8h5.6L16 7h2a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17z"></path><circle cx="12" cy="12.5" r="3"></circle></svg>下载截图</button>
   <button class="dz-menu-item" data-dz-toast="分享链接已复制" role="menuitem" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="M9.5 14.5 14.5 9.5"></path><path d="M11 6.5 12.8 4.7a4 4 0 0 1 5.7 5.7L16.7 12"></path><path d="M13 17.5 11.2 19.3a4 4 0 0 1-5.7-5.7L7.3 12"></path></svg>复制分享链接</button>
   </div>
@@ -466,6 +466,12 @@
   });
   document.addEventListener("click", function () { closeMenus(null); });
   document.addEventListener("click", function (event) {
+    var exportTarget = event.target.closest("[data-dz-export]");
+    if (exportTarget) {
+      requestExport();
+      closeMenus(null);
+      return;
+    }
     var target = event.target.closest("[data-dz-toast]");
     if (target) {
       showToast(target.getAttribute("data-dz-toast"));
@@ -473,9 +479,9 @@
     }
   });
 
-  // ---- 版本历史（只显示 toast，如原型行为）----
+  // ---- 版本历史：请求宿主拉真实版本列表（S4）----
   document.getElementById("dzHistoryBtn").addEventListener("click", function () {
-    showToast("版本历史（演示）");
+    requestVersions();
   });
 
   // ---- 页签切换：files 视图 <-> preview 视图 ----
@@ -542,6 +548,47 @@
     hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
     if (hostPort) hostPort.start();
   });
+
+  // ---- S4：导出/版本历史经 port 请求宿主（宿主动作），下行快照驱动 UI ----
+  var currentDocument = null; // { documentId, name, headRevision, versionCount }
+  window.addEventListener("message", function (event) {
+    if (event.source === window && event.data === "artemis:port-init") {
+      hostPort = event.ports[0] || null;
+      if (hostPort) hostPort.start();
+      return;
+    }
+    if (event.source === window && event.data === "artemis:export-result") {
+      showToast("已导出：" + (event.detail && event.detail.path));
+    }
+  });
+  if (hostPort) {
+    hostPort.addEventListener("message", function (event) {
+      var data = event.data || {};
+      if (data.type === "snapshot" && data.snapshot) {
+        var docs = data.snapshot.documents || [];
+        currentDocument = docs.length ? docs[docs.length - 1] : null;
+      }
+    });
+  }
+  function requestExport() {
+    if (!hostPort) { showToast("导出需要宿主连接"); return; }
+    if (!currentDocument) { showToast("尚无可导出的文档"); return; }
+    hostPort.postMessage({
+      type: "export-request",
+      documentId: currentDocument.documentId,
+      revision: currentDocument.headRevision,
+    });
+    showToast("已请求宿主导出 " + currentDocument.name);
+  }
+  function requestVersions() {
+    if (!hostPort) { showToast("版本历史（未连接宿主）"); return; }
+    if (!currentDocument) { showToast("尚无文档版本"); return; }
+    hostPort.postMessage({
+      type: "list-versions-request",
+      documentId: currentDocument.documentId,
+    });
+    showToast("已请求 " + currentDocument.name + " 的版本历史");
+  }
 
   // ---- 创作输入：发送仅 dispatch candidate-prompt 事件，不做任何 fetch/ipc/父窗口调用 ----
   var composerInput = document.querySelector(".design-composer-input");

@@ -58,6 +58,7 @@ import {
 import {
   copyFile,
   mkdir,
+  readdir,
   readFile,
   rm,
   stat,
@@ -10028,6 +10029,67 @@ function registerIpc(): void {
       };
     },
   );
+  // S4 export (host-owned action, §10.3): the panel may only REQUEST an
+  // export over the port; the host resolves the artifact from the thread's
+  // plugin scratch and writes to a host-chosen directory. Path escapes
+  // and unknown documents are refused.
+  ipcMain.handle(
+    IPC.designPanelExport,
+    async (
+      _event,
+      input: { threadId: string; documentId: string; revision?: string },
+    ) => {
+      if (!store || !pluginDispatch) {
+        throw new Error("Design export is unavailable.");
+      }
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) {
+        throw new Error("Thread has no plugin binding.");
+      }
+      // Locate the requested version file inside the thread's scratch.
+      const documentDir = join(
+        app.getPath("userData"),
+        "plugin-scratch",
+        input.threadId,
+        thread.typeBinding.contentHash,
+        "documents",
+        input.documentId,
+      );
+      const entries = await readdir(documentDir).catch(() => []);
+      const candidates = input.revision
+        ? entries.filter((entry) => entry.endsWith(`-${input.revision}.html`))
+        : entries.filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry)).sort();
+      const source = candidates.at(-1);
+      if (!source) {
+        throw new Error(
+          `No version file for document ${input.documentId}${input.revision ? ` revision ${input.revision}` : ""}.`,
+        );
+      }
+      // Destination: a fresh host-owned export directory per document.
+      const exportRoot = join(
+        app.getPath("userData"),
+        "design-exports",
+        input.documentId,
+      );
+      await mkdir(exportRoot, { recursive: true });
+      const destination = join(exportRoot, source);
+      await copyFile(join(documentDir, source), destination);
+      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/export`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-exported",
+          documentId: input.documentId,
+          revision,
+          destination,
+        },
+      });
+      return { path: destination, revision };
+    },
+  );
   ipcMain.handle(
     IPC.designPanelCandidateDiscard,
     async (_event, credential: string) => {
@@ -10044,6 +10106,63 @@ function registerIpc(): void {
       panelSendEntry?.markOutcome(submissionId, outcome);
     },
   );
+  // S4: panel-originated requests (export / versions) run as host actions.
+  designPanelHost?.setRequestHandlers({
+    exportDocument: async (input) => {
+      if (!store || !pluginDispatch) throw new Error("Export unavailable.");
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) throw new Error("Thread has no plugin binding.");
+      const documentDir = join(
+        app.getPath("userData"),
+        "plugin-scratch",
+        input.threadId,
+        thread.typeBinding.contentHash,
+        "documents",
+        input.documentId,
+      );
+      const entries = await readdir(documentDir).catch(() => []);
+      const candidates = input.revision
+        ? entries.filter((entry) => entry.endsWith(`-${input.revision}.html`))
+        : entries.filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry)).sort();
+      const source = candidates.at(-1);
+      if (!source) throw new Error("No version file for the document.");
+      const exportRoot = join(
+        app.getPath("userData"),
+        "design-exports",
+        input.documentId,
+      );
+      await mkdir(exportRoot, { recursive: true });
+      const destination = join(exportRoot, source);
+      await copyFile(join(documentDir, source), destination);
+      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/export`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-exported",
+          documentId: input.documentId,
+          revision,
+          destination,
+        },
+      });
+      return { path: destination, revision };
+    },
+    listVersions: async (input) => {
+      if (!pluginDispatch) throw new Error("Dispatch unavailable.");
+      const outcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "list_versions",
+        args: { documentId: input.documentId },
+        mode: "execute",
+      });
+      if (outcome.status !== "succeeded") {
+        throw new Error(outcome.error ?? "list_versions failed.");
+      }
+      return outcome.result;
+    },
+  });
   // Candidate prompts flow main -> renderer; the panel never gets a channel.
   designPanelHost?.onCandidatePrompt((candidate) => {
     for (const window of BrowserWindow.getAllWindows()) {

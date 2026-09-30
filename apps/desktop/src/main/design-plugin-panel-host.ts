@@ -44,16 +44,35 @@ interface CandidatePromptEvent {
   occurredAt: string;
 }
 
+/** S4 host-side actions a panel may REQUEST over the port (never run). */
+export interface PanelRequestHandlers {
+  exportDocument(input: {
+    threadId: string;
+    documentId: string;
+    revision?: string;
+  }): Promise<{ path: string; revision: string }>;
+  listVersions(input: {
+    threadId: string;
+    documentId: string;
+  }): Promise<unknown>;
+}
+
 export class DesignPanelHost {
   private readonly panels = new Map<string, LivePanel>();
   private readonly catalog = new DesignPluginCatalog();
   private catalogRoot: string | undefined;
   private hostWindow: BrowserWindow | undefined;
   private candidateSink: ((event: CandidatePromptEvent) => void) | undefined;
+  private requestHandlers: PanelRequestHandlers | undefined;
 
   /** Point the host at the installed design-plugin packages root. */
   setCatalogRoot(root: string): void {
     this.catalogRoot = root;
+  }
+
+  /** S4 handlers for panel-originated requests (export / versions). */
+  setRequestHandlers(handlers: PanelRequestHandlers): void {
+    this.requestHandlers = handlers;
   }
 
   /** Renderer-side consumer of panel candidate prompts (host stub §9.2). */
@@ -150,7 +169,9 @@ export class DesignPanelHost {
     // downstream. No Node, no IPC channel to the panel itself.
     const { port1: hostPort, port2: panelPort } = new MessageChannelMain();
     hostPort.on("message", (event) => {
-      const data = event.data as { type?: string; text?: string } | undefined;
+      const data = event.data as
+        | { type?: string; text?: string; documentId?: string; revision?: string }
+        | undefined;
       if (data?.type === "candidate-prompt" && typeof data.text === "string") {
         this.candidateSink?.({
           kind: "candidate-prompt",
@@ -160,6 +181,41 @@ export class DesignPanelHost {
           source: "panel",
           occurredAt: new Date().toISOString(),
         });
+        return;
+      }
+      // S4 host-owned actions: the panel only requests; the handlers run in
+      // the main process (export writes the file, list_versions dispatches
+      // through the trusted plugin runtime).
+      if (data?.type === "export-request" && data.documentId) {
+        void this.requestHandlers
+          ?.exportDocument({
+            threadId,
+            documentId: data.documentId,
+            ...(data.revision ? { revision: data.revision } : {}),
+          })
+          .then((result) => {
+            hostPort.postMessage({ type: "export-result", ...result });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "export-error",
+              error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "list-versions-request" && data.documentId) {
+        void this.requestHandlers
+          ?.listVersions({ threadId, documentId: data.documentId })
+          .then((versions) => {
+            hostPort.postMessage({ type: "versions", versions });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "versions-error",
+              error: String(error),
+            });
+          });
       }
     });
     hostPort.start();

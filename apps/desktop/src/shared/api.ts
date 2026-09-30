@@ -1068,6 +1068,16 @@ export interface ArtemisApi {
     candidateText: string;
     submissionId: string;
   }>;
+  /**
+   * S4 export (host-owned action, proposal §10.3): copies the document's
+   * current version file to a host-chosen destination. Refuses path
+   * escapes and unknown documents.
+   */
+  exportDesignDocument(input: {
+    threadId: string;
+    documentId: string;
+    revision?: string;
+  }): Promise<{ path: string; revision: string }>;
   /** Record the composer outcome (running/completed/failed). */
   reportDesignPanelSendOutcome(
     submissionId: string,
@@ -1432,6 +1442,7 @@ export const IPC = {
   designPanelCandidateAccept: "artemis:design-panel-candidate-accept",
   designPanelSendConsume: "artemis:design-panel-send-consume",
   designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",
+  designPanelExport: "artemis:design-panel-export",
   designPanelSendOutcome: "artemis:design-panel-send-outcome",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",
