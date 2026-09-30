@@ -16,6 +16,8 @@ import {
   MarkdownVideoContent,
 } from "./MarkdownVideoContent.js";
 
+import { isLocalSvgHref } from "./WorkspaceSvgPreview.js";
+
 const allowedTags = [
   "a",
   "blockquote",
@@ -266,9 +268,11 @@ function markdownRenderer(
   renderer.image = ({ href, title, text }) =>
     videosEnabled && isLocalVideoHref(href)
       ? `<span data-workspace-video="${escapeAttribute(href)}"></span>`
-      : imagesEnabled
-        ? imageMarkup(href, text, title)
-        : "";
+      : videosEnabled && isLocalSvgHref(href)
+        ? `<span data-workspace-svg="${escapeAttribute(href)}" aria-label="${escapeAttribute(text)}"></span>`
+        : imagesEnabled
+          ? imageMarkup(href, text, title)
+          : "";
   renderer.heading = function ({ tokens, depth }) {
     const label = this.parser.parseInline(tokens);
     const baseSlug = headingSlug(
@@ -380,12 +384,14 @@ export const MarkdownContent = memo(function MarkdownContent({
           ALLOWED_ATTR: [
             "alt",
             "aria-hidden",
+            "aria-label",
             "class",
             "data-external-link-icon",
             "data-external-http",
             "data-workspace-file",
             "data-workspace-image",
             "data-workspace-video",
+            "data-workspace-svg",
             "href",
             "height",
             "id",
