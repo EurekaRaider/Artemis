@@ -1324,6 +1324,15 @@ export function App() {
     message: string;
   }>();
   const [toast, setToastState] = useState<ToastState>();
+  // S3 host send entry: the pending panel candidate awaiting a one-time
+  // credential consume (§9.2). One card at a time; a new candidate
+  // replaces an unconsumed one.
+  const [panelCandidate, setPanelCandidate] = useState<{
+    threadId: string;
+    text: string;
+    credential: string;
+    submissionId: string;
+  }>();
   const setToast = useCallback((content: ToastContent | undefined) => {
     if (content === undefined) {
       setToastState(undefined);
@@ -5677,6 +5686,34 @@ export function App() {
     requestConfirmation,
   ]);
 
+  // S3 host send entry: consume the one-time credential, drop the text
+  // into the composer and submit through the normal prompt path. The
+  // credential dies on first use; a replay can never send twice.
+  const consumePanelCandidate = useCallback(async () => {
+    if (!panelCandidate) return;
+    const consumed = await window.artemis.consumeDesignPanelSend(
+      panelCandidate.credential,
+    );
+    setPanelCandidate(undefined);
+    if (consumed.threadId !== activeThreadId) {
+      setToast({
+        error: true,
+        message: locale.startsWith("zh")
+          ? "候选属于其他任务，请切换后重试"
+          : "The candidate belongs to another task",
+      });
+      return;
+    }
+    setPrompt(consumed.candidateText);
+    // Report running once the composer has the text; outcome recording
+    // rides on the turn lifecycle (completed/failed below).
+    void window.artemis.reportDesignPanelSendOutcome(
+      consumed.submissionId,
+      "completed",
+    );
+    await sendPrompt();
+  }, [panelCandidate, activeThreadId, locale, setPrompt, setToast, sendPrompt]);
+
   const updateActiveGoal = useCallback(
     async (action: "pause" | "resume" | "clear") => {
       if (!activeThread || goalMutationPending) return;
@@ -7138,6 +7175,45 @@ export function App() {
             onDismiss={() => setToast(undefined)}
             placement="view"
           />
+        )}
+        {panelCandidate && activeThreadId === panelCandidate.threadId && (
+          <div
+            className="design-candidate-card"
+            style={{
+              position: "fixed",
+              bottom: 132,
+              right: 24,
+              zIndex: 40,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              maxWidth: 360,
+              padding: "12px 14px",
+              borderRadius: 12,
+              background: "var(--artemis-color-surface-raised, #1b1e2e)",
+              boxShadow: "0 8px 28px rgba(0,0,0,.4)",
+              color: "var(--artemis-color-text-primary, #e6e9f5)",
+              fontSize: 13,
+            }}
+          >
+            <span style={{ opacity: 0.7 }}>
+              {locale.startsWith("zh") ? "面板候选" : "Panel candidate"}
+            </span>
+            <span>{panelCandidate.text.slice(0, 160)}</span>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setPanelCandidate(undefined)}>
+                {locale.startsWith("zh") ? "丢弃" : "Discard"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void consumePanelCandidate();
+                }}
+              >
+                {locale.startsWith("zh") ? "发送到任务" : "Send to task"}
+              </button>
+            </div>
+          </div>
         )}
         {activeView === "token-usage" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
@@ -9654,8 +9730,30 @@ ${model.providerId} · ${model.modelId}`}
                                 panelId="workspace"
                                 active={workspaceTabs.activeTabId === tab.id}
                                 onCandidate={(text) => {
-                                  if (!text.trim()) return;
-                                  setToast(`面板候选：${text.slice(0, 60)}`);
+                                  const trimmed = text.trim();
+                                  if (!trimmed || !activeThreadId) return;
+                                  void (async () => {
+                                    try {
+                                      const accepted =
+                                        await window.artemis.acceptDesignPanelCandidate(
+                                          activeThreadId,
+                                          trimmed,
+                                        );
+                                      setPanelCandidate({
+                                        threadId: accepted.threadId,
+                                        text: accepted.candidateText,
+                                        credential: accepted.credential,
+                                        submissionId: accepted.submissionId,
+                                      });
+                                    } catch {
+                                      setToast({
+                                        error: true,
+                                        message: locale.startsWith("zh")
+                                          ? "候选入账失败"
+                                          : "Failed to accept the candidate",
+                                      });
+                                    }
+                                  })();
                                 }}
                                 failureMessage={t.designTab}
                               />

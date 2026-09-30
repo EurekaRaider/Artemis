@@ -257,6 +257,12 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.designPanelVisible, threadId, panelId, visible),
   releaseDesignPanel: (threadId, panelId) =>
     ipcRenderer.invoke(IPC.designPanelRelease, threadId, panelId),
+  acceptDesignPanelCandidate: (threadId, candidateText) =>
+    ipcRenderer.invoke(IPC.designPanelCandidateAccept, threadId, candidateText),
+  consumeDesignPanelSend: (credential) =>
+    ipcRenderer.invoke(IPC.designPanelSendConsume, credential),
+  reportDesignPanelSendOutcome: (submissionId, outcome) =>
+    ipcRenderer.invoke(IPC.designPanelSendOutcome, submissionId, outcome),
   onDesignPanelCandidate: (listener) => {
     const handler = (
       _event: unknown,

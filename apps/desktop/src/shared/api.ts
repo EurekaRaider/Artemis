@@ -1050,6 +1050,27 @@ export interface ArtemisApi {
     visible: boolean,
   ): Promise<void>;
   releaseDesignPanel(threadId: string, panelId: string): Promise<void>;
+  /** S3 host send entry: accept a candidate, minting a one-time credential. */
+  acceptDesignPanelCandidate(
+    threadId: string,
+    candidateText: string,
+  ): Promise<{
+    threadId: string;
+    candidateText: string;
+    credential: string;
+    submissionId: string;
+  }>;
+  /** Consume the credential once; returns the text for the composer. */
+  consumeDesignPanelSend(credential: string): Promise<{
+    threadId: string;
+    candidateText: string;
+    submissionId: string;
+  }>;
+  /** Record the composer outcome (running/completed/failed). */
+  reportDesignPanelSendOutcome(
+    submissionId: string,
+    outcome: "completed" | "failed",
+  ): Promise<void>;
   onDesignPanelCandidate(
     listener: (event: {
       kind: "candidate-prompt";
@@ -1406,6 +1427,9 @@ export const IPC = {
   designPanelVisible: "artemis:design-panel-visible",
   designPanelRelease: "artemis:design-panel-release",
   designPanelCandidate: "artemis:design-panel-candidate",
+  designPanelCandidateAccept: "artemis:design-panel-candidate-accept",
+  designPanelSendConsume: "artemis:design-panel-send-consume",
+  designPanelSendOutcome: "artemis:design-panel-send-outcome",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",
   workspaceCsvSave: "artemis:workspace-csv-save",

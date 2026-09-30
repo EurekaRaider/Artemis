@@ -3,6 +3,7 @@ import {
   createDispatchPluginTool,
   type PluginDispatch,
 } from "./design-plugin-dispatch.js";
+import { PanelSendEntryService } from "./design-plugin-send-entry.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
@@ -487,6 +488,7 @@ let store: AppStore | undefined;
 // S1 design-plugin panel host; created in the ready handler below.
 let designPanelHost: DesignPanelHost | undefined;
 let pluginDispatch: PluginDispatch | undefined;
+let panelSendEntry: PanelSendEntryService | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
@@ -9987,6 +9989,51 @@ function registerIpc(): void {
     IPC.designPanelRelease,
     async (_event, threadId: string, panelId: string) => {
       designPanelHost?.releasePanel(threadId, panelId);
+    },
+  );
+  // S3 host send entry (proposal §9.2): candidates never reach Pi from the
+  // panel; the user consumes a one-time credential in the renderer to move
+  // the text into the composer through the ledger state machine.
+  ipcMain.handle(
+    IPC.designPanelCandidateAccept,
+    async (_event, threadId: string, candidateText: string) => {
+      if (!store || !panelSendEntry) throw new Error("Send entry unavailable.");
+      const thread = store.getThread(threadId);
+      const bindingRevision =
+        thread?.typeBinding?.bindingRevision ?? "unbound-preview";
+      const accepted = panelSendEntry.acceptCandidate({
+        threadId,
+        candidateText,
+        bindingRevision,
+      });
+      return {
+        threadId: accepted.threadId,
+        candidateText: accepted.candidateText,
+        credential: accepted.credential,
+        submissionId: accepted.submission.submissionId,
+      };
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelSendConsume,
+    async (_event, credential: string) => {
+      if (!panelSendEntry) throw new Error("Send entry unavailable.");
+      const consumed = panelSendEntry.consumeCredential(credential);
+      return {
+        threadId: consumed.threadId,
+        candidateText: consumed.candidateText,
+        submissionId: credential.split(".")[0] ?? "",
+      };
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelSendOutcome,
+    async (
+      _event,
+      submissionId: string,
+      outcome: "completed" | "failed",
+    ) => {
+      panelSendEntry?.markOutcome(submissionId, outcome);
     },
   );
   // Candidate prompts flow main -> renderer; the panel never gets a channel.
@@ -22277,6 +22324,9 @@ app
   designPanelHost.setCatalogRoot(
     join(app.getAppPath(), "resources", "design-plugins"),
   );
+  // S3 host send entry: panel candidates enter the ledger here and are
+  // consumed exactly once via one-time credentials.
+  panelSendEntry = new PanelSendEntryService(store);
   // S2 trusted dispatch: every plugin tool call from a restricted thread
   // lands here; the trust chain (revision hash + grant + mode) is enforced
   // in the main process before any runtime spawn.
