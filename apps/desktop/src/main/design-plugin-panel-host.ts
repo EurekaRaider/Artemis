@@ -390,6 +390,20 @@ export class DesignPanelHost {
       ?.hostPort.postMessage({ type: "snapshot", snapshot });
   }
 
+  /** Push the current theme to a panel (applies data-theme in the page). */
+  pushTheme(threadId: string, panelId: string, theme: "light" | "dark"): void {
+    this.panels
+      .get(this.key(threadId, panelId))
+      ?.hostPort.postMessage({ type: "theme", theme });
+  }
+
+  /** Broadcast a theme change to every live panel. */
+  broadcastTheme(theme: "light" | "dark"): void {
+    for (const panel of this.panels.values()) {
+      panel.hostPort.postMessage({ type: "theme", theme });
+    }
+  }
+
   /** Position a panel. Renderer reports the dock pane's content bounds. */
   setBounds(
     threadId: string,

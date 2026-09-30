@@ -780,6 +780,9 @@ function syncWindowBackgroundColors(): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.setBackgroundColor(windowBackgroundColor());
   }
+  designPanelHost?.broadcastTheme(
+    nativeTheme.shouldUseDarkColors ? "dark" : "light",
+  );
 }
 
 function applyNativeTheme(theme: AppTheme): void {
@@ -9967,6 +9970,13 @@ function registerIpc(): void {
       // S4: push an initial snapshot so the panel can render the file list
       // and load the head document without waiting for a renderer event.
       void pushDesignSnapshot(threadId, panelId);
+      // Theme follows the host: the panel is a separate webContents and
+      // cannot observe the parent window's data-theme attribute.
+      designPanelHost.pushTheme(
+        threadId,
+        panelId,
+        nativeTheme.shouldUseDarkColors ? "dark" : "light",
+      );
       return handle;
     },
   );

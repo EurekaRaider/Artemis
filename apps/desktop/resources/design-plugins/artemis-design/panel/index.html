@@ -1,5 +1,18 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="light">
+<script>
+  // 无宿主时的兜底：跟随系统配色（宿主连接后会下发显式主题）
+  (function () {
+    var apply = function () {
+      document.documentElement.setAttribute(
+        "data-theme",
+        window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      );
+    };
+    apply();
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", apply);
+  })();
+</script>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,6 +39,7 @@
     --selected: rgba(10,10,10,.1);
   }
   html[data-theme="dark"] {
+    --bg: #141414;
     --surface: #202020; --surface-2: #262626; --surface-3: #303030;
     --popover: #2b2b2b;
     --text: #e5e5e5; --text-2: #a8a8ad; --text-3: #898990;
@@ -2790,6 +2804,9 @@
       }
       if (data.type === "handoff-result") {
         dzToast(data.created ? "编码任务已创建" : "编码任务已存在");
+      }
+      if (data.type === "theme" && (data.theme === "light" || data.theme === "dark")) {
+        document.documentElement.setAttribute("data-theme", data.theme);
       }
     });
   }
