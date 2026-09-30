@@ -669,6 +669,25 @@ function MarkdownIcon() {
   );
 }
 
+/** Prototype design icon (artemis-ui.html launch-btn, 4-point star). */
+function DesignSparkIcon() {
+  return (
+    <svg
+      className="icon"
+      fill="none"
+      height={16}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      viewBox="0 0 24 24"
+      width={16}
+    >
+      <path d="M12 4.5l1.7 5.3 5.3 1.7-5.3 1.7L12 18.5l-1.7-5.3L5 11.5l5.3-1.7z" />
+    </svg>
+  );
+}
+
 function FilesIcon() {
   return <ArtemisIcon className="icon" height={18} name="files" width={18} />;
 }
@@ -702,8 +721,7 @@ export function WorkspaceTabIcon({
       <FilesIcon />
     );
   }
-  if (kind === "design")
-    return <ArtemisIcon className="icon" height={16} name="document" width={16} />;
+  if (kind === "design") return <DesignSparkIcon />;
   return <FilesIcon />;
 }
 
@@ -8980,9 +8998,7 @@ ${model.providerId} · ${model.modelId}`}
                                   ["file", t.files, <FilesIcon />],
                                   ...(activeThread?.typeBinding?.typeId ===
                                   "artemis-design"
-                                    ? ([[ "design", t.designTab,
-                                        <ArtemisIcon className="icon" height={18} name="document" width={18} />,
-                                      ]] as const)
+                                    ? ([["design", t.designTab, <DesignSparkIcon />]] as const)
                                     : []),
                                 ] as const
                               ).map(([kind, label, icon]) => (
@@ -9737,6 +9753,7 @@ ${model.providerId} · ${model.modelId}`}
                                 threadId={activeThreadId}
                                 panelId="workspace"
                                 active={workspaceTabs.activeTabId === tab.id}
+                                resizing={workspaceDockResizing}
                                 onCandidate={(text) => {
                                   const trimmed = text.trim();
                                   if (!trimmed || !activeThreadId) return;

@@ -18,12 +18,14 @@ export function DesignPluginPanel({
   threadId,
   panelId,
   active,
+  resizing,
   onCandidate,
   failureMessage,
 }: {
   threadId: string;
   panelId: string;
   active: boolean;
+  resizing?: boolean;
   onCandidate?: (text: string) => void;
   failureMessage: string;
 }) {
@@ -81,10 +83,17 @@ export function DesignPluginPanel({
   }, [threadId, panelId, error]);
 
   // Tab activation: keep the view alive but collapsed when inactive.
+  // During dock resize the native view lags the DOM layout — hide it for
+  // the drag and restore on release so the panel never shows stale
+  // geometry mid-drag.
   useEffect(() => {
     if (error) return;
-    void window.artemis.setDesignPanelVisible(threadId, panelId, active);
-  }, [threadId, panelId, active, error]);
+    void window.artemis.setDesignPanelVisible(
+      threadId,
+      panelId,
+      resizing ? false : active,
+    );
+  }, [threadId, panelId, active, resizing, error]);
 
   if (error) {
     return (

@@ -3,14 +3,17 @@
 <script>
   // 无宿主时的兜底：跟随系统配色（宿主连接后会下发显式主题）
   (function () {
+    var media = window.matchMedia
+      ? window.matchMedia("(prefers-color-scheme: dark)")
+      : null;
     var apply = function () {
       document.documentElement.setAttribute(
         "data-theme",
-        window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+        media && media.matches ? "dark" : "light",
       );
     };
     apply();
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", apply);
+    if (media && media.addEventListener) media.addEventListener("change", apply);
   })();
 </script>
 <head>
