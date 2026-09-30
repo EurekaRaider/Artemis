@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "com.artemis.design",
+  "version": "0.1.0",
+  "engines": { "artemisPluginApi": "1" },
+  "projectTypes": [
+    {
+      "id": "artemis-design",
+      "title": { "zh-CN": "设计", "en": "Design" },
+      "targets": ["project", "temporary"],
+      "panelIds": ["workspace"]
+    }
+  ],
+  "panels": [{ "id": "workspace", "entry": "panel/index.html" }],
+  "runtime": { "entry": "runtime/index.mjs", "protocolVersion": 1 },
+  "tools": [
+    {
+      "name": "create_document",
+      "description": "Create a design document artifact.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "get_snapshot",
+      "description": "Get the current snapshot of the design document.",
+      "effect": "state-read"
+    }
+  ],
+  "capabilities": {
+    "artifactStore": "thread",
+    "projectFiles": "explicit-import",
+    "network": "none",
+    "sessionInput": "host-user-action"
+  }
+}

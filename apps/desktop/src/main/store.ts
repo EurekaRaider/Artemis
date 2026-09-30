@@ -36,6 +36,13 @@ import {
   type CustomAgentModelPolicy,
   type CustomAgentThinkingPolicy,
   type CustomAgentToolPolicy,
+  SUBMISSION_TRANSITIONS,
+  hashSubmissionPayload,
+  isValidSubmissionTransition,
+  pluginTypeBindingSchema,
+  type PluginTypeBinding,
+  type SubmissionLedgerRecord,
+  type SubmissionState,
 } from "@artemis/protocol";
 
 import type { ReviewComment, ReviewCommentAnchor } from "../shared/api.js";
@@ -63,6 +70,8 @@ interface ThreadRow {
   context_window: number | null;
   pinned: number;
   archived: number;
+  type_binding_json: string | null;
+  execution_profile: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -189,6 +198,10 @@ const DATABASE_VERSION = 12;
 // Latest schema version; exported so migration tests assert against the
 // constant instead of a hardcoded number that goes stale on the next bump.
 export const CUSTOM_AGENTS_DATABASE_VERSION = 13;
+// S1 design plugins: grants/state heads/snapshots/ledger tables plus thread
+// type-binding snapshot columns. Threads created for plugin project types
+// freeze their binding and restricted profile at creation time (§6.1).
+export const DESIGN_PLUGIN_DATABASE_VERSION = 14;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -343,6 +356,54 @@ function agentEventFromBody(body: string): AgentEvent {
   });
 }
 
+interface PromptSubmissionRow {
+  submission_id: string;
+  thread_id: string;
+  source: "panel" | "composer";
+  candidate_text: string;
+  payload_hash: string;
+  sequence: number;
+  state: SubmissionState;
+  turn_id: string | null;
+  binding_revision: string;
+  last_transition_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function promptSubmissionFromRow(
+  row: PromptSubmissionRow,
+): SubmissionLedgerRecord {
+  return {
+    submissionId: row.submission_id,
+    threadId: row.thread_id,
+    source: row.source,
+    candidateText: row.candidate_text,
+    payloadHash: row.payload_hash,
+    sequence: row.sequence,
+    state: row.state,
+    turnId: row.turn_id,
+    bindingRevision: row.binding_revision,
+    lastTransitionReason: row.last_transition_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+interface PluginOperationRow {
+  operation_id: string;
+  thread_id: string;
+  plugin_id: string;
+  tool_name: string;
+  request_digest: string;
+  state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+  result_ref: string | null;
+  error: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
   return {
     id: row.id,
@@ -363,6 +424,16 @@ function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
     ...(row.context_window ? { contextWindow: row.context_window } : {}),
     pinned: row.pinned === 1,
     archived: row.archived === 1,
+    ...(row.type_binding_json
+      ? {
+          typeBinding: pluginTypeBindingSchema.parse(
+            JSON.parse(row.type_binding_json),
+          ),
+        }
+      : {}),
+    ...(row.execution_profile
+      ? { executionProfile: row.execution_profile }
+      : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -455,6 +526,97 @@ function persistentAgentPayload(payload: AgentPayload): AgentPayload {
   return payload;
 }
 
+// Six design-plugin tables (proposal §6.1). Shared by the fresh-database
+// constructor transaction and the S1 migration path so their definitions
+// can never drift apart.
+const DESIGN_PLUGIN_TABLES_DDL = `
+      CREATE TABLE IF NOT EXISTS plugin_grants (
+        grant_id TEXT PRIMARY KEY,
+        installation_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK (scope IN ('thread', 'project')),
+        scope_id TEXT NOT NULL,
+        capabilities_json TEXT NOT NULL,
+        resource_refs_json TEXT NOT NULL,
+        grant_revision TEXT NOT NULL,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (installation_id, scope, scope_id, grant_revision)
+      );
+
+      CREATE TABLE IF NOT EXISTS plugin_state_heads (
+        thread_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        binding_revision TEXT NOT NULL,
+        state_schema_version INTEGER NOT NULL,
+        state_revision TEXT NOT NULL,
+        snapshot_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, plugin_id, state_schema_version)
+      );
+
+      CREATE TABLE IF NOT EXISTS plugin_snapshots (
+        snapshot_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        files_json TEXT NOT NULL,
+        parent_snapshot_id TEXT,
+        created_by_operation_id TEXT,
+        package_revision TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS prompt_submissions (
+        submission_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('panel', 'composer')),
+        candidate_text TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN (
+          'prepared','accepted','queued','dispatching','running',
+          'completed','failed','cancelled','unknown'
+        )),
+        turn_id TEXT,
+        binding_revision TEXT NOT NULL,
+        last_transition_reason TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_prompt_submissions_thread_seq
+        ON prompt_submissions (thread_id, sequence);
+
+      CREATE TABLE IF NOT EXISTS plugin_operations (
+        operation_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        request_digest TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN (
+          'prepared','running','succeeded','failed','cancelled'
+        )),
+        result_ref TEXT,
+        error TEXT,
+        cancelled_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS plugin_events (
+        event_id TEXT PRIMARY KEY,
+        stream_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        schema_version INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (stream_id, seq)
+      );
+`;
+
 export class AppStore {
   private readonly database: DatabaseSync;
   readonly notifications: TaskNotificationStore;
@@ -492,6 +654,8 @@ export class AppStore {
         context_window INTEGER,
         pinned INTEGER NOT NULL DEFAULT 0,
         archived INTEGER NOT NULL DEFAULT 0,
+        type_binding_json TEXT,
+        execution_profile TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -565,6 +729,8 @@ export class AppStore {
         created_at TEXT NOT NULL,
         UNIQUE(thread_id, seq)
       );
+
+      ${DESIGN_PLUGIN_TABLES_DDL}
 
       CREATE TABLE IF NOT EXISTS turn_checkpoints (
         thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE,
@@ -769,6 +935,13 @@ export class AppStore {
     if (customAgentsVersion.user_version < CUSTOM_AGENTS_DATABASE_VERSION) {
       this.advanceDatabaseVersion(CUSTOM_AGENTS_DATABASE_VERSION);
     }
+
+    // S1 design plugins: add the six plugin tables and thread binding columns.
+    // CREATE IF NOT EXISTS keeps this safe for fresh databases, and the ALTER
+    // paths only run when an older threads table lacks the new columns.
+    if (customAgentsVersion.user_version < DESIGN_PLUGIN_DATABASE_VERSION) {
+      this.migrateDesignPluginTables();
+    }
     // Run after legacy mode migrations, which rebuild the automations table.
     const automationColumns = this.database
       .prepare("PRAGMA table_info(automations)")
@@ -877,6 +1050,27 @@ export class AppStore {
     if (violations.length > 0) {
       throw new Error("Run mode migration produced invalid references.");
     }
+  }
+
+  /**
+   * S1 design-plugin migration (§6.1). Creates the six plugin tables on older
+   * databases and adds the thread type-binding columns when missing. The
+   * prompt_submissions CHECK constraints mirror the protocol state machine;
+   * the S0 standalone ledger table is byte-compatible, so S1 convergence only
+   * needs the tables to exist in the main database.
+   */
+  private migrateDesignPluginTables(): void {
+    const threadColumns = this.database
+      .prepare("PRAGMA table_info(threads)")
+      .all() as Array<{ name: string }>;
+    this.database.exec(`
+      BEGIN IMMEDIATE;
+      ${threadColumns.some((column) => column.name === "type_binding_json") ? "" : "ALTER TABLE threads ADD COLUMN type_binding_json TEXT;"}
+      ${threadColumns.some((column) => column.name === "execution_profile") ? "" : "ALTER TABLE threads ADD COLUMN execution_profile TEXT;"}
+      COMMIT;
+    `);
+    this.database.exec(DESIGN_PLUGIN_TABLES_DDL);
+    this.advanceDatabaseVersion(DESIGN_PLUGIN_DATABASE_VERSION);
   }
 
   private advanceDatabaseVersion(databaseVersion: number): void {
@@ -1055,14 +1249,282 @@ export class AppStore {
     return row ? projectFromRow(row) : undefined;
   }
 
+  // -------------------------------------------------------------------------
+  // S1 design-plugin persistence (proposal §6.1). All six tables live in the
+  // main database and reuse the same transaction discipline as the rest of
+  // the store. The methods below are the store layer only: policy (gates,
+  // dispatch guards) stays in design-plugin-tool-gate and the runtime worker.
+  // -------------------------------------------------------------------------
+
+  /** Insert a plugin grant row; idempotent on the natural key. */
+  insertPluginGrant(grant: {
+    grantId: string;
+    installationId: string;
+    pluginId: string;
+    contentHash: string;
+    scope: "thread" | "project";
+    scopeId: string;
+    capabilities: Record<string, unknown>;
+    resourceRefs: Record<string, unknown>;
+    grantRevision: string;
+  }): void {
+    const now = new Date().toISOString();
+    this.database
+      .prepare(
+        `INSERT INTO plugin_grants (
+          grant_id, installation_id, plugin_id, content_hash, scope, scope_id,
+          capabilities_json, resource_refs_json, grant_revision, created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (installation_id, scope, scope_id, grant_revision)
+        DO NOTHING`,
+      )
+      .run(
+        grant.grantId,
+        grant.installationId,
+        grant.pluginId,
+        grant.contentHash,
+        grant.scope,
+        grant.scopeId,
+        JSON.stringify(grant.capabilities),
+        JSON.stringify(grant.resourceRefs),
+        grant.grantRevision,
+        now,
+        now,
+      );
+  }
+
+  listPluginGrants(scopeId: string): Array<Record<string, unknown>> {
+    return this.database
+      .prepare("SELECT * FROM plugin_grants WHERE scope_id = ?")
+      .all(scopeId) as Array<Record<string, unknown>>;
+  }
+
+  /**
+   * Accept a prompt submission into the converged ledger. Idempotent by
+   * submissionId: the same payload returns the stored record, a different
+   * payload under the same id is rejected as ledger corruption (S0 §9.3
+   * invariants preserved in the main database).
+   */
+  acceptPromptSubmission(input: {
+    submissionId: string;
+    threadId: string;
+    source: "panel" | "composer";
+    candidateText: string;
+    bindingRevision: string;
+  }): SubmissionLedgerRecord {
+    const existing = this.getPromptSubmission(input.submissionId);
+    const payloadHash = hashSubmissionPayload(input.candidateText);
+    if (existing) {
+      if (existing.payloadHash !== payloadHash) {
+        throw new Error(
+          `Submission ${input.submissionId} already exists with a different payload; refusing to overwrite.`,
+        );
+      }
+      return existing;
+    }
+    const now = new Date().toISOString();
+    const sequence = this.nextSubmissionSequence(input.threadId);
+    this.database
+      .prepare(
+        `INSERT INTO prompt_submissions (
+          submission_id, thread_id, source, candidate_text, payload_hash,
+          sequence, state, turn_id, binding_revision,
+          last_transition_reason, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'accepted', NULL, ?, 'host-accept', ?, ?)`,
+      )
+      .run(
+        input.submissionId,
+        input.threadId,
+        input.source,
+        input.candidateText,
+        payloadHash,
+        sequence,
+        input.bindingRevision,
+        now,
+        now,
+      );
+    return this.getPromptSubmission(input.submissionId)!;
+  }
+
+  getPromptSubmission(
+    submissionId: string,
+  ): SubmissionLedgerRecord | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM prompt_submissions WHERE submission_id = ?")
+      .get(submissionId) as PromptSubmissionRow | undefined;
+    return row ? promptSubmissionFromRow(row) : undefined;
+  }
+
+  /**
+   * Transition a submission through the protocol state machine. Invalid
+   * transitions throw; valid ones update state, reason and timestamp in one
+   * statement. Crash-window recovery reads the rows and reconciles instead of
+   * blind re-dispatch.
+   */
+  transitionPromptSubmission(
+    submissionId: string,
+    nextState: SubmissionState,
+    reason: string,
+  ): SubmissionLedgerRecord {
+    const current = this.getPromptSubmission(submissionId);
+    if (!current) throw new Error(`Unknown submission: ${submissionId}`);
+    if (!isValidSubmissionTransition(current.state, nextState)) {
+      throw new Error(
+        `Illegal submission transition: ${current.state} -> ${nextState}`,
+      );
+    }
+    this.database
+      .prepare(
+        `UPDATE prompt_submissions
+         SET state = ?, last_transition_reason = ?, updated_at = ?
+         WHERE submission_id = ?`,
+      )
+      .run(nextState, reason, new Date().toISOString(), submissionId);
+    return this.getPromptSubmission(submissionId)!;
+  }
+
+  listPromptSubmissions(threadId: string): SubmissionLedgerRecord[] {
+    return (
+      this.database
+        .prepare(
+          "SELECT * FROM prompt_submissions WHERE thread_id = ? ORDER BY sequence",
+        )
+        .all(threadId) as unknown as PromptSubmissionRow[]
+    ).map(promptSubmissionFromRow);
+  }
+
+  private nextSubmissionSequence(threadId: string): number {
+    const row = this.database
+      .prepare(
+        "SELECT COALESCE(MAX(sequence), 0) AS max FROM prompt_submissions WHERE thread_id = ?",
+      )
+      .get(threadId) as { max: number };
+    return row.max + 1;
+  }
+
+  /** Insert an immutable plugin snapshot row. */
+  insertPluginSnapshot(snapshot: {
+    snapshotId: string;
+    threadId: string;
+    pluginId: string;
+    files: Array<{ path: string; hash: string }>;
+    parentSnapshotId?: string;
+    createdByOperationId?: string;
+    packageRevision: string;
+  }): void {
+    this.database
+      .prepare(
+        `INSERT INTO plugin_snapshots (
+          snapshot_id, thread_id, plugin_id, files_json,
+          parent_snapshot_id, created_by_operation_id, package_revision,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        snapshot.snapshotId,
+        snapshot.threadId,
+        snapshot.pluginId,
+        JSON.stringify(snapshot.files),
+        snapshot.parentSnapshotId ?? null,
+        snapshot.createdByOperationId ?? null,
+        snapshot.packageRevision,
+        new Date().toISOString(),
+      );
+  }
+
+  /**
+   * Record a plugin operation. Repeated calls with the same operationId and
+   * identical request digest return the original state instead of executing
+   * again (§6.1 idempotency).
+   */
+  recordPluginOperation(operation: {
+    operationId: string;
+    threadId: string;
+    pluginId: string;
+    toolName: string;
+    requestDigest: string;
+    state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+    resultRef?: string;
+    error?: string;
+  }): void {
+    const existing = this.database
+      .prepare("SELECT * FROM plugin_operations WHERE operation_id = ?")
+      .get(operation.operationId) as PluginOperationRow | undefined;
+    const now = new Date().toISOString();
+    if (existing) {
+      if (existing.request_digest !== operation.requestDigest) {
+        throw new Error(
+          `Operation ${operation.operationId} replayed with a different request digest; refusing.`,
+        );
+      }
+      return;
+    }
+    this.database
+      .prepare(
+        `INSERT INTO plugin_operations (
+          operation_id, thread_id, plugin_id, tool_name, request_digest,
+          state, result_ref, error, cancelled_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .run(
+        operation.operationId,
+        operation.threadId,
+        operation.pluginId,
+        operation.toolName,
+        operation.requestDigest,
+        operation.state,
+        operation.resultRef ?? null,
+        operation.error ?? null,
+        now,
+        now,
+      );
+  }
+
+  /**
+   * Append one plugin event inside the caller's transaction discipline. The
+   * stream seq is allocated per (streamId) and the UNIQUE constraint keeps
+   * concurrent appends honest; on violation the insert throws and the caller
+   * retries with the next seq (no partial publishes).
+   */
+  appendPluginEvent(event: {
+    eventId: string;
+    streamId: string;
+    threadId: string;
+    schemaVersion: number;
+    payload: Record<string, unknown>;
+  }): void {
+    const seqRow = this.database
+      .prepare(
+        "SELECT COALESCE(MAX(seq), 0) AS max FROM plugin_events WHERE stream_id = ?",
+      )
+      .get(event.streamId) as { max: number };
+    this.database
+      .prepare(
+        `INSERT INTO plugin_events (
+          event_id, stream_id, thread_id, seq, schema_version, payload_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        event.eventId,
+        event.streamId,
+        event.threadId,
+        seqRow.max + 1,
+        event.schemaVersion,
+        JSON.stringify(event.payload),
+        new Date().toISOString(),
+      );
+  }
+
   createThread(thread: Thread): Thread {
     this.database
       .prepare(
         `INSERT INTO threads (
           id, project_id, title, goal, mode, target, status, session_file,
-          model_selection_json, context_window, pinned, archived, created_at,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          model_selection_json, context_window, pinned, archived,
+          type_binding_json, execution_profile, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         thread.id,
@@ -1077,6 +1539,8 @@ export class AppStore {
         thread.contextWindow ?? null,
         thread.pinned ? 1 : 0,
         thread.archived ? 1 : 0,
+        thread.typeBinding ? JSON.stringify(thread.typeBinding) : null,
+        thread.executionProfile ?? null,
         thread.createdAt,
         thread.updatedAt,
       );

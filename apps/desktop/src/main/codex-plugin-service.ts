@@ -46,6 +46,8 @@ import {
 } from "node:path";
 
 import { x as extractTar } from "tar";
+import { PluginRevisionStore } from "./design-plugin-revision-store.js";
+import { pluginManifestSchema, type PluginManifest } from "@artemis/protocol";
 
 import type {
   CodexPluginMarketplace,
@@ -135,6 +137,8 @@ interface ParsedPlugin {
   capabilityDependencies?: CapabilityDependency[];
   hasHooks?: boolean;
   localizations?: PluginLocalizations;
+  /** S1: parsed artemis.plugin.json when the package carries one. */
+  designPluginManifest?: PluginManifest;
   root: string;
   id: string;
   name: string;
@@ -189,6 +193,13 @@ interface StoredPlugin {
   appPreviews: CodexPluginPreview["apps"];
   unsupported: string[];
   warnings: string[];
+  /** S1: immutable revision pointer for design plugins. */
+  designPlugin?: {
+    installationId: string;
+    contentHash: string;
+    revisionRoot: string;
+    version: string;
+  };
 }
 
 interface PluginStore {
@@ -2202,7 +2213,18 @@ export class CodexPluginService {
         plugins: store.plugins.filter((plugin) => plugin.id !== existing.id),
       };
       await this.commitMoves(moves, currentMcp, nextMcp, nextStore);
-      return { warnings: [] };
+      // S1: best-effort cleanup of the plugin's immutable revisions. Failure
+      // only warns: leftover revisions are inert without an installation.
+      const warnings: string[] = [];
+      try {
+        await rm(
+          join(this.options.pluginsRoot, "plugin-revisions", existing.id),
+          { recursive: true, force: true },
+        );
+      } catch (error) {
+        warnings.push(`Failed to remove plugin revisions: ${String(error)}`);
+      }
+      return { warnings };
     });
   }
 
@@ -3133,9 +3155,20 @@ export class CodexPluginService {
           maximumBytes: MAX_PLUGIN_BYTES,
         })
       : undefined;
+    // S1: parallel design-plugin contract. A package may carry both a
+    // .codex-plugin/plugin.json (market metadata) and an artemis.plugin.json
+    // (design-plugin contract); the latter is strictly validated here so a
+    // broken manifest never reaches the revision store or thread bindings.
+    const designManifestPath = join(root, "artemis.plugin.json");
+    const designPluginManifest = (await exists(designManifestPath))
+      ? pluginManifestSchema.parse(
+          JSON.parse((await readFile(designManifestPath)).toString("utf8")),
+        )
+      : undefined;
     return {
       root,
       capabilityDependencies,
+      ...(designPluginManifest ? { designPluginManifest } : {}),
       id: pluginId(name, source),
       name,
       displayName,

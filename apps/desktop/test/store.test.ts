@@ -7,7 +7,11 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { PROTOCOL_VERSION, reduceAgentEvents } from "@artemis/protocol";
 
-import { AppStore, CUSTOM_AGENTS_DATABASE_VERSION } from "../src/main/store.js";
+import {
+  AppStore,
+  CUSTOM_AGENTS_DATABASE_VERSION,
+  DESIGN_PLUGIN_DATABASE_VERSION,
+} from "../src/main/store.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -145,7 +149,7 @@ describe("AppStore", () => {
         .get(),
     ).toEqual({ version: 3 });
     expect(persisted.prepare("PRAGMA user_version").get()).toEqual({
-      user_version: CUSTOM_AGENTS_DATABASE_VERSION,
+      user_version: DESIGN_PLUGIN_DATABASE_VERSION,
     });
     persisted.close();
   });
