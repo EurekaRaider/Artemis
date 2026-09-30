@@ -10281,9 +10281,30 @@ function registerIpc(): void {
         .sort()
         .at(-1);
       if (!source) return undefined;
+      // 显示名取账本的文档名（customer.html），而非版本文件名（v2-xxx.html）。
+      let displayName = input.documentId;
+      try {
+        const ledgerText = await readFile(
+          join(documentDir, "..", "design-documents.jsonl"),
+          "utf8",
+        );
+        for (const line of ledgerText.split("\n")) {
+          if (!line.trim()) continue;
+          const record = JSON.parse(line) as {
+            id?: string;
+            name?: string;
+          };
+          if (record.id === input.documentId && record.name) {
+            displayName = record.name;
+            break;
+          }
+        }
+      } catch {
+        /* 账本缺失时回退到 documentId */
+      }
       return {
         html: await readFile(join(documentDir, source), "utf8"),
-        name: source,
+        name: displayName,
       };
     },
     listDocuments: async (input) => {

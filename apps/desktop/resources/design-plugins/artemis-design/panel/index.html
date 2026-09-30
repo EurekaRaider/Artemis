@@ -39,7 +39,8 @@
   }
 
   [hidden] { display: none !important; }
-  html, body { margin: 0; height: 100%; background: var(--surface-2); color: var(--text); font-family: var(--ui-font); font-size: var(--fs); }
+  html, body { margin: 0; height: 100%; background: var(--surface-2); color: var(--text); font-family: var(--ui-font); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  button { font: inherit; color: inherit; }
   .design-panel-root { height: 100%; display: flex; flex-direction: column; min-height: 0; position: relative; }
   .btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: var(--r-sm); background: var(--surface-3); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 590; padding: var(--sp-btn-y) var(--sp-btn-x); cursor: pointer; }
   .btn:hover { filter: brightness(.97); }
@@ -54,6 +55,11 @@
   .mock-empty { color: var(--text-2); font-size: 13px; text-align: center; padding: 48px 16px; }
   .dz-present-body { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 24px; }
   .dz-source .ln { display: inline-block; min-width: 3ch; margin-right: 12px; color: var(--text-3); text-align: right; user-select: none; }
+  .design-cards { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 12px; align-content: start; padding: 2px 14px 14px; }
+  .design-file-thumb { display: block; margin: 8px 8px 0; border-radius: 6px; background: var(--surface-2); aspect-ratio: 16 / 10; overflow: hidden; }
+  .design-file-meta { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 12px; }
+  .design-file-name { font-weight: 600; font-size: 13px; }
+  .design-file-sub { color: var(--text-2); font-size: 11.5px; }
   .design-file-card { cursor: pointer; }
 /* ① 工作区标签条：固定「设计文件」标签 + 文件标签（× 关闭）+ 新建 */
 .design-ws-tabs{
@@ -1634,7 +1640,7 @@
       b.textContent = g[0];
       var count = document.createElement("span");
       count.className = "design-cat-count";
-      count.textContent = String(g[1]);
+      count.textContent = String(g[2]);
       b.appendChild(count);
       b.addEventListener("click", function () {
         $$(".design-cat").forEach(function (o) { o.classList.toggle("active", o === b); });

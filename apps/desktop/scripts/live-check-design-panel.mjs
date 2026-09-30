@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { writeFileSync } from "node:fs";
 
-const PANEL = "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/0499b72c892b3f987bbbe12b24ed6e3c634ce2d0a280b0e2fc7d336d8384b7fc/panel/index.html";
+const PANEL = "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/531ba0dc55c7c86d6e334f13cf23dcd67ed067884dd72ee6c0e86a0d5d912f9c/panel/index.html";
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 1180, height: 860, show: true });
@@ -72,7 +72,7 @@ app.whenReady().then(async () => {
   if (readReq) {
     const { readFile } = await import("node:fs/promises");
     const html = await readFile(
-      "/private/tmp/artemis-dev-user-data/plugin-scratch/fa88e738-9f19-407b-8291-6b2abb19cf91/0499b72c892b3f987bbbe12b24ed6e3c634ce2d0a280b0e2fc7d336d8384b7fc/documents/seed-customer/v2-12771ba0e0b78686.html",
+      "/private/tmp/artemis-dev-user-data/plugin-scratch/fa88e738-9f19-407b-8291-6b2abb19cf91/531ba0dc55c7c86d6e334f13cf23dcd67ed067884dd72ee6c0e86a0d5d912f9c/documents/seed-customer/v2-12771ba0e0b78686.html",
       "utf8",
     );
     hostSide.postMessage({ type: "document-html", html, name: "customer.html", subtitle: "客户档案" });
