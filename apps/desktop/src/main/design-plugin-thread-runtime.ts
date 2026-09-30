@@ -146,6 +146,28 @@ export class ThreadRuntimeManager {
     contentHash: string;
   }): Promise<LiveRuntime> {
     const key = this.key(input.pluginId);
+    // Coalesce concurrent spawns for the same plugin: the panel snapshot
+    // push and a model turn can both dispatch on first open, and the
+    // registry entry is set BEFORE start() completes — without this,
+    // the second caller gets a live whose worker is not ready yet and
+    // invoke() rejects with "Worker not ready".
+    const pending = this.pendingEnsures.get(key);
+    if (pending) return pending;
+    const promise = this.doEnsureRuntime(input).finally(() => {
+      this.pendingEnsures.delete(key);
+    });
+    this.pendingEnsures.set(key, promise);
+    return promise;
+  }
+
+  private pendingEnsures = new Map<string, Promise<LiveRuntime>>();
+
+  private async doEnsureRuntime(input: {
+    entry: string;
+    pluginId: string;
+    contentHash: string;
+  }): Promise<LiveRuntime> {
+    const key = this.key(input.pluginId);
     const existing = this.runtimes.get(key);
     if (existing && !existing.worker.isDisposed()) {
       if (existing.contentHash === input.contentHash) return existing;

@@ -2812,6 +2812,9 @@
       if (hostPort) {
         hostPort.start();
         bindPortListener(hostPort);
+        // Self-heal: ask for the snapshot instead of trusting the host
+        // push — covers a lost/raced initial push on first open.
+        hostPort.postMessage({ type: "list-documents-request" });
       }
       return;
     }

@@ -10204,6 +10204,21 @@ function registerIpc(): void {
     panelId: string,
   ): Promise<void> {
     if (!pluginDispatch || !designPanelHost) return;
+    // First-open dispatch can race runtime worker startup; one deferred
+    // retry covers the "Worker not ready" window instead of leaving the
+    // panel blank forever.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const delivered = await deliverDesignSnapshot(threadId, panelId);
+      if (delivered) return;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
+
+  async function deliverDesignSnapshot(
+    threadId: string,
+    panelId: string,
+  ): Promise<boolean> {
+    if (!pluginDispatch || !designPanelHost) return false;
     const outcome = await pluginDispatch.dispatch({
       threadId,
       toolName: "get_snapshot",
@@ -10214,7 +10229,7 @@ function registerIpc(): void {
       console.error(
         `[design-panel] snapshot dispatch failed: ${JSON.stringify(outcome).slice(0, 300)}`,
       );
-      return;
+      return false;
     }
     let documents: unknown[] = [];
     try {
@@ -10233,6 +10248,7 @@ function registerIpc(): void {
       documents,
       projectName: project?.name ?? "设计任务",
     });
+    return true;
   }
 
   // S4: panel-originated requests (export / versions) run as host actions.
