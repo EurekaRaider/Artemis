@@ -287,57 +287,6 @@
 }
 .design-file-menu:hover{ color: var(--text); }
 /* 底部生成 composer：输入条 + 添加上下文 + 圆形发送（黑白反差） */
-.design-composer{
-  flex: none;
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  margin: 0 14px 12px;
-  padding: 8px 8px 8px 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-.design-composer:focus-within{ border-color: var(--border); }
-.design-composer-input{
-  flex: 1;
-  min-height: 22px;
-  max-height: 96px;
-  overflow-y: auto;
-  font: 400 12.5px/1.5 var(--font-ui);
-  color: var(--text);
-  outline: none;
-  word-break: break-word;
-}
-.design-composer-input:empty::before{
-  content: attr(data-placeholder);
-  color: var(--text-3);
-}
-.design-composer-actions{ flex: none; display: flex; align-items: center; gap: 6px; }
-.design-composer-btn{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px; height: 30px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  color: var(--text-2);
-  cursor: pointer;
-}
-.design-composer-btn:hover{ background: var(--surface-2); color: var(--text); }
-.design-composer-send{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px; height: 30px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  cursor: pointer;
-}
-.design-composer-send:disabled{ opacity: var(--opacity-disabled, .4); cursor: default; }
 /* ③ 预览态：工具条（刷新 + 预览|代码 + 设备 ｜ 截图/评论/标注·编辑·评论列表/缩放）+ viewport */
 .design-preview-view{
   flex: 1;
@@ -1370,14 +1319,6 @@
 </div>
 <div class="design-cards" id="dzCards"></div>
 <p class="dz-empty" hidden="" id="dzCatEmpty">这个分类还没有内容</p>
-<div class="design-composer">
-<div class="design-composer-input" contenteditable="true" data-placeholder="描述你想生成的内容…" role="textbox"></div>
-<div class="design-composer-actions">
-<button aria-label="添加上下文" class="design-composer-btn" title="添加上下文" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" viewbox="0 0 24 24" width="15"><path d="M12 5v14M5 12h14"></path></svg></button>
-<span class="sp"></span>
-<button aria-label="发送" class="design-composer-send" disabled="" id="dzComposerSend" title="发送" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="15"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"></path></svg></button>
-</div>
-</div>
 </div>
 <!-- 文件预览视图（原型 design-preview-view，含完整工具条） -->
 <div class="design-preview-view" hidden="" id="dzViewPreview">
@@ -2799,31 +2740,6 @@
     if (!e.target.closest("#dzHistory") && !e.target.closest("#dzHistoryBtn")) {
       $("#dzHistory").hidden = true;
     }
-  });
-
-  /* ============ composer（文件视图底部输入） ============ */
-  var composerInput = $(".design-composer-input");
-  var composerSend = $("#dzComposerSend");
-  function syncSendState() {
-    composerSend.disabled = composerInput.textContent.trim().length === 0;
-  }
-  composerInput.addEventListener("input", syncSendState);
-  composerInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (!composerSend.disabled) composerSend.click();
-    }
-  });
-  composerSend.addEventListener("click", function () {
-    var text = composerInput.textContent.trim();
-    if (!text) return;
-    composerInput.dispatchEvent(
-      new CustomEvent("artemis:candidate-prompt", { detail: { text: text, source: "panel" }, bubbles: true })
-    );
-    if (hostPort) hostPort.postMessage({ type: "candidate-prompt", text: text });
-    composerInput.textContent = "";
-    syncSendState();
-    dzToast("已发送到对话输入框");
   });
 
   /* ============ 宿主 port 桥 ============ */

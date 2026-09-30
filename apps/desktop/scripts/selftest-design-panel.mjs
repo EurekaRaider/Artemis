@@ -72,7 +72,7 @@ for (const sel of [
   "#dzNoteViewAll", "#dzDrawLayer", "#dzDrawTools", "#dzDrawUndo", "#dzDrawRedo",
   "#dzDrawSend", "#dzCommentPanel", "#dzCommentList", "#dzCommentEmpty",
   "#dzConfirm", "#dzToast", "#dzHistory", "#dzPresentLayer", "#dzPresentExit",
-  "#dzPinLayer", "#dzPickBox", ".design-composer-input", "#dzComposerSend",
+  "#dzPinLayer", "#dzPickBox",
 ]) {
   check(`${sel} 存在`, !!document.querySelector(sel));
 }
@@ -285,15 +285,10 @@ console.log("== 17. 分享 ==");
 document.getElementById("dzShareBtn").click();
 check("分享切换", document.getElementById("dzShareLabel").textContent === "已分享");
 
-console.log("== 18. composer 候选 ==");
-const composer = document.querySelector(".design-composer-input");
+console.log("== 18. composer 已移除（回归） ==");
 document.getElementById("dzTabFiles").click();
-composer.textContent = "生成一个深色的设置页";
-composer.dispatchEvent(new window.Event("input", { bubbles: true }));
-check("composer 输入启用发送", !document.getElementById("dzComposerSend").disabled);
-document.getElementById("dzComposerSend").click();
-check("composer 候选发出", sent.some((m) => m.text === "生成一个深色的设置页"));
-check("发送后清空", composer.textContent === "");
+check("面板底部无 composer", !document.querySelector(".design-composer-input") && !document.getElementById("dzComposerSend"));
+check("文件视图仍正常显示", !document.getElementById("dzViewFiles").hidden);
 
 console.log("== 19. 审查修复回归：新控件 ==");
 check("dzEditBtn 存在且禁用（有意裁剪可见化）", (() => { const b = document.getElementById("dzEditBtn"); return !!b && b.disabled; })());

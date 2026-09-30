@@ -702,6 +702,8 @@ export function WorkspaceTabIcon({
       <FilesIcon />
     );
   }
+  if (kind === "design")
+    return <ArtemisIcon className="icon" height={16} name="document" width={16} />;
   return <FilesIcon />;
 }
 
@@ -8978,7 +8980,9 @@ ${model.providerId} · ${model.modelId}`}
                                   ["file", t.files, <FilesIcon />],
                                   ...(activeThread?.typeBinding?.typeId ===
                                   "artemis-design"
-                                    ? ([["design", t.designTab, <FilesIcon />]] as const)
+                                    ? ([[ "design", t.designTab,
+                                        <ArtemisIcon className="icon" height={18} name="document" width={18} />,
+                                      ]] as const)
                                     : []),
                                 ] as const
                               ).map(([kind, label, icon]) => (
