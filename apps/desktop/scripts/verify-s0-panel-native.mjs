@@ -190,7 +190,7 @@ app.whenReady().then(async () => {
 );
 
 try {
-const electron = createRequire(import.meta.url)("electron");
+  const electron = createRequire(import.meta.url)("electron");
   const child = spawn(
     electron,
     [
