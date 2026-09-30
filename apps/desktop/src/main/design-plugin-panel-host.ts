@@ -198,6 +198,12 @@ export class DesignPanelHost {
         sandbox: true,
         nodeIntegration: false,
         contextIsolation: true,
+        // Port-only bridge preload: webContents.postMessage delivers only to
+        // the isolated world (official message-ports tutorial), so a tiny
+        // preload forwards the transferred port to the page's main world via
+        // window.postMessage. It exposes no APIs to the page script — the
+        // panel stays zero-Node/zero-IPC from the page's perspective.
+        preload: join(__dirname, "design-plugin-panel-preload.cjs"),
       },
     });
     const webContents = view.webContents;

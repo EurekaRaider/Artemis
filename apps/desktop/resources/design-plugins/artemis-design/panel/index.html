@@ -2872,9 +2872,13 @@
     });
   }
   window.addEventListener("message", function (event) {
-    if (event.source === window && event.data === "artemis:port-init") {
+    // preload 转发的 port（官方 main-world-port 模式）：data 是通道名，ports 携带端口
+    if (event.source === window && event.data === "artemis:port") {
       hostPort = event.ports[0] || null;
-      if (hostPort) hostPort.start();
+      if (hostPort) {
+        hostPort.start();
+        bindPortListener(hostPort);
+      }
       return;
     }
   });

@@ -75,6 +75,12 @@ await Promise.all([
   }),
   build({
     ...shared,
+    entryPoints: ["src/main/design-plugin-panel-preload.ts"],
+    format: "cjs",
+    outfile: "dist-electron/design-plugin-panel-preload.cjs",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/main/slack-cli-hook.ts"],
     format: "cjs",
     outfile: "dist-electron/slack-cli-hook.cjs",
