@@ -58,6 +58,7 @@
   "App_copy.taskMode": "Task mode",
   "App_copy.agentTeam": "Agent team",
   "App_copy.terminal": "Terminal",
+  "App_copy.designTab": "Design",
   "App_copy.browser": "Browser",
   "App_copy.browserAddress": "Enter a URL",
   "App_copy.browserBack": "Back",

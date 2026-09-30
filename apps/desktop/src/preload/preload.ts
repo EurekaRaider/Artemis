@@ -249,6 +249,24 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.workspaceVideoOpen, threadId, href),
   releaseWorkspaceVideo: (threadId, url) =>
     ipcRenderer.invoke(IPC.workspaceVideoRelease, threadId, url),
+  ensureDesignPanel: (threadId, panelId) =>
+    ipcRenderer.invoke(IPC.designPanelEnsure, threadId, panelId),
+  setDesignPanelBounds: (threadId, panelId, bounds) =>
+    ipcRenderer.invoke(IPC.designPanelBounds, threadId, panelId, bounds),
+  setDesignPanelVisible: (threadId, panelId, visible) =>
+    ipcRenderer.invoke(IPC.designPanelVisible, threadId, panelId, visible),
+  releaseDesignPanel: (threadId, panelId) =>
+    ipcRenderer.invoke(IPC.designPanelRelease, threadId, panelId),
+  onDesignPanelCandidate: (listener) => {
+    const handler = (
+      _event: unknown,
+      payload: Parameters<typeof listener>[0],
+    ) => listener(payload);
+    ipcRenderer.on(IPC.designPanelCandidate, handler as never);
+    return () => {
+      ipcRenderer.removeListener(IPC.designPanelCandidate, handler as never);
+    };
+  },
   openOfficeFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.officeOpen, threadId, path),
   readOfficeSnapshot: (threadId, sessionId) =>

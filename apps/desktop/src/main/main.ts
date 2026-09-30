@@ -1,3 +1,4 @@
+import { DesignPanelHost } from "./design-plugin-panel-host.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
@@ -479,6 +480,8 @@ interface PendingMultiUserInput {
 
 let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
+// S1 design-plugin panel host; created in the ready handler below.
+let designPanelHost: DesignPanelHost | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
@@ -9839,6 +9842,53 @@ function registerIpc(): void {
       workspaceVideoPreview.release(threadId, url);
     },
   );
+  ipcMain.handle(
+    IPC.designPanelEnsure,
+    async (event, threadId: string, panelId: string) => {
+      if (!designPanelHost) throw new Error("Panel host is not ready.");
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) throw new Error("Host window is not available.");
+      const thread = store?.getThread(threadId);
+      if (!thread) throw new Error("Active task not found.");
+      return designPanelHost.ensurePanel(window, threadId, panelId);
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelBounds,
+    async (
+      _event,
+      threadId: string,
+      panelId: string,
+      bounds: { x: number; y: number; width: number; height: number },
+    ) => {
+      designPanelHost?.setBounds(threadId, panelId, bounds);
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelVisible,
+    async (
+      _event,
+      threadId: string,
+      panelId: string,
+      visible: boolean,
+    ) => {
+      designPanelHost?.setVisible(threadId, panelId, visible);
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelRelease,
+    async (_event, threadId: string, panelId: string) => {
+      designPanelHost?.releasePanel(threadId, panelId);
+    },
+  );
+  // Candidate prompts flow main -> renderer; the panel never gets a channel.
+  designPanelHost?.onCandidatePrompt((candidate) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(IPC.designPanelCandidate, candidate);
+    }
+  });
+
   ipcMain.handle(
     IPC.officeOpen,
     async (_event, threadId: string, path: string) => {
@@ -22102,6 +22152,14 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+
+  // S1 design-plugin panel host: sandboxed WebContentsView per (thread,
+  // panelId). Catalog points at the first-party package root for now; the
+  // installed-revision view replaces this when the trust chain lands.
+  designPanelHost = new DesignPanelHost();
+  designPanelHost.setCatalogRoot(
+    join(app.getAppPath(), "resources", "design-plugins"),
+  );
     markStartupStage("database-ready");
     threadHistoryService = new ThreadHistoryService(
       join(app.getPath("userData"), "artemis.sqlite"),

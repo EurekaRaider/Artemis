@@ -247,6 +247,11 @@ import {
   deriveRunPresentation,
   formatRunDuration,
 } from "./run-presentation.js";
+const DesignPluginPanel = lazy(() =>
+  import("./DesignPluginPanel.js").then((module) => ({
+    default: module.DesignPluginPanel,
+  })),
+);
 const OfficeFilePanel = lazy(() =>
   import("./OfficeFilePanel.js").then((module) => ({
     default: module.OfficeFilePanel,
@@ -2339,6 +2344,7 @@ export function App() {
   const workspaceTabBaseTitle = useCallback(
     (kind: WorkspaceTabKind) => {
       if (kind === "review") return t.reviewPanel;
+      if (kind === "design") return t.designTab;
       if (kind === "terminal") return t.terminal;
       if (kind === "browser") return t.browser;
       if (kind === "markdown") return t.markdownReader;
@@ -8890,6 +8896,7 @@ ${model.providerId} · ${model.modelId}`}
                                   ["terminal", t.terminal, <TerminalIcon />],
                                   ["browser", t.browser, <BrowserIcon />],
                                   ["file", t.files, <FilesIcon />],
+                                  ["design", t.designTab, <FilesIcon />],
                                 ] as const
                               ).map(([kind, label, icon]) => (
                                 <button
@@ -9634,6 +9641,21 @@ ${model.providerId} · ${model.modelId}`}
                               unsavedLabel={t.unsaved}
                             />
                           )}
+                          {tab.kind === "design" && activeThreadId ? (
+                            <Suspense fallback={<span>…</span>}>
+                              <DesignPluginPanel
+                                key={`${activeThreadId}:${tab.id}`}
+                                threadId={activeThreadId}
+                                panelId="workspace"
+                                active={workspaceTabs.activeTabId === tab.id}
+                                onCandidate={(text) => {
+                                  if (!text.trim()) return;
+                                  setToast(`面板候选：${text.slice(0, 60)}`);
+                                }}
+                                failureMessage={t.designTab}
+                              />
+                            </Suspense>
+                          ) : null}
                           {tab.kind === "office" &&
                           activeThreadId &&
                           tab.path ? (

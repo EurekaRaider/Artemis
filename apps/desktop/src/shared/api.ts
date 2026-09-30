@@ -1035,6 +1035,31 @@ export interface ArtemisApi {
     href: string,
   ): Promise<import("./workspace-video.js").WorkspaceVideoSource>;
   releaseWorkspaceVideo(threadId: string, url: string): Promise<void>;
+  ensureDesignPanel(
+    threadId: string,
+    panelId: string,
+  ): Promise<{ panelId: string; pluginId: string; entryUrl: string }>;
+  setDesignPanelBounds(
+    threadId: string,
+    panelId: string,
+    bounds: { x: number; y: number; width: number; height: number },
+  ): Promise<void>;
+  setDesignPanelVisible(
+    threadId: string,
+    panelId: string,
+    visible: boolean,
+  ): Promise<void>;
+  releaseDesignPanel(threadId: string, panelId: string): Promise<void>;
+  onDesignPanelCandidate(
+    listener: (event: {
+      kind: "candidate-prompt";
+      threadId: string;
+      panelId: string;
+      text: string;
+      source: string;
+      occurredAt: string;
+    }) => void,
+  ): () => void;
   openOfficeFile(
     threadId: string,
     path: string,
@@ -1376,6 +1401,11 @@ export const IPC = {
   workspaceVideoOpen: "artemis:workspace-video-open",
   workspaceVideoRelease: "artemis:workspace-video-release",
   officeOpen: "artemis:office-open",
+  designPanelEnsure: "artemis:design-panel-ensure",
+  designPanelBounds: "artemis:design-panel-bounds",
+  designPanelVisible: "artemis:design-panel-visible",
+  designPanelRelease: "artemis:design-panel-release",
+  designPanelCandidate: "artemis:design-panel-candidate",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",
   workspaceCsvSave: "artemis:workspace-csv-save",
