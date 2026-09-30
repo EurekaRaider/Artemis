@@ -2800,6 +2800,46 @@ button.environment-row:disabled {
   padding: 0;
 }
 
+.markdown-code-toolbar {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  justify-content: space-between;
+  gap: 12px;
+  left: 0;
+  margin-bottom: 8px;
+  position: sticky;
+  white-space: normal;
+}
+
+.markdown-code-copy {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 6px;
+  min-height: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 4px;
+}
+
+.markdown-code-copy:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+
+.markdown-code-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .markdown-body blockquote {
   border-left: 2px solid var(--border);
   color: var(--muted);

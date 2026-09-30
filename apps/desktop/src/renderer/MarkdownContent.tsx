@@ -421,6 +421,61 @@ export const MarkdownContent = memo(function MarkdownContent({
 
   useLayoutEffect(() => {
     const root = contentRoot.current;
+    if (!root) return;
+    const copyLabel = locale === "zh-CN" ? "复制代码" : "Copy code";
+    const copiedLabel = locale === "zh-CN" ? "已复制" : "Copied";
+    const failedLabel =
+      locale === "zh-CN" ? "复制失败，请重试" : "Copy failed; retry";
+    const cleanups: (() => void)[] = [];
+    for (const code of root.querySelectorAll<HTMLElement>("pre > code")) {
+      const toolbar = document.createElement("div");
+      toolbar.className = "markdown-code-toolbar";
+      const language = document.createElement("span");
+      language.textContent =
+        [...code.classList]
+          .find((name) => name.startsWith("language-"))
+          ?.slice("language-".length) ?? "text";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "markdown-code-copy";
+      // Trusted UI is installed after sanitization; Markdown cannot create buttons.
+      button.innerHTML =
+        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>';
+      const status = document.createElement("span");
+      status.setAttribute("role", "status");
+      button.append(status);
+      const label = (value: string) => {
+        button.title = value;
+        button.setAttribute("aria-label", value);
+        status.textContent = value === copyLabel ? "" : value;
+      };
+      label(copyLabel);
+      let active = true;
+      let reset: ReturnType<typeof setTimeout> | undefined;
+      button.onclick = async () => {
+        clearTimeout(reset);
+        try {
+          await navigator.clipboard.writeText(code.textContent ?? "");
+          if (active) label(copiedLabel);
+        } catch {
+          if (active) label(failedLabel);
+        }
+        if (active) reset = setTimeout(() => label(copyLabel), 2000);
+      };
+      toolbar.append(language, button);
+      code.before(toolbar);
+      cleanups.push(() => {
+        active = false;
+        clearTimeout(reset);
+        button.onclick = null;
+        toolbar.remove();
+      });
+    }
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, [html, locale, videoThreadId]);
+
+  useLayoutEffect(() => {
+    const root = contentRoot.current;
     if (!root || !fileLinkIcons) return;
     for (const anchor of root.querySelectorAll<HTMLAnchorElement>(
       "a.workspace-file-link.with-icon[data-workspace-file]",
