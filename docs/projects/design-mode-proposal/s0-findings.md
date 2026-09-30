@@ -39,22 +39,34 @@
 
 两个业务不同的插件包经同一路径加载、校验、按 typeId 解析；坏 manifest 报错而非静默跳过；真实资源包可加载。
 
-## 未覆盖（如实声明）
+## 验证线 1：WebContentsView 面板容器（已通过，macOS arm64 原生窗口）
 
-1. **验证线 1（WebContentsView 面板容器）未做**：需要真实窗口的原生验证（焦点/弹层遮挡/缩放/任务切换隐藏），面板 HTML 已就位但未接 PanelHost。这是 S0 剩余最大风险项。
-2. **未接入 agent-host**：工具门控与账本尚未挂到 `runtime.ts` 创建路径，纯模块级验证。
-3. **stdio runtime 协议未实现**：runtime 存根只回 ready，无 tool.invoke/artifact.propose 帧。
-4. **未做 macOS 打包验证**；Windows 未涉及。
-5. 提案 §5.2 不可变 revision 存储、§8 独立 session/MessagePort 均为 S1/S2 范围。
+验证脚本 [verify-s0-panel-native.mjs](../../../apps/desktop/scripts/verify-s0-panel-native.mjs) 在真实 Electron 窗口（swiftshader 无 GPU）中装载两个 S0 插件面板（独立非持久 session），6 项检查全部通过，证据落盘 `artifacts/s0-panel/darwin-arm64.json`：
+
+| 检查                  | 结果 | 说明                                                                                |
+| --------------------- | ---- | ----------------------------------------------------------------------------------- |
+| focus-panel           | ✅   | 面板 webContents.focus() 执行，宿主窗口稳定                                         |
+| focus-active-element  | ✅   | 面板报告 activeElement=BODY                                                         |
+| overlay-above-panel   | ✅   | 宿主模态对话框渲染在面板视图之上                                                    |
+| resize-panel-follows  | ✅   | 宿主 resize 后 view bounds 按比例跟随（content=1600x796，右半面板 x=800 width=800） |
+| switch-dom-persists   | ✅   | setVisible(false)→DOM 变更→setVisible(true)，DOM 状态保留                           |
+| teardown-kills-panels | ✅   | 显式 close() 后两个面板 webContents 均 isDestroyed()=true                           |
+
+**两条 Electron 43 实测发现（写进宿主实现的硬要求）：**
+
+1. `host.destroy()` 不会自动销毁子 WebContentsView 的 webContents——提案 §8"关闭页签必须显式关闭所属 webContents"不是防御性设计，是必须实现的清理逻辑。
+2. 销毁后 `view.webContents` 引用被清空——宿主需在销毁前持有引用（或先 close 子视图再 destroy 宿主窗口）。
+
+另：`setContentSize` 会被屏幕物理高度截断（1600x900 → 1600x796），断言须用相对布局而非绝对像素。2. **未接入 agent-host**：工具门控与账本尚未挂到 `runtime.ts` 创建路径，纯模块级验证。3. **stdio runtime 协议未实现**：runtime 存根只回 ready，无 tool.invoke/artifact.propose 帧。4. **未做 macOS 打包验证**；Windows 未涉及。5. 提案 §5.2 不可变 revision 存储、§8 独立 session/MessagePort 均为 S1/S2 范围。
 
 ## 结论与建议
 
 - **架构方向可行**：通用宿主 + 严格 manifest + 双层工具门控 + 持久账本在模块层全部按提案行为工作，未发现需要推翻提案的证据。
 - **发现并修复一处设计缺陷**：初版 `recover()` 会把上一轮 unknown 的记录从报告中静默丢弃；已修复为持续可见直至显式对账——这正是提案 §9.3 "不能承诺 exactly-once、必须提供核对" 的落地。
 - **下一步（按优先级）**：
-  1. 补验证线 1：最小 PanelHost + Electron 原生窗口验证（焦点/遮挡/缩放/切换），这是容器定型的硬门槛。
-  2. 把工具门控接入 `createResourceOverrides`/thread 创建路径，用真实 Pi session 跑 §7 拒绝矩阵。
-  3. stdio 帧协议（hello/ready/tool.invoke）+ runtime 进程生命周期测试。
+  1. 把工具门控接入 `createResourceOverrides`/thread 创建路径，用真实 Pi session 跑 §7 拒绝矩阵。
+  2. stdio 帧协议（hello/ready/tool.invoke）+ runtime 进程生命周期测试。
+  3. 依据验证线 1 的两条 Electron 43 发现，在正式 PanelHost 中实现显式 webContents 清理。
 
 ## 运行方式
 
