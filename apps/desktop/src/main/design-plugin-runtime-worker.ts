@@ -60,7 +60,11 @@ export class PluginRuntimeWorker {
       cwd: this.options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
       // Minimal environment: the runtime must not inherit host credentials.
-      env: { NODE_OPTIONS: "" },
+      // ELECTRON_RUN_AS_NODE is required because process.execPath is the
+      // Electron binary — without it each worker launches as a new app
+      // instance (second Dock icon, full app lifecycle) instead of running
+      // the runtime script as plain Node.
+      env: { NODE_OPTIONS: "", ELECTRON_RUN_AS_NODE: "1" },
     });
     this.child.stdout?.on("data", (chunk: Buffer) => {
       try {
