@@ -84,6 +84,10 @@ export interface PanelRequestHandlers {
 export class DesignPanelHost {
   private readonly panels = new Map<string, LivePanel>();
   private readonly pendingEnsures = new Map<string, Promise<PluginPanelHandle>>();
+  private readonly pendingBounds = new Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >();
   private readonly catalog = new DesignPluginCatalog();
   private catalogRoot: string | undefined;
   private hostWindow: BrowserWindow | undefined;
@@ -149,12 +153,30 @@ export class DesignPanelHost {
     panelId: string,
   ): Promise<PluginPanelHandle> {
     console.log(`[design-panel] ensurePanel called: ${panelId} / ${threadId}`);
-    const existing = this.panels.get(this.key(threadId, panelId));
-    const pending = this.pendingEnsures.get(this.key(threadId, panelId));
     // React StrictMode double-mounts effects in dev: two ensures race on
-    // the same key while the first loadURL is still in flight, which
-    // used to stack two views and clobber the panel registry. Coalesce.
+    // the same key while the first is still loading, stacking two views
+    // and clobbering the panel registry. Register the in-flight promise
+    // SYNCHRONOUSLY on the first line so the second caller can never
+    // slip past the check (any later registration point leaves a window
+    // between the async manifest reads).
+    const pendingKey = this.key(threadId, panelId);
+    const pending = this.pendingEnsures.get(pendingKey);
     if (pending) return pending;
+    const promise = this.doEnsurePanel(window, threadId, panelId).finally(
+      () => {
+        this.pendingEnsures.delete(pendingKey);
+      },
+    );
+    this.pendingEnsures.set(pendingKey, promise);
+    return promise;
+  }
+
+  private async doEnsurePanel(
+    window: BrowserWindow,
+    threadId: string,
+    panelId: string,
+  ): Promise<PluginPanelHandle> {
+    const existing = this.panels.get(this.key(threadId, panelId));
     if (existing) {
       return {
         panelId,
@@ -362,32 +384,27 @@ export class DesignPanelHost {
     });
     hostPort.start();
 
-    const finish = (async () => {
-      this.panels.set(this.key(threadId, panelId), {
-        view,
-        webContents,
-        hostPort,
-        pluginId: owner.manifest.id,
-        panelId,
-      });
-      await webContents.loadURL(entryUrl);
-      webContents.postMessage("artemis:port", null, [panelPort]);
-      console.log(
-        `[design-panel] ensured ${panelId} for ${threadId}: url=${entryUrl}`,
-      );
-      webContents.on("did-fail-load", (_e, code, desc, url) => {
-        console.error(
-          `[design-panel] load failed ${code} ${desc} ${url ?? ""}`,
-        );
-      });
-      return { panelId, pluginId: owner.manifest.id, entryUrl };
-    })();
-    this.pendingEnsures.set(this.key(threadId, panelId), finish);
-    try {
-      return await finish;
-    } finally {
-      this.pendingEnsures.delete(this.key(threadId, panelId));
+    this.panels.set(this.key(threadId, panelId), {
+      view,
+      webContents,
+      hostPort,
+      pluginId: owner.manifest.id,
+      panelId,
+    });
+    const stashed = this.pendingBounds.get(this.key(threadId, panelId));
+    if (stashed) {
+      this.pendingBounds.delete(this.key(threadId, panelId));
+      view.setBounds(stashed);
     }
+    await webContents.loadURL(entryUrl);
+    webContents.postMessage("artemis:port", null, [panelPort]);
+    console.log(
+      `[design-panel] ensured ${panelId} for ${threadId}: url=${entryUrl}`,
+    );
+    webContents.on("did-fail-load", (_e, code, desc, url) => {
+      console.error(`[design-panel] load failed ${code} ${desc} ${url ?? ""}`);
+    });
+    return { panelId, pluginId: owner.manifest.id, entryUrl };
   }
 
   /**
@@ -426,7 +443,11 @@ export class DesignPanelHost {
   ): void {
     const panel = this.panels.get(this.key(threadId, panelId));
     if (!panel) {
+      // First-open race: the renderer reports layout before ensure()
+      // finishes creating the view. Stash it — doEnsurePanel applies the
+      // stashed bounds so the view never sits at 0x0 (invisible).
       console.warn(`[design-panel] setBounds before ensure: ${panelId}`);
+      this.pendingBounds.set(this.key(threadId, panelId), bounds);
       return;
     }
     panel.view.setBounds(bounds);

@@ -35,16 +35,39 @@ export function DesignPluginPanel({
   candidateRef.current = onCandidate;
 
   useEffect(() => {
-    let active = true;
+    let mounted = true;
     setError(undefined);
     void window.artemis
       .ensureDesignPanel(threadId, panelId)
+      .then(() => {
+        if (!mounted) return;
+        // First-open geometry: the bounds/visible reports fired while the
+        // panel was still being created were dropped by the host (no
+        // registry entry yet). The view starts at 0x0 — re-report both
+        // now that ensure has resolved, or the panel stays blank until
+        // an unrelated resize.
+        const element = containerRef.current;
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          void window.artemis.setDesignPanelBounds(threadId, panelId, {
+            x: Math.round(rect.left),
+            y: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          });
+        }
+        void window.artemis.setDesignPanelVisible(
+          threadId,
+          panelId,
+          resizing ? false : active,
+        );
+      })
       .catch((reason: unknown) => {
-        if (active)
+        if (mounted)
           setError(reason instanceof Error ? reason.message : String(reason));
       });
     return () => {
-      active = false;
+      mounted = false;
       void window.artemis.releaseDesignPanel(threadId, panelId);
     };
   }, [threadId, panelId]);
