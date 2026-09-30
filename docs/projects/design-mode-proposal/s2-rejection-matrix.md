@@ -19,6 +19,7 @@
 | 10 | 受限线程经 MCP/Hook/子代理旁路 | §7 双层门控（S0 已测）；S2 保持 gate 不变 | restricted-thread-gate.test.ts 全绿 | ✅ 未放宽 |
 | 11 | 压缩后恢复的会话仍受限 | runtime.ts 每次重激活都过滤 denied 工具 | runtime.ts 6407-6414（既有）+ gate 测试 | ✅ 重激活路径过滤保留 |
 | 12 | fork 出的任务继承受限 | fork 复制 executionProfile/typeBinding（store 层） | store fork 路径 + S1 e2e | ✅ S1 已证绑定持久，fork 同链路 |
+| 13 | 线程删除/归档后 runtime 树存活 | main.ts 删除/归档路径调 pluginDispatch.closeThread + releasePanel | s2-runtime 套件 "dispatcher lifecycle" | ✅ 树被杀，后续经懒 spawn 语义明确 |
 
 ## 拒绝事件的审计形态
 

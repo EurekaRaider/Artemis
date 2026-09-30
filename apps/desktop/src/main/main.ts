@@ -10956,8 +10956,13 @@ function registerIpc(): void {
       const updated = store.updateThread(thread.id, {
         archived: command.archived,
       });
-      if (command.archived)
+      if (command.archived) {
+        // S2: archived threads stop hosting plugin runtimes; the next
+        // unarchive + tool call lazily respawns a fresh worker.
+        pluginDispatch?.closeThread(thread.id);
+        designPanelHost?.releasePanel(thread.id, "workspace");
         computerUseHost?.clearTask(thread.id, "Task archived");
+      }
       taskNotifications?.refresh();
       return updated;
     },
@@ -11085,6 +11090,10 @@ function registerIpc(): void {
       await turnChangeSetService?.deleteThread(threadId);
       await taskSourceImages().deleteThread(threadId);
       await attachmentStore().deleteThread(attachmentScope(threadId));
+      // S2: the thread is gone; its plugin runtime trees must not outlive
+      // it (SIGKILL via ThreadRuntimeManager.closeThread).
+      pluginDispatch?.closeThread(threadId);
+      designPanelHost?.releasePanel(threadId, "workspace");
       store.deleteThread(threadId);
       computerUseHost?.clearTask(threadId, "Task deleted");
       threadHistoryService?.discard(threadId);
