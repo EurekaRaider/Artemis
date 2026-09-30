@@ -80,6 +80,7 @@ import {
   type ChildAgentPayload,
   type AgentRuntimeCatalog,
   type AgentRuntimeConfiguration,
+  RESTRICTED_PROFILE_ID,
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
   type ModelSelection,
@@ -104,6 +105,10 @@ import { toPiProviderConfig } from "./provider-configuration.js";
 import { forkPiSession } from "./session-fork.js";
 import { deletePiSessionTranscript } from "./session-delete.js";
 import { RuntimeCredentialStore } from "./runtime-credentials.js";
+import {
+  assertToolAllowedForRestrictedThread,
+  isToolDeniedForRestrictedThread,
+} from "./restricted-thread-gate.js";
 import {
   AgentConcurrencyLimiter,
   type AgentConcurrencyLease,
@@ -865,12 +870,21 @@ export interface OpenThreadRequest {
   sessionFile?: string;
   selection?: ModelSelection;
   contextWindow?: number;
+  /**
+   * Fixed execution profile for this thread. When set to
+   * "plugin-restricted-v1" the thread is created restricted for its entire
+   * lifetime (proposal §7): denied tools are filtered from the customTools
+   * list AND every surviving tool's dispatch is guarded, so a stale list or
+   * direct call cannot widen the profile.
+   */
+  executionProfile?: string;
 }
 
 interface HostedThread {
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
+  executionProfile?: string | undefined;
   selection?: ModelSelection;
   contextWindow?: number;
   session: AgentSession;
@@ -6277,7 +6291,7 @@ export class ArtemisAgentHost {
         : {}),
     });
     await resourceLoader.reload();
-    const customTools = [
+    const assembledToolsAll = [
       ...attachmentTools,
       ...remoteTools,
       readTool,
@@ -6311,6 +6325,23 @@ export class ArtemisAgentHost {
       ...mcpTools,
       ...extensionTools,
     ];
+
+    // Restricted-profile gating (proposal §7): for plugin-restricted threads,
+    // layer 1 filters denied tools out of the model-visible list and layer 2
+    // wraps every surviving tool's execute with a pre-dispatch guard.
+    const restrictedThread =
+      request.executionProfile === RESTRICTED_PROFILE_ID;
+    const customTools = restrictedThread
+      ? assembledToolsAll
+          .filter((tool) => !isToolDeniedForRestrictedThread(tool.name))
+          .map((tool) => ({
+            ...tool,
+            execute: (async (...args: Parameters<typeof tool.execute>) => {
+              assertToolAllowedForRestrictedThread(tool.name);
+              return tool.execute(...args);
+            }) as typeof tool.execute,
+          }))
+      : assembledToolsAll;
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
@@ -6373,7 +6404,14 @@ export class ArtemisAgentHost {
     session.setActiveToolsByName(
       session
         .getActiveToolNames()
-        .filter((name) => !mcpDirectToolNames.has(name)),
+        .filter((name) => !mcpDirectToolNames.has(name))
+        // Restricted threads keep the profile filter on every re-activation
+        // path; a refresh must never widen the active tool set (§7).
+        .filter(
+          (name) =>
+            request.executionProfile !== RESTRICTED_PROFILE_ID ||
+            !isToolDeniedForRestrictedThread(name),
+        ),
     );
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
@@ -6504,6 +6542,9 @@ export class ArtemisAgentHost {
       threadId: request.threadId,
       workspacePath: request.workspacePath,
       target: request.target,
+      ...(request.executionProfile
+        ? { executionProfile: request.executionProfile }
+        : {}),
       ...(selection ? { selection: structuredClone(selection) } : {}),
       ...((request.contextWindow ?? this.configuration.contextWindow)
         ? {
