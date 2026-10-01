@@ -223,6 +223,7 @@ export function ResourceCenter({
   const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
   const [pluginInstallDraft, setPluginInstallDraft] =
     useState<CodexPluginPreview>();
+  const [officeCapabilityActive, setOfficeCapabilityActive] = useState(false);
   const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
   const [officeCapabilityInstalled, setOfficeCapabilityInstalled] =
     useState<boolean>();
@@ -276,7 +277,10 @@ export function ResourceCenter({
       void window.artemis
         .officeCapabilityStatus()
         .then((status) => {
-          if (active) setOfficeCapabilityInstalled(status.versions.length > 0);
+          if (active) {
+            setOfficeCapabilityInstalled(status.versions.length > 0);
+            setOfficeCapabilityActive(Boolean(status.activeVersion));
+          }
         })
         .catch((error: unknown) => {
           if (active) setMessage(String(error));
@@ -287,7 +291,7 @@ export function ResourceCenter({
       active = false;
       window.removeEventListener("focus", refresh);
     };
-  }, [hasOfficePlugins]);
+  }, [hasOfficePlugins, officeCapabilityOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -1666,12 +1670,6 @@ export function ResourceCenter({
 
   function pluginDescription(plugin: CodexPluginPreview): string {
     const copy = localizedPluginText(plugin, locale);
-    const translated = plugin.localizations?.[locale];
-    if (translated?.shortDescription || translated?.description) {
-      return pluginPageText(
-        translated.shortDescription || translated.description!,
-      );
-    }
     if (
       plugin.source.kind === "builtin" ||
       plugin.source.kind === "bundled" ||
@@ -1680,8 +1678,15 @@ export function ResourceCenter({
       const translated = bundledPluginDescription(
         locale,
         plugin.source.pluginName,
+        officeCapabilityActive,
       );
       if (translated) return translated;
+    }
+    const translated = plugin.localizations?.[locale];
+    if (translated?.shortDescription || translated?.description) {
+      return pluginPageText(
+        translated.shortDescription || translated.description!,
+      );
     }
     return pluginPageText(
       copy.shortDescription || copy.description || plugin.name,

@@ -1,27 +1,23 @@
-# Artemis v1.6.15
+# Artemis v1.6.16
 
 ## 中文
 
-- **Pi 引擎升级**：Pi Agent 及配套模型依赖升级至 `0.99.1`，继续由 Artemis 管理工具入口与执行权限。
-- **依赖修复**：更新 HTTP 与 glob 相关依赖，修复发布审计发现的高危漏洞。
+- **Goal 累计计时**：用量刷新、编辑目标、暂停／恢复和状态变化前保存已运行时长，避免计时归零；暂停期间不累计，回合结束不重复计时。
+- **Markdown 自适应宽度**：时间线长文本、代码块和表格在可用宽度内换行，保留文本选择、消息复制和代码块复制能力。
 
-- **动态 SVG 时间线预览**：回复中的本地 SVG 图片与文件链接可直接显示预览，保留 CSS／SMIL 动画，并保留文件链接入口。
-- **连续播放与去重**：同一文件的图片和链接只生成一个预览，后续文字继续输出时保持已有图片节点，避免动画重新开始。
-- **安全与失败提示**：SVG 使用隔离的图片上下文显示，不执行内嵌脚本；文件读取继续受工作区边界和大小限制保护，加载失败时显示提示。
-- **代码块复制**：时间线 Markdown 代码块新增语言标签和复制按钮，支持复制成功提示及失败重试。
-- **生成文件管理**：移除本地 Office 验证产物的 Git 跟踪，并忽略 `outputs/`，保留本地文件。
+- **插件功能说明**：Word、PowerPoint、Excel 根据 Office 组件激活状态显示基础或高级能力；PDF 明确为读取文本与创建文本 PDF，14 种语言同步。
+
+- **依赖安全修复**：Axios 更新至 1.20.0，修复本次生产审计发现的高危漏洞。
 
 发布目标为 macOS arm64（签名、公证 DMG/ZIP）与 Windows x64（未签名 ZIP），沿用已发布 Office Runtime。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
 
 ## English
 
-- **Pi engine upgrade**: updated Pi Agent and its model dependencies to `0.99.1`, retaining Artemis control over tool exposure and execution permissions.
-- **Dependency fixes**: patched HTTP and glob dependencies to resolve high-severity findings from the release audit.
+- **Cumulative Goal timing**: preserve active elapsed time before usage updates, objective edits, pauses/resumes and status changes. Paused time is excluded and turn completion no longer counts the same time twice.
+- **Responsive Markdown**: timeline prose, code blocks and tables wrap within the available width, retaining text selection, message copying and code block copying.
 
-- **Animated SVG timeline previews**: local SVG images and file links in assistant replies now display directly in the timeline, retaining CSS/SMIL animation and the file link entry point.
-- **Continuous playback and deduplication**: image and link references to the same file share one preview. Further streamed text preserves the existing image node so animation does not restart.
-- **Safe rendering and failure feedback**: SVG uses an isolated image context without executing embedded scripts. File reads retain workspace and size limits, and failed previews show a visible message.
-- **Code block copying**: timeline Markdown code blocks now show a language label and copy button, with success feedback and retry after failure.
-- **Generated file hygiene**: local Office verification artifacts are no longer tracked by Git, and `outputs/` is ignored while local files are preserved.
+- **Plugin capability descriptions**: Word, PowerPoint and Excel distinguish basic and advanced features using the active Office capability. PDF describes text reading and text-based PDF creation. All 14 locales are synchronized.
+
+- **Dependency security fixes**: update Axios to 1.20.0 to resolve high-severity findings from the production audit.
 
 Release targets are macOS arm64 (signed, notarized DMG/ZIP) and Windows x64 (unsigned ZIP), reusing published Office runtimes. Intel macOS remains a local packaging target and is not included in this CD release.

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, reduceAgentEvents } from "@artemis/protocol";
 
 import { AppStore, CUSTOM_AGENTS_DATABASE_VERSION } from "../src/main/store.js";
@@ -12,6 +12,7 @@ import { AppStore, CUSTOM_AGENTS_DATABASE_VERSION } from "../src/main/store.js";
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -1809,7 +1810,71 @@ describe("AppStore", () => {
     store.close();
   });
 
+  it("accumulates active Goal time across usage, edits, pauses and reopen", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-goal-clock-"));
+    temporaryDirectories.push(directory);
+    const path = join(directory, "state.sqlite");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const start = Date.parse("2026-10-01T00:00:00Z");
+    const at = (seconds: number) => vi.setSystemTime(start + seconds * 1000);
+    at(0);
+    let store = new AppStore(path);
+    store.createThread({
+      id: "clock",
+      title: "Clock",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    const goal = store.setThreadGoal("clock", "Keep working", undefined);
+    at(60);
+    expect(
+      store.updateThreadGoalAccounting("clock", goal.goalId, 10, 0)
+        ?.timeUsedSeconds,
+    ).toBe(60);
+    at(90);
+    const current = store.getThreadGoal("clock")!;
+    expect(
+      store.updateThreadGoalObjective(
+        "clock",
+        "Continue",
+        goal.goalId,
+        current.revision,
+      ).timeUsedSeconds,
+    ).toBe(90);
+    at(100);
+    expect(store.pauseThreadGoal("clock").timeUsedSeconds).toBe(100);
+    at(200);
+    expect(
+      store.updateThreadGoalAccounting("clock", goal.goalId, 5, 0)
+        ?.timeUsedSeconds,
+    ).toBe(100);
+    expect(store.resumeThreadGoal("clock").timeUsedSeconds).toBe(100);
+    at(220);
+    expect(
+      store.recordThreadGoalBlocker("clock", goal.goalId, "retry").goal
+        .timeUsedSeconds,
+    ).toBe(120);
+    store.close();
+    store = new AppStore(path);
+    at(230);
+    expect(store.completeThreadGoal("clock", goal.goalId).timeUsedSeconds).toBe(
+      130,
+    );
+    at(250);
+    expect(
+      store.updateThreadGoalAccounting("clock", goal.goalId, 5, 0)
+        ?.timeUsedSeconds,
+    ).toBe(130);
+    store.close();
+  });
+
   it("enforces Goal budgets and the three-turn blocker threshold", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     const directory = await mkdtemp(join(tmpdir(), "artemis-goal-state-"));
     temporaryDirectories.push(directory);
     const store = new AppStore(join(directory, "state.sqlite"));
@@ -1875,6 +1940,7 @@ describe("AppStore", () => {
   });
 
   it("edits a Goal without resetting its identity, accounting, budget, or lifecycle", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     const directory = await mkdtemp(join(tmpdir(), "artemis-goal-edit-"));
     temporaryDirectories.push(directory);
     const store = new AppStore(join(directory, "state.sqlite"));

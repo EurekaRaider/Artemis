@@ -805,7 +805,6 @@ const goalTurnContexts = new Map<
     goalId: string;
     mode: StartTurnInput["mode"];
     source: "user" | "goal-continuation";
-    startedAt: number;
   }
 >();
 const goalCreationAuthorizations = new Set<string>();
@@ -3064,7 +3063,7 @@ function accountGoalPayload(
     context.threadId,
     context.goalId,
     0,
-    (Date.now() - context.startedAt) / 1_000,
+    0,
   );
   if (!goal) return;
   let continuationDelayMs = 0;
@@ -4845,7 +4844,6 @@ async function handleGoalBrokerRequest(
         goalId: goal.goalId,
         mode: request.mode,
         source: "user",
-        startedAt: Date.now(),
       });
       emitGoalUpdated(goal, request.turnId);
       resolveGoalBrokerRequest(workerRequestId, request, { goal });
@@ -6592,7 +6590,6 @@ async function startTaskTurnUnchecked(
       goalId: thread.goal.goalId,
       mode: input.mode,
       source,
-      startedAt: Date.now(),
     });
   }
 
@@ -6746,7 +6743,6 @@ async function resumeInterruptedTurns(): Promise<void> {
           goalId: thread.goal.goalId,
           mode: checkpoint.mode,
           source: checkpoint.source ?? "user",
-          startedAt: Date.now(),
         });
       }
       recoverableTurnQueues.discard(threadId);

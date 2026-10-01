@@ -2734,6 +2734,13 @@ button.environment-row:disabled {
   width: 100%;
 }
 
+.markdown-body {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
 .markdown-body > :last-child,
 .resource-management-toolbar .resource-category-tabs {
   margin-bottom: 0;
@@ -2791,7 +2798,9 @@ button.environment-row:disabled {
   background: var(--panel);
   border: 1px solid var(--border-soft);
   border-radius: 7px;
-  overflow: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   padding: 11px 12px;
 }
 
@@ -2848,9 +2857,10 @@ button.environment-row:disabled {
 
 .markdown-body table {
   border-collapse: collapse;
-  display: block;
+  display: table;
+  width: 100%;
   max-width: 100%;
-  overflow: auto;
+  table-layout: fixed;
 }
 
 .markdown-body th,

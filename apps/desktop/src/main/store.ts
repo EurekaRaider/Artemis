@@ -298,6 +298,12 @@ function projectFromRow(row: ProjectRow): Project {
   };
 }
 
+function activeGoalSeconds(goal: ThreadGoal, now: string): number {
+  return goal.status === "active"
+    ? Math.max(0, (Date.parse(now) - Date.parse(goal.updatedAt)) / 1_000)
+    : 0;
+}
+
 function threadGoalFromRow(row: ThreadGoalRow): ThreadGoal {
   return {
     threadId: row.thread_id,
@@ -1405,6 +1411,7 @@ export class AppStore {
         .prepare(
           `UPDATE thread_goals
            SET objective = ?, status = ?, token_budget = ?,
+               time_used_seconds = ?,
                revision = revision + 1,
                blocker = CASE WHEN ? THEN NULL ELSE blocker END,
                blocker_turns = CASE WHEN ? THEN 0 ELSE blocker_turns END,
@@ -1415,6 +1422,7 @@ export class AppStore {
           normalizedObjective,
           status,
           tokenBudget ?? null,
+          goal.timeUsedSeconds + activeGoalSeconds(goal, now),
           shouldClearBlocker ? 1 : 0,
           shouldClearBlocker ? 1 : 0,
           now,
@@ -1503,14 +1511,17 @@ export class AppStore {
       .get(threadId, goalId) as ThreadGoalRow | undefined;
     if (!row) return undefined;
     const tokensUsed = row.tokens_used + Math.max(0, Math.trunc(tokens));
-    const timeUsedSeconds = row.time_used_seconds + Math.max(0, seconds);
+    const now = new Date().toISOString();
+    const timeUsedSeconds =
+      row.time_used_seconds +
+      activeGoalSeconds(threadGoalFromRow(row), now) +
+      Math.max(0, seconds);
     const status =
       row.token_budget !== null &&
       tokensUsed >= row.token_budget &&
       !["complete", "budgetLimited"].includes(row.status)
         ? "budgetLimited"
         : row.status;
-    const now = new Date().toISOString();
     this.database
       .prepare(
         `UPDATE thread_goals
@@ -1546,10 +1557,11 @@ export class AppStore {
     }
     const attempts = row.blocker === blocker ? row.blocker_turns + 1 : 1;
     const status: ThreadGoalStatus = attempts >= 3 ? "blocked" : "active";
+    const now = new Date().toISOString();
     this.database
       .prepare(
         `UPDATE thread_goals
-         SET blocker = ?, blocker_turns = ?, status = ?,
+         SET blocker = ?, blocker_turns = ?, status = ?, time_used_seconds = ?,
              revision = revision + 1, updated_at = ?
          WHERE thread_id = ? AND goal_id = ?`,
       )
@@ -1557,7 +1569,8 @@ export class AppStore {
         blocker,
         attempts,
         status,
-        new Date().toISOString(),
+        row.time_used_seconds + activeGoalSeconds(threadGoalFromRow(row), now),
+        now,
         threadId,
         goalId,
       );
@@ -1578,10 +1591,15 @@ export class AppStore {
     status: ThreadGoalStatus,
     resetBlocker = false,
   ): ThreadGoal {
+    const goal = this.getThreadGoal(threadId);
+    if (!goal || goal.goalId !== goalId) {
+      throw new Error("The Goal changed before its status could be updated.");
+    }
+    const now = new Date().toISOString();
     const result = this.database
       .prepare(
         `UPDATE thread_goals
-         SET status = ?, revision = revision + 1,
+         SET status = ?, time_used_seconds = ?, revision = revision + 1,
              blocker = CASE WHEN ? THEN NULL ELSE blocker END,
              blocker_turns = CASE WHEN ? THEN 0 ELSE blocker_turns END,
              updated_at = ?
@@ -1589,9 +1607,10 @@ export class AppStore {
       )
       .run(
         status,
+        goal.timeUsedSeconds + activeGoalSeconds(goal, now),
         resetBlocker ? 1 : 0,
         resetBlocker ? 1 : 0,
-        new Date().toISOString(),
+        now,
         threadId,
         goalId,
       );
