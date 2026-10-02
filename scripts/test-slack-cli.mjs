@@ -9,6 +9,7 @@ import {
   downloadSlackAsset,
   fetchLatestSlackRelease,
   fetchSlackBytes,
+  fetchSlackBytesWithCurl,
   latestStableRelease,
   sha256,
   slackBinaryIdentity,
@@ -158,6 +159,52 @@ test("network failures and GitHub rate limits fail closed after bounded retries"
       /blocked/u,
     );
     assert.equal(calls, 3);
+  }
+});
+test("Windows curl transport preserves binary bytes, HTTP status and bounded execution", async () => {
+  const bytes = Buffer.from([0, 255, 10, 50, 48, 48]);
+  const signal = AbortSignal.timeout(1000);
+  const actual = await fetchSlackBytesWithCurl(
+    "https://api.github.com/test",
+    { headers: { "Cache-Control": "no-cache" }, signal, limit: 32 },
+    async (command, args, options) => {
+      assert.equal(command, "curl.exe");
+      assert.ok(args.includes("--http1.1"));
+      assert.ok(args.includes("--ipv4"));
+      assert.ok(args.includes("Cache-Control: no-cache"));
+      assert.equal(options.signal, signal);
+      assert.equal(options.maxBuffer, 36);
+      return { stdout: Buffer.concat([bytes, Buffer.from("\n429")]) };
+    },
+  );
+  assert.equal(actual.status, 429);
+  assert.deepEqual(Buffer.from(await actual.arrayBuffer()), bytes);
+});
+test("Windows curl network failures still block after three attempts", async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchSlackBytes("https://api.github.com/test", {
+      sleep: noSleep,
+      fetchImpl: (url, options) =>
+        fetchSlackBytesWithCurl(url, options, async () => {
+          calls++;
+          throw new Error("connection reset");
+        }),
+    }),
+    /blocked/u,
+  );
+  assert.equal(calls, 3);
+});
+test("Windows curl rejects malformed statuses and oversized responses", async () => {
+  for (const stdout of [Buffer.from("body\n000"), Buffer.from("body\n200")]) {
+    await assert.rejects(
+      fetchSlackBytesWithCurl(
+        "https://api.github.com/test",
+        { headers: {}, signal: AbortSignal.timeout(1000), limit: 3 },
+        async () => ({ stdout }),
+      ),
+      /invalid or oversized/u,
+    );
   }
 });
 test("a successful retry must still verify a fresh response", async () => {

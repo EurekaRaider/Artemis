@@ -107,7 +107,10 @@ jobs:
           test "$workflow_name $job_count" = "Release 1"
           git merge-base --is-ancestor "$mac_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$mac_sha"
           while IFS= read -r changed; do
-            test "$changed" = .github/workflows/release.yml || exit 1
+            case "$changed" in
+              .github/workflows/release.yml|scripts/slack-cli-release.mjs|scripts/test-slack-cli.mjs) ;;
+              *) echo "Verified macOS package does not cover changed path: $changed" >&2; exit 1 ;;
+            esac
           done < <(git diff --name-only "$mac_sha" "$RELEASE_SHA")
 
       - name: Verify completed Windows package before reusing it
@@ -383,8 +386,6 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: write
-    env:
-      NODE_USE_ENV_PROXY: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -399,22 +400,6 @@ jobs:
       - run: npm ci
       - name: Build UI library dependencies for bundled plugin verification
         run: npm run build:ui-libraries
-      - name: Report Slack upstream connectivity
-        shell: pwsh
-        run: |
-          @'
-          import { spawnSync } from 'node:child_process';
-          const url = 'https://api.github.com/repos/slackapi/slack-cli/releases/latest';
-          const proxyConfigured = Boolean(process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy);
-          try {
-            const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(30000) });
-            console.log(`::notice title=Slack upstream connectivity::Environment proxy configured: ${proxyConfigured}; Node HTTP status: ${response.status}`);
-            await response.body?.cancel();
-          } catch (error) {
-            const probe = spawnSync('curl.exe', ['--http1.1', '--ipv4', '--connect-timeout', '10', '--max-time', '30', '--silent', '--output', 'NUL', '--write-out', '%{http_code}', url], { encoding: 'utf8', timeout: 35000 });
-            console.log(`::notice title=Slack upstream connectivity::Environment proxy configured: ${proxyConfigured}; Node error code: ${error.cause?.code || error.name}; curl exit: ${probe.status}; curl HTTP status: ${probe.stdout?.trim()}`);
-          }
-          '@ | node --input-type=module
       - name: Build and verify unsigned Windows ZIP
         shell: pwsh
         run: |

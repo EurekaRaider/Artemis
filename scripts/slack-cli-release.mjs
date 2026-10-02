@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { promisify } from "node:util";
+
+const exec = promisify(execFile);
 
 export const slackCliLockPath = new URL(
   "../slack-cli.lock.json",
@@ -34,12 +38,47 @@ export function latestStableRelease(releases) {
   return stable[0];
 }
 
+export async function fetchSlackBytesWithCurl(
+  url,
+  { headers, signal, limit },
+  execImpl = exec,
+) {
+  const { stdout } = await execImpl(
+    "curl.exe",
+    [
+      "--http1.1",
+      "--ipv4",
+      "--location",
+      "--max-redirs",
+      "20",
+      "--connect-timeout",
+      "10",
+      "--silent",
+      "--show-error",
+      ...Object.entries(headers).flatMap(([name, value]) => [
+        "--header",
+        `${name}: ${value}`,
+      ]),
+      "--write-out",
+      "\n%{http_code}",
+      url,
+    ],
+    { encoding: "buffer", maxBuffer: limit + 4, signal, windowsHide: true },
+  );
+  const status = stdout.subarray(-4).toString("ascii");
+  if (!/^\n[2-5]\d{2}$/u.test(status) || stdout.length > limit + 4)
+    throw new Error("Slack CLI: invalid or oversized curl response.");
+  return new Response(stdout.subarray(0, -4), {
+    status: Number(status.slice(1)),
+  });
+}
+
 // Every invocation contacts upstream. Neither a cached success nor an offline
 // environment can satisfy the release gate. Retries and response sizes are bounded.
 export async function fetchSlackBytes(
   url,
   {
-    fetchImpl = fetch,
+    fetchImpl = process.platform === "win32" ? fetchSlackBytesWithCurl : fetch,
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     limit = 64 * 1024 * 1024,
     timeoutMs = 30_000,
@@ -59,6 +98,7 @@ export async function fetchSlackBytes(
         headers,
         cache: "no-store",
         signal: AbortSignal.timeout(timeoutMs),
+        limit,
       });
       if (!response.ok) {
         reason = `HTTP ${response.status}`;
