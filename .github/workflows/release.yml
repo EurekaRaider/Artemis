@@ -381,7 +381,18 @@ jobs:
         run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
       - run: npm ci
       - name: Build and verify unsigned Windows ZIP
-        run: npm run release:win -w @artemis/desktop
+        shell: pwsh
+        run: |
+          $logPath = Join-Path $env:RUNNER_TEMP 'artemis-windows-release.log'
+          npm run release:win -w @artemis/desktop 2>&1 | Tee-Object -FilePath $logPath
+          $releaseExitCode = $LASTEXITCODE
+          if ($releaseExitCode -ne 0) {
+            $tail = (Get-Content $logPath -Tail 60) -join "`n"
+            if ($env:GITHUB_TOKEN) { $tail = $tail.Replace($env:GITHUB_TOKEN, '***') }
+            $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows release failure::$message"
+          }
+          exit $releaseExitCode
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ARTEMIS_REQUIRE_SIGNATURE: "0"
