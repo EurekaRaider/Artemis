@@ -127,10 +127,12 @@ jobs:
             --jq '[.headSha, .workflowName, ([.jobs[] | select(.name == "Package and verify Windows x64 ZIP" and .conclusion == "success")] | length)] | join(" ")')"
           read -r windows_sha workflow_name job_count <<< "$verified"
           test "$workflow_name $job_count" = "Release 1"
-          git merge-base --is-ancestor "$windows_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$windows_sha"
-          while IFS= read -r changed; do
-            test "$changed" = .github/workflows/release.yml || exit 1
-          done < <(git diff --name-only "$windows_sha" "$RELEASE_SHA")
+          if [[ "$windows_sha" != "$RELEASE_SHA" ]]; then
+            git merge-base --is-ancestor "$windows_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$windows_sha"
+            while IFS= read -r changed; do
+              test "$changed" = .github/workflows/release.yml || exit 1
+            done < <(git diff --name-only "$windows_sha" "$RELEASE_SHA")
+          fi
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
