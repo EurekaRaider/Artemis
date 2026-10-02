@@ -15,7 +15,7 @@ try {
   await mkdir(target, { recursive: true });
   await writeFile(
     join(pi, "package.json"),
-    JSON.stringify({ version: "0.99.1" }),
+    JSON.stringify({ version: "1.0.0" }),
   );
   await writeFile(join(source, "package.json"), manifest("5.0.12"));
   await writeFile(join(source, "index.js"), "patched implementation");
@@ -34,7 +34,7 @@ try {
   );
   await writeFile(
     join(pi, "package.json"),
-    JSON.stringify({ version: "0.100.0" }),
+    JSON.stringify({ version: "1.0.1" }),
   );
   await assert.rejects(patchPiDependencies(root), /Review the Pi shrinkwrap/);
   console.log(

@@ -2,7 +2,7 @@ import { cp, readFile, realpath, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// Pi 0.99.1 ships an npm-shrinkwrap.json that npm 11 applies even over
+// Pi 1.0.0 ships an npm-shrinkwrap.json that npm 11 applies even over
 // root overrides and lockfile resolutions. Keep the installed SDK dependency
 // aligned with our audited lockfile using the pinned, integrity-checked copy.
 export async function patchPiDependencies(root) {
@@ -18,7 +18,7 @@ export async function patchPiDependencies(root) {
     manifest(target),
   ]);
   if (
-    sdk.version !== "0.99.1" ||
+    sdk.version !== "1.0.0" ||
     fixed.version !== "5.0.12" ||
     fixed.name !== "brace-expansion" ||
     installed.name !== fixed.name ||
