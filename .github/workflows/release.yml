@@ -235,6 +235,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build UI library dependencies for bundled plugin verification
+        run: npm run build:ui-libraries
+
       - name: Package and sign macOS arm64 DMG and ZIP
         run: |
           node apps/desktop/scripts/validate-release-env.mjs mac
@@ -389,6 +392,8 @@ jobs:
       - name: Verify native runner architecture
         run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
       - run: npm ci
+      - name: Build UI library dependencies for bundled plugin verification
+        run: npm run build:ui-libraries
       - name: Build and verify unsigned Windows ZIP
         shell: pwsh
         run: |
