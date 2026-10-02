@@ -257,7 +257,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release upload "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --clobber
+          GODEBUG: http2client=0
+        run: |
+          for attempt in 1 2 3; do
+            if gh release upload "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --clobber; then
+              exit 0
+            fi
+            echo "Signed app upload attempt $attempt failed; retrying in 5 seconds." >&2
+            sleep 5
+          done
+          exit 1
 
   package-macos:
     name: Notarize and verify macOS arm64
