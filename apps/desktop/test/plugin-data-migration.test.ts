@@ -289,7 +289,11 @@ it("restarts an interrupted backup preparation without touching original data", 
 
 it("rejects symlink destinations and unsafe stored skill paths before writing", async () => {
   const f = await fixture();
-  await symlink(f.skillsRoot, join(f.root, "plugins"), "dir");
+  await symlink(
+    f.skillsRoot,
+    join(f.root, "plugins"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
   await expect(migratePluginUserData(f.root, f.skillsRoot)).rejects.toThrow();
   await rm(join(f.root, "plugins"));
   const store = JSON.parse(
