@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "name": "artemis-hook-example",
+  "version": "1.0.0",
+  "description": "A separately trusted session context hook",
+  "hooks": "./hooks/hooks.json"
+}

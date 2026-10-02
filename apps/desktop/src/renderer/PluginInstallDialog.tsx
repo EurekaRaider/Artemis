@@ -3,7 +3,7 @@ import { Button, IconButton } from "@artemis/ui/actions";
 import { Dialog, InlineNotice } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementHeader } from "@artemis/ui/management";
-import type { CodexPluginPreview } from "../shared/api.js";
+import type { ArtemisPluginPreview } from "../shared/api.js";
 import { UI_COPY } from "../shared/ui-copy.js";
 import { uiText } from "../shared/ui-text.js";
 import { ResourceAvatar } from "./resource-icons.js";
@@ -16,7 +16,7 @@ export function PluginInstallDialog({
   onCancel,
   onInstall,
 }: {
-  plugin: CodexPluginPreview;
+  plugin: ArtemisPluginPreview;
   displayName: string;
   locale: AppLocale;
   onCancel(): void;
@@ -28,6 +28,12 @@ export function PluginInstallDialog({
   });
   const servers = plugin.mcpServers.filter((server) => server.importable);
   const capabilities = [
+    {
+      icon: "palette",
+      label: locale.startsWith("zh") ? "视觉皮肤" : "Visual skins",
+      count: plugin.skins?.length ?? 0,
+      enabled: true,
+    },
     {
       icon: "skill",
       label: t.skills,

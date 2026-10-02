@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { CodexPluginService } from "../src/main/codex-plugin-service.js";
+import { ArtemisPluginService } from "../src/main/artemis-plugin-service.js";
 import { McpConfigStore } from "../src/main/mcp-config-store.js";
 
 // Set this to the paired Shop release archive for cross-repository acceptance.
@@ -14,7 +14,7 @@ it.skipIf(!archive)(
     const root = await mkdtemp(join(tmpdir(), "artemis-shop-acceptance-"));
     try {
       const mcpStore = new McpConfigStore(join(root, "mcp.json"));
-      const service = new CodexPluginService({
+      const service = new ArtemisPluginService({
         skillsRoot: join(root, "skills"),
         pluginsRoot: join(root, "plugins"),
         marketplacesRoot: join(root, "marketplaces"),

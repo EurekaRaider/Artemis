@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@artemis/ui/actions";
+import { LoadingState } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import type { AppLocale, ComputerControlState } from "@artemis/protocol";
 import "./computer-use.css";
@@ -86,6 +87,22 @@ export function ComputerUseControls({
       unsubscribe();
     };
   }, [permissionsOnly]);
+  useEffect(() => {
+    if (!permissionsOnly) return;
+    let live = true;
+    void window.artemis.getComputerPermissions().then(
+      (value) => {
+        if (live) setPermissions(value);
+      },
+      (error: unknown) => {
+        if (live)
+          setError(error instanceof Error ? error.message : String(error));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [permissionsOnly]);
   const run = (operation: () => Promise<unknown>) => {
     setError(undefined);
     void operation().catch((e: unknown) =>
@@ -152,40 +169,29 @@ export function ComputerUseControls({
           </div>
         </>
       ) : null}
-      {permissionsOnly ? (
-        <Button
-          variant="quiet"
-          onClick={() =>
-            run(async () =>
-              setPermissions(
-                permissions
-                  ? undefined
-                  : await window.artemis.getComputerPermissions(),
-              ),
-            )
-          }
-        >
-          {copy.permissions}
-        </Button>
+      {permissionsOnly && !permissions && !error ? (
+        <LoadingState label={copy.permissions} lines={1} />
       ) : null}
       {permissionsOnly && permissions ? (
-        <div className="computer-permissions-list">
-          {permissions.length === 0 ? (
-            <span>{copy.noPermissions}</span>
-          ) : (
-            permissions.map((permission) => (
-              <div key={permission.id}>
+        permissions.length === 0 ? (
+          <p className="computer-permissions-empty">{copy.noPermissions}</p>
+        ) : (
+          <ul
+            className="computer-permissions-list"
+            aria-label={copy.permissions}
+            role="list"
+          >
+            {permissions.map((permission) => (
+              <li key={permission.id}>
+                <span className="computer-permission-name">
+                  {permission.name}
+                </span>
                 <span className="computer-permission-summary">
-                  <span>{permission.name}</span>
-                  <small>
-                    {copy[permission.scope]}
-                    {permission.scope !== "persistent"
-                      ? ` · ${permission.foreground ? copy.foregroundAllowed : copy.backgroundOnly}`
-                      : ""}
-                    {permission.threadTitle
-                      ? ` · ${permission.threadTitle}`
-                      : ""}
-                  </small>
+                  {copy[permission.scope]}
+                  {permission.scope !== "persistent"
+                    ? ` · ${permission.foreground ? copy.foregroundAllowed : copy.backgroundOnly}`
+                    : ""}
+                  {permission.threadTitle ? ` · ${permission.threadTitle}` : ""}
                 </span>
                 <Button
                   variant="quiet"
@@ -202,10 +208,10 @@ export function ComputerUseControls({
                 >
                   {copy.revoke}
                 </Button>
-              </div>
-            ))
-          )}
-        </div>
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
       {error ? <span role="alert">{error}</span> : null}
     </aside>

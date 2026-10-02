@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { lockedSlackLicense } from "./slack-cli-package.mjs";
@@ -268,7 +269,7 @@ test("CI, both package entry points and final publication enforce the gate", asy
   const workflow = await read(".github/workflows/release.yml");
   assert.match(
     workflow,
-    /node scripts\/verify-slack-cli.mjs\s+gh release upload[\s\S]+gh release edit/u,
+    /node scripts\/verify-slack-cli.mjs\s+node --input-type=module <<'NODE'[\s\S]+gh\('release', 'upload'[\s\S]+retry gh release edit/u,
   );
   assert.doesNotMatch(workflow, /Node.js 24|node-version: 24/u);
   const manifest = JSON.parse(await read("apps/desktop/package.json"));
@@ -281,4 +282,113 @@ test("CI, both package entry points and final publication enforce the gate", asy
     manifest.build.win.extraResources[0].from,
     "../../artifacts/slack-cli/win32-${arch}",
   );
+});
+
+test("release uploads resume verified assets without replacing complete files", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/release.yml", import.meta.url),
+    "utf8",
+  );
+  const source = workflow
+    .match(/node --input-type=module <<'NODE'\n([\s\S]*?)\n {10}NODE/u)[1]
+    .replace(/^ {10}/gmu, "")
+    .replace(/^import .*;\n/gmu, "");
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+  const run = new AsyncFunction(
+    "execFileSync",
+    "createHash",
+    "readFileSync",
+    "readdirSync",
+    "setTimeout",
+    "process",
+    "console",
+    source,
+  );
+  for (const scenario of [
+    "missing",
+    "existing",
+    "lost-response",
+    "mismatch",
+    "starter",
+    "api-retry",
+  ]) {
+    const bytes = Buffer.from("verified package");
+    const expected = {
+      id: 17,
+      name: "package.zip",
+      state: "uploaded",
+      size: bytes.length,
+      digest: `sha256:${sha256(bytes)}`,
+    };
+    let assets =
+      scenario === "existing" || scenario === "mismatch"
+        ? [{ ...expected }]
+        : scenario === "starter"
+          ? [
+              {
+                ...expected,
+                state: "starter",
+                size: bytes.length,
+                digest: null,
+              },
+            ]
+          : [];
+    if (scenario === "mismatch") assets[0].digest = `sha256:${"0".repeat(64)}`;
+    const uploads = [],
+      deletes = [];
+    let apiFailed = false;
+    const execute = async () =>
+      run(
+        (_command, args) => {
+          if (args[0] === "api") {
+            if (scenario === "api-retry" && !apiFailed) {
+              apiFailed = true;
+              throw new Error("temporary API failure");
+            }
+            if (args[1] === "--method" && args[2] === "DELETE") {
+              deletes.push(args[3]);
+              assets = [];
+              return "";
+            }
+            return JSON.stringify(
+              args[1].includes("/assets?")
+                ? assets
+                : [{ id: 1, tag_name: "v1.6.15", draft: true }],
+            );
+          }
+          assert.deepEqual(args, [
+            "release",
+            "upload",
+            "v1.6.15",
+            "release-assets/package.zip",
+            "--repo",
+            "EurekaRaider/ArtemisRelease",
+          ]);
+          uploads.push(args);
+          assert.equal(assets.length, 0);
+          assets = [{ ...expected }];
+          if (scenario === "lost-response")
+            throw new Error("upload response lost");
+          return "";
+        },
+        createHash,
+        () => bytes,
+        () => ["package.zip"],
+        async () => {},
+        { env: { RELEASE_TAG: "v1.6.15" } },
+        { log() {}, error() {} },
+      );
+    if (scenario === "mismatch") {
+      await assert.rejects(
+        execute,
+        /Refusing to replace different existing asset/u,
+      );
+      assert.equal(uploads.length, 0);
+    } else {
+      await execute();
+      assert.deepEqual(assets, [expected]);
+      assert.equal(uploads.length, scenario === "existing" ? 0 : 1);
+      assert.equal(deletes.length, scenario === "starter" ? 1 : 0);
+    }
+  }
 });

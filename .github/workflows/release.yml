@@ -199,8 +199,12 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
-          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq ".[] | select(.tag_name == \"$RELEASE_TAG\" and .draft and .target_commitish == \"$RELEASE_SHA\") | .id")"
+          for attempt in 1 2 3; do
+            release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$RELEASE_TAG\" and .draft and .target_commitish == \"$RELEASE_SHA\") | .id" || true)"
+            [[ "$release_id" =~ ^[0-9]+$ ]] && break
+            sleep 5
+          done
           [[ "$release_id" =~ ^[0-9]+$ ]] || exit 1
           echo "release-id=$release_id" >> "$GITHUB_OUTPUT"
 
@@ -253,7 +257,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release upload "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --clobber
+          GODEBUG: http2client=0
+        run: |
+          for attempt in 1 2 3; do
+            if gh release upload "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --clobber; then
+              exit 0
+            fi
+            echo "Signed app upload attempt $attempt failed; retrying in 5 seconds." >&2
+            sleep 5
+          done
+          exit 1
 
   package-macos:
     name: Notarize and verify macOS arm64
@@ -377,7 +390,18 @@ jobs:
         run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
       - run: npm ci
       - name: Build and verify unsigned Windows ZIP
-        run: npm run release:win -w @artemis/desktop
+        shell: pwsh
+        run: |
+          $logPath = Join-Path $env:RUNNER_TEMP 'artemis-windows-release.log'
+          npm run release:win -w @artemis/desktop 2>&1 | Tee-Object -FilePath $logPath
+          $releaseExitCode = $LASTEXITCODE
+          if ($releaseExitCode -ne 0) {
+            $tail = (Get-Content $logPath -Tail 60) -join "`n"
+            if ($env:GITHUB_TOKEN) { $tail = $tail.Replace($env:GITHUB_TOKEN, '***') }
+            $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows release failure::$message"
+          }
+          exit $releaseExitCode
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ARTEMIS_REQUIRE_SIGNATURE: "0"
@@ -473,20 +497,78 @@ jobs:
           RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         shell: bash
         run: |
+          retry() {
+            for attempt in 1 2 3; do
+              "$@" && return 0
+              sleep 5
+            done
+            return 1
+          }
           cp docs/records/release-notes.md "$RUNNER_TEMP/artemis-release-notes.md"
           printf '\nSource commit / 源码提交：`%s`.\n' "$RELEASE_SHA" >> "$RUNNER_TEMP/artemis-release-notes.md"
           target_repo=EurekaRaider/ArtemisRelease
-          existing="$(gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          existing="$(retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft 2>/dev/null || true)"
           if [[ -z "$existing" ]]; then
-            gh release create "$RELEASE_TAG" --repo "$target_repo" --title "Artemis $RELEASE_TAG" --draft --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
+            retry gh release create "$RELEASE_TAG" --repo "$target_repo" --title "Artemis $RELEASE_TAG" --draft --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
           elif [[ "$existing" != true ]]; then
             echo "Refusing to overwrite an existing public release." >&2
             exit 1
           fi
           # Only the validated allowlist is uploaded; never mirror the private source repository.
           node scripts/verify-slack-cli.mjs
-          gh release upload "$RELEASE_TAG" release-assets/* --repo "$target_repo" --clobber
-          gh release view "$RELEASE_TAG" --repo "$target_repo" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/artemis-uploaded-assets.txt"
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          import { readFileSync, readdirSync } from 'node:fs';
+          import { setTimeout } from 'node:timers/promises';
+          const repository = 'EurekaRaider/ArtemisRelease';
+          const tag = process.env.RELEASE_TAG;
+          const gh = (...args) => execFileSync('gh', args, {
+            encoding: 'utf8',
+            maxBuffer: 8 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'inherit'],
+            env: { ...process.env, GODEBUG: 'http2client=0' },
+          }).trim();
+          async function api(path) {
+            for (let attempt = 0; ; attempt++) {
+              try { return JSON.parse(gh('api', `repos/${repository}/${path}`)); }
+              catch (error) {
+                if (attempt === 2) throw error;
+                await setTimeout(5000);
+              }
+            }
+          }
+          const release = (await api('releases?per_page=100')).find(item => item.tag_name === tag);
+          if (!release?.draft) throw new Error('Expected the existing release draft.');
+          for (const name of readdirSync('release-assets').sort()) {
+            const path = `release-assets/${name}`;
+            const bytes = readFileSync(path);
+            const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+            for (let attempt = 0; ; attempt++) {
+              let asset = (await api(`releases/${release.id}/assets?per_page=100`)).find(item => item.name === name);
+              if (asset?.state === 'starter' && !asset.digest) {
+                try { gh('api', '--method', 'DELETE', `repos/${repository}/releases/assets/${asset.id}`); }
+                catch (error) {
+                  if (attempt === 3) throw error;
+                  await setTimeout(5000);
+                  continue;
+                }
+                asset = undefined;
+              }
+              if (asset) {
+                if (asset.state !== 'uploaded' || asset.size !== bytes.length || asset.digest !== digest)
+                  throw new Error(`Refusing to replace different existing asset: ${name}`);
+                console.log(`Verified existing upload: ${name}`);
+                break;
+              }
+              if (attempt === 3) throw new Error(`Upload not confirmed after three attempts: ${name}`);
+              try { gh('release', 'upload', tag, path, '--repo', repository); }
+              catch (error) { console.error(`Upload attempt ${attempt + 1} failed for ${name}: ${error.message}`); }
+              await setTimeout(5000);
+            }
+          }
+          NODE
+          retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/artemis-uploaded-assets.txt"
           (cd release-assets && printf '%s\n' *) | sort > "$RUNNER_TEMP/artemis-expected-assets.txt"
           diff -u "$RUNNER_TEMP/artemis-expected-assets.txt" "$RUNNER_TEMP/artemis-uploaded-assets.txt"
-          gh release edit "$RELEASE_TAG" --repo "$target_repo" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
+          retry gh release edit "$RELEASE_TAG" --repo "$target_repo" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false

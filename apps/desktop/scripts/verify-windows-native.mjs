@@ -175,8 +175,7 @@ try {
       bundledPluginsRoot,
       "plugins",
       pluginName,
-      ".codex-plugin",
-      "plugin.json",
+      "artemis.plugin.json",
     );
     if (!existsSync(manifestPath)) {
       throw new Error(

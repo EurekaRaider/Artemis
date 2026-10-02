@@ -4,7 +4,7 @@ import { Button, IconButton } from "@artemis/ui/actions";
 import { Dialog } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementHeader } from "@artemis/ui/management";
-import type { InstalledCodexPlugin } from "../shared/api.js";
+import type { InstalledArtemisPlugin } from "../shared/api.js";
 import { UI_COPY } from "../shared/ui-copy.js";
 import { uiText } from "../shared/ui-text.js";
 import { ResourceAvatar } from "./resource-icons.js";
@@ -16,7 +16,7 @@ export function PluginUninstallDialog({
   onCancel,
   onUninstall,
 }: {
-  plugin: InstalledCodexPlugin;
+  plugin: InstalledArtemisPlugin;
   displayName: string;
   locale: AppLocale;
   onCancel(): void;

@@ -32,6 +32,24 @@ function declarations(sheet: postcss.Root, selector: string) {
 }
 
 describe("screenshot visual contracts", () => {
+  it("keeps Markdown selectable and wraps code and tables within the message", () => {
+    expect(declarations(desktop, ".markdown-body")).toMatchObject({
+      "min-width": "0",
+      "max-width": "100%",
+      "overflow-wrap": "anywhere",
+      "user-select": "text",
+    });
+    expect(declarations(desktop, ".markdown-body pre")).toMatchObject({
+      "white-space": "pre-wrap",
+      "max-width": "100%",
+    });
+    expect(declarations(desktop, ".markdown-body table")).toMatchObject({
+      display: "table",
+      width: "100%",
+      "table-layout": "fixed",
+    });
+  });
+
   it("disables collapsed-sidebar hover transitions under reduced motion", () => {
     const sheet = postcss.parse(
       readFileSync(

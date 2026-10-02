@@ -251,7 +251,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(artemisIconsSource).toContain('stroke="currentColor"');
     expect(artemisIconsSource).toContain('strokeLinecap="round"');
     expect(artemisIconsSource).toContain('strokeLinejoin="round"');
-    expect(artemisIconsSource).toContain("strokeWidth={1.5}");
+    expect(artemisIconsSource).toContain("strokeWidth = 1.5");
+    expect(artemisIconsSource).toContain("strokeWidth={strokeWidth}");
   });
 
   const PROTOTYPE_RULES: Array<[string, number]> = [

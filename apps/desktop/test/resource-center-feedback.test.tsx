@@ -150,7 +150,7 @@ describe("Resource Center catalog feedback", () => {
         }),
     );
     stubWindowArtemis({
-      getCodexPluginMarketplaces: () =>
+      getArtemisPluginMarketplaces: () =>
         Promise.resolve({
           selectedView: "source-a",
           sources: [
@@ -239,11 +239,11 @@ describe("Resource Center catalog feedback", () => {
           ],
           errors: [],
         }),
-      inspectCodexPluginMarketplaceTrust: inspectTrust,
-      listCodexPlugins: () => Promise.resolve([]),
+      inspectArtemisPluginMarketplaceTrust: inspectTrust,
+      listArtemisPlugins: () => Promise.resolve([]),
       listInstalledSkills: () => Promise.resolve([]),
       listMcpServers: () => Promise.resolve([]),
-      loadCodexRuntimeMarketplace: () => Promise.resolve(undefined),
+      loadBundledPluginMarketplace: () => Promise.resolve(undefined),
       onResourceInstallProgress: () => () => {},
       searchSkillCatalog: () =>
         Promise.resolve([

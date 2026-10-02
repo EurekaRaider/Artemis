@@ -1,3 +1,5 @@
+import { AppearanceProvider } from "./AppearanceProvider.js";
+import { bootstrapAppearance } from "./appearance-controller.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -8,6 +10,7 @@ import "@artemis/ui/styles.css";
 import "./styles.css";
 import "./prototype-migration.css";
 import "@artemis/theme-artemis/theme.css";
+import "./appearance.css";
 
 performance.mark?.("artemis:renderer-entry");
 
@@ -44,11 +47,14 @@ if (!root) {
 }
 
 await bootstrapDesktopSkin();
+await bootstrapAppearance();
 performance.mark?.("artemis:skin-ready");
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <AppearanceProvider>
+      <App />
+    </AppearanceProvider>
   </StrictMode>,
 );
 performance.mark?.("artemis:react-scheduled");

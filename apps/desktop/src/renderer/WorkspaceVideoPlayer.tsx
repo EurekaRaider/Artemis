@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
-import type { WorkspaceVideoSource } from "../shared/workspace-video.js";
+import {
+  workspaceAudioMimeType,
+  type WorkspaceVideoSource,
+} from "../shared/workspace-video.js";
+import { timelinePreviewCopy } from "./timeline-preview-copy.js";
 import { uiText } from "../shared/ui-text.js";
 import "./workspace-video.css";
 
@@ -9,13 +13,18 @@ export function WorkspaceVideoPlayer({
   threadId,
   href,
   locale = "en",
+  onOpen,
 }: {
   threadId: string;
   href: string;
   locale?: AppLocale;
+  onOpen?: ((path: string) => void) | undefined;
 }) {
   const root = useRef<HTMLSpanElement>(null);
-  const video = useRef<HTMLVideoElement>(null);
+  const video = useRef<HTMLMediaElement>(null);
+  const audio = Boolean(workspaceAudioMimeType(href));
+  const Media = audio ? "audio" : "video";
+  const copy = timelinePreviewCopy(locale);
   const [source, setSource] = useState<WorkspaceVideoSource>();
   const [error, setError] = useState<"unavailable" | "decode">();
   const [attempt, setAttempt] = useState(0);
@@ -86,17 +95,19 @@ export function WorkspaceVideoPlayer({
 
   return (
     <span className="workspace-video-player" ref={root}>
-      <video
+      <Media
         aria-label={source?.path ?? href}
         controls
         playsInline
         preload="metadata"
         data-workspace-video-player=""
-        ref={video}
+        ref={(element) => {
+          video.current = element;
+        }}
         src={source?.url}
         onPlay={(event) => {
-          for (const other of document.querySelectorAll<HTMLVideoElement>(
-            "video[data-workspace-video-player]",
+          for (const other of document.querySelectorAll<HTMLMediaElement>(
+            "video[data-workspace-video-player],audio[data-workspace-video-player]",
           ))
             if (other !== event.currentTarget && !other.paused) other.pause();
         }}
@@ -112,20 +123,27 @@ export function WorkspaceVideoPlayer({
       />
       {error ? (
         <span className="workspace-video-status" role="alert">
-          {uiText(
-            locale,
-            error === "decode" ? "Video.decodeFailed" : "Video.unavailable",
-          )}
+          {audio
+            ? copy.audioFailed
+            : uiText(
+                locale,
+                error === "decode" ? "Video.decodeFailed" : "Video.unavailable",
+              )}
           <Button
             variant="quiet"
             onClick={() => setAttempt((value) => value + 1)}
           >
             {uiText(locale, "Video.retry")}
           </Button>
+          {onOpen && (
+            <Button variant="quiet" onClick={() => onOpen(href)}>
+              {copy.open}
+            </Button>
+          )}
         </span>
       ) : !source ? (
         <span className="workspace-video-status" role="status">
-          {uiText(locale, "Video.loading")}
+          {audio ? copy.loading : uiText(locale, "Video.loading")}
         </span>
       ) : null}
     </span>

@@ -631,7 +631,7 @@ describe("Codex-like workspace tab layout contract", () => {
     ).toMatch(/\bbackground:\s*transparent/u);
   });
 
-  it("uses the verified Codex font stacks and compact workspace typography", () => {
+  it("uses skin font roles and compact workspace typography", () => {
     const root = cssRule(":root");
     const filesPanel = publicUiCssRule(
       '[data-artemis-component="workspace-file-layout"]',
@@ -656,13 +656,11 @@ describe("Codex-like workspace tab layout contract", () => {
     const monoFont = cssPropertyValue(root, "--mono-font") ?? "";
 
     expect
-      .soft(uiFont, "UI font stack should match Codex order without extras")
-      .toBe('-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif');
+      .soft(uiFont, "UI aliases must follow the active skin role")
+      .toBe("var(--artemis-typography-body-family)");
     expect
-      .soft(monoFont, "Code font stack should match Codex order without extras")
-      .toBe(
-        'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-      );
+      .soft(monoFont, "Code aliases must follow the active skin role")
+      .toBe("var(--artemis-typography-mono-family)");
     expect(filesPanel).toMatch(
       /\bfont-family:\s*var\(--artemis-typography-body-family\)/u,
     );

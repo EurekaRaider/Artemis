@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "presentations",
+  "version": "1.1.0",
+  "description": "Runtime-free basic PowerPoint workflows using Artemis's normalized Office document service.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Presentations",
+    "shortDescription": "Basic normalized PowerPoint reading and writing.",
+    "category": "Productivity",
+    "brandColor": "#EA580C",
+    "logo": "./assets/icon.png"
+  },
+  "capabilityDependencies": [
+    {
+      "id": "office-core",
+      "version": "1.0.0",
+      "optional": true
+    }
+  ]
+}

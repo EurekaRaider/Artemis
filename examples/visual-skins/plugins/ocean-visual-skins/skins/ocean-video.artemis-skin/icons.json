@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "icons": {
+    "send": [
+      {
+        "type": "path",
+        "d": "M4 12L12 4L20 12M12 4V21"
+      }
+    ],
+    "search": [
+      {
+        "type": "circle",
+        "cx": 10,
+        "cy": 10,
+        "r": 6
+      },
+      {
+        "type": "line",
+        "x1": 14,
+        "y1": 14,
+        "x2": 21,
+        "y2": 21
+      }
+    ],
+    "folder": [
+      {
+        "type": "path",
+        "d": "M3 6H9L12 9H21V20H3Z"
+      }
+    ],
+    "palette": [
+      {
+        "type": "circle",
+        "cx": 12,
+        "cy": 12,
+        "r": 9
+      },
+      {
+        "type": "circle",
+        "cx": 8,
+        "cy": 9,
+        "r": 1,
+        "fill": true
+      },
+      {
+        "type": "circle",
+        "cx": 14,
+        "cy": 7,
+        "r": 1,
+        "fill": true
+      },
+      {
+        "type": "circle",
+        "cx": 18,
+        "cy": 12,
+        "r": 1,
+        "fill": true
+      }
+    ]
+  }
+}

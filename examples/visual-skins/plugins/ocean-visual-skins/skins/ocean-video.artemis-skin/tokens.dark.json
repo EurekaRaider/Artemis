@@ -1,0 +1,459 @@
+{
+  "schemaVersion": 1,
+  "skinId": "com.artemis.example.ocean-video",
+  "modes": [
+    {
+      "theme": "dark",
+      "contrast": "normal",
+      "density": "comfortable",
+      "platform": "universal",
+      "tokens": {
+        "space.1": {
+          "kind": "length",
+          "value": 4,
+          "unit": "px"
+        },
+        "space.2": {
+          "kind": "length",
+          "value": 8,
+          "unit": "px"
+        },
+        "space.3": {
+          "kind": "length",
+          "value": 12,
+          "unit": "px"
+        },
+        "space.4": {
+          "kind": "length",
+          "value": 16,
+          "unit": "px"
+        },
+        "space.5": {
+          "kind": "length",
+          "value": 20,
+          "unit": "px"
+        },
+        "space.6": {
+          "kind": "length",
+          "value": 24,
+          "unit": "px"
+        },
+        "size.control.compact": {
+          "kind": "length",
+          "value": 28,
+          "unit": "px"
+        },
+        "size.control.comfortable": {
+          "kind": "length",
+          "value": 36,
+          "unit": "px"
+        },
+        "border.width.default": {
+          "kind": "length",
+          "value": 1,
+          "unit": "px"
+        },
+        "radius.control": {
+          "kind": "length",
+          "value": 8,
+          "unit": "px"
+        },
+        "radius.input": {
+          "kind": "length",
+          "value": 10,
+          "unit": "px"
+        },
+        "radius.card": {
+          "kind": "length",
+          "value": 12,
+          "unit": "px"
+        },
+        "radius.panel": {
+          "kind": "length",
+          "value": 16,
+          "unit": "px"
+        },
+        "radius.composer": {
+          "kind": "length",
+          "value": 18,
+          "unit": "px"
+        },
+        "radius.pill": {
+          "kind": "length",
+          "value": 999,
+          "unit": "px"
+        },
+        "typography.body.family": {
+          "kind": "fontFamily",
+          "value": "system-ui"
+        },
+        "typography.mono.family": {
+          "kind": "fontFamily",
+          "value": "system-mono"
+        },
+        "typography.display.family": {
+          "kind": "fontFamily",
+          "value": "system-ui"
+        },
+        "typography.body.size": {
+          "kind": "length",
+          "value": 14,
+          "unit": "px"
+        },
+        "typography.label.size": {
+          "kind": "length",
+          "value": 12,
+          "unit": "px"
+        },
+        "typography.metadata.size": {
+          "kind": "length",
+          "value": 11,
+          "unit": "px"
+        },
+        "typography.body.weight": {
+          "kind": "fontWeight",
+          "value": 400
+        },
+        "motion.duration.fast": {
+          "kind": "duration",
+          "value": 180,
+          "unit": "ms"
+        },
+        "motion.duration.normal": {
+          "kind": "duration",
+          "value": 320,
+          "unit": "ms"
+        },
+        "motion.duration.slow": {
+          "kind": "duration",
+          "value": 480,
+          "unit": "ms"
+        },
+        "motion.easing.standard": {
+          "kind": "easing",
+          "value": "standard"
+        },
+        "motion.easing.shell": {
+          "kind": "easing",
+          "value": "shell"
+        },
+        "shadow.card": {
+          "kind": "shadow",
+          "value": "none"
+        },
+        "shadow.surface": {
+          "kind": "shadow",
+          "value": "none"
+        },
+        "shadow.composer": {
+          "kind": "shadow",
+          "value": "none"
+        },
+        "shadow.overlay": {
+          "kind": "shadow",
+          "value": "overlay"
+        },
+        "opacity.disabled": {
+          "kind": "opacity",
+          "value": 0.42
+        },
+        "color.canvas": {
+          "kind": "color",
+          "value": "#181818"
+        },
+        "color.background.sidebar": {
+          "kind": "color",
+          "value": "#1d1d1d"
+        },
+        "color.background.activity": {
+          "kind": "color",
+          "value": "#1d1d1d"
+        },
+        "color.surface.base": {
+          "kind": "color",
+          "value": "#202020"
+        },
+        "color.surface.raised": {
+          "kind": "color",
+          "value": "#2b2b2b"
+        },
+        "color.surface.sunken": {
+          "kind": "color",
+          "value": "#262626"
+        },
+        "color.surface.composer": {
+          "kind": "color",
+          "value": "#333333"
+        },
+        "color.surface.user": {
+          "kind": "color",
+          "value": "#303030"
+        },
+        "color.interaction.hover": {
+          "kind": "color",
+          "value": "#e5e5e51a"
+        },
+        "color.interaction.selected": {
+          "kind": "color",
+          "value": "#e5e5e51a"
+        },
+        "color.text.primary": {
+          "kind": "color",
+          "value": "#e5e5e5"
+        },
+        "color.text.secondary": {
+          "kind": "color",
+          "value": "#a8a8ad"
+        },
+        "color.text.tertiary": {
+          "kind": "color",
+          "value": "#898990"
+        },
+        "color.text.inverse": {
+          "kind": "color",
+          "value": "#0a0a0a"
+        },
+        "color.border.default": {
+          "kind": "color",
+          "value": "#fafafa1a"
+        },
+        "color.border.surface": {
+          "kind": "color",
+          "value": "#fafafa1a"
+        },
+        "color.border.subtle": {
+          "kind": "color",
+          "value": "#fafafa0f"
+        },
+        "color.border.strong": {
+          "kind": "color",
+          "value": "#898990"
+        },
+        "color.accent.primary": {
+          "kind": "color",
+          "value": "#a5f3fc"
+        },
+        "color.accent.hover": {
+          "kind": "color",
+          "value": "#e5e5e5"
+        },
+        "color.accent.subtle": {
+          "kind": "color",
+          "value": "#f5f5f51a"
+        },
+        "color.accent.text": {
+          "kind": "color",
+          "value": "#f5f5f5"
+        },
+        "color.accent.onPrimary": {
+          "kind": "color",
+          "value": "#083344"
+        },
+        "color.focus.ring": {
+          "kind": "color",
+          "value": "#38bdf8"
+        },
+        "color.status.success": {
+          "kind": "color",
+          "value": "#22c55e"
+        },
+        "color.status.warning": {
+          "kind": "color",
+          "value": "#eab308"
+        },
+        "color.status.danger": {
+          "kind": "color",
+          "value": "#ef4444"
+        },
+        "color.status.info": {
+          "kind": "color",
+          "value": "#38bdf8"
+        },
+        "color.status.successSubtle": {
+          "kind": "color",
+          "value": "#22c55e24"
+        },
+        "color.status.warningSubtle": {
+          "kind": "color",
+          "value": "#eab30824"
+        },
+        "color.status.dangerSubtle": {
+          "kind": "color",
+          "value": "#ef44441a"
+        },
+        "color.status.infoSubtle": {
+          "kind": "color",
+          "value": "#38bdf81a"
+        },
+        "color.status.onSuccess": {
+          "kind": "color",
+          "value": "#052e16"
+        },
+        "color.status.onWarning": {
+          "kind": "color",
+          "value": "#1d1d1f"
+        },
+        "color.status.onDanger": {
+          "kind": "color",
+          "value": "#1d1d1f"
+        },
+        "color.status.onInfo": {
+          "kind": "color",
+          "value": "#0a0a0a"
+        },
+        "color.terminal.background": {
+          "kind": "color",
+          "value": "#0a0a0a"
+        },
+        "color.terminal.foreground": {
+          "kind": "color",
+          "value": "#fafafa"
+        },
+        "color.diff.addBackground": {
+          "kind": "color",
+          "value": "#22c55e1a"
+        },
+        "color.diff.addText": {
+          "kind": "color",
+          "value": "#4ade80"
+        },
+        "color.diff.deleteBackground": {
+          "kind": "color",
+          "value": "#ef44441a"
+        },
+        "color.diff.deleteText": {
+          "kind": "color",
+          "value": "#ff8a8a"
+        },
+        "color.overlay.scrim": {
+          "kind": "color",
+          "value": "#00000052"
+        },
+        "color.selection.background": {
+          "kind": "color",
+          "value": "#f5f5f51a"
+        },
+        "color.selection.text": {
+          "kind": "color",
+          "value": "#e5e5e5"
+        },
+        "color.surface.header": {
+          "kind": "color",
+          "value": "#181818"
+        },
+        "color.surface.dock": {
+          "kind": "color",
+          "value": "#181818"
+        },
+        "color.surface.popover": {
+          "kind": "color",
+          "value": "#2b2b2b"
+        },
+        "color.surface.composerHead": {
+          "kind": "color",
+          "value": "#1f1f1f"
+        },
+        "color.switch.on": {
+          "kind": "color",
+          "value": "#22c55e"
+        },
+        "color.brand": {
+          "kind": "color",
+          "value": "#38bdf8"
+        },
+        "color.goal": {
+          "kind": "color",
+          "value": "#e7c664"
+        },
+        "color.status.successText": {
+          "kind": "color",
+          "value": "#4ade80"
+        },
+        "color.status.warningText": {
+          "kind": "color",
+          "value": "#facc15"
+        },
+        "color.status.dangerText": {
+          "kind": "color",
+          "value": "#ff8a8a"
+        },
+        "color.context.1": {
+          "kind": "color",
+          "value": "#0ea5e9"
+        },
+        "color.context.2": {
+          "kind": "color",
+          "value": "#38bdf8"
+        },
+        "color.context.3": {
+          "kind": "color",
+          "value": "#55cbfa"
+        },
+        "color.context.4": {
+          "kind": "color",
+          "value": "#7dd3fc"
+        },
+        "color.context.5": {
+          "kind": "color",
+          "value": "#9ce0fd"
+        },
+        "color.context.6": {
+          "kind": "color",
+          "value": "#bae6fd"
+        },
+        "color.context.systemPrompt": {
+          "kind": "color",
+          "value": "#7d7aff"
+        },
+        "color.context.systemTools": {
+          "kind": "color",
+          "value": "#40c8f5"
+        },
+        "color.context.mcpTools": {
+          "kind": "color",
+          "value": "#bf5af2"
+        },
+        "color.context.customAgents": {
+          "kind": "color",
+          "value": "#ff648f"
+        },
+        "color.context.memoryFiles": {
+          "kind": "color",
+          "value": "#ffd60a"
+        },
+        "color.context.skills": {
+          "kind": "color",
+          "value": "#ff9f0a"
+        },
+        "color.context.messages": {
+          "kind": "color",
+          "value": "#0a84ff"
+        },
+        "color.context.freeSpace": {
+          "kind": "color",
+          "value": "#46494f"
+        },
+        "color.context.autocompactBuffer": {
+          "kind": "color",
+          "value": "#737982"
+        },
+        "color.usage.1": {
+          "kind": "color",
+          "value": "#38bdf8"
+        },
+        "color.usage.2": {
+          "kind": "color",
+          "value": "#2dd4bf"
+        },
+        "color.usage.3": {
+          "kind": "color",
+          "value": "#a78bfa"
+        },
+        "color.usage.4": {
+          "kind": "color",
+          "value": "#fb7185"
+        }
+      }
+    }
+  ]
+}

@@ -328,7 +328,7 @@ describe("Codex conversation shell contract", () => {
     expect(sidebar).toBe("#1d1d1d");
     expect(workspace).toBe("#202020");
     expect(stylesSource).toContain(
-      '--ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
+      "--ui-font: var(--artemis-typography-body-family);",
     );
     expect(
       publicUiCssDeclarations('[data-artemis-component="activity-bar"]'),

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "id": "com.artemis.example.ocean-video",
+  "name": "Ocean Motion",
+  "version": "1.0.0",
+  "uiContract": ">=1 <2",
+  "modes": ["light", "dark"],
+  "tokens": {
+    "light": "tokens.light.json",
+    "dark": "tokens.dark.json",
+    "contrast": "tokens.contrast.json"
+  },
+  "capabilities": {
+    "contrastModes": ["normal", "high"],
+    "densities": ["comfortable"],
+    "platforms": ["universal"]
+  },
+  "assets": {
+    "light": {
+      "path": "assets/light.png",
+      "kind": "image"
+    },
+    "dark": {
+      "path": "assets/dark-poster.png",
+      "kind": "image"
+    },
+    "ui": {
+      "path": "assets/ui.woff2",
+      "kind": "font"
+    },
+    "ui-bold": {
+      "path": "assets/ui-bold.woff2",
+      "kind": "font"
+    },
+    "conversation": {
+      "path": "assets/conversation.woff2",
+      "kind": "font"
+    },
+    "code": {
+      "path": "assets/code.woff2",
+      "kind": "font"
+    },
+    "video": {
+      "path": "assets/dark.webm",
+      "kind": "video"
+    }
+  },
+  "backgrounds": {
+    "light": {
+      "type": "image",
+      "asset": "light",
+      "fit": "cover",
+      "position": [50, 50],
+      "opacity": 1,
+      "blur": 0,
+      "scrim": "#ffffff44"
+    },
+    "dark": {
+      "type": "video",
+      "asset": "video",
+      "poster": "dark",
+      "fit": "cover",
+      "position": [50, 50],
+      "opacity": 1,
+      "blur": 0,
+      "scrim": "#10182244"
+    }
+  },
+  "fonts": {
+    "ui": [
+      {
+        "asset": "ui",
+        "weight": 400,
+        "style": "normal"
+      },
+      {
+        "asset": "ui-bold",
+        "weight": 700,
+        "style": "normal"
+      }
+    ],
+    "conversation": [
+      {
+        "asset": "conversation",
+        "weight": 400,
+        "style": "normal"
+      }
+    ],
+    "code": [
+      {
+        "asset": "code",
+        "weight": 400,
+        "style": "normal"
+      }
+    ]
+  },
+  "icons": "icons.json",
+  "motion": "motion.json"
+}

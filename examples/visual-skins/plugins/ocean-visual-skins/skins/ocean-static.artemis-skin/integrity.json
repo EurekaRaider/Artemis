@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "algorithm": "sha256",
+  "files": {
+    "manifest.json": "787ff97ad4c179ffc2fb3391b3fb0983f909c9fc27021f010a55659a001cf233",
+    "icons.json": "f14c76f9274aa3683c09d20a0416d33b03f6605ded34df6cd376293747dd18d5",
+    "motion.json": "e209163d7f3fb046665770dfd058d6715453ecea0683440b5e3267af7847d601",
+    "tokens.light.json": "60838f240c221f899bfe9b52828a445b9f285faf92f81537e5f4097958f7e6f1",
+    "tokens.dark.json": "848b1602664ba0aeee3b417aa8a5c76f34e7a7b41e28cbfad80dc52a4617bbe1",
+    "tokens.contrast.json": "8a0bab30f9c09a287e823f306e4fdddc76ff8804c5cd8144bb8f360a911279cf",
+    "assets/light.png": "3b1a74a5518663be8c6bad9adeeaf4c8087ff0cbfcf6e27f45ce47f25a6efa27",
+    "assets/dark.png": "da1934dbef5474a57ea9daa00c8373aec1e6f40d8db8ee644e754dc5852fd805",
+    "assets/ui.woff2": "68e8c73ef42afd3ccec58bf0fba302cce448938e7fc020a5e31f8a952eee1342",
+    "assets/ui-bold.woff2": "e99ae51144bf1232efcc1bfe5add36262c6866b0faab24fa75740e1b98577a62",
+    "assets/conversation.woff2": "c2342cd8b869e01752a9321dc17213fc40d4d04c79688c1d43f2cf316abd7866",
+    "assets/code.woff2": "71d517d67827787cfabdf186914cc3358eda539e37931941f2b2fd4a21f68c0b"
+  }
+}

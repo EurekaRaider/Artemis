@@ -307,6 +307,10 @@ const api: ArtemisApi = {
       ipcRenderer.removeListener(IPC.workspaceTabMenuClosed, handler as never);
     };
   },
+  openWorkspaceHtml: (threadId, href) =>
+    ipcRenderer.invoke(IPC.workspaceHtmlOpen, threadId, href),
+  releaseWorkspaceHtml: (threadId, url) =>
+    ipcRenderer.invoke(IPC.workspaceHtmlRelease, threadId, url),
   openOfficeFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.officeOpen, threadId, path),
   readOfficeSnapshot: (threadId, sessionId) =>
@@ -374,6 +378,21 @@ const api: ArtemisApi = {
     ) => listener(value);
     ipcRenderer.on(IPC.terminalExit, handler);
     return () => ipcRenderer.removeListener(IPC.terminalExit, handler);
+  },
+  getAppearanceState: () => ipcRenderer.invoke(IPC.appearanceGet),
+  resolveSkin: (selection) =>
+    ipcRenderer.invoke(IPC.appearanceResolve, selection),
+  releaseSkinResources: (leaseId) =>
+    ipcRenderer.invoke(IPC.appearanceRelease, leaseId),
+  setSkinSelection: (selection) =>
+    ipcRenderer.invoke(IPC.appearanceSelect, selection),
+  onAppearanceStateChanged(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      state: import("../shared/appearance.js").AppearanceState,
+    ) => listener(state);
+    ipcRenderer.on(IPC.appearanceChanged, handler);
+    return () => ipcRenderer.removeListener(IPC.appearanceChanged, handler);
   },
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
   setLanguage: (language) =>
@@ -459,30 +478,30 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.resourceSkillEnable, skillId, enabled),
   removeSkill: (skillId) =>
     ipcRenderer.invoke(IPC.resourceSkillRemove, skillId),
-  listCodexPlugins: () => ipcRenderer.invoke(IPC.resourcePluginList),
-  inspectLocalCodexPlugin: () =>
+  listArtemisPlugins: () => ipcRenderer.invoke(IPC.resourcePluginList),
+  inspectLocalArtemisPlugin: () =>
     ipcRenderer.invoke(IPC.resourcePluginInspectLocal),
-  loadCodexPluginMarketplace: (url, operationId, refresh) =>
+  loadArtemisPluginMarketplace: (url, operationId, refresh) =>
     ipcRenderer.invoke(
       IPC.resourcePluginMarketplaceLoad,
       url,
       operationId,
       refresh,
     ),
-  getCodexPluginMarketplaces: (sourceId) =>
+  getArtemisPluginMarketplaces: (sourceId) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceList, sourceId),
-  addCodexPluginMarketplace: (url, operationId, signingKeyFingerprint) =>
+  addArtemisPluginMarketplace: (url, operationId, signingKeyFingerprint) =>
     ipcRenderer.invoke(
       IPC.resourcePluginMarketplaceAdd,
       url,
       operationId,
       signingKeyFingerprint,
     ),
-  inspectCodexPluginMarketplaceTrust: (url) =>
+  inspectArtemisPluginMarketplaceTrust: (url) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceTrust, url),
-  inspectOfflineCodexPluginMarketplace: () =>
+  inspectOfflineArtemisPluginMarketplace: () =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceInspectOffline),
-  addOfflineCodexPluginMarketplace: (
+  addOfflineArtemisPluginMarketplace: (
     path,
     operationId,
     signingKeyFingerprint,
@@ -500,29 +519,29 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.connectorCancel, id),
   reconnectConnector: (id) => ipcRenderer.invoke(IPC.connectorReconnect, id),
   disconnectConnector: (id) => ipcRenderer.invoke(IPC.connectorDisconnect, id),
-  selectCodexPluginMarketplace: (sourceId) =>
+  selectArtemisPluginMarketplace: (sourceId) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceSelect, sourceId),
-  refreshCodexPluginMarketplace: (sourceId, operationId) =>
+  refreshArtemisPluginMarketplace: (sourceId, operationId) =>
     ipcRenderer.invoke(
       IPC.resourcePluginMarketplaceRefresh,
       sourceId,
       operationId,
     ),
-  removeCodexPluginMarketplace: (sourceId) =>
+  removeArtemisPluginMarketplace: (sourceId) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceRemove, sourceId),
-  reorderCodexPluginMarketplaces: (sourceIds) =>
+  reorderArtemisPluginMarketplaces: (sourceIds) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceReorder, sourceIds),
-  loadCodexRuntimeMarketplace: () =>
+  loadBundledPluginMarketplace: () =>
     ipcRenderer.invoke(IPC.resourcePluginRuntimeMarketplace),
-  installCodexRuntimePlugins: (operationId) =>
+  installBundledPlugins: (operationId) =>
     ipcRenderer.invoke(IPC.resourcePluginRuntimeInstall, operationId),
-  installCodexPlugin: (source, operationId) =>
+  installArtemisPlugin: (source, operationId) =>
     ipcRenderer.invoke(IPC.resourcePluginInstall, source, operationId),
-  updateCodexPlugin: (pluginId, operationId) =>
+  updateArtemisPlugin: (pluginId, operationId) =>
     ipcRenderer.invoke(IPC.resourcePluginUpdate, pluginId, operationId),
-  setCodexPluginEnabled: (pluginId, enabled) =>
+  setArtemisPluginEnabled: (pluginId, enabled) =>
     ipcRenderer.invoke(IPC.resourcePluginEnable, pluginId, enabled),
-  removeCodexPlugin: (pluginId) =>
+  removeArtemisPlugin: (pluginId) =>
     ipcRenderer.invoke(IPC.resourcePluginRemove, pluginId),
   trustExtension: () => ipcRenderer.invoke(IPC.extensionTrust),
   retrustExtension: (extensionId) =>

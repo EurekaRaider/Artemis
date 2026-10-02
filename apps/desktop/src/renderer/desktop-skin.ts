@@ -1,9 +1,9 @@
 import {
   SEMANTIC_TOKEN_REGISTRY,
-  validateSkinManifest,
+  validateVisualSkinManifest,
   type ContrastMode,
   type PlatformCapability,
-  type SkinManifest,
+  type AnySkinManifest,
   type ThemeMode,
 } from "@artemis/theme-contract";
 
@@ -35,7 +35,7 @@ export interface ValidatedDesktopSkinRegistration extends Omit<
   DesktopSkinRegistration,
   "manifest"
 > {
-  readonly manifest: SkinManifest;
+  readonly manifest: AnySkinManifest;
 }
 
 export type DesktopSkinFallbackReason =
@@ -106,7 +106,7 @@ function validatedRegistration(
   ) {
     throw new Error(`Desktop skin registration ${index} is malformed.`);
   }
-  const report = validateSkinManifest(registration.manifest);
+  const report = validateVisualSkinManifest(registration.manifest);
   if (!report.valid || report.value === undefined) {
     throw new Error(
       `Desktop skin registration ${index} has an invalid manifest: ${report.issues
@@ -257,6 +257,7 @@ export class DesktopSkinHost {
   #themePreference: DesktopThemePreference = "system";
   #contrastPreference: DesktopContrastPreference = "system";
   #activeSkinId: string | undefined;
+  #requestedSkinId: unknown = DEFAULT_DESKTOP_SKIN_ID;
   #destroyed = false;
 
   readonly #handleSystemThemeChange = () => {
@@ -265,7 +266,7 @@ export class DesktopSkinHost {
       !this.#destroyed &&
       this.#themePreference === "system"
     ) {
-      void this.#transition(this.#activeSkinId);
+      void this.#transition(this.#requestedSkinId);
     }
   };
   readonly #handleSystemContrastChange = () => {
@@ -274,7 +275,7 @@ export class DesktopSkinHost {
       !this.#destroyed &&
       this.#contrastPreference === "system"
     ) {
-      void this.#transition(this.#activeSkinId);
+      void this.#transition(this.#requestedSkinId);
     }
   };
 
@@ -322,19 +323,20 @@ export class DesktopSkinHost {
     theme: DesktopThemePreference,
   ): Promise<DesktopSkinTransitionResult> {
     this.#themePreference = theme;
-    return this.#transition(this.#activeSkinId ?? DEFAULT_DESKTOP_SKIN_ID);
+    return this.#transition(this.#requestedSkinId);
   }
 
   async setContrast(
     contrast: DesktopContrastPreference,
   ): Promise<DesktopSkinTransitionResult> {
     this.#contrastPreference = contrast;
-    return this.#transition(this.#activeSkinId ?? DEFAULT_DESKTOP_SKIN_ID);
+    return this.#transition(this.#requestedSkinId);
   }
 
   async selectSkin(
     requestedSkinId: unknown,
   ): Promise<DesktopSkinTransitionResult> {
+    this.#requestedSkinId = requestedSkinId;
     return this.#transition(requestedSkinId);
   }
 

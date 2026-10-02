@@ -41,30 +41,34 @@ export function EnvironmentAddIcon(props: IconProps) {
 
 export function EnvironmentBranchIcon(props: IconProps) {
   return (
-    <EnvironmentGitIcon {...props} data-environment-tone="amber">
-      <circle cx="6.5" cy="5.5" r="2" />
-      <circle cx="6.5" cy="18.5" r="2" />
-      <circle cx="17.5" cy="7.5" r="2" />
-      <path d="M6.5 7.5v9" />
-      <path d="M17.5 9.5V11a5.5 5.5 0 0 1-5.5 5.5H9" />
-    </EnvironmentGitIcon>
+    <StandardEnvironmentIcon
+      {...props}
+      name="git-branch"
+      size={20}
+      data-environment-tone="amber"
+    />
   );
 }
 
 export function EnvironmentWorktreeIcon(props: IconProps) {
   return (
-    <EnvironmentGitIcon {...props} data-environment-tone="purple">
-      <path d="M4 12h4l12-9M14 3h6v6M12 15l8 6M14 21h6v-6" />
-    </EnvironmentGitIcon>
+    <StandardEnvironmentIcon
+      {...props}
+      name="worktree"
+      size={20}
+      data-environment-tone="purple"
+    />
   );
 }
 
 export function EnvironmentChangesIcon(props: IconProps) {
   return (
-    <EnvironmentGitIcon {...props} data-environment-tone="blue">
-      <rect x="5" y="3" width="14" height="18" rx="2" />
-      <path d="M9 8h6M12 5v6M9 16h6" />
-    </EnvironmentGitIcon>
+    <StandardEnvironmentIcon
+      {...props}
+      name="changes"
+      size={20}
+      data-environment-tone="blue"
+    />
   );
 }
 
@@ -81,10 +85,12 @@ export function EnvironmentLocalIcon(props: IconProps) {
 
 export function EnvironmentCommitIcon(props: IconProps) {
   return (
-    <EnvironmentGitIcon {...props} data-environment-tone="mint">
-      <path d="M3.5 12h5M15.5 12h5" />
-      <circle cx="12" cy="12" r="3.5" />
-    </EnvironmentGitIcon>
+    <StandardEnvironmentIcon
+      {...props}
+      name="commit"
+      size={20}
+      data-environment-tone="mint"
+    />
   );
 }
 
@@ -105,27 +111,17 @@ export function EnvironmentGithubIcon(props: IconProps) {
 
 export function EnvironmentCompareIcon(props: IconProps) {
   return (
-    <EnvironmentGitIcon {...props} data-environment-tone="blue">
-      <circle cx="6" cy="6" r="1.75" />
-      <circle cx="6" cy="18" r="1.75" />
-      <circle cx="18" cy="6" r="1.75" />
-      <circle cx="18" cy="18" r="1.75" />
-      <path d="M6 7.75v8.5M18 7.75v8.5" />
-      <path d="M9.25 9.5h5.5M12.75 7.5l2 2-2 2" />
-      <path d="M14.75 14.5h-5.5M11.25 12.5l-2 2 2 2" />
-    </EnvironmentGitIcon>
+    <StandardEnvironmentIcon
+      {...props}
+      name="compare"
+      size={20}
+      data-environment-tone="blue"
+    />
   );
 }
 
 export function EnvironmentPullRequestIcon(props: IconProps) {
-  return (
-    <EnvironmentGitIcon {...props}>
-      <circle cx="6" cy="5.5" r="1.75" />
-      <circle cx="6" cy="18.5" r="1.75" />
-      <circle cx="18" cy="18.5" r="1.75" />
-      <path d="M6 7.25v9.5M18 16.75V8a3 3 0 0 0-3-3h-3m2.5-2.5L12 5l2.5 2.5" />
-    </EnvironmentGitIcon>
-  );
+  return <StandardEnvironmentIcon {...props} name="pull-request" size={20} />;
 }
 
 export function EnvironmentChevronIcon(props: IconProps) {
@@ -133,12 +129,7 @@ export function EnvironmentChevronIcon(props: IconProps) {
 }
 
 export function EnvironmentExternalIcon(props: IconProps) {
-  return (
-    <EnvironmentGitIcon {...props} size={16}>
-      <path d="M14 4h6v6M20 4l-9 9" />
-      <path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" />
-    </EnvironmentGitIcon>
-  );
+  return <StandardEnvironmentIcon {...props} name="external" size={16} />;
 }
 
 export function EnvironmentSearchIcon(props: IconProps) {

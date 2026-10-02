@@ -205,9 +205,9 @@ it("invalidates an entire file when it contains unsupported handlers", async () 
 it("loads plugin hooks separately from installation trust and disabling a plugin stops execution", async () => {
   const f = await fixture();
   const root = join(f.root, "plugin");
-  await mkdir(join(root, ".codex-plugin"), { recursive: true });
+  await mkdir(root, { recursive: true });
   await writeFile(
-    join(root, ".codex-plugin", "plugin.json"),
+    join(root, "artemis.plugin.json"),
     JSON.stringify({
       hooks: {
         hooks: { Stop: [{ hooks: [{ type: "command", command: "echo." }] }] },
@@ -337,9 +337,9 @@ it("gives denial, cancellation and conflicting rewrites priority", () => {
 it("isolates an invalid plugin source while keeping other hooks reviewable", async () => {
   const f = await fixture();
   const plugin = join(f.root, "plugin");
-  await mkdir(join(plugin, ".codex-plugin"), { recursive: true });
+  await mkdir(plugin, { recursive: true });
   await writeFile(
-    join(plugin, ".codex-plugin", "plugin.json"),
+    join(plugin, "artemis.plugin.json"),
     JSON.stringify({ hooks: "../escape.json" }),
   );
   const service = new HooksService(

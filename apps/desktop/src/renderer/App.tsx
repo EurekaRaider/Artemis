@@ -181,7 +181,7 @@ import {
 
 import type {
   DesktopSnapshot,
-  InstalledCodexPlugin,
+  InstalledArtemisPlugin,
   InstalledSkill,
   McpServerStatus,
   ReviewAction,
@@ -509,21 +509,6 @@ function appCopy(locale: Locale): (typeof copy)["en"] {
   return copy[locale];
 }
 
-function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon"
-      fill="none"
-      height={size}
-      viewBox="0 0 24 24"
-      width={size}
-    >
-      {children}
-    </svg>
-  );
-}
-
 function ArtemisMark() {
   return (
     <div className="artemis-mark" aria-label="Artemis">
@@ -574,25 +559,7 @@ function EditIcon() {
 }
 
 function CopyIcon() {
-  return (
-    <Icon size={16}>
-      <rect
-        height="10"
-        rx="1.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        width="10"
-        x="8"
-        y="8"
-      />
-      <path
-        d="M6 15H5.5A1.5 1.5 0 0 1 4 13.5v-8A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={16} name="copy" width={16} />;
 }
 
 function isPromptImage(
@@ -1078,7 +1045,7 @@ export function App() {
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
   const [installedPlugins, setInstalledPlugins] = useState<
-    InstalledCodexPlugin[]
+    InstalledArtemisPlugin[]
   >([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [skillsError, setSkillsError] = useState<string>();
@@ -2098,7 +2065,7 @@ export function App() {
   const skillCommandMenuOpen =
     !skillMenuDismissed && isSkillCommandPrompt(prompt);
   const installedPluginBySkillName = useMemo(() => {
-    const plugins = new Map<string, InstalledCodexPlugin>();
+    const plugins = new Map<string, InstalledArtemisPlugin>();
     for (const plugin of installedPlugins) {
       for (const skillName of plugin.skillNames) {
         plugins.set(skillName, plugin);
@@ -3121,7 +3088,7 @@ export function App() {
     setSkillsError(undefined);
     void Promise.all([
       window.artemis.listInstalledSkills(),
-      window.artemis.listCodexPlugins().catch(() => []),
+      window.artemis.listArtemisPlugins().catch(() => []),
     ])
       .then(([skills, plugins]) => {
         if (!mounted) return;
@@ -3195,7 +3162,7 @@ export function App() {
     let mounted = true;
     // History capability icons need plugin metadata before the skill menu opens.
     void window.artemis
-      .listCodexPlugins()
+      .listArtemisPlugins()
       .then((plugins) => {
         if (mounted) setInstalledPlugins(plugins);
       })
@@ -6182,18 +6149,7 @@ export function App() {
                     installingUpdate ? "Update.installing" : "Update.install",
                   )
                 ) : (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 4v12m-4-4 4 4 4-4" />
-                    <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
-                  </svg>
+                  <ArtemisIcon name="download" />
                 )}
               </button>
             )}
@@ -6376,23 +6332,11 @@ export function App() {
                 }
                 type="button"
               >
-                <svg
-                  aria-hidden="true"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  {hasExpandedProject ? (
-                    <path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" />
-                  ) : (
-                    <path d="M14.5 4H20v5.5M20 4l-5.5 5.5M9.5 20H4v-5.5M4 20l5.5-5.5" />
-                  )}
-                </svg>
+                <ArtemisIcon
+                  height={12}
+                  name={hasExpandedProject ? "collapse" : "expand"}
+                  width={12}
+                />
               </button>
               <Tooltip align="end" label={t.openProject}>
                 <button
@@ -7754,20 +7698,12 @@ export function App() {
                     <>
                       {!snapshot.sandbox.available && (
                         <div className="sandbox-notice">
-                          <Icon size={16}>
-                            <path
-                              d="M12 3.5 20 7v5.8c0 4.1-3.1 6.8-8 8.2-4.9-1.4-8-4.1-8-8.2V7l8-3.5Z"
-                              stroke="currentColor"
-                              strokeLinejoin="round"
-                              strokeWidth="1.5"
-                            />
-                            <path
-                              d="M12 8v5m0 3v.1"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeWidth="1.5"
-                            />
-                          </Icon>
+                          <ArtemisIcon
+                            className="icon"
+                            height={16}
+                            name="warning"
+                            width={16}
+                          />
                           <span>
                             <strong>{t.sandboxUnavailable}</strong>
                             <small>{t.sandboxDetail}</small>
@@ -8883,15 +8819,16 @@ ${model.providerId} · ${model.modelId}`}
                                   onClick={() => void sendPrompt()}
                                   title={t.followUp}
                                 >
-                                  <Icon size={17}>
-                                    <path
-                                      d="m6 12 6-6 6 6m-6-6v12"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.8"
-                                    />
-                                  </Icon>
+                                  <ArtemisIcon
+                                    className="icon"
+                                    height={17}
+                                    name="send"
+                                    width={17}
+                                    strokeWidth={1.8}
+                                    fallback={
+                                      <path d="m6 12 6-6 6 6m-6-6v12" />
+                                    }
+                                  />
                                 </button>
                                 <button
                                   className="send-button stop"
@@ -8899,7 +8836,11 @@ ${model.providerId} · ${model.modelId}`}
                                   onClick={() => void cancelActiveTurn()}
                                   title={t.stop}
                                 >
-                                  <span />
+                                  <ArtemisIcon
+                                    height={12}
+                                    name="stop"
+                                    width={12}
+                                  />
                                 </button>
                               </div>
                             ) : (
@@ -8915,15 +8856,14 @@ ${model.providerId} · ${model.modelId}`}
                                 onClick={() => void sendPrompt()}
                                 title={t.send}
                               >
-                                <Icon size={17}>
-                                  <path
-                                    d="m6 12 6-6 6 6m-6-6v12"
-                                    stroke="currentColor"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="1.8"
-                                  />
-                                </Icon>
+                                <ArtemisIcon
+                                  className="icon"
+                                  height={17}
+                                  name="send"
+                                  width={17}
+                                  strokeWidth={1.8}
+                                  fallback={<path d="m6 12 6-6 6 6m-6-6v12" />}
+                                />
                               </button>
                             )}
                           </div>
@@ -10506,9 +10446,7 @@ export function AgentTeamPanel({
                       }}
                       type="button"
                     >
-                      <svg viewBox="0 0 16 16">
-                        <path d="m6 3.5 4.5 4.5L6 12.5" />
-                      </svg>
+                      <ArtemisIcon name="chev-right" />
                     </button>
                   ) : null}
                   <button
@@ -11075,18 +11013,7 @@ export function TurnChangeSetCard({
         <>
           <div className="turn-change-heading">
             <span className="turn-change-icon" aria-hidden="true">
-              <svg
-                className="icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="5" y="3" width="14" height="18" rx="3" />
-                <path d="M9 9h6m-3-3v6m-3 5h6" />
-              </svg>
+              <ArtemisIcon className="icon" name="changes" />
             </span>
             <div className="turn-change-heading-copy">
               <strong title={multiple ? title : changeSet.files[0]!.path}>
@@ -11119,18 +11046,7 @@ export function TurnChangeSetCard({
                 type="button"
               >
                 {t.undoChanges}
-                <svg
-                  aria-hidden="true"
-                  className="icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-3" />
-                </svg>
+                <ArtemisIcon className="icon" name="undo" />
               </button>
             )}
             <button
@@ -11187,7 +11103,7 @@ export function Timeline({
   onUndoTurnChanges,
 }: {
   imGroup?: ImGroupContext | undefined;
-  installedPlugins: readonly InstalledCodexPlugin[];
+  installedPlugins: readonly InstalledArtemisPlugin[];
   installedSkills: readonly InstalledSkill[];
   mcpServers?: readonly McpServerStatus[] | undefined;
   state: ThreadViewState;
@@ -11501,15 +11417,12 @@ export function Timeline({
         <AgentActivity
           indicator={
             <span aria-hidden="true" className="child-agent-open-icon">
-              <Icon size={14}>
-                <path
-                  d="m9 6 6 6-6 6"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.7"
-                />
-              </Icon>
+              <ArtemisIcon
+                className="icon"
+                height={14}
+                name="chev-right"
+                width={14}
+              />
             </span>
           }
           className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}

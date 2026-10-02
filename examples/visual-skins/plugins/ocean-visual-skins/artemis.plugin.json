@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "ocean-visual-skins",
+  "version": "1.0.0",
+  "description": "Static and silent video skins for Artemis",
+  "interface": {
+    "displayName": "Ocean Skins",
+    "category": "Design"
+  },
+  "skins": [
+    "./skins/ocean-static.artemis-skin/",
+    "./skins/ocean-video.artemis-skin/"
+  ]
+}

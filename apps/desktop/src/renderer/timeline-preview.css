@@ -1,0 +1,160 @@
+.timeline-image-preview,
+.timeline-diagram-preview,
+.timeline-html-preview {
+  display: block;
+  min-width: 0;
+  margin-block: var(--artemis-space-3, 12px);
+}
+.timeline-image-button {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: zoom-in;
+  max-width: 100%;
+}
+.timeline-image-button img {
+  display: block;
+  max-width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  border-radius: var(--artemis-radius-md, 8px);
+}
+.timeline-document-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--artemis-border-default, #8884);
+  border-radius: var(--artemis-radius-md, 8px);
+  margin-block: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.timeline-document-card > .workspace-file-link-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+}
+.timeline-document-card > .workspace-file-link-icon svg {
+  width: 100%;
+  height: 100%;
+}
+.timeline-document-name {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.timeline-document-name > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timeline-document-name > span {
+  opacity: 0.65;
+  font-size: 12px;
+}
+.timeline-document-card button,
+.timeline-preview-toolbar button,
+.timeline-image-preview button:not(.timeline-image-button),
+.timeline-diagram-preview > button:not(.timeline-image-button) {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--artemis-border-default, #8884);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.timeline-document-card button {
+  flex-shrink: 0;
+}
+.timeline-html-preview iframe {
+  display: block;
+  width: 100%;
+  height: 360px;
+  border: 1px solid #8884;
+  border-radius: 8px;
+  background: white;
+}
+.timeline-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-block: 8px;
+}
+.timeline-preview-toolbar > span {
+  opacity: 0.65;
+}
+.timeline-diagram-preview {
+  padding: 12px;
+  border: 1px solid #8884;
+  border-radius: 8px;
+}
+.timeline-diagram-preview > .timeline-image-button {
+  width: 100%;
+  background: white;
+  border-radius: 6px;
+}
+.timeline-diagram-preview .timeline-image-button img {
+  width: 100%;
+}
+.timeline-diagram-preview summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.timeline-diagram-preview details {
+  margin-block: 8px;
+}
+.timeline-math {
+  position: relative;
+  max-width: 100%;
+}
+.timeline-math.display {
+  display: block;
+  overflow-x: auto;
+  padding-inline-end: 24px;
+  margin-block: 12px;
+}
+.timeline-math-copy {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  padding: 2px;
+}
+.timeline-math:hover .timeline-math-copy,
+.timeline-math:focus-within .timeline-math-copy {
+  opacity: 0.6;
+}
+.timeline-math .katex-display {
+  margin: 0.5em 0;
+}
+.timeline-mermaid-measure {
+  position: fixed;
+  inset-inline-start: -10000px;
+  top: 0;
+  width: 800px;
+  visibility: hidden;
+  pointer-events: none;
+}
+.workspace-video-player audio {
+  display: block;
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .timeline-document-card {
+    flex-wrap: wrap;
+  }
+  .timeline-document-card button {
+    margin-inline-start: auto;
+  }
+  .timeline-html-preview iframe {
+    height: 280px;
+  }
+}

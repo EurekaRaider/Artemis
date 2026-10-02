@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ComposerSkillChip } from "../src/renderer/ComposerSkillChip.js";
-import type { InstalledCodexPlugin } from "../src/shared/api.js";
+import type { InstalledArtemisPlugin } from "../src/shared/api.js";
 import { pluginBrandIcon } from "../src/renderer/plugin-brand-icons.js";
 const skill = {
   id: "skill",
@@ -32,7 +32,7 @@ it("uses the plugin image and the shared brand fallback on load failure", () => 
   const plugin = {
     name: "figma",
     iconDataUrl: "/broken.png",
-  } as InstalledCodexPlugin;
+  } as InstalledArtemisPlugin;
   const { container } = render(
     <ComposerSkillChip
       skill={skill}

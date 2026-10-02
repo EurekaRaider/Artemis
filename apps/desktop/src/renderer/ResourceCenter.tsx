@@ -1,5 +1,4 @@
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
-import { ComputerUseControls } from "./ComputerUseControls.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { OfficeCapabilityPanel } from "./OfficeCapabilityPanel.js";
 import { officeCopy } from "./office-copy.js";
@@ -41,12 +40,12 @@ import { Tabs } from "@artemis/ui/navigation";
 import { MarketplaceTabs } from "./MarketplaceTabs.js";
 
 import type {
-  CodexPluginMarketplace,
-  CodexPluginMarketplaceSource,
-  CodexPluginMarketplaceState,
-  CodexPluginMutationResult,
-  CodexPluginPreview,
-  InstalledCodexPlugin,
+  ArtemisPluginMarketplace,
+  ArtemisPluginMarketplaceSource,
+  ArtemisPluginMarketplaceState,
+  ArtemisPluginMutationResult,
+  ArtemisPluginPreview,
+  InstalledArtemisPlugin,
   InstalledSkill,
   McpCatalogInstallOption,
   McpCatalogItem,
@@ -94,9 +93,9 @@ type ResourceRemovalDraft =
   | { kind: "skill"; skill: InstalledSkill };
 
 let installedSkillsCache: InstalledSkill[] | undefined;
-let installedPluginsCache: InstalledCodexPlugin[] | undefined;
-let marketplaceStateCache: CodexPluginMarketplaceState | undefined;
-let runtimeMarketplaceCache: CodexPluginMarketplace | undefined;
+let installedPluginsCache: InstalledArtemisPlugin[] | undefined;
+let marketplaceStateCache: ArtemisPluginMarketplaceState | undefined;
+let runtimeMarketplaceCache: ArtemisPluginMarketplace | undefined;
 let runtimeMarketplaceLoaded = false;
 
 function pluginPageText(value: string): string {
@@ -113,9 +112,9 @@ async function loadInstalledSkills(): Promise<InstalledSkill[]> {
   return installedSkillsCache;
 }
 
-async function loadInstalledPlugins(): Promise<InstalledCodexPlugin[]> {
+async function loadInstalledPlugins(): Promise<InstalledArtemisPlugin[]> {
   if (!installedPluginsCache) {
-    installedPluginsCache = await window.artemis.listCodexPlugins();
+    installedPluginsCache = await window.artemis.listArtemisPlugins();
   }
   return installedPluginsCache;
 }
@@ -202,7 +201,7 @@ export function ResourceCenter({
     "marketplace" | "manage" | "add-plugin" | "mcp-editor"
   >("marketplace");
   const [connectionPlugin, setConnectionPlugin] =
-    useState<InstalledCodexPlugin>();
+    useState<InstalledArtemisPlugin>();
   const [managementTab, setManagementTab] = useState<ManagementTab>("plugins");
   const [draggingMarketplaceId, setDraggingMarketplaceId] = useState<
     string | undefined
@@ -222,28 +221,29 @@ export function ResourceCenter({
   >({ mcp: "idle", skills: "idle" });
   const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
   const [pluginInstallDraft, setPluginInstallDraft] =
-    useState<CodexPluginPreview>();
+    useState<ArtemisPluginPreview>();
+  const [officeCapabilityActive, setOfficeCapabilityActive] = useState(false);
   const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
   const [officeCapabilityInstalled, setOfficeCapabilityInstalled] =
     useState<boolean>();
   const [pluginUninstallDraft, setPluginUninstallDraft] =
-    useState<InstalledCodexPlugin>();
+    useState<InstalledArtemisPlugin>();
   const [resourceRemovalDraft, setResourceRemovalDraft] =
     useState<ResourceRemovalDraft>();
   const [mcpServers, setMcpServers] = useState(settings?.mcpServers ?? []);
   const [skillResults, setSkillResults] = useState<SkillCatalogItem[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
   const [marketplaceState, setMarketplaceState] = useState<
-    CodexPluginMarketplaceState | undefined
+    ArtemisPluginMarketplaceState | undefined
   >(marketplaceStateCache);
-  const [localPluginResults, setLocalPluginResults] = useState<
-    CodexPluginPreview[]
-  >([]);
   const [installedPlugins, setInstalledPlugins] = useState<
-    InstalledCodexPlugin[]
+    InstalledArtemisPlugin[]
   >([]);
+  const localPluginResults = installedPlugins.filter(
+    (plugin) => plugin.source.kind === "local",
+  );
   const [runtimeMarketplace, setRuntimeMarketplace] = useState<
-    CodexPluginMarketplace | undefined
+    ArtemisPluginMarketplace | undefined
   >(runtimeMarketplaceCache);
   const [installProgress, setInstallProgress] =
     useState<ResourceInstallProgress>();
@@ -276,7 +276,10 @@ export function ResourceCenter({
       void window.artemis
         .officeCapabilityStatus()
         .then((status) => {
-          if (active) setOfficeCapabilityInstalled(status.versions.length > 0);
+          if (active) {
+            setOfficeCapabilityInstalled(status.versions.length > 0);
+            setOfficeCapabilityActive(Boolean(status.activeVersion));
+          }
         })
         .catch((error: unknown) => {
           if (active) setMessage(String(error));
@@ -287,7 +290,7 @@ export function ResourceCenter({
       active = false;
       window.removeEventListener("focus", refresh);
     };
-  }, [hasOfficePlugins]);
+  }, [hasOfficePlugins, officeCapabilityOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -368,10 +371,10 @@ export function ResourceCenter({
     let mounted = true;
     const marketplaceRequest = marketplaceStateCache
       ? Promise.resolve(marketplaceStateCache)
-      : window.artemis.getCodexPluginMarketplaces();
+      : window.artemis.getArtemisPluginMarketplaces();
     const runtimeRequest = runtimeMarketplaceLoaded
       ? Promise.resolve(runtimeMarketplaceCache)
-      : window.artemis.loadCodexRuntimeMarketplace();
+      : window.artemis.loadBundledPluginMarketplace();
     void runtimeRequest
       .then((runtime) => {
         runtimeMarketplaceLoaded = true;
@@ -453,7 +456,7 @@ export function ResourceCenter({
     if (opening) focusCatalogSearch();
   }
 
-  function applyMarketplaceState(next: CodexPluginMarketplaceState): void {
+  function applyMarketplaceState(next: ArtemisPluginMarketplaceState): void {
     marketplaceStateCache = next;
     setMarketplaceState(next);
     const error = next.errors.find(
@@ -485,7 +488,7 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       applyMarketplaceState(
-        await window.artemis.refreshCodexPluginMarketplace(
+        await window.artemis.refreshArtemisPluginMarketplace(
           sourceId,
           operationId,
         ),
@@ -493,7 +496,7 @@ export function ResourceCenter({
     } catch (error) {
       try {
         applyMarketplaceState(
-          await window.artemis.getCodexPluginMarketplaces(),
+          await window.artemis.getArtemisPluginMarketplaces(),
         );
       } catch {
         setMessage(error instanceof Error ? error.message : String(error));
@@ -510,7 +513,7 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       applyMarketplaceState(
-        await window.artemis.selectCodexPluginMarketplace(sourceId),
+        await window.artemis.selectArtemisPluginMarketplace(sourceId),
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -525,7 +528,7 @@ export function ResourceCenter({
     setSearching(true);
     setMessage(undefined);
     try {
-      const trust = await window.artemis.inspectCodexPluginMarketplaceTrust(
+      const trust = await window.artemis.inspectArtemisPluginMarketplaceTrust(
         sourceInput.trim(),
       );
       const trustMessage = trust.signed
@@ -538,7 +541,7 @@ export function ResourceCenter({
           });
       if (!(await onConfirm(trustMessage))) return;
       applyMarketplaceState(
-        await window.artemis.addCodexPluginMarketplace(
+        await window.artemis.addArtemisPluginMarketplace(
           sourceInput.trim(),
           operationId,
           trust.signingKeyFingerprint,
@@ -560,7 +563,7 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       const inspected =
-        await window.artemis.inspectOfflineCodexPluginMarketplace();
+        await window.artemis.inspectOfflineArtemisPluginMarketplace();
       if (!inspected) return;
       const { trust } = inspected;
       const trustMessage = uiText(locale, "ResourceCenter.inline4", {
@@ -570,7 +573,7 @@ export function ResourceCenter({
       if (!(await onConfirm(trustMessage))) return;
       const operationId = beginInstallation("plugin", trust.displayName);
       applyMarketplaceState(
-        await window.artemis.addOfflineCodexPluginMarketplace(
+        await window.artemis.addOfflineArtemisPluginMarketplace(
           inspected.path,
           operationId,
           trust.signingKeyFingerprint ?? "",
@@ -586,7 +589,7 @@ export function ResourceCenter({
   }
 
   async function removeMarketplace(
-    source: CodexPluginMarketplaceSource,
+    source: ArtemisPluginMarketplaceSource,
   ): Promise<void> {
     if (
       !source.removable ||
@@ -598,7 +601,7 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       applyMarketplaceState(
-        await window.artemis.removeCodexPluginMarketplace(source.id),
+        await window.artemis.removeArtemisPluginMarketplace(source.id),
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -628,7 +631,7 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       applyMarketplaceState(
-        await window.artemis.reorderCodexPluginMarketplaces(sourceIds),
+        await window.artemis.reorderArtemisPluginMarketplaces(sourceIds),
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -875,7 +878,7 @@ export function ResourceCenter({
   }
 
   function applyPluginMutation(
-    result: CodexPluginMutationResult,
+    result: ArtemisPluginMutationResult,
     successMessage: string = t.installedNow,
   ): void {
     installedPluginsCache = result.plugins;
@@ -884,13 +887,6 @@ export function ResourceCenter({
     setInstalledSkills(result.skills);
     setMcpServers(result.settings.mcpServers);
     onSettingsChange(result.settings);
-    const installedIds = new Set(result.plugins.map((plugin) => plugin.id));
-    setLocalPluginResults((plugins) =>
-      plugins.map((plugin) => ({
-        ...plugin,
-        installed: installedIds.has(plugin.id),
-      })),
-    );
     setMessage(
       result.warnings.length ? result.warnings.join("\n") : successMessage,
     );
@@ -900,16 +896,12 @@ export function ResourceCenter({
     setBusyId("local-plugin");
     setMessage(undefined);
     try {
-      const preview = await window.artemis.inspectLocalCodexPlugin();
+      const preview = await window.artemis.inspectLocalArtemisPlugin();
       if (!preview) return;
-      setLocalPluginResults((current) => [
-        preview,
-        ...current.filter((plugin) => plugin.id !== preview.id),
-      ]);
       applyMarketplaceState(
-        await window.artemis.selectCodexPluginMarketplace("local"),
+        await window.artemis.selectArtemisPluginMarketplace("local"),
       );
-      setMode("marketplace");
+      if (await installPlugin(preview)) setMode("marketplace");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -917,18 +909,25 @@ export function ResourceCenter({
     }
   }
 
-  async function installPlugin(plugin: CodexPluginPreview) {
+  async function installPlugin(plugin: ArtemisPluginPreview): Promise<boolean> {
     const conflict = pluginSkillConflict(plugin);
     if (conflict) {
       setMessage(conflict);
-      return;
+      return false;
     }
-    if (!plugin.installable) return;
+    if (!plugin.installable) {
+      setMessage(
+        plugin.unsupported.join(", ") ||
+          plugin.warnings.join(" · ") ||
+          t.needsSetup,
+      );
+      return false;
+    }
     const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
-      const result = await window.artemis.installCodexPlugin(
+      const result = await window.artemis.installArtemisPlugin(
         plugin.source,
         operationId,
       );
@@ -943,8 +942,10 @@ export function ResourceCenter({
         )
       )
         setConnectionPlugin(installed);
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+      return false;
     } finally {
       setBusyId(undefined);
       setInstallProgress(undefined);
@@ -960,7 +961,7 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       applyPluginMutation(
-        await window.artemis.installCodexRuntimePlugins(operationId),
+        await window.artemis.installBundledPlugins(operationId),
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -970,13 +971,13 @@ export function ResourceCenter({
     }
   }
 
-  async function updatePlugin(plugin: InstalledCodexPlugin) {
+  async function updatePlugin(plugin: InstalledArtemisPlugin) {
     if (!(await onConfirm(t.confirmUpdatePlugin))) return;
     const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
-      const result = await window.artemis.updateCodexPlugin(
+      const result = await window.artemis.updateArtemisPlugin(
         plugin.id,
         operationId,
       );
@@ -1001,14 +1002,14 @@ export function ResourceCenter({
   }
 
   async function setPluginEnabled(
-    plugin: InstalledCodexPlugin,
+    plugin: InstalledArtemisPlugin,
     enabled: boolean,
   ) {
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
       applyPluginMutation(
-        await window.artemis.setCodexPluginEnabled(plugin.id, enabled),
+        await window.artemis.setArtemisPluginEnabled(plugin.id, enabled),
         enabled ? t.pluginEnabled : t.pluginDisabled,
       );
     } catch (error) {
@@ -1018,12 +1019,12 @@ export function ResourceCenter({
     }
   }
 
-  async function removePlugin(plugin: InstalledCodexPlugin) {
+  async function removePlugin(plugin: InstalledArtemisPlugin) {
     setBusyId(plugin.id);
     setMessage(undefined);
     try {
       applyPluginMutation(
-        await window.artemis.removeCodexPlugin(plugin.id),
+        await window.artemis.removeArtemisPlugin(plugin.id),
         t.removedNow,
       );
     } catch (error) {
@@ -1179,7 +1180,7 @@ export function ResourceCenter({
     (marketplaceState?.sources ?? []).map((source) => [source.id, source]),
   );
 
-  function pluginsForMarketplace(sourceId: string): CodexPluginPreview[] {
+  function pluginsForMarketplace(sourceId: string): ArtemisPluginPreview[] {
     const marketplace = marketplaceBySourceId.get(sourceId);
     return sourceId === "bundled"
       ? (runtimeMarketplace?.plugins ?? [])
@@ -1194,7 +1195,7 @@ export function ResourceCenter({
   ];
 
   function marketplaceSourceLabel(
-    source: CodexPluginMarketplaceSource,
+    source: ArtemisPluginMarketplaceSource,
   ): string {
     if (source.id === "bundled") return t.bundledPlugins;
     const normalizedDisplayName = source.displayName.toLocaleLowerCase();
@@ -1216,8 +1217,8 @@ export function ResourceCenter({
   }
 
   function marketplaceSourceForPlugin(
-    plugin: CodexPluginPreview,
-  ): CodexPluginMarketplaceSource | undefined {
+    plugin: ArtemisPluginPreview,
+  ): ArtemisPluginMarketplaceSource | undefined {
     if (
       plugin.source.kind === "builtin" ||
       plugin.source.kind === "bundled" ||
@@ -1232,7 +1233,7 @@ export function ResourceCenter({
     );
   }
 
-  function pluginMarketplaceLabel(plugin: CodexPluginPreview): string {
+  function pluginMarketplaceLabel(plugin: ArtemisPluginPreview): string {
     if (plugin.source.kind === "local") return t.local;
     const source = marketplaceSourceForPlugin(plugin);
     if (source) return marketplaceSourceLabel(source);
@@ -1246,7 +1247,7 @@ export function ResourceCenter({
     return `${plugin.source.marketplaceName} · ${t.marketplaceRemoved}`;
   }
 
-  function visualForPlugin(plugin: CodexPluginPreview) {
+  function visualForPlugin(plugin: ArtemisPluginPreview) {
     const bundled =
       plugin.source.kind === "builtin" ||
       plugin.source.kind === "bundled" ||
@@ -1300,8 +1301,11 @@ export function ResourceCenter({
     };
   }
 
-  function pluginIsEnabled(plugin: InstalledCodexPlugin): boolean {
+  function pluginIsEnabled(plugin: InstalledArtemisPlugin): boolean {
     return (
+      (Boolean(plugin.skins?.length) &&
+        plugin.skinsEnabled !== false &&
+        !plugin.formatMigrationRequired) ||
       (plugin.hasHooks && plugin.hooksEnabled !== false) ||
       plugin.skillNames.some((name) => enabledSkillNames.has(name)) ||
       plugin.mcpServerIds.some((id) => enabledMcpIds.has(id))
@@ -1328,7 +1332,7 @@ export function ResourceCenter({
       (option) => option.value === selectedMarketplaceView,
     ) ?? marketplaceTabOptions.at(-1)!;
   const marketplaceFilter = marketplaceQuery.trim().toLowerCase();
-  const matchingMarketplacePlugins = (plugins: CodexPluginPreview[]) =>
+  const matchingMarketplacePlugins = (plugins: ArtemisPluginPreview[]) =>
     plugins.filter((plugin) => {
       return (
         !marketplaceFilter ||
@@ -1355,7 +1359,7 @@ export function ResourceCenter({
 
   const marketplaceGroups: Array<{
     title: string;
-    plugins: CodexPluginPreview[];
+    plugins: ArtemisPluginPreview[];
     sourceId?: string;
   }> = [];
   if (marketplaceFilter) {
@@ -1413,7 +1417,7 @@ export function ResourceCenter({
         plugins: featured,
         sourceId: selectedMarketplaceView,
       });
-    const byCategory = new Map<string, CodexPluginPreview[]>();
+    const byCategory = new Map<string, ArtemisPluginPreview[]>();
     for (const plugin of selectedMarketplacePlugins) {
       if (runtimeIds.has(plugin.id) || featuredIds.has(plugin.id)) continue;
       const category = plugin.category ?? t.plugins;
@@ -1636,7 +1640,9 @@ export function ResourceCenter({
     );
   }
 
-  function pluginSkillConflict(plugin: CodexPluginPreview): string | undefined {
+  function pluginSkillConflict(
+    plugin: ArtemisPluginPreview,
+  ): string | undefined {
     for (const skill of plugin.skills) {
       const installed = installedSkills.find(
         (candidate) => candidate.name === skill.name,
@@ -1660,18 +1666,12 @@ export function ResourceCenter({
     return undefined;
   }
 
-  function pluginDisplayName(plugin: CodexPluginPreview): string {
+  function pluginDisplayName(plugin: ArtemisPluginPreview): string {
     return pluginPageText(localizedPluginText(plugin, locale).displayName);
   }
 
-  function pluginDescription(plugin: CodexPluginPreview): string {
+  function pluginDescription(plugin: ArtemisPluginPreview): string {
     const copy = localizedPluginText(plugin, locale);
-    const translated = plugin.localizations?.[locale];
-    if (translated?.shortDescription || translated?.description) {
-      return pluginPageText(
-        translated.shortDescription || translated.description!,
-      );
-    }
     if (
       plugin.source.kind === "builtin" ||
       plugin.source.kind === "bundled" ||
@@ -1680,15 +1680,22 @@ export function ResourceCenter({
       const translated = bundledPluginDescription(
         locale,
         plugin.source.pluginName,
+        officeCapabilityActive,
       );
       if (translated) return translated;
+    }
+    const translated = plugin.localizations?.[locale];
+    if (translated?.shortDescription || translated?.description) {
+      return pluginPageText(
+        translated.shortDescription || translated.description!,
+      );
     }
     return pluginPageText(
       copy.shortDescription || copy.description || plugin.name,
     );
   }
 
-  function pluginHasConnection(plugin: InstalledCodexPlugin): boolean {
+  function pluginHasConnection(plugin: InstalledArtemisPlugin): boolean {
     return mcpServers.some(
       (server) =>
         server.config.connector &&
@@ -1765,7 +1772,7 @@ export function ResourceCenter({
     ) : null;
   }
 
-  function renderPluginCard(plugin: CodexPluginPreview, sourceId?: string) {
+  function renderPluginCard(plugin: ArtemisPluginPreview, sourceId?: string) {
     const installed = installedPluginIds.has(plugin.id);
     const installedPlugin = installedPlugins.find(
       (candidate) => candidate.id === plugin.id,
@@ -1814,6 +1821,13 @@ export function ResourceCenter({
         </div>
         <div className="plugin-market-copy">
           <small title={description}>{description}</small>
+          {Boolean(plugin.skins?.length) && (
+            <small>
+              <ArtemisIcon name="palette" />{" "}
+              {locale.startsWith("zh") ? "视觉皮肤" : "Visual skins"}:{" "}
+              {plugin.skins!.length}
+            </small>
+          )}
           {diagnostic && (
             <InlineNotice className="plugin-market-diagnostic" tone="warning">
               {pluginPageText(diagnostic)}
@@ -2206,11 +2220,6 @@ export function ResourceCenter({
           title={t.title}
           actions={
             <div className="resource-header-actions">
-              {installedPlugins.some(
-                (plugin) => plugin.source.kind === "builtin",
-              ) ? (
-                <ComputerUseControls locale={locale} permissionsOnly />
-              ) : null}
               <IconButton
                 className="resource-icon-button"
                 disabled={
@@ -2442,7 +2451,9 @@ export function ResourceCenter({
             onCancel={() => setPluginInstallDraft(undefined)}
             onInstall={() => {
               setPluginInstallDraft(undefined);
-              runResourceOperation(() => installPlugin(pluginInstallDraft));
+              runResourceOperation(async () => {
+                await installPlugin(pluginInstallDraft);
+              });
             }}
           />
         )}

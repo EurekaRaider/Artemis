@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "background": {
+      "preset": "none",
+      "duration": 500,
+      "distance": 4,
+      "loop": false
+    },
+    "controls": {
+      "preset": "scale",
+      "duration": 120,
+      "distance": 0,
+      "loop": false
+    }
+  }
+}

@@ -3,10 +3,10 @@ import type {
   McpToolUsageState,
   ToolState,
 } from "@artemis/protocol";
-import type { InstalledCodexPlugin } from "../shared/api.js";
+import type { InstalledArtemisPlugin } from "../shared/api.js";
 
 export type ToolPlugin = Pick<
-  InstalledCodexPlugin,
+  InstalledArtemisPlugin,
   "id" | "name" | "displayName" | "mcpServerIds" | "brandColor" | "iconDataUrl"
 >;
 

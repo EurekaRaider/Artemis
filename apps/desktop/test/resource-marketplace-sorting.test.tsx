@@ -9,7 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CodexPluginMarketplaceState } from "../src/shared/api.js";
+import type { ArtemisPluginMarketplaceState } from "../src/shared/api.js";
 import { ResourceCenter } from "../src/renderer/ResourceCenter.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
@@ -33,7 +33,7 @@ afterEach(() => {
 
 async function setup() {
   const user = userEvent.setup();
-  const state: CodexPluginMarketplaceState = {
+  const state: ArtemisPluginMarketplaceState = {
     selectedView: "built-in",
     sources: ["built-in", "first", "second", "third"].map((id, order) => ({
       id,
@@ -58,12 +58,12 @@ async function setup() {
     ],
   }));
   stubWindowArtemis({
-    getCodexPluginMarketplaces: async () => state,
-    reorderCodexPluginMarketplaces: reorder,
-    listCodexPlugins: async () => [],
+    getArtemisPluginMarketplaces: async () => state,
+    reorderArtemisPluginMarketplaces: reorder,
+    listArtemisPlugins: async () => [],
     listInstalledSkills: async () => [],
     listMcpServers: async () => [],
-    loadCodexRuntimeMarketplace: async () => undefined,
+    loadBundledPluginMarketplace: async () => undefined,
     onResourceInstallProgress: () => () => {},
   });
   await act(async () => {
@@ -127,7 +127,7 @@ describe("marketplace source ordering", () => {
 
   it("rejects another drop while an ordering operation is pending", async () => {
     const { user, state, reorder } = await setup();
-    let finish!: (value: CodexPluginMarketplaceState) => void;
+    let finish!: (value: ArtemisPluginMarketplaceState) => void;
     reorder.mockImplementationOnce(
       () =>
         new Promise((resolve) => {

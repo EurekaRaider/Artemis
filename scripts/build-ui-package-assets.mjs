@@ -35,6 +35,17 @@ if (target === "theme-contract") {
     join(root, "packages/theme-contract/dist/schema/integrity.schema.json"),
     contract.skinIntegritySchema,
   );
+  for (const [file, schema] of Object.entries({
+    "manifest-v2": contract.visualSkinManifestSchema,
+    "integrity-v2": contract.visualSkinIntegritySchema,
+    icons: contract.skinIconsSchema,
+    motion: contract.skinMotionSchema,
+  })) {
+    await writeJson(
+      join(root, `packages/theme-contract/dist/schema/${file}.schema.json`),
+      schema,
+    );
+  }
 } else if (target === "ui") {
   const source = await readFile(
     join(root, "packages/ui/src/styles.css"),

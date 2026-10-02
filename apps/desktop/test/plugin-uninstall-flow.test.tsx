@@ -57,10 +57,10 @@ it("requires explicit plugin confirmation from both uninstall entry points", asy
   const confirm = vi.fn(async () => true);
   const changed = vi.fn();
   stubWindowArtemis({
-    listCodexPlugins: async () => [plugin],
+    listArtemisPlugins: async () => [plugin],
     listInstalledSkills: async () => [],
     listMcpServers: async () => [],
-    getCodexPluginMarketplaces: async () => ({
+    getArtemisPluginMarketplaces: async () => ({
       sources: [
         {
           id: "shop",
@@ -85,9 +85,9 @@ it("requires explicit plugin confirmation from both uninstall entry points", asy
       errors: [],
       selectedView: "shop",
     }),
-    loadCodexRuntimeMarketplace: async () => undefined,
+    loadBundledPluginMarketplace: async () => undefined,
     onResourceInstallProgress: () => () => {},
-    removeCodexPlugin: remove,
+    removeArtemisPlugin: remove,
   });
   render(
     <ResourceCenter

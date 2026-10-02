@@ -119,12 +119,12 @@ it("opens only the newly installed plugin connection, then reopens it from that 
   }));
   stubWindowArtemis({
     listMcpServers: async () => [],
-    listCodexPlugins: async () => [],
+    listArtemisPlugins: async () => [],
     listInstalledSkills: async () => [],
-    getCodexPluginMarketplaces: async () => market,
-    loadCodexRuntimeMarketplace: async () => undefined,
+    getArtemisPluginMarketplaces: async () => market,
+    loadBundledPluginMarketplace: async () => undefined,
     onResourceInstallProgress: () => () => {},
-    installCodexPlugin: install,
+    installArtemisPlugin: install,
     listConnectorDefinitions: async () => [
       definition,
       {

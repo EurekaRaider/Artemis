@@ -54,7 +54,7 @@ describe("application language packs", () => {
           placeholders(source[key]!),
         );
         for (const token of UI_RESOURCES["zh-CN"][key]!.match(
-          /--[a-z][a-z-]+|@[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*|AGENTS\.md|SKILL\.md|\.codex-plugin|127\.0\.0\.1/g,
+          /--[a-z][a-z-]+|@[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*|AGENTS\.md|SKILL\.md|artemis\.plugin\.json|127\.0\.0\.1/g,
         ) ?? []) {
           expect(text, `${locale}:${key}`).toContain(token);
         }

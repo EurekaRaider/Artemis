@@ -5,6 +5,6 @@ dist-renderer
 release
 coverage
 package-lock.json
-docs/ui-prototype/
+prototypes/
 packages/agent-host/eval/*.md
 **/README.md

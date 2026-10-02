@@ -35,6 +35,24 @@ async function fixture() {
   };
 }
 describe("private workspace video streaming", () => {
+  it.each(["mp3", "m4a", "wav", "ogg", "flac", "aac", "opus"])(
+    "streams %s audio through the same private, revocable channel",
+    async (extension) => {
+      const f = await fixture();
+      await writeFile(join(f.workspace, `sound.${extension}`), "0123456789");
+      const audio = await f.service.open("task", `sound.${extension}`);
+      expect(audio.mimeType).toMatch(/^audio\//u);
+      const response = await f.service.respond(
+        new Request(audio.url, { headers: { Range: "bytes=2-5" } }),
+      );
+      expect(response.status).toBe(206);
+      expect(await response.text()).toBe("2345");
+      f.service.release("task", audio.url);
+      expect((await f.service.respond(new Request(audio.url))).status).toBe(
+        404,
+      );
+    },
+  );
   it("does not issue a late lease after the renderer closes", async () => {
     const f = await fixture();
     let finish!: (workspace: string) => void;

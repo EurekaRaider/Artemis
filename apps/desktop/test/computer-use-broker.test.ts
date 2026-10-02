@@ -24,7 +24,7 @@ function fixture() {
     activeMcpCalls: new Map(),
     mcpConfigStore: { list: async () => [{ id: "builtin", enabled: true }] },
     computerUseServerId: "builtin",
-    codexPluginService: {
+    artemisPluginService: {
       isComputerUseServer: vi.fn(
         () =>
           new Promise<boolean>((resolve) => {
@@ -78,7 +78,7 @@ describe("Computer Use broker execution", () => {
     const pending = f.run();
     await vi.waitFor(() =>
       expect(
-        f.scope.codexPluginService.isComputerUseServer,
+        f.scope.artemisPluginService.isComputerUseServer,
       ).toHaveBeenCalledOnce(),
     );
     f.finishTrust();
@@ -106,7 +106,7 @@ describe("Computer Use broker execution", () => {
       const pending = f.run();
       await vi.waitFor(() =>
         expect(
-          f.scope.codexPluginService.isComputerUseServer,
+          f.scope.artemisPluginService.isComputerUseServer,
         ).toHaveBeenCalledOnce(),
       );
       if (change === "revoke")

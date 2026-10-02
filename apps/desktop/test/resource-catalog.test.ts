@@ -51,8 +51,8 @@ describe("resource catalog", () => {
     await writeFile(join(skillDirectory, "SKILL.md"), skillBody);
     const metadata = {
       version: 1,
-      id: "codex-plugin/superpowers/brainstorming",
-      source: "codex-plugin:superpowers",
+      id: "artemis-plugin/superpowers/brainstorming",
+      source: "artemis-plugin:superpowers",
       installedAt: "2026-08-04T04:58:51.462Z",
     };
     await writeFile(

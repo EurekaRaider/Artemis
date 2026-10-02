@@ -11,6 +11,9 @@ const terminals = vi.hoisted(
       write: ReturnType<typeof vi.fn>;
       writeln: ReturnType<typeof vi.fn>;
       dispose: ReturnType<typeof vi.fn>;
+      select: ReturnType<typeof vi.fn>;
+      scrollToLine: ReturnType<typeof vi.fn>;
+      refresh: ReturnType<typeof vi.fn>;
     }>,
 );
 vi.mock("@xterm/xterm", () => ({
@@ -20,6 +23,13 @@ vi.mock("@xterm/xterm", () => ({
     write = vi.fn();
     writeln = vi.fn();
     dispose = vi.fn();
+    buffer = { active: { viewportY: 4 } };
+    getSelectionPosition() {
+      return { start: { x: 2, y: 5 }, end: { x: 8, y: 5 } };
+    }
+    select = vi.fn();
+    scrollToLine = vi.fn();
+    refresh = vi.fn();
     constructor(public options: Record<string, any>) {
       terminals.push(this);
     }
@@ -78,6 +88,10 @@ it("uses a complete light palette with contrast protection and preserves the liv
   await act(async () => {});
   const terminal = terminals[0]!;
   expect(terminal.options.minimumContrastRatio).toBe(4.5);
+  act(() => window.dispatchEvent(new Event("artemis:appearance-applied")));
+  expect(terminal.select).toHaveBeenCalledWith(2, 5, 6);
+  expect(terminal.scrollToLine).toHaveBeenCalledWith(4);
+  expect(terminal.refresh).toHaveBeenCalledWith(0, 23);
   expect(terminal.options.theme).toMatchObject({
     background: "#ffffff",
     foreground: "#1f2023",
