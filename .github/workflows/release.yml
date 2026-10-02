@@ -405,9 +405,10 @@ jobs:
           $releaseExitCode = $LASTEXITCODE
           if ($releaseExitCode -ne 0) {
             $tail = (Get-Content $logPath -Tail 20 | ForEach-Object {
-              if ($_.Length -gt 160) { $_.Substring(0, 160) + '...' } else { $_ }
+              $line = $_
+              if ($env:GITHUB_TOKEN) { $line = $line.Replace($env:GITHUB_TOKEN, '***') }
+              if ($line.Length -gt 160) { $line.Substring(0, 160) + '...' } else { $line }
             }) -join "`n"
-            if ($env:GITHUB_TOKEN) { $tail = $tail.Replace($env:GITHUB_TOKEN, '***') }
             $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Windows release failure::$message"
           }
