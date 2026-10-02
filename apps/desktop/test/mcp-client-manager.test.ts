@@ -1572,15 +1572,20 @@ lines.on("line", async (line) => {
   } finally {
     await rm(outsidePath, { force: true }).catch(() => {});
   }
-  // Keep the capability assertion independent of a public site's response code
-  // and tolerate bounded DNS/TLS delays on the shared Windows runner.
-  for (let attempt = 0; attempt < 3 && !networkAccess; attempt++) {
+  // Prove real outbound access without depending on one public site's TLS path.
+  const networkProbeUrls = [
+    "https://example.com",
+    "https://registry.npmjs.org",
+    "https://api.github.com",
+  ];
+  for (const url of networkProbeUrls) {
     try {
-      const response = await fetch("https://example.com", {
+      const response = await fetch(url, {
         signal: AbortSignal.timeout(10_000),
       });
       networkAccess = true;
       await response.body?.cancel();
+      break;
     } catch (error) {
       networkErrors.push(
         error instanceof Error

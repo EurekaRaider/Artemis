@@ -322,7 +322,7 @@ const snapshot = () => {
   const appShell = document.querySelector(".app-shell");
   const nativeSidebar = appShell?.dataset.platform === "darwin";
   const darkTheme = root.dataset.artemisTheme === "dark";
-  const opaqueSidebar = matchMedia("(prefers-reduced-transparency: reduce), (forced-colors: active)").matches;
+  const opaqueSidebar = root.dataset.artemisContrast === "high" || matchMedia("(prefers-reduced-transparency: reduce), (forced-colors: active)").matches;
   const sidebarMain = document.querySelector(
     '[data-artemis-component="navigation-sidebar"] > [data-part="main"]',
   );

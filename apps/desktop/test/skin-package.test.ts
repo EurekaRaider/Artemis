@@ -68,8 +68,11 @@ describe("skin package filesystem boundary", () => {
     await writeTestSkin(root);
     await rm(join(root, "tokens.dark.json"));
     await symlink(
-      join(root, "tokens.light.json"),
+      process.platform === "win32"
+        ? await fixture()
+        : join(root, "tokens.light.json"),
       join(root, "tokens.dark.json"),
+      process.platform === "win32" ? "junction" : "file",
     );
     await expect(loadSkinPackage(root)).rejects.toThrow(/symlink/);
   });
