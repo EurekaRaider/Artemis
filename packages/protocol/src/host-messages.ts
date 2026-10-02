@@ -203,6 +203,15 @@ export type AgentHostCommand =
       typeBinding?: import("./schema.js").Thread["typeBinding"];
       /** Fixed execution profile ("plugin-restricted-v1"). */
       executionProfile?: string;
+      /**
+       * Declared plugin tools for the bound plugin (resolved by the main
+       * process from the published revision manifest before open).
+       */
+      pluginTools?: Array<{
+        name: string;
+        description: string;
+        effect: "artifact-write" | "state-read";
+      }>;
     }
   | {
       type: "thread.model.set";

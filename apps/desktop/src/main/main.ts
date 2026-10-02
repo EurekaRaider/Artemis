@@ -1,8 +1,15 @@
 import { DesignPanelHost } from "./design-plugin-panel-host.js";
 import {
+  closeWorkspaceTabMenu,
+  setWorkspaceTabMenuHandlers,
+  showWorkspaceTabMenu,
+  workspaceTabMenuParent,
+} from "./workspace-tab-menu-window.js";
+import {
   createDispatchPluginTool,
   type PluginDispatch,
 } from "./design-plugin-dispatch.js";
+import { ensureThreadDataRoot } from "./design-plugin-thread-data.js";
 import { PanelSendEntryService } from "./design-plugin-send-entry.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { ComputerUseHost } from "./computer-use/host.js";
@@ -488,6 +495,9 @@ let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
 // S1 design-plugin panel host; created in the ready handler below.
 let designPanelHost: DesignPanelHost | undefined;
+// Artifact-write dispatches land outside registerIpc's scope; registerIpc
+// installs this sink so they can trigger the debounced snapshot push.
+let designArtifactWriteSink: ((threadId: string) => void) | undefined;
 let pluginDispatch: PluginDispatch | undefined;
 let panelSendEntry: PanelSendEntryService | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
@@ -4329,7 +4339,11 @@ async function openAgentThread(
     // agent-host injects them as broker-mediated customTools only for
     // execute-restricted sessions.
     let pluginTools:
-      | Array<{ name: string; description: string; effect: string }>
+      | Array<{
+          name: string;
+          description: string;
+          effect: "artifact-write" | "state-read";
+        }>
       | undefined;
     if (thread.typeBinding) {
       try {
@@ -4348,7 +4362,7 @@ async function openAgentThread(
           tools: Array<{
             name: string;
             description: string;
-            effect: string;
+            effect: "artifact-write" | "state-read";
           }>;
         };
         pluginTools = manifest.tools;
@@ -4378,6 +4392,11 @@ async function openAgentThread(
         : {}),
       ...(pluginTools ? { pluginTools } : {}),
     });
+    if (thread.typeBinding) {
+      console.log(
+        `[design-panel] thread.open ${thread.id.slice(0, 8)} profile=${thread.executionProfile ?? "none"} pluginTools=${pluginTools?.length ?? 0}`,
+      );
+    }
     if (data.sessionFile) {
       store.updateThread(thread.id, { sessionFile: data.sessionFile });
     }
@@ -10061,18 +10080,19 @@ function registerIpc(): void {
         throw new Error("Thread has no plugin binding.");
       }
       // Locate the requested version file inside the thread's scratch.
-      const documentDir = join(
-        app.getPath("userData"),
-        "plugin-scratch",
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
-        thread.typeBinding.contentHash,
-        "documents",
-        input.documentId,
       );
+      const documentDir = join(dataRoot, "documents", input.documentId);
       const entries = await readdir(documentDir).catch(() => []);
+      const exportSequence = (entry: string): number =>
+        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const candidates = input.revision
         ? entries.filter((entry) => entry.endsWith(`-${input.revision}.html`))
-        : entries.filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry)).sort();
+        : entries
+            .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+            .sort((a, b) => exportSequence(a) - exportSequence(b));
       const source = candidates.at(-1);
       if (!source) {
         throw new Error(
@@ -10214,6 +10234,27 @@ function registerIpc(): void {
     }
   }
 
+  // Artifact writes arrive in bursts (one turn can apply several edits);
+  // coalesce to a single trailing snapshot push per thread.
+  const designSnapshotPushTimers = new Map<string, NodeJS.Timeout>();
+  function pushDesignSnapshotDebounced(
+    threadId: string,
+    panelId: string,
+  ): void {
+    const existing = designSnapshotPushTimers.get(threadId);
+    if (existing) clearTimeout(existing);
+    designSnapshotPushTimers.set(
+      threadId,
+      setTimeout(() => {
+        designSnapshotPushTimers.delete(threadId);
+        void pushDesignSnapshot(threadId, panelId);
+      }, 250),
+    );
+  }
+  designArtifactWriteSink = (threadId) => {
+    pushDesignSnapshotDebounced(threadId, "workspace");
+  };
+
   async function deliverDesignSnapshot(
     threadId: string,
     panelId: string,
@@ -10257,18 +10298,19 @@ function registerIpc(): void {
       if (!store || !pluginDispatch) throw new Error("Export unavailable.");
       const thread = store.getThread(input.threadId);
       if (!thread?.typeBinding) throw new Error("Thread has no plugin binding.");
-      const documentDir = join(
-        app.getPath("userData"),
-        "plugin-scratch",
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
-        thread.typeBinding.contentHash,
-        "documents",
-        input.documentId,
       );
+      const documentDir = join(dataRoot, "documents", input.documentId);
       const entries = await readdir(documentDir).catch(() => []);
+      const exportSequence = (entry: string): number =>
+        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const candidates = input.revision
         ? entries.filter((entry) => entry.endsWith(`-${input.revision}.html`))
-        : entries.filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry)).sort();
+        : entries
+            .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+            .sort((a, b) => exportSequence(a) - exportSequence(b));
       const source = candidates.at(-1);
       if (!source) throw new Error("No version file for the document.");
       const exportRoot = join(
@@ -10298,25 +10340,24 @@ function registerIpc(): void {
       if (!store) return undefined;
       const thread = store.getThread(input.threadId);
       if (!thread?.typeBinding) return undefined;
-      const documentDir = join(
-        app.getPath("userData"),
-        "plugin-scratch",
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
-        thread.typeBinding.contentHash,
-        "documents",
-        input.documentId,
       );
+      const documentDir = join(dataRoot, "documents", input.documentId);
       const entries = await readdir(documentDir).catch(() => []);
+      const readSequence = (entry: string): number =>
+        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const source = entries
         .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-        .sort()
+        .sort((a, b) => readSequence(a) - readSequence(b))
         .at(-1);
       if (!source) return undefined;
       // 显示名取账本的文档名（customer.html），而非版本文件名（v2-xxx.html）。
       let displayName = input.documentId;
       try {
         const ledgerText = await readFile(
-          join(documentDir, "..", "design-documents.jsonl"),
+          join(dataRoot, "design-documents.jsonl"),
           "utf8",
         );
         for (const line of ledgerText.split("\n")) {
@@ -10447,34 +10488,30 @@ function registerIpc(): void {
       if (!thread?.typeBinding) {
         return { ok: false, error: "Thread has no plugin binding." };
       }
-      const documentDir = join(
-        app.getPath("userData"),
-        "plugin-scratch",
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
-        thread.typeBinding.contentHash,
-        "documents",
-        input.documentId,
       );
+      const documentDir = join(dataRoot, "documents", input.documentId);
+      const versionSequence = (entry: string): number =>
+        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const entries = (await readdir(documentDir).catch(() => []))
         .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-        .sort();
-      if (entries.length < 2) {
+        .sort((a, b) => versionSequence(a) - versionSequence(b));
+      if (entries.length === 0) {
         return { ok: false, error: "暂无可恢复的历史版本。" };
       }
-      const head = entries.at(-1);
-      if (input.revision && head && !head.endsWith(`-${input.revision}.html`)) {
-        // 语义约束：runtime undo 只回退一步。仅上一版本（即当前 head）
-        // 可真恢复；更早版本不能原地跳回，也不伪造副作用。
-        return {
-          ok: false,
-          error: "只能恢复到上一版本；更早版本暂不支持跳回。",
-        };
-      }
       const operationId = `panel-restore-${randomUUID()}`;
+      // OD 语义：恢复 = 把目标版本存成新版本（runtime restore_version，
+      // append-only）。任何历史版本都可恢复；点当前版本由 runtime 拒绝。
       const outcome = await pluginDispatch.dispatch({
         threadId: input.threadId,
-        toolName: "undo",
-        args: { documentId: input.documentId, operationId },
+        toolName: "restore_version",
+        args: {
+          documentId: input.documentId,
+          ...(input.revision ? { revision: input.revision } : {}),
+          operationId,
+        },
         mode: "execute",
       });
       if (outcome.status !== "succeeded") {
@@ -10483,11 +10520,29 @@ function registerIpc(): void {
           error: outcome.error || "runtime 拒绝了恢复请求。",
         };
       }
-      const restored = entries.at(-2);
-      if (!restored) {
+      let restoredFile: string | undefined;
+      try {
+        const parsed = JSON.parse(
+          (outcome.result as { output?: string }).output ?? "{}",
+        ) as { revision?: string; version?: number };
+        restoredFile =
+          parsed.revision && parsed.version
+            ? `v${parsed.version}-${parsed.revision}.html`
+            : undefined;
+      } catch {
+        restoredFile = undefined;
+      }
+      if (!restoredFile) {
+        // 兜底：恢复后重读目录，新 head = 数值序最后一个（HEAD 已推进）。
+        restoredFile = (await readdir(documentDir).catch(() => []))
+          .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+          .sort((a, b) => versionSequence(a) - versionSequence(b))
+          .at(-1);
+      }
+      if (!restoredFile) {
         return { ok: false, error: "恢复目标不存在。" };
       }
-      const restoredHtml = await readFile(join(documentDir, restored), "utf8");
+      const restoredHtml = await readFile(join(documentDir, restoredFile), "utf8");
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/restore`,
@@ -10496,10 +10551,10 @@ function registerIpc(): void {
         payload: {
           kind: "document-restored",
           documentId: input.documentId,
-          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(restored)?.[1] ?? "",
+          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(restoredFile)?.[1] ?? "",
         },
       });
-      return { ok: true, html: restoredHtml, name: restored };
+      return { ok: true, documentHtml: restoredHtml, name: restoredFile };
     },
     captureScreenshot: async (input) => {
       if (!store || !pluginDispatch) {
@@ -10509,17 +10564,16 @@ function registerIpc(): void {
       if (!thread?.typeBinding) {
         throw new Error("Thread has no plugin binding.");
       }
-      const documentDir = join(
-        app.getPath("userData"),
-        "plugin-scratch",
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
-        thread.typeBinding.contentHash,
-        "documents",
-        input.documentId,
       );
+      const documentDir = join(dataRoot, "documents", input.documentId);
+      const screenshotSequence = (entry: string): number =>
+        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const entries = (await readdir(documentDir).catch(() => []))
         .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-        .sort();
+        .sort((a, b) => screenshotSequence(a) - screenshotSequence(b));
       const source = entries.at(-1);
       if (!source) throw new Error("No version file for the document.");
       const screenshotRoot = join(
@@ -10562,8 +10616,54 @@ function registerIpc(): void {
   designPanelHost?.onCandidatePrompt((candidate) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (window.isDestroyed()) continue;
-      window.webContents.send(IPC.designPanelCandidate, candidate);
+      window.webContents.send(IPC.designPanelCandidate, {
+        kind: candidate.kind,
+        threadId: candidate.threadId,
+        panelId: candidate.panelId,
+        text: candidate.text,
+        source: candidate.source,
+        occurredAt: candidate.occurredAt,
+        ...(candidate.autoSend === false ? { autoSend: false } : {}),
+        ...(candidate.images ? { images: candidate.images } : {}),
+        ...(candidate.annotations
+          ? { annotations: candidate.annotations }
+          : {}),
+        ...(candidate.document ? { document: candidate.document } : {}),
+      });
     }
+  });
+  // Composer binding (OD activeProjectFileName): the panel's active document
+  // tab locks the composer onto that page; null unbinds (files grid).
+  designPanelHost?.onActiveDocument((binding) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(IPC.designPanelBinding, binding);
+    }
+  });
+
+  // 工作区"+"菜单：透明子窗口承载应用自绘 HTML（独立原生层，浮于设计面板
+  // 之上）。选择回包发给开菜单的窗口；无选择关闭只回按钮复位信号。
+  setWorkspaceTabMenuHandlers({
+    onSelect: (kind) => {
+      const window = workspaceTabMenuParent();
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC.workspaceTabMenuSelect, kind);
+      }
+    },
+    onDismiss: () => {
+      const window = workspaceTabMenuParent();
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC.workspaceTabMenuClosed);
+      }
+    },
+  });
+  ipcMain.handle(IPC.workspaceTabMenuShow, (event, input) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    return showWorkspaceTabMenu(window, input);
+  });
+  ipcMain.handle(IPC.workspaceTabMenuClose, () => {
+    closeWorkspaceTabMenu();
   });
 
   ipcMain.handle(
@@ -22877,6 +22977,11 @@ app
       "plugin-revisions",
     ),
     scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
+    // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
+    // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
+    onArtifactWrite: ({ threadId }) => {
+      designArtifactWriteSink?.(threadId);
+    },
     loadPublishedManifest: async (input) => {
       const revisionRoot = join(
         app.getPath("userData"),

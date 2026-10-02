@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -55,6 +55,11 @@
     {
       "name": "undo",
       "description": "Undo the head edit; restores the previous version (auditable, files kept).",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "restore_version",
+      "description": "Restore a historical version by saving its content as a new head version (append-only; current content is kept as the previous version).",
       "effect": "artifact-write"
     },
     {

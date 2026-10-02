@@ -110,6 +110,12 @@ export interface PluginDispatchHost {
   store: DispatchPluginToolStore;
   revisionsRoot: string;
   scratchRoot: string;
+  /**
+   * Fired after an artifact-write tool commits state (apply_edit, undo,
+   * redo, restore_version). The panel host uses this to push a fresh
+   * snapshot so open panels refresh to the new head automatically.
+   */
+  onArtifactWrite?: (input: { threadId: string; toolName: string }) => void;
   /** Manifest tool declarations, resolved from the published revision. */
   loadPublishedManifest(input: {
     installationId: string;
@@ -295,6 +301,11 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
             },
           },
         });
+        try {
+          host.onArtifactWrite?.({ threadId: input.threadId, toolName: input.toolName });
+        } catch {
+          // Panel refresh is best-effort; never fail the tool result for it.
+        }
       }
 
       store.appendPluginEvent({

@@ -1101,8 +1101,70 @@ export interface ArtemisApi {
       text: string;
       source: string;
       occurredAt: string;
+      /** false = fill the composer without auto-triggering send (OD draft). */
+      autoSend?: boolean;
+      /** Attached screenshots/images as data URLs (panel → composer). */
+      images?: string[];
+      /** Structured panel annotations (rendered into the message body). */
+      annotations?:
+        | Array<{
+            id?: string;
+            kind?: string;
+            markKind?: string;
+            label?: string;
+            text?: string;
+            documentId?: string | null;
+            documentName?: string | null;
+            currentText?: string;
+            selector?: string;
+            x?: number | null;
+            y?: number | null;
+            w?: number | null;
+            h?: number | null;
+            htmlHint?: string;
+            style?: string;
+          }>
+        | undefined;
+      /** The annotated page itself (the attachment the agent operates on). */
+      document?:
+        | {
+            documentId: string;
+            documentName: string;
+            html: string;
+          }
+        | undefined;
     }) => void,
   ): () => void;
+  onDesignPanelBinding(
+    listener: (event: {
+      threadId: string;
+      panelId: string;
+      /** Active document tab in the design panel; null = files grid. */
+      documentId: string | null;
+      name?: string;
+      html?: string;
+    }) => void,
+  ): () => void;
+  /**
+   * Show the workspace "+" menu in a transparent child window. A child
+   * window is its own native layer, so it paints above the design panel's
+   * WebContentsView while keeping the app-styled HTML menu. The html is
+   * built by the renderer from live theme tokens; anchors are the "+" button
+   * rect in window CSS coordinates.
+   */
+  showWorkspaceTabMenu(input: {
+    html: string;
+    anchorRight: number;
+    anchorTop: number;
+  }): Promise<void>;
+  closeWorkspaceTabMenu(): Promise<void>;
+  onWorkspaceTabMenuSelect(
+    listener: (
+      kind: "review" | "terminal" | "browser" | "file" | "design",
+    ) => void,
+  ): () => void;
+  /** Menu closed without a selection (outside click / Escape). */
+  onWorkspaceTabMenuClosed(listener: () => void): () => void;
   openOfficeFile(
     threadId: string,
     path: string,
@@ -1449,6 +1511,11 @@ export const IPC = {
   designPanelVisible: "artemis:design-panel-visible",
   designPanelRelease: "artemis:design-panel-release",
   designPanelCandidate: "artemis:design-panel-candidate",
+  designPanelBinding: "artemis:design-panel-binding",
+  workspaceTabMenuShow: "artemis:workspace-tab-menu-show",
+  workspaceTabMenuClose: "artemis:workspace-tab-menu-close",
+  workspaceTabMenuSelect: "artemis:workspace-tab-menu-select",
+  workspaceTabMenuClosed: "artemis:workspace-tab-menu-closed",
   designPanelCandidateAccept: "artemis:design-panel-candidate-accept",
   designPanelSendConsume: "artemis:design-panel-send-consume",
   designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",

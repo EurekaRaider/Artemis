@@ -15,10 +15,10 @@
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdir, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { PluginRuntimeWorker } from "./design-plugin-runtime-worker.js";
+import { ensureThreadDataRoot } from "./design-plugin-thread-data.js";
 
 export type SandboxProbe =
   | { ok: true; implementation: "macos-seatbelt" | "none-required" }
@@ -183,7 +183,13 @@ export class ThreadRuntimeManager {
       throw new SandboxUnavailableError(probeResult.reason);
     }
 
-    const scratch = join(this.options.scratchRoot, this.options.threadId, input.contentHash);
+    // Data root is hash-free: documents and the ledger bind to the thread,
+    // so plugin revision upgrades (new content hash) keep the history.
+    // The revision hash still gates code trust in the dispatch chain.
+    const scratch = await ensureThreadDataRoot(
+      this.options.scratchRoot,
+      this.options.threadId,
+    );
     await mkdir(scratch, { recursive: true });
 
     const worker = new PluginRuntimeWorker({

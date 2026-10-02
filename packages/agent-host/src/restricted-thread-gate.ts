@@ -104,3 +104,33 @@ export function assertToolAllowedForRestrictedThread(toolName: string): void {
     throw new RestrictedProfileDeniedError(toolName);
   }
 }
+
+/**
+ * Session-start validation for plugin-restricted threads: the session must
+ * carry the allow-listed fixed tools (plan/goal/memory/workspace-deps/
+ * user-input) plus one broker-mediated `plugin_<name>` tool per declared
+ * manifest tool. Returns the missing names (empty = valid).
+ */
+export function missingRestrictedSessionTools(
+  registered: ReadonlyArray<{ name: string }>,
+  declaredPluginTools: ReadonlyArray<{ name: string }>,
+): string[] {
+  const required = [
+    "update_plan",
+    "get_goal",
+    "create_goal",
+    "update_goal",
+    "save_memory",
+    "load_workspace_dependencies",
+    "request_user_input",
+  ];
+  const missing = required.filter(
+    (name) => !registered.some((tool) => tool.name === name),
+  );
+  for (const declared of declaredPluginTools) {
+    if (!registered.some((tool) => tool.name === `plugin_${declared.name}`)) {
+      missing.push(`plugin_${declared.name}`);
+    }
+  }
+  return missing;
+}

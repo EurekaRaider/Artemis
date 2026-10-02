@@ -33,8 +33,34 @@ interface LivePanel {
   hostPort: Electron.MessagePortMain;
   pluginId: string;
   panelId: string;
-  /** Last renderer-reported bounds, restored by setVisible(true). */
+  /** True while setVisible(false) collapsed the view to 0x0. */
+  collapsed?: boolean;
+  /** Bounds to restore on setVisible(true); setBounds updates it while
+   * collapsed so geometry reported for a hidden tab is not lost. */
   lastBounds?: Electron.Rectangle;
+}
+
+/**
+ * Structured annotation carried alongside a panel candidate (Word-plugin
+ * style attachment payload). The panel page is sandboxed, so everything
+ * here is re-validated host-side before it reaches the renderer.
+ */
+export interface DesignPanelAnnotation {
+  id?: string;
+  kind?: string;
+  markKind?: string;
+  label?: string;
+  text?: string;
+  documentId?: string | null;
+  documentName?: string | null;
+  currentText?: string;
+  selector?: string;
+  x?: number | null;
+  y?: number | null;
+  w?: number | null;
+  h?: number | null;
+  htmlHint?: string;
+  style?: string;
 }
 
 interface CandidatePromptEvent {
@@ -44,6 +70,111 @@ interface CandidatePromptEvent {
   text: string;
   source: string;
   occurredAt: string;
+  /** false = add to composer without auto-triggering the send (OD draft). */
+  autoSend?: boolean;
+  /** Attached screenshots/images as data URLs (panel → composer images). */
+  images?: string[];
+  annotations?: DesignPanelAnnotation[];
+  document?: {
+    documentId: string;
+    documentName: string;
+    html: string;
+  };
+}
+
+const MAX_CANDIDATE_ANNOTATIONS = 20;
+const MAX_ANNOTATION_JSON_BYTES = 64 * 1024;
+const MAX_DOCUMENT_HTML_BYTES = 512 * 1024;
+
+/** Attached panel images: data URLs only, bounded count/size (composer
+ *  images flow into PromptImage base64, so the limits mirror it). */
+export function sanitizeCandidateImages(input: unknown): string[] | undefined {
+  if (!Array.isArray(input) || input.length === 0) return undefined;
+  const out: string[] = [];
+  for (const raw of input.slice(0, 6)) {
+    if (typeof raw !== "string") continue;
+    const match = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(
+      raw,
+    );
+    if (!match) continue;
+    if (raw.length > 10 * 1024 * 1024) continue;
+    out.push(raw);
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function sanitizeDocumentPayload(input: unknown):  | { documentId: string; documentName: string; html: string }
+  | undefined {
+  if (typeof input !== "object" || input === null) return undefined;
+  const item = input as Record<string, unknown>;
+  if (
+    typeof item.documentId !== "string" ||
+    typeof item.documentName !== "string" ||
+    typeof item.html !== "string"
+  ) {
+    return undefined;
+  }
+  if (item.html.length > MAX_DOCUMENT_HTML_BYTES) return undefined;
+  if (!item.html.trim()) return undefined;
+  return {
+    documentId: item.documentId.slice(0, 128),
+    documentName: item.documentName.slice(0, 256),
+    html: item.html,
+  };
+}
+
+function sanitizeAnnotations(
+  input: unknown,
+): DesignPanelAnnotation[] | undefined {
+  if (!Array.isArray(input) || input.length === 0) return undefined;
+  const out: DesignPanelAnnotation[] = [];
+  for (const raw of input.slice(0, MAX_CANDIDATE_ANNOTATIONS)) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const item = raw as Record<string, unknown>;
+    out.push({
+      ...(typeof item.id === "string" ? { id: item.id.slice(0, 128) } : {}),
+      ...(typeof item.kind === "string"
+        ? { kind: item.kind.slice(0, 32) }
+        : {}),
+      ...(typeof item.markKind === "string"
+        ? { markKind: item.markKind.slice(0, 32) }
+        : {}),
+      ...(typeof item.label === "string"
+        ? { label: item.label.slice(0, 256) }
+        : {}),
+      ...(typeof item.text === "string"
+        ? { text: item.text.slice(0, 8_192) }
+        : {}),
+      documentId:
+        typeof item.documentId === "string"
+          ? item.documentId.slice(0, 128)
+          : null,
+      documentName:
+        typeof item.documentName === "string"
+          ? item.documentName.slice(0, 256)
+          : null,
+      ...(typeof item.currentText === "string"
+        ? { currentText: item.currentText.slice(0, 512) }
+        : {}),
+      ...(typeof item.selector === "string"
+        ? { selector: item.selector.slice(0, 512) }
+        : {}),
+      x: typeof item.x === "number" && Number.isFinite(item.x) ? item.x : null,
+      y: typeof item.y === "number" && Number.isFinite(item.y) ? item.y : null,
+      w: typeof item.w === "number" && Number.isFinite(item.w) ? item.w : null,
+      h: typeof item.h === "number" && Number.isFinite(item.h) ? item.h : null,
+      ...(typeof item.htmlHint === "string"
+        ? { htmlHint: item.htmlHint.slice(0, 512) }
+        : {}),
+      ...(typeof item.style === "string"
+        ? { style: item.style.slice(0, 512) }
+        : {}),
+    });
+  }
+  if (out.length === 0) return undefined;
+  // Drop the whole sidecar when it would smuggle in oversized context.
+  if (JSON.stringify(out).length > MAX_ANNOTATION_JSON_BYTES) return undefined;
+  return out;
 }
 
 /** S4 host-side actions a panel may REQUEST over the port (never run). */
@@ -67,7 +198,12 @@ export interface PanelRequestHandlers {
     threadId: string;
     documentId: string;
     revision?: string;
-  }): Promise<{ ok: boolean; html?: string; name?: string; error?: string }>;
+  }): Promise<{
+    ok: boolean;
+    documentHtml?: string;
+    name?: string;
+    error?: string;
+  }>;
   captureScreenshot(input: {
     threadId: string;
     documentId: string;
@@ -84,6 +220,8 @@ export interface PanelRequestHandlers {
 export class DesignPanelHost {
   private readonly panels = new Map<string, LivePanel>();
   private readonly pendingEnsures = new Map<string, Promise<PluginPanelHandle>>();
+  /** Keys released while their ensure was still creating the view. */
+  private readonly releasedWhilePending = new Set<string>();
   private readonly pendingBounds = new Map<
     string,
     { x: number; y: number; width: number; height: number }
@@ -92,6 +230,15 @@ export class DesignPanelHost {
   private catalogRoot: string | undefined;
   private hostWindow: BrowserWindow | undefined;
   private candidateSink: ((event: CandidatePromptEvent) => void) | undefined;
+  private bindingSink:
+    | ((event: {
+        threadId: string;
+        panelId: string;
+        documentId: string | null;
+        name?: string;
+        html?: string;
+      }) => void)
+    | undefined;
   private requestHandlers: PanelRequestHandlers | undefined;
 
   /** Point the host at the installed design-plugin packages root. */
@@ -108,6 +255,19 @@ export class DesignPanelHost {
   /** Renderer-side consumer of panel candidate prompts (host stub §9.2). */
   onCandidatePrompt(sink: (event: CandidatePromptEvent) => void): void {
     this.candidateSink = sink;
+  }
+
+  /** Renderer-side consumer of the panel's active-document binding. */
+  onActiveDocument(
+    sink: (event: {
+      threadId: string;
+      panelId: string;
+      documentId: string | null;
+      name?: string;
+      html?: string;
+    }) => void,
+  ): void {
+    this.bindingSink = sink;
   }
 
   private key(threadId: string, panelId: string): string {
@@ -161,7 +321,12 @@ export class DesignPanelHost {
     // between the async manifest reads).
     const pendingKey = this.key(threadId, panelId);
     const pending = this.pendingEnsures.get(pendingKey);
-    if (pending) return pending;
+    if (pending) {
+      // A re-ensure cancels a release marked while creation was still in
+      // flight (StrictMode unmount/remount): the new mount owns the panel.
+      this.releasedWhilePending.delete(pendingKey);
+      return pending;
+    }
     const promise = this.doEnsurePanel(window, threadId, panelId).finally(
       () => {
         this.pendingEnsures.delete(pendingKey);
@@ -252,9 +417,18 @@ export class DesignPanelHost {
             text?: string;
             documentId?: string;
             revision?: string;
+            name?: string;
+            html?: string;
+            autoSend?: boolean;
+            images?: unknown;
+            annotations?: unknown;
+            document?: unknown;
           }
         | undefined;
       if (data?.type === "candidate-prompt" && typeof data.text === "string") {
+        const annotations = sanitizeAnnotations(data.annotations);
+        const document = sanitizeDocumentPayload(data.document);
+        const images = sanitizeCandidateImages(data.images);
         this.candidateSink?.({
           kind: "candidate-prompt",
           threadId,
@@ -262,6 +436,10 @@ export class DesignPanelHost {
           text: data.text,
           source: "panel",
           occurredAt: new Date().toISOString(),
+          ...(data.autoSend === false ? { autoSend: false } : {}),
+          ...(images ? { images } : {}),
+          ...(annotations ? { annotations } : {}),
+          ...(document ? { document } : {}),
         });
         return;
       }
@@ -302,6 +480,53 @@ export class DesignPanelHost {
               html: "",
               name: "",
               error: String(error),
+            });
+          });
+        return;
+      }
+      // Composer binding (OD activeProjectFileName): the panel reports which
+      // document tab is active (null = files grid unbinds). Forwarded to the
+      // renderer, which shows the "editing" chip and attaches the page on
+      // send. html is sanitized like the candidate document payload.
+      if (data?.type === "active-document") {
+        const name =
+          typeof data.name === "string" ? data.name.slice(0, 256) : null;
+        const html =
+          typeof data.html === "string" && data.html.length <= 512 * 1024
+            ? data.html
+            : "";
+        this.bindingSink?.({
+          threadId,
+          panelId,
+          documentId:
+            typeof data.documentId === "string"
+              ? data.documentId.slice(0, 128)
+              : null,
+          ...(name ? { name } : {}),
+          ...(html && name ? { html } : {}),
+        });
+        return;
+      }
+      // Page-card thumbnail fetch: same store read as read-document but the
+      // reply does NOT drive the stage render — the panel mounts it into the
+      // card grid (OD HtmlCardThumbnail equivalent).
+      if (data?.type === "thumb-request" && data.documentId) {
+        void this.requestHandlers
+          ?.readDocument({ threadId, documentId: data.documentId })
+          .then((document) => {
+            hostPort.postMessage({
+              type: "thumb",
+              documentId: data.documentId,
+              name: document?.name ?? "",
+              html: (document?.html ?? "").slice(0, 512 * 1024),
+            });
+          })
+          .catch(() => {
+            hostPort.postMessage({
+              type: "thumb",
+              documentId: data.documentId,
+              name: "",
+              html: "",
             });
           });
         return;
@@ -398,6 +623,13 @@ export class DesignPanelHost {
     }
     await webContents.loadURL(entryUrl);
     webContents.postMessage("artemis:port", null, [panelPort]);
+    if (this.releasedWhilePending.has(this.key(threadId, panelId))) {
+      // The renderer released while this creation was in flight (tab
+      // closed / thread switched before ensure resolved). The registry
+      // now owns a view nobody mirrors geometry for — tear it down
+      // instead of leaving an invisible zombie overlay.
+      this.releasePanel(threadId, panelId);
+    }
     console.log(
       `[design-panel] ensured ${panelId} for ${threadId}: url=${entryUrl}`,
     );
@@ -444,10 +676,24 @@ export class DesignPanelHost {
     const panel = this.panels.get(this.key(threadId, panelId));
     if (!panel) {
       // First-open race: the renderer reports layout before ensure()
-      // finishes creating the view. Stash it — doEnsurePanel applies the
-      // stashed bounds so the view never sits at 0x0 (invisible).
-      console.warn(`[design-panel] setBounds before ensure: ${panelId}`);
-      this.pendingBounds.set(this.key(threadId, panelId), bounds);
+      // finishes creating the view. Stash real rects only — a 0x0 report
+      // is a pre-layout artifact (pane not laid out at mount); applying
+      // it would pin the fresh view at 0x0 until an unrelated resize.
+      if (bounds.width > 0 && bounds.height > 0) {
+        this.pendingBounds.set(this.key(threadId, panelId), bounds);
+      } else {
+        console.warn(`[design-panel] ignored 0x0 bounds before ensure: ${panelId}`);
+      }
+      return;
+    }
+    if (panel.collapsed) {
+      // Layout reports keep arriving while the tab is hidden (dock drags,
+      // window resizes). Zero-size rects are display:none artifacts from
+      // the renderer's hidden pane; real rects become the restore target
+      // so the collapsed view itself never shows stale geometry.
+      if (bounds.width > 0 && bounds.height > 0) {
+        panel.lastBounds = bounds;
+      }
       return;
     }
     panel.view.setBounds(bounds);
@@ -457,13 +703,30 @@ export class DesignPanelHost {
   setVisible(threadId: string, panelId: string, visible: boolean): void {
     const live = this.panels.get(this.key(threadId, panelId));
     if (!live) return;
-    // Electron WebContentsView has no explicit visibility flag; a zero-size
-    // bounds is the supported way to keep it alive but out of the layout.
+    // Diagnostic trail matches the other [design-panel] log lines; the
+    // occlusion path (modal dialog open) is the non-obvious caller.
+    console.log(
+      `[design-panel] visible ${threadId.slice(0, 8)}/${panelId} -> ${visible}`,
+    );
     if (visible) {
-      live.view.setBounds(
-        live.lastBounds ?? { x: 0, y: 0, width: 0, height: 0 },
-      );
-    } else {
+      // First open re-reports visible for a panel that was never hidden:
+      // there is nothing to restore — a 0x0 default here would blank the
+      // freshly reported bounds. Only a collapsed panel restores geometry.
+      if (live.collapsed) {
+        live.collapsed = false;
+        if (live.lastBounds) live.view.setBounds(live.lastBounds);
+      }
+      // Rebind request: the renderer may have missed the latest
+      // active-document post while the panel was collapsed (thread
+      // switch). The panel answers with its current binding.
+      live.hostPort.postMessage({ type: "panel-shown" });
+      return;
+    }
+    // Idempotent hide: collapsing twice must not overwrite the saved
+    // bounds with the already-zeroed geometry (tab inactive + dock resize
+    // fires the visibility effect again).
+    if (!live.collapsed) {
+      live.collapsed = true;
       live.lastBounds = live.view.getBounds();
       live.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     }
@@ -471,10 +734,21 @@ export class DesignPanelHost {
 
   /** Destroy one panel (dock tab closed). */
   releasePanel(threadId: string, panelId: string): void {
-    const live = this.panels.get(this.key(threadId, panelId));
-    if (!live) return;
+    const releaseKey = this.key(threadId, panelId);
+    const live = this.panels.get(releaseKey);
+    if (!live) {
+      // Release can arrive while creation is still in flight (tab closed
+      // before ensure resolved): mark it so doEnsurePanel tears the fresh
+      // view down instead of leaving an ownerless overlay attached to the
+      // window. A later re-ensure cancels the mark (see ensurePanel).
+      if (this.pendingEnsures.has(releaseKey)) {
+        this.releasedWhilePending.add(releaseKey);
+      }
+      return;
+    }
     console.log(`[design-panel] releasePanel ${panelId} / ${threadId}`);
-    this.panels.delete(this.key(threadId, panelId));
+    this.panels.delete(releaseKey);
+    this.releasedWhilePending.delete(releaseKey);
     if (!this.listPanels(threadId).length) {
       this.threadCatalogRoots.delete(threadId);
     }
@@ -510,6 +784,8 @@ export class DesignPanelHost {
       }
     }
     this.panels.clear();
+    this.pendingBounds.clear();
+    this.releasedWhilePending.clear();
   }
 
   listPanels(threadId: string): PluginPanelHandle[] {

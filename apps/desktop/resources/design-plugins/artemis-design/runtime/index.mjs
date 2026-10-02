@@ -127,7 +127,10 @@ async function readVersions(documentId) {
     return [];
   }
   const versions = [];
-  for (const entry of entries.sort()) {
+  for (const entry of [...entries].sort((a, b) => {
+    const seq = (name) => Number(/^v(\d+)-/.exec(name)?.[1] ?? 0);
+    return seq(a) - seq(b);
+  })) {
     if (!entry.endsWith(".html") || !entry.startsWith("v")) continue;
     const match = /^v(\d+)-([0-9a-f]+)\.html$/.exec(entry);
     if (!match) continue;
@@ -218,15 +221,29 @@ const tools = {
 
   async get_snapshot() {
     const ledger = await readLedger();
-    const documents = [];
+    // 按 id 聚合：编辑条目（apply_edit 追加，无 name/brief）不能透传成
+    // 独立文档，否则面板按 name 分类时直接崩（name undefined）。
+    const byId = new Map();
     for (const record of ledger) {
-      const head = await headVersion(record.id);
+      const entry = byId.get(record.id) ?? { id: record.id, name: "", brief: "", updatedAt: "" };
+      if (record.name) entry.name = record.name;
+      if (record.brief && !entry.brief) entry.brief = record.brief;
+      // 卡片「相对时间」用的最近活动时间（创建/编辑/恢复取最新）
+      const ts = record.editedAt || record.restoredAt || record.createdAt || record.undoneAt || record.redoneAt;
+      if (ts && ts > entry.updatedAt) entry.updatedAt = ts;
+      byId.set(record.id, entry);
+    }
+    const documents = [];
+    for (const entry of byId.values()) {
+      if (!entry.name) continue;
+      const head = await headVersion(entry.id);
       documents.push({
-        documentId: record.id,
-        name: record.name,
-        brief: record.brief,
+        documentId: entry.id,
+        name: entry.name,
+        brief: entry.brief,
         headRevision: head?.revision ?? null,
         versionCount: head ? head.sequence : 0,
+        ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
       });
     }
     return { status: "succeeded", output: JSON.stringify({ documents }) };
@@ -298,6 +315,12 @@ const tools = {
       sequence: nextSequence,
       editedAt: new Date().toISOString(),
     });
+    // 推进 HEAD：否则面板/snapshot 仍读旧版本，且下一次 CAS 编辑必然冲突
+    await writeFile(
+      join(directory, "HEAD"),
+      `${nextSequence}-${nextRevision}\n`,
+      "utf8",
+    );
     return {
       status: "succeeded",
       output: JSON.stringify({
@@ -341,6 +364,72 @@ const tools = {
         documentId,
         headRevision: previous.revision,
         undoneRevision: head.revision,
+      }),
+    };
+  },
+
+  // OD 语义的恢复：restore = 把目标版本内容存成一个 NEW 版本并推进
+  // HEAD（append-only，当前内容不丢——它就是上一个版本）。历史版本
+  // 文件与账本只增不删，无上限。
+  async restore_version(args) {
+    const documentId = String(args?.documentId ?? "");
+    const revision = String(args?.revision ?? "");
+    const operationId = String(args?.operationId ?? "");
+    if (!documentId || !revision || !operationId) {
+      return {
+        status: "failed",
+        error: "documentId, revision and operationId are required",
+      };
+    }
+    const versions = await readVersions(documentId);
+    const target = versions.find((version) => version.revision === revision);
+    if (!target) {
+      return {
+        status: "failed",
+        error: `unknown revision ${revision.slice(0, 8)}`,
+      };
+    }
+    const head = await headVersion(documentId);
+    if (!head) {
+      return { status: "failed", error: `unknown document ${documentId}` };
+    }
+    if (head.revision === revision) {
+      return { status: "failed", error: "target revision is already the head" };
+    }
+    const nextSequence = head.sequence + 1;
+    const nextRevision = createHash("sha256")
+      .update(target.html)
+      .digest("hex")
+      .slice(0, 16);
+    const directory = join(process.cwd(), DOCUMENTS_DIR, documentId);
+    await writeFile(
+      join(directory, `v${nextSequence}-${nextRevision}.html`),
+      target.html,
+      "utf8",
+    );
+    await appendLedger({
+      id: documentId,
+      operationId,
+      source: "restore",
+      restoreFromRevision: revision,
+      parentRevision: head.revision,
+      revision: nextRevision,
+      sequence: nextSequence,
+      restoredAt: new Date().toISOString(),
+    });
+    await writeFile(
+      join(directory, "HEAD"),
+      `${nextSequence}-${nextRevision}\n`,
+      "utf8",
+    );
+    return {
+      status: "succeeded",
+      output: JSON.stringify({
+        documentId,
+        revision: nextRevision,
+        restoredFromRevision: revision,
+        version: nextSequence,
+        operationId,
       }),
     };
   },

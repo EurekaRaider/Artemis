@@ -47,7 +47,17 @@ import {
   restoreOfficeAnnotationAttachment,
   type OfficeAnnotationReference,
 } from "./office-annotations.js";
+import {
+  addDesignDocumentAttachment,
+  DesignAnnotationDraft,
+  buildDesignBindingHint,
+  stripDesignAnnotationBlock,
+} from "./design-annotations.js";
 import { officeAnnotationCopy } from "./office-annotation-copy.js";
+import {
+  buildWorkspaceTabMenuHtml,
+  type WorkspaceTabMenuEntry,
+} from "./workspace-tab-menu-html.js";
 import { ThreadStatusIndicator } from "./ThreadStatusIndicator.js";
 import { useTaskNotificationRead } from "./task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
@@ -1178,12 +1188,11 @@ export function App() {
   >();
   const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
   const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
-  const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
   const [workspaceTabScrollState, setWorkspaceTabScrollState] =
     useState<WorkspaceTabScrollState>(EMPTY_WORKSPACE_TAB_SCROLL_STATE);
   const [fileLinkContextMenu, setFileLinkContextMenu] =
     useState<FileLinkContextMenuState>();
-  const workspaceTabMenuRoot = useRef<HTMLDivElement>(null);
+  const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
   const workspaceTabScroll = useRef<HTMLDivElement>(null);
   const workspaceTabTrack = useRef<HTMLDivElement>(null);
   const activeWorkspaceTabElement = useRef<HTMLDivElement>(null);
@@ -1344,15 +1353,6 @@ export function App() {
     message: string;
   }>();
   const [toast, setToastState] = useState<ToastState>();
-  // S3 host send entry: the pending panel candidate awaiting a one-time
-  // credential consume (§9.2). One card at a time; a new candidate
-  // replaces an unconsumed one.
-  const [panelCandidate, setPanelCandidate] = useState<{
-    threadId: string;
-    text: string;
-    credential: string;
-    submissionId: string;
-  }>();
   const setToast = useCallback((content: ToastContent | undefined) => {
     if (content === undefined) {
       setToastState(undefined);
@@ -1667,6 +1667,21 @@ export function App() {
   );
   const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
   draftAttachments.current.set(activeComposerDraftKey, attachments);
+  // 设计面板批注（消息体 hint 的 pending 集），随草稿隔离、发送时消费
+  const designAnnotationDrafts = useRef(new Map<string, DesignAnnotationDraft>());
+  // OD activeProjectFileName 等价物：设计面板的活动文档 tab 锁定 composer，
+  // 芯片提示 + 发送自动附页；null=网格视图（解绑）。
+  const [designDocBinding, setDesignDocBinding] = useState<{
+    documentId: string;
+    name: string;
+    html: string;
+  } | null>(null);
+  const designDocBindingRef = useRef(designDocBinding);
+  designDocBindingRef.current = designDocBinding;
+  // OD queueOnly 语义的落点：面板批注发送后自动触发发送。effect 在
+  // prompt state 落地后消费此标记并调用 sendPrompt（空闲直发、运行中
+  // 走 followUpTurn 排队）；置 null 表示没有待自动发送的文本。
+  const designPanelAutoSendText = useRef<string | null>(null);
   const pendingAttachmentReads = useRef(new PromptAttachmentReadQueues());
   const updateActiveComposerDraft = useCallback(
     (update: (current: ComposerDraft) => ComposerDraft) => {
@@ -2080,23 +2095,6 @@ export function App() {
     };
   }, [projectMenuId, threadMenuId]);
 
-  useEffect(() => {
-    if (!workspaceTabMenuOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!workspaceTabMenuRoot.current?.contains(event.target as Node)) {
-        setWorkspaceTabMenuOpen(false);
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setWorkspaceTabMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [workspaceTabMenuOpen]);
   const skillCommandMenuOpen =
     !skillMenuDismissed && isSkillCommandPrompt(prompt);
   const installedPluginBySkillName = useMemo(() => {
@@ -2523,6 +2521,24 @@ export function App() {
     },
     [openWorkspaceTab],
   );
+
+  // 子窗口菜单回包：选择=开对应面板（design 复用既有 tab）；无选择关闭
+  // （点外/Escape/父窗移动）只复位"+"按钮的展开态。
+  useEffect(() => {
+    return window.artemis.onWorkspaceTabMenuSelect((kind) => {
+      setWorkspaceTabMenuOpen(false);
+      openWorkspaceTab(
+        kind,
+        kind === "design" ? { reuseKind: true } : { forceNew: true },
+      );
+    });
+  }, [openWorkspaceTab]);
+
+  useEffect(() => {
+    return window.artemis.onWorkspaceTabMenuClosed(() => {
+      setWorkspaceTabMenuOpen(false);
+    });
+  }, []);
 
   const openConversationFileLink = useCallback(
     async (href: string) => {
@@ -5434,8 +5450,31 @@ export function App() {
   const sendPrompt = useCallback(async () => {
     if (busy || retiredGroup) return;
     await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
-    const pendingAttachments =
+    let pendingAttachments =
       draftAttachments.current.get(activeComposerDraftKey) ?? [];
+    // 面板文档绑定（OD activeFileContext）：发送自动附上锁定页面，
+    // 用户已手动附同名页时以手动为准。
+    const activeBinding = designDocBindingRef.current;
+    if (
+      activeBinding?.html.trim() &&
+      !pendingAttachments.some(
+        (item) =>
+          "type" in item &&
+          item.type === "file" &&
+          item.mimeType === "text/html" &&
+          item.name === activeBinding.name,
+      )
+    ) {
+      const merged = addDesignDocumentAttachment(pendingAttachments, {
+        documentId: activeBinding.documentId,
+        documentName: activeBinding.name,
+        html: activeBinding.html,
+      });
+      if (merged) {
+        pendingAttachments = merged;
+        setAttachments(merged);
+      }
+    }
     if (customAgentTasks.some((task) => !task.text.trim())) {
       setToast({
         error: true,
@@ -5528,9 +5567,20 @@ export function App() {
             : pendingAttachments.length
               ? t.inspectAttachments
               : "");
+    // 设计面板批注：消息体在发送边界拼结构化 hint（OD 的
+    // messageContentWithCommentAttachments 等价物），composer 只留用户文字
+    const designHint = designAnnotationDrafts.current
+      .get(activeComposerDraftKey)
+      ?.takeForSend() ?? { hint: "" };
+    // 文档绑定说明块（OD 附件信号的设计插件等价物）
+    const designBindingHint = designDocBindingRef.current
+      ? buildDesignBindingHint(designDocBindingRef.current)
+      : "";
     const text = goalCommand
       ? visibleText
-      : promptWithSelectedSkills(visibleText, selectedSkills);
+      : promptWithSelectedSkills(visibleText, selectedSkills) +
+        designHint.hint +
+        designBindingHint;
     if ((!text && customAgentTasks.length === 0) || busy) return;
     const submittedAt = Date.now();
     let createdThread: Thread | undefined;
@@ -5706,30 +5756,14 @@ export function App() {
     requestConfirmation,
   ]);
 
-  // S3 host send entry: consume the one-time credential, drop the text
-  // into the composer and submit through the normal prompt path. The
-  // credential dies on first use; a replay can never send twice.
-  const consumePanelCandidate = useCallback(async () => {
-    if (!panelCandidate) return;
-    const consumed = await window.artemis.consumeDesignPanelSend(
-      panelCandidate.credential,
-    );
-    setPanelCandidate(undefined);
-    if (consumed.threadId !== activeThreadId) {
-      setToast({
-        error: true,
-        message: locale.startsWith("zh")
-          ? "候选属于其他任务，请切换后重试"
-          : "The candidate belongs to another task",
-      });
-      return;
-    }
-    setPrompt(consumed.candidateText);
-    // Terminal outcome comes from turn reconciliation (turn.completed /
-    // turn.failed in applyPayloadSideEffects), never from the send action
-    // itself — the ledger only advances on observed turn outcomes.
-    await sendPrompt();
-  }, [panelCandidate, activeThreadId, locale, setPrompt, setToast, sendPrompt]);
+  // 设计面板批注自动发送：sendPrompt 的闭包读取 prompt state，必须等
+  // setPrompt 真正落地再触发；期间文本被用户改动则放弃自动发送。
+  useEffect(() => {
+    const pending = designPanelAutoSendText.current;
+    if (pending == null || prompt.trim() !== pending) return;
+    designPanelAutoSendText.current = null;
+    void sendPrompt();
+  }, [prompt, sendPrompt]);
 
   const updateActiveGoal = useCallback(
     async (action: "pause" | "resume" | "clear") => {
@@ -7193,52 +7227,6 @@ export function App() {
             placement="view"
           />
         )}
-        {panelCandidate && activeThreadId === panelCandidate.threadId && (
-          <div
-            className="design-candidate-card"
-            style={{
-              position: "fixed",
-              bottom: 132,
-              right: 24,
-              zIndex: 40,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              maxWidth: 360,
-              padding: "12px 14px",
-              borderRadius: 12,
-              background: "var(--artemis-color-surface-raised, #1b1e2e)",
-              boxShadow: "0 8px 28px rgba(0,0,0,.4)",
-              color: "var(--artemis-color-text-primary, #e6e9f5)",
-              fontSize: 13,
-            }}
-          >
-            <span style={{ opacity: 0.7 }}>
-              {locale.startsWith("zh") ? "面板候选" : "Panel candidate"}
-            </span>
-            <span>{panelCandidate.text.slice(0, 160)}</span>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  const credential = panelCandidate.credential;
-                  setPanelCandidate(undefined);
-                  void window.artemis.discardDesignPanelCandidate(credential);
-                }}
-              >
-                {locale.startsWith("zh") ? "丢弃" : "Discard"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void consumePanelCandidate();
-                }}
-              >
-                {locale.startsWith("zh") ? "发送到任务" : "Send to task"}
-              </button>
-            </div>
-          </div>
-        )}
         {activeView === "token-usage" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
             <TokenUsagePage
@@ -8194,6 +8182,19 @@ export function App() {
                             )}
                           </div>
                         )}
+                        {designDocBinding && (
+                          <div
+                            className="composer-active-file"
+                            title={designDocBinding.name}
+                          >
+                            <span className="composer-active-file-label">
+                              {locale.startsWith("zh") ? "编辑中" : "Editing"}
+                            </span>
+                            <span className="composer-active-file-name">
+                              {designDocBinding.name}
+                            </span>
+                          </div>
+                        )}
                         {((!skillCommandMenuOpen &&
                           selectedSkills.length > 0) ||
                           hasRegularAttachments) && (
@@ -8459,7 +8460,11 @@ export function App() {
                                 ? uiText(locale, "App.inline12")
                                 : hasOfficeAnnotations
                                   ? officeAnnotationCopy(locale).placeholder
-                                  : t.prompt
+                                  : designDocBinding
+                                    ? locale.startsWith("zh")
+                                      ? `让 Artemis 修改 ${designDocBinding.name}…`
+                                      : `Ask Artemis to edit ${designDocBinding.name}…`
+                                    : t.prompt
                             }
                             ref={promptInput}
                             rows={1}
@@ -8959,17 +8964,56 @@ ${model.providerId} · ${model.modelId}`}
                   >
                     <WorkspaceTabBar
                       add={
-                        <div
-                          className="workspace-tab-add-wrap"
-                          ref={workspaceTabMenuRoot}
-                        >
+                        <div className="workspace-tab-add-wrap">
                           <button
                             aria-expanded={workspaceTabMenuOpen}
                             aria-label={t.addTab}
                             className="workspace-tab-add"
-                            onClick={() =>
-                              setWorkspaceTabMenuOpen((open) => !open)
-                            }
+                            onClick={(event) => {
+                              // 菜单画在透明子窗口里（独立原生层，盖得住
+                              // 设计面板的 WebContentsView）。开着时再点
+                              // "+"= 关闭（原生菜单语义）。
+                              if (workspaceTabMenuOpen) {
+                                setWorkspaceTabMenuOpen(false);
+                                void window.artemis.closeWorkspaceTabMenu();
+                                return;
+                              }
+                              setWorkspaceTabMenuOpen(true);
+                              const rect =
+                                event.currentTarget.getBoundingClientRect();
+                              // 设计任务一项目一份：tab 已开则不再列出，
+                              // 未开时选择复用既有 tab 而非新建。
+                              const designOpen = workspaceTabs.tabs.some(
+                                (tab) => tab.kind === "design",
+                              );
+                              const entries: WorkspaceTabMenuEntry[] = [
+                                ...(activeProject
+                                  ? [
+                                      {
+                                        kind: "review" as const,
+                                        label: t.reviewPanel,
+                                      },
+                                    ]
+                                  : []),
+                                { kind: "terminal", label: t.terminal },
+                                { kind: "browser", label: t.browser },
+                                { kind: "file", label: t.files },
+                                ...(activeThread?.typeBinding?.typeId ===
+                                  "artemis-design" && !designOpen
+                                  ? [
+                                      {
+                                        kind: "design" as const,
+                                        label: t.designTab,
+                                      },
+                                    ]
+                                  : []),
+                              ];
+                              void window.artemis.showWorkspaceTabMenu({
+                                html: buildWorkspaceTabMenuHtml(entries),
+                                anchorRight: rect.right,
+                                anchorTop: rect.bottom + 4,
+                              });
+                            }}
                             title={t.addTab}
                             type="button"
                           >
@@ -8980,41 +9024,6 @@ ${model.providerId} · ${model.modelId}`}
                               width={14}
                             />
                           </button>
-                          {workspaceTabMenuOpen && (
-                            <div className="workspace-tab-menu">
-                              {(
-                                [
-                                  ...(activeProject
-                                    ? ([
-                                        [
-                                          "review",
-                                          t.reviewPanel,
-                                          <ReviewIcon />,
-                                        ],
-                                      ] as const)
-                                    : []),
-                                  ["terminal", t.terminal, <TerminalIcon />],
-                                  ["browser", t.browser, <BrowserIcon />],
-                                  ["file", t.files, <FilesIcon />],
-                                  ...(activeThread?.typeBinding?.typeId ===
-                                  "artemis-design"
-                                    ? ([["design", t.designTab, <DesignSparkIcon />]] as const)
-                                    : []),
-                                ] as const
-                              ).map(([kind, label, icon]) => (
-                                <button
-                                  key={kind}
-                                  onClick={() =>
-                                    openWorkspaceTab(kind, { forceNew: true })
-                                  }
-                                  type="button"
-                                >
-                                  {icon}
-                                  <span>{label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       }
                       label={t.rightSidebar}
@@ -9137,6 +9146,14 @@ ${model.providerId} · ${model.modelId}`}
                             label={t.files}
                             onActivate={openFilesPanel}
                           />
+                          {activeThread?.typeBinding?.typeId ===
+                            "artemis-design" && (
+                            <WorkspaceLauncherAction
+                              icon={<WorkspaceLauncherIcon kind="design" />}
+                              label={t.designTab}
+                              onActivate={() => openWorkspaceTab("design")}
+                            />
+                          )}
                         </WorkspaceLauncher>
                       )}
                       {workspaceTabs.tabs.map((tab) => (
@@ -9753,23 +9770,96 @@ ${model.providerId} · ${model.modelId}`}
                                 threadId={activeThreadId}
                                 panelId="workspace"
                                 active={workspaceTabs.activeTabId === tab.id}
-                                resizing={workspaceDockResizing}
-                                onCandidate={(text) => {
+                                onCandidate={(text, annotations, document, autoSend, images) => {
                                   const trimmed = text.trim();
                                   if (!trimmed || !activeThreadId) return;
                                   void (async () => {
                                     try {
+                                      // OD 对齐：入账（一次性凭据）后立即消费，
+                                      // 填入 composer。autoSend=false = 标记工具
+                                      // 条的「加入输入框」（只填不自动发送）；
+                                      // 默认自动触发发送（空闲直发、运行中
+                                      // followUpTurn 排队）。凭据即时作废，
+                                      // 不存在重放窗口。批注与页面不入账
+                                      // （ledger 审计文本）：页面作为附件，
+                                      // 批注在发送时拼进消息体（OD 式）。
                                       const accepted =
                                         await window.artemis.acceptDesignPanelCandidate(
                                           activeThreadId,
                                           trimmed,
                                         );
-                                      setPanelCandidate({
-                                        threadId: accepted.threadId,
-                                        text: accepted.candidateText,
-                                        credential: accepted.credential,
-                                        submissionId: accepted.submissionId,
-                                      });
+                                      await window.artemis.consumeDesignPanelSend(
+                                        accepted.credential,
+                                      );
+                                      if (document?.html.trim()) {
+                                        const merged =
+                                          addDesignDocumentAttachment(
+                                            draftAttachments.current.get(
+                                              activeComposerDraftKey,
+                                            ) ?? [],
+                                            document,
+                                          );
+                                        if (merged) setAttachments(merged);
+                                      }
+                                      // 面板附图（OD imageAttachments）：dataURL
+                                      // → 裸图片附件（PromptImage，与粘贴同形）
+                                      if (images && images.length > 0) {
+                                        const imageAttachments =
+                                          images.flatMap(
+                                            (dataUrl, index) => {
+                                              const match =
+                                                /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(
+                                                  dataUrl,
+                                                );
+                                              if (!match) return [];
+                                              const mime = match[1] as
+                                                | "image/png"
+                                                | "image/jpeg"
+                                                | "image/webp"
+                                                | "image/gif";
+                                              return [
+                                                {
+                                                  name: `panel-image-${index + 1}.${mime === "image/jpeg" ? "jpg" : mime.slice(6)}`,
+                                                  mimeType: mime,
+                                                  data: match[2] ?? "",
+                                                },
+                                              ];
+                                            },
+                                          );
+                                        const withImages =
+                                          appendPromptAttachments(
+                                            draftAttachments.current.get(
+                                              activeComposerDraftKey,
+                                            ) ?? [],
+                                            imageAttachments,
+                                          );
+                                        draftAttachments.current.set(
+                                          activeComposerDraftKey,
+                                          withImages.attachments,
+                                        );
+                                        setAttachments(withImages.attachments);
+                                      }
+                                      designAnnotationDrafts.current.set(
+                                        activeComposerDraftKey,
+                                        (() => {
+                                          const draft =
+                                            designAnnotationDrafts.current.get(
+                                              activeComposerDraftKey,
+                                            ) ?? new DesignAnnotationDraft();
+                                          draft.add(
+                                            annotations,
+                                            document ?? undefined,
+                                          );
+                                          return draft;
+                                        })(),
+                                      );
+                                      setPrompt(trimmed);
+                                      if (autoSend !== false) {
+                                        designPanelAutoSendText.current = trimmed;
+                                      }
+                                      window.requestAnimationFrame(() =>
+                                        promptInput.current?.focus(),
+                                      );
                                     } catch {
                                       setToast({
                                         error: true,
@@ -9779,6 +9869,9 @@ ${model.providerId} · ${model.modelId}`}
                                       });
                                     }
                                   })();
+                                }}
+                                onBinding={(binding) => {
+                                  setDesignDocBinding(binding);
                                 }}
                                 failureMessage={t.designTab}
                               />
@@ -11207,8 +11300,12 @@ export function Timeline({
         (source) => source.kind === "file",
       );
       const skillNames = selectedSkillNamesForPrompt(message.text);
+      // 结构化批注块是发给模型的载荷；气泡只显示用户自己的话
+      // （OD 把批注渲染成附件卡片，这里是显示侧等价物）。
       const visibleText = promptWithoutSelectedSkills(
-        imUserMessageText(message.text, imGroup),
+        stripDesignAnnotationBlock(
+          imUserMessageText(message.text, imGroup),
+        ),
       );
       const editable =
         onEditUserMessage !== undefined &&

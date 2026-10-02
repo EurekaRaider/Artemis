@@ -106,10 +106,14 @@ async function setupBoundThread() {
     grantRevision: binding.bindingRevision,
   });
 
+  const artifactWrites: Array<{ threadId: string; toolName: string }> = [];
   const dispatch = createDispatchPluginTool({
     store,
     revisionsRoot,
     scratchRoot,
+    onArtifactWrite: (input) => {
+      artifactWrites.push(input);
+    },
     loadPublishedManifest: async (input) => {
       const revisionRoot = join(revisionsRoot, input.installationId, input.contentHash);
       try {
@@ -128,7 +132,7 @@ async function setupBoundThread() {
       }
     },
   });
-  return { store, dispatch, threadId, binding, published, revisionsRoot, scratchRoot, databasePath };
+  return { store, dispatch, threadId, binding, published, revisionsRoot, scratchRoot, databasePath, artifactWrites };
 }
 
 describe("S2 runtime isolation", () => {
@@ -273,6 +277,29 @@ describe("S2 runtime isolation", () => {
     // ThreadRuntimeManager 层由 closedThreads 集合保证——此处主进程
     // 派发器走的是 managerFor 新实例路径，语义为"树被杀"即验证目标）
     expect(second.status === "succeeded" || second.status === "refused").toBe(true);
+    ctx.store.close();
+  }, 30_000);
+
+  it("onArtifactWrite fires for artifact-write tools only (panel refresh hook)", async () => {
+    const ctx = await setupBoundThread();
+    const created = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "create_document",
+      args: { name: "推送验证.html", brief: "自动刷新" },
+      mode: "execute",
+    });
+    expect(created.status).toBe("succeeded");
+    const snapshotted = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "get_snapshot",
+      args: {},
+      mode: "execute",
+    });
+    expect(snapshotted.status).toBe("succeeded");
+    expect(ctx.artifactWrites).toEqual([
+      { threadId: ctx.threadId, toolName: "create_document" },
+    ]);
+    ctx.dispatch.closeThread(ctx.threadId);
     ctx.store.close();
   }, 30_000);
 

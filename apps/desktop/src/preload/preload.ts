@@ -279,6 +279,34 @@ const api: ArtemisApi = {
       ipcRenderer.removeListener(IPC.designPanelCandidate, handler as never);
     };
   },
+  onDesignPanelBinding: (listener) => {
+    const handler = (
+      _event: unknown,
+      payload: Parameters<typeof listener>[0],
+    ) => listener(payload);
+    ipcRenderer.on(IPC.designPanelBinding, handler as never);
+    return () => {
+      ipcRenderer.removeListener(IPC.designPanelBinding, handler as never);
+    };
+  },
+  showWorkspaceTabMenu: (input) =>
+    ipcRenderer.invoke(IPC.workspaceTabMenuShow, input),
+  closeWorkspaceTabMenu: () => ipcRenderer.invoke(IPC.workspaceTabMenuClose),
+  onWorkspaceTabMenuSelect: (listener) => {
+    const handler = (_event: unknown, kind: Parameters<typeof listener>[0]) =>
+      listener(kind);
+    ipcRenderer.on(IPC.workspaceTabMenuSelect, handler as never);
+    return () => {
+      ipcRenderer.removeListener(IPC.workspaceTabMenuSelect, handler as never);
+    };
+  },
+  onWorkspaceTabMenuClosed: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(IPC.workspaceTabMenuClosed, handler as never);
+    return () => {
+      ipcRenderer.removeListener(IPC.workspaceTabMenuClosed, handler as never);
+    };
+  },
   openOfficeFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.officeOpen, threadId, path),
   readOfficeSnapshot: (threadId, sessionId) =>

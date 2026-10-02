@@ -154,6 +154,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           ...(command.executionProfile
             ? { executionProfile: command.executionProfile }
             : {}),
+          ...(command.pluginTools ? { pluginTools: command.pluginTools } : {}),
         });
         break;
       case "thread.model.set":

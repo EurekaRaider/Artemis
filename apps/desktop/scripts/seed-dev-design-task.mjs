@@ -84,11 +84,15 @@ if (existing) {
   console.log("thread created:", threadId);
 }
 // ---- 种子初始文档（幂等）：面板打开即有内容可渲染 ----
-// runtime 的 get_snapshot/list_versions 扫描 plugin-scratch/<thread>/<hash>/documents/，
-// 种子不建文档则面板永远为空（真实场景里首条指令会 create_document）。
+// 数据根与插件 revision 哈希解绑：<scratch>/<threadId>/data/（历史必须
+// 活过插件升级）。runtime 的 get_snapshot/list_versions 扫描
+// data/documents/；种子不建文档则面板永远为空（真实场景里首条指令会
+// create_document）。已有账本（真实数据或迁移结果）一律不覆写。
 import { existsSync } from "node:fs";
-import { mkdirSync, writeFileSync } from "node:fs";
-const scratchRoot = join(userData, "plugin-scratch", threadId, contentHash, "documents");
+import { mkdirSync, writeFileSync, readFileSync, appendFileSync } from "node:fs";
+const dataRoot = join(userData, "plugin-scratch", threadId, "data");
+const scratchRoot = join(dataRoot, "documents");
+const hasExistingData = existsSync(join(dataRoot, "design-documents.jsonl"));
 const SEED_DOC_HTML = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>客户档案</title><style>
 body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f8fafc;color:#0f172a}
@@ -116,7 +120,7 @@ const seedDocs = [
   { id: "seed-customer", seq: 1 },   // v1 旧版（恢复链路可用）
 ];
 let seeded = 0;
-for (const d of seedDocs) {
+for (const d of hasExistingData ? [] : seedDocs) {
   const docDir = join(scratchRoot, d.id);
   if (!existsSync(docDir)) mkdirSync(docDir, { recursive: true });
   // 版本文件名：v<seq>-<16位hash>.html —— hash 用内容 sha256 前 16 位（与 runtime 约定一致）
@@ -132,12 +136,12 @@ for (const d of seedDocs) {
 }
 // HEAD 标记 + 根级账本 design-documents.jsonl（runtime 的 get_snapshot 读这个；
 // 记录字段与 create_document 写入一致：id/name/brief/createdAt）
-{
+if (!hasExistingData) {
   const { createHash } = await import("node:crypto");
   const rev = createHash("sha256").update(SEED_DOC_HTML).digest("hex").slice(0, 16);
   const docDir = join(scratchRoot, "seed-customer");
   writeFileSync(join(docDir, "HEAD"), `2-${rev}\n`, "utf8");
-  const rootLedger = join(scratchRoot, "..", "design-documents.jsonl");
+  const rootLedger = join(dataRoot, "design-documents.jsonl");
   if (!existsSync(rootLedger)) {
     writeFileSync(rootLedger, JSON.stringify({
       id: "seed-customer",
@@ -147,8 +151,47 @@ for (const d of seedDocs) {
     }) + "\n", "utf8");
     console.log("root ledger design-documents.jsonl seeded");
   }
+} else {
+  // 增量演示（只补缺，不动已有数据）：虚拟文件夹路径文档
+  // pages/orders.html —— 面板文件夹导航 + 真实缩略图的真机演示载体。
+  const ledgerPath = join(dataRoot, "design-documents.jsonl");
+  const ledgerText = existsSync(ledgerPath) ? readFileSync(ledgerPath, "utf8") : "";
+  if (!ledgerText.includes('"id":"seed-orders"')) {
+    const { createHash } = await import("node:crypto");
+    const SEED_ORDERS_HTML = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>订单列表</title><style>
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f8fafc;color:#0f172a}
+.page{max-width:560px;margin:0 auto;padding:40px 28px}
+.mock-head{display:flex;flex-direction:column;gap:4px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #e2e8f0}
+.mock-head b{font-size:22px}
+.mock-head span{color:#64748b;font-size:13px}
+.mock-row{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid #eef2f7}
+.mock-row label{font-weight:600;font-size:14px}
+.mock-row i{color:#64748b;font-style:normal;font-size:14px}
+</style></head>
+<body><div class="page">
+<header class="mock-head"><b>订单列表</b><span>pages 文件夹 · 虚拟文件夹演示页</span></header>
+<div class="mock-row"><label>订单 #2041</label><i>已支付 · ¥299</i></div>
+<div class="mock-row"><label>订单 #2038</label><i>待发货 · ¥158</i></div>
+<div class="mock-row"><label>订单 #2032</label><i>已完成 · ¥89</i></div>
+</div></body></html>`;
+    const rev = createHash("sha256").update(SEED_ORDERS_HTML).digest("hex").slice(0, 16);
+    const docDir = join(scratchRoot, "seed-orders");
+    mkdirSync(docDir, { recursive: true });
+    writeFileSync(join(docDir, `v1-${rev}.html`), SEED_ORDERS_HTML, "utf8");
+    writeFileSync(join(docDir, "HEAD"), `1-${rev}\n`, "utf8");
+    appendFileSync(ledgerPath, JSON.stringify({
+      id: "seed-orders",
+      name: "pages/orders.html",
+      brief: "订单列表 · 虚拟文件夹演示页",
+      createdAt: now,
+    }) + "\n", "utf8");
+    console.log("seeded folder demo document: pages/orders.html");
+  } else {
+    console.log("existing thread data found; keeping documents untouched");
+  }
 }
-if (seeded > 0) console.log(`seeded ${seeded} document version file(s) under plugin-scratch`);
+if (seeded > 0) console.log(`seeded ${seeded} document version file(s) under plugin-scratch/data`);
 
 db.close();
 console.log("grant inserted for", binding.bindingRevision);

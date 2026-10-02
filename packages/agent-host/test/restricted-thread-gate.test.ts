@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  missingRestrictedSessionTools,
   RestrictedProfileDeniedError,
   assertToolAllowedForRestrictedThread,
   classifyToolForRestrictedProfile,
@@ -146,5 +147,68 @@ describe("restricted-thread dispatch guard (simulated agent loop)", () => {
         expect(() => assertToolAllowedForRestrictedThread(name)).not.toThrow();
       }
     }
+  });
+});
+
+describe("missingRestrictedSessionTools (session-start validation)", () => {
+  const manifestTools = [
+    { name: "create_document", description: "", effect: "artifact-write" },
+    { name: "get_snapshot", description: "", effect: "state-read" },
+    { name: "list_versions", description: "", effect: "state-read" },
+    { name: "apply_edit", description: "", effect: "artifact-write" },
+    { name: "undo", description: "", effect: "artifact-write" },
+    { name: "redo", description: "", effect: "artifact-write" },
+  ];
+
+  it("accepts the allow-listed fixed tools plus every declared plugin tool", () => {
+    const registered = [
+      ...manifestTools.map((t) => ({ name: `plugin_${t.name}` })),
+      ...[
+        "update_plan",
+        "get_goal",
+        "create_goal",
+        "update_goal",
+        "save_memory",
+        "load_workspace_dependencies",
+        "request_user_input",
+      ].map((name) => ({ name })),
+    ];
+    expect(missingRestrictedSessionTools(registered, manifestTools)).toEqual(
+      [],
+    );
+  });
+
+  it("lists missing fixed tools and missing plugin registrations", () => {
+    // The regression: the full-workspace validation demanded bash/agents on
+    // restricted sessions and refused every turn with "Pi did not register
+    // Artemis workspace tools." The restricted check must only require the
+    // allow-list.
+    const registered = [
+      { name: "update_plan" },
+      { name: "plugin_create_document" },
+    ];
+    const missing = missingRestrictedSessionTools(registered, manifestTools);
+    expect(missing).toContain("get_goal");
+    expect(missing).toContain("request_user_input");
+    expect(missing).toContain("plugin_get_snapshot");
+    expect(missing).toHaveLength(6 + 5);
+  });
+
+  it("ignores denied tools leaking into the registered list (allow-list only checks presence)", () => {
+    const registered = [
+      ...[
+        "update_plan",
+        "get_goal",
+        "create_goal",
+        "update_goal",
+        "save_memory",
+        "load_workspace_dependencies",
+        "request_user_input",
+      ].map((name) => ({ name })),
+      { name: "shell" },
+    ];
+    expect(
+      missingRestrictedSessionTools(registered, []),
+    ).toEqual([]);
   });
 });
