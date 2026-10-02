@@ -108,7 +108,7 @@ jobs:
           git merge-base --is-ancestor "$mac_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$mac_sha"
           while IFS= read -r changed; do
             case "$changed" in
-              .github/workflows/release.yml|scripts/slack-cli-release.mjs|scripts/test-slack-cli.mjs) ;;
+              .github/workflows/release.yml|scripts/slack-cli-release.mjs|scripts/test-slack-cli.mjs|apps/desktop/test/timeline-previews.test.tsx) ;;
               *) echo "Verified macOS package does not cover changed path: $changed" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only "$mac_sha" "$RELEASE_SHA")

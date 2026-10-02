@@ -220,6 +220,7 @@ it("defers image and HTML reads until the preview approaches the viewport", asyn
   await waitFor(() =>
     expect(container.querySelector(".timeline-html-preview")).not.toBeNull(),
   );
+  await waitFor(() => expect(callbacks).toHaveLength(2));
   expect(read).not.toHaveBeenCalled();
   expect(html).not.toHaveBeenCalled();
   await act(async () => {
@@ -229,8 +230,10 @@ it("defers image and HTML reads until the preview approaches the viewport", asyn
         {} as IntersectionObserver,
       );
   });
-  expect(read).toHaveBeenCalledOnce();
-  expect(html).toHaveBeenCalledOnce();
+  await waitFor(() => {
+    expect(read).toHaveBeenCalledOnce();
+    expect(html).toHaveBeenCalledOnce();
+  });
 });
 
 it("renders inline and display formulas while keeping code, currency and escaped dollars literal", async () => {
