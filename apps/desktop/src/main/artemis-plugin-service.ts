@@ -71,6 +71,27 @@ import {
 } from "./skill-metadata.js";
 import { assertNativeManifestVersion } from "../shared/plugin-manifest.js";
 
+/**
+ * A package carries a design-plugin manifest only when it declares the
+ * artemisPluginApi engine. Native plugins and skins share the
+ * artemis.plugin.json filename with a different contract — they are not
+ * design plugins and must never hit the strict design schema.
+ */
+function parseDesignPluginManifest(
+  value: unknown,
+): PluginManifest | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const engines = (value as { engines?: { artemisPluginApi?: unknown } })
+    .engines;
+  if (
+    !engines ||
+    typeof engines !== "object" ||
+    engines.artemisPluginApi !== "1"
+  )
+    return undefined;
+  return pluginManifestSchema.parse(value);
+}
+
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_MARKETPLACE_BYTES = 5 * 1024 * 1024;
 const MAX_MARKETPLACE_ARCHIVE_BYTES = 100 * 1024 * 1024;
@@ -3335,9 +3356,12 @@ export class ArtemisPluginService {
     // .codex-plugin/plugin.json (market metadata) and an artemis.plugin.json
     // (design-plugin contract); the latter is strictly validated here so a
     // broken manifest never reaches the revision store or thread bindings.
+    // Native plugins/skins (v1.6.18+) use the same filename with a different
+    // contract — they lack the artemisPluginApi engine marker and are left
+    // to the native machinery, never fed to the design schema.
     const designManifestPath = join(root, "artemis.plugin.json");
     const designPluginManifest = (await exists(designManifestPath))
-      ? pluginManifestSchema.parse(
+      ? parseDesignPluginManifest(
           JSON.parse((await readFile(designManifestPath)).toString("utf8")),
         )
       : undefined;

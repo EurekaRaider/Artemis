@@ -9,7 +9,11 @@ import {
   createDispatchPluginTool,
   type PluginDispatch,
 } from "./design-plugin-dispatch.js";
-import { ensureThreadDataRoot } from "./design-plugin-thread-data.js";
+import {
+  designPluginRevisionsRoot,
+  ensureThreadDataRoot,
+  migrateLegacyDesignPluginRevisions,
+} from "./design-plugin-thread-data.js";
 import { PanelSendEntryService } from "./design-plugin-send-entry.js";
 import { AppearanceService } from "./appearance-service.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
@@ -4383,9 +4387,7 @@ async function openAgentThread(
       try {
         const manifestBytes = await readFile(
           join(
-            app.getPath("userData"),
-            "plugins",
-            "plugin-revisions",
+            designPluginRevisionsRoot(app.getPath("userData")),
             thread.typeBinding.installationId,
             thread.typeBinding.contentHash,
             "artemis.plugin.json",
@@ -10033,9 +10035,7 @@ function registerIpc(): void {
       const boundThread = store?.getThread(threadId);
       if (boundThread?.typeBinding) {
         const revisionRoot = join(
-          app.getPath("userData"),
-          "plugins",
-          "plugin-revisions",
+          designPluginRevisionsRoot(app.getPath("userData")),
           boundThread.typeBinding.installationId,
           boundThread.typeBinding.contentHash,
         );
@@ -23063,11 +23063,7 @@ app
   // in the main process before any runtime spawn.
   pluginDispatch = createDispatchPluginTool({
     store,
-    revisionsRoot: join(
-      app.getPath("userData"),
-      "plugins",
-      "plugin-revisions",
-    ),
+    revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
     scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
     // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
     // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
@@ -23076,9 +23072,7 @@ app
     },
     loadPublishedManifest: async (input) => {
       const revisionRoot = join(
-        app.getPath("userData"),
-        "plugins",
-        "plugin-revisions",
+        designPluginRevisionsRoot(app.getPath("userData")),
         input.installationId,
         input.contentHash,
       );
@@ -23403,6 +23397,9 @@ app
     seedSmokeMessageActionsFixture();
     seedSmokeQueuedSteerFixture();
     seedSmokeMarkdownEditorFixture();
+    // Frees the plugins/ namespace (S1 revisions lived under it) before the
+    // native plugin-format migration claims it as its destination.
+    await migrateLegacyDesignPluginRevisions(app.getPath("userData"));
     await migratePluginUserData(
       app.getPath("userData"),
       join(app.getPath("home"), ".pi", "agent", "skills"),
