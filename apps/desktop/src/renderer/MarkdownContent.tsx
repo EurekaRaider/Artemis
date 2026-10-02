@@ -1,5 +1,10 @@
 import DOMPurify from "dompurify";
-import { marked } from "marked";
+import { marked, Marked } from "marked";
+import { timelineMathExtensions } from "./markdown-math.js";
+import {
+  timelineFileKind,
+  remotePreviewImage,
+} from "../shared/timeline-preview.js";
 import {
   memo,
   useEffect,
@@ -11,12 +16,7 @@ import {
 
 import { workspaceFileLinkIcon } from "./seti-file-icon.js";
 import type { AppLocale } from "@artemis/protocol";
-import {
-  isLocalVideoHref,
-  MarkdownVideoContent,
-} from "./MarkdownVideoContent.js";
-
-import { isLocalSvgHref } from "./WorkspaceSvgPreview.js";
+import { MarkdownVideoContent } from "./MarkdownVideoContent.js";
 
 const allowedTags = [
   "a",
@@ -266,13 +266,19 @@ function markdownRenderer(
   const headingCounts = new Map<string, number>();
   renderer.html = ({ text }) => (imagesEnabled ? readerHtmlMarkup(text) : "");
   renderer.image = ({ href, title, text }) =>
-    videosEnabled && isLocalVideoHref(href)
-      ? `<span data-workspace-video="${escapeAttribute(href)}"></span>`
-      : videosEnabled && isLocalSvgHref(href)
-        ? `<span data-workspace-svg="${escapeAttribute(href)}" aria-label="${escapeAttribute(text)}"></span>`
-        : imagesEnabled
-          ? imageMarkup(href, text, title)
-          : "";
+    videosEnabled && (timelineFileKind(href) || remotePreviewImage(href))
+      ? `<span data-workspace-preview="${escapeAttribute(href)}" aria-label="${escapeAttribute(text)}"></span>`
+      : imagesEnabled
+        ? imageMarkup(href, text, title)
+        : "";
+  if (videosEnabled) {
+    const code = renderer.code;
+    renderer.code = function (token) {
+      return token.lang?.trim().toLowerCase() === "mermaid"
+        ? `<span data-mermaid-source="${encodeURIComponent(token.text.toWellFormed())}"></span>`
+        : code.call(this, token);
+    };
+  }
   renderer.heading = function ({ tokens, depth }) {
     const label = this.parser.parseInline(tokens);
     const baseSlug = headingSlug(
@@ -378,7 +384,11 @@ export const MarkdownContent = memo(function MarkdownContent({
       externalLinkIcons,
       Boolean(videoThreadId),
     );
-    const parsed = marked.parse(text, { async: false, renderer });
+    const parser = new Marked({
+      renderer,
+      ...(videoThreadId ? { extensions: timelineMathExtensions } : {}),
+    });
+    const parsed = parser.parse(text, { async: false });
     return typeof DOMPurify.sanitize === "function"
       ? DOMPurify.sanitize(parsed, {
           ALLOWED_ATTR: [
@@ -390,8 +400,10 @@ export const MarkdownContent = memo(function MarkdownContent({
             "data-external-http",
             "data-workspace-file",
             "data-workspace-image",
-            "data-workspace-video",
-            "data-workspace-svg",
+            "data-workspace-preview",
+            "data-mermaid-source",
+            "data-math-source",
+            "data-math-display",
             "href",
             "height",
             "id",
@@ -428,6 +440,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       locale === "zh-CN" ? "复制失败，请重试" : "Copy failed; retry";
     const cleanups: (() => void)[] = [];
     for (const code of root.querySelectorAll<HTMLElement>("pre > code")) {
+      if (code.closest(".timeline-diagram-preview")) continue;
       const toolbar = document.createElement("div");
       toolbar.className = "markdown-code-toolbar";
       const language = document.createElement("span");
@@ -609,6 +622,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         <MarkdownVideoContent
           key={videoThreadId}
           html={html}
+          onFileLink={onFileLink}
           threadId={videoThreadId}
           locale={locale}
         />

@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MarkdownContent } from "../src/renderer/MarkdownContent.js";
-import { isLocalSvgHref } from "../src/renderer/WorkspaceSvgPreview.js";
+import { timelineFileKind } from "../src/shared/timeline-preview.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
 afterEach(cleanup);
@@ -64,7 +64,7 @@ describe("timeline SVG previews", () => {
     expect(open).toHaveBeenCalledWith("/workspace/ride.svg");
   });
 
-  it("previews a plain SVG file link but ignores remote URLs and code examples", async () => {
+  it("previews local and remote images but never parses code examples as images", async () => {
     const read = api();
     const { container } = render(
       <MarkdownContent
@@ -77,7 +77,11 @@ describe("timeline SVG previews", () => {
     await waitFor(() =>
       expect(container.querySelector("img")).toHaveAttribute("src"),
     );
-    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(container.querySelectorAll("img")).toHaveLength(2);
+    expect(screen.getByAltText("Remote")).toHaveAttribute(
+      "referrerpolicy",
+      "no-referrer",
+    );
     expect(read).toHaveBeenCalledTimes(1);
   });
 
@@ -119,7 +123,7 @@ describe("timeline SVG previews", () => {
       "C:\\art\\ride.svg",
       "海边%20动画.svg",
     ])
-      expect(isLocalSvgHref(href)).toBe(true);
+      expect(timelineFileKind(href)).toBe("image");
     for (const href of [
       "https://example.com/a.svg",
       "//example.com/a.svg",
@@ -128,6 +132,6 @@ describe("timeline SVG previews", () => {
       "#a.svg",
       "%zz.svg",
     ])
-      expect(isLocalSvgHref(href)).toBe(false);
+      expect(timelineFileKind(href)).toBeUndefined();
   });
 });

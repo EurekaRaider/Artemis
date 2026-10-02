@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.16** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.17** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
 > CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -170,6 +170,14 @@ and group members when available.
   configuration from Codex, OpenCode or Claude without copying credentials.
 
 ### Workspace tools
+
+Timeline messages preview images and animated SVGs, play local audio and video,
+render Mermaid diagrams and LaTeX formulas, and show interactive local HTML.
+HTML previews load scripts, styles and images from the document directory in an
+isolated frame without network, Node.js or application access. Previews load
+near the viewport and retain playback or interaction state as messages stream.
+Office documents and PDFs appear as file cards; click a card to use the existing
+right-side viewer and its capability requirements.
 
 | Tool                 | Purpose                                                                                                                                             |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -373,15 +381,15 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.16` local packaging configuration produces:
+The `1.6.17` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.16.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.16.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.16.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.17.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.17.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.17.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.16`, and
+Releases are started manually through **Release**, using tag `v1.6.17`, and
 published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
 after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
 update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
@@ -397,6 +405,8 @@ successful CI/signing work and resume the same Apple submission. See the
 Windows checks for new public versions and opens the ZIP download in a browser;
 users replace the application manually. macOS retains in-app updates. Both use
 the public ArtemisRelease update source. No private repository token is bundled in the app.
+
+Version 1.6.17 adds timeline previews for images, audio, Mermaid diagrams, LaTeX formulas and isolated interactive HTML. Image zoom, retry controls, lazy loading and stable playback make previews usable while replies stream. Office documents and PDFs remain compact file cards that open the right-side viewer.
 
 Version 1.6.16 fixes Goal elapsed-time accumulation across usage updates, edits, pauses, and resumes. Timeline Markdown wraps long text, code, and tables within the available width while retaining existing copy controls. Office plugin descriptions now reflect whether the advanced capability is active; PDF descriptions clarify text reading and text-based creation across all 14 locales.
 

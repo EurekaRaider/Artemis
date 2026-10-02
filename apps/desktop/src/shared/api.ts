@@ -1035,6 +1035,8 @@ export interface ArtemisApi {
     href: string,
   ): Promise<import("./workspace-video.js").WorkspaceVideoSource>;
   releaseWorkspaceVideo(threadId: string, url: string): Promise<void>;
+  openWorkspaceHtml(threadId: string, href: string): Promise<{ url: string }>;
+  releaseWorkspaceHtml(threadId: string, url: string): Promise<void>;
   openOfficeFile(
     threadId: string,
     path: string,
@@ -1375,6 +1377,8 @@ export const IPC = {
   workspacePdfOpen: "artemis:workspace-pdf-open",
   workspaceVideoOpen: "artemis:workspace-video-open",
   workspaceVideoRelease: "artemis:workspace-video-release",
+  workspaceHtmlOpen: "artemis:workspace-html-open",
+  workspaceHtmlRelease: "artemis:workspace-html-release",
   officeOpen: "artemis:office-open",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",

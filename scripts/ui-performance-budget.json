@@ -25,7 +25,7 @@
   "thresholds": {
     "bundles": {
       "desktopCssBytes": 500000,
-      "desktopJsBytes": 4500000,
+      "desktopJsBytes": 10000000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
       "galleryJsBytes": 372500,
@@ -254,6 +254,17 @@
       "previousDesktopCssMaximumBytes": 435000,
       "desktopCssMaximumBytes": 440000,
       "reason": "The production build includes the new Hooks settings, update controls and trusted-hook notices. Its CSS measures 435895 bytes, 895 bytes over the previous ceiling. Reserve 4105 bytes (less than 1%) above this measured bundle. JavaScript, shared UI, gallery, startup timing and workload budgets remain unchanged."
+    },
+    {
+      "date": "2026-10-02",
+      "baseHead": "8c76dababdddf033b0b4f44d4798cd6bebc98bfc",
+      "baseDesktopJsBytes": 4432244,
+      "measuredDesktopJsBytes": 9799596,
+      "desktopJsIncreaseBytes": 5367352,
+      "previousDesktopJsMaximumBytes": 4500000,
+      "desktopJsMaximumBytes": 10000000,
+      "measuredDesktopLargestJsBytes": 1878203,
+      "reason": "Timeline Mermaid diagrams and KaTeX formulas add lazily loaded renderers and diagram layouts. Baseline and candidate use the same installed dependencies, shared UI builds and production Vite pipeline; baseline desktop sources are from baseHead. Total JavaScript counts every optional diagram chunk, including ELK and Cytoscape, even when it is not loaded at startup. Set a 10000000-byte hard cap with approximately 2% measured headroom. The largest-chunk, CSS, shared UI, gallery, startup and workload gates remain unchanged."
     }
   ],
   "startupBudgetRevisions": [

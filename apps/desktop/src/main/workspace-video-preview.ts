@@ -6,6 +6,7 @@ import { resolveWorkspaceFileLink } from "./workspace-file-link.js";
 import {
   WORKSPACE_VIDEO_SCHEME,
   workspaceVideoMimeType,
+  workspaceAudioMimeType,
   type WorkspaceVideoSource,
 } from "../shared/workspace-video.js";
 
@@ -30,8 +31,9 @@ export class WorkspaceVideoPreview {
   private async resolve(threadId: string, href: string) {
     const workspace = await realpath(await this.workspaceForThread(threadId));
     const file = await resolveWorkspaceFileLink(workspace, href);
-    const mimeType = workspaceVideoMimeType(file.path);
-    if (!mimeType) throw new Error("Unsupported video format.");
+    const mimeType =
+      workspaceVideoMimeType(file.path) ?? workspaceAudioMimeType(file.path);
+    if (!mimeType) throw new Error("Unsupported media format.");
     return { ...file, workspace, mimeType };
   }
 

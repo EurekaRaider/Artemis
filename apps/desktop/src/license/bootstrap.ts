@@ -19,8 +19,13 @@ import { setLicenseService, stopLicensedRuntime } from "./runtime.js";
 
 import { WORKSPACE_PDF_SCHEME } from "../main/workspace-pdf-preview.js";
 import { WORKSPACE_VIDEO_SCHEME } from "../shared/workspace-video.js";
+import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
 
 protocol.registerSchemesAsPrivileged([
+  {
+    scheme: WORKSPACE_HTML_SCHEME,
+    privileges: { standard: true, secure: true, corsEnabled: true },
+  },
   {
     scheme: WORKSPACE_VIDEO_SCHEME,
     privileges: { standard: true, secure: true, stream: true },

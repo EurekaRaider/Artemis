@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.6.16",
+  "version": "1.6.17",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -27,6 +27,7 @@
     "pptxgenjs": "4.0.1"
   },
   "overrides": {
+    "lodash-es": "4.18.1",
     "officeparser": {
       "pdfjs-dist": "$pdfjs-dist"
     },
