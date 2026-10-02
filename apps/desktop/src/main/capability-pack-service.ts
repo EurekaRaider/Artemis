@@ -24,6 +24,8 @@ import { atomicWrite, fileSha256 } from "./office-file-utils.js";
 
 interface PackServiceOptions {
   root: string;
+  /** Pack namespace; defaults to "office-core". One instance manages one pack. */
+  packId?: string;
   hostVersion: string;
   platform: string;
   arch: string;
@@ -79,23 +81,42 @@ export class CapabilityPackService {
   private error: string | undefined;
   private maintenance = false;
   private acquiring = 0;
+  private readonly packId: string;
 
-  constructor(private readonly options: PackServiceOptions) {}
+  constructor(private readonly options: PackServiceOptions) {
+    this.packId = options.packId ?? "office-core";
+  }
 
   private versionPath(version: string): string {
     if (!/^\d+\.\d+\.\d+$/u.test(version))
       throw new Error("Invalid capability version");
-    return join(this.options.root, "office-core", version);
+    return join(this.options.root, this.packId, version);
   }
 
   private async active(): Promise<string | undefined> {
     try {
       const value = JSON.parse(
         await readFile(join(this.options.root, "active.json"), "utf8"),
-      ) as { version: string };
-      if (!value || typeof value.version !== "string") return undefined;
-      this.versionPath(value.version);
-      return value.version;
+      ) as { version?: unknown; packs?: unknown } | null;
+      const fromPacks =
+        value &&
+        typeof value === "object" &&
+        value.packs &&
+        typeof value.packs === "object"
+          ? (value.packs as Record<string, unknown>)[this.packId]
+          : undefined;
+      // Legacy single-version pointer predates multi-pack support; only
+      // office-core reads it and the next write migrates it into the map.
+      const version =
+        typeof fromPacks === "string"
+          ? fromPacks
+          : this.packId === "office-core" &&
+              typeof value?.version === "string"
+            ? value.version
+            : undefined;
+      if (!version || typeof version !== "string") return undefined;
+      this.versionPath(version);
+      return version;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
       if (
@@ -108,12 +129,73 @@ export class CapabilityPackService {
     }
   }
 
+  /**
+   * Pointer file holds one entry per pack so several services can share a
+   * root; a torn or missing file repairs through this write.
+   */
+  private async setActiveVersion(version: string): Promise<void> {
+    this.versionPath(version);
+    let packs: Record<string, string> = {};
+    try {
+      const value = JSON.parse(
+        await readFile(join(this.options.root, "active.json"), "utf8"),
+      ) as { version?: unknown; packs?: unknown } | null;
+      if (
+        value &&
+        typeof value === "object" &&
+        value.packs &&
+        typeof value.packs === "object"
+      )
+        packs = { ...(value.packs as Record<string, string>) };
+      // The legacy pointer semantically belongs to office-core; preserve it
+      // no matter which pack's service performs this write.
+      else if (typeof value?.version === "string")
+        packs = { "office-core": value.version };
+    } catch {
+      // Unreadable pointer: nothing salvageable to preserve.
+    }
+    packs[this.packId] = version;
+    await atomicWrite(
+      join(this.options.root, "active.json"),
+      JSON.stringify({ packs }),
+    );
+  }
+
+  private async clearActiveVersion(): Promise<void> {
+    const path = join(this.options.root, "active.json");
+    let value: { version?: unknown; packs?: unknown } | undefined;
+    try {
+      value = JSON.parse(await readFile(path, "utf8"));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      if (error instanceof SyntaxError) {
+        await rm(path, { force: true });
+        return;
+      }
+      throw error;
+    }
+    if (
+      value &&
+      typeof value === "object" &&
+      value.packs &&
+      typeof value.packs === "object"
+    ) {
+      const packs = { ...(value.packs as Record<string, string>) };
+      delete packs[this.packId];
+      if (Object.keys(packs).length === 0) await rm(path, { force: true });
+      else await atomicWrite(path, JSON.stringify({ packs }));
+      return;
+    }
+    // Legacy single-version pointer only ever belonged to office-core.
+    if (this.packId === "office-core") await rm(path, { force: true });
+  }
+
   async status(): Promise<CapabilityPackStatus> {
     const activeVersion = await this.active();
     const versions: CapabilityPackStatus["versions"] = [];
     const dependents = new Set<string>();
     for (const version of await readdir(
-      join(this.options.root, "office-core"),
+      join(this.options.root, this.packId),
     ).catch(() => [] as string[])) {
       if (!/^\d+\.\d+\.\d+$/u.test(version)) continue;
       try {
@@ -131,7 +213,7 @@ export class CapabilityPackService {
       }
     }
     return {
-      id: "office-core",
+      id: this.packId,
       ...(activeVersion &&
       versions.some((entry) => entry.version === activeVersion)
         ? { activeVersion }
@@ -391,10 +473,7 @@ export class CapabilityPackService {
         try {
           await this.validateInstallation(join(target, "payload"), installed);
           signal.throwIfAborted();
-          await atomicWrite(
-            join(this.options.root, "active.json"),
-            JSON.stringify({ version: manifest.version }),
-          );
+          await this.setActiveVersion(manifest.version);
           return;
         } catch (error) {
           if ((this.leases.get(manifest.version) ?? 0) > 0) throw error;
@@ -475,7 +554,7 @@ export class CapabilityPackService {
       await atomicWrite(join(stage, "manifest.json"), JSON.stringify(manifest));
       await rm(archive);
       signal.throwIfAborted();
-      await mkdir(join(this.options.root, "office-core"), {
+      await mkdir(join(this.options.root, this.packId), {
         recursive: true,
         mode: 0o700,
       });
@@ -487,10 +566,7 @@ export class CapabilityPackService {
         if (exists) await rename(backup, target);
         throw error;
       }
-      await atomicWrite(
-        join(this.options.root, "active.json"),
-        JSON.stringify({ version: manifest.version }),
-      );
+      await this.setActiveVersion(manifest.version);
       if (exists) await rm(backup, { recursive: true, force: true });
     } finally {
       await rm(stage, { recursive: true, force: true });
@@ -505,10 +581,7 @@ export class CapabilityPackService {
         join(this.versionPath(version), "payload"),
         manifest,
       );
-      await atomicWrite(
-        join(this.options.root, "active.json"),
-        JSON.stringify({ version }),
-      );
+      await this.setActiveVersion(version);
     });
   }
 
@@ -517,7 +590,7 @@ export class CapabilityPackService {
       const version = await this.active();
       if (version && (this.leases.get(version) ?? 0) > 0)
         throw new Error("Capability version is in use");
-      await rm(join(this.options.root, "active.json"), { force: true });
+      await this.clearActiveVersion();
     });
   }
 
@@ -570,8 +643,7 @@ export class CapabilityPackService {
         throw new Error("Capability version is in use");
       // Office dependencies are optional; explicit removal returns them to Lite.
       // The maintenance lock prevents a new document lease during removal.
-      if ((await this.active()) === version)
-        await rm(join(this.options.root, "active.json"), { force: true });
+      if ((await this.active()) === version) await this.clearActiveVersion();
       await rm(path, { recursive: true, force: true });
     });
   }

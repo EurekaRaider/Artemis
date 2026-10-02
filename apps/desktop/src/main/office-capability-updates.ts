@@ -42,6 +42,9 @@ export class OfficeCapabilityUpdates {
   private verified(values: unknown[]): CapabilityPackManifest[] {
     return values.flatMap((value) => {
       const manifest = capabilityPackManifestSchema.parse(value);
+      // Office update feeds carry only office-core packs; other pack ids use
+      // their own catalogs and services.
+      if (manifest.id !== "office-core") return [];
       if (!valid(manifest.version))
         throw new Error("Invalid Office release version");
       if (

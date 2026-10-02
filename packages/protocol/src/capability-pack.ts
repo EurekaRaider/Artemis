@@ -35,7 +35,51 @@ export const capabilityDependencySchema = z
   .strict();
 export type CapabilityDependency = z.infer<typeof capabilityDependencySchema>;
 
-export const capabilityPackManifestSchema = z
+/** Pack namespace token; also the install directory name under capability-packs/. */
+export const capabilityPackIdSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]{0,63}$/u);
+
+const capabilityFileSchema = z
+  .object({
+    path: capabilityPathSchema,
+    sha256: digest,
+    bytes: z.number().int().nonnegative().max(1_073_741_824),
+    executable: z.boolean(),
+  })
+  .strict();
+const capabilityFilesSchema = z
+  .array(capabilityFileSchema)
+  .min(1)
+  .max(50_000);
+const capabilitySignatureSchema = z
+  .object({
+    keyId: z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/u),
+    value: z.string().regex(/^[A-Za-z0-9+/]{86}==$/u),
+  })
+  .strict();
+
+function checkSharedInventory(
+  value: {
+    files: Array<{ path: string; bytes: number }>;
+    archive: { unpackedBytes: number };
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const names = new Set<string>();
+  let bytes = 0;
+  for (const file of value.files) {
+    const name = file.path.normalize("NFC").toLowerCase();
+    if (names.has(name))
+      ctx.addIssue({ code: "custom", message: "Duplicate capability path" });
+    names.add(name);
+    bytes += file.bytes;
+  }
+  if (bytes !== value.archive.unpackedBytes)
+    ctx.addIssue({ code: "custom", message: "Unpacked size mismatch" });
+}
+
+const officeCapabilityPackManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
     id: z.literal("office-core"),
@@ -61,19 +105,7 @@ export const capabilityPackManifestSchema = z
       .strict(),
     entrypoint: capabilityPathSchema,
     officeExecutable: capabilityPathSchema,
-    files: z
-      .array(
-        z
-          .object({
-            path: capabilityPathSchema,
-            sha256: digest,
-            bytes: z.number().int().nonnegative().max(1_073_741_824),
-            executable: z.boolean(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(50_000),
+    files: capabilityFilesSchema,
     native: z
       .object({
         signer: z.string().min(1).max(200),
@@ -95,26 +127,11 @@ export const capabilityPackManifestSchema = z
           .optional(),
       })
       .strict(),
-    signature: z
-      .object({
-        keyId: z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/u),
-        value: z.string().regex(/^[A-Za-z0-9+/]{86}==$/u),
-      })
-      .strict(),
+    signature: capabilitySignatureSchema,
   })
   .strict()
   .superRefine((value, ctx) => {
-    const names = new Set<string>();
-    let bytes = 0;
-    for (const file of value.files) {
-      const name = file.path.normalize("NFC").toLowerCase();
-      if (names.has(name))
-        ctx.addIssue({ code: "custom", message: "Duplicate capability path" });
-      names.add(name);
-      bytes += file.bytes;
-    }
-    if (bytes !== value.archive.unpackedBytes)
-      ctx.addIssue({ code: "custom", message: "Unpacked size mismatch" });
+    checkSharedInventory(value, ctx);
     for (const path of [value.entrypoint, value.officeExecutable])
       if (!value.files.some((file) => file.path === path && file.executable))
         ctx.addIssue({
@@ -151,12 +168,65 @@ export const capabilityPackManifestSchema = z
         });
     }
   });
+
+const softwareReleaseHost =
+  "https://github.com/EurekaRaider/ArtemisRelease/releases/download/";
+
+/**
+ * Software-only packs (no native engine, e.g. plugin packages). Same trust
+ * machinery — signed inventory, digest-pinned archive, semver host range —
+ * but no executables to notarize. Archive URLs are pinned to a per-pack
+ * release tag on the same release host as office-core.
+ */
+const softwareCapabilityPackManifestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: capabilityPackIdSchema.refine((id) => id !== "office-core", {
+      message: "Reserved capability pack id",
+    }),
+    version,
+    hostRange: z.string().min(1).max(100),
+    platform: z.enum(["darwin", "win32"]),
+    arch: z.enum(["arm64", "x64"]),
+    sourceDigest: digest,
+    archive: z
+      .object({
+        url: z
+          .string()
+          .url()
+          .refine((value) => value.startsWith(softwareReleaseHost)),
+        sha256: digest,
+        downloadBytes: z.number().int().positive().max(1_073_741_824),
+        unpackedBytes: z.number().int().positive().max(3_221_225_472),
+      })
+      .strict(),
+    files: capabilityFilesSchema,
+    signature: capabilitySignatureSchema,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    checkSharedInventory(value, ctx);
+    if (!value.archive.url.includes(`/${value.id}-v${value.version}/`))
+      ctx.addIssue({ code: "custom", message: "Release version mismatch" });
+  });
+
+export const capabilityPackManifestSchema = z.union([
+  officeCapabilityPackManifestSchema,
+  softwareCapabilityPackManifestSchema,
+]);
 export type CapabilityPackManifest = z.infer<
   typeof capabilityPackManifestSchema
 >;
+export type OfficeCorePackManifest = z.infer<
+  typeof officeCapabilityPackManifestSchema
+>;
+export type SoftwarePackManifest = z.infer<
+  typeof softwareCapabilityPackManifestSchema
+>;
 
 export interface CapabilityPackStatus {
-  id: "office-core";
+  /** Pack namespace, e.g. "office-core"; one service instance manages one pack. */
+  id: string;
   availableVersion?: string;
   updateVersion?: string;
   canCheckUpdates?: boolean;
