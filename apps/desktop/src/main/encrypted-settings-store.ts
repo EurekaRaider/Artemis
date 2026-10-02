@@ -1,3 +1,7 @@
+import {
+  parseSkinSelection,
+  type SkinSelection,
+} from "../shared/appearance.js";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
@@ -49,6 +53,7 @@ interface PersistedSettings {
   addedModels?: AddedModelConfiguration[];
   language?: AppLanguage;
   theme?: AppTheme;
+  skinSelection?: SkinSelection | null;
   preventSleep?: boolean;
   approvalPolicy?: ApprovalPolicy;
   localFullAccess?: boolean;
@@ -323,6 +328,23 @@ export class EncryptedSettingsStore {
       throw new Error("Invalid sleep preference.");
     const settings = await this.load();
     settings.preventSleep = enabled;
+    await this.save(settings);
+  }
+
+  async skinSelection(): Promise<SkinSelection | null> {
+    const settings = await this.load();
+    try {
+      return parseSkinSelection(settings.skinSelection ?? null);
+    } catch {
+      settings.skinSelection = null;
+      await this.save(settings);
+      return null;
+    }
+  }
+
+  async setSkinSelection(value: SkinSelection | null): Promise<void> {
+    const settings = await this.load();
+    settings.skinSelection = parseSkinSelection(value);
     await this.save(settings);
   }
 

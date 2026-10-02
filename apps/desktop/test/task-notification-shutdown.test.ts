@@ -64,6 +64,7 @@ describe("task notification shutdown", () => {
       const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
       const mcpClientManager = undefined, agentProcess = undefined, computerUseHost = undefined;
       const trustedExtensionManager = undefined;
+      const appearanceService = undefined;
       const setLicenseShutdown = () => {};
       const threadHistoryService = undefined, releaseUpdateManager = undefined;
       const sleepPrevention = { dispose: () => {} };

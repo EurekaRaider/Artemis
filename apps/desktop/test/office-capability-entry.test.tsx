@@ -60,12 +60,12 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
   }));
   stubWindowArtemis({
     listMcpServers: async () => [],
-    listCodexPlugins: async () =>
+    listArtemisPlugins: async () =>
       plugins.map(
         ({ capabilityDependencies: _dependencies, ...plugin }) => plugin,
       ),
     listInstalledSkills: async () => [],
-    getCodexPluginMarketplaces: async () => ({
+    getArtemisPluginMarketplaces: async () => ({
       selectedView: "bundled",
       sources: [
         {
@@ -78,7 +78,7 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
       marketplaces: [],
       errors: [],
     }),
-    loadCodexRuntimeMarketplace: async () => ({
+    loadBundledPluginMarketplace: async () => ({
       name: "Bundled",
       marketplaceName: "bundled",
       plugins,

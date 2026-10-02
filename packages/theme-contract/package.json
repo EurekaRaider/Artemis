@@ -1,6 +1,6 @@
 {
   "name": "@artemis/theme-contract",
-  "version": "1.6.17",
+  "version": "1.6.18",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -13,7 +13,11 @@
     "./schema/manifest.json": "./dist/schema/manifest.schema.json",
     "./schema/tokens.json": "./dist/schema/tokens.schema.json",
     "./schema/integrity.json": "./dist/schema/integrity.schema.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./schema/manifest-v2.json": "./dist/schema/manifest-v2.schema.json",
+    "./schema/integrity-v2.json": "./dist/schema/integrity-v2.schema.json",
+    "./schema/icons.json": "./dist/schema/icons.schema.json",
+    "./schema/motion.json": "./dist/schema/motion.schema.json"
   },
   "files": [
     "dist"

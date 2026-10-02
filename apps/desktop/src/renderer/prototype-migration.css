@@ -1376,7 +1376,7 @@ body:has(.app-shell[data-platform="darwin"]),
   border: 1px solid var(--border);
   border-radius: var(--artemis-radius-control);
   background: var(--artemis-color-surface-sunken);
-  font-family: var(--artemis-typography-code-family, monospace);
+  font-family: var(--artemis-typography-mono-family);
   font-size: 12px;
   line-height: 1.65;
   white-space: pre-wrap;

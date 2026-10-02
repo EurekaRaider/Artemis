@@ -1,21 +1,21 @@
-# Artemis v1.6.17
+# Artemis v1.6.18
 
 ## 中文
 
-- **时间线媒体预览**：图片支持内嵌显示和放大，动态 SVG 保留动画；本地音频提供播放控件，与已有视频预览一起保留流式回复期间的播放状态。
-- **图表与公式**：Mermaid 代码块渲染为可放大的图表，LaTeX 行内与块级公式直接显示；保留源码查看、复制和渲染失败提示。
-- **交互式 HTML**：本地 HTML 在隔离预览中加载同目录脚本、样式、图片与字体，支持交互和刷新；不开放网络、Node.js、应用接口或任意本地文件访问。
-- **Office 与 PDF 文件卡片**：时间线统一显示文件卡片，点击进入现有右侧预览流程；不在时间线加载 Office 编辑器或启动文档转换。
-- **加载与恢复**：预览靠近视口时加载，重复文件引用复用预览；追加消息保留图片、播放器和 HTML 交互状态，加载失败可重试。
+- **视觉皮肤**：在设置中预览、应用皮肤或恢复默认，应用后的选择在重启时恢复。Skin v2 支持明暗壁纸、静音视频背景、字体、语义图标与宿主动效预设，并提供高对比度和减少动态效果支持。
+- **资源生命周期**：皮肤从已安装插件提供；插件变更时释放旧资源。窗口隐藏、最小化、系统休眠或锁屏时暂停背景视频。
+- **Artemis 原生插件格式**：插件使用 `artemis.plugin.json`，市场使用 `.artemis/marketplace.json`，均声明 `schemaVersion: 1`。已有插件数据在保留备份后迁移；开发指南、内置插件和 Hooks 示例同步到新格式。
+- **Pi 引擎**：升级 Pi SDK 至 **1.0.0**，继续由 Artemis 管理工具暴露、执行权限与唯一 Agent 循环。
+- **文档与开发工具**：正式指南和图片归入 `docs/guides`、`docs/assets`，示例、原型与方案分别归入根级目录；新增皮肤验证、打包、预览工具和完整示例。
 
 发布目标为 macOS arm64（签名、公证 DMG/ZIP）与 Windows x64（未签名 ZIP），沿用已发布 Office Runtime。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
 
 ## English
 
-- **Timeline media previews**: display and enlarge images, preserve animated SVGs, and play local audio with native controls. Audio and existing video previews retain playback state while replies stream.
-- **Diagrams and formulas**: render Mermaid code blocks as expandable diagrams and display inline or block LaTeX formulas, with source viewing, copying and render-failure feedback.
-- **Interactive HTML**: load local scripts, styles, images and fonts from the document directory in an isolated preview with interaction and refresh controls. Network, Node.js, application APIs and arbitrary local files remain inaccessible.
-- **Office and PDF file cards**: display compact timeline cards that open the existing right-side preview flow, without loading Office editors or starting document conversion in the timeline.
-- **Loading and recovery**: load previews near the viewport, reuse duplicate file references, and preserve image, playback and HTML interaction state as messages grow. Failed previews can be retried.
+- **Visual skins**: preview, apply or restore the default skin in Settings, with applied selections restored after restart. Skin v2 supports light/dark wallpapers, muted video backgrounds, fonts, semantic icons and host motion presets, plus high-contrast and reduced-motion support.
+- **Resource lifecycle**: installed plugins provide skins, and plugin changes release previous resources. Background video pauses while the window is hidden or minimized, or the system sleeps or locks.
+- **Native Artemis plugin format**: plugins use `artemis.plugin.json`, marketplaces use `.artemis/marketplace.json`, and both declare `schemaVersion: 1`. Existing plugin data migrates with a retained backup. Developer guides, bundled plugins and Hooks examples use the new format.
+- **Pi engine**: upgrade the Pi SDK to **1.0.0**, with Artemis retaining control of tool exposure, execution permissions and the single agent loop.
+- **Documentation and developer tools**: consolidate guides and images under `docs/guides` and `docs/assets`, and move examples, prototypes and plans to dedicated root directories. Add skin validation, packaging and preview tools with complete examples.
 
 Release targets are macOS arm64 (signed, notarized DMG/ZIP) and Windows x64 (unsigned ZIP), reusing published Office runtimes. Intel macOS remains a local packaging target and is not included in this CD release.

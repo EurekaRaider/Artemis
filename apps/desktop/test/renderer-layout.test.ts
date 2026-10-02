@@ -164,7 +164,7 @@ const releaseBuilderSource = readFileSync(
 const bundledMarketplaceSource = readFileSync(
   fileURLToPath(
     new URL(
-      "../resources/bundled-artifact-plugins/.agents/plugins/marketplace.json",
+      "../resources/bundled-artifact-plugins/.artemis/marketplace.json",
       import.meta.url,
     ),
   ),
@@ -799,7 +799,7 @@ describe("renderer layout contract", () => {
 
   it("uses a compact Codex-style slash menu and keeps selected Skills visible", () => {
     expect(appSource).toContain(".listInstalledSkills()");
-    expect(appSource).toContain(".listCodexPlugins()");
+    expect(appSource).toContain(".listArtemisPlugins()");
     expect(appSource).toContain('className="slash-command-menu"');
     expect(appSource).toContain("ref={slashCommandMenu}");
     expect(appSource).toContain("installedPluginBySkillName");
@@ -1022,7 +1022,7 @@ describe("renderer layout contract", () => {
     expect(composerContextSource).toContain("<CodexSelect");
     expect(composerContextSource).toContain('from "./CodexSelect.js"');
     expect(cssRule(":root").replace(/\s+/gu, " ")).toContain(
-      '--ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
+      "--ui-font: var(--artemis-typography-body-family);",
     );
     expect(uiStylesSource).toContain(
       '[data-artemis-component="select"] [data-part="menu"]',
@@ -2601,48 +2601,52 @@ describe("renderer layout contract", () => {
     expect(uiText("en", "ResourceCenter_labels.plugins")).toBe("Plugins");
     expect(uiText("zh-CN", "ResourceCenter_labels.plugins")).toBe("插件");
     expect(resourceCenterSource).toContain(
-      "window.artemis.getCodexPluginMarketplaces()",
+      "window.artemis.getArtemisPluginMarketplaces()",
     );
     expect(resourceCenterSource).toContain(
-      "window.artemis.inspectLocalCodexPlugin()",
+      "window.artemis.inspectLocalArtemisPlugin()",
     );
     expect(resourceCenterSource).toContain(
-      "window.artemis.addCodexPluginMarketplace(",
+      "window.artemis.addArtemisPluginMarketplace(",
     );
     expect(resourceCenterSource).toContain(
-      "window.artemis.refreshCodexPluginMarketplace(",
+      "window.artemis.refreshArtemisPluginMarketplace(",
     );
     expect(resourceCenterSource).toContain(
-      "window.artemis.reorderCodexPluginMarketplaces(",
+      "window.artemis.reorderArtemisPluginMarketplaces(",
     );
     expect(resourceCenterSource).toContain(
-      "window.artemis.removeCodexPluginMarketplace(",
+      "window.artemis.removeArtemisPluginMarketplace(",
     );
     expect(resourceCenterSource).toContain(
-      "window.artemis.installCodexPlugin(",
+      "window.artemis.installArtemisPlugin(",
     );
-    expect(resourceCenterSource).toContain("window.artemis.updateCodexPlugin(");
-    expect(resourceCenterSource).toContain("window.artemis.removeCodexPlugin(");
+    expect(resourceCenterSource).toContain(
+      "window.artemis.updateArtemisPlugin(",
+    );
+    expect(resourceCenterSource).toContain(
+      "window.artemis.removeArtemisPlugin(",
+    );
     expect(uiText("en", "ResourceCenter_labels.confirmPlugin")).toContain(
       "MCP servers and Connectors will be enabled",
     );
 
     for (const method of [
-      "listCodexPlugins",
-      "inspectLocalCodexPlugin",
-      "loadCodexPluginMarketplace",
-      "getCodexPluginMarketplaces",
-      "addCodexPluginMarketplace",
-      "selectCodexPluginMarketplace",
-      "refreshCodexPluginMarketplace",
-      "removeCodexPluginMarketplace",
-      "reorderCodexPluginMarketplaces",
-      "loadCodexRuntimeMarketplace",
-      "installCodexRuntimePlugins",
-      "installCodexPlugin",
-      "updateCodexPlugin",
-      "setCodexPluginEnabled",
-      "removeCodexPlugin",
+      "listArtemisPlugins",
+      "inspectLocalArtemisPlugin",
+      "loadArtemisPluginMarketplace",
+      "getArtemisPluginMarketplaces",
+      "addArtemisPluginMarketplace",
+      "selectArtemisPluginMarketplace",
+      "refreshArtemisPluginMarketplace",
+      "removeArtemisPluginMarketplace",
+      "reorderArtemisPluginMarketplaces",
+      "loadBundledPluginMarketplace",
+      "installBundledPlugins",
+      "installArtemisPlugin",
+      "updateArtemisPlugin",
+      "setArtemisPluginEnabled",
+      "removeArtemisPlugin",
     ]) {
       expect(apiSource).toContain(`${method}(`);
       expect(preloadSource).toContain(`${method}:`);
@@ -2668,10 +2672,10 @@ describe("renderer layout contract", () => {
       expect(preloadSource).toContain(`IPC.${channel}`);
       expect(mainProcessSource).toContain(`IPC.${channel}`);
     }
-    expect(mainProcessSource).toContain("new CodexPluginService({");
-    expect(mainProcessSource).toContain('"codex-plugins"');
-    expect(mainProcessSource).toContain('"codex-plugins.json"');
-    expect(mainProcessSource).toContain('"codex-plugin-marketplaces.json"');
+    expect(mainProcessSource).toContain("new ArtemisPluginService({");
+    expect(mainProcessSource).toContain('"plugins"');
+    expect(mainProcessSource).toContain('"plugins.json"');
+    expect(mainProcessSource).toContain('"plugin-marketplaces.json"');
     expect(mainProcessSource).toContain(
       "bundledArtifactRoot: bundledArtifactPluginsPath()",
     );
@@ -3133,9 +3137,11 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("{t.gitMarketplace}");
     expect(resourceCenterSource).toContain("{t.offlineMarketplace}");
     expect(resourceCenterSource).toContain(
-      "inspectOfflineCodexPluginMarketplace",
+      "inspectOfflineArtemisPluginMarketplace",
     );
-    expect(resourceCenterSource).toContain("addOfflineCodexPluginMarketplace");
+    expect(resourceCenterSource).toContain(
+      "addOfflineArtemisPluginMarketplace",
+    );
     expect(resourceCenterSource).toContain("{t.localPlugin}");
     expect(settingsSource).not.toContain("window.artemis.trustExtension");
     expect(settingsSource).not.toContain("window.artemis.retrustExtension");

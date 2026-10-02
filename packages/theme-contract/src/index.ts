@@ -53,3 +53,16 @@ export type {
   ThemeTokenValue,
   ValidatedSkinPackage,
 } from "./types.js";
+export * from "./visual-skin.js";
+export {
+  generateSkinCss,
+  generateSkinMotionCss,
+  SKIN_FONT_STACKS,
+} from "./css.js";
+export { SKIN_ICON_NAMES } from "./skin-icon-names.js";
+export {
+  visualSkinManifestSchema,
+  visualSkinIntegritySchema,
+  skinIconsSchema,
+  skinMotionSchema,
+} from "./visual-schema.js";

@@ -68,18 +68,18 @@ describe("Installed plugin toggle", () => {
       },
     }));
     stubWindowArtemis({
-      listCodexPlugins: async () => [plugin],
+      listArtemisPlugins: async () => [plugin],
       listInstalledSkills: async () => [],
       listMcpServers: async () => [{ config, state: "disconnected" }],
-      getCodexPluginMarketplaces: async () => ({
+      getArtemisPluginMarketplaces: async () => ({
         sources: [],
         marketplaces: [],
         errors: [],
         selectedView: "local",
       }),
-      loadCodexRuntimeMarketplace: async () => undefined,
+      loadBundledPluginMarketplace: async () => undefined,
       onResourceInstallProgress: () => () => {},
-      setCodexPluginEnabled: setEnabled,
+      setArtemisPluginEnabled: setEnabled,
     });
     render(
       <ResourceCenter
@@ -135,15 +135,15 @@ describe("MCP configuration toggles", () => {
     );
     stubWindowArtemis({
       listMcpServers: async () => servers,
-      listCodexPlugins: async () => [],
+      listArtemisPlugins: async () => [],
       listInstalledSkills: async () => [],
-      getCodexPluginMarketplaces: async () => ({
+      getArtemisPluginMarketplaces: async () => ({
         sources: [],
         marketplaces: [],
         errors: [],
         selectedView: "local",
       }),
-      loadCodexRuntimeMarketplace: async () => undefined,
+      loadBundledPluginMarketplace: async () => undefined,
       onResourceInstallProgress: () => () => {},
       setMcpServerEnabled: setEnabled,
     });

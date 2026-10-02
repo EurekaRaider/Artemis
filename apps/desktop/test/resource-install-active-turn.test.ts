@@ -47,7 +47,7 @@ function fixture(channel: (typeof channels)[number]) {
     randomUUID: () => "request",
     resourceInstallOperationId: (id: string) => id,
     publishResourceInstallProgress: vi.fn(),
-    codexPluginService: {
+    artemisPluginService: {
       install,
       loadBundledArtifactMarketplace: async () => ({
         name: "Bundled plugins",
@@ -64,7 +64,7 @@ function fixture(channel: (typeof channels)[number]) {
     mcpConfigStore: { list: async () => [{ id: "new-server", enabled: true }] },
     reconnectEnabledMcpServers: vi.fn(),
     applyAgentRuntime: vi.fn(),
-    codexPluginMutationResult: (warnings: string[]) => ({ warnings }),
+    artemisPluginMutationResult: (warnings: string[]) => ({ warnings }),
     mainWindow: {},
     dialog: {
       showOpenDialog: async () => ({ filePaths: ["/tmp/new-skill"] }),

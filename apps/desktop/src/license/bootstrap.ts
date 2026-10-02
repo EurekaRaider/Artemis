@@ -23,6 +23,15 @@ import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
 
 protocol.registerSchemesAsPrivileged([
   {
+    scheme: "artemis-skin",
+    privileges: {
+      standard: true,
+      secure: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+  {
     scheme: WORKSPACE_HTML_SCHEME,
     privileges: { standard: true, secure: true, corsEnabled: true },
   },

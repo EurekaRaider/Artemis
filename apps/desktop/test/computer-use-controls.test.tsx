@@ -54,7 +54,10 @@ it("stops, resumes and revokes the actual target's grant", async () => {
   expect(unsubscribe).toHaveBeenCalledOnce();
 
   render(<ComputerUseControls locale="zh-CN" permissionsOnly />);
-  await user.click(screen.getByRole("button", { name: "应用授权" }));
+  expect(await screen.findByRole("list", { name: "应用授权" })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "应用授权" }),
+  ).not.toBeInTheDocument();
   expect(
     await screen.findByText("本任务自主操作 · 仅后台操作 · 填写表单"),
   ).toBeVisible();

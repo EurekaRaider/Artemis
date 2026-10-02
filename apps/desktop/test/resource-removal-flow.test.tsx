@@ -62,15 +62,15 @@ it("confirms the named MCP or Skill before removing it and preserves cancellatio
   const genericConfirm = vi.fn(async () => true);
   const changed = vi.fn();
   stubWindowArtemis({
-    listCodexPlugins: async () => [],
+    listArtemisPlugins: async () => [],
     listInstalledSkills: async () => [skill],
     listMcpServers: async () => [server],
-    getCodexPluginMarketplaces: async () => ({
+    getArtemisPluginMarketplaces: async () => ({
       sources: [],
       marketplaces: [],
       errors: [],
     }),
-    loadCodexRuntimeMarketplace: async () => undefined,
+    loadBundledPluginMarketplace: async () => undefined,
     onResourceInstallProgress: () => () => {},
     removeMcpServer: removeMcp,
     removeSkill,

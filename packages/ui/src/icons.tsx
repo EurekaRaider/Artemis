@@ -1,4 +1,9 @@
-import type { ReactNode, SVGProps } from "react";
+import {
+  createContext,
+  useContext,
+  type ReactNode,
+  type SVGProps,
+} from "react";
 import {
   ARTEMIS_CODE_ICON_PATH,
   ARTEMIS_MARKDOWN_ICON_PATH,
@@ -132,9 +137,46 @@ export const ARTEMIS_ICON_NAMES = [
   "web-video",
 ] as const;
 
-export type ArtemisIconName = (typeof ARTEMIS_ICON_NAMES)[number];
+export const ARTEMIS_VISUAL_ICON_NAMES = [
+  "undo",
+  "expand",
+  "collapse",
+  "external",
+  "commit",
+  "pull-request",
+  "worktree",
+  "stop",
+] as const;
+export type ArtemisIconName =
+  | (typeof ARTEMIS_ICON_NAMES)[number]
+  | (typeof ARTEMIS_VISUAL_ICON_NAMES)[number];
 
 const ARTEMIS_ICON_GLYPHS = {
+  undo: <path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-3" />,
+  expand: <path d="M14.5 4H20v5.5M20 4l-5.5 5.5M9.5 20H4v-5.5M4 20l5.5-5.5" />,
+  collapse: <path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" />,
+  external: (
+    <>
+      <path d="M14 4h6v6M20 4l-9 9" />
+      <path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" />
+    </>
+  ),
+  commit: (
+    <>
+      <path d="M3.5 12h5M15.5 12h5" />
+      <circle cx="12" cy="12" r="3.5" />
+    </>
+  ),
+  "pull-request": (
+    <>
+      <circle cx="6" cy="5.5" r="1.75" />
+      <circle cx="6" cy="18.5" r="1.75" />
+      <circle cx="18" cy="18.5" r="1.75" />
+      <path d="M6 7.25v9.5M18 16.75V8a3 3 0 0 0-3-3h-3m2.5-2.5L12 5l2.5 2.5" />
+    </>
+  ),
+  worktree: <path d="M4 12h4l12-9M14 3h6v6M12 15l8 6M14 21h6v-6" />,
+  stop: <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" />,
   unlink: (
     <>
       <path d="m9.2 14.8 5.6-5.6" />
@@ -844,19 +886,87 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
 } satisfies Readonly<Record<ArtemisIconName, ReactNode>>;
 
+export type ArtemisIconGeometry =
+  | { readonly type: "path"; readonly d: string; readonly fill?: boolean }
+  | {
+      readonly type: "circle";
+      readonly cx: number;
+      readonly cy: number;
+      readonly r: number;
+      readonly fill?: boolean;
+    }
+  | {
+      readonly type: "rect";
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+      readonly rx?: number;
+      readonly fill?: boolean;
+    }
+  | {
+      readonly type: "line";
+      readonly x1: number;
+      readonly y1: number;
+      readonly x2: number;
+      readonly y2: number;
+    };
+const SkinIconContext = createContext<
+  Readonly<Record<string, readonly ArtemisIconGeometry[]>>
+>({});
+export function ArtemisIconProvider({
+  icons,
+  children,
+}: {
+  readonly icons: Readonly<Record<string, readonly ArtemisIconGeometry[]>>;
+  readonly children: ReactNode;
+}) {
+  return (
+    <SkinIconContext.Provider value={icons}>
+      {children}
+    </SkinIconContext.Provider>
+  );
+}
+function SkinIconShape({ shape }: { readonly shape: ArtemisIconGeometry }) {
+  const fill = "fill" in shape && shape.fill ? "currentColor" : "none";
+  switch (shape.type) {
+    case "path":
+      return <path d={shape.d} fill={fill} />;
+    case "circle":
+      return <circle cx={shape.cx} cy={shape.cy} r={shape.r} fill={fill} />;
+    case "rect":
+      return (
+        <rect
+          x={shape.x}
+          y={shape.y}
+          width={shape.width}
+          height={shape.height}
+          rx={shape.rx}
+          fill={fill}
+        />
+      );
+    case "line":
+      return <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} />;
+  }
+}
+
 export interface ArtemisIconProps extends Omit<
   SVGProps<SVGSVGElement>,
   "children"
 > {
   readonly name: ArtemisIconName;
+  readonly fallback?: ReactNode;
 }
 
 export function ArtemisIcon({
   height = "1em",
+  fallback,
   name,
+  strokeWidth = 1.5,
   width = "1em",
   ...props
 }: ArtemisIconProps) {
+  const override = useContext(SkinIconContext)[name];
   return (
     <svg
       {...props}
@@ -868,11 +978,15 @@ export function ArtemisIcon({
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth={1.5}
+      strokeWidth={strokeWidth}
       viewBox="0 0 24 24"
       width={width}
     >
-      {ARTEMIS_ICON_GLYPHS[name]}
+      {override
+        ? override.map((shape, index) => (
+            <SkinIconShape key={index} shape={shape} />
+          ))
+        : (fallback ?? ARTEMIS_ICON_GLYPHS[name])}
     </svg>
   );
 }

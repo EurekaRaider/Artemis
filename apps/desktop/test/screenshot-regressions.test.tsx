@@ -371,15 +371,15 @@ describe("reported screenshot regressions", () => {
     stubWindowArtemis({
       listMcpServers: async () => servers,
       listInstalledSkills: async () => [],
-      listCodexPlugins: async () => [],
+      listArtemisPlugins: async () => [],
       onResourceInstallProgress: () => () => {},
-      getCodexPluginMarketplaces: async () => ({
+      getArtemisPluginMarketplaces: async () => ({
         selectedView: "local",
         sources: [],
         marketplaces: [],
         errors: [],
       }),
-      loadCodexRuntimeMarketplace: async () => undefined,
+      loadBundledPluginMarketplace: async () => undefined,
       setMcpServerEnabled: toggle,
     });
     const { container } = render(

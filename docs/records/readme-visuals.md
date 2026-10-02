@@ -7,9 +7,9 @@
 覆盖当前工作区、插件市场、安装确认、消息接入和群协作界面。
 
 所有截图均为 **1440 × 850 CSS 像素、100% 缩放的完整应用视口**。
-[主清单](../images/screenshots/manifest.json)记录采集时间、源码 HEAD、工作区说明、
+[主清单](../assets/screenshots/manifest.json)记录采集时间、源码 HEAD、工作区说明、
 主进程与 preload 构建摘要、Renderer 入口摘要、图片尺寸和 SHA-256。
-[环境面板清单](../images/screenshots/environment-manifest.json)保留同次采集的两张面板截图。
+[环境面板清单](../assets/screenshots/environment-manifest.json)保留同次采集的两张面板截图。
 本次 HEAD 为 `458101125146fc1d9ebecbc56158413aa22b2b8b`，构建包含采集时的本地改动，
 不代表这个提交本身或签名发行包的验收结果。
 
@@ -36,25 +36,25 @@ Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插�
 
 | 截图                                                              | 展示内容                                        |
 | ----------------------------------------------------------------- | ----------------------------------------------- |
-| [浅色工作区](../images/screenshots/workspace-light.png)           | 项目、持久任务、Markdown 与输入区               |
-| [深色工作区](../images/screenshots/workspace-dark.png)            | 同一任务的深色主题                              |
-| [中文工作区](../images/screenshots/workspace-zh-CN.png)           | 中文导航与任务操作                              |
-| [浅色环境面板](../images/screenshots/environment-panel-light.png) | Git、Agent 活动和来源摘要                       |
-| [深色环境面板](../images/screenshots/environment-panel-dark.png)  | 同一面板的深色主题                              |
-| [Git Review](../images/screenshots/git-review.png)                | 演示仓库的真实未暂存差异                        |
-| [文件与 Markdown](../images/screenshots/markdown-files.png)       | 文档阅读与工作区标签页                          |
-| [Terminal](../images/screenshots/terminal.png)                    | 原生 PTY 和真实 Git 输出                        |
-| [Agent team](../images/screenshots/agent-team.png)                | 两个已完成的演示子任务                          |
-| [插件市场](../images/screenshots/resources.png)                   | Plugins、MCP、Skills 三个页签与四个内置文档插件 |
-| [插件安装确认](../images/screenshots/plugin-install.png)          | 能力数量和安装后的默认启用状态                  |
-| [通用设置](../images/screenshots/settings-general.png)            | 头像、语言、主题和防止系统休眠设置              |
-| [Token 用量](../images/screenshots/token-usage.png)               | 演示用量、热图和统计                            |
-| [定时任务](../images/screenshots/automations.png)                 | 两个暂停的每周任务                              |
-| [消息接入](../images/screenshots/im-connections.png)              | 服务状态、渠道和独立群授权入口                  |
-| [渠道设置](../images/screenshots/im-channel-settings.png)         | Slack 连接、配对账号和验证入口                  |
-| [群授权入口](../images/screenshots/im-spaces.png)                 | 原生群选择、状态与打开对话操作                  |
-| [浅色群对话](../images/screenshots/im-group-chat.png)             | 合成成员、请求内容和协作结果                    |
-| [深色群对话](../images/screenshots/im-group-chat-dark.png)        | 同一群对话的深色主题                            |
+| [浅色工作区](../assets/screenshots/workspace-light.png)           | 项目、持久任务、Markdown 与输入区               |
+| [深色工作区](../assets/screenshots/workspace-dark.png)            | 同一任务的深色主题                              |
+| [中文工作区](../assets/screenshots/workspace-zh-CN.png)           | 中文导航与任务操作                              |
+| [浅色环境面板](../assets/screenshots/environment-panel-light.png) | Git、Agent 活动和来源摘要                       |
+| [深色环境面板](../assets/screenshots/environment-panel-dark.png)  | 同一面板的深色主题                              |
+| [Git Review](../assets/screenshots/git-review.png)                | 演示仓库的真实未暂存差异                        |
+| [文件与 Markdown](../assets/screenshots/markdown-files.png)       | 文档阅读与工作区标签页                          |
+| [Terminal](../assets/screenshots/terminal.png)                    | 原生 PTY 和真实 Git 输出                        |
+| [Agent team](../assets/screenshots/agent-team.png)                | 两个已完成的演示子任务                          |
+| [插件市场](../assets/screenshots/resources.png)                   | Plugins、MCP、Skills 三个页签与四个内置文档插件 |
+| [插件安装确认](../assets/screenshots/plugin-install.png)          | 能力数量和安装后的默认启用状态                  |
+| [通用设置](../assets/screenshots/settings-general.png)            | 头像、语言、主题和防止系统休眠设置              |
+| [Token 用量](../assets/screenshots/token-usage.png)               | 演示用量、热图和统计                            |
+| [定时任务](../assets/screenshots/automations.png)                 | 两个暂停的每周任务                              |
+| [消息接入](../assets/screenshots/im-connections.png)              | 服务状态、渠道和独立群授权入口                  |
+| [渠道设置](../assets/screenshots/im-channel-settings.png)         | Slack 连接、配对账号和验证入口                  |
+| [群授权入口](../assets/screenshots/im-spaces.png)                 | 原生群选择、状态与打开对话操作                  |
+| [浅色群对话](../assets/screenshots/im-group-chat.png)             | 合成成员、请求内容和协作结果                    |
+| [深色群对话](../assets/screenshots/im-group-chat-dark.png)        | 同一群对话的深色主题                            |
 
 ## 复现与验证
 
@@ -64,10 +64,10 @@ Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插�
 ```bash
 npm run build
 ARTEMIS_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
-  node docs/scripts/capture-readme.mjs /tmp/artemis-readme-capture
+  node scripts/capture-readme.mjs /tmp/artemis-readme-capture
 ```
 
-省略输出目录时，脚本写入 `docs/images/screenshots/`。建议先采集到临时目录，
+省略输出目录时，脚本写入 `docs/assets/screenshots/`。建议先采集到临时目录，
 完成原图检查后再替换正式图片和清单。脚本采用 macOS 标题栏布局，不能作为 Windows
 或 Intel macOS 实机视觉验收的替代。
 
@@ -90,10 +90,10 @@ ARTEMIS_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
 画布统一为 **1280 × 840**，保留已有 Artemis 浅色风格、蓝色重点节点和系统字体；
 没有外部字体、脚本或网络资源。
 
-| 图            | 源文件                                               | README 导出物                                    |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------ |
-| 桌面架构      | [HTML](../diagrams/artemis-system-architecture.html) | [SVG](../images/artemis-system-architecture.svg) |
-| IM 原生群协作 | [HTML](../diagrams/artemis-im-collaboration.html)    | [SVG](../images/artemis-im-collaboration.svg)    |
+| 图            | 源文件                                             | README 导出物                                    |
+| ------------- | -------------------------------------------------- | ------------------------------------------------ |
+| 桌面架构      | [HTML](../assets/artemis-system-architecture.html) | [SVG](../assets/artemis-system-architecture.svg) |
+| IM 原生群协作 | [HTML](../assets/artemis-im-collaboration.html)    | [SVG](../assets/artemis-im-collaboration.svg)    |
 
 桌面图以八个节点说明 Renderer、Main、Pi Agent Host、本地状态、能力与工具、
 IM 服务及外部服务。`PiAdapter` 位于 Agent Host，输出 Artemis 协议事件；Main

@@ -38,7 +38,7 @@
   font-size: 13px;
   color: var(--muted);
   margin: 0 8px 12px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--artemis-typography-mono-family);
 }
 .decision-reason {
   margin: 0 0 12px;

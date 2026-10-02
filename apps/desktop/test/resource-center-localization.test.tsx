@@ -89,10 +89,10 @@ it("updates marketplace names and searches localized descriptions after a langua
   }));
   stubWindowArtemis({
     listMcpServers: async () => [],
-    listCodexPlugins: async () => [],
+    listArtemisPlugins: async () => [],
     listInstalledSkills: async () => [],
-    getCodexPluginMarketplaces: loadMarket,
-    loadCodexRuntimeMarketplace: async () => undefined,
+    getArtemisPluginMarketplaces: loadMarket,
+    loadBundledPluginMarketplace: async () => undefined,
     onResourceInstallProgress: () => () => {},
   });
   const props = {
@@ -135,9 +135,9 @@ it("switches bundled Office descriptions only when the capability is active and 
   );
   stubWindowArtemis({
     listMcpServers: async () => [],
-    listCodexPlugins: async () => [],
+    listArtemisPlugins: async () => [],
     listInstalledSkills: async () => [],
-    getCodexPluginMarketplaces: async () => ({
+    getArtemisPluginMarketplaces: async () => ({
       ...market,
       marketplaces: [
         {
@@ -146,7 +146,7 @@ it("switches bundled Office descriptions only when the capability is active and 
         },
       ],
     }),
-    loadCodexRuntimeMarketplace: async () => ({
+    loadBundledPluginMarketplace: async () => ({
       name: "runtime",
       marketplaceName: "runtime",
       plugins,

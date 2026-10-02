@@ -413,7 +413,7 @@
       "value": "0 9px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Context selector matches the frozen v69 26px context row with a separate leading icon. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Context selector matches the frozen v69 26px context row with a separate leading icon. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -422,7 +422,7 @@
       "value": "6px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Context selector indicator spacing from v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Context selector indicator spacing from v69. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -431,7 +431,7 @@
       "value": "27px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Reserve the measured 13px context icon and its spacing in v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Reserve the measured 13px context icon and its spacing in v69. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -440,7 +440,7 @@
       "value": "5px 10px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Settings row actions follow the v69 compact 28px control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Settings row actions follow the v69 compact 28px control. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -449,7 +449,7 @@
       "value": "9px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Settings section actions use v69 row separation. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Settings section actions use v69 row separation. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -458,7 +458,7 @@
       "value": "5px 10px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Settings controls align with the v69 29px field geometry. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Settings controls align with the v69 29px field geometry. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -467,7 +467,7 @@
       "value": "6px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Multiline settings content follows v69 section spacing. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Multiline settings content follows v69 section spacing. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -476,7 +476,7 @@
       "value": "6px 10px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "The settings editor uses the frozen v69 internal text inset. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "The settings editor uses the frozen v69 internal text inset. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -485,7 +485,7 @@
       "value": "5px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "The five-column v69 summary uses 5px between the value and label. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "The five-column v69 summary uses 5px between the value and label. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -494,7 +494,7 @@
       "value": "5px 10px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Automation card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Automation card actions use v69 28px compact controls. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -503,7 +503,7 @@
       "value": "5px 10px",
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Catalogue card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+      "reason": "Catalogue card actions use v69 28px compact controls. Reference: prototypes/apple-inspired-ui-validation.md."
     },
     {
       "atRules": [],
@@ -593,7 +593,7 @@
       "value": "#fff",
       "important": false,
       "owner": "Issues #171 and #175 management switch prototype parity",
-      "reason": "The approved prototype in docs/ui-prototype/ui/primitives/controls.css uses a white thumb in both themes. Existing inverse/surface/status tokens change by theme; scope this exact color to resource and settings switches. Verified in real Electron in dark and light modes."
+      "reason": "The approved prototype in prototypes/ui/primitives/controls.css uses a white thumb in both themes. Existing inverse/surface/status tokens change by theme; scope this exact color to resource and settings switches. Verified in real Electron in dark and light modes."
     },
     {
       "atRules": [],

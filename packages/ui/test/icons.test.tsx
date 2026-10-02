@@ -6,9 +6,33 @@ import {
   ARTEMIS_ICON_NAMES,
   ARTEMIS_ICON_SOURCE,
   ArtemisIcon,
+  ArtemisIconProvider,
 } from "../src/icons.js";
 
 describe("ArtemisIcon", () => {
+  it("overrides geometry without changing sizing or accessibility and falls back for missing names", () => {
+    const { container, rerender } = render(
+      <ArtemisIconProvider
+        icons={{ send: [{ type: "circle", cx: 12, cy: 12, r: 8, fill: true }] }}
+      >
+        <ArtemisIcon name="send" width={20} />
+      </ArtemisIconProvider>,
+    );
+    expect(container.querySelector("circle")?.getAttribute("fill")).toBe(
+      "currentColor",
+    );
+    expect(container.querySelector("svg")?.getAttribute("width")).toBe("20");
+    expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    rerender(
+      <ArtemisIconProvider icons={{}}>
+        <ArtemisIcon name="send" width={20} />
+      </ArtemisIconProvider>,
+    );
+    expect(container.querySelector("path")).not.toBeNull();
+    expect(container.querySelector("circle")).toBeNull();
+  });
   it("publishes the complete prototype 9556fac icon catalog and workspace brand", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe(
       "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",

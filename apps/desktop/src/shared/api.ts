@@ -1,3 +1,9 @@
+import type {
+  AppearanceState,
+  SkinSelection,
+  ResolvedSkinPackage,
+  SkinSummary,
+} from "./appearance.js";
 import type { PluginLocalizations } from "./plugin-localization.js";
 import type {
   ConnectorDefinition,
@@ -628,7 +634,7 @@ export interface InstalledSkill {
   installedAt?: string;
 }
 
-export type CodexPluginSource =
+export type ArtemisPluginSource =
   | { kind: "local"; path: string }
   | { kind: "builtin"; pluginName: "computer-use" }
   | { kind: "bundled"; pluginName: string }
@@ -641,12 +647,12 @@ export type CodexPluginSource =
       pluginName: string;
     };
 
-export interface CodexPluginSkillPreview {
+export interface ArtemisPluginSkillPreview {
   name: string;
   description: string;
 }
 
-export interface CodexPluginMcpPreview {
+export interface ArtemisPluginMcpPreview {
   connector?: ConnectorDefinition;
   name: string;
   transport: "stdio" | "streamable-http" | "unsupported";
@@ -655,7 +661,7 @@ export interface CodexPluginMcpPreview {
   requiresSetup: boolean;
 }
 
-export interface CodexPluginAppPreview {
+export interface ArtemisPluginAppPreview {
   name: string;
   connectorId?: string;
   required?: boolean;
@@ -663,7 +669,7 @@ export interface CodexPluginAppPreview {
   auth?: "none" | "bearer" | "oauth";
 }
 
-export interface CodexPluginPreview {
+export interface ArtemisPluginPreview {
   capabilityDependencies?: import("@artemis/protocol").CapabilityDependency[];
   hasHooks?: boolean;
   localizations?: PluginLocalizations;
@@ -676,18 +682,22 @@ export interface CodexPluginPreview {
   category?: string;
   brandColor?: string;
   iconDataUrl?: string;
-  source: CodexPluginSource;
+  source: ArtemisPluginSource;
   installed: boolean;
   installable: boolean;
-  skills: CodexPluginSkillPreview[];
-  mcpServers: CodexPluginMcpPreview[];
-  apps: CodexPluginAppPreview[];
+  skins?: SkinSummary[];
+  skills: ArtemisPluginSkillPreview[];
+  mcpServers: ArtemisPluginMcpPreview[];
+  apps: ArtemisPluginAppPreview[];
   unsupported: string[];
   warnings: string[];
 }
 
-export interface InstalledCodexPlugin extends CodexPluginPreview {
+export interface InstalledArtemisPlugin extends ArtemisPluginPreview {
+  formatMigrationRequired?: boolean;
+  formatMigrationEnabledMcpIds?: string[];
   hooksEnabled?: boolean;
+  skinsEnabled?: boolean;
   contentHash: string;
   installedAt: string;
   updatedAt: string;
@@ -695,15 +705,15 @@ export interface InstalledCodexPlugin extends CodexPluginPreview {
   mcpServerIds: string[];
 }
 
-export interface CodexPluginMarketplace {
+export interface ArtemisPluginMarketplace {
   name: string;
   marketplaceName: string;
   url: string;
-  plugins: CodexPluginPreview[];
+  plugins: ArtemisPluginPreview[];
   warnings: string[];
 }
 
-export interface CodexPluginMarketplaceSource {
+export interface ArtemisPluginMarketplaceSource {
   id: string;
   url: string;
   marketplaceName: string;
@@ -718,7 +728,7 @@ export interface CodexPluginMarketplaceSource {
   signingKeyFingerprint?: string;
 }
 
-export interface CodexPluginMarketplaceTrustPreview {
+export interface ArtemisPluginMarketplaceTrustPreview {
   url: string;
   repository: string;
   marketplaceName: string;
@@ -727,30 +737,30 @@ export interface CodexPluginMarketplaceTrustPreview {
   signingKeyFingerprint?: string;
 }
 
-export interface CodexPluginOfflineMarketplacePreview {
+export interface ArtemisPluginOfflineMarketplacePreview {
   path: string;
-  trust: CodexPluginMarketplaceTrustPreview;
+  trust: ArtemisPluginMarketplaceTrustPreview;
 }
 
-export interface CodexPluginMarketplaceEntry {
+export interface ArtemisPluginMarketplaceEntry {
   sourceId: string;
-  marketplace: CodexPluginMarketplace;
+  marketplace: ArtemisPluginMarketplace;
 }
 
-export interface CodexPluginMarketplaceError {
+export interface ArtemisPluginMarketplaceError {
   sourceId: string;
   message: string;
 }
 
-export interface CodexPluginMarketplaceState {
+export interface ArtemisPluginMarketplaceState {
   selectedView: string;
-  sources: CodexPluginMarketplaceSource[];
-  marketplaces: CodexPluginMarketplaceEntry[];
-  errors: CodexPluginMarketplaceError[];
+  sources: ArtemisPluginMarketplaceSource[];
+  marketplaces: ArtemisPluginMarketplaceEntry[];
+  errors: ArtemisPluginMarketplaceError[];
 }
 
-export interface CodexPluginMutationResult {
-  plugins: InstalledCodexPlugin[];
+export interface ArtemisPluginMutationResult {
+  plugins: InstalledArtemisPlugin[];
   skills: InstalledSkill[];
   settings: SettingsSnapshot;
   warnings: string[];
@@ -1104,6 +1114,13 @@ export interface ArtemisApi {
   closeTerminal(terminalId: string): Promise<void>;
   onTerminalData(listener: (event: TerminalData) => void): () => void;
   onTerminalExit(listener: (event: TerminalExit) => void): () => void;
+  getAppearanceState(): Promise<AppearanceState>;
+  resolveSkin(selection: SkinSelection): Promise<ResolvedSkinPackage>;
+  releaseSkinResources(leaseId: string): Promise<void>;
+  setSkinSelection(selection: SkinSelection | null): Promise<AppearanceState>;
+  onAppearanceStateChanged(
+    listener: (state: AppearanceState) => void,
+  ): () => void;
   getSettings(): Promise<SettingsSnapshot>;
   setLanguage(language: AppLanguage): Promise<SettingsSnapshot>;
   setTheme(theme: AppTheme): Promise<SettingsSnapshot>;
@@ -1192,68 +1209,68 @@ export interface ArtemisApi {
   installLocalSkill(operationId: string): Promise<InstalledSkill | undefined>;
   setSkillEnabled(skillId: string, enabled: boolean): Promise<InstalledSkill[]>;
   removeSkill(skillId: string): Promise<InstalledSkill[]>;
-  listCodexPlugins(): Promise<InstalledCodexPlugin[]>;
-  inspectLocalCodexPlugin(): Promise<CodexPluginPreview | undefined>;
-  loadCodexPluginMarketplace(
+  listArtemisPlugins(): Promise<InstalledArtemisPlugin[]>;
+  inspectLocalArtemisPlugin(): Promise<ArtemisPluginPreview | undefined>;
+  loadArtemisPluginMarketplace(
     url: string,
     operationId: string,
     refresh?: boolean,
-  ): Promise<CodexPluginMarketplace>;
-  getCodexPluginMarketplaces(
+  ): Promise<ArtemisPluginMarketplace>;
+  getArtemisPluginMarketplaces(
     sourceId?: string,
-  ): Promise<CodexPluginMarketplaceState>;
-  addCodexPluginMarketplace(
+  ): Promise<ArtemisPluginMarketplaceState>;
+  addArtemisPluginMarketplace(
     url: string,
     operationId: string,
     signingKeyFingerprint?: string,
-  ): Promise<CodexPluginMarketplaceState>;
-  inspectCodexPluginMarketplaceTrust(
+  ): Promise<ArtemisPluginMarketplaceState>;
+  inspectArtemisPluginMarketplaceTrust(
     url: string,
-  ): Promise<CodexPluginMarketplaceTrustPreview>;
-  inspectOfflineCodexPluginMarketplace(): Promise<
-    CodexPluginOfflineMarketplacePreview | undefined
+  ): Promise<ArtemisPluginMarketplaceTrustPreview>;
+  inspectOfflineArtemisPluginMarketplace(): Promise<
+    ArtemisPluginOfflineMarketplacePreview | undefined
   >;
-  addOfflineCodexPluginMarketplace(
+  addOfflineArtemisPluginMarketplace(
     path: string,
     operationId: string,
     signingKeyFingerprint: string,
-  ): Promise<CodexPluginMarketplaceState>;
+  ): Promise<ArtemisPluginMarketplaceState>;
   listConnectorDefinitions(): Promise<ConnectorCatalogEntry[]>;
   listConnectorConnections(): Promise<ConnectorConnection[]>;
   connectConnector(input: ConnectorConnectInput): Promise<ConnectorConnection>;
   cancelConnectorAuthorization(serverId: string): Promise<void>;
   reconnectConnector(serverId: string): Promise<ConnectorConnection>;
   disconnectConnector(serverId: string): Promise<void>;
-  selectCodexPluginMarketplace(
+  selectArtemisPluginMarketplace(
     sourceId: string,
-  ): Promise<CodexPluginMarketplaceState>;
-  refreshCodexPluginMarketplace(
+  ): Promise<ArtemisPluginMarketplaceState>;
+  refreshArtemisPluginMarketplace(
     sourceId: string,
     operationId: string,
-  ): Promise<CodexPluginMarketplaceState>;
-  removeCodexPluginMarketplace(
+  ): Promise<ArtemisPluginMarketplaceState>;
+  removeArtemisPluginMarketplace(
     sourceId: string,
-  ): Promise<CodexPluginMarketplaceState>;
-  reorderCodexPluginMarketplaces(
+  ): Promise<ArtemisPluginMarketplaceState>;
+  reorderArtemisPluginMarketplaces(
     sourceIds: string[],
-  ): Promise<CodexPluginMarketplaceState>;
-  loadCodexRuntimeMarketplace(): Promise<CodexPluginMarketplace | undefined>;
-  installCodexRuntimePlugins(
+  ): Promise<ArtemisPluginMarketplaceState>;
+  loadBundledPluginMarketplace(): Promise<ArtemisPluginMarketplace | undefined>;
+  installBundledPlugins(
     operationId: string,
-  ): Promise<CodexPluginMutationResult>;
-  installCodexPlugin(
-    source: CodexPluginSource,
+  ): Promise<ArtemisPluginMutationResult>;
+  installArtemisPlugin(
+    source: ArtemisPluginSource,
     operationId: string,
-  ): Promise<CodexPluginMutationResult>;
-  updateCodexPlugin(
+  ): Promise<ArtemisPluginMutationResult>;
+  updateArtemisPlugin(
     pluginId: string,
     operationId: string,
-  ): Promise<CodexPluginMutationResult>;
-  setCodexPluginEnabled(
+  ): Promise<ArtemisPluginMutationResult>;
+  setArtemisPluginEnabled(
     pluginId: string,
     enabled: boolean,
-  ): Promise<CodexPluginMutationResult>;
-  removeCodexPlugin(pluginId: string): Promise<CodexPluginMutationResult>;
+  ): Promise<ArtemisPluginMutationResult>;
+  removeArtemisPlugin(pluginId: string): Promise<ArtemisPluginMutationResult>;
   trustExtension(): Promise<SettingsSnapshot | undefined>;
   retrustExtension(extensionId: string): Promise<SettingsSnapshot>;
   setTrustedExtensionEnabled(
@@ -1406,6 +1423,11 @@ export const IPC = {
   terminalClose: "artemis:terminal-close",
   terminalData: "artemis:terminal-data",
   terminalExit: "artemis:terminal-exit",
+  appearanceGet: "artemis:appearance-get",
+  appearanceResolve: "artemis:appearance-resolve",
+  appearanceRelease: "artemis:appearance-release",
+  appearanceSelect: "artemis:appearance-select",
+  appearanceChanged: "artemis:appearance-changed",
   settingsGet: "artemis:settings-get",
   settingsLanguageSet: "artemis:settings-language-set",
   settingsThemeSet: "artemis:settings-theme-set",

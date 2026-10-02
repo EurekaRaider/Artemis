@@ -11,7 +11,7 @@ import type {
 } from "../shared/connectors.js";
 import { localizedPluginText } from "../shared/plugin-localization.js";
 import { connectorCopy } from "../shared/connector-copy.js";
-import type { InstalledCodexPlugin } from "../shared/api.js";
+import type { InstalledArtemisPlugin } from "../shared/api.js";
 import { uiText } from "../shared/ui-text.js";
 import { ResourceAvatar } from "./resource-icons.js";
 export function PluginConnectionDialog({
@@ -22,7 +22,7 @@ export function PluginConnectionDialog({
   onChanged,
 }: {
   plugin: Pick<
-    InstalledCodexPlugin,
+    InstalledArtemisPlugin,
     | "id"
     | "name"
     | "displayName"
@@ -31,7 +31,7 @@ export function PluginConnectionDialog({
     | "iconDataUrl"
     | "brandColor"
   > &
-    Partial<Pick<InstalledCodexPlugin, "source">>;
+    Partial<Pick<InstalledArtemisPlugin, "source">>;
   closeLabel: string;
   onClose(): void;
   locale: AppLocale;

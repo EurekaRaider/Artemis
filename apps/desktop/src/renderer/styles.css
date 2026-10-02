@@ -1,9 +1,7 @@
 :root {
   color-scheme: light dark;
-  --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --mono-font:
-    ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  --ui-font: var(--artemis-typography-body-family);
+  --mono-font: var(--artemis-typography-mono-family);
   font-family: var(--ui-font);
   font-synthesis: none;
   --bg: var(--artemis-color-canvas);

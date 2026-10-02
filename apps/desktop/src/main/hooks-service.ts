@@ -204,8 +204,7 @@ export class HooksService {
       try {
         const root = await realpath(plugin.root);
         const manifest = object(
-          (await optionalJson(join(root, ".codex-plugin", "plugin.json"))) ??
-            {},
+          (await optionalJson(join(root, "artemis.plugin.json"))) ?? {},
         );
         const declarations =
           manifest.hooks === undefined
@@ -243,7 +242,7 @@ export class HooksService {
           kind: "plugin",
           id: plugin.id,
           root: plugin.root,
-          path: join(plugin.root, ".codex-plugin", "plugin.json"),
+          path: join(plugin.root, "artemis.plugin.json"),
           error: String(error),
         });
       }

@@ -1,5 +1,5 @@
 import { ArtemisIcon } from "@artemis/ui/icons";
-import type { InstalledCodexPlugin, InstalledSkill } from "../shared/api.js";
+import type { InstalledArtemisPlugin, InstalledSkill } from "../shared/api.js";
 import { ResourceAvatar } from "./resource-icons.js";
 
 export function ComposerSkillChip({
@@ -9,7 +9,7 @@ export function ComposerSkillChip({
   onRemove,
 }: {
   skill: InstalledSkill;
-  plugin?: InstalledCodexPlugin | undefined;
+  plugin?: InstalledArtemisPlugin | undefined;
   removeLabel: string;
   onRemove: () => void;
 }) {

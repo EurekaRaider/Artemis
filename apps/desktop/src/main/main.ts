@@ -1,4 +1,6 @@
+import { AppearanceService } from "./appearance-service.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
+import { migratePluginUserData } from "./plugin-data-migration.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
 import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
@@ -82,6 +84,7 @@ import {
   nativeImage,
   nativeTheme,
   powerSaveBlocker,
+  powerMonitor,
   net,
   Notification,
   safeStorage,
@@ -230,7 +233,7 @@ function getOfficeWorkbench() {
       return !!thread && !thread.archived && thread.mode === "execute";
     },
     dependents: async (version) =>
-      ((await codexPluginService?.listInstalled()) ?? [])
+      ((await artemisPluginService?.listInstalled()) ?? [])
         .filter((plugin) =>
           plugin.capabilityDependencies?.some(
             (dependency) =>
@@ -320,7 +323,7 @@ import {
 import { McpOAuthStore } from "./mcp-oauth-store.js";
 import { McpSecretStore } from "./mcp-secret-store.js";
 import { ResourceCatalogService } from "./resource-catalog.js";
-import { CodexPluginService } from "./codex-plugin-service.js";
+import { ArtemisPluginService } from "./artemis-plugin-service.js";
 import { assertPublicOAuthBrowserUrl } from "./connector-oauth-network.js";
 import { ConnectorService, connectorBinding } from "./connector-service.js";
 import { ConnectorVault } from "./connector-vault.js";
@@ -390,17 +393,17 @@ import {
   type ConfigurationImportPreview,
   type ConfigurationImportRequest,
   type ConfigurationImportResult,
-  type CodexPluginMarketplace,
-  type CodexPluginMarketplaceState,
-  type CodexPluginMutationResult,
-  type CodexPluginPreview,
-  type CodexPluginSource,
+  type ArtemisPluginMarketplace,
+  type ArtemisPluginMarketplaceState,
+  type ArtemisPluginMutationResult,
+  type ArtemisPluginPreview,
+  type ArtemisPluginSource,
   type CreateThreadInput,
   type CustomAgentCapabilityPreview,
   type ForkThreadResult,
   type HandoffWorkspaceResult,
   type InstalledSkill,
-  type InstalledCodexPlugin,
+  type InstalledArtemisPlugin,
   type McpCatalogInstallRequest,
   type McpCatalogItem,
   type QueueTurnInput,
@@ -509,7 +512,31 @@ let mcpOAuthStore: McpOAuthStore | undefined;
 let mcpSecretStore: McpSecretStore | undefined;
 let connectorService: ConnectorService | undefined;
 let resourceCatalogService: ResourceCatalogService | undefined;
-let codexPluginService: CodexPluginService | undefined;
+let artemisPluginService: ArtemisPluginService | undefined;
+let appearanceService: AppearanceService | undefined;
+const appearanceSystemPauseReasons = new Set<"sleep" | "lock">();
+function syncAppearanceMedia() {
+  appearanceService?.setMediaPaused(
+    appearanceSystemPauseReasons.size > 0 ||
+      !mainWindow ||
+      !mainWindow.isVisible() ||
+      mainWindow.isMinimized(),
+  );
+}
+function requireAppearanceSender(
+  event: Electron.IpcMainInvokeEvent,
+): AppearanceService {
+  if (
+    !appearanceService ||
+    !mainWindow ||
+    event.sender !== mainWindow.webContents ||
+    event.senderFrame !== event.sender.mainFrame
+  )
+    throw new Error(
+      "Appearance API is available only to the Artemis main window.",
+    );
+  return appearanceService;
+}
 let trustedExtensionStore: TrustedExtensionStore | undefined;
 let trustedExtensionManager: TrustedExtensionManager | undefined;
 let releaseUpdateManager: ReleaseUpdateManager | undefined;
@@ -1398,7 +1425,7 @@ function getHooksService(): HooksService {
   return (hooksService ??= new HooksService(
     join(app.getPath("userData"), "hooks"),
     join(hookHomeDir(), ".artemis"),
-    () => codexPluginService?.hookSources() ?? Promise.resolve([]),
+    () => artemisPluginService?.hookSources() ?? Promise.resolve([]),
   ));
 }
 async function hookContext(query: HookQuery): Promise<HookContext> {
@@ -1892,7 +1919,7 @@ async function connectMcpServer(
   }
   if (!isMcpServerSupported(config, process.platform))
     throw new Error("Computer Use is unavailable on this platform.");
-  if (await codexPluginService?.isComputerUseServer(config)) {
+  if (await artemisPluginService?.isComputerUseServer(config)) {
     if (!computerUseHost || config.transport !== "streamable-http")
       throw new Error("Computer Use is unavailable on this platform.");
     const connection = await computerUseHost.server.start();
@@ -2195,8 +2222,8 @@ async function installedSkillsWithState(): Promise<InstalledSkill[]> {
   }));
 }
 
-async function pluginsWithHookState(): Promise<InstalledCodexPlugin[]> {
-  const plugins = (await codexPluginService?.listInstalled()) ?? [];
+async function pluginsWithHookState(): Promise<InstalledArtemisPlugin[]> {
+  const plugins = (await artemisPluginService?.listInstalled()) ?? [];
   return Promise.all(
     plugins.map(async (plugin) => ({
       ...plugin,
@@ -2207,10 +2234,10 @@ async function pluginsWithHookState(): Promise<InstalledCodexPlugin[]> {
   );
 }
 
-async function codexPluginMutationResult(
+async function artemisPluginMutationResult(
   warnings: string[],
-): Promise<CodexPluginMutationResult> {
-  if (!codexPluginService) {
+): Promise<ArtemisPluginMutationResult> {
+  if (!artemisPluginService) {
     throw new Error("Plugin service is not ready.");
   }
   return {
@@ -5754,7 +5781,7 @@ function currentComputerTaskApproval(
     activeTurnId: activeTurns.get(request.threadId),
     host: computerUseHost,
     isTrustedServer: async (candidate) =>
-      (await codexPluginService?.isComputerUseServer(candidate)) ?? false,
+      (await artemisPluginService?.isComputerUseServer(candidate)) ?? false,
   });
 }
 
@@ -5797,7 +5824,7 @@ async function executeApprovedMcp(
         privateMetadata = { [CONNECTOR_AUTH_META]: context };
     }
     if (request.serverId === computerUseServerId) {
-      const trusted = await codexPluginService?.isComputerUseServer(config);
+      const trusted = await artemisPluginService?.isComputerUseServer(config);
       const thread = store?.getThread(request.threadId);
       if (
         !computerUseHost ||
@@ -7659,6 +7686,21 @@ function registerIpc(): void {
     }
     return imService.manage(action);
   });
+  ipcMain.handle(IPC.appearanceGet, (event) =>
+    requireAppearanceSender(event).state(),
+  );
+  ipcMain.handle(IPC.appearanceResolve, (event, selection: unknown) =>
+    requireAppearanceSender(event).resolve(event.sender.id, selection),
+  );
+  ipcMain.handle(IPC.appearanceRelease, (event, leaseId: unknown) => {
+    const service = requireAppearanceSender(event);
+    if (typeof leaseId !== "string" || leaseId.length > 80)
+      throw new Error("Invalid skin resource lease.");
+    return service.release(event.sender.id, leaseId);
+  });
+  ipcMain.handle(IPC.appearanceSelect, (event, selection: unknown) =>
+    requireAppearanceSender(event).select(selection),
+  );
   ipcMain.handle(IPC.settingsGet, () => getSettingsSnapshot());
   ipcMain.handle(
     IPC.settingsProfileAvatarSet,
@@ -7767,6 +7809,7 @@ function registerIpc(): void {
       const theme = appThemeSchema.parse(value);
       await settingsStore.setThemePreference(theme);
       applyNativeTheme(theme);
+      appearanceService?.setTheme(theme);
       return getSettingsSnapshot();
     },
   );
@@ -8746,7 +8789,7 @@ function registerIpc(): void {
       const config = (await mcpConfigStore.list()).find(
         (server) => server.id === serverId,
       );
-      const owningPlugin = (await codexPluginService?.listInstalled())?.find(
+      const owningPlugin = (await artemisPluginService?.listInstalled())?.find(
         (plugin) => plugin.mcpServerIds.includes(serverId),
       );
       if (owningPlugin) {
@@ -9043,7 +9086,7 @@ function registerIpc(): void {
       const installed = await installedSkillsWithState();
       const skill = installed.find((candidate) => candidate.id === skillId);
       if (!skill) throw new Error("Installed Skill was not found.");
-      const owningPlugin = (await codexPluginService?.listInstalled())?.find(
+      const owningPlugin = (await artemisPluginService?.listInstalled())?.find(
         (plugin) => plugin.skillNames.includes(skill.name),
       );
       if (owningPlugin) {
@@ -9060,8 +9103,8 @@ function registerIpc(): void {
   );
   ipcMain.handle(
     IPC.resourcePluginList,
-    async (): Promise<InstalledCodexPlugin[]> => {
-      if (!codexPluginService) {
+    async (): Promise<InstalledArtemisPlugin[]> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       return pluginsWithHookState();
@@ -9069,8 +9112,8 @@ function registerIpc(): void {
   );
   ipcMain.handle(
     IPC.resourcePluginInspectLocal,
-    async (event): Promise<CodexPluginPreview | undefined> => {
-      if (!codexPluginService || !mainWindow) {
+    async (event): Promise<ArtemisPluginPreview | undefined> => {
+      if (!artemisPluginService || !mainWindow) {
         throw new Error("Plugin service is not ready.");
       }
       const selection = await dialog.showOpenDialog(mainWindow, {
@@ -9080,7 +9123,7 @@ function registerIpc(): void {
       restoreResourceDialogFocus(event.sender);
       const selectedPath = selection.filePaths[0];
       if (selection.canceled || !selectedPath) return undefined;
-      return codexPluginService.inspectLocal(selectedPath);
+      return artemisPluginService.inspectLocal(selectedPath);
     },
   );
   ipcMain.handle(
@@ -9090,8 +9133,8 @@ function registerIpc(): void {
       urlInput: string,
       operationIdInput: string,
       refreshInput?: boolean,
-    ): Promise<CodexPluginMarketplace> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplace> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       const operationId = resourceInstallOperationId(operationIdInput);
@@ -9104,7 +9147,7 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      return codexPluginService.loadGitMarketplace(
+      return artemisPluginService.loadGitMarketplace(
         resourceId,
         (percent) => publish(10 + percent * 0.9),
         refreshInput === true,
@@ -9116,11 +9159,11 @@ function registerIpc(): void {
     async (
       _event,
       sourceIdInput?: string,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
-      return codexPluginService.listMarketplaces(
+      return artemisPluginService.listMarketplaces(
         typeof sourceIdInput === "string" && sourceIdInput.trim()
           ? sourceIdInput.trim()
           : undefined,
@@ -9130,14 +9173,15 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.resourcePluginMarketplaceTrust,
     async (_event, urlInput: string) => {
-      if (!codexPluginService) throw new Error("Plugin service is not ready.");
-      return codexPluginService.inspectMarketplaceTrust(
+      if (!artemisPluginService)
+        throw new Error("Plugin service is not ready.");
+      return artemisPluginService.inspectMarketplaceTrust(
         String(urlInput ?? "").trim(),
       );
     },
   );
   ipcMain.handle(IPC.resourcePluginMarketplaceInspectOffline, async (event) => {
-    if (!codexPluginService || !mainWindow) {
+    if (!artemisPluginService || !mainWindow) {
       throw new Error("Plugin service is not ready.");
     }
     const selection = await dialog.showOpenDialog(mainWindow, {
@@ -9155,7 +9199,7 @@ function registerIpc(): void {
     if (selection.canceled || !path) return undefined;
     return {
       path,
-      trust: await codexPluginService.inspectOfflineMarketplace(path),
+      trust: await artemisPluginService.inspectOfflineMarketplace(path),
     };
   });
   ipcMain.handle(
@@ -9165,8 +9209,8 @@ function registerIpc(): void {
       pathInput: string,
       operationIdInput: string,
       signingKeyFingerprintInput: string,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       const path = String(pathInput ?? "").trim();
@@ -9180,7 +9224,7 @@ function registerIpc(): void {
           resourceId,
           percent,
         });
-      return codexPluginService.addOfflineMarketplace(
+      return artemisPluginService.addOfflineMarketplace(
         path,
         fingerprint,
         publish,
@@ -9194,8 +9238,8 @@ function registerIpc(): void {
       urlInput: string,
       operationIdInput: string,
       signingKeyFingerprintInput?: string,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       const operationId = resourceInstallOperationId(operationIdInput);
@@ -9211,7 +9255,7 @@ function registerIpc(): void {
       const signingKeyFingerprint = String(
         signingKeyFingerprintInput ?? "",
       ).trim();
-      return codexPluginService.addMarketplace(
+      return artemisPluginService.addMarketplace(
         resourceId,
         (percent) => publish(10 + percent * 0.9),
         signingKeyFingerprint || undefined,
@@ -9221,9 +9265,9 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.connectorDefinitions,
     async (): Promise<ConnectorCatalogEntry[]> => {
-      const installed = (await codexPluginService?.listInstalled()) ?? [];
+      const installed = (await artemisPluginService?.listInstalled()) ?? [];
       const catalog =
-        (await codexPluginService?.listConnectorDefinitions()) ?? [];
+        (await artemisPluginService?.listConnectorDefinitions()) ?? [];
       const configured: ConnectorCatalogEntry[] = (
         (await mcpConfigStore?.list()) ?? []
       ).flatMap((config) =>
@@ -9291,11 +9335,11 @@ function registerIpc(): void {
     async (
       _event,
       sourceIdInput: string,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
-      return codexPluginService.selectMarketplace(
+      return artemisPluginService.selectMarketplace(
         String(sourceIdInput ?? "").trim(),
       );
     },
@@ -9306,8 +9350,8 @@ function registerIpc(): void {
       event,
       sourceIdInput: string,
       operationIdInput: string,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       const sourceId = String(sourceIdInput ?? "").trim();
@@ -9320,8 +9364,9 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      return codexPluginService.refreshMarketplaceSource(sourceId, (percent) =>
-        publish(10 + percent * 0.9),
+      return artemisPluginService.refreshMarketplaceSource(
+        sourceId,
+        (percent) => publish(10 + percent * 0.9),
       );
     },
   );
@@ -9330,11 +9375,11 @@ function registerIpc(): void {
     async (
       _event,
       sourceIdInput: string,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
-      return codexPluginService.removeMarketplace(
+      return artemisPluginService.removeMarketplace(
         String(sourceIdInput ?? "").trim(),
       );
     },
@@ -9344,22 +9389,22 @@ function registerIpc(): void {
     async (
       _event,
       sourceIdsInput: unknown,
-    ): Promise<CodexPluginMarketplaceState> => {
-      if (!codexPluginService || !Array.isArray(sourceIdsInput)) {
+    ): Promise<ArtemisPluginMarketplaceState> => {
+      if (!artemisPluginService || !Array.isArray(sourceIdsInput)) {
         throw new Error("Plugin marketplace order is invalid.");
       }
-      return codexPluginService.reorderMarketplaces(
+      return artemisPluginService.reorderMarketplaces(
         sourceIdsInput.map((sourceId) => String(sourceId ?? "").trim()),
       );
     },
   );
   ipcMain.handle(
     IPC.resourcePluginRuntimeMarketplace,
-    async (): Promise<CodexPluginMarketplace | undefined> => {
-      if (!codexPluginService) {
+    async (): Promise<ArtemisPluginMarketplace | undefined> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
-      return codexPluginService.loadBundledArtifactMarketplace();
+      return artemisPluginService.loadBundledArtifactMarketplace();
     },
   );
   ipcMain.handle(
@@ -9367,13 +9412,13 @@ function registerIpc(): void {
     async (
       event,
       operationIdInput: string,
-    ): Promise<CodexPluginMutationResult> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMutationResult> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       const operationId = resourceInstallOperationId(operationIdInput);
       const marketplace =
-        await codexPluginService.loadBundledArtifactMarketplace();
+        await artemisPluginService.loadBundledArtifactMarketplace();
       if (!marketplace) {
         throw new Error("Bundled Lite artifact plugins are unavailable.");
       }
@@ -9389,7 +9434,7 @@ function registerIpc(): void {
         });
       if (!pending.length) {
         publish(100);
-        return codexPluginMutationResult([]);
+        return artemisPluginMutationResult([]);
       }
 
       const warnings: string[] = [];
@@ -9399,7 +9444,7 @@ function registerIpc(): void {
       publish(5);
       try {
         for (const [index, plugin] of pending.entries()) {
-          const installed = await codexPluginService.install(
+          const installed = await artemisPluginService.install(
             plugin.source,
             (percent) =>
               publish(
@@ -9416,7 +9461,7 @@ function registerIpc(): void {
         const rollbackWarnings: string[] = [];
         for (const pluginId of installedPluginIds.reverse()) {
           try {
-            const rolledBack = await codexPluginService.remove(pluginId);
+            const rolledBack = await artemisPluginService.remove(pluginId);
             rollbackWarnings.push(...rolledBack.warnings);
           } catch (rollbackError) {
             rollbackWarnings.push(
@@ -9443,17 +9488,17 @@ function registerIpc(): void {
       );
       await applyAgentRuntime();
       publish(100);
-      return codexPluginMutationResult(warnings);
+      return artemisPluginMutationResult(warnings);
     },
   );
   ipcMain.handle(
     IPC.resourcePluginInstall,
     async (
       event,
-      source: CodexPluginSource,
+      source: ArtemisPluginSource,
       operationIdInput: string,
-    ): Promise<CodexPluginMutationResult> => {
-      if (!codexPluginService) {
+    ): Promise<ArtemisPluginMutationResult> => {
+      if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
       const operationId = resourceInstallOperationId(operationIdInput);
@@ -9472,7 +9517,7 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      const installed = await codexPluginService.install(source, (percent) =>
+      const installed = await artemisPluginService.install(source, (percent) =>
         publish(10 + percent * 0.8),
       );
       await enableManagedPluginSkills(installed.plugin.skillNames);
@@ -9483,7 +9528,7 @@ function registerIpc(): void {
       );
       await applyAgentRuntime();
       publish(100);
-      return codexPluginMutationResult(installed.warnings);
+      return artemisPluginMutationResult(installed.warnings);
     },
   );
   ipcMain.handle(
@@ -9492,12 +9537,12 @@ function registerIpc(): void {
       event,
       pluginIdInput: string,
       operationIdInput: string,
-    ): Promise<CodexPluginMutationResult> => {
-      if (!codexPluginService || !mcpConfigStore) {
+    ): Promise<ArtemisPluginMutationResult> => {
+      if (!artemisPluginService || !mcpConfigStore) {
         throw new Error("Plugin service is not ready.");
       }
       const pluginId = String(pluginIdInput ?? "").trim();
-      const existing = await codexPluginService.installedById(pluginId);
+      const existing = await artemisPluginService.installedById(pluginId);
       if (!existing) throw new Error("Installed plugin was not found.");
       const operationId = resourceInstallOperationId(operationIdInput);
       const publish = (percent: number) =>
@@ -9516,6 +9561,8 @@ function registerIpc(): void {
           .map((skill) => [skill.name, skill.enabled]),
       );
       const pluginEnabled =
+        (Boolean(existing.skins?.length) && existing.skinsEnabled !== false) ||
+        Boolean(existing.formatMigrationEnabledMcpIds?.length) ||
         (existing.hasHooks &&
           (await getHooksService().pluginEnabled(pluginId))) ||
         [...previousSkillState.values()].some(Boolean) ||
@@ -9523,7 +9570,7 @@ function registerIpc(): void {
       publish(5);
       await disconnectMcpServers(existing.mcpServerIds);
       try {
-        const updated = await codexPluginService.update(
+        const updated = await artemisPluginService.update(
           pluginId,
           (percent) => publish(10 + percent * 0.8),
           { newServicesEnabled: pluginEnabled },
@@ -9543,7 +9590,7 @@ function registerIpc(): void {
         );
         await applyAgentRuntime();
         publish(100);
-        return codexPluginMutationResult(updated.warnings);
+        return artemisPluginMutationResult(updated.warnings);
       } catch (error) {
         await reconnectEnabledMcpServers(
           before.filter((config) => scopedIds.has(config.id)),
@@ -9559,9 +9606,9 @@ function registerIpc(): void {
       _event,
       pluginIdInput: string,
       enabledInput: boolean,
-    ): Promise<CodexPluginMutationResult> => {
+    ): Promise<ArtemisPluginMutationResult> => {
       if (
-        !codexPluginService ||
+        !artemisPluginService ||
         !mcpConfigStore ||
         !settingsStore ||
         typeof enabledInput !== "boolean"
@@ -9569,8 +9616,12 @@ function registerIpc(): void {
         throw new Error("Plugin service is not ready.");
       }
       const pluginId = String(pluginIdInput ?? "").trim();
-      const existing = await codexPluginService.installedById(pluginId);
+      const existing = await artemisPluginService.installedById(pluginId);
       if (!existing) throw new Error("Installed plugin was not found.");
+      if (enabledInput && existing.formatMigrationRequired)
+        throw new Error(
+          "Update this plugin to the Artemis native format before enabling it.",
+        );
       const installedSkills = await installedSkillsWithState();
       const skillNames = new Set(existing.skillNames);
       const ownedSkills = installedSkills.filter((skill) =>
@@ -9614,8 +9665,14 @@ function registerIpc(): void {
         }
         await applyAgentRuntime();
         await getHooksService().setPluginEnabled(pluginId, enabledInput);
-        return codexPluginMutationResult([]);
+        if (existing.skins?.length)
+          await artemisPluginService.setSkinsEnabled(pluginId, enabledInput);
+        return artemisPluginMutationResult([]);
       } catch (error) {
+        if (existing.skins?.length && !existing.formatMigrationRequired)
+          await artemisPluginService
+            .setSkinsEnabled(pluginId, existing.skinsEnabled !== false)
+            .catch(() => undefined);
         for (const skill of ownedSkills) {
           await settingsStore
             .setSkillEnabled(
@@ -9640,19 +9697,19 @@ function registerIpc(): void {
     async (
       _event,
       pluginIdInput: string,
-    ): Promise<CodexPluginMutationResult> => {
-      if (!codexPluginService || !mcpConfigStore) {
+    ): Promise<ArtemisPluginMutationResult> => {
+      if (!artemisPluginService || !mcpConfigStore) {
         throw new Error("Plugin service is not ready.");
       }
       const pluginId = String(pluginIdInput ?? "").trim();
-      const existing = await codexPluginService.installedById(pluginId);
+      const existing = await artemisPluginService.installedById(pluginId);
       if (!existing) throw new Error("Installed plugin was not found.");
       await getHooksService().removePlugin(pluginId);
       const before = await mcpConfigStore.list();
       const scopedIds = new Set(existing.mcpServerIds);
       await disconnectMcpServers(existing.mcpServerIds);
       try {
-        const removed = await codexPluginService.remove(pluginId);
+        const removed = await artemisPluginService.remove(pluginId);
         const after = await mcpConfigStore.list();
         await cleanupRemovedMcpAuthentication(before, after, scopedIds);
         await enableManagedPluginSkills(existing.skillNames);
@@ -9662,7 +9719,7 @@ function registerIpc(): void {
           await connectorService?.disconnect(config.id);
         }
         await applyAgentRuntime();
-        return codexPluginMutationResult(removed.warnings);
+        return artemisPluginMutationResult(removed.warnings);
       } catch (error) {
         await reconnectEnabledMcpServers(
           before.filter((config) => scopedIds.has(config.id)),
@@ -16874,6 +16931,14 @@ function createMainWindow(): BrowserWindow {
         flushingEditors = false;
       });
   });
+  window.on("show", syncAppearanceMedia);
+  window.on("hide", syncAppearanceMedia);
+  window.on("minimize", syncAppearanceMedia);
+  window.on("restore", syncAppearanceMedia);
+  const appearanceOwner = window.webContents.id;
+  window.webContents.on("destroyed", () => {
+    void appearanceService?.releaseOwner(appearanceOwner);
+  });
   window.on("closed", () => {
     if (mainWindow === window) {
       workspaceVideoPreview.clear();
@@ -16891,6 +16956,7 @@ function createMainWindow(): BrowserWindow {
         if (!_inPlace) {
           workspaceVideoPreview.clear();
           workspaceHtmlPreview.clear();
+          void appearanceService?.releaseOwner(appearanceOwner);
         }
         notificationRendererReady = false;
         if (taskNotifications) taskNotifications.viewedThreadId = undefined;
@@ -22432,6 +22498,10 @@ app
     seedSmokeMessageActionsFixture();
     seedSmokeQueuedSteerFixture();
     seedSmokeMarkdownEditorFixture();
+    await migratePluginUserData(
+      app.getPath("userData"),
+      join(app.getPath("home"), ".pi", "agent", "skills"),
+    );
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );
@@ -22459,9 +22529,9 @@ app
       },
       configs: async () => (await mcpConfigStore?.list()) ?? [],
       assertTrusted: async (config) => {
-        if (!codexPluginService)
+        if (!artemisPluginService)
           throw new Error("Plugin service is not ready.");
-        return codexPluginService.assertConnectorTrusted(config);
+        return artemisPluginService.assertConnectorTrusted(config);
       },
       connectMcp: async (config, authentication) => {
         if (!mcpClientManager) throw new Error("MCP service is not ready.");
@@ -22507,9 +22577,9 @@ app
       undefined,
       undefined,
       async (config) => {
-        if (!codexPluginService)
+        if (!artemisPluginService)
           throw new Error("Plugin service is not ready.");
-        return codexPluginService.mcpRuntimeReadOnlyPaths(config);
+        return artemisPluginService.mcpRuntimeReadOnlyPaths(config);
       },
     );
     mcpClientManager.onStatusChange((status) => {
@@ -22533,20 +22603,25 @@ app
     resourceCatalogService = new ResourceCatalogService(
       join(app.getPath("home"), ".pi", "agent", "skills"),
     );
-    codexPluginService = new CodexPluginService({
+    artemisPluginService = new ArtemisPluginService({
       skillsRoot: join(app.getPath("home"), ".pi", "agent", "skills"),
-      pluginsRoot: join(app.getPath("userData"), "codex-plugins"),
-      marketplacesRoot: join(
-        app.getPath("userData"),
-        "codex-plugin-marketplaces",
-      ),
+      pluginsRoot: join(app.getPath("userData"), "plugins"),
+      marketplacesRoot: join(app.getPath("userData"), "plugin-marketplaces"),
       marketplaceStatePath: join(
         app.getPath("userData"),
-        "codex-plugin-marketplaces.json",
+        "plugin-marketplaces.json",
       ),
-      statePath: join(app.getPath("userData"), "codex-plugins.json"),
+      statePath: join(app.getPath("userData"), "plugins.json"),
       mcpWorkspaceRoot: join(app.getPath("userData"), "mcp-workspaces"),
       mcpStore: mcpConfigStore,
+      beforeSnapshotChange: async (pluginId) => {
+        await appearanceService?.beforePluginChange(pluginId);
+      },
+      afterSnapshotChange: async () => {
+        await appearanceService
+          ?.refresh()
+          .catch((error) => console.error("Appearance refresh failed", error));
+      },
       bundledArtifactRoot: bundledArtifactPluginsPath(),
       ...(process.platform === "darwin"
         ? {
@@ -22558,6 +22633,38 @@ app
         : {}),
       fetcher: (url, init) => net.fetch(url, init),
     });
+    appearanceService = new AppearanceService({
+      plugins: artemisPluginService,
+      getSelection: () => settingsStore!.skinSelection(),
+      saveSelection: (selection) => settingsStore!.setSkinSelection(selection),
+      getTheme: () => settingsStore!.themePreference(),
+      changed: (state) => {
+        if (mainWindow && !mainWindow.webContents.isDestroyed())
+          mainWindow.webContents.send(IPC.appearanceChanged, state);
+      },
+    });
+    await appearanceService.refresh();
+    electronSession.defaultSession.protocol.handle("artemis-skin", (request) =>
+      appearanceService!.respond(request),
+    );
+    powerMonitor.on("suspend", () => {
+      appearanceSystemPauseReasons.add("sleep");
+      syncAppearanceMedia();
+    });
+    powerMonitor.on("lock-screen", () => {
+      appearanceSystemPauseReasons.add("lock");
+      syncAppearanceMedia();
+    });
+    powerMonitor.on("resume", () => {
+      appearanceSystemPauseReasons.delete("sleep");
+      syncAppearanceMedia();
+    });
+    powerMonitor.on("unlock-screen", () => {
+      appearanceSystemPauseReasons.delete("lock");
+      syncAppearanceMedia();
+    });
+    for (const warning of await artemisPluginService.upgradeMigratedBundledPlugins())
+      console.warn(warning);
     if (process.platform === "darwin")
       computerUseHost = new ComputerUseHost({
         helperPath: app.isPackaged
@@ -22884,6 +22991,7 @@ setLicenseShutdown(async () => {
 
 // Keep the store available while renderer IPC drains during window teardown.
 app.on("will-quit", () => {
+  void appearanceService?.dispose();
   imService?.stop();
   threadHistoryService?.close();
   store?.close();

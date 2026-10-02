@@ -41,6 +41,31 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("persists skin selection independently and repairs corrupt selection without losing preferences", async () => {
+    const { filePath, store } = await createStore();
+    await store.setThemePreference("dark");
+    await store.setSkinSelection({
+      pluginId: "ocean",
+      skinId: "com.example.ocean",
+    });
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    expect(await reopened.skinSelection()).toEqual({
+      pluginId: "ocean",
+      skinId: "com.example.ocean",
+    });
+    const saved = JSON.parse(await readFile(filePath, "utf8"));
+    saved.skinSelection = { pluginId: "ocean", skinId: "../private" };
+    await writeFile(filePath, JSON.stringify(saved));
+    const recovered = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    expect(await recovered.skinSelection()).toBeNull();
+    expect(await recovered.themePreference()).toBe("dark");
+  });
   it("defaults sleep prevention on and persists an explicit opt-out", async () => {
     const { filePath, store } = await createStore();
     await expect(store.preventSleepPreference()).resolves.toBe(true);

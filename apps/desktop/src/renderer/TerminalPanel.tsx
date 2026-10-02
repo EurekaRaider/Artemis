@@ -147,7 +147,10 @@ export function TerminalPanel({
       cursorBlink: true,
       cursorStyle: "bar",
       fontFamily:
-        'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+        window
+          .getComputedStyle(element)
+          .getPropertyValue("--artemis-typography-mono-family")
+          .trim() || "ui-monospace, Menlo, Consolas, monospace",
       fontSize: 12,
       lineHeight: 1.15,
       minimumContrastRatio: 4.5,
@@ -193,6 +196,92 @@ export function TerminalPanel({
         );
       }
     };
+    const refreshAppearance = () => {
+      const viewport = terminal.buffer.active.viewportY;
+      const selection = terminal.getSelectionPosition();
+      const previousCols = terminal.cols;
+      const logicalStarts = () => {
+        const starts: number[] = [];
+        const buffer = terminal.buffer.active;
+        for (
+          let row = 0;
+          row < Math.min(buffer.length, buffer.baseY + buffer.cursorY + 1);
+          row++
+        )
+          if (row === 0 || !buffer.getLine(row)?.isWrapped) starts.push(row);
+        return starts;
+      };
+      const beforeStarts = selection ? logicalStarts() : [];
+      const anchor = (point: { x: number; y: number }) => {
+        const index = beforeStarts.findLastIndex((row) => row <= point.y);
+        let offset = point.x;
+        for (let row = beforeStarts[index] ?? point.y; row < point.y; row++)
+          offset += lineCapacity(row, previousCols);
+        return { fromEnd: beforeStarts.length - index - 1, offset };
+      };
+      const lineCapacity = (row: number, cols: number) => {
+        const buffer = terminal.buffer.active,
+          cell = buffer.getLine(row)?.getCell(cols - 1);
+        return (
+          cols -
+          (buffer.getLine(row + 1)?.isWrapped &&
+          cell?.getChars() === "" &&
+          cell.getWidth() === 1
+            ? 1
+            : 0)
+        );
+      };
+      const anchors =
+        selection && beforeStarts.length
+          ? [anchor(selection.start), anchor(selection.end)]
+          : undefined;
+      terminal.options.fontFamily =
+        window
+          .getComputedStyle(element)
+          .getPropertyValue("--artemis-typography-mono-family")
+          .trim() || "ui-monospace, Menlo, Consolas, monospace";
+      terminal.options.theme = resolveTerminalElementTheme(
+        element,
+        themeRef.current,
+        window.matchMedia("(prefers-color-scheme: dark)").matches,
+      );
+      resize();
+      terminal.scrollToLine(viewport);
+      if (selection && terminal.cols === previousCols) {
+        terminal.select(
+          selection.start.x,
+          selection.start.y,
+          (selection.end.y - selection.start.y) * terminal.cols +
+            selection.end.x -
+            selection.start.x,
+        );
+      } else if (anchors) {
+        const afterStarts = logicalStarts();
+        const position = (a: { fromEnd: number; offset: number }) => {
+          let row = afterStarts[afterStarts.length - a.fromEnd - 1],
+            offset = a.offset;
+          if (row === undefined) return;
+          while (
+            terminal.buffer.active.getLine(row + 1)?.isWrapped &&
+            offset >= lineCapacity(row, terminal.cols)
+          ) {
+            offset -= lineCapacity(row, terminal.cols);
+            row++;
+          }
+          return { x: offset, y: row };
+        };
+        const start = position(anchors[0]!),
+          end = position(anchors[1]!);
+        if (start && end)
+          terminal.select(
+            start.x,
+            start.y,
+            (end.y - start.y) * terminal.cols + end.x - start.x,
+          );
+      }
+      terminal.refresh(0, terminal.rows - 1);
+    };
+    window.addEventListener("artemis:appearance-applied", refreshAppearance);
     const observer = new ResizeObserver(resize);
     observer.observe(element);
     resize();
@@ -220,6 +309,10 @@ export function TerminalPanel({
     return () => {
       disposed = true;
       observer.disconnect();
+      window.removeEventListener(
+        "artemis:appearance-applied",
+        refreshAppearance,
+      );
       dataSubscription();
       exitSubscription();
       inputSubscription.dispose();

@@ -1,0 +1,112 @@
+.appearance-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.appearance-background[hidden] {
+  display: none;
+}
+.appearance-background-media,
+.appearance-background-media > img,
+.appearance-background-media > video,
+.appearance-background-scrim {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+}
+#root {
+  position: relative;
+  z-index: 1;
+}
+:root[data-appearance-wallpaper="true"]
+  :is(.workspace, .conversation, .timeline-scroll) {
+  background: transparent;
+}
+:root {
+  --appearance-font-conversation: var(--artemis-typography-body-family);
+}
+.markdown-content,
+.message-content,
+.message-body,
+.composer textarea {
+  font-family: var(--appearance-font-conversation);
+}
+.appearance-settings {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+}
+.appearance-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.appearance-settings-hint {
+  color: var(--artemis-color-text-secondary);
+  font-size: var(--artemis-typography-label-size);
+  margin: 0;
+}
+:root[data-artemis-contrast="high"]
+  :is(
+    .app-shell,
+    .sidebar,
+    .profile-menu,
+    .settings-backdrop,
+    .dialog-backdrop,
+    .composer-approval-menu,
+    .drawer,
+    .panel,
+    .environment-menu,
+    .rail-menu
+  ) {
+  backdrop-filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .appearance-background-media {
+    animation: none !important;
+  }
+}
+
+:root[data-artemis-contrast="high"]
+  .app-shell
+  :is(
+    .sidebar-rail,
+    .sidebar > [data-part="main"],
+    .environment-popover,
+    .workspace-header,
+    .composer-surface,
+    .project-source-menu,
+    .profile-menu
+  ) {
+  backdrop-filter: none;
+}
+:root[data-artemis-contrast="high"]
+  .app-shell
+  :is(.sidebar-rail, .sidebar > [data-part="main"]) {
+  background: var(--artemis-color-background-sidebar);
+}
+:root[data-artemis-contrast="high"] .environment-popover {
+  background: var(--artemis-color-surface-popover);
+}
+:root[data-artemis-contrast="high"]
+  :is(
+    .environment-branch-menu,
+    .environment-git-dialog-backdrop,
+    .composer-context-menu,
+    #skill-command-menu,
+    .composer-drop-overlay,
+    .computer-use-panel
+  ) {
+  backdrop-filter: none;
+}
+:root[data-artemis-contrast="high"]
+  :is(.environment-branch-menu, .composer-context-menu, #skill-command-menu) {
+  background: var(--artemis-color-surface-popover);
+}
+:root[data-artemis-contrast="high"] .composer-attachment-dialog::backdrop {
+  backdrop-filter: none;
+}

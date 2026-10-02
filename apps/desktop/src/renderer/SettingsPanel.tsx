@@ -1,3 +1,5 @@
+import { AppearanceSettingsSection } from "./AppearanceSettingsSection.js";
+import { ComputerUseControls } from "./ComputerUseControls.js";
 import { HooksSettingsSection } from "./HooksSettingsSection.js";
 import type { HookQuery } from "@artemis/protocol";
 import { statusText } from "../shared/status-text.js";
@@ -1330,6 +1332,7 @@ ${model.providerId} · ${model.modelId}`,
                       value={settings.theme}
                     />
                   </SettingsRow>
+                  <AppearanceSettingsSection locale={locale} />
                   <SettingsRow
                     label={uiText(locale, "SettingsPanel.preventSleep")}
                     description={uiText(
@@ -1854,6 +1857,12 @@ ${model.providerId} · ${model.modelId}`,
 
               {activeTab === "capabilities" && (
                 <>
+                  <ManagementSection
+                    className="settings-section"
+                    title="Computer Use"
+                  >
+                    <ComputerUseControls locale={locale} permissionsOnly />
+                  </ManagementSection>
                   <ManagementSection
                     className="settings-section"
                     description={t.shellRuntimeHint}

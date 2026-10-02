@@ -8,14 +8,14 @@ import {
 } from "@artemis/protocol";
 import { Timeline } from "../src/renderer/App.js";
 import { pluginBrandIcon } from "../src/renderer/plugin-brand-icons.js";
-import type { InstalledCodexPlugin } from "../src/shared/api.js";
+import type { InstalledArtemisPlugin } from "../src/shared/api.js";
 import "./renderer-test-utils.js";
 
 vi.mock("../src/renderer/desktop-skin-bootstrap.js", () => ({
   desktopSkinHost: { setTheme: vi.fn() },
 }));
 
-function renderSkill(name: string, plugin?: Partial<InstalledCodexPlugin>) {
+function renderSkill(name: string, plugin?: Partial<InstalledArtemisPlugin>) {
   const state = reduceAgentEvent(createThreadViewState("thread"), {
     protocolVersion: PROTOCOL_VERSION,
     eventId: "event",
@@ -38,7 +38,7 @@ function renderSkill(name: string, plugin?: Partial<InstalledCodexPlugin>) {
                 mcpServerIds: [],
                 skillNames: [name],
                 ...plugin,
-              } as InstalledCodexPlugin,
+              } as InstalledArtemisPlugin,
             ]
           : []
       }

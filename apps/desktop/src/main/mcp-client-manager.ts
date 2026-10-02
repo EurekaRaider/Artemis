@@ -1007,7 +1007,7 @@ export class McpClientManager {
     ) => {
       let client = new Client({
         name: "Artemis",
-        version: "1.6.17",
+        version: "1.6.18",
       });
       let stdioTransport: StdioClientTransport | undefined;
       let waitForWindowsSandboxTeardown = false;
@@ -1288,7 +1288,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.6.17",
+            version: "1.6.18",
           });
           command = {
             ...command,
@@ -1346,7 +1346,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.6.17",
+            version: "1.6.18",
           });
           transport = createTransport();
           await client.connect(transport as Parameters<Client["connect"]>[0]);
@@ -1489,6 +1489,8 @@ export class McpClientManager {
     scope?: McpExecutionScope,
     startupTimeoutMs = this.startupTimeoutMs,
   ): Promise<{ client: McpConnection; listed: { tools: McpTool[] } }> {
+    // Validate package ownership before a transport factory executes or connects.
+    await this.pluginRuntimeReadOnlyPaths(config);
     const startupController =
       config.transport === "stdio" ? new AbortController() : undefined;
     const clientPromise = this.factory(config, authentication, scope, {

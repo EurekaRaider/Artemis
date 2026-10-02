@@ -13,14 +13,14 @@ vi.mock("../src/renderer/desktop-skin-bootstrap.js", () => ({
 }));
 
 it("loads plugin artwork on each cold mount without opening the skill menu", async () => {
-  const listCodexPlugins = vi.fn().mockResolvedValue([]);
+  const listArtemisPlugins = vi.fn().mockResolvedValue([]);
   const pending = new Promise(() => {});
   stubWindowArtemis(
     new Proxy(
-      { listCodexPlugins },
+      { listArtemisPlugins },
       {
         get(target, key) {
-          if (key === "listCodexPlugins") return target.listCodexPlugins;
+          if (key === "listArtemisPlugins") return target.listArtemisPlugins;
           if (String(key).startsWith("on")) return () => () => {};
           return () => pending;
         },
@@ -28,8 +28,8 @@ it("loads plugin artwork on each cold mount without opening the skill menu", asy
     ),
   );
   const first = render(<App />);
-  await waitFor(() => expect(listCodexPlugins).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(listArtemisPlugins).toHaveBeenCalledTimes(1));
   first.unmount();
   render(<App />);
-  await waitFor(() => expect(listCodexPlugins).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(listArtemisPlugins).toHaveBeenCalledTimes(2));
 });
