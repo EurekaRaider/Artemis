@@ -43,14 +43,18 @@ export async function prepareImShellRuntime(): Promise<ImShellRuntime> {
       npm_config_userconfig: join(bin, "user.config"),
       npm_config_globalconfig: join(bin, "global.config"),
       npm_config_update_notifier: "false",
-    },
-    dispose: () => rm(root, { recursive: true, force: true }),
+    },    dispose: () => rm(root, { recursive: true, force: true }),
   };
   try {
     await mkdir(bin);
     await mkdir(cache);
     await writeFile(join(bin, "user.config"), "", { mode: 0o400 });
     await writeFile(join(bin, "global.config"), "", { mode: 0o400 });
+    // Homebrew's libcrypto hardcodes OPENSSLDIR to /opt/homebrew/etc/… and
+    // node reads that openssl.cnf at startup; the sandbox must not whitelist
+    // a host config read, so point OPENSSL_CONF at an empty local file.
+    await writeFile(join(bin, "openssl.cnf"), "", { mode: 0o400 });
+    runtime.env.OPENSSL_CONF = join(bin, "openssl.cnf");
     const find = async (name: string) => {
       for (const directory of (process.env.PATH ?? "").split(":")) {
         if (!isAbsolute(directory)) continue;
@@ -67,6 +71,31 @@ export async function prepareImShellRuntime(): Promise<ImShellRuntime> {
     const node = await find("node");
     if (!node) return runtime;
     const files = new Set<string>();
+    /** LC_RPATH entries per binary, keyed by the binary path. */
+    const rpaths = new Map<string, string[]>();
+    const loadCommands = async (file: string): Promise<string[]> => {
+      const cached = rpaths.get(file);
+      if (cached) return cached;
+      const { stdout } = await exec("/usr/bin/otool", ["-l", file], {
+        timeout: 5000,
+        maxBuffer: 65536,
+      });
+      const paths: string[] = [];
+      const lines = stdout.split("\n");
+      for (let index = 0; index < lines.length; index++) {
+        if (!lines[index]!.includes("LC_RPATH")) continue;
+        const pathLine = lines
+          .slice(index + 1, index + 3)
+          .find((line) => line.trim().startsWith("path "));
+        if (!pathLine) continue;
+        const value = pathLine.trim().slice("path ".length);
+        // "path <value> (offset N)" — the offset suffix is otool's own.
+        const raw = value.replace(/\s+\(offset \d+\)$/, "").trim();
+        if (raw) paths.push(raw);
+      }
+      rpaths.set(file, paths);
+      return paths;
+    };
     const inspect = async (file: string): Promise<void> => {
       if (
         files.has(file) ||
@@ -81,6 +110,7 @@ export async function prepareImShellRuntime(): Promise<ImShellRuntime> {
         timeout: 5000,
         maxBuffer: 65536,
       });
+      const searchPaths = await loadCommands(file);
       for (const line of stdout.split("\n").slice(1)) {
         const dependency = line.trim().split(" (", 1)[0]!;
         if (
@@ -89,6 +119,28 @@ export async function prepareImShellRuntime(): Promise<ImShellRuntime> {
           dependency.startsWith("/System/")
         )
           continue;
+        if (dependency.startsWith("@rpath/")) {
+          // macOS resolves @rpath against each LC_RPATH of the depending
+          // binary (Homebrew node keeps its core in @rpath/libnode).
+          let resolved: string | undefined;
+          for (const entry of searchPaths) {
+            const base = entry.startsWith("@loader_path/")
+              ? join(dirname(file), entry.slice(13))
+              : entry;
+            const candidate = join(base, dependency.slice("@rpath/".length));
+            const real = await realpath(candidate).catch(() => undefined);
+            if (real) {
+              resolved = real;
+              break;
+            }
+          }
+          if (!resolved)
+            throw new Error(
+              "Node runtime @rpath dependency did not resolve.",
+            );
+          await inspect(resolved);
+          continue;
+        }
         const path = dependency.startsWith("@loader_path/")
           ? join(dirname(file), dependency.slice(13))
           : dependency;

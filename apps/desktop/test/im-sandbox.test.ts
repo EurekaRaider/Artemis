@@ -5,6 +5,7 @@ import {
   symlink,
   rm,
   realpath,
+  access,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -470,6 +471,29 @@ it.runIf(process.platform === "darwin")(
     } finally {
       await runtime.dispose();
       await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "prepares the runtime env without host config reads (isolated OPENSSL_CONF)",
+  async () => {
+    const { prepareImShellRuntime } = await import(
+      "../src/main/im-shell-runtime.js"
+    );
+    const runtime = await prepareImShellRuntime();
+    try {
+      // The runtime may legitimately lack node (not installed); when present,
+      // the isolated env must pin every config OpenSSL would otherwise read
+      // from its compiled-in OPENSSLDIR (e.g. Homebrew /opt/homebrew/etc/…).
+      if (runtime.node) {
+        expect(runtime.env.OPENSSL_CONF).toBeDefined();
+        expect(runtime.env.OPENSSL_CONF).not.toMatch(/^\/opt\//u);
+        expect(runtime.env.OPENSSL_CONF).not.toMatch(/^\/etc\//u);
+        await expect(access(runtime.env.OPENSSL_CONF)).resolves.toBeUndefined();
+      }
+    } finally {
+      await runtime.dispose();
     }
   },
 );
