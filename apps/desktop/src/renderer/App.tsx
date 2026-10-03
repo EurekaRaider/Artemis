@@ -1645,6 +1645,45 @@ export function App() {
   } | null>(null);
   const designDocBindingRef = useRef(designDocBinding);
   designDocBindingRef.current = designDocBinding;
+  // 设计入口可见性跟随能力包：开关关闭（pack 移除）时 + 菜单/launcher 的
+  // 设计入口隐藏、已开的设计 tab 关闭。初始乐观 true，首个查询即纠正。
+  const [designPluginAvailable, setDesignPluginAvailable] = useState(true);
+  useEffect(() => {
+    void window.artemis
+      .designCapabilityAvailability()
+      .then((value) => setDesignPluginAvailable(value.available))
+      .catch(() => {});
+    return window.artemis.onDesignCapabilityAvailability((event) => {
+      setDesignPluginAvailable(event.available);
+      if (!event.available) {
+        // 关闭插件 = 设计模式全局下线：所有线程的设计 tab 一并关闭
+        // （面板视图已由主进程回收）。
+        setWorkspaceTabsByThread((current) => {
+          let changed = false;
+          const next: typeof current = {};
+          for (const [threadId, state] of Object.entries(current)) {
+            const designTabs = state.tabs.filter(
+              (tab) => tab.kind === "design",
+            );
+            if (designTabs.length === 0) {
+              next[threadId] = state;
+              continue;
+            }
+            changed = true;
+            let updated = state;
+            for (const tab of designTabs) {
+              updated = reduceWorkspaceTabs(updated, {
+                type: "close",
+                tabId: tab.id,
+              });
+            }
+            next[threadId] = updated;
+          }
+          return changed ? next : current;
+        });
+      }
+    });
+  }, []);
   // OD queueOnly 语义的落点：面板批注发送后自动触发发送。effect 在
   // prompt state 落地后消费此标记并调用 sendPrompt（空闲直发、运行中
   // 走 followUpTurn 排队）；置 null 表示没有待自动发送的文本。
@@ -8939,7 +8978,9 @@ ${model.providerId} · ${model.modelId}`}
                                 { kind: "browser", label: t.browser },
                                 { kind: "file", label: t.files },
                                 ...(activeThread?.typeBinding?.typeId ===
-                                  "artemis-design" && !designOpen
+                                  "artemis-design" &&
+                                  designPluginAvailable &&
+                                  !designOpen
                                   ? [
                                       {
                                         kind: "design" as const,
@@ -9087,7 +9128,8 @@ ${model.providerId} · ${model.modelId}`}
                             onActivate={openFilesPanel}
                           />
                           {activeThread?.typeBinding?.typeId ===
-                            "artemis-design" && (
+                            "artemis-design" &&
+                            designPluginAvailable && (
                             <WorkspaceLauncherAction
                               icon={<WorkspaceLauncherIcon kind="design" />}
                               label={t.designTab}

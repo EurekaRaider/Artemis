@@ -1214,6 +1214,12 @@ export interface ArtemisApi {
   designCapabilityStatus(): Promise<
     import("@artemis/protocol").CapabilityPackStatus
   >;
+  /** Entry-visibility seed for the design mode entrances. */
+  designCapabilityAvailability(): Promise<{ available: boolean }>;
+  /** Pushed on install/import/activate/deactivate/uninstall. */
+  onDesignCapabilityAvailability(
+    listener: (event: { available: boolean }) => void,
+  ): () => void;
   checkDesignCapabilityUpdates(): Promise<void>;
   installDesignCapability(): Promise<void>;
   importDesignCapability(input?: { path: string }): Promise<void>;
@@ -1567,6 +1573,7 @@ export const IPC = {
   officeCapabilityDeactivate: "artemis:office-capability-deactivate",
   officeCapabilityUninstall: "artemis:office-capability-uninstall",
   designCapabilityStatus: "artemis:design-capability-status",
+  designCapabilityAvailability: "artemis:design-capability-availability",
   designCapabilityCheckUpdates: "artemis:design-capability-check-updates",
   designCapabilityInstall: "artemis:design-capability-install",
   designCapabilityImport: "artemis:design-capability-import",

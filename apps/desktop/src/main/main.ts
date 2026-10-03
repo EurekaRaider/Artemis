@@ -10956,6 +10956,12 @@ function registerIpc(): void {
     await ensureDesignPackSynced();
     return (await getDesignPackRuntime()).status();
   });
+  /** Entry-visibility seed: whether the pack is active right now. */
+  ipcMain.handle(IPC.designCapabilityAvailability, async () => {
+    await ensureDesignPackSynced();
+    const status = await (await getDesignPackRuntime()).status();
+    return { available: Boolean(status.activeVersion) };
+  });
   /**
    * Why the design plugin is currently unusable for a thread, or null when
    * usable. A thread WITH a type binding (every real design task) requires
@@ -10995,6 +11001,21 @@ function registerIpc(): void {
     return "设计插件已移除：请在 设置 → 执行权限 中重新获取。设计文件与历史版本已保留，重新安装后自动恢复。";
   };
   designPluginAvailabilityGate = designPluginUnavailableReason;
+  /** Entry visibility + tab lifecycle follow the pack: broadcast on change. */
+  const broadcastDesignAvailability = async () => {
+    try {
+      const status = await (await getDesignPackRuntime()).status();
+      const available = Boolean(status.activeVersion);
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (window.isDestroyed()) continue;
+        window.webContents.send(IPC.designCapabilityAvailability, {
+          available,
+        });
+      }
+    } catch (error) {
+      console.error("[design-pack] availability broadcast failed", error);
+    }
+  };
   /** Remove = design mode off: close every open panel of the plugin. */
   const closeDesignPanels = (threadId?: string) => {
     if (!designPanelHost) return;
@@ -11019,6 +11040,7 @@ function registerIpc(): void {
       );
     await runtime.packs.install(manifest);
     await syncDesignPackRevision();
+    await broadcastDesignAvailability();
   });
   ipcMain.handle(
     IPC.designCapabilityImport,
@@ -11031,6 +11053,7 @@ function registerIpc(): void {
           String(explicit),
         );
         await syncDesignPackRevision();
+        await broadcastDesignAvailability();
         return;
       }
       const selected = await dialog.showOpenDialog({
@@ -11045,6 +11068,7 @@ function registerIpc(): void {
         selected.filePaths[0],
       );
       await syncDesignPackRevision();
+      await broadcastDesignAvailability();
     },
   );
   ipcMain.handle(IPC.designCapabilityCancel, async () =>
@@ -11055,12 +11079,14 @@ function registerIpc(): void {
     async (_event, version: string) => {
       await (await getDesignPackRuntime()).packs.activate(version);
       await syncDesignPackRevision();
+      await broadcastDesignAvailability();
     },
   );
   ipcMain.handle(IPC.designCapabilityDeactivate, async () => {
     await (await getDesignPackRuntime()).packs.deactivate();
     // Design mode is off: open panels must go with it.
     closeDesignPanels();
+    await broadcastDesignAvailability();
   });
   ipcMain.handle(
     IPC.designCapabilityUninstall,
@@ -11069,6 +11095,7 @@ function registerIpc(): void {
       // Design mode is off: open panels must go with it. Revisions (and with
       // them every thread's files and history) stay on disk.
       closeDesignPanels();
+      await broadcastDesignAvailability();
     },
   );
   ipcMain.handle(

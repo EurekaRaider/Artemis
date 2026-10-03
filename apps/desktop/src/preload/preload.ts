@@ -342,6 +342,21 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.officeCapabilityUninstall, version),
   designCapabilityStatus: () =>
     ipcRenderer.invoke(IPC.designCapabilityStatus),
+  designCapabilityAvailability: () =>
+    ipcRenderer.invoke(IPC.designCapabilityAvailability),
+  onDesignCapabilityAvailability: (listener) => {
+    const handler = (
+      _event: unknown,
+      payload: Parameters<typeof listener>[0],
+    ) => listener(payload);
+    ipcRenderer.on(IPC.designCapabilityAvailability, handler as never);
+    return () => {
+      ipcRenderer.removeListener(
+        IPC.designCapabilityAvailability,
+        handler as never,
+      );
+    };
+  },
   checkDesignCapabilityUpdates: () =>
     ipcRenderer.invoke(IPC.designCapabilityCheckUpdates),
   installDesignCapability: () =>
