@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { lockedSlackLicense } from "./slack-cli-package.mjs";
@@ -9,6 +10,7 @@ import {
   downloadSlackAsset,
   fetchLatestSlackRelease,
   fetchSlackBytes,
+  fetchSlackBytesWithCurl,
   latestStableRelease,
   sha256,
   slackBinaryIdentity,
@@ -160,6 +162,107 @@ test("network failures and GitHub rate limits fail closed after bounded retries"
     assert.equal(calls, 3);
   }
 });
+test("Windows curl transport preserves binary bytes, HTTP status and bounded execution", async () => {
+  const bytes = Buffer.from([0, 255, 10, 50, 48, 48]);
+  const signal = AbortSignal.timeout(1000);
+  const actual = await fetchSlackBytesWithCurl(
+    "https://api.github.com/test",
+    { headers: { "Cache-Control": "no-cache" }, signal, limit: 32 },
+    async (command, args, options) => {
+      assert.equal(command, "curl.exe");
+      assert.ok(args.includes("--http1.1"));
+      assert.ok(args.includes("--ipv4"));
+      assert.ok(args.includes("Cache-Control: no-cache"));
+      assert.equal(options.signal, signal);
+      assert.equal(options.maxBuffer, 36);
+      return { stdout: Buffer.concat([bytes, Buffer.from("\n429")]) };
+    },
+  );
+  assert.equal(actual.status, 429);
+  assert.deepEqual(Buffer.from(await actual.arrayBuffer()), bytes);
+});
+test("Windows curl network failures still block after three attempts", async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchSlackBytes("https://api.github.com/test", {
+      sleep: noSleep,
+      fetchImpl: (url, options) =>
+        fetchSlackBytesWithCurl(url, options, async () => {
+          calls++;
+          throw new Error("connection reset");
+        }),
+    }),
+    /blocked/u,
+  );
+  assert.equal(calls, 3);
+});
+test("Windows curl rejects malformed statuses and oversized responses", async () => {
+  for (const stdout of [Buffer.from("body\n000"), Buffer.from("body\n200")]) {
+    await assert.rejects(
+      fetchSlackBytesWithCurl(
+        "https://api.github.com/test",
+        { headers: {}, signal: AbortSignal.timeout(1000), limit: 3 },
+        async () => ({ stdout }),
+      ),
+      /invalid or oversized/u,
+    );
+  }
+});
+test(
+  "Windows package reuse accepts workflow-only differences but rejects application changes",
+  { skip: process.platform === "win32" },
+  async () => {
+    const workflow = await readFile(
+      new URL("../.github/workflows/release.yml", import.meta.url),
+      "utf8",
+    );
+    const script = workflow
+      .match(
+        /- name: Verify completed Windows package before reusing it[\s\S]*?run: \|\n((?: {10}[^\n]*\n)+)/u,
+      )?.[1]
+      ?.replace(/^ {10}/gmu, "");
+    assert.ok(script);
+    for (const [changed, related, success] of [
+      [".github/workflows/release.yml", "1", true],
+      ["apps/desktop/src/main/main.ts", "1", false],
+      [".github/workflows/release.yml\npackage-lock.json", "1", false],
+      [".github/workflows/release.yml", "0", false],
+    ]) {
+      const checked = spawnSync(
+        "/bin/bash",
+        [
+          "-e",
+          "-o",
+          "pipefail",
+          "-c",
+          `
+      gh() { printf '%s Release 1\\n' "$TEST_SHA"; }
+      git() {
+        case "$1" in
+          merge-base) test "$TEST_RELATED" = 1 ;;
+          diff) printf '%s\\n' "$TEST_CHANGED" ;;
+          *) return 1 ;;
+        esac
+      }
+      ${script}
+    `,
+        ],
+        {
+          env: {
+            ...process.env,
+            WINDOWS_RUN_ID: "123",
+            RELEASE_SHA: "a".repeat(40),
+            TEST_SHA: "b".repeat(40),
+            TEST_RELATED: related,
+            TEST_CHANGED: changed,
+          },
+          encoding: "utf8",
+        },
+      );
+      assert.equal(checked.status === 0, success, changed);
+    }
+  },
+);
 test("a successful retry must still verify a fresh response", async () => {
   let calls = 0;
   assert.equal(

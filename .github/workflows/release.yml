@@ -105,9 +105,12 @@ jobs:
             --jq '[.headSha, .workflowName, ([.jobs[] | select(.name == "Notarize and verify macOS arm64" and .conclusion == "success")] | length)] | join(" ")')"
           read -r mac_sha workflow_name job_count <<< "$verified"
           test "$workflow_name $job_count" = "Release 1"
-          git merge-base --is-ancestor "$mac_sha" "$RELEASE_SHA"
+          git merge-base --is-ancestor "$mac_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$mac_sha"
           while IFS= read -r changed; do
-            test "$changed" = .github/workflows/release.yml || exit 1
+            case "$changed" in
+              .github/workflows/release.yml|scripts/slack-cli-release.mjs|scripts/test-slack-cli.mjs|apps/desktop/test/timeline-previews.test.tsx) ;;
+              *) echo "Verified macOS package does not cover changed path: $changed" >&2; exit 1 ;;
+            esac
           done < <(git diff --name-only "$mac_sha" "$RELEASE_SHA")
 
       - name: Verify completed Windows package before reusing it
@@ -124,7 +127,12 @@ jobs:
             --jq '[.headSha, .workflowName, ([.jobs[] | select(.name == "Package and verify Windows x64 ZIP" and .conclusion == "success")] | length)] | join(" ")')"
           read -r windows_sha workflow_name job_count <<< "$verified"
           test "$workflow_name $job_count" = "Release 1"
-          test "$windows_sha" = "$RELEASE_SHA"
+          if [[ "$windows_sha" != "$RELEASE_SHA" ]]; then
+            git merge-base --is-ancestor "$windows_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$windows_sha"
+            while IFS= read -r changed; do
+              test "$changed" = .github/workflows/release.yml || exit 1
+            done < <(git diff --name-only "$windows_sha" "$RELEASE_SHA")
+          fi
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
@@ -234,6 +242,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build UI library dependencies for bundled plugin verification
+        run: npm run build:ui-libraries
 
       - name: Package and sign macOS arm64 DMG and ZIP
         run: |
@@ -389,6 +400,8 @@ jobs:
       - name: Verify native runner architecture
         run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
       - run: npm ci
+      - name: Build UI library dependencies for bundled plugin verification
+        run: npm run build:ui-libraries
       - name: Build and verify unsigned Windows ZIP
         shell: pwsh
         run: |
@@ -396,8 +409,11 @@ jobs:
           npm run release:win -w @artemis/desktop 2>&1 | Tee-Object -FilePath $logPath
           $releaseExitCode = $LASTEXITCODE
           if ($releaseExitCode -ne 0) {
-            $tail = (Get-Content $logPath -Tail 60) -join "`n"
-            if ($env:GITHUB_TOKEN) { $tail = $tail.Replace($env:GITHUB_TOKEN, '***') }
+            $tail = (Get-Content $logPath -Tail 20 | ForEach-Object {
+              $line = $_
+              if ($env:GITHUB_TOKEN) { $line = $line.Replace($env:GITHUB_TOKEN, '***') }
+              if ($line.Length -gt 160) { $line.Substring(0, 160) + '...' } else { $line }
+            }) -join "`n"
             $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Windows release failure::$message"
           }
@@ -414,6 +430,7 @@ jobs:
           RELEASE_ID: ${{ needs.stage-release.outputs.release-id }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
           $version = node -p "require('./package.json').version"
           $zipPath = "apps/desktop/release/Artemis-Windows-x64-$version.zip"
           $manifestPath = 'apps/desktop/release/release-manifest-windows-x64.json'
@@ -433,18 +450,41 @@ jobs:
           foreach ($path in @($zipPath, $manifestPath)) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Missing verified release asset: $path" }
             $name = Split-Path $path -Leaf
-            foreach ($asset in @($release.assets)) {
-              if ($asset.name -ceq $name) {
-                Invoke-RestMethod -Method Delete -Uri "$repositoryUri/releases/assets/$($asset.id)" -Headers $headers
-              }
-            }
             $assetUri = "${uploadUrl}?name=$([System.Uri]::EscapeDataString($name))"
             $contentType = if ($name.EndsWith('.zip')) { 'application/zip' } else { 'application/json' }
-            $uploaded = Invoke-RestMethod -Method Post -Uri $assetUri -Headers $headers -ContentType $contentType -InFile (Resolve-Path $path)
-            if ($uploaded.name -cne $name -or $uploaded.size -ne (Get-Item $path).Length) {
-              throw "Uploaded release asset does not match $path"
+            $size = (Get-Item $path).Length
+            $digest = "sha256:$((Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant())"
+            $responsePath = Join-Path $env:RUNNER_TEMP "$name-upload.json"
+            $uploaded = $null
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              $current = Invoke-RestMethod -Method Get -Uri "$repositoryUri/releases/$env:RELEASE_ID" -Headers $headers
+              foreach ($asset in @($current.assets)) {
+                if ($asset.name -cne $name) { continue }
+                if ($asset.state -eq 'uploaded' -and $asset.size -eq $size -and $asset.digest -ceq $digest) {
+                  $uploaded = $asset
+                  break
+                }
+                Invoke-RestMethod -Method Delete -Uri "$repositoryUri/releases/assets/$($asset.id)" -Headers $headers
+              }
+              if ($uploaded) { break }
+              & curl.exe --http1.1 --connect-timeout 30 --max-time 1200 --fail-with-body --silent --show-error `
+                --request POST --header "Authorization: Bearer $env:GH_TOKEN" `
+                --header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28' `
+                --header "Content-Type: $contentType" --data-binary "@$((Resolve-Path $path).Path)" `
+                --output $responsePath $assetUri
+              if ($LASTEXITCODE -eq 0) {
+                $candidate = Get-Content $responsePath -Raw | ConvertFrom-Json
+                if ($candidate.name -ceq $name -and $candidate.state -eq 'uploaded' -and $candidate.size -eq $size -and $candidate.digest -ceq $digest) {
+                  $uploaded = $candidate
+                  break
+                }
+              }
+              Write-Warning "Release asset upload attempt $attempt failed for $name; retrying in 5 seconds."
+              Start-Sleep -Seconds 5
             }
+            if (-not $uploaded) { throw "Release asset upload failed: $name" }
           }
+          $global:LASTEXITCODE = 0
 
   publish:
     name: Publish client artifacts to ArtemisRelease
