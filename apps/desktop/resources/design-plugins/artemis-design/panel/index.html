@@ -341,6 +341,9 @@ html[data-theme="dark"] .design-cat.active{
 /* 项目文件预览态：渲染进同一舞台（dzRenderDocument，资源已由宿主内联），
    批注/标记/评论/截图全链路可用；仅隐藏版本历史（项目文件无线程版本） */
 .design-preview-view.dz-project-mode .dz-more-menu .dz-menu-item[data-dz-more="history"]{ display:none; }
+/* 项目页面预览对齐 OD FileViewer：iframe 铺满工作区、面板零额外留白
+   （viewport 40px 探索边距是设计文档样机专用），页面自身 padding 保留 */
+.design-preview-view.dz-project-mode .dz-viewport{ padding: 12px; }
 .dz-project-source{
   margin:0; padding:24px; white-space:pre-wrap; word-break:break-all;
   font:12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2692,7 +2695,10 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
 
   /* ============ 设备 / 缩放（原型 dzApplyStage） ============ */
   function dzApplyStage() {
-    var widths = { desktop: "min(560px, 100%)", tablet: "min(430px, 100%)", mobile: "min(300px, 100%)" };
+    // 项目页面：桌面端铺满舞台（OD FileViewer 语义），平板/手机仍给模拟宽度
+    var widths = dzProjectView
+      ? { desktop: "100%", tablet: "min(430px, 100%)", mobile: "min(300px, 100%)" }
+      : { desktop: "min(560px, 100%)", tablet: "min(430px, 100%)", mobile: "min(300px, 100%)" };
     dzStage.style.width = widths[dzDevice];
     $("#dzMockPhone").hidden = dzDevice === "desktop";
     // 手机态：把解析文档镜像进手机屏（桌面样机隐藏）
