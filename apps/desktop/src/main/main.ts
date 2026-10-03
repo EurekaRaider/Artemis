@@ -509,6 +509,14 @@ let designPanelHost: DesignPanelHost | undefined;
 // installs this sink so they can trigger the debounced snapshot push.
 let designArtifactWriteSink: ((threadId: string) => void) | undefined;
 let pluginDispatch: PluginDispatch | undefined;
+/**
+ * Design-plugin availability gate, installed during startup (the design
+ * capability runtime section). Non-null reason = plugin removed: panel
+ * mounts and tool dispatches refuse. Undefined (before install) = usable.
+ */
+let designPluginAvailabilityGate:
+  | ((threadId?: string) => Promise<string | null>)
+  | undefined;
 let panelSendEntry: PanelSendEntryService | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
@@ -10031,6 +10039,10 @@ function registerIpc(): void {
       if (!window) throw new Error("Host window is not available.");
       const thread = store?.getThread(threadId);
       if (!thread) throw new Error("Active task not found.");
+      // Removal gate: an uninstalled plugin must not mount, even though its
+      // bound revision survives on disk (reinstall restores it in place).
+      const unavailable = await designPluginAvailabilityGate?.(threadId);
+      if (unavailable) throw new Error(unavailable);
       // S2: verify the thread's revision binding before mounting; a
       // tampered revision refuses the load with a repair hint.
       const boundThread = store?.getThread(threadId);
@@ -10944,6 +10956,57 @@ function registerIpc(): void {
     await ensureDesignPackSynced();
     return (await getDesignPackRuntime()).status();
   });
+  /**
+   * Why the design plugin is currently unusable for a thread, or null when
+   * usable. A thread WITH a type binding (every real design task) requires
+   * the capability pack: removing the pack hides design mode even though
+   * the bound revision survives on disk (reinstalling restores it in place,
+   * zero data movement). Only the unbound dev/catalog path falls back to the
+   * bundled resources.
+   */
+  const designPluginUnavailableReason = async (
+    threadId?: string,
+  ): Promise<string | null> => {
+    const bound = threadId
+      ? Boolean(store?.getThread(threadId)?.typeBinding)
+      : true;
+    try {
+      await ensureDesignPackSynced();
+      const status = await (await getDesignPackRuntime()).status();
+      if (status.activeVersion) return null;
+    } catch {
+      // Catalog problems fall through to the bundled-resource check below.
+    }
+    if (!bound) {
+      const bundled = join(
+        app.getAppPath(),
+        "resources",
+        "design-plugins",
+        "artemis-design",
+        "artemis.plugin.json",
+      );
+      try {
+        await readFile(bundled);
+        return null;
+      } catch {
+        /* fall through to the removal message */
+      }
+    }
+    return "设计插件已移除：请在 设置 → 执行权限 中重新获取。设计文件与历史版本已保留，重新安装后自动恢复。";
+  };
+  designPluginAvailabilityGate = designPluginUnavailableReason;
+  /** Remove = design mode off: close every open panel of the plugin. */
+  const closeDesignPanels = (threadId?: string) => {
+    if (!designPanelHost) return;
+    const threads = threadId
+      ? [threadId]
+      : [...new Set(store?.listThreads().map((thread) => thread.id) ?? [])];
+    for (const id of threads) {
+      for (const handle of designPanelHost.listPanels(id)) {
+        designPanelHost.releasePanel(id, handle.panelId);
+      }
+    }
+  };
   ipcMain.handle(IPC.designCapabilityCheckUpdates, async () => {
     await (await getDesignPackRuntime()).updates.check();
   });
@@ -10994,13 +11057,19 @@ function registerIpc(): void {
       await syncDesignPackRevision();
     },
   );
-  ipcMain.handle(IPC.designCapabilityDeactivate, async () =>
-    (await getDesignPackRuntime()).packs.deactivate(),
-  );
+  ipcMain.handle(IPC.designCapabilityDeactivate, async () => {
+    await (await getDesignPackRuntime()).packs.deactivate();
+    // Design mode is off: open panels must go with it.
+    closeDesignPanels();
+  });
   ipcMain.handle(
     IPC.designCapabilityUninstall,
-    async (_event, version: string) =>
-      (await getDesignPackRuntime()).packs.uninstall(version),
+    async (_event, version: string) => {
+      await (await getDesignPackRuntime()).packs.uninstall(version);
+      // Design mode is off: open panels must go with it. Revisions (and with
+      // them every thread's files and history) stay on disk.
+      closeDesignPanels();
+    },
   );
   ipcMain.handle(
     IPC.workspaceTextFileRead,
@@ -23176,6 +23245,9 @@ app
     store,
     revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
     scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
+    // 卸载设计插件后拒绝一切工具调用：修订残留不等于插件可用。
+    availabilityGate: async (input: { threadId: string }) =>
+      (await designPluginAvailabilityGate?.(input.threadId)) ?? null,
     // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
     // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
     onArtifactWrite: ({ threadId }) => {

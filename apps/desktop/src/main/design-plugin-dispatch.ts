@@ -28,6 +28,7 @@ export class PluginDispatchRefusedError extends Error {
   constructor(
     readonly code:
       | "no-type-binding"
+      | "plugin-unavailable"
       | "revision-missing"
       | "content-hash-mismatch"
       | "grant-missing"
@@ -116,6 +117,14 @@ export interface PluginDispatchHost {
    * snapshot so open panels refresh to the new head automatically.
    */
   onArtifactWrite?: (input: { threadId: string; toolName: string }) => void;
+  /**
+   * Unavailability gate: a non-null reason refuses the tool call before
+   * the trust chain runs. The design plugin's removal sets this — a bound
+   * revision surviving on disk must not keep a removed plugin usable.
+   */
+  availabilityGate?: (input: { threadId: string }) => Promise<
+    string | null
+  >;
   /** Manifest tool declarations, resolved from the published revision. */
   loadPublishedManifest(input: {
     installationId: string;
@@ -168,6 +177,16 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     const binding = thread?.typeBinding;
     if (!thread || !binding) {
       return refuse(store, input, "no-type-binding", "thread has no type binding");
+    }
+
+    // Step 0: the plugin itself must still be installed. A surviving bound
+    // revision on disk does not keep a removed plugin callable.
+    if (host.availabilityGate) {
+      const unavailable = await host.availabilityGate({
+        threadId: input.threadId,
+      });
+      if (unavailable)
+        return refuse(store, input, "plugin-unavailable", unavailable);
     }
 
     // Trust chain step 1: the revision directory must exist and its

@@ -107,6 +107,7 @@ async function setupBoundThread() {
   });
 
   const artifactWrites: Array<{ threadId: string; toolName: string }> = [];
+  const availabilityRefused: string[] = [];
   const dispatch = createDispatchPluginTool({
     store,
     revisionsRoot,
@@ -114,6 +115,10 @@ async function setupBoundThread() {
     onArtifactWrite: (input) => {
       artifactWrites.push(input);
     },
+    // Availability gate (design plugin removal): injectable so tests drive
+    // both states against the same bound thread.
+    availabilityGate: async ({ threadId: gated }) =>
+      availabilityRefused.includes(gated) ? "设计插件已移除" : null,
     loadPublishedManifest: async (input) => {
       const revisionRoot = join(revisionsRoot, input.installationId, input.contentHash);
       try {
@@ -132,7 +137,7 @@ async function setupBoundThread() {
       }
     },
   });
-  return { store, dispatch, threadId, binding, published, revisionsRoot, scratchRoot, databasePath, artifactWrites };
+  return { store, dispatch, threadId, binding, published, revisionsRoot, scratchRoot, databasePath, artifactWrites, availabilityRefused };
 }
 
 describe("S2 runtime isolation", () => {
@@ -152,6 +157,23 @@ describe("S2 runtime isolation", () => {
     expect(outcome.status).toBe("succeeded");
     ctx.store.close();
   }, 30_000);
+
+  it("availability gate: a removed plugin refuses dispatch before the trust chain", async () => {
+    const ctx = await setupBoundThread();
+    // The revision and grant exist and would pass the chain — removal alone
+    // must refuse the call.
+    ctx.availabilityRefused.push(ctx.threadId);
+    const outcome = await ctx.dispatch.dispatch({
+      threadId: ctx.threadId,
+      toolName: "create_document",
+      args: { name: "应被拒绝", brief: "" },
+      mode: "execute",
+    });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.error).toContain("plugin-unavailable");
+    expect(outcome.error).toContain("设计插件已移除");
+    ctx.store.close();
+  });
 
   it("tampered revision -> dispatch refused with content-hash-mismatch", async () => {
     const ctx = await setupBoundThread();

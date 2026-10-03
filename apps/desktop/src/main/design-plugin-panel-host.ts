@@ -378,7 +378,15 @@ export class DesignPanelHost {
     if (!owner) {
       throw new Error(`No installed plugin provides panel "${panelId}".`);
     }
-    const entry = owner.manifest.panels.find((panel) => panel.id === panelId)!;
+    const entry = owner.manifest.panels.find((panel) => panel.id === panelId);
+    if (!entry) {
+      // The revision branch resolves the owner from the thread binding and
+      // does not filter by panelId — an unknown id must fail clearly instead
+      // of dereferencing undefined.
+      throw new Error(
+        `Panel "${panelId}" is not declared by the bound plugin.`,
+      );
+    }
     const entryUrl = `file://${join(owner.root, entry.entry)}`;
 
     // Isolated per-panel session: no cookies/storage shared with the host or
