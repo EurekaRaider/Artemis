@@ -11031,6 +11031,17 @@ function registerIpc(): void {
   ipcMain.handle(IPC.designCapabilityCheckUpdates, async () => {
     await (await getDesignPackRuntime()).updates.check();
   });
+  /** Map trust-chain failures to actionable user language. */
+  const translateDesignPackError = (error: unknown): Error => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/Untrusted capability signing key/.test(message))
+      return new Error(
+        "此安装包不是由当前应用信任的发布方签名：应用尚未内置该发布公钥，或安装包来自非官方渠道。请更新应用后重试，或使用官方发布的安装包。",
+      );
+    if (/No verified design plugin release/.test(message))
+      return new Error("暂时没有可下载的官方版本。可先通过“导入离线包”安装。");
+    return error instanceof Error ? error : new Error(message);
+  };
   ipcMain.handle(IPC.designCapabilityInstall, async () => {
     const runtime = await getDesignPackRuntime();
     const manifest = runtime.updates.available();
@@ -11038,7 +11049,11 @@ function registerIpc(): void {
       throw new Error(
         "No verified design plugin release is available for this platform yet.",
       );
-    await runtime.packs.install(manifest);
+    try {
+      await runtime.packs.install(manifest);
+    } catch (error) {
+      throw translateDesignPackError(error);
+    }
     await syncDesignPackRevision();
     await broadcastDesignAvailability();
   });
@@ -11049,9 +11064,13 @@ function registerIpc(): void {
       // installOffline verifies the container signature either way.
       const explicit = input?.path;
       if (explicit) {
-        await (await getDesignPackRuntime()).packs.installOffline(
-          String(explicit),
-        );
+        try {
+          await (await getDesignPackRuntime()).packs.installOffline(
+            String(explicit),
+          );
+        } catch (error) {
+          throw translateDesignPackError(error);
+        }
         await syncDesignPackRevision();
         await broadcastDesignAvailability();
         return;
@@ -11064,9 +11083,13 @@ function registerIpc(): void {
         ],
       });
       if (selected.canceled || !selected.filePaths[0]) return;
-      await (await getDesignPackRuntime()).packs.installOffline(
-        selected.filePaths[0],
-      );
+      try {
+        await (await getDesignPackRuntime()).packs.installOffline(
+          selected.filePaths[0],
+        );
+      } catch (error) {
+        throw translateDesignPackError(error);
+      }
       await syncDesignPackRevision();
       await broadcastDesignAvailability();
     },
