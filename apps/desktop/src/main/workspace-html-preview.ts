@@ -21,6 +21,10 @@ interface HtmlLease {
   url: string;
 }
 const assetTypes: Record<string, string> = {
+  // 页面间导航（<base> 相对解析，OD /raw/ 同构）：租约目录内兄弟 HTML 按
+  // 真实文档返回（CSP 沙箱随响应下发，脚本限制不变）
+  ".html": "text/html; charset=utf-8",
+  ".htm": "text/html; charset=utf-8",
   ".js": "text/javascript",
   ".mjs": "text/javascript",
   ".css": "text/css",

@@ -10815,9 +10815,26 @@ function registerIpc(): void {
             0,
           )
         : content;
+      // 页面间导航与相对资源的解析基址：srcdoc 无 base URL（相对引用会落
+      // 到面板自身目录 → 404 白屏）。宿主开一个 lease，把目录级 URL 交给
+      // 面板注入 <base>——页面 location.href/<a href> 导航到租约内兄弟
+      // 文件即真实显示（OD 的 /raw/ base 同构）。lease 进程期保留。
+      let baseUrl: string | undefined;
+      if (/\.html?$/i.test(requestedPath)) {
+        try {
+          const { url } = await workspaceHtmlPreview.open(
+            input.threadId,
+            requestedPath,
+          );
+          baseUrl = url.replace(/[^/]+$/, "");
+        } catch {
+          baseUrl = undefined;
+        }
+      }
       return {
         name: requestedPath,
         content: inlined,
+        ...(baseUrl ? { baseUrl } : {}),
       };
     },
     /** 项目 HTML 预览 lease：面板只换得 artemis-preview URL（URL-load，

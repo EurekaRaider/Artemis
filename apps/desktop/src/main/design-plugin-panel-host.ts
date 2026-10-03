@@ -184,7 +184,7 @@ export interface PanelRequestHandlers {
   readProjectFile(input: {
     threadId: string;
     path: string;
-  }): Promise<{ name: string; content: string }>;
+  }): Promise<{ name: string; content: string; baseUrl?: string }>;
   exportDocument(input: {
     threadId: string;
     documentId: string;

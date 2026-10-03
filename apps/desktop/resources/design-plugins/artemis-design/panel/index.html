@@ -2611,14 +2611,26 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     "  post({ type: 'dz-bridge-ready' });",
     "})();",
   ].join("\n");
-  function dzMountProjectFrame(content, name) {
+  function dzMountProjectFrame(content, name, baseUrl) {
     var frame = $("#dzProjectFrame");
     // 注入桥：插在 </body> 前（桥在页面脚本之后运行，拾取看到最终 DOM）；
-    // 页面脚本原样保留（Tailwind CDN 等在 iframe 沙箱内执行）
+    // 页面脚本原样保留（Tailwind CDN 等在 iframe 沙箱内执行）。
+    // 注入 <base>（租约目录）：srcdoc 无 base URL——页面 location.href/
+    // <a href> 的相对导航会落到面板自身目录 404 白屏；base 指向租约目录
+    // 后，导航到工作区兄弟文件由协议处理器真实解析（OD /raw/ base 同构）
+    var html = content;
+    if (baseUrl && !/<base\b/i.test(html)) {
+      var baseTag = '<base href="' + baseUrl + '" data-dz-preview-base>';
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/<head[^>]*>/i, function (m) { return m + baseTag; });
+      } else {
+        html = baseTag + html;
+      }
+    }
     var bridge = "<script>" + DZ_BRIDGE_SRC + "<\/script>";
-    var html = /<\/body>/i.test(content)
-      ? content.replace(/<\/body>/i, bridge + "<\/body>")
-      : content + bridge;
+    html = /<\/body>/i.test(html)
+      ? html.replace(/<\/body>/i, bridge + "<\/body>")
+      : html + bridge;
     dzMockDesktop.replaceChildren();
     var src = $("#dzSource");
     if (src) {
@@ -4522,7 +4534,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
         if (/\.html?$/i.test(data.name)) {
           // 项目 HTML：srcdoc 沙箱 iframe（页面脚本/CDN 可执行，opaque
           // origin 碰不到面板/宿主）+ 注入批注桥上报 hover/拾取（OD 同构）
-          dzMountProjectFrame(data.content, data.name);
+          dzMountProjectFrame(data.content, data.name, data.baseUrl);
         } else {
           dzRenderDocument(
             "<pre class=\"dz-project-source\"></pre>",
