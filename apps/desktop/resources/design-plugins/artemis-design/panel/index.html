@@ -59,7 +59,7 @@
   [hidden] { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--surface-2); color: var(--text); font-family: var(--ui-font); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   button { font: inherit; color: inherit; }
-  .design-panel-root { height: 100%; display: flex; flex-direction: column; min-height: 0; position: relative; }
+  .design-panel-root { height: 100%; display: flex; flex-direction: column; min-height: 0; position: relative; /* overflow 锁死：多 tab 时 tab 条不得撑破面板（曾把整个内容横向滚出视口）；下拉菜单都在根内弹出不受影响 */ overflow: hidden; }
   .btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: var(--r-sm); background: var(--surface-3); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 590; padding: var(--sp-btn-y) var(--sp-btn-x); cursor: pointer; }
   .btn:hover { filter: brightness(.97); }
   .btn-primary { background: var(--accent); color: var(--accent-contrast); }
@@ -95,10 +95,14 @@
   padding: 6px 8px;
   border-bottom: 1px solid var(--border-soft);
   /* 不可加 overflow-x:auto：会把 overflow-y 计算为 auto，42px 高的标签条将裁掉
-     所有向下弹出的下拉菜单（导出/新建/演示）。溢出由外层 dock 面板兜底。 */
+     所有向下弹出的下拉菜单（导出/新建/演示）。多 tab 的处理=tab 允许收缩
+     （flex-basis 可缩 + label 省略号），标签条不撑破面板根。 */
+  min-width: 0;
 }
 .design-ws-tab{
-  flex: none;
+  /* 允许收缩：多 tab 时按比例压缩 label（省略号兜底），行内总量不超过面板宽 */
+  flex: 0 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
