@@ -338,14 +338,29 @@ html[data-theme="dark"] .design-cat.active{
 .dz-project-row .dz-row-sub{ color: var(--text-3, #8a8f98); }
 /* 项目 HTML 与设计页面同卡（OD renderPageCard），缩略图为 artemis-preview 帧 */
 .dz-project-card .design-file-sub .dz-project-badge{ color: var(--text-3, #8a8f98); }
-/* 项目文件预览态：渲染进同一舞台（dzRenderDocument，资源已由宿主内联），
-   批注/标记/评论/截图全链路可用；仅隐藏版本历史（项目文件无线程版本） */
+/* 项目文件预览态：渲染进沙箱 iframe（sandbox=allow-scripts，opaque origin
+   ——页面脚本含 Tailwind CDN 可执行，碰不到面板/宿主），批注桥注入页面
+   内部上报 hover/拾取（OD 同构）；仅隐藏版本历史（项目文件无线程版本） */
 .design-preview-view.dz-project-mode .dz-more-menu .dz-menu-item[data-dz-more="history"]{ display:none; }
-/* 项目页面预览对齐 OD FileViewer：页面背景铺满整个预览视口（页面即
-   背景），面板零额外留白。mock 是舞台 flex 容器的子项，默认收缩到
-   内容宽（页面只占中间一条），必须显式拉满；页面自身 padding 保留 */
+/* 项目页面预览对齐 OD FileViewer：iframe 铺满工作区（页面即背景），
+   面板零额外留白，页面自身 padding 保留 */
 .design-preview-view.dz-project-mode .dz-viewport{ padding: 0; }
 .design-preview-view.dz-project-mode #dzMockDesktop{ width: 100%; }
+/* iframe 分支下无有效模拟面：设备/缩放（页面按自身布局渲染）与截图
+   （跨源 iframe 不可面板内栅格化）隐藏；注释/标记/评论可用（桥上报） */
+.design-preview-view.dz-project-mode .dz-device,
+.design-preview-view.dz-project-mode .dz-zoom,
+.design-preview-view.dz-project-mode .dz-toolbar-actions #dzShotBtn{ display:none; }
+/* 项目完整预览 iframe：铺在舞台上承接页面渲染（批注 pin/信息卡在
+   面板侧 DOM 靠后元素，绘制在 iframe 之上，经坐标换算对齐） */
+.dz-project-frame{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
 .dz-runtime-css-note{
   position: sticky;
   top: 0;
@@ -1705,6 +1720,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
 </div>
 </div>
 <div class="dz-viewport" id="dzViewport">
+<iframe class="dz-project-frame" hidden="" id="dzProjectFrame" sandbox="allow-scripts" src="about:blank" title="项目文件预览"></iframe>
 <div class="dz-stage" id="dzStage">
 <div class="design-mock" id="dzMockDesktop"><div class="mock-empty">尚无文档</div></div>
 <div class="dz-phone" hidden="" id="dzMockPhone">
@@ -2456,18 +2472,256 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzShow("preview", path, { keepProject: true });
     var view = document.querySelector(".design-preview-view");
     if (view) view.classList.add("dz-project-mode");
+    var frame = $("#dzProjectFrame");
     if (!/\.html?$/i.test(path)) {
       // 非 HTML 没有可视化舞台：直接落源码模式（OD 非页面文件同语义）
+      frame.hidden = true;
       dzProjectView.sourceLoaded = true;
       dzSetMode("source");
       hostPort.postMessage({ type: "read-project-file-request", path: path });
       return;
     }
+    frame.hidden = false;
     dzSetMode("preview");
     hostPort.postMessage({ type: "read-project-file-request", path: path });
   }
   function dzCloseProjectView() {
     dzProjectView = null;
+    var frame = $("#dzProjectFrame");
+    if (frame) {
+      frame.hidden = true;
+      frame.removeAttribute("srcdoc");
+      frame.src = "about:blank";
+    }
+  }
+
+  /* ============ 项目 HTML 批注桥（OD srcdoc+bridge 同构） ============
+     页面渲染进 sandbox=allow-scripts 的 opaque-origin iframe：页面自己的
+     脚本（含 Tailwind CDN）正常执行、布局生成；iframe 无同源权限碰不到
+     面板/宿主。批注桥注入页面内部，hover/点击拾取在页面里完成，经
+     postMessage 上报面板绘制高亮框/信息卡/批注弹窗。 */
+  var DZ_BRIDGE_SRC = [
+    "(function(){",
+    "  function visible(el){",
+    "    var r = el.getBoundingClientRect();",
+    "    if (r.width < 2 || r.height < 2) return false;",
+    "    var cs = getComputedStyle(el);",
+    "    return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) !== 0;",
+    "  }",
+    "  function meaningful(el){",
+    "    if (!el || el.nodeType !== 1 || !visible(el)) return false;",
+    "    var tag = el.tagName.toLowerCase();",
+    "    if (/^(a|button|input|textarea|select|label|img|video|canvas|h1|h2|h3|h4|h5|h6|p|li|td|th)$/.test(tag)) return true;",
+    "    if (el.getAttribute('role') || el.getAttribute('aria-label') || el.getAttribute('title')) return true;",
+    "    var text = (el.textContent || '').replace(/\\s+/g, ' ').trim();",
+    "    if (!text) return false;",
+    "    if (/^(span|strong|em|b|i|small|code|mark)$/.test(tag)) return true;",
+    "    var n = 0;",
+    "    for (var c = el.firstElementChild; c; c = c.nextElementSibling) {",
+    "      var ct = c.tagName ? c.tagName.toLowerCase() : '';",
+    "      if (/^(script|style|template|meta|link|title|noscript)$/.test(ct)) continue;",
+    "      if ((c.textContent || '').replace(/\\s+/g, ' ').trim() || /^(img|video|canvas|svg|input|textarea|select)$/.test(ct)) {",
+    "        n += 1; if (n > 1) return false;",
+    "      }",
+    "    }",
+    "    return true;",
+    "  }",
+    "  function pick(el){ while (el && el !== document.documentElement) { if (meaningful(el)) return el; el = el.parentElement; } return null; }",
+    "  function hex(color){",
+    "    var m = color.match(/rgba?\\(([\\d.]+)[,\\s]+([\\d.]+)[,\\s]+([\\d.]+)(?:[,\\s/]+([\\d.]+))?\\)/);",
+    "    if (!m) return /^#[0-9a-f]{3,8}$/i.test(color.trim()) ? color.trim() : '';",
+    "    if (m[4] !== undefined && Number(m[4]) === 0) return '';",
+    "    return '#' + [1,2,3].map(function(i){ var v = Math.max(0, Math.min(255, Math.round(Number(m[i])))).toString(16); return v.length === 1 ? '0' + v : v; }).join('');",
+    "  }",
+    "  function rows(el){",
+    "    var r = el.getBoundingClientRect(); var cs = getComputedStyle(el); var out = [];",
+    "    var w = Math.round(r.width), h = Math.round(r.height);",
+    "    if (w > 0 && h > 0) out.push({ k: 'Size', v: w + 'x' + h });",
+    "    var color = hex(cs.color); if (color) out.push({ k: 'Color', v: color, sw: color });",
+    "    var bg = hex(cs.backgroundColor); if (bg) out.push({ k: 'Bg', v: bg, sw: bg });",
+    "    var font = [cs.fontSize]; if (cs.fontWeight && cs.fontWeight !== '400') font.push(cs.fontWeight);",
+    "    font.push(cs.fontFamily.split(',')[0].replace(/[\"']/g, '').trim());",
+    "    out.push({ k: 'Font', v: font.join(' ') });",
+    "    var lh = cs.lineHeight; if (lh && lh !== 'normal') out.push({ k: 'Line', v: String(parseFloat(lh)) + 'px' });",
+    "    return out;",
+    "  }",
+    "  function selectorFor(el){",
+    "    var parts = []; var node = el;",
+    "    while (node && node !== document.documentElement && parts.length < 3) {",
+    "      var seg = node.tagName.toLowerCase();",
+    "      if (typeof node.className === 'string' && node.className.trim()) seg += '.' + node.className.trim().split(/\\s+/).slice(0, 2).join('.');",
+    "      parts.unshift(seg); node = node.parentElement;",
+    "    }",
+    "    return parts.join(' > ');",
+    "  }",
+    "  function kindFor(el){",
+    "    var tag = el.tagName.toLowerCase();",
+    "    if (['button','a','input','select','textarea'].indexOf(tag) > -1) return 'control';",
+    "    if (['label','header','nav','section','article','form'].indexOf(tag) > -1) return 'area';",
+    "    return 'text';",
+    "  }",
+    "  function payload(el, e){",
+    "    var r = el.getBoundingClientRect(); var cs = getComputedStyle(el);",
+    "    var style = []; var color = hex(cs.color); if (color) style.push('color:' + color);",
+    "    var bg = hex(cs.backgroundColor); if (bg) style.push('background:' + bg);",
+    "    style.push('font:' + cs.fontSize + '/' + cs.fontWeight + ' ' + cs.fontFamily.split(',')[0].replace(/[\"']/g, '').trim());",
+    "    if (cs.borderRadius && cs.borderRadius !== '0px') style.push('radius:' + cs.borderRadius);",
+    "    var hint = ''; try { hint = (el.outerHTML || '').replace(/\\s+/g, ' ').trim().slice(0, 500); } catch (_) {}",
+    "    return {",
+    "      rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },",
+    "      rows: rows(el),",
+    "      meta: {",
+    "        label: el.getAttribute('data-dz-target') || el.getAttribute('data-design-id') || el.getAttribute('id') || (el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\\s+/).slice(0, 2).join('.') : '')),",
+    "        kind: kindFor(el),",
+    "        currentText: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 160),",
+    "        selector: selectorFor(el),",
+    "        style: style.join('; ').slice(0, 400),",
+    "        htmlHint: hint,",
+    "      },",
+    "      point: e ? { x: Math.round(e.clientX), y: Math.round(e.clientY) } : null,",
+    "    };",
+    "  }",
+    "  function post(m){ try { window.parent.postMessage(m, '*'); } catch (_) {} }",
+    "  var last = null;",
+    "  document.addEventListener('mousemove', function (e) {",
+    "    var t = pick(e.target);",
+    "    if (t === last) return;",
+    "    last = t;",
+    "    if (!t) { post({ type: 'dz-bridge-hover-end' }); return; }",
+    "    var m = payload(t, e); m.type = 'dz-bridge-hover'; post(m);",
+    "  });",
+    "  document.documentElement.addEventListener('mouseleave', function () { last = null; post({ type: 'dz-bridge-hover-end' }); });",
+    "  document.addEventListener('click', function (e) {",
+    "    var t = pick(e.target);",
+    "    if (!t) return;",
+    "    e.preventDefault(); e.stopPropagation();",
+    "    var m = payload(t, e); m.type = 'dz-bridge-pick'; post(m);",
+    "  }, true);",
+    "  post({ type: 'dz-bridge-ready' });",
+    "})();",
+  ].join("\n");
+  function dzMountProjectFrame(content, name) {
+    var frame = $("#dzProjectFrame");
+    // 注入桥：插在 </body> 前（桥在页面脚本之后运行，拾取看到最终 DOM）；
+    // 页面脚本原样保留（Tailwind CDN 等在 iframe 沙箱内执行）
+    var bridge = "<script>" + DZ_BRIDGE_SRC + "<\/script>";
+    var html = /<\/body>/i.test(content)
+      ? content.replace(/<\/body>/i, bridge + "<\/body>")
+      : content + bridge;
+    dzMockDesktop.replaceChildren();
+    var src = $("#dzSource");
+    if (src) {
+      src.replaceChildren();
+      html.split("\n").forEach(function (line, i) {
+        var ln = document.createElement("span");
+        ln.className = "ln";
+        ln.textContent = String(i + 1);
+        src.appendChild(ln);
+        src.appendChild(document.createTextNode("  " + line + "\n"));
+      });
+    }
+    lastDocumentHtml = html;
+    // 同 URL srcdoc 不重载：先摘属性再赋值强制刷新
+    frame.removeAttribute("srcdoc");
+    // eslint-disable-next-line no-unsanitized/property
+    frame.srcdoc = html;
+    frame.hidden = false;
+  }
+  /* 桥消息 → 面板坐标：iframe 与 stage 同视口无缩放（zoom 恒 100 时 1:1），
+     bridge rect 是 iframe 视口坐标 */
+  function dzBridgeRectToStage(rect) {
+    var frame = $("#dzProjectFrame");
+    var fr = frame.getBoundingClientRect();
+    var sr = dzStage.getBoundingClientRect();
+    var s = dzScale();
+    return {
+      left: (fr.left - sr.left) / s + rect.x,
+      top: (fr.top - sr.top) / s + rect.y,
+      width: rect.w,
+      height: rect.h,
+    };
+  }
+  function dzBridgeShowHover(data) {
+    var box = $("#dzPickBox");
+    var r = dzBridgeRectToStage(data.rect);
+    box.style.left = r.left + "px";
+    box.style.top = r.top + "px";
+    box.style.width = r.width + "px";
+    box.style.height = r.height + "px";
+    box.hidden = false;
+    var card = $("#dzPickCard");
+    dzRenderRows(card, data.rows || []);
+    card.hidden = false;
+    var vp = $("#dzViewport");
+    var fr = $("#dzProjectFrame").getBoundingClientRect();
+    var vr = vp.getBoundingClientRect();
+    if (data.point) {
+      dzPlaceFloating(
+        card,
+        (fr.left - vr.left) + vp.scrollLeft + data.point.x,
+        (fr.top - vr.top) + vp.scrollTop + data.point.y,
+      );
+    }
+  }
+  function dzOpenComposerFromBridge(data) {
+    var composer = $("#dzNoteComposer");
+    dzEditTarget = null;
+    dzActiveCommentId = null;
+    var meta = data.meta || {};
+    $("#dzNoteTitle").textContent = meta.label || "pin";
+    $("#dzNoteTitle").title = meta.label || "";
+    dzComposerImages = [];
+    $("#dzNoteImages").replaceChildren();
+    $("#dzNoteInput").value = "";
+    var bridgePoint = dzBridgePointToStage(data);
+    dzComposerCtx = {
+      label: meta.label || "pin",
+      kind: meta.kind || "text",
+      free: false,
+      el: null,
+      bridge: data,
+      x: bridgePoint ? bridgePoint.x : null,
+      y: bridgePoint ? bridgePoint.y : null,
+    };
+    dzRenderRows($("#dzNoteRows"), data.rows || []);
+    $("#dzNoteDelete").hidden = true;
+    $("#dzNoteClose").hidden = false;
+    dzRenderDraftImages();
+    dzSyncComposerButtons();
+    dzHideHover();
+    var box = $("#dzPickBox");
+    var r = dzBridgeRectToStage(data.rect);
+    box.style.left = r.left + "px";
+    box.style.top = r.top + "px";
+    box.style.width = r.width + "px";
+    box.style.height = r.height + "px";
+    box.classList.add("selected");
+    box.hidden = false;
+    composer.hidden = false;
+    var vp = $("#dzViewport");
+    var fr = $("#dzProjectFrame").getBoundingClientRect();
+    var vr = vp.getBoundingClientRect();
+    if (data.point) {
+      dzPlaceFloating(
+        composer,
+        (fr.left - vr.left) + vp.scrollLeft + data.point.x + 14,
+        (fr.top - vr.top) + vp.scrollTop + data.point.y + 14,
+      );
+    } else {
+      dzPlaceFloating(composer, vp.scrollLeft + 24, vp.scrollTop + 24);
+    }
+    $("#dzNoteInput").focus();
+  }
+  function dzBridgePointToStage(data) {
+    var frame = $("#dzProjectFrame");
+    var fr = frame.getBoundingClientRect();
+    var sr = dzStage.getBoundingClientRect();
+    var s = dzScale();
+    if (!data.point) return null;
+    return {
+      x: (fr.left - sr.left) / s + data.point.x,
+      y: (fr.top - sr.top) / s + data.point.y,
+    };
   }
 
   var dzFileMenuPop = null;
@@ -2667,20 +2921,6 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     // 绑定上报放到这里：html 已是本文档的最新内容
     dzPostActiveDocument(currentDocument);
   }
-  /* CDN 运行时 CSS 检测：Tailwind CDN 等方案靠远程脚本现场生成工具类，
-     预览沙箱不执行远程脚本（安全边界），这类页面布局类无法生成——
-     静默烂掉不如明说。 */
-  function dzMaybeWarnRuntimeCss(html) {
-    var old = document.getElementById("dzRuntimeCssNote");
-    if (old) old.remove();
-    if (!/cdn\.tailwindcss\.com|unpkg\.com\/tailwindcss|cdn\.jsdelivr\.net\/npm\/tailwindcss/i.test(html)) return;
-    var note = document.createElement("div");
-    note.id = "dzRuntimeCssNote";
-    note.className = "dz-runtime-css-note";
-    note.textContent = "此页面使用 Tailwind CDN 运行时生成样式；预览沙箱不执行远程脚本，布局类无法生成——浏览器打开可见完整效果。";
-    var viewport = document.querySelector("#dzViewport");
-    if (viewport) viewport.insertBefore(note, viewport.firstChild);
-  }
   function dzRenderSource(html) {
     dzSource.replaceChildren();
     html.split("\n").forEach(function (line, i) {
@@ -2702,6 +2942,9 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     });
     dzSource.hidden = mode !== "source";
     dzStage.hidden = mode === "source";
+    // 项目页面 iframe 只在预览态显示（代码态看宿主内联原文）
+    var projectFrame = $("#dzProjectFrame");
+    if (projectFrame) projectFrame.hidden = mode !== "preview" || !dzProjectView;
     dzClearTools();
     if (mode === "preview") {
       dzStage.classList.remove("dz-rendering");
@@ -3085,7 +3328,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     if (dzEditTarget) {
       dzComposerImages = (dzEditTarget.images || []).slice();
       $("#dzNoteInput").value = dzEditTarget.text;
-      dzRenderRows($("#dzNoteRows"), dzEditTarget.el && dzEditTarget.el.isConnected ? dzStyleRows(dzEditTarget.el) : []);
+      dzRenderRows($("#dzNoteRows"), dzEditTarget.el && dzEditTarget.el.isConnected ? dzStyleRows(dzEditTarget.el) : (dzEditTarget.rows || []));
       $("#dzNoteDelete").hidden = false;
       $("#dzNoteClose").hidden = true;
     } else {
@@ -3327,6 +3570,21 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       };
       var tech = dzAnnotationTech(ctxEl);
       if (tech) Object.assign(entry, tech);
+      // 桥批注（项目页面 iframe）：元素身份/技术载荷来自桥上报的 meta，
+      // 面板侧无 live DOM（iframe 跨源不可触）
+      var bridge = dzComposerCtx.bridge;
+      if (bridge && bridge.meta) {
+        entry.currentText = bridge.meta.currentText || "";
+        entry.selector = bridge.meta.selector || "";
+        if (bridge.meta.style) entry.style = bridge.meta.style;
+        if (bridge.meta.htmlHint) entry.htmlHint = bridge.meta.htmlHint;
+        if (bridge.rect) {
+          entry.w = bridge.rect.w;
+          entry.h = bridge.rect.h;
+        }
+        if (bridge.rows) entry.rows = bridge.rows;
+        if (bridge.rect) entry.bridgeRect = bridge.rect;
+      }
       dzComments.push(entry);
     }
     dzToast("评论已保存");
@@ -4238,8 +4496,9 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
         var view = document.querySelector(".design-preview-view");
         if (view) view.classList.add("dz-project-mode");
         if (/\.html?$/i.test(data.name)) {
-          dzRenderDocument(data.content, data.name, "项目文件 · 可批注");
-          dzMaybeWarnRuntimeCss(data.content);
+          // 项目 HTML：srcdoc 沙箱 iframe（页面脚本/CDN 可执行，opaque
+          // origin 碰不到面板/宿主）+ 注入批注桥上报 hover/拾取（OD 同构）
+          dzMountProjectFrame(data.content, data.name);
         } else {
           dzRenderDocument(
             "<pre class=\"dz-project-source\"></pre>",
@@ -4311,6 +4570,18 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     });
   }
   window.addEventListener("message", function (event) {
+    // 批注桥（项目页面 iframe）：source 必须是当前预览帧；iframe 是
+    // opaque origin，页面脚本伪造的 postMessage 同源无法区分——但桥消息
+    // 只驱动面板 UI（高亮/批注弹窗），不携带任何宿主权限，可接受
+    if (event.source && event.source === $("#dzProjectFrame").contentWindow) {
+      var bm = event.data || {};
+      if (!dzProjectView || dzMode !== "preview") return;
+      if (bm.type === "dz-bridge-hover") dzBridgeShowHover(bm);
+      if (bm.type === "dz-bridge-hover-end") dzHideHover();
+      // 拾取点击：仅在注释模式开时弹 composer（注释关闭时页面点击照常）
+      if (bm.type === "dz-bridge-pick" && dzCommentMode) dzOpenComposerFromBridge(bm);
+      return;
+    }
     // preload 转发的 port（官方 main-world-port 模式）：data 是通道名，ports 携带端口
     if (event.source === window && event.data === "artemis:port") {
       hostPort = event.ports[0] || null;

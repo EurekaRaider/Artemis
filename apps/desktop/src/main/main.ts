@@ -10686,6 +10686,24 @@ function registerIpc(): void {
       if (!dataUrl) continue;
       output = output.replace(match[0], `${match[1]}${dataUrl}${match[3]}`);
     }
+    // 本地 <script src> 内联成行内脚本（预览走 srcdoc 沙箱 iframe，无 base
+    // URL 相对引用会失效；远程 CDN 脚本保留引用由网络加载）。module 语义
+    // 经 type 属性保留。
+    const scriptPattern = /<script\b([^>]*\bsrc=["'])([^"']+)(["'][^>]*)><\/script>/giu;
+    for (const match of [...output.matchAll(scriptPattern)]) {
+      const ref = match[2];
+      if (!ref || /^[a-z]+:/iu.test(ref) || ref.startsWith("//")) continue;
+      const absolute = resolveProjectRef(workspaceRoot, htmlDir, ref);
+      if (!absolute) continue;
+      const info = await stat(absolute).catch(() => undefined);
+      if (!info?.isFile() || info.size > 1024 * 1024) continue;
+      const code = (await readFile(absolute, "utf8")).toString();
+      const attrs = (match[1] ?? "").replace(/\bsrc=["'][^"']*["']/giu, "");
+      output = output.replace(
+        match[0],
+        `<script${attrs}>${code.replace(/<\/script>/giu, "<\\/script>")}<\/script>`,
+      );
+    }
     return output;
   }
 
