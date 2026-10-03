@@ -173,26 +173,61 @@
   display: flex;
   flex-direction: column;
 }
-/* 分类条：胶囊底 + 内嵌胶囊 tab 的分段控件（对齐截图形态） */
+/* 分类条：胶囊底 + 内嵌胶囊 tab 的分段控件（对齐截图形态）。
+   分类过多时整体横向滚动，两端出左右箭头（OD df-cats 同款） */
 .design-cats{
   flex: none;
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding: 10px 14px 8px;
+  min-width: 0;
 }
+.dz-seg-wrap{
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+}
+html[data-theme="dark"] .dz-seg-wrap{ background: var(--surface-2); }
+.dz-cat-arrow{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 28px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text);
+  cursor: pointer;
+  z-index: 2;
+}
+.dz-cat-arrow.visible{ display: flex; }
+.dz-cat-arrow:disabled{ opacity: 0.3; cursor: default; }
+.dz-cat-arrow.left{ left: 0; }
+.dz-cat-arrow.right{ right: 0; }
 .dz-seg{
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 3px;
   border-radius: var(--r-md);
-  /* 底色必须与页面背景拉开一档，否则胶囊底隐形 */
-  background: var(--surface-3);
-  flex: none;
+  /* 可收缩到 wrap 宽度：overflow-x:auto 才会在内容超宽时生效 */
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  /* 分类过多：横向滚动（箭头驱动），滚动条隐藏 */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-html[data-theme="dark"] .dz-seg{ background: var(--surface-2); }
+.dz-seg::-webkit-scrollbar{ display: none; }
 .design-cat{
   display: inline-flex;
   align-items: center;
@@ -2143,7 +2178,47 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       });
       seg.appendChild(b);
     });
-    cats.appendChild(seg);
+    /* 分类过多：胶囊条横向滚动 + 两端箭头（OD df-cats 同款） */
+    var segWrap = document.createElement("div");
+    segWrap.className = "dz-seg-wrap";
+    var arrowLeft = document.createElement("button");
+    arrowLeft.className = "dz-cat-arrow left";
+    arrowLeft.type = "button";
+    arrowLeft.setAttribute("aria-label", "向左滚动分类");
+    arrowLeft.innerHTML =
+      '<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="13"><path d="m14 7-5 5 5 5"></path></svg>';
+    var arrowRight = document.createElement("button");
+    arrowRight.className = "dz-cat-arrow right";
+    arrowRight.type = "button";
+    arrowRight.setAttribute("aria-label", "向右滚动分类");
+    arrowRight.innerHTML =
+      '<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="13"><path d="m10 7 5 5-5 5"></path></svg>';
+    segWrap.appendChild(arrowLeft);
+    segWrap.appendChild(seg);
+    segWrap.appendChild(arrowRight);
+    cats.appendChild(segWrap);
+    var updateCatArrows = function () {
+      var max = seg.scrollWidth - seg.clientWidth;
+      var scrollable = max > 4;
+      arrowLeft.classList.toggle("visible", scrollable);
+      arrowRight.classList.toggle("visible", scrollable);
+      arrowLeft.disabled = seg.scrollLeft <= 4;
+      arrowRight.disabled = seg.scrollLeft >= max - 4;
+    };
+    arrowLeft.addEventListener("click", function () {
+      seg.scrollBy({ left: -220, behavior: "smooth" });
+    });
+    arrowRight.addEventListener("click", function () {
+      seg.scrollBy({ left: 220, behavior: "smooth" });
+    });
+    seg.addEventListener("scroll", updateCatArrows, { passive: true });
+    window.addEventListener("resize", updateCatArrows);
+    // 当前分类滚入可视区（选择后箭头态随 scroll 事件自更新）
+    requestAnimationFrame(function () {
+      updateCatArrows();
+      var active = seg.querySelector(".design-cat.active");
+      if (active) active.scrollIntoView({ inline: "nearest", block: "nearest" });
+    });
     /* 文件夹行（OD df-dir-row：图标 + 名称 + N 个文件，点击进入） */
     folders.forEach(function (folder) {
       var row = document.createElement("button");
