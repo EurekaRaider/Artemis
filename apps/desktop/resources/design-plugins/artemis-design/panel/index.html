@@ -511,6 +511,10 @@ html[data-theme="dark"] .design-cat.active{
 }
 [data-tip]:hover::after, [data-tip]:focus-visible::after{ opacity: 1; }
 [data-tip][aria-expanded="true"]::after{ opacity: 0; transition: none; }
+/* 工具条两端的按钮：tooltip 默认居中会越出面板边缘（刷新贴左分割线、
+   更多贴窗口右缘），改为朝面板内侧对齐 */
+#dzReload[data-tip]::after{ left: 0; transform: none; }
+#dzMoreBtn[data-tip]::after{ left: auto; right: 0; transform: none; }
 /* 底部工具条的提示向上弹 + 黑底白字（OD tooltip 形态） */
 .dz-draw-tools [data-tip]::after{
   top: auto;
