@@ -2466,7 +2466,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
   function dzOpenProjectFile(path) {
     if (!hostPort) return;
     if (dzProjectView && dzProjectView.path !== path) dzCloseProjectView();
-    dzProjectView = { path: path };
+    dzProjectView = { path: path }; // 新挂载带桥，navigated 态清零
     var base = path.split("/").pop();
     dzEnsureFileTab(path, base.replace(/\.[^.]+$/, ""));
     dzShow("preview", path, { keepProject: true });
@@ -2602,7 +2602,19 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     "  });",
     "  document.documentElement.addEventListener('mouseleave', function () { last = null; post({ type: 'dz-bridge-hover-end' }); });",
     "  document.addEventListener('click', function (e) {",
-    "    if (!active) return; // 非注释模式：页面按钮/链接照常工作",
+    "    if (!active) {",
+    "      // 非注释模式：同工作区 .html 链接上提给面板打开（OD",
+    "      // od:preview-open-file 同构）——iframe 永不自导航，桥不失联；",
+    "      // 其余点击（按钮/脚本交互）照常放行",
+    "      var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;",
+    "      if (!a) return;",
+    "      var href = a.getAttribute('href') || '';",
+    "      var clean = href.replace(/[?#].*$/, '');",
+    "      if (!clean || /^[a-z]+:/i.test(clean) || clean.charAt(0) === '/' || !/\\.html?$/i.test(clean)) return;",
+    "      e.preventDefault(); e.stopPropagation();",
+    "      post({ type: 'dz-bridge-nav', href: href });",
+    "      return;",
+    "    }",
     "    var t = pick(e.target);",
     "    if (!t) return;",
     "    e.preventDefault(); e.stopPropagation();",
@@ -2649,6 +2661,25 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     // eslint-disable-next-line no-unsanitized/property
     frame.srcdoc = html;
     frame.hidden = false;
+  }
+  /* 桥上提的相对 href → 工作区路径（相对当前文件目录；封死在已扫描
+     清单内，防 ../ 越界）。 */
+  function dzResolveProjectNav(currentPath, href) {
+    var clean = String(href || "").replace(/[?#].*$/, "").trim();
+    if (!clean || /^[a-z]+:/i.test(clean) || clean.startsWith("/")) return null;
+    if (!/\.html?$/i.test(clean)) return null;
+    var dir = currentPath.split("/").slice(0, -1);
+    var parts = clean.split("/");
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      if (!p || p === ".") continue;
+      if (p === "..") { dir.pop(); continue; }
+      dir.push(p);
+    }
+    var target = dir.join("/");
+    if (!target) return null;
+    var known = dzLastProjectFiles.some(function (f) { return f.path === target; });
+    return known ? target : null;
   }
   /* 桥消息 → 面板坐标：iframe 与 stage 同视口无缩放（zoom 恒 100 时 1:1），
      bridge rect 是 iframe 视口坐标 */
@@ -3782,6 +3813,12 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzCommentMode = !dzCommentMode;
     dzToolState($("#dzCommentBtn"), dzCommentMode);
     if (dzCommentMode) {
+      // 拾取模式换传输重建（OD shouldUrlLoadHtmlPreview 兜底同构）：iframe
+      // 已自导航到无桥文档时，按"当前页"重建带桥 srcdoc 再进入拾取
+      if (dzProjectView && dzProjectView.navigatedPath && dzProjectView.navigatedPath !== dzProjectView.path) {
+        var navPath = dzProjectView.navigatedPath;
+        dzOpenProjectFile(navPath);
+      }
       dzDrawExit(false);
       dzSetPicking(true);
       dzHint("点击要注释的元素");
@@ -4167,6 +4204,10 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzCommentMode = false;
     dzToolState($("#dzCommentBtn"), false);
     dzPostBridgeMode(false); // 标记模式：页面不做 DOM 拾取
+    // 标记同样锚定带桥传输：导航过的页面先重建
+    if (dzProjectView && dzProjectView.navigatedPath && dzProjectView.navigatedPath !== dzProjectView.path) {
+      dzOpenProjectFile(dzProjectView.navigatedPath);
+    }
     drawViewport.classList.add("dz-drawing");
     $("#dzDrawTools").hidden = false;
     dzHint("在预览上标记：框选或钢笔");
@@ -4527,6 +4568,14 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
         );
         return;
       }
+      if (data.type === "project-navigated" && data.path) {
+        // iframe 内 JS location 导航（桥拦不住）后宿主推来真实文件路径：
+        // 同步文件 tab 与"当前页"记录；不重挂（页面已在显示）。
+        if (!dzProjectView || dzProjectView.path === data.path) return;
+        dzProjectView.navigatedPath = data.path;
+        dzEnsureFileTab(data.path, data.path.split("/").pop().replace(/\.[^.]+$/, ""));
+        return;
+      }
       if (data.type === "read-project-file-result" && data.name) {
         if (!dzProjectView || dzProjectView.path !== data.name) return;
         var view = document.querySelector(".design-preview-view");
@@ -4618,6 +4667,12 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       if (bm.type === "dz-bridge-hover-end") dzHideHover();
       // 拾取点击：仅在注释模式开时弹 composer（注释关闭时页面点击照常）
       if (bm.type === "dz-bridge-pick" && dzCommentMode) dzOpenComposerFromBridge(bm);
+      // 页面内 <a> 相对 .html 导航上提（OD od:preview-open-file 同构）：
+      // 面板按工作区路径打开新文件——桥随 srcdoc 重建，永不失联
+      if (bm.type === "dz-bridge-nav" && bm.href && dzProjectView) {
+        var navTarget = dzResolveProjectNav(dzProjectView.path, bm.href);
+        if (navTarget) dzOpenProjectFile(navTarget);
+      }
       return;
     }
     // preload 转发的 port（官方 main-world-port 模式）：data 是通道名，ports 携带端口

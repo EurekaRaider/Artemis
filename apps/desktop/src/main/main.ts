@@ -23794,6 +23794,13 @@ app
   designPanelHost.setPreviewResponder(
     (request) => workspaceHtmlPreview.respond(request),
   );
+  // 沙箱预览内的页面导航（桥拦不住的 location.href 类）兜底同步：租约
+  // 服务了目录内兄弟 HTML 时把工作区相对路径推给面板——面板用它同步
+  // 文件 tab，并在进入注释/标记拾取时按"当前页"重建带桥传输（OD 的
+  // 拾取模式换传输重建语义）。
+  workspaceHtmlPreview.onHtmlResourceServed = (leaseHostname, path, threadId) => {
+    designPanelHost?.pushProjectNavigated(threadId, "workspace", path);
+  };
   // S3 host send entry: panel candidates enter the ledger here and are
   // consumed exactly once via one-time credentials.
   panelSendEntry = new PanelSendEntryService(store);

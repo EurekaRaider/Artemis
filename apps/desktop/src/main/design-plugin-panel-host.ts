@@ -771,6 +771,15 @@ export class DesignPanelHost {
       ?.hostPort.postMessage({ type: "theme", theme });
   }
 
+  /** 沙箱预览内页面导航同步：租约服务了目录内兄弟 HTML 时告知面板
+   *  （面板同步文件 tab；进入拾取模式时按当前页重建带桥传输——OD 的
+   *  拾取模式换传输重建语义）。 */
+  pushProjectNavigated(threadId: string, panelId: string, path: string): void {
+    this.panels
+      .get(this.key(threadId, panelId))
+      ?.hostPort.postMessage({ type: "project-navigated", path });
+  }
+
   /** Broadcast a theme change to every live panel. */
   broadcastTheme(theme: "light" | "dark"): void {
     for (const panel of this.panels.values()) {
