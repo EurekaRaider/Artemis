@@ -2599,8 +2599,13 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       if (/^@/.test(sels)) continue; // @import 等丢弃
       var scopedSels = sels.split(",").map(function (s) {
         s = s.trim();
+        // 选择器前的注释必须剥掉再判定：tokens.css 常见「/* 头注释 */ :root」，
+        // 注释黏着会让 /^(html|body|:root)$/ 精确匹配失败，:root 被加前缀成
+        // 「#dzMockDesktop /* 注释 */ :root」（永不匹配）——变量定义整体丢失
+        s = s.replace(/\/\*[\s\S]*?\*\//g, "").trim();
         if (!s) return null;
         if (/^(html|body|:root)$/i.test(s)) return "#dzMockDesktop";
+        if (/^(html|body|:root)\b/i.test(s)) return "#dzMockDesktop " + s.replace(/^(html|body|:root)\b/i, "");
         return "#dzMockDesktop " + s;
       }).filter(Boolean).join(", ");
       if (scopedSels) out.push(scopedSels + " {" + body + "}");
