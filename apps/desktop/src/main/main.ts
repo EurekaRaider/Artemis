@@ -9,6 +9,7 @@ import {
   createDispatchPluginTool,
   type PluginDispatch,
 } from "./design-plugin-dispatch.js";
+import { createDesignPackRuntime } from "./design-pack-runtime.js";
 import {
   designPluginRevisionsRoot,
   ensureThreadDataRoot,
@@ -10890,6 +10891,77 @@ function registerIpc(): void {
     IPC.officeCapabilityUninstall,
     async (_event, version: string) =>
       (await getOfficeWorkbench()).packs.uninstall(version),
+  );
+
+  // Design capability pack (todo ⑤): the settings toggle's backend. Mirrors
+  // the office capability surface namespaced to packId "artemis-design".
+  let designPackRuntime:
+    | ReturnType<typeof createDesignPackRuntime>
+    | undefined;
+  const getDesignPackRuntime = () => {
+    designPackRuntime ??= createDesignPackRuntime({
+      userData: app.getPath("userData"),
+      catalogPath:
+        process.env.ARTEMIS_DESIGN_PACK_CATALOG ??
+        (app.isPackaged
+          ? join(
+              process.resourcesPath,
+              "resources",
+              "design-plugins",
+              "catalog.json",
+            )
+          : join(
+              app.getAppPath(),
+              "resources",
+              "design-plugins",
+              "catalog.json",
+            )),
+      hostVersion: app.getVersion(),
+    });
+    return designPackRuntime;
+  };
+  ipcMain.handle(IPC.designCapabilityStatus, async () => {
+    return (await getDesignPackRuntime()).status();
+  });
+  ipcMain.handle(IPC.designCapabilityCheckUpdates, async () => {
+    await (await getDesignPackRuntime()).updates.check();
+  });
+  ipcMain.handle(IPC.designCapabilityInstall, async () => {
+    const runtime = await getDesignPackRuntime();
+    const manifest = runtime.updates.available();
+    if (!manifest)
+      throw new Error(
+        "No verified design plugin release is available for this platform yet.",
+      );
+    await runtime.packs.install(manifest);
+  });
+  ipcMain.handle(IPC.designCapabilityImport, async (event) => {
+    const selected = await dialog.showOpenDialog({
+      title: "Import design plugin offline pack",
+      properties: ["openFile"],
+      filters: [{ name: "Design plugin pack", extensions: ["artemis-design"] }],
+    });
+    if (selected.canceled || !selected.filePaths[0]) return;
+    await (await getDesignPackRuntime()).packs.installOffline(
+      selected.filePaths[0],
+    );
+    void event;
+  });
+  ipcMain.handle(IPC.designCapabilityCancel, async () =>
+    (await getDesignPackRuntime()).packs.cancel(),
+  );
+  ipcMain.handle(
+    IPC.designCapabilityActivate,
+    async (_event, version: string) =>
+      (await getDesignPackRuntime()).packs.activate(version),
+  );
+  ipcMain.handle(IPC.designCapabilityDeactivate, async () =>
+    (await getDesignPackRuntime()).packs.deactivate(),
+  );
+  ipcMain.handle(
+    IPC.designCapabilityUninstall,
+    async (_event, version: string) =>
+      (await getDesignPackRuntime()).packs.uninstall(version),
   );
   ipcMain.handle(
     IPC.workspaceTextFileRead,

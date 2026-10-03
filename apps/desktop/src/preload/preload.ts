@@ -340,6 +340,21 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.officeCapabilityDeactivate),
   uninstallOfficeCapability: (version) =>
     ipcRenderer.invoke(IPC.officeCapabilityUninstall, version),
+  designCapabilityStatus: () =>
+    ipcRenderer.invoke(IPC.designCapabilityStatus),
+  checkDesignCapabilityUpdates: () =>
+    ipcRenderer.invoke(IPC.designCapabilityCheckUpdates),
+  installDesignCapability: () =>
+    ipcRenderer.invoke(IPC.designCapabilityInstall),
+  importDesignCapability: () =>
+    ipcRenderer.invoke(IPC.designCapabilityImport),
+  cancelDesignCapability: () => ipcRenderer.invoke(IPC.designCapabilityCancel),
+  activateDesignCapability: (version) =>
+    ipcRenderer.invoke(IPC.designCapabilityActivate, version),
+  deactivateDesignCapability: () =>
+    ipcRenderer.invoke(IPC.designCapabilityDeactivate),
+  uninstallDesignCapability: (version) =>
+    ipcRenderer.invoke(IPC.designCapabilityUninstall, version),
   readWorkspaceTextFile: (threadId, path) =>
     ipcRenderer.invoke(IPC.workspaceTextFileRead, threadId, path),
   readWorkspaceImage: (threadId, markdownPath, href) =>

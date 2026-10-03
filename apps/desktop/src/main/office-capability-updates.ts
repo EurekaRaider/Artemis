@@ -18,6 +18,12 @@ interface UpdateOptions {
   hostVersion: string;
   platform: string;
   arch: string;
+  /**
+   * Pack namespace this instance manages. Defaults to "office-core" (the
+   * class's origin); a second instance with e.g. "artemis-design" reuses the
+   * same check/verify machinery against a different catalog.
+   */
+  packId?: string;
   fetch?: typeof fetch;
 }
 
@@ -26,15 +32,19 @@ export class OfficeCapabilityUpdates {
   private state: NonNullable<CapabilityPackStatus["updateCheck"]> = "idle";
   private error: string | undefined;
   private pending: Promise<void> | undefined;
+  private readonly packId: string;
+  private readonly label: string;
 
   constructor(
     private readonly catalog: OfficeRuntimeCatalog,
     private readonly options: UpdateOptions,
   ) {
+    this.packId = options.packId ?? "office-core";
+    this.label = options.packId ? options.packId : "Office";
     if (catalog.updateUrl) {
       const url = new URL(catalog.updateUrl);
       if (url.protocol !== "https:" || url.username || url.password || url.hash)
-        throw new Error("Office update source must be an HTTPS URL");
+        throw new Error(`${this.label} update source must be an HTTPS URL`);
     }
     this.manifests = this.verified(catalog.manifests);
   }
@@ -42,11 +52,11 @@ export class OfficeCapabilityUpdates {
   private verified(values: unknown[]): CapabilityPackManifest[] {
     return values.flatMap((value) => {
       const manifest = capabilityPackManifestSchema.parse(value);
-      // Office update feeds carry only office-core packs; other pack ids use
-      // their own catalogs and services.
-      if (manifest.id !== "office-core") return [];
+      // Each feed carries only its own pack; foreign ids belong to their
+      // own catalogs and services.
+      if (manifest.id !== this.packId) return [];
       if (!valid(manifest.version))
-        throw new Error("Invalid Office release version");
+        throw new Error(`Invalid ${this.label} release version`);
       if (
         manifest.platform !== this.options.platform ||
         manifest.arch !== this.options.arch ||
@@ -122,15 +132,15 @@ export class OfficeCapabilityUpdates {
       !response.body ||
       (response.url && new URL(response.url).protocol !== "https:")
     )
-      throw new Error(`Office update check failed: ${response.status}`);
+      throw new Error(`${this.label} update check failed: ${response.status}`);
     const limit = 16 * 1024 * 1024;
     if (Number(response.headers.get("content-length")) > limit)
-      throw new Error("Office update catalog is too large");
+      throw new Error(`${this.label} update catalog is too large`);
     const chunks: Buffer[] = [];
     let bytes = 0;
     for await (const chunk of response.body) {
       bytes += chunk.length;
-      if (bytes > limit) throw new Error("Office update catalog is too large");
+      if (bytes > limit) throw new Error(`${this.label} update catalog is too large`);
       chunks.push(Buffer.from(chunk));
     }
     const data = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<
@@ -143,7 +153,7 @@ export class OfficeCapabilityUpdates {
       !Array.isArray(data.manifests) ||
       data.manifests.length > 32
     )
-      throw new Error("Invalid Office update catalog");
+      throw new Error(`Invalid ${this.label} update catalog`);
     // Verify all candidates before changing the last known good catalog.
     const next = this.verified(data.manifests);
     const versions = new Map(

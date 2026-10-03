@@ -133,6 +133,22 @@ for (const item of unsigned) {
   await writeFile(join(out, `manifest-${item.platform}-${item.arch}.json`), JSON.stringify(signed, null, 2));
   manifests.push(signed);
 }
+// --offline: wrap the first platform's manifest + archive into the single-file
+// container the app's offline import accepts (AROFF1 header + manifest length
+// + manifest JSON + archive bytes).
+if (argv.includes("--offline")) {
+  const manifestBytes = Buffer.from(JSON.stringify(manifests[0]), "utf8");
+  if (manifestBytes.length > 16 * 1024 * 1024)
+    throw new Error("Offline manifest too large");
+  const header = Buffer.alloc(12);
+  header.write("ARTOFF1\n");
+  header.writeUInt32BE(manifestBytes.length, 8);
+  await writeFile(
+    join(out, `artemis-design.artemis-design`),
+    Buffer.concat([header, manifestBytes, archive]),
+    { mode: 0o600 },
+  );
+}
 const catalog = buildCatalog(manifests, publicKeyPem, keyId);
 await writeFile(join(out, "catalog.json"), JSON.stringify(catalog, null, 2));
 const report = {

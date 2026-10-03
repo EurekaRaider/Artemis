@@ -1210,6 +1210,17 @@ export interface ArtemisApi {
   activateOfficeCapability(version: string): Promise<void>;
   deactivateOfficeCapability(): Promise<void>;
   uninstallOfficeCapability(version: string): Promise<void>;
+  /** Design plugin capability pack (settings toggle backend, todo ⑤). */
+  designCapabilityStatus(): Promise<
+    import("@artemis/protocol").CapabilityPackStatus
+  >;
+  checkDesignCapabilityUpdates(): Promise<void>;
+  installDesignCapability(): Promise<void>;
+  importDesignCapability(): Promise<void>;
+  cancelDesignCapability(): Promise<void>;
+  activateDesignCapability(version: string): Promise<void>;
+  deactivateDesignCapability(): Promise<void>;
+  uninstallDesignCapability(version: string): Promise<void>;
   readWorkspaceTextFile(
     threadId: string,
     path: string,
@@ -1555,6 +1566,14 @@ export const IPC = {
   officeCapabilityActivate: "artemis:office-capability-activate",
   officeCapabilityDeactivate: "artemis:office-capability-deactivate",
   officeCapabilityUninstall: "artemis:office-capability-uninstall",
+  designCapabilityStatus: "artemis:design-capability-status",
+  designCapabilityCheckUpdates: "artemis:design-capability-check-updates",
+  designCapabilityInstall: "artemis:design-capability-install",
+  designCapabilityImport: "artemis:design-capability-import",
+  designCapabilityCancel: "artemis:design-capability-cancel",
+  designCapabilityActivate: "artemis:design-capability-activate",
+  designCapabilityDeactivate: "artemis:design-capability-deactivate",
+  designCapabilityUninstall: "artemis:design-capability-uninstall",
   workspaceTextFileRead: "artemis:workspace-text-file-read",
   workspaceImageRead: "artemis:workspace-image-read",
   workspaceDirectoryList: "artemis:workspace-directory-list",

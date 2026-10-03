@@ -1,4 +1,5 @@
 import { AppearanceSettingsSection } from "./AppearanceSettingsSection.js";
+import { DesignPluginSettingsSection } from "./DesignPluginSettingsSection.js";
 import { ComputerUseControls } from "./ComputerUseControls.js";
 import { HooksSettingsSection } from "./HooksSettingsSection.js";
 import type { HookQuery } from "@artemis/protocol";
@@ -1863,6 +1864,7 @@ ${model.providerId} · ${model.modelId}`,
                   >
                     <ComputerUseControls locale={locale} permissionsOnly />
                   </ManagementSection>
+                  <DesignPluginSettingsSection locale={locale} />
                   <ManagementSection
                     className="settings-section"
                     description={t.shellRuntimeHint}
