@@ -346,6 +346,17 @@ html[data-theme="dark"] .design-cat.active{
    内容宽（页面只占中间一条），必须显式拉满；页面自身 padding 保留 */
 .design-preview-view.dz-project-mode .dz-viewport{ padding: 0; }
 .design-preview-view.dz-project-mode #dzMockDesktop{ width: 100%; }
+.dz-runtime-css-note{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 0 8px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent, #171717) 6%, var(--surface, #fff));
+  color: var(--text-2, #60646c);
+  font: 500 12px/1.5 var(--ui-font, system-ui);
+}
 .dz-project-source{
   margin:0; padding:24px; white-space:pre-wrap; word-break:break-all;
   font:12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2596,30 +2607,21 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
   // 把解析文档的 CSS 真正限制在舞台内：每条顶层规则加 #dzMockDesktop 前缀；
   // @import/@charset/@namespace 直接丢弃（无网络、无全局污染）。
   function dzScopeCss(cssText) {
-    var out = [];
-    var rules = cssText.split("}");
-    for (var i = 0; i < rules.length; i++) {
-      var chunk = rules[i].trim();
-      if (!chunk) continue;
-      var brace = chunk.indexOf("{");
-      if (brace === -1) continue;
-      var sels = chunk.slice(0, brace).trim();
-      var body = chunk.slice(brace + 1);
-      if (/^@/.test(sels)) continue; // @import 等丢弃
-      var scopedSels = sels.split(",").map(function (s) {
-        s = s.trim();
-        // 选择器前的注释必须剥掉再判定：tokens.css 常见「/* 头注释 */ :root」，
-        // 注释黏着会让 /^(html|body|:root)$/ 精确匹配失败，:root 被加前缀成
-        // 「#dzMockDesktop /* 注释 */ :root」（永不匹配）——变量定义整体丢失
-        s = s.replace(/\/\*[\s\S]*?\*\//g, "").trim();
-        if (!s) return null;
-        if (/^(html|body|:root)$/i.test(s)) return "#dzMockDesktop";
-        if (/^(html|body|:root)\b/i.test(s)) return "#dzMockDesktop " + s.replace(/^(html|body|:root)\b/i, "");
-        return "#dzMockDesktop " + s;
-      }).filter(Boolean).join(", ");
-      if (scopedSels) out.push(scopedSels + " {" + body + "}");
-    }
-    return out.join("\n");
+    /* :root/html/body 语义映射到舞台容器（变量定义挂舞台供后代继承）；
+       其余整段交给 @scope 原生限定。旧实现的 split("}") 手写解析会把
+       @layer/@media/@keyframes 整块当"@规则"丢弃（Tailwind 页面的工具类
+       全部住在 @layer 里，布局类定义整体蒸发），嵌套/字符串花括号也会
+       切碎——这些交给浏览器原生处理零风险。 */
+    var remapped = cssText.replace(
+      /* 前缀=块界符或文本开头（(?:^|[{};,]) 分支共享尾部 \s*/注释组——
+         \s* 若只挂在 [{};,] 分支内，「文本开头带缩进的 :root」永远匹配不上，
+         首个变量定义整条漏网） */
+      /((?:^|[{};,])\s*(?:\/\*[\s\S]*?\*\/\s*)*\s*)(:root|html|body)\b/gi,
+      /* :scope 在 @scope 块内指 scope root 自身——变量/padding 等原本挂在
+         根元素上的语义得以保留（@scope 规则默认不命中 scope root 本人） */
+      "$1:scope",
+    );
+    return "@scope (#dzMockDesktop) {\n" + remapped + "\n}";
   }
   function dzRenderDocument(html, name, subtitle) {
     lastDocumentHtml = html;
@@ -2664,6 +2666,20 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzApplyStage();
     // 绑定上报放到这里：html 已是本文档的最新内容
     dzPostActiveDocument(currentDocument);
+  }
+  /* CDN 运行时 CSS 检测：Tailwind CDN 等方案靠远程脚本现场生成工具类，
+     预览沙箱不执行远程脚本（安全边界），这类页面布局类无法生成——
+     静默烂掉不如明说。 */
+  function dzMaybeWarnRuntimeCss(html) {
+    var old = document.getElementById("dzRuntimeCssNote");
+    if (old) old.remove();
+    if (!/cdn\.tailwindcss\.com|unpkg\.com\/tailwindcss|cdn\.jsdelivr\.net\/npm\/tailwindcss/i.test(html)) return;
+    var note = document.createElement("div");
+    note.id = "dzRuntimeCssNote";
+    note.className = "dz-runtime-css-note";
+    note.textContent = "此页面使用 Tailwind CDN 运行时生成样式；预览沙箱不执行远程脚本，布局类无法生成——浏览器打开可见完整效果。";
+    var viewport = document.querySelector("#dzViewport");
+    if (viewport) viewport.insertBefore(note, viewport.firstChild);
   }
   function dzRenderSource(html) {
     dzSource.replaceChildren();
@@ -4179,6 +4195,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
         if (view) view.classList.add("dz-project-mode");
         if (/\.html?$/i.test(data.name)) {
           dzRenderDocument(data.content, data.name, "项目文件 · 可批注");
+          dzMaybeWarnRuntimeCss(data.content);
         } else {
           dzRenderDocument(
             "<pre class=\"dz-project-source\"></pre>",
