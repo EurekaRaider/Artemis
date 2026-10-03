@@ -18,6 +18,7 @@ import { pluginManifestSchema } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 
 import { DesignPluginCatalog } from "./design-plugin-catalog.js";
+import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
 
 export interface PluginPanelHandle {
   panelId: string;
@@ -220,6 +221,12 @@ export interface PanelRequestHandlers {
     threadId: string;
     documentId: string;
   }): Promise<{ threadId: string; created: boolean }>;
+  /** 项目 HTML 预览 lease（artemis-preview URL-load）：宿主 open 换 URL。 */
+  projectPreview(input: {
+    threadId: string;
+    path: string;
+    thumb?: boolean;
+  }): Promise<{ url: string }>;
 }
 
 export class DesignPanelHost {
@@ -245,11 +252,21 @@ export class DesignPanelHost {
       }) => void)
     | undefined;
   private requestHandlers: PanelRequestHandlers | undefined;
+  /** artemis-preview responder for panel sessions: per-panel partitions do
+   * NOT inherit defaultSession protocol handlers, so the workspace HTML
+   * preview protocol must be registered on each panel session. */
+  private previewResponder: ((request: Request) => Promise<Response>) | undefined;
 
   /** Point the host at the installed design-plugin packages root. */
   setCatalogRoot(root: string): void {
     console.log(`[design-panel] catalog root set: ${root}`);
     this.catalogRoot = root;
+  }
+
+  setPreviewResponder(
+    responder: ((request: Request) => Promise<Response>) | undefined,
+  ): void {
+    this.previewResponder = responder;
   }
 
   /** S4 handlers for panel-originated requests (export / versions). */
@@ -400,6 +417,11 @@ export class DesignPanelHost {
       `design-plugin:${owner.manifest.id}:${panelId}`,
       { cache: false },
     );
+    if (this.previewResponder) {
+      panelSession.protocol.handle(WORKSPACE_HTML_SCHEME, (request) =>
+        this.previewResponder!(request),
+      );
+    }
     const view = new WebContentsView({
       webPreferences: {
         session: panelSession,
@@ -433,6 +455,8 @@ export class DesignPanelHost {
             name?: string;
             html?: string;
             path?: string;
+            url?: string;
+            thumb?: boolean;
             autoSend?: boolean;
             images?: unknown;
             annotations?: unknown;
@@ -473,6 +497,34 @@ export class DesignPanelHost {
             hostPort.postMessage({
               type: "read-project-file-error",
               path: String(data.path),
+              error: String(error),
+            });
+          });
+        return;
+      }
+      // 项目 HTML 预览（URL-load）：面板只拿到 artemis-preview URL；资源
+      // 解析边界（文件所在目录内）由 WorkspaceHtmlPreview 的 lease 保证。
+      if (data?.type === "project-preview-request" && data.path) {
+        const thumb = data.thumb === true;
+        void this.requestHandlers
+          ?.projectPreview({
+            threadId,
+            path: String(data.path),
+            ...(thumb ? { thumb: true } : {}),
+          })
+          .then((result) => {
+            hostPort.postMessage({
+              type: "project-preview-result",
+              path: String(data.path),
+              ...(thumb ? { thumb: true } : {}),
+              ...result,
+            });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "project-preview-error",
+              path: String(data.path),
+              ...(thumb ? { thumb: true } : {}),
               error: String(error),
             });
           });

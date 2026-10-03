@@ -10423,113 +10423,6 @@ function registerIpc(): void {
     return true;
   }
 
-  /**
-   * 项目 HTML 的本地 <link rel=stylesheet> 递归内联成 <style>（预览净化管线
-   * 会剥外部引用，不内联则样式全丢）。路径封死在工作区内；限深 3、单文件
-   * ≤512KiB、总预算 1MiB、visited 防环；href 的 ?v= 查询串剥除后解析。
-   */
-  async function inlineProjectHtmlAssets(
-    workspaceRoot: string,
-    htmlDir: string,
-    html: string,
-    visited: Set<string>,
-    depth: number,
-  ): Promise<string> {
-    if (depth > 3) return html;
-    let budget = 1024 * 1024;
-    const readCss = async (href: string, fromDir: string) => {
-      const clean = href.replace(/[?#].*$/, "").trim();
-      if (!clean || /^[a-z]+:/iu.test(clean) || clean.startsWith("/"))
-        return undefined;
-      const absolute = resolve(fromDir, clean);
-      if (
-        absolute !== workspaceRoot &&
-        !absolute.startsWith(workspaceRoot + sep)
-      )
-        return undefined;
-      if (visited.has(absolute)) return "";
-      visited.add(absolute);
-      const info = await stat(absolute).catch(() => undefined);
-      if (!info?.isFile() || info.size > 512 * 1024 || info.size > budget)
-        return undefined;
-      let css = (await readFile(absolute, "utf8")).toString();
-      budget -= info.size;
-      if (depth + 1 <= 3)
-        css = await inlineProjectCssImports(
-          css,
-          dirname(absolute),
-          workspaceRoot,
-          visited,
-          depth + 1,
-          (spent: number) => {
-            budget -= spent;
-          },
-        );
-      return css;
-    };
-    let output = html;
-    const linkPattern =
-      /<link\b[^>]*rel=["']stylesheet["'][^>]*>/giu;
-    const matches = [...output.matchAll(linkPattern)];
-    for (const match of matches) {
-      const href = /href=["']([^"']+)["']/iu.exec(match[0])?.[1];
-      if (!href) continue;
-      const css = await readCss(href, htmlDir);
-      if (css === undefined) continue;
-      output = output.replace(match[0], `<style>\n${css}\n</style>`);
-    }
-    return output;
-  }
-
-  async function inlineProjectCssImports(
-    css: string,
-    cssDir: string,
-    workspaceRoot: string,
-    visited: Set<string>,
-    depth: number,
-    spend: (bytes: number) => void,
-  ): Promise<string> {
-    const importPattern =
-      /@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?\s*;/giu;
-    const matches = [...css.matchAll(importPattern)];
-    let output = css;
-    for (const match of matches) {
-      const href = match[1];
-      if (!href) continue;
-      const clean = href.replace(/[?#].*$/, "").trim();
-      if (!clean || /^[a-z]+:/iu.test(clean) || clean.startsWith("/")) continue;
-      const absolute = resolve(cssDir, clean);
-      if (
-        absolute !== workspaceRoot &&
-        !absolute.startsWith(workspaceRoot + sep)
-      )
-        continue;
-      if (visited.has(absolute)) {
-        output = output.replace(match[0], "");
-        continue;
-      }
-      visited.add(absolute);
-      const info = await stat(absolute).catch(() => undefined);
-      if (!info?.isFile() || info.size > 512 * 1024) {
-        output = output.replace(match[0], "");
-        continue;
-      }
-      spend(info.size);
-      let nested = (await readFile(absolute, "utf8")).toString();
-      if (depth + 1 <= 3)
-        nested = await inlineProjectCssImports(
-          nested,
-          dirname(absolute),
-          workspaceRoot,
-          visited,
-          depth + 1,
-          spend,
-        );
-      output = output.replace(match[0], `/* ${clean} */\n${nested}`);
-    }
-    return output;
-  }
-
   const DESIGN_SCAN_IGNORED_DIRS = new Set([
     "node_modules",
     ".git",
@@ -10592,7 +10485,7 @@ function registerIpc(): void {
 
   // S4: panel-originated requests (export / versions) run as host actions.
   designPanelHost?.setRequestHandlers({
-    /** 项目文件只读读取（面板预览用）：路径封死在工作区内，限文本扩展。 */
+    /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。 */
     readProjectFile: async (input) => {
       if (!store) throw new Error("Application store is not ready.");
       const thread = store.getThread(input.threadId);
@@ -10621,21 +10514,18 @@ function registerIpc(): void {
       if (info.size > 2 * 1024 * 1024)
         throw new Error("Project file exceeds 2 MiB.");
       const content = (await readFile(absolute, "utf8")).toString();
-      // 项目 HTML 通常依赖工作区内的本地样式表；预览净化管线会剥外部引用，
-      // 所以在宿主侧把 <link rel=stylesheet> 递归内联成 <style>（限深限量）。
-      const inlined = /\.html?$/i.test(requestedPath)
-        ? await inlineProjectHtmlAssets(
-            workspaceRoot,
-            dirname(absolute),
-            content,
-            new Set(),
-            0,
-          )
-        : content;
       return {
         name: requestedPath,
-        content: inlined,
+        content,
       };
+    },
+    /** 项目 HTML 预览 lease：面板只换得 artemis-preview URL（URL-load，
+     * 相对资源由协议处理器在文件目录内解析——OD 的 /raw/ 同构）。 */
+    projectPreview: async (input) => {
+      if (!store) throw new Error("Application store is not ready.");
+      const thread = store.getThread(input.threadId);
+      if (!thread) throw new Error("Active task not found.");
+      return workspaceHtmlPreview.open(input.threadId, String(input.path));
     },
     exportDocument: async (input) => {
       if (!store || !pluginDispatch) throw new Error("Export unavailable.");
@@ -23580,6 +23470,11 @@ app
   designPanelHost = new DesignPanelHost();
   designPanelHost.setCatalogRoot(
     join(app.getAppPath(), "resources", "design-plugins"),
+  );
+  // 项目 HTML 预览（URL-load）：面板 session 不共享 defaultSession 的协议
+  // 处理器，由 panel host 逐 session 注册 artemis-preview。
+  designPanelHost.setPreviewResponder(
+    (request) => workspaceHtmlPreview.respond(request),
   );
   // S3 host send entry: panel candidates enter the ledger here and are
   // consumed exactly once via one-time credentials.

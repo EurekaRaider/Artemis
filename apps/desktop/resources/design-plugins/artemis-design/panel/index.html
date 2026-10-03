@@ -232,6 +232,10 @@ html[data-theme="dark"] .dz-seg-wrap{ background: var(--surface-2); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* 胶囊不可压缩不换行：flex 子项默认可收缩，空间不足时文字会被挤成竖排，
+     内容收缩后 scrollWidth==clientWidth，箭头的溢出判定永远为假 */
+  flex: none;
+  white-space: nowrap;
   padding: 5px 13px;
   border: 0;
   border-radius: 7px;
@@ -324,10 +328,26 @@ html[data-theme="dark"] .design-cat.active{
 /* OD df-dir-row / df-file-row：全宽行（文件夹 + 非页面文件） */
 /* 项目工作区只读行：行尾「项目」标记弱化呈现 */
 .dz-project-row .dz-row-sub{ color: var(--text-3, #8a8f98); }
-/* 项目文件预览态：编辑型工具收起（注释/标记/评论/截图），刷新与缩放保留 */
+/* 项目 HTML 与设计页面同卡（OD renderPageCard），缩略图为 artemis-preview 帧 */
+.dz-project-card .design-file-sub .dz-project-badge{ color: var(--text-3, #8a8f98); }
+/* 项目文件预览态：编辑型工具收起；设备/缩放对本地文件无意义一并隐藏，
+   保留刷新与 预览|代码 切换（OD URL-load 预览） */
 .design-preview-view.dz-project-mode .dz-toolbar-actions .dz-iconbtn,
-.design-preview-view.dz-project-mode .dz-toolbar-actions .dz-divider{ display:none; }
+.design-preview-view.dz-project-mode .dz-toolbar-actions .dz-divider,
+.design-preview-view.dz-project-mode .dz-zoom,
+.design-preview-view.dz-project-mode .dz-device{ display:none; }
 .design-preview-view.dz-project-mode .dz-more-menu .dz-menu-item[data-dz-more]{ display:none; }
+/* 项目完整预览：artemis-preview lease URL 直挂 iframe（URL-load 模式），
+   相对资源由协议处理器在文件目录内解析，浏览器原生渲染 */
+.dz-project-frame{
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
 .dz-project-source{
   margin:0; padding:24px; white-space:pre-wrap; word-break:break-all;
   font:12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1672,6 +1692,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
 </div>
 </div>
 <div class="dz-viewport" id="dzViewport">
+<iframe class="dz-project-frame" hidden="" id="dzProjectFrame" sandbox="allow-scripts" src="about:blank" title="项目文件预览"></iframe>
 <div class="dz-stage" id="dzStage">
 <div class="design-mock" id="dzMockDesktop"><div class="mock-empty">尚无文档</div></div>
 <div class="dz-phone" hidden="" id="dzMockPhone">
@@ -1823,7 +1844,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzCloseComposer();
     dzSetPicking(false);
   }
-  function dzShow(view, file) {
+  function dzShow(view, file, opts) {
     var files = view === "files";
     dzViewFiles.hidden = !files;
     dzViewPreview.hidden = files;
@@ -1835,12 +1856,14 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       t.setAttribute("aria-selected", String(active));
       if (file && t.dataset.dzFile === file) t.hidden = false;
     });
+    // 项目预览与设计文档预览/文件列表互斥：离开即退出项目态
+    //（dzOpenProjectFile 以 keepProject 豁免自行重建的视图）
+    if (!(opts && opts.keepProject) && dzProjectView) dzCloseProjectView();
     if (!files) dzClearTools();
     // 项目文件预览态：不绑定 composer（预览非线程文档），离开即清。
     var previewView = document.querySelector(".design-preview-view");
-    if (previewView) previewView.classList.remove("dz-project-mode");
+    if (previewView) previewView.classList.toggle("dz-project-mode", !!dzProjectView);
     if (files) {
-      dzProjectView = null;
       dzPostActiveDocument(null);
       return;
     }
@@ -2011,6 +2034,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
   var dzThumbPending = {};
   var dzThumbQueue = [];
   var dzThumbInflight = 0;
+  var dzCatArrowsResize = null; // 当前分类条箭头更新函数（resize 去重挂载）
   var dzLastDocs = [];
   var dzLastProjectFiles = []; // 项目工作区只读文件（项目会话才有）
   var THUMB_FRAME_W = 900;
@@ -2066,6 +2090,54 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     fit();
     /* OD df-thumb-scale-host 同款：面板/窗口宽度变化时按卡片实际宽度重算缩放，
        而不是只在挂载那一刻算一次 */
+    if (typeof ResizeObserver !== "undefined") {
+      var ro = new ResizeObserver(fit);
+      ro.observe(host);
+      host._thumbRO = ro;
+    }
+  }
+
+  /* 项目 HTML 缩略图：OD HtmlCardThumbnail 的 URL-load 版——不走净化 srcdoc，
+     iframe 直接挂 artemis-preview lease URL，相对资源由协议处理器在文件
+     所在目录内解析、浏览器原生渲染。固定 1200 宽缩放，避免卡片小尺寸触发
+     页面自身的移动端断点（OD PAGE_THUMB_LAYOUT_WIDTH 同理）。 */
+  var dzProjectThumbCache = {}; // path -> lease url（进程期复用）
+  var dzProjectThumbPending = {};
+  var PROJECT_THUMB_FRAME_W = 1200;
+  function dzRequestProjectThumb(path) {
+    if (dzProjectThumbCache[path]) {
+      dzAttachProjectThumb(path);
+      return;
+    }
+    if (dzProjectThumbPending[path]) return;
+    dzProjectThumbPending[path] = true;
+    if (hostPort) {
+      hostPort.postMessage({ type: "project-preview-request", path: path, thumb: true });
+    }
+  }
+  function dzAttachProjectThumb(path) {
+    var url = dzProjectThumbCache[path];
+    var safe = (window.CSS && CSS.escape) ? CSS.escape(path) : path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    var host = document.querySelector('.dz-project-card[data-dz-project-path="' + safe + '"] .design-file-thumb');
+    if (!host || !url) return;
+    host.replaceChildren();
+    host.classList.add("has-frame");
+    if (host._thumbRO) { host._thumbRO.disconnect(); host._thumbRO = null; }
+    var frame = document.createElement("iframe");
+    frame.className = "dz-thumb-frame";
+    frame.setAttribute("sandbox", "");
+    frame.setAttribute("scrolling", "no");
+    frame.setAttribute("tabindex", "-1");
+    frame.setAttribute("loading", "lazy");
+    frame.src = url;
+    host.appendChild(frame);
+    var fit = function () {
+      var scale = (host.clientWidth || 300) / PROJECT_THUMB_FRAME_W;
+      frame.style.width = PROJECT_THUMB_FRAME_W + "px";
+      frame.style.height = Math.round((host.clientHeight || 190) / (scale || 1)) + "px";
+      frame.style.transform = "scale(" + scale + ")";
+    };
+    fit();
     if (typeof ResizeObserver !== "undefined") {
       var ro = new ResizeObserver(fit);
       ro.observe(host);
@@ -2212,7 +2284,11 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       seg.scrollBy({ left: 220, behavior: "smooth" });
     });
     seg.addEventListener("scroll", updateCatArrows, { passive: true });
-    window.addEventListener("resize", updateCatArrows);
+    // resize 监听挂在 window 上但 seg 每次渲染重建——先摘旧的再挂新的，
+    // 否则监听器堆积且全部引用已卸载的节点
+    if (dzCatArrowsResize) window.removeEventListener("resize", dzCatArrowsResize);
+    dzCatArrowsResize = updateCatArrows;
+    window.addEventListener("resize", dzCatArrowsResize);
     // 当前分类滚入可视区（选择后箭头态随 scroll 事件自更新）
     requestAnimationFrame(function () {
       updateCatArrows();
@@ -2302,12 +2378,29 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
         dzOpenDocument(doc, !isPage);
       });
     });
-    /* 项目工作区文件：只读行（同类别并列，行尾标「项目」），点击只读预览 */
+    /* 项目工作区文件：OD renderPageCard 语义——HTML 页面与设计文档同卡呈现
+       （缩略图网格，artemis-preview 帧），其余类别保持只读行（行尾标「项目」） */
     projectRows.forEach(function (file) {
       var kind = dzKindFor(file.name);
       var meta = dzSectionMeta(kind);
       var name = relName(file);
       var kb = file.bytes > 0 ? (file.bytes / 1024).toFixed(1) + " KiB" : "";
+      if (kind === "html") {
+        var card = document.createElement("button");
+        card.className = "design-file-card dz-project-card";
+        card.type = "button";
+        card.setAttribute("data-dz-cat", kind);
+        card.setAttribute("data-dz-project-path", file.name);
+        card.innerHTML =
+          '<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>' +
+          '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name">' + name + '</span><span class="design-file-sub">' + meta[2] + (kb ? " · " + kb : "") + ' · <span class="dz-project-badge">项目</span></span></span></span>';
+        card.addEventListener("click", function () {
+          dzOpenProjectFile(file.name);
+        });
+        cards.appendChild(card);
+        dzRequestProjectThumb(file.name);
+        return;
+      }
       var row = document.createElement("button");
       row.className = "dz-file-row dz-project-row";
       row.type = "button";
@@ -2324,17 +2417,62 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzApplyFilter(defaultKey || "__none__");
   }
 
-  /* 项目文件只读预览：HTML 走同一净化渲染管线；其余文本以源码模式展示。
-     预览期间隐藏编辑型工具（注释/标记/评论/历史/截图）——项目文件当前
-     不可经插件写入（capabilities.projectFiles = explicit-import）。 */
-  var dzProjectView = null; // { path: string } | null
+  /* 项目文件预览：OD URL-load 语义——完整预览=iframe 挂 artemis-preview lease
+     URL（浏览器按文件目录解析相对资源，JS 原样运行），「代码」视图=宿主读
+     原文文本。预览期间隐藏编辑型工具（注释/标记/评论/历史/截图/设备/缩放）
+     ——项目文件不可经插件写入（capabilities.projectFiles = explicit-import）。 */
+  var dzProjectView = null; // { path, url?, sourceLoaded? } | null
   function dzOpenProjectFile(path) {
     if (!hostPort) return;
+    if (dzProjectView && dzProjectView.path !== path) dzCloseProjectView();
     dzProjectView = { path: path };
     var base = path.split("/").pop();
     dzEnsureFileTab(path, base.replace(/\.[^.]+$/, ""));
-    dzShow("preview", path);
-    hostPort.postMessage({ type: "read-project-file-request", path: path });
+    dzShow("preview", path, { keepProject: true });
+    var view = document.querySelector(".design-preview-view");
+    if (view) view.classList.add("dz-project-mode");
+    if (!/\.html?$/i.test(path)) {
+      // 非 HTML 没有可视化舞台：直接落源码模式（OD 非页面文件同语义）
+      dzProjectView.sourceLoaded = true;
+      dzSetMode("source");
+      hostPort.postMessage({ type: "read-project-file-request", path: path });
+      return;
+    }
+    dzSetMode("preview");
+    // lease URL 池命中（缩略图已开过同一文件）直接挂帧，不再开新 lease；
+    // lease 进程期保留，不随预览关闭释放——懒加载缩略图可能仍在用同一 URL。
+    var pooled = dzProjectThumbCache[path];
+    if (pooled) {
+      dzShowProjectFrame(pooled);
+      return;
+    }
+    hostPort.postMessage({ type: "project-preview-request", path: path });
+  }
+  function dzShowProjectFrame(url) {
+    if (!dzProjectView) return;
+    dzProjectView.url = url;
+    dzProjectThumbCache[dzProjectView.path] = url;
+    var old = $("#dzProjectFrame");
+    // 重建 frame 强制重新导航（同 URL 重赋 src 不会触发加载，刷新同款）
+    var fresh = old.cloneNode(false);
+    fresh.src = url;
+    old.parentNode.replaceChild(fresh, old);
+    fresh.hidden = dzMode !== "preview";
+  }
+  function dzShowProjectError(message) {
+    var frame = $("#dzProjectFrame");
+    frame.hidden = true;
+    var src = $("#dzSource");
+    if (src) src.textContent = "无法预览此文件：\n" + String(message).replace(/[<>&]/g, "");
+    dzProjectView.sourceLoaded = true;
+    dzSetMode("source");
+  }
+  function dzCloseProjectView() {
+    if (!dzProjectView) return;
+    dzProjectView = null;
+    var frame = $("#dzProjectFrame");
+    frame.hidden = true;
+    frame.src = "about:blank";
   }
 
   var dzFileMenuPop = null;
@@ -2558,6 +2696,22 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     });
     dzSource.hidden = mode !== "source";
     dzStage.hidden = mode === "source";
+    if (dzProjectView) {
+      // 项目文件：舞台由 artemis-preview 帧替代；首次切「代码」时向宿主
+      // 请求原文文本（预览走 lease 帧，不经过净化管线）。
+      var frame = $("#dzProjectFrame");
+      frame.hidden = mode !== "preview" || !dzProjectView.url;
+      if (mode === "source" && !dzProjectView.sourceLoaded) {
+        dzProjectView.sourceLoaded = true;
+        if (hostPort) {
+          hostPort.postMessage({ type: "read-project-file-request", path: dzProjectView.path });
+        }
+      }
+      dzClearTools();
+      return;
+    }
+    var projectFrame = $("#dzProjectFrame");
+    if (projectFrame && projectFrame.hidden === false) projectFrame.hidden = true;
     dzClearTools();
     if (mode === "preview") {
       dzStage.classList.remove("dz-rendering");
@@ -2639,6 +2793,11 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     icon.style.transition = "transform .5s cubic-bezier(0.23,1,0.32,1)";
     icon.style.transform = "rotate(360deg)";
     window.setTimeout(function () { icon.style.transition = ""; icon.style.transform = ""; }, 520);
+    // 项目文件预览：重建帧强制重新导航（lease URL 同值重赋不触发加载）
+    if (dzProjectView) {
+      if (dzProjectView.url) dzShowProjectFrame(dzProjectView.url);
+      return;
+    }
     if (currentDocument && hostPort) {
       hostPort.postMessage({ type: "read-document-request", documentId: currentDocument.documentId });
     }
@@ -4012,36 +4171,43 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       if (data.type === "document-html" && data.html) {
         dzRenderDocument(data.html, data.name, data.subtitle);
       }
+      if (data.type === "project-preview-result" && data.path) {
+        delete dzProjectThumbPending[data.path];
+        if (data.url) dzProjectThumbCache[data.path] = data.url;
+        if (data.thumb) {
+          // 缩略图回包：挂当前在卡的帧（不进舞台）
+          if (data.url) dzAttachProjectThumb(data.path);
+          return;
+        }
+        if (!dzProjectView || dzProjectView.path !== data.path) return;
+        if (data.url) dzShowProjectFrame(data.url);
+        return;
+      }
+      if (data.type === "project-preview-error" && data.path) {
+        delete dzProjectThumbPending[data.path];
+        if (data.thumb) return;
+        if (!dzProjectView || dzProjectView.path !== data.path) return;
+        dzShowProjectError(String(data.error || ""));
+        return;
+      }
       if (data.type === "read-project-file-result" && data.name) {
+        // 项目文件「代码」视图：宿主读回的原文文本（预览视图走 lease 帧）
         if (!dzProjectView || dzProjectView.path !== data.name) return;
-        var isHtml = /\.html?$/i.test(data.name);
         var view = document.querySelector(".design-preview-view");
         if (view) view.classList.add("dz-project-mode");
-        if (isHtml) {
-          dzRenderDocument(
-            data.content,
-            data.name,
-            "项目文件 · 只读",
-          );
-        } else {
-          dzRenderDocument(
-            "<pre class=\"dz-project-source\"></pre>",
-            data.name,
-            "项目文件 · 只读",
-          );
-          var pre = dzMockDesktop.querySelector(".dz-project-source");
-          if (pre) pre.textContent = data.content;
+        var src = $("#dzSource");
+        if (src) {
+          src.textContent = data.content;
+          src.classList.add("dz-project-source");
         }
       }
       if (data.type === "read-project-file-error") {
         if (!dzProjectView || dzProjectView.path !== data.path) return;
-        dzRenderDocument(
-          "<div style=\"font:14px/1.6 system-ui;padding:32px;text-align:center;color:#8a8f98\">" +
-            String(data.error).replace(/[<>&]/g, "") +
-            "</div>",
-          data.path,
-          "项目文件 · 只读",
-        );
+        var errSrc = $("#dzSource");
+        if (errSrc) {
+          errSrc.textContent = "无法读取此文件：\n" + String(data.error).replace(/[<>&]/g, "");
+          errSrc.classList.add("dz-project-source");
+        }
       }
       if (data.type === "thumb" && data.documentId) {
         // 页面卡缩略图回包：不进舞台，只挂卡片
