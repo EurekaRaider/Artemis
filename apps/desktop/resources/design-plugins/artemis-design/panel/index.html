@@ -2186,7 +2186,24 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     }
   }
 
+  var dzLastSnapshotSig = "";
+  function dzSnapshotSig(documents, projectFiles) {
+    var parts = [];
+    documents.forEach(function (d) {
+      parts.push("d:" + d.documentId + ":" + d.name + ":" + (d.headRevision || "") + ":" + (d.updatedAt || ""));
+    });
+    projectFiles.forEach(function (f) {
+      parts.push("f:" + f.path + ":" + f.bytes + ":" + (f.updatedAt || ""));
+    });
+    return parts.join("|");
+  }
   function dzRenderFiles(documents, projectFiles) {
+    // 三层快照兜底（就绪拉取/首推/补推）会让首开收到 2-3 次同一快照——
+    // 内容签名未变且已渲染过时跳过全量重建，消掉"闪一下"。
+    // 当前文件夹并入签名：点文件夹/返回的重渲染靠它放行
+    var sig = dzCurrentFolder + "\u0000" + dzSnapshotSig(documents || [], projectFiles || []);
+    if (sig === dzLastSnapshotSig && $("#dzCards").childElementCount > 0) return;
+    dzLastSnapshotSig = sig;
     var cards = $("#dzCards");
     cards.replaceChildren();
     // 防御：无名/坏条目跳过（旧账本或异常数据不致整个列表崩掉）
@@ -4522,6 +4539,8 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
           currentDocument = docs.length ? docs[docs.length - 1] : null;
         }
         dzRenderFiles(docs, projectFiles);
+        // ack：宿主据此取消 3s 补推（首渲染确认，兜底只兜真丢失）
+        if (hostPort) hostPort.postMessage({ type: "snapshot-ack" });
         // 历史面板开着 → 版本列表同步刷新（恢复/修改后「当前」标记跟着走）
         if (!$("#dzHistory").hidden && hostPort && currentDocument) {
           hostPort.postMessage({

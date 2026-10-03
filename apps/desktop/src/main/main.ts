@@ -10106,7 +10106,10 @@ function registerIpc(): void {
       // （首推可能早于面板脚本/port 握手就绪而丢：3s 后无条件补推一次，
       // 快照推送幂等；面板侧 snapshot-request 是另一重兜底。）
       void pushDesignSnapshot(threadId, panelId);
+      // 补推兜底只兜"首推在 port 握手前丢失"：面板收到并渲染首份快照会
+      // 回 snapshot-ack，已 ack 则无需再推（避免重复渲染闪烁）。
       setTimeout(() => {
+        if (designPanelHost?.hasAckedSnapshot(threadId, panelId)) return;
         void pushDesignSnapshot(threadId, panelId);
       }, 3000);
       // Theme follows the host: the panel is a separate webContents and

@@ -36,6 +36,8 @@ interface LivePanel {
   panelId: string;
   /** True while setVisible(false) collapsed the view to 0x0. */
   collapsed?: boolean;
+  /** 面板已确认收到并渲染首份快照（三层兜底的补推据此取消）。 */
+  snapshotAcked?: boolean;
   /** Bounds to restore on setVisible(true); setBounds updates it while
    * collapsed so geometry reported for a hidden tab is not lost. */
   lastBounds?: Electron.Rectangle;
@@ -501,6 +503,11 @@ export class DesignPanelHost {
       // S4 host-owned actions: the panel only requests; the handlers run in
       // the main process (export writes the file, list_versions dispatches
       // through the trusted plugin runtime).
+      if (data?.type === "snapshot-ack") {
+        const live = this.panels.get(this.key(threadId, panelId));
+        if (live) live.snapshotAcked = true;
+        return;
+      }
       // 面板就绪后主动拉完整快照：首开时 host 的初始 push 可能早于 port
       // 握手完成而丢失（面板白屏无卡片），拉模式兜底推模式。
       if (data?.type === "snapshot-request") {
@@ -769,6 +776,11 @@ export class DesignPanelHost {
     this.panels
       .get(this.key(threadId, panelId))
       ?.hostPort.postMessage({ type: "theme", theme });
+  }
+
+  /** 面板是否已确认首份快照（补推去重用）。 */
+  hasAckedSnapshot(threadId: string, panelId: string): boolean {
+    return this.panels.get(this.key(threadId, panelId))?.snapshotAcked ?? false;
   }
 
   /** 沙箱预览内页面导航同步：租约服务了目录内兄弟 HTML 时告知面板
