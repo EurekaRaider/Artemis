@@ -509,8 +509,8 @@ check("缩略图已净化（无 script/外链）", !document.querySelector('.des
 check("文字工具存在", !!document.querySelector('[data-dz-dtool="text"]'));
 // scoped CSS 验证
 const styleEl = document.querySelector("#dzMockDesktop style");
-check("文档样式已 scoped（选择器带前缀）", styleEl && styleEl.textContent.includes("#dzMockDesktop .hero"));
-check("文档样式无裸 body 规则", styleEl && !/^body\s*\{/m.test(styleEl.textContent));
+check("文档样式已 scoped（@scope 包裹+规则保留）", styleEl && styleEl.textContent.includes("@scope (#dzMockDesktop)") && styleEl.textContent.includes(".hero"));
+check("文档样式无裸 body 规则", styleEl && !/(^|[\n};])\s*body\s*[,\{]/.test(styleEl.textContent));
 // 外部资源剥离（锚点 # 保留是正确行为；只断言外部 URL 不存在）
 const externalRes = Array.from(document.querySelectorAll('#dzMockDesktop [src], #dzMockDesktop [href]'))
   .filter((el) => { const v = el.getAttribute("src") || el.getAttribute("href"); return v && !v.startsWith("#"); });

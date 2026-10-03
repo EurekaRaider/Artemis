@@ -2810,8 +2810,8 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
   }
   /* 工具提示胶囊按产品决定移除：dzHint 保留为空操作，调用点无需改动 */
   function dzHint() {}
-  // 候选目标：文档内常见的可注释元素（原型用 mock 类；真实文档用通用选择器）
-  var DZ_TARGET_SEL = ".mock-btn,.mock-field,.mock-switch,.mock-row,.mock-head b,.mock-head span,button, a, input, select, textarea, label, h1, h2, h3, h4, h5, h6, img";
+  // 旧拾取白名单已退役：目标判定统一走 dzMeaningfulTarget（OD 语义，
+  // 见 dzPickTarget 上方注释）；dzSeq 起给批注编号。
   var dzSeq = 0;
   var dzActiveCommentId = null;
   var dzEditTarget = null;
@@ -2824,10 +2824,54 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       $("#dzPickBox").hidden = true;
     }
   }
+  /* 拾取目标判定（OD meaningfulDomFallbackTarget 忠实移植，源：
+     apps/web/src/runtime/srcdoc.ts）。语义=「最小有意义块」：交互/标题/
+     媒体标签直接有效；带 role/aria-label/title 的容器有效；有文本的容器
+     仅当有意义子元素 ≤1（叶子块）有效——多子容器无效、命中点沿祖先向上
+     找（嵌套结构停在最里层的可指认块，不跳大容器也不钻太深）。 */
+  function dzVisibleTarget(el) {
+    var r = el.getBoundingClientRect();
+    // 无布局引擎（jsdom 自测环境 rect 恒 0）：跳过几何检查只看样式，
+    // 交给语义判定；真浏览器里 fixed/根元素 rect 也不会全 0，不会误入
+    if (!r.width && !r.height && el.offsetParent == null) {
+      var cs = getComputedStyle(el);
+      return cs.display !== "none" && cs.visibility !== "hidden";
+    }
+    if (r.width < 2 || r.height < 2) return false;
+    var cs2 = getComputedStyle(el);
+    return cs2.display !== "none" && cs2.visibility !== "hidden" && Number(cs2.opacity) !== 0;
+  }
+  function dzMeaningfulTarget(el) {
+    if (!el || el.nodeType !== 1 || !dzVisibleTarget(el)) return false;
+    var tag = el.tagName.toLowerCase();
+    if (/^(a|button|input|textarea|select|label|img|video|canvas|h1|h2|h3|h4|h5|h6|p|li|td|th)$/.test(tag)) return true;
+    if (el.getAttribute("role") || el.getAttribute("aria-label") || el.getAttribute("title")) return true;
+    if (el.hasAttribute("data-dz-target") || el.hasAttribute("data-design-id")) return true;
+    var text = (el.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text) return false;
+    if (/^(span|strong|em|b|i|small|code|mark)$/.test(tag)) return true;
+    var meaningfulChildren = 0;
+    for (var child = el.firstElementChild; child; child = child.nextElementSibling) {
+      var childTag = child.tagName ? child.tagName.toLowerCase() : "";
+      if (/^(script|style|template|meta|link|title|noscript)$/.test(childTag)) continue;
+      if ((child.textContent || "").replace(/\s+/g, " ").trim() || /^(img|video|canvas|svg|input|textarea|select)$/.test(childTag)) {
+        meaningfulChildren += 1;
+        if (meaningfulChildren > 1) return false;
+      }
+    }
+    return true;
+  }
   function dzPickTarget(el) {
     if (!el || !el.closest) return null;
-    if (!dzStage.contains(el)) return null;
-    return el.closest(DZ_TARGET_SEL);
+    // 命中点沿祖先链向上（含起点）：第一个「最小有意义块」即目标。
+    // 舞台自身与面板覆盖层不算； OD composedPath 栈在我们的渲染树里
+    // 等价于 target 链（无 shadow 边界跨不进来）。
+    var node = el;
+    while (node && node !== dzStage && node !== document.documentElement) {
+      if (dzStage.contains(node) && dzMeaningfulTarget(node)) return node;
+      node = node.parentElement;
+    }
+    return null;
   }
   function dzTargetLabel(el, free) {
     if (free || !el) return "pin";
