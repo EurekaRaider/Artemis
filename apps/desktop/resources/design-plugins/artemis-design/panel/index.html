@@ -2613,12 +2613,12 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
        全部住在 @layer 里，布局类定义整体蒸发），嵌套/字符串花括号也会
        切碎——这些交给浏览器原生处理零风险。 */
     var remapped = cssText.replace(
-      /* 前缀=块界符或文本开头（(?:^|[{};,]) 分支共享尾部 \s*/注释组——
-         \s* 若只挂在 [{};,] 分支内，「文本开头带缩进的 :root」永远匹配不上，
-         首个变量定义整条漏网） */
+      /* 前缀=块界符或文本开头（两个分支共享尾部空白与注释组）；空白若只
+         挂在块界符分支内，「文本开头带缩进的 :root」永远匹配不上，首个
+         变量定义整条漏网。注意：块注释内不得出现星号加斜杠序列。 */
       /((?:^|[{};,])\s*(?:\/\*[\s\S]*?\*\/\s*)*\s*)(:root|html|body)\b/gi,
-      /* :scope 在 @scope 块内指 scope root 自身——变量/padding 等原本挂在
-         根元素上的语义得以保留（@scope 规则默认不命中 scope root 本人） */
+      /* :scope 在 @scope 块内指 scope root 自身——变量与 padding 等原本
+         挂在根元素上的语义得以保留（@scope 规则默认不命中 root 本人） */
       "$1:scope",
     );
     return "@scope (#dzMockDesktop) {\n" + remapped + "\n}";
@@ -4275,7 +4275,10 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
         bindPortListener(hostPort);
         // Self-heal: ask for the snapshot instead of trusting the host
         // push — covers a lost/raced initial push on first open.
+        // snapshot-request 拉完整快照（含项目文件清单）；list-documents
+        // 只回线程文档，拉不回项目文件归类。
         hostPort.postMessage({ type: "list-documents-request" });
+        hostPort.postMessage({ type: "snapshot-request" });
       }
       return;
     }

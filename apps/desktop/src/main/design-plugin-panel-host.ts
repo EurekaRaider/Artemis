@@ -252,6 +252,10 @@ export class DesignPanelHost {
       }) => void)
     | undefined;
   private requestHandlers: PanelRequestHandlers | undefined;
+  /** 面板就绪拉取快照的回调（main 端接 pushDesignSnapshot）。 */
+  private snapshotSink:
+    | ((event: { threadId: string; panelId: string }) => void)
+    | undefined;
   /** artemis-preview responder for panel sessions: per-panel partitions do
    * NOT inherit defaultSession protocol handlers, so the workspace HTML
    * preview protocol must be registered on each panel session. */
@@ -267,6 +271,13 @@ export class DesignPanelHost {
     responder: ((request: Request) => Promise<Response>) | undefined,
   ): void {
     this.previewResponder = responder;
+  }
+
+  /** 面板就绪（port 握手完成并主动拉取）时回调。 */
+  onSnapshotRequest(
+    sink: (event: { threadId: string; panelId: string }) => void,
+  ): void {
+    this.snapshotSink = sink;
   }
 
   /** S4 handlers for panel-originated requests (export / versions). */
@@ -490,6 +501,13 @@ export class DesignPanelHost {
       // S4 host-owned actions: the panel only requests; the handlers run in
       // the main process (export writes the file, list_versions dispatches
       // through the trusted plugin runtime).
+      // 面板就绪后主动拉完整快照：首开时 host 的初始 push 可能早于 port
+      // 握手完成而丢失（面板白屏无卡片），拉模式兜底推模式。
+      if (data?.type === "snapshot-request") {
+        console.log(`[design-panel] snapshot-request from ${threadId}/${panelId}`);
+        this.snapshotSink?.({ threadId, panelId });
+        return;
+      }
       if (data?.type === "read-project-file-request" && data.path) {
         void this.requestHandlers
           ?.readProjectFile({ threadId, path: String(data.path) })
@@ -738,6 +756,9 @@ export class DesignPanelHost {
     panelId: string,
     snapshot: Record<string, unknown>,
   ): void {
+    console.log(
+      `[design-panel] pushSnapshot -> ${threadId}/${panelId} docs=${(snapshot.documents as unknown[])?.length ?? "?"} projectFiles=${(snapshot.projectFiles as unknown[])?.length ?? "?"}`,
+    );
     this.panels
       .get(this.key(threadId, panelId))
       ?.hostPort.postMessage({ type: "snapshot", snapshot });

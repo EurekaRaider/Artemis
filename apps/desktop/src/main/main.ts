@@ -10103,7 +10103,12 @@ function registerIpc(): void {
       const handle = await designPanelHost.ensurePanel(window, threadId, panelId);
       // S4: push an initial snapshot so the panel can render the file list
       // and load the head document without waiting for a renderer event.
+      // （首推可能早于面板脚本/port 握手就绪而丢：3s 后无条件补推一次，
+      // 快照推送幂等；面板侧 snapshot-request 是另一重兜底。）
       void pushDesignSnapshot(threadId, panelId);
+      setTimeout(() => {
+        void pushDesignSnapshot(threadId, panelId);
+      }, 3000);
       // Theme follows the host: the panel is a separate webContents and
       // cannot observe the parent window's data-theme attribute.
       designPanelHost.pushTheme(
@@ -10381,20 +10386,24 @@ function registerIpc(): void {
       args: {},
       mode: "execute",
     });
-    if (outcome.status !== "succeeded" || !outcome.result) {
-      console.error(
-        `[design-panel] snapshot dispatch failed: ${JSON.stringify(outcome).slice(0, 300)}`,
-      );
-      return false;
-    }
     let documents: unknown[] = [];
-    try {
-      const parsed = JSON.parse(
-        (outcome.result as { output?: string }).output ?? "{}",
-      ) as { documents?: unknown[] };
-      documents = parsed.documents ?? [];
-    } catch {
-      documents = [];
+    if (outcome.status === "succeeded" && outcome.result) {
+      try {
+        const parsed = JSON.parse(
+          (outcome.result as { output?: string }).output ?? "{}",
+        ) as { documents?: unknown[] };
+        documents = parsed.documents ?? [];
+      } catch {
+        documents = [];
+      }
+    } else {
+      // runtime worker 不在（会话已完成/未启动）时的降级：直读线程数据店
+      // 组装文档清单（get_snapshot 的纯文件等价物）——面板只读展示不需要
+      // 运行时存活，否则已完成会话的面板永远空白。
+      console.error(
+        `[design-panel] snapshot dispatch unavailable, reading store directly: ${JSON.stringify(outcome).slice(0, 200)}`,
+      );
+      documents = await readSnapshotDocumentsDirect(threadId);
     }
     const thread = store?.getThread(threadId);
     const project = thread?.projectId
@@ -10422,6 +10431,82 @@ function registerIpc(): void {
       projectName: project?.name ?? "设计任务",
     });
     return true;
+  }
+
+  /** runtime 缺席时的快照降级读取：直读线程数据店的账本与版本目录
+     （runtime get_snapshot 的纯文件等价物，含 HEAD 恢复指针语义）。 */
+  async function readSnapshotDocumentsDirect(
+    threadId: string,
+  ): Promise<unknown[]> {
+    const dataRoot = await ensureThreadDataRoot(
+      join(app.getPath("userData"), "plugin-scratch"),
+      threadId,
+    );
+    let ledger: Array<Record<string, string>> = [];
+    try {
+      ledger = (await readFile(join(dataRoot, "design-documents.jsonl"), "utf8"))
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as Record<string, string>);
+    } catch {
+      return [];
+    }
+    const byId = new Map<
+      string,
+      { id: string; name: string; brief: string; updatedAt: string }
+    >();
+    for (const record of ledger) {
+      const id = record.id ?? "";
+      const entry =
+        byId.get(id) ?? { id, name: "", brief: "", updatedAt: "" };
+      if (record.name) entry.name = record.name;
+      if (record.brief && !entry.brief) entry.brief = record.brief;
+      const ts =
+        record.editedAt ||
+        record.restoredAt ||
+        record.createdAt ||
+        record.undoneAt ||
+        record.redoneAt;
+      if (ts && ts > entry.updatedAt) entry.updatedAt = ts;
+      byId.set(id, entry);
+    }
+    const documents: unknown[] = [];
+    for (const entry of byId.values()) {
+      if (!entry.name) continue;
+      const docDir = join(dataRoot, "documents", entry.id);
+      const versionFiles = (await readdir(docDir).catch(() => []))
+        .filter((file) => /^v\d+-/.test(file))
+        .sort(
+          (a, b) =>
+            Number(/^v(\d+)/.exec(a)?.[1] ?? 0) -
+            Number(/^v(\d+)/.exec(b)?.[1] ?? 0),
+        );
+      const head = versionFiles.at(-1);
+      // HEAD 标记（恢复指针）优先：内容 <seq>-<rev>，指向恢复来源版本
+      const marker = (
+        await readFile(join(docDir, "HEAD"), "utf8").catch(() => "")
+      ).trim();
+      const markerSeq = marker.split("-")[0] ?? "";
+      const markerRev = marker.split("-")[1] ?? "";
+      const headEntry = versionFiles.find(
+        (file) =>
+          !!marker &&
+          String(/^v(\d+)/.exec(file)?.[1] ?? "") === markerSeq &&
+          (/^v\d+-(.+)\.html$/.exec(file)?.[1] ?? "") === markerRev,
+      );
+      const headFile = headEntry ?? head;
+      documents.push({
+        documentId: entry.id,
+        name: entry.name,
+        brief: entry.brief,
+        headRevision: headFile
+          ? (/^v\d+-(.+)\.html$/.exec(headFile)?.[1] ?? null)
+          : null,
+        versionCount: versionFiles.length,
+        ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
+      });
+    }
+    return documents;
   }
 
   /** 项目图片资产（dataURL 内联）的 MIME 表。 */
@@ -10663,6 +10748,12 @@ function registerIpc(): void {
     }
     return files;
   }
+
+  // 面板就绪后主动拉完整快照：首开的 host push 可能早于 port 握手而丢失
+  //（白屏无卡片），面板发 snapshot-request 时补推。
+  designPanelHost?.onSnapshotRequest(({ threadId, panelId }) => {
+    void pushDesignSnapshot(threadId, panelId);
+  });
 
   // S4: panel-originated requests (export / versions) run as host actions.
   designPanelHost?.setRequestHandlers({
