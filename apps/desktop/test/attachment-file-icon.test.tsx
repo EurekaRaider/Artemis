@@ -62,6 +62,7 @@ it.each([
   ["Main.java", "java"],
   ["Dockerfile", "docker"],
   ["style.css", "braces"],
+  ["index.html", "webpage"],
   ["report.pdf", "pdf"],
   ["README.md", "markdown"],
 ])("preserves the distinct approved artwork for %s", (name, artwork) => {

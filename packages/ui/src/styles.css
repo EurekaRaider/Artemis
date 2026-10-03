@@ -1894,8 +1894,12 @@
 
   [data-artemis-component="conversation-message"] {
     position: relative;
+    contain: layout style;
+    content-visibility: visible;
     min-inline-size: 0;
-    margin-block-end: calc(var(--artemis-space-5) + 2px);
+    margin-block-end: calc(
+      var(--artemis-size-control-compact) + var(--artemis-space-2)
+    );
     color: var(--artemis-color-text-primary);
   }
 
@@ -1965,9 +1969,8 @@
     block-size: calc(var(--artemis-size-control-compact) - 2px);
     padding: 0;
     color: var(--artemis-color-text-tertiary);
-    background: var(--artemis-color-surface-base);
-    border: var(--artemis-border-width-default) solid
-      var(--artemis-color-border-subtle);
+    background: transparent;
+    border: var(--artemis-border-width-default) solid transparent;
     border-radius: var(--artemis-radius-control);
     cursor: pointer;
   }
@@ -1977,6 +1980,7 @@
     button:is(:hover, :focus-visible) {
     color: var(--artemis-color-text-primary);
     background: var(--artemis-color-interaction-hover);
+    border-color: var(--artemis-color-border-subtle);
   }
 
   [data-artemis-component="conversation-message"] > [data-part="capabilities"] {
@@ -4739,10 +4743,6 @@
   @media (max-width: 1100px) {
     [data-artemis-component="application-shell"] {
       --_artemis-application-shell-rail-size: 44px;
-    }
-
-    [data-artemis-component="conversation-message"] {
-      margin-block-end: var(--artemis-space-1);
     }
 
     [data-artemis-component="queued-message-group"] {

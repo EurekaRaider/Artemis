@@ -142,6 +142,8 @@ it("embeds HTML in an opaque frame, preserves interaction state and releases the
   const frame = container.querySelector("iframe")!;
   expect(frame).toHaveAttribute("sandbox", "allow-scripts");
   expect(frame).not.toHaveAttribute("srcdoc");
+  expect(screen.queryByRole("button", { name: "Refresh preview" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   rerender(
     <MarkdownContent text="[Demo](index.html)\n\nMore" videoThreadId="task" />,
   );
@@ -152,6 +154,65 @@ it("embeds HTML in an opaque frame, preserves interaction state and releases the
     "task",
     "artemis-preview://test/index.html",
   );
+});
+
+it("fits HTML content, accepts size updates only from its frame and retains the height during streaming", async () => {
+  api();
+  const { container, rerender } = render(
+    <MarkdownContent text="[Demo](index.html)" videoThreadId="task" />,
+  );
+  await waitFor(() =>
+    expect(container.querySelector("iframe")).toHaveAttribute("src"),
+  );
+  const frame = container.querySelector("iframe")!;
+  const report = (
+    height: unknown,
+    source = frame.contentWindow,
+    url = frame.src,
+  ) =>
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        source,
+        data: { type: "artemis:html-size", version: 1, url, height },
+      }),
+    );
+  report(960);
+  expect(frame.style.height).toBe("962px");
+  for (const height of [-1, NaN, Infinity, "900"]) report(height);
+  report(1200, window);
+  report(1200, frame.contentWindow, "artemis-preview://old/index.html");
+  expect(frame.style.height).toBe("962px");
+  rerender(
+    <MarkdownContent text="[Demo](index.html)\n\nMore" videoThreadId="task" />,
+  );
+  expect(container.querySelector("iframe")).toBe(frame);
+  expect(frame.style.height).toBe("962px");
+  report(480);
+  expect(frame.style.height).toBe("482px");
+  report(100_000);
+  expect(frame.style.height).toBe("30002px");
+});
+
+it.each([
+  ["lesson.pptx", "slides", "PPTX"],
+  ["REPORT.DOCX", "document", "DOCX"],
+  ["table.xlsx", "sheet", "XLSX"],
+  ["table.csv", "sheet", "CSV"],
+  ["report.pdf", "pdf", "PDF"],
+  ["index.html", "code", "HTML"],
+])("uses colored file artwork on the %s card", async (path, family, label) => {
+  api();
+  const { container } = render(
+    <MarkdownContent text={`[File](${path})`} videoThreadId="task" />,
+  );
+  await waitFor(() =>
+    expect(container.querySelector(".timeline-file-avatar svg")).not.toBeNull(),
+  );
+  const icon = container.querySelector(".timeline-file-avatar svg")!;
+  expect(icon).toHaveAttribute("data-file-type", family);
+  expect(icon).toHaveAttribute("data-file-label", label);
+  expect(icon.querySelector("linearGradient")).not.toBeNull();
 });
 
 it("retains file access on failed embedded media and can retry the image", async () => {
