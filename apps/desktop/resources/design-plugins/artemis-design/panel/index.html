@@ -341,9 +341,11 @@ html[data-theme="dark"] .design-cat.active{
 /* 项目文件预览态：渲染进同一舞台（dzRenderDocument，资源已由宿主内联），
    批注/标记/评论/截图全链路可用；仅隐藏版本历史（项目文件无线程版本） */
 .design-preview-view.dz-project-mode .dz-more-menu .dz-menu-item[data-dz-more="history"]{ display:none; }
-/* 项目页面预览对齐 OD FileViewer：iframe 铺满工作区、面板零额外留白
-   （viewport 40px 探索边距是设计文档样机专用），页面自身 padding 保留 */
-.design-preview-view.dz-project-mode .dz-viewport{ padding: 12px; }
+/* 项目页面预览对齐 OD FileViewer：页面背景铺满整个预览视口（页面即
+   背景），面板零额外留白。mock 是舞台 flex 容器的子项，默认收缩到
+   内容宽（页面只占中间一条），必须显式拉满；页面自身 padding 保留 */
+.design-preview-view.dz-project-mode .dz-viewport{ padding: 0; }
+.design-preview-view.dz-project-mode #dzMockDesktop{ width: 100%; }
 .dz-project-source{
   margin:0; padding:24px; white-space:pre-wrap; word-break:break-all;
   font:12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
