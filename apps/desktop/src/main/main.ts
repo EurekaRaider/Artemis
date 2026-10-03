@@ -10399,15 +10399,125 @@ function registerIpc(): void {
     const project = thread?.projectId
       ? store?.getProject(thread.projectId)
       : undefined;
+    // 项目会话：扫描项目工作区文件（只读清单，不进线程数据店），面板在
+    // 文件归类里与设计文档并列展示。上限 400 个文件 / 4 层深，忽略依赖与
+    // 构建产物目录。
+    let projectFiles: Array<{
+      path: string;
+      bytes: number;
+      updatedAt: string;
+    }> = [];
+    if (thread?.projectId) {
+      try {
+        const workspace = await resolveThreadWorkspace(thread);
+        projectFiles = await scanProjectDesignFiles(workspace.workspacePath);
+      } catch (error) {
+        console.error("[design-panel] project scan failed", error);
+      }
+    }
     designPanelHost.pushSnapshot(threadId, panelId, {
       documents,
+      projectFiles,
       projectName: project?.name ?? "设计任务",
     });
     return true;
   }
 
+  const DESIGN_SCAN_IGNORED_DIRS = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "dist-electron",
+    "dist-renderer",
+    "build",
+    "out",
+    "coverage",
+    "vendor",
+    "__pycache__",
+    ".cache",
+    ".next",
+    ".output",
+    "target",
+    "artifacts",
+    ".zcode",
+  ]);
+  async function scanProjectDesignFiles(
+    workspacePath: string,
+  ): Promise<Array<{ path: string; bytes: number; updatedAt: string }>> {
+    // 广度优先：浅层文件先收录（归类概览不被深层目录挤占）。
+    const files: Array<{ path: string; bytes: number; updatedAt: string }> = [];
+    let level: Array<{ dir: string; prefix: string }> = [
+      { dir: workspacePath, prefix: "" },
+    ];
+    for (let depth = 0; level.length > 0 && files.length < 400; depth += 1) {
+      if (depth > 4) break;
+      const next: Array<{ dir: string; prefix: string }> = [];
+      for (const { dir, prefix } of level) {
+        if (files.length >= 400) break;
+        const entries = (
+          await readdir(dir, { withFileTypes: true }).catch(() => [])
+        ).sort((a, b) => a.name.localeCompare(b.name));
+        for (const entry of entries) {
+          if (files.length >= 400) break;
+          if (entry.name.startsWith(".")) continue;
+          const absolute = join(dir, entry.name);
+          const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+          if (entry.isSymbolicLink()) continue;
+          if (entry.isDirectory()) {
+            if (DESIGN_SCAN_IGNORED_DIRS.has(entry.name)) continue;
+            next.push({ dir: absolute, prefix: path });
+            continue;
+          }
+          if (!entry.isFile()) continue;
+          const info = await stat(absolute).catch(() => undefined);
+          if (!info || !info.isFile()) continue;
+          files.push({
+            path,
+            bytes: info.size,
+            updatedAt: info.mtime.toISOString(),
+          });
+        }
+      }
+      level = next;
+    }
+    return files;
+  }
+
   // S4: panel-originated requests (export / versions) run as host actions.
   designPanelHost?.setRequestHandlers({
+    /** 项目文件只读读取（面板预览用）：路径封死在工作区内，限文本扩展。 */
+    readProjectFile: async (input) => {
+      if (!store) throw new Error("Application store is not ready.");
+      const thread = store.getThread(input.threadId);
+      if (!thread) throw new Error("Active task not found.");
+      const workspace = await resolveThreadWorkspace(thread);
+      const requestedPath = String(input.path ?? "").trim();
+      if (
+        !requestedPath ||
+        requestedPath.includes("..") ||
+        requestedPath.startsWith("/")
+      )
+        throw new Error("Invalid project file path.");
+      if (
+        !/\.(html?|css|m?js|json|md|svg|txt|tsx?|jsx|vue)$/i.test(requestedPath)
+      )
+        throw new Error("此项目文件类型暂不支持预览。");
+      const absolute = join(workspace.workspacePath, requestedPath);
+      const workspaceRoot = resolve(workspace.workspacePath);
+      if (
+        resolve(absolute) !== workspaceRoot &&
+        !resolve(absolute).startsWith(workspaceRoot + sep)
+      )
+        throw new Error("Project file path escapes the workspace.");
+      const info = await stat(absolute);
+      if (!info.isFile()) throw new Error("Project file path is not a file.");
+      if (info.size > 2 * 1024 * 1024)
+        throw new Error("Project file exceeds 2 MiB.");
+      return {
+        name: requestedPath,
+        content: (await readFile(absolute, "utf8")).toString(),
+      };
+    },
     exportDocument: async (input) => {
       if (!store || !pluginDispatch) throw new Error("Export unavailable.");
       const thread = store.getThread(input.threadId);
@@ -10979,7 +11089,43 @@ function registerIpc(): void {
     | undefined;
   const syncDesignPackRevision = async (): Promise<DesignRevisionSync> => {
     try {
-      return await (await getDesignPackRuntime()).syncActiveRevision();
+      const result = await (await getDesignPackRuntime()).syncActiveRevision();
+      if (result) {
+        // Follow-the-active-revision（一方插件语义）：本安装的所有绑定线程
+        // 统一迁到新修订（改绑定哈希/版本 + 补授权），面板与工具链随 pack
+        // 更新即时跟进；修订库不可变，老修订内容原地保留。
+        const manifest = JSON.parse(
+          await readFile(join(result.revisionRoot, "artemis.plugin.json"), "utf8"),
+        ) as { id: string; version: string };
+        const binding = {
+          installationId: result.installationId,
+          pluginId: result.installationId,
+          typeId: "artemis-design",
+          pluginVersion: manifest.version,
+          contentHash: result.contentHash,
+          bindingRevision: `rev-${result.contentHash.slice(0, 12)}`,
+        };
+        for (const thread of store?.listThreads() ?? []) {
+          if (thread.typeBinding?.installationId !== result.installationId)
+            continue;
+          if (thread.typeBinding.contentHash === result.contentHash) continue;
+          store?.updateThread(thread.id, { typeBinding: binding });
+          store?.insertPluginGrant({
+            grantId: randomUUID(),
+            installationId: binding.installationId,
+            pluginId: binding.pluginId,
+            contentHash: binding.contentHash,
+            scope: "thread",
+            scopeId: thread.id,
+            capabilities: { artifactStore: "thread" },
+            resourceRefs: {
+              revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+            },
+            grantRevision: binding.bindingRevision,
+          });
+        }
+      }
+      return result;
     } catch (error) {
       console.error("[design-pack] revision sync failed", error);
       return undefined;

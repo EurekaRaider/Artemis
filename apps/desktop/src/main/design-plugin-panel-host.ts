@@ -179,6 +179,11 @@ function sanitizeAnnotations(
 
 /** S4 host-side actions a panel may REQUEST over the port (never run). */
 export interface PanelRequestHandlers {
+  /** 项目工作区文件只读读取（预览用；路径由宿主封死在工作区内）。 */
+  readProjectFile(input: {
+    threadId: string;
+    path: string;
+  }): Promise<{ name: string; content: string }>;
   exportDocument(input: {
     threadId: string;
     documentId: string;
@@ -427,6 +432,7 @@ export class DesignPanelHost {
             revision?: string;
             name?: string;
             html?: string;
+            path?: string;
             autoSend?: boolean;
             images?: unknown;
             annotations?: unknown;
@@ -454,6 +460,24 @@ export class DesignPanelHost {
       // S4 host-owned actions: the panel only requests; the handlers run in
       // the main process (export writes the file, list_versions dispatches
       // through the trusted plugin runtime).
+      if (data?.type === "read-project-file-request" && data.path) {
+        void this.requestHandlers
+          ?.readProjectFile({ threadId, path: String(data.path) })
+          .then((result) => {
+            hostPort.postMessage({
+              type: "read-project-file-result",
+              ...result,
+            });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "read-project-file-error",
+              path: String(data.path),
+              error: String(error),
+            });
+          });
+        return;
+      }
       if (data?.type === "export-request" && data.documentId) {
         void this.requestHandlers
           ?.exportDocument({

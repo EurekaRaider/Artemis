@@ -83,9 +83,11 @@ export async function createDesignPackRuntime(options: {
     return { ...current, ...updates.status(installed) };
   }
   async function syncActiveRevision() {
-    const activeVersion = await packs
-      .status()
-      .then((current) => current.activeVersion);
+    const current = await packs.status();
+    console.log(
+      `[design-pack] sync: activeVersion=${current.activeVersion ?? "none"} versions=${current.versions.length}`,
+    );
+    const activeVersion = current.activeVersion;
     if (!activeVersion) return undefined;
     const lease = await packs.acquire();
     try {
@@ -96,12 +98,18 @@ export async function createDesignPackRuntime(options: {
       );
       const manifest = JSON.parse(
         await readFile(join(sourceRoot, "artemis.plugin.json"), "utf8"),
-      ) as { id: string };
+      ) as { id: string; version: string };
+      console.log(
+        `[design-pack] sync: publishing ${manifest.id}@${contentHash.slice(0, 10)} → ${options.revisionsRoot}`,
+      );
       const published = await store.publish({
         installationId: manifest.id,
         contentHash,
         sourceRoot,
       });
+      console.log(
+        `[design-pack] sync: published → ${published.revisionRoot}`,
+      );
       return {
         installationId: manifest.id,
         contentHash: published.contentHash,
