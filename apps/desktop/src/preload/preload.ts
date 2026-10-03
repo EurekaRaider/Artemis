@@ -346,8 +346,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.designCapabilityCheckUpdates),
   installDesignCapability: () =>
     ipcRenderer.invoke(IPC.designCapabilityInstall),
-  importDesignCapability: () =>
-    ipcRenderer.invoke(IPC.designCapabilityImport),
+  importDesignCapability: (input) =>
+    ipcRenderer.invoke(IPC.designCapabilityImport, input),
   cancelDesignCapability: () => ipcRenderer.invoke(IPC.designCapabilityCancel),
   activateDesignCapability: (version) =>
     ipcRenderer.invoke(IPC.designCapabilityActivate, version),

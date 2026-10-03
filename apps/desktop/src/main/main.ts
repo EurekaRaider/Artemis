@@ -10917,10 +10917,31 @@ function registerIpc(): void {
               "catalog.json",
             )),
       hostVersion: app.getVersion(),
+      revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
     });
     return designPackRuntime;
   };
+  /** Install/activate must land the payload in the thread-binding trust chain. */
+  const syncDesignPackRevision = async () => {
+    try {
+      await (
+        await getDesignPackRuntime()
+      ).syncActiveRevision();
+    } catch (error) {
+      console.error("[design-pack] revision sync failed", error);
+    }
+  };
+  // An install from a previous run leaves the pack active but its payload
+  // possibly unpublished (crash between install and sync); lazily reconcile
+  // once per process on the first status read. Idempotent and cheap.
+  let designPackSyncedThisRun = false;
+  const ensureDesignPackSynced = async () => {
+    if (designPackSyncedThisRun) return;
+    designPackSyncedThisRun = true;
+    await syncDesignPackRevision();
+  };
   ipcMain.handle(IPC.designCapabilityStatus, async () => {
+    await ensureDesignPackSynced();
     return (await getDesignPackRuntime()).status();
   });
   ipcMain.handle(IPC.designCapabilityCheckUpdates, async () => {
@@ -10934,26 +10955,44 @@ function registerIpc(): void {
         "No verified design plugin release is available for this platform yet.",
       );
     await runtime.packs.install(manifest);
+    await syncDesignPackRevision();
   });
-  ipcMain.handle(IPC.designCapabilityImport, async (event) => {
-    const selected = await dialog.showOpenDialog({
-      title: "Import design plugin offline pack",
-      properties: ["openFile"],
-      filters: [{ name: "Design plugin pack", extensions: ["artemis-design"] }],
-    });
-    if (selected.canceled || !selected.filePaths[0]) return;
-    await (await getDesignPackRuntime()).packs.installOffline(
-      selected.filePaths[0],
-    );
-    void event;
-  });
+  ipcMain.handle(
+    IPC.designCapabilityImport,
+    async (_event, input?: { path?: string }) => {
+      // Explicit path (drag-and-drop import / automation) skips the picker;
+      // installOffline verifies the container signature either way.
+      const explicit = input?.path;
+      if (explicit) {
+        await (await getDesignPackRuntime()).packs.installOffline(
+          String(explicit),
+        );
+        await syncDesignPackRevision();
+        return;
+      }
+      const selected = await dialog.showOpenDialog({
+        title: "Import design plugin offline pack",
+        properties: ["openFile"],
+        filters: [
+          { name: "Design plugin pack", extensions: ["artemis-design"] },
+        ],
+      });
+      if (selected.canceled || !selected.filePaths[0]) return;
+      await (await getDesignPackRuntime()).packs.installOffline(
+        selected.filePaths[0],
+      );
+      await syncDesignPackRevision();
+    },
+  );
   ipcMain.handle(IPC.designCapabilityCancel, async () =>
     (await getDesignPackRuntime()).packs.cancel(),
   );
   ipcMain.handle(
     IPC.designCapabilityActivate,
-    async (_event, version: string) =>
-      (await getDesignPackRuntime()).packs.activate(version),
+    async (_event, version: string) => {
+      await (await getDesignPackRuntime()).packs.activate(version);
+      await syncDesignPackRevision();
+    },
   );
   ipcMain.handle(IPC.designCapabilityDeactivate, async () =>
     (await getDesignPackRuntime()).packs.deactivate(),
@@ -23580,6 +23619,7 @@ app
     artemisPluginService = new ArtemisPluginService({
       skillsRoot: join(app.getPath("home"), ".pi", "agent", "skills"),
       pluginsRoot: join(app.getPath("userData"), "plugins"),
+      designRevisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
       marketplacesRoot: join(app.getPath("userData"), "plugin-marketplaces"),
       marketplaceStatePath: join(
         app.getPath("userData"),

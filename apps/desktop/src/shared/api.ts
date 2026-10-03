@@ -1216,7 +1216,7 @@ export interface ArtemisApi {
   >;
   checkDesignCapabilityUpdates(): Promise<void>;
   installDesignCapability(): Promise<void>;
-  importDesignCapability(): Promise<void>;
+  importDesignCapability(input?: { path: string }): Promise<void>;
   cancelDesignCapability(): Promise<void>;
   activateDesignCapability(version: string): Promise<void>;
   deactivateDesignCapability(): Promise<void>;

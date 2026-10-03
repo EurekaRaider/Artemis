@@ -1,5 +1,6 @@
 // 准备隔离 dev 实例的 S2-S4 验证环境：
-// 1. 计算 artemis-design 包 contentHash 并发布 revision 到 userData/plugins/plugin-revisions/
+// 1. 计算 artemis-design 包 contentHash 并发布 revision 到
+//    userData/design-plugins/revisions/（pack 已安装时优先用 pack payload）
 // 2. 建一个 artemis-design 类型的受限线程（typeBinding + executionProfile + grant）
 // 用法：node scripts/seed-dev-design-task.mjs <userDataPath>
 import { mkdir, cp, readdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -13,9 +14,35 @@ if (!userData) {
   process.exit(1);
 }
 
-// 无尾部斜杠：与 PluginRevisionStore 的 relative() 语义一致
-const packageRoot = new URL("../resources/design-plugins/artemis-design", import.meta.url).pathname.replace(/\/$/, "");
-const revisionsRoot = join(userData, "plugins", "plugin-revisions");
+// 加载源优先级（todo ④）：已安装且激活的 design pack payload 优先，
+// 内置 resources 仅作开发回退。
+async function resolvePackageRoot() {
+  const packsRoot = join(userData, "capability-packs");
+  let activeVersion;
+  try {
+    const pointer = JSON.parse(
+      await readFile(join(packsRoot, "active.json"), "utf8"),
+    );
+    activeVersion = pointer?.packs?.["artemis-design"];
+  } catch {
+    activeVersion = undefined;
+  }
+  if (activeVersion) {
+    const payload = join(packsRoot, "artemis-design", activeVersion, "payload");
+    const manifestOk = await stat(join(payload, "artemis.plugin.json"))
+      .then(() => true)
+      .catch(() => false);
+    if (manifestOk) {
+      console.log("source: installed capability pack", activeVersion);
+      return payload.replace(/\/$/, "");
+    }
+  }
+  console.log("source: bundled resources (dev fallback)");
+  return new URL("../resources/design-plugins/artemis-design", import.meta.url).pathname.replace(/\/$/, "");
+}
+
+const packageRoot = await resolvePackageRoot();
+const revisionsRoot = join(userData, "design-plugins", "revisions");
 
 // 与 PluginRevisionStore.computeContentHash 相同的清单哈希
 async function collect(root) {
@@ -57,11 +84,14 @@ console.log("contentHash:", contentHash);
 const db = new DatabaseSync(join(userData, "artemis.sqlite"));
 let threadId = randomUUID();
 const now = new Date().toISOString();
+const pluginVersion = JSON.parse(
+  await readFile(join(packageRoot, "artemis.plugin.json"), "utf8"),
+).version;
 const binding = {
   installationId: "com.artemis.design",
   pluginId: "com.artemis.design",
   typeId: "artemis-design",
-  pluginVersion: "0.1.0",
+  pluginVersion,
   contentHash,
   bindingRevision: `rev-${contentHash.slice(0, 12)}`,
 };

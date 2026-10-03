@@ -8,6 +8,7 @@ import { join } from "node:path";
 import type { CapabilityPackStatus } from "@artemis/protocol";
 import { rcompare } from "semver";
 import { CapabilityPackService } from "./capability-pack-service.js";
+import { PluginRevisionStore } from "./design-plugin-revision-store.js";
 import {
   OfficeCapabilityUpdates,
   type OfficeRuntimeCatalog,
@@ -16,13 +17,31 @@ import {
 export interface DesignPackRuntime {
   packs: CapabilityPackService;
   updates: OfficeCapabilityUpdates;
-  status(): Promise<CapabilityPackStatus & { canCheckUpdates?: boolean; availableVersion?: string; updateVersion?: string; updateCheck?: string; updateError?: string }>;
+  status(): Promise<
+    CapabilityPackStatus & {
+      canCheckUpdates?: boolean;
+      availableVersion?: string;
+      updateVersion?: string;
+      updateCheck?: string;
+      updateError?: string;
+    }
+  >;
+  /**
+   * Publish the active pack payload into the design-plugin revision store so
+   * thread bindings (typeBinding.contentHash) and the dispatch trust chain
+   * resolve against the pack contents exactly like a marketplace-installed
+   * plugin. Idempotent: the store refuses hash collisions with other bytes
+   * and accepts identical republishes.
+   */
+  syncActiveRevision(): Promise<{ installationId: string; contentHash: string; revisionRoot: string } | undefined>;
 }
 
 export async function createDesignPackRuntime(options: {
   userData: string;
   catalogPath: string;
   hostVersion: string;
+  /** Design-plugin revision store root (designPluginRevisionsRoot). */
+  revisionsRoot: string;
 }): Promise<DesignPackRuntime> {
   const catalog = JSON.parse(
     await readFile(options.catalogPath, "utf8"),
@@ -63,5 +82,34 @@ export async function createDesignPackRuntime(options: {
       current.versions.map((version) => version.version).sort(rcompare)[0];
     return { ...current, ...updates.status(installed) };
   }
-  return { packs, updates, status };
+  async function syncActiveRevision() {
+    const activeVersion = await packs
+      .status()
+      .then((current) => current.activeVersion);
+    if (!activeVersion) return undefined;
+    const lease = await packs.acquire();
+    try {
+      const store = new PluginRevisionStore(options.revisionsRoot);
+      const sourceRoot = lease.root;
+      const contentHash = await PluginRevisionStore.computeContentHash(
+        sourceRoot,
+      );
+      const manifest = JSON.parse(
+        await readFile(join(sourceRoot, "artemis.plugin.json"), "utf8"),
+      ) as { id: string };
+      const published = await store.publish({
+        installationId: manifest.id,
+        contentHash,
+        sourceRoot,
+      });
+      return {
+        installationId: manifest.id,
+        contentHash: published.contentHash,
+        revisionRoot: published.revisionRoot,
+      };
+    } finally {
+      lease.release();
+    }
+  }
+  return { packs, updates, status, syncActiveRevision };
 }

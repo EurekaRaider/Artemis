@@ -293,6 +293,12 @@ export interface ArtemisPluginServiceOptions {
   mcpStore: McpConfigStore;
   bundledArtifactRoot?: string;
   computerUseRoot?: string;
+  /**
+   * Design-plugin revision store root. Defaults to the legacy
+   * plugins/plugin-revisions location; production passes the
+   * design-plugins namespace (the native plugin migration owns plugins/).
+   */
+  designRevisionsRoot?: string;
   cloneRepository?: CloneRepository;
   fetcher?: MarketplaceFetcher;
   beforeSnapshotChange?: (pluginId: string) => Promise<void>;
@@ -3886,7 +3892,9 @@ export class ArtemisPluginService {
     parsed: ParsedPlugin,
   ): Promise<NonNullable<StoredPlugin["designPlugin"]>> {
     const manifest = parsed.designPluginManifest!;
-    const revisionsRoot = join(this.options.pluginsRoot, "plugin-revisions");
+    const revisionsRoot =
+      this.options.designRevisionsRoot ??
+      join(this.options.pluginsRoot, "plugin-revisions");
     const revisionStore = new PluginRevisionStore(revisionsRoot);
     // The revision content is the plugin directory the install parsed
     // (artemis.plugin.json + panel + runtime + schema).
