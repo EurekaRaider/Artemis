@@ -85,6 +85,7 @@ import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import {
   basename,
   dirname,
+  extname,
   isAbsolute,
   join,
   relative,
@@ -10423,6 +10424,186 @@ function registerIpc(): void {
     return true;
   }
 
+  /** 项目图片资产（dataURL 内联）的 MIME 表。 */
+  const DESIGN_IMAGE_MIME: Record<string, string> = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+    ".ico": "image/x-icon",
+    ".bmp": "image/bmp",
+    ".svg": "image/svg+xml",
+  };
+
+  interface DesignInlineBudget {
+    spent: number;
+    cache: Map<string, string>;
+  }
+
+  /** 相对引用 → 工作区内绝对路径；协议/绝对/越界一律拒绝。 */
+  function resolveProjectRef(
+    workspaceRoot: string,
+    fromDir: string,
+    href: string,
+  ): string | undefined {
+    const clean = href.replace(/[?#].*$/, "").trim();
+    if (!clean || /^[a-z]+:/iu.test(clean) || clean.startsWith("/"))
+      return undefined;
+    const absolute = resolve(fromDir, clean);
+    if (
+      absolute !== workspaceRoot &&
+      !absolute.startsWith(workspaceRoot + sep)
+    )
+      return undefined;
+    return absolute;
+  }
+
+  /** 本地图片资产读成 dataURL（预算内）；失败返回 undefined 原样保留引用。 */
+  async function projectAssetDataUrl(
+    workspaceRoot: string,
+    fromDir: string,
+    href: string,
+    budget: DesignInlineBudget,
+  ): Promise<string | undefined> {
+    const absolute = resolveProjectRef(workspaceRoot, fromDir, href);
+    if (!absolute) return undefined;
+    const cached = budget.cache.get(absolute);
+    if (cached !== undefined) return cached || undefined;
+    const mime = DESIGN_IMAGE_MIME[extname(absolute).toLowerCase()];
+    if (!mime) return undefined;
+    const info = await stat(absolute).catch(() => undefined);
+    if (
+      !info?.isFile() ||
+      info.size > 2 * 1024 * 1024 ||
+      budget.spent + info.size > 6 * 1024 * 1024
+    )
+      return undefined;
+    budget.cache.set(absolute, "");
+    const bytes = await readFile(absolute).catch(() => undefined);
+    if (!bytes) return undefined;
+    budget.spent += bytes.length;
+    const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
+    budget.cache.set(absolute, dataUrl);
+    return dataUrl;
+  }
+
+  /** CSS 文本：@import 链递归展开 + 本地图片 url() 转 dataURL。 */
+  async function inlineProjectCss(
+    css: string,
+    cssDir: string,
+    workspaceRoot: string,
+    budget: DesignInlineBudget,
+    depth: number,
+  ): Promise<string> {
+    let output = css;
+    const importPattern =
+      /@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?\s*;/giu;
+    for (const match of [...output.matchAll(importPattern)]) {
+      const absolute = resolveProjectRef(
+        workspaceRoot,
+        cssDir,
+        match[1] ?? "",
+      );
+      if (!absolute) {
+        output = output.replace(match[0], "");
+        continue;
+      }
+      const cached = budget.cache.get(absolute);
+      if (cached !== undefined) {
+        output = output.replace(match[0], cached);
+        continue;
+      }
+      budget.cache.set(absolute, "");
+      const info = await stat(absolute).catch(() => undefined);
+      if (!info?.isFile() || info.size > 512 * 1024) {
+        output = output.replace(match[0], "");
+        continue;
+      }
+      let nested = (await readFile(absolute, "utf8")).toString();
+      if (depth + 1 <= 3)
+        nested = await inlineProjectCss(
+          nested,
+          dirname(absolute),
+          workspaceRoot,
+          budget,
+          depth + 1,
+        );
+      budget.spent += info.size;
+      const replacement = `/* ${basename(absolute)} */\n${nested}`;
+      budget.cache.set(absolute, replacement);
+      output = output.replace(match[0], replacement);
+    }
+    const urlPattern = /url\(\s*(["']?)([^"')]+)\1\s*\)/giu;
+    for (const match of [...output.matchAll(urlPattern)]) {
+      const ref = match[2];
+      if (!ref) continue;
+      const dataUrl = await projectAssetDataUrl(
+        workspaceRoot,
+        cssDir,
+        ref,
+        budget,
+      );
+      if (!dataUrl) continue;
+      output = output.replace(
+        match[0],
+        `url(${match[1]}${dataUrl}${match[1]})`,
+      );
+    }
+    return output;
+  }
+
+  /**
+   * 项目 HTML 的资源内联：本地 <link rel=stylesheet> 递归成 <style>（含
+   * @import 链与 CSS url()）、<img src> 本地图片转 dataURL——预览净化
+   * 管线会剥外部引用，不内联则样式/图片全丢。路径封死在工作区内；限深
+   * 3、单图片 ≤2MiB、总预算 6MiB、visited 防环；?v= 查询串剥除后解析。
+   */
+  async function inlineProjectHtmlAssets(
+    workspaceRoot: string,
+    htmlDir: string,
+    html: string,
+    budget: DesignInlineBudget,
+    depth: number,
+  ): Promise<string> {
+    if (depth > 3) return html;
+    let output = html;
+    const linkPattern = /<link\b[^>]*rel=["']stylesheet["'][^>]*>/giu;
+    for (const match of [...output.matchAll(linkPattern)]) {
+      const href = /href=["']([^"']+)["']/iu.exec(match[0])?.[1];
+      if (!href) continue;
+      const absolute = resolveProjectRef(workspaceRoot, htmlDir, href);
+      if (!absolute) continue;
+      const info = await stat(absolute).catch(() => undefined);
+      if (!info?.isFile() || info.size > 512 * 1024) continue;
+      let css = (await readFile(absolute, "utf8")).toString();
+      if (depth + 1 <= 3)
+        css = await inlineProjectCss(
+          css,
+          dirname(absolute),
+          workspaceRoot,
+          budget,
+          depth + 1,
+        );
+      output = output.replace(match[0], `<style>\n${css}\n</style>`);
+    }
+    const imgPattern = /(<img\b[^>]*\bsrc=["'])([^"']+)(["'])/giu;
+    for (const match of [...output.matchAll(imgPattern)]) {
+      const src = match[2];
+      if (!src) continue;
+      const dataUrl = await projectAssetDataUrl(
+        workspaceRoot,
+        htmlDir,
+        src,
+        budget,
+      );
+      if (!dataUrl) continue;
+      output = output.replace(match[0], `${match[1]}${dataUrl}${match[3]}`);
+    }
+    return output;
+  }
+
   const DESIGN_SCAN_IGNORED_DIRS = new Set([
     "node_modules",
     ".git",
@@ -10514,9 +10695,20 @@ function registerIpc(): void {
       if (info.size > 2 * 1024 * 1024)
         throw new Error("Project file exceeds 2 MiB.");
       const content = (await readFile(absolute, "utf8")).toString();
+      // 项目 HTML 依赖工作区内的本地样式表与图片；预览净化管线会剥外部
+      // 引用，所以在宿主侧内联成自包含文档（限深限量）。
+      const inlined = /\.html?$/i.test(requestedPath)
+        ? await inlineProjectHtmlAssets(
+            workspaceRoot,
+            dirname(absolute),
+            content,
+            { spent: 0, cache: new Map() },
+            0,
+          )
+        : content;
       return {
         name: requestedPath,
-        content,
+        content: inlined,
       };
     },
     /** 项目 HTML 预览 lease：面板只换得 artemis-preview URL（URL-load，

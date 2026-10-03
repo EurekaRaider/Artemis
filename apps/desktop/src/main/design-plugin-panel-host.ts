@@ -418,9 +418,15 @@ export class DesignPanelHost {
       { cache: false },
     );
     if (this.previewResponder) {
-      panelSession.protocol.handle(WORKSPACE_HTML_SCHEME, (request) =>
-        this.previewResponder!(request),
-      );
+      // partition 复用同一 session 实例：releasePanel 后重开面板会再次走到
+      // 这里，protocol.handle 对已注册的 scheme 直接抛错（面板打不开）。
+      try {
+        panelSession.protocol.handle(WORKSPACE_HTML_SCHEME, (request) =>
+          this.previewResponder!(request),
+        );
+      } catch (error) {
+        if (!/Failed to register/iu.test(String(error))) throw error;
+      }
     }
     const view = new WebContentsView({
       webPreferences: {
