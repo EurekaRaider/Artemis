@@ -1832,12 +1832,26 @@ export class AppStore {
     > & {
       modelSelection?: ModelSelection | null;
       contextWindow?: number | null;
+      /** Design-plugin binding: freezes the thread onto a plugin revision. */
+      typeBinding?: Thread["typeBinding"];
     },
   ): Thread {
     const current = this.getThread(id);
     if (!current) {
       throw new Error(`Thread not found: ${id}`);
     }
+    const typeBinding =
+      changes.typeBinding === undefined
+        ? current.typeBinding
+        : changes.typeBinding;
+    const executionProfile =
+      changes.typeBinding !== undefined
+        ? // A bound thread runs the plugin-restricted profile so the agent
+          // receives the plugin's tools; unbinding keeps the current profile.
+          changes.typeBinding
+          ? "plugin-restricted-v1"
+          : (current.executionProfile ?? null)
+        : (current.executionProfile ?? null);
     const modelSelection =
       changes.modelSelection === undefined
         ? current.modelSelection
@@ -1852,7 +1866,8 @@ export class AppStore {
         `UPDATE threads
          SET mode = ?, status = ?, session_file = ?, title = ?, goal = ?,
              pinned = ?, archived = ?, target = ?, model_selection_json = ?,
-             context_window = ?, updated_at = ?
+             context_window = ?, type_binding_json = ?, execution_profile = ?,
+             updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -1866,6 +1881,8 @@ export class AppStore {
         changes.target ?? current.target,
         modelSelection ? JSON.stringify(modelSelection) : null,
         contextWindow,
+        typeBinding ? JSON.stringify(typeBinding) : null,
+        executionProfile,
         updatedAt,
         id,
       );

@@ -286,9 +286,9 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(entriesSource).not.toContain('kind: "markdown"');
     expect(entriesSource).not.toContain('kind: "sources"');
     expect(entriesSource).toContain('{ kind: "file", label: t.files }');
-    // One design panel per thread: the entry appears only for design threads
-    // without an open design tab, and selecting it reuses the existing tab.
-    expect(entriesSource).toContain('"artemis-design"');
+    // 安装即入口：设计项只跟随插件可用性（designPluginAvailable），不再
+    // 要求线程 typeBinding —— 项目与临时会话都出现；选择仍复用既有 tab。
+    expect(entriesSource).toContain("designPluginAvailable && !designOpen");
     expect(entriesSource).toContain('kind: "design"');
     expect(appSource).toMatch(/type:\s*"open"/u);
     expect(cssRule(".workspace-tab-add")).toMatch(/\bflex:\s*0\s+0\s+auto/u);

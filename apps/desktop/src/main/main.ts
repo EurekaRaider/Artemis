@@ -10058,6 +10058,46 @@ function registerIpc(): void {
           contentHash: boundThread.typeBinding.contentHash,
           revisionRoot,
         });
+      } else {
+        // 打开面板即绑定：临时会话/普通项目线程首次使用设计面板时，冻结到
+        // 当前激活的 pack 修订（持久化 binding + thread 授权），使面板与
+        // 工具链在同一信任链上工作。移除插件时由可用性 gate 统一拒绝。
+        const synced = await ensureDesignPackSynced();
+        if (!synced)
+          throw new Error(
+            "设计插件未安装：请在 插件市场 → 随应用提供的插件 中获取。",
+          );
+        const manifest = JSON.parse(
+          await readFile(join(synced.revisionRoot, "artemis.plugin.json"), "utf8"),
+        ) as { id: string; version: string };
+        const binding = {
+          installationId: synced.installationId,
+          pluginId: synced.installationId,
+          typeId: "artemis-design",
+          pluginVersion: manifest.version,
+          contentHash: synced.contentHash,
+          bindingRevision: `rev-${synced.contentHash.slice(0, 12)}`,
+        };
+        store?.updateThread(threadId, { typeBinding: binding });
+        store?.insertPluginGrant({
+          grantId: randomUUID(),
+          installationId: binding.installationId,
+          pluginId: binding.pluginId,
+          contentHash: binding.contentHash,
+          scope: "thread",
+          scopeId: threadId,
+          capabilities: { artifactStore: "thread" },
+          resourceRefs: {
+            revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+          },
+          grantRevision: binding.bindingRevision,
+        });
+        await designPanelHost.setThreadBinding({
+          threadId,
+          installationId: binding.installationId,
+          contentHash: binding.contentHash,
+          revisionRoot: synced.revisionRoot,
+        });
       }
       const handle = await designPanelHost.ensurePanel(window, threadId, panelId);
       // S4: push an initial snapshot so the panel can render the file list
@@ -10934,23 +10974,31 @@ function registerIpc(): void {
     return designPackRuntime;
   };
   /** Install/activate must land the payload in the thread-binding trust chain. */
-  const syncDesignPackRevision = async () => {
+  type DesignRevisionSync =
+    | { installationId: string; contentHash: string; revisionRoot: string }
+    | undefined;
+  const syncDesignPackRevision = async (): Promise<DesignRevisionSync> => {
     try {
-      await (
-        await getDesignPackRuntime()
-      ).syncActiveRevision();
+      return await (await getDesignPackRuntime()).syncActiveRevision();
     } catch (error) {
       console.error("[design-pack] revision sync failed", error);
+      return undefined;
     }
   };
   // An install from a previous run leaves the pack active but its payload
   // possibly unpublished (crash between install and sync); lazily reconcile
   // once per process on the first status read. Idempotent and cheap.
   let designPackSyncedThisRun = false;
-  const ensureDesignPackSynced = async () => {
-    if (designPackSyncedThisRun) return;
+  let designPackSyncedRevision: DesignRevisionSync;
+  const ensureDesignPackSynced = async (): Promise<DesignRevisionSync> => {
+    // Only a successful sync is cached; an undefined result (pack absent or
+    // not yet installed) retries on the next ensure so an install later in
+    // the same process publishes instead of serving the stale miss.
+    if (designPackSyncedThisRun && designPackSyncedRevision)
+      return designPackSyncedRevision;
     designPackSyncedThisRun = true;
-    await syncDesignPackRevision();
+    designPackSyncedRevision = await syncDesignPackRevision();
+    return designPackSyncedRevision;
   };
   ipcMain.handle(IPC.designCapabilityStatus, async () => {
     await ensureDesignPackSynced();

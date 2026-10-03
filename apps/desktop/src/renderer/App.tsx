@@ -8977,10 +8977,7 @@ ${model.providerId} · ${model.modelId}`}
                                 { kind: "terminal", label: t.terminal },
                                 { kind: "browser", label: t.browser },
                                 { kind: "file", label: t.files },
-                                ...(activeThread?.typeBinding?.typeId ===
-                                  "artemis-design" &&
-                                  designPluginAvailable &&
-                                  !designOpen
+                                ...(designPluginAvailable && !designOpen
                                   ? [
                                       {
                                         kind: "design" as const,
@@ -9127,9 +9124,7 @@ ${model.providerId} · ${model.modelId}`}
                             label={t.files}
                             onActivate={openFilesPanel}
                           />
-                          {activeThread?.typeBinding?.typeId ===
-                            "artemis-design" &&
-                            designPluginAvailable && (
+                          {designPluginAvailable && (
                             <WorkspaceLauncherAction
                               icon={<WorkspaceLauncherIcon kind="design" />}
                               label={t.designTab}
@@ -9744,8 +9739,7 @@ ${model.providerId} · ${model.modelId}`}
                             />
                           )}
                           {tab.kind === "design" && activeThreadId ? (
-                            activeThread?.typeBinding?.typeId ===
-                            "artemis-design" ? (
+                            designPluginAvailable ? (
                             <Suspense fallback={<span>…</span>}>
                               <DesignPluginPanel
                                 key={`${activeThreadId}:${tab.id}`}
@@ -9871,8 +9865,8 @@ ${model.providerId} · ${model.modelId}`}
                                 }}
                               >
                                 {locale.startsWith("zh")
-                                  ? "此任务不是设计类型任务，无法打开设计面板。"
-                                  : "This task is not a design-type task; the design panel is unavailable."}
+                                  ? "设计插件已移除：请在 插件市场 → 随应用提供的插件 中重新获取。"
+                                  : "The design plugin was removed. Get it again from Plugins → Bundled."}
                               </div>
                             )
                           ) : null}
