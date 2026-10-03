@@ -2502,6 +2502,15 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
      postMessage 上报面板绘制高亮框/信息卡/批注弹窗。 */
   var DZ_BRIDGE_SRC = [
     "(function(){",
+    "  // 注释模式开关（面板在模式切换时通知）：关=页面可正常交互，",
+    "  // hover 不拾取；开=拦截点击并上报拾取（OD 预览态语义）",
+    "  var active = false;",
+    "  window.addEventListener('message', function (e) {",
+    "    if (e.data && e.data.type === 'dz-bridge-mode') {",
+    "      active = !!e.data.on;",
+    "      if (!active && last) { last = null; post({ type: 'dz-bridge-hover-end' }); }",
+    "    }",
+    "  });",
     "  function visible(el){",
     "    var r = el.getBoundingClientRect();",
     "    if (r.width < 2 || r.height < 2) return false;",
@@ -2584,6 +2593,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     "  function post(m){ try { window.parent.postMessage(m, '*'); } catch (_) {} }",
     "  var last = null;",
     "  document.addEventListener('mousemove', function (e) {",
+    "    if (!active) { if (last) { last = null; post({ type: 'dz-bridge-hover-end' }); } return; }",
     "    var t = pick(e.target);",
     "    if (t === last) return;",
     "    last = t;",
@@ -2592,6 +2602,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     "  });",
     "  document.documentElement.addEventListener('mouseleave', function () { last = null; post({ type: 'dz-bridge-hover-end' }); });",
     "  document.addEventListener('click', function (e) {",
+    "    if (!active) return; // 非注释模式：页面按钮/链接照常工作",
     "    var t = pick(e.target);",
     "    if (!t) return;",
     "    e.preventDefault(); e.stopPropagation();",
@@ -3062,9 +3073,18 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
   function dzScale() { return dzZoom / 100; }
   function dzSetPicking(on) {
     $("#dzViewport").classList.toggle("dz-picking", on);
+    dzPostBridgeMode(on);
     if (!on) {
       $("#dzPickCard").hidden = true;
       $("#dzPickBox").hidden = true;
+    }
+  }
+  /* 桥模式通知：注释拾取开=iframe 内拦截点击+hover 上报；关=页面照常
+     交互（OD 预览态语义——默认 hover 不选元素）。 */
+  function dzPostBridgeMode(on) {
+    var f = $("#dzProjectFrame");
+    if (f && f.contentWindow) {
+      try { f.contentWindow.postMessage({ type: "dz-bridge-mode", on: !!on }, "*"); } catch (e) {}
     }
   }
   /* 拾取目标判定（OD meaningfulDomFallbackTarget 忠实移植，源：
@@ -3770,10 +3790,12 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
       dzCommentMode = true;
       dzToolState($("#dzCommentBtn"), true);
       dzDrawExit(false);
+      dzPostBridgeMode(true);
       dzHint("点击要注释的元素");
     } else {
       dzCommentMode = false;
       dzToolState($("#dzCommentBtn"), false);
+      dzPostBridgeMode(false);
       dzHint("");
     }
   });
@@ -3782,6 +3804,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzToolState($("#dzCommentListBtn"), false);
     dzCommentMode = false;
     dzToolState($("#dzCommentBtn"), false);
+    dzPostBridgeMode(false);
     dzHint("");
   });
 
@@ -4131,6 +4154,7 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     dzToolState($("#dzDrawBtn"), true);
     dzCommentMode = false;
     dzToolState($("#dzCommentBtn"), false);
+    dzPostBridgeMode(false); // 标记模式：页面不做 DOM 拾取
     drawViewport.classList.add("dz-drawing");
     $("#dzDrawTools").hidden = false;
     dzHint("在预览上标记：框选或钢笔");
@@ -4576,7 +4600,9 @@ html[data-theme="dark"] .dz-viewport.dz-picking .dz-stage *{
     if (event.source && event.source === $("#dzProjectFrame").contentWindow) {
       var bm = event.data || {};
       if (!dzProjectView || dzMode !== "preview") return;
-      if (bm.type === "dz-bridge-hover") dzBridgeShowHover(bm);
+      // 桥就绪：同步当前注释模式（加载耗时中用户可能已切过模式）
+      if (bm.type === "dz-bridge-ready") dzPostBridgeMode(dzCommentMode);
+      if (bm.type === "dz-bridge-hover" && dzCommentMode) dzBridgeShowHover(bm);
       if (bm.type === "dz-bridge-hover-end") dzHideHover();
       // 拾取点击：仅在注释模式开时弹 composer（注释关闭时页面点击照常）
       if (bm.type === "dz-bridge-pick" && dzCommentMode) dzOpenComposerFromBridge(bm);
