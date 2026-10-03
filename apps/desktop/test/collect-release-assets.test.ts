@@ -71,6 +71,63 @@ it("combines independently verified manifests without overwriting either platfor
   expect(manifest.artifacts).toHaveLength(4);
   expect(JSON.stringify(manifest)).not.toContain(root);
 });
+it("publishes a complete macOS release without Windows artifacts when explicitly selected", async () => {
+  const root = await fixture();
+  await rm(join(root, "release-windows-x64"), { recursive: true });
+  const output = join(root, "output");
+  await collectReleaseAssets(root, output, "1.6.0", true);
+  expect((await readdir(output)).sort()).toEqual([
+    "Artemis-macOS-arm64-1.6.0.dmg",
+    "Artemis-macOS-arm64-1.6.0.zip",
+    "latest-mac.yml",
+    "release-manifest.json",
+  ]);
+  const manifest = JSON.parse(
+    await readFile(join(output, "release-manifest.json"), "utf8"),
+  );
+  expect(manifest.artifacts).toHaveLength(3);
+});
+it.each(["tampered", "missing"])(
+  "blocks macOS-only publication for a %s macOS ZIP",
+  async (state) => {
+    const root = await fixture();
+    const zip = join(
+      root,
+      "release-macos-arm64",
+      "Artemis-macOS-arm64-1.6.0.zip",
+    );
+    if (state === "missing") await rm(zip);
+    else await writeFile(zip, "tampered");
+    const output = join(root, "output");
+    await expect(
+      collectReleaseAssets(root, output, "1.6.0", true),
+    ).rejects.toThrow();
+    await expect(readdir(output)).rejects.toThrow();
+  },
+);
+it("still requires valid update metadata for macOS-only publication", async () => {
+  const root = await fixture();
+  const directory = join(root, "release-macos-arm64");
+  const metadata = Buffer.from("version: 1.5.0\nfiles: []\n");
+  await writeFile(join(directory, "latest-mac.yml"), metadata);
+  const manifestPath = join(directory, "release-manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  Object.assign(
+    manifest.artifacts.find(
+      (item: { name: string }) => item.name === "latest-mac.yml",
+    ),
+    {
+      size: metadata.length,
+      sha256: createHash("sha256").update(metadata).digest("hex"),
+    },
+  );
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const output = join(root, "output");
+  await expect(
+    collectReleaseAssets(root, output, "1.6.0", true),
+  ).rejects.toThrow("Invalid macOS update metadata");
+  await expect(readdir(output)).rejects.toThrow();
+});
 it("blocks publication for tampered or missing Windows artifacts", async () => {
   const root = await fixture();
   const zip = join(

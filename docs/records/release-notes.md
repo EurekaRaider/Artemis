@@ -8,7 +8,7 @@
 - **HTML 预览**：隔离的交互式 HTML 预览随内容调整高度，保留流式回复中的页面状态，避免视口高度反馈循环，并在失败时提供重试。
 - **Slack CLI**：将内置 CLI 更新至官方稳定版 **4.9.0**，同步三平台下载与二进制摘要。
 
-发布目标为 macOS arm64（签名、公证 DMG/ZIP）与 Windows x64（未签名 ZIP），沿用已发布 Office Runtime。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
+本次先发布 macOS arm64（签名、公证 DMG/ZIP），沿用已发布 Office Runtime。Windows x64 等待自托管 Windows runner 恢复并通过原生 CI 后再发布。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
 
 ## English
 
@@ -18,4 +18,4 @@
 - **HTML previews**: resize isolated interactive HTML previews to their content, retain page state during streamed replies, prevent viewport-height feedback loops and offer retry after failures.
 - **Slack CLI**: update the bundled CLI to official stable **4.9.0**, with refreshed download and executable digests for all three supported platforms.
 
-Release targets are macOS arm64 (signed, notarized DMG/ZIP) and Windows x64 (unsigned ZIP), reusing published Office runtimes. Intel macOS remains a local packaging target and is not included in this CD release.
+This release publishes macOS arm64 first (signed, notarized DMG/ZIP), reusing published Office runtimes. Windows x64 publication awaits restoration of the self-hosted Windows runner and successful native CI. Intel macOS remains a local packaging target and is not included in this CD release.

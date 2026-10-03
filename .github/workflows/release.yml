@@ -7,12 +7,17 @@ on:
         description: "发布版本标签，必须与 package.json 一致，例如 v1.6.1"
         required: true
         type: string
+      macos_only:
+        description: "仅发布 macOS arm64；需填写 release_sha 和 ci_run_id，核验三项 macOS CI 均成功"
+        required: false
+        type: boolean
+        default: false
       release_sha:
         description: "沿用已通过 CI 的提交（或仅含发布流程修复的后续提交）；留空则运行本次发布 CI"
         required: false
         type: string
       ci_run_id:
-        description: "release_sha 对应的成功 CI 运行 ID"
+        description: "release_sha 对应的 CI 运行 ID；双平台须整体成功，仅 macOS 须三项 macOS 检查成功"
         required: false
         type: string
       reuse_signed_macos_run_id:
@@ -54,24 +59,37 @@ jobs:
           fetch-depth: 0
 
       - name: Verify previous CI before reusing it
-        if: inputs.release_sha != '' || inputs.ci_run_id != ''
+        if: inputs.macos_only || inputs.release_sha != '' || inputs.ci_run_id != ''
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.release_sha }}
           CI_RUN_ID: ${{ inputs.ci_run_id }}
+          MACOS_ONLY: ${{ inputs.macos_only }}
         run: |
           [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ && "$CI_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
-          verified="$(gh run view "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --json headSha,conclusion,workflowName \
-            --jq '[.headSha, .conclusion, .workflowName] | join(" ")')"
-          read -r ci_sha ci_conclusion ci_workflow <<< "$verified"
-          test "$ci_conclusion $ci_workflow" = "success CI"
+          ci_sha="$(gh run view "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json headSha,conclusion,workflowName,jobs | node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const run = JSON.parse(readFileSync(0, "utf8"));
+              if (run.workflowName !== "CI" || !/^[a-f0-9]{40}$/u.test(run.headSha)) process.exit(1);
+              if (process.env.MACOS_ONLY === "true") {
+                for (const name of [
+                  "Test, typecheck, build and format (macos-arm64)",
+                  "Slack CLI native compatibility (macos-arm64)",
+                  "Visual convergence (macos-arm64)",
+                ]) {
+                  const jobs = run.jobs.filter(job => job.name === name);
+                  if (jobs.length !== 1 || jobs[0].status !== "completed" || jobs[0].conclusion !== "success") process.exit(1);
+                }
+              } else if (run.conclusion !== "success") process.exit(1);
+              process.stdout.write(run.headSha);
+            ')"
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
           git merge-base --is-ancestor "$ci_sha" "$RELEASE_SHA"
           while IFS= read -r changed; do
             case "$changed" in
-              .github/workflows/release.yml|apps/desktop/scripts/verify-packaged-source-privacy.mjs|apps/desktop/scripts/verify-macos-native.mjs) ;;
+              .github/workflows/release.yml|apps/desktop/scripts/verify-packaged-source-privacy.mjs|apps/desktop/scripts/verify-macos-native.mjs|scripts/collect-release-assets.mjs|apps/desktop/test/collect-release-assets.test.ts|apps/desktop/test/release-workflow-reuse.test.ts|docs/records/release-notes.md|README.md) ;;
               *) echo "CI does not cover changed path: $changed" >&2; exit 1 ;;
             esac
           done < <(git diff --name-only "$ci_sha" "$RELEASE_SHA")
@@ -383,7 +401,7 @@ jobs:
   package-windows:
     name: Package and verify Windows x64 ZIP
     needs: stage-release
-    if: always() && needs.stage-release.result == 'success' && inputs.reuse_verified_windows_run_id == ''
+    if: always() && needs.stage-release.result == 'success' && !inputs.macos_only && inputs.reuse_verified_windows_run_id == ''
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 90
     permissions:
@@ -489,7 +507,7 @@ jobs:
   publish:
     name: Publish client artifacts to ArtemisRelease
     needs: [stage-release, package-macos, package-windows]
-    if: always() && needs.stage-release.result == 'success' && (needs.package-macos.result == 'success' || (inputs.reuse_verified_macos_run_id != '' && needs.package-macos.result == 'skipped')) && (needs.package-windows.result == 'success' || (inputs.reuse_verified_windows_run_id != '' && needs.package-windows.result == 'skipped'))
+    if: always() && needs.stage-release.result == 'success' && (needs.package-macos.result == 'success' || (inputs.reuse_verified_macos_run_id != '' && needs.package-macos.result == 'skipped')) && ((inputs.macos_only && needs.package-windows.result == 'skipped') || needs.package-windows.result == 'success' || (inputs.reuse_verified_windows_run_id != '' && needs.package-windows.result == 'skipped'))
     permissions:
       contents: write
     runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
@@ -504,17 +522,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          MACOS_ONLY: ${{ inputs.macos_only }}
         shell: bash
         run: |
-          mkdir -p release-inputs/release-macos-arm64 release-inputs/release-windows-x64
+          mkdir -p release-inputs/release-macos-arm64
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern 'Artemis-macOS-arm64-*' --pattern '*-mac.yml' \
             --pattern release-manifest-macos-arm64.json --dir release-inputs/release-macos-arm64
           mv release-inputs/release-macos-arm64/release-manifest-macos-arm64.json release-inputs/release-macos-arm64/release-manifest.json
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'Artemis-Windows-x64-*.zip' --pattern release-manifest-windows-x64.json \
-            --dir release-inputs/release-windows-x64
-          mv release-inputs/release-windows-x64/release-manifest-windows-x64.json release-inputs/release-windows-x64/release-manifest.json
+          if [[ "$MACOS_ONLY" != true ]]; then
+            mkdir -p release-inputs/release-windows-x64
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern 'Artemis-Windows-x64-*.zip' --pattern release-manifest-windows-x64.json \
+              --dir release-inputs/release-windows-x64
+            mv release-inputs/release-windows-x64/release-manifest-windows-x64.json release-inputs/release-windows-x64/release-manifest.json
+          fi
 
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
@@ -524,12 +546,18 @@ jobs:
       - name: Install release verification dependencies
         run: npm ci --ignore-scripts
 
-      - name: Verify and combine both platform release sets
-        run: node scripts/collect-release-assets.mjs release-inputs release-assets
+      - name: Verify and collect selected platform release sets
+        shell: bash
+        env:
+          MACOS_ONLY: ${{ inputs.macos_only }}
+        run: |
+          args=(release-inputs release-assets)
+          if [[ "$MACOS_ONLY" == true ]]; then args+=(--macos-only); fi
+          node scripts/collect-release-assets.mjs "${args[@]}"
 
       # Office Runtime updates are verified by their independent release flow.
       # Client releases reuse those immutable assets without downloading them.
-      - name: Publish verified macOS and Windows packages
+      - name: Publish verified client packages
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
