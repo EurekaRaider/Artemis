@@ -73,7 +73,7 @@ export function buildWorkspaceTabMenuHtml(
     background: ${panel}; /* 全实色：子窗口浮层压在亮色内容上，透底会发虚 */
     border: 1px solid ${border};
     border-radius: 12px;
-    box-shadow: 0 14px 36px rgb(0 0 0 / 28%);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 14%);
     display: grid;
     gap: 3px;
     min-width: 190px;
