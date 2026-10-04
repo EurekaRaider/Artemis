@@ -360,6 +360,12 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     } finally {
       worker.dispose();
     }
+    expect(await until(15_000, () => !alive(worker.childPid()))).toBe(true);
+    // Revoking the sandbox ACL must preserve the desktop user's access.
+    expect(await readFile(join(scratch, "inside.txt"), "utf8")).toContain(
+      "sandbox-out-of-bounds-write",
+    );
+    await rm(scratch, { recursive: true });
   }, 120_000);
 
   it("⑤ keeps the real packaged plugin runtime working under the sandbox", async () => {

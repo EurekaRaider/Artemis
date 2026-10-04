@@ -25,7 +25,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { accessSync, constants, realpathSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import {
@@ -288,13 +288,20 @@ export class PluginRuntimeWorker {
           )
           .digest("hex")
           .slice(0, 32);
+      const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
       return buildWindowsAppContainerLaunch(
         {
           executable: process.execPath,
           args: [entry],
           cwd,
           env: {
-            SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
+            SystemRoot: systemRoot,
+            WINDIR: systemRoot,
+            ComSpec: join(systemRoot, "System32", "cmd.exe"),
+            PATH: join(systemRoot, "System32"),
+            USERPROFILE: cwd,
+            APPDATA: cwd,
+            LOCALAPPDATA: cwd,
             ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1",
             NODE_OPTIONS: "",
             ELECTRON_RUN_AS_NODE: "1",
@@ -309,7 +316,14 @@ export class PluginRuntimeWorker {
           writablePaths: [cwd],
           readOnlyPaths: [dirname(entry), dirname(process.execPath)],
         },
-        { helperPath, identity, runtimePath: cwd, denyChildProcesses: true },
+        {
+          helperPath,
+          identity,
+          runtimePath: cwd,
+          hostAccessPath: cwd,
+          hostTempPath: tmpdir(),
+          denyChildProcesses: true,
+        },
       );
     }
     if (process.platform !== "darwin" || process.arch !== "arm64") {
