@@ -22,6 +22,9 @@ type ExtensionWorkerRequest =
     });
 
 interface LoadedTool {
+  outputSchema?: Record<string, unknown>;
+  namespace?: unknown;
+  annotations?: unknown;
   name: string;
   label: string;
   description: string;
@@ -32,7 +35,12 @@ interface LoadedTool {
     signal: AbortSignal | undefined,
     onUpdate: undefined,
     context: unknown,
-  ): Promise<{ content?: unknown[]; details?: unknown }>;
+  ): Promise<{
+    content?: unknown[];
+    details?: unknown;
+    structuredContent?: unknown;
+    isError?: boolean;
+  }>;
 }
 
 interface LoadedExtension {
@@ -154,6 +162,9 @@ async function handle(request: ExtensionWorkerRequest): Promise<unknown> {
         label: definition.label,
         description: definition.description,
         inputSchema: definition.parameters,
+        outputSchema: definition.outputSchema,
+        namespace: definition.namespace,
+        annotations: definition.annotations,
       })),
       unsupported: {
         handlers: [...extension.handlers.values()].reduce(
@@ -181,6 +192,8 @@ async function handle(request: ExtensionWorkerRequest): Promise<unknown> {
   return {
     content: result.content ?? [],
     details: result.details,
+    structuredContent: result.structuredContent,
+    isError: result.isError,
   };
 }
 

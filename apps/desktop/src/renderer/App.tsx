@@ -1,3 +1,5 @@
+import { PlanConfirmationCard } from "./PlanConfirmationCard.js";
+import { isExecutionMode } from "@artemis/protocol";
 import { claimUpdateAnnouncement } from "./update-announcement.js";
 import type { HookQuery } from "@artemis/protocol";
 import {
@@ -1029,7 +1031,7 @@ export function App() {
   const [modelFilter, setModelFilter] = useState("");
   const [modelPickerSection, setModelPickerSection] =
     useState<ModelPickerSection>("model");
-  const [mode, setMode] = useState<RunMode>("execute");
+  const [mode, setMode] = useState<RunMode>("work");
   const [query, setQuery] = useState("");
   const [projectsOpen, setProjectsOpen] = usePersistentUiState(
     "artemis-projects-open",
@@ -1763,7 +1765,7 @@ export function App() {
       setActiveView("workspace");
       setActiveProjectId(projectId);
       setActiveThreadId(undefined);
-      setMode("execute");
+      setMode("work");
       setComposerDrafts((current) =>
         clearComposerDraft(current, conversationDraftKey(projectId, undefined)),
       );
@@ -1780,7 +1782,7 @@ export function App() {
     setActiveView("workspace");
     setActiveProjectId(undefined);
     setActiveThreadId(undefined);
-    setMode("execute");
+    setMode("work");
     setComposerDrafts((current) =>
       clearComposerDraft(current, conversationDraftKey(undefined, undefined)),
     );
@@ -2067,8 +2069,8 @@ export function App() {
           suggestion.kind !== "skill" &&
           (selectedComposerSkillNames.length === 0 ||
             suggestion.kind === "plan" ||
-            suggestion.kind === "execute" ||
-            suggestion.kind === "review"),
+            suggestion.kind === "work" ||
+            suggestion.kind === "codemode"),
       ),
       ...suggestions.filter(
         (suggestion) =>
@@ -2100,8 +2102,8 @@ export function App() {
   const modeSuggestions = slashCommandSuggestions.flatMap(
     (suggestion, index) =>
       suggestion.kind === "plan" ||
-      suggestion.kind === "execute" ||
-      suggestion.kind === "review"
+      suggestion.kind === "work" ||
+      suggestion.kind === "codemode"
         ? [{ index, mode: suggestion.kind }]
         : [],
   );
@@ -3129,7 +3131,7 @@ export function App() {
       const project = value.projects[0];
       setActiveProjectId(project?.id);
       setActiveThreadId(undefined);
-      setMode("execute");
+      setMode("work");
     });
     void window.artemis
       .getSettings()
@@ -4769,7 +4771,7 @@ export function App() {
         if (nextThread) {
           setMode(nextThread.mode);
         } else {
-          setMode("execute");
+          setMode("work");
         }
       } catch (error) {
         setToast(
@@ -4859,7 +4861,7 @@ export function App() {
         setToast(undefined);
         if (activeThreadId === thread.id) {
           setActiveThreadId(nextThread?.id);
-          setMode(nextThread?.mode ?? "execute");
+          setMode(nextThread?.mode ?? "work");
           window.requestAnimationFrame(() => promptInput.current?.focus());
         }
       } catch (error) {
@@ -4947,7 +4949,7 @@ export function App() {
           (thread) => thread.projectId === project.id && !thread.archived,
         );
         setActiveThreadId(next?.id);
-        setMode(next?.mode ?? "execute");
+        setMode(next?.mode ?? "work");
       }
       setToast(
         failed.length
@@ -5357,7 +5359,7 @@ export function App() {
   const selectMode = useCallback(
     async (nextMode: RunMode) => {
       try {
-        if (mode === "execute" && nextMode !== "execute" && activeThread)
+        if (isExecutionMode(mode) && !isExecutionMode(nextMode) && activeThread)
           await window.artemis.controlComputer("revoke-task", activeThread.id);
         setMode(nextMode);
         return true;
@@ -5367,6 +5369,16 @@ export function App() {
       }
     },
     [mode, activeThread],
+  );
+
+  const selectModeCommand = useCallback(
+    async (nextMode: RunMode) => {
+      if (turnActive || busy || !(await selectMode(nextMode))) return;
+      setPrompt((current) => replaceActiveSlashCommand(current, "").trimEnd());
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [busy, turnActive, selectMode, setPrompt],
   );
 
   const sendPrompt = useCallback(async () => {
@@ -5387,7 +5399,12 @@ export function App() {
       setToast({ error: true, message: t.multipleModeCommands });
       return;
     }
-    if (runModeCommand && runModeCommand.kind === "command" && turnActive) {
+    if (
+      runModeCommand &&
+      runModeCommand.kind === "command" &&
+      turnActive &&
+      runModeCommand.mode !== "plan"
+    ) {
       setToast({ error: true, message: t.modeCommandWhileRunning });
       return;
     }
@@ -5405,7 +5422,11 @@ export function App() {
       return;
     }
     if (runModeCommand?.kind === "command") {
-      if (!(await selectMode(submittedMode))) return;
+      if (turnActive && activeThread && !commandPrompt) {
+        await window.artemis.cancelTurn(activeThread.id);
+      }
+      if ((!turnActive || !commandPrompt) && !(await selectMode(submittedMode)))
+        return;
       if (
         !commandPrompt &&
         pendingAttachments.length === 0 &&
@@ -5540,6 +5561,21 @@ export function App() {
         setToast(t.goalSet);
       }
 
+      if (activeThread && turnActive && submittedMode === "plan") {
+        const result = await window.artemis.revisePlan({
+          threadId: currentThread.id,
+          text,
+          ...(pendingAttachments.length
+            ? { attachments: pendingAttachments }
+            : {}),
+        });
+        updateThreadInSnapshot(result.thread);
+        setMode("plan");
+        clearSubmittedPrompt(rawPrompt);
+        draftAttachments.current.set(activeComposerDraftKey, []);
+        setAttachments([]);
+        return;
+      }
       if (activeThread && turnActive) {
         // Explicit @ dispatch requires an idle thread this phase; the
         // follow-up queue has no invocation-record carriage yet.
@@ -7767,6 +7803,32 @@ export function App() {
                         locale={locale}
                         onResolveApproval={resolveApprovalRequest}
                         onResolveUserInput={resolveUserInputRequest}
+                        onAcceptPlan={
+                          activeThread?.archived
+                            ? undefined
+                            : async (plan, executionMode) => {
+                                const result = await window.artemis.acceptPlan({
+                                  threadId: threadState!.threadId,
+                                  planId: plan.planId,
+                                  revision: plan.revision,
+                                  mode: executionMode,
+                                });
+                                setMode(executionMode);
+                                updateThreadInSnapshot(result.thread);
+                              }
+                        }
+                        onRevisePlan={
+                          activeThread?.archived
+                            ? undefined
+                            : async (text) => {
+                                const result = await window.artemis.revisePlan({
+                                  threadId: threadState!.threadId,
+                                  text,
+                                });
+                                setMode("plan");
+                                updateThreadInSnapshot(result.thread);
+                              }
+                        }
                         context={
                           <div className="composer-context-row">
                             <ComposerContextBar
@@ -7789,7 +7851,11 @@ export function App() {
                               }
                               locale={locale}
                               mode={mode}
-                              modeActionsDisabled={turnActive || busy}
+                              modeActionsDisabled={
+                                turnActive ||
+                                busy ||
+                                pendingComposerDecision?.kind === "plan"
+                              }
                               onClearProject={() => {
                                 discardNewConversationDraft();
                                 beginTemporaryConversation();
@@ -7819,18 +7885,19 @@ export function App() {
                                 onResume={() => void updateActiveGoal("resume")}
                               />
                             )}
-                            {pendingComposerDecision && (
-                              <button
-                                aria-label={t.stop}
-                                className="send-button stop decision-stop"
-                                disabled={!turnRunning}
-                                onClick={() => void cancelActiveTurn()}
-                                title={t.stop}
-                                type="button"
-                              >
-                                <span />
-                              </button>
-                            )}
+                            {pendingComposerDecision &&
+                              pendingComposerDecision.kind !== "plan" && (
+                                <button
+                                  aria-label={t.stop}
+                                  className="send-button stop decision-stop"
+                                  disabled={!turnRunning}
+                                  onClick={() => void cancelActiveTurn()}
+                                  title={t.stop}
+                                  type="button"
+                                >
+                                  <span />
+                                </button>
+                              )}
                           </div>
                         }
                         className="composer"
@@ -7913,18 +7980,13 @@ export function App() {
                               </button>
                             )}
                             {modeSuggestions.map(({ index, mode }) => {
-                              const commandLabel =
-                                mode === "plan"
-                                  ? t.planCommand
-                                  : mode === "execute"
-                                    ? t.executeCommand
-                                    : t.reviewCommand;
+                              const commandLabel = `/${mode}`;
                               const commandDetail =
                                 mode === "plan"
                                   ? t.planCommandDetail
-                                  : mode === "execute"
-                                    ? t.executeCommandDetail
-                                    : t.reviewCommandDetail;
+                                  : mode === "work"
+                                    ? uiText(locale, "Plan.workDetail")
+                                    : uiText(locale, "Plan.codemodeDetail");
                               return (
                                 <button
                                   aria-selected={
@@ -7933,9 +7995,7 @@ export function App() {
                                   className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
                                   id={`skill-command-option-${index}`}
                                   key={mode}
-                                  onClick={() =>
-                                    selectComposerCommand(`/${mode} `)
-                                  }
+                                  onClick={() => void selectModeCommand(mode)}
                                   role="option"
                                   tabIndex={-1}
                                 >
@@ -8220,7 +8280,11 @@ export function App() {
                                   );
                                   return;
                                 }
-                                if (event.key === "Enter" && !event.shiftKey) {
+                                if (
+                                  (event.key === "Enter" ||
+                                    event.key === "Tab") &&
+                                  !event.shiftKey
+                                ) {
                                   event.preventDefault();
                                   const suggestion =
                                     slashCommandSuggestions[
@@ -8234,12 +8298,10 @@ export function App() {
                                     selectComposerCommand("/init");
                                   } else if (
                                     suggestion?.kind === "plan" ||
-                                    suggestion?.kind === "execute" ||
-                                    suggestion?.kind === "review"
+                                    suggestion?.kind === "work" ||
+                                    suggestion?.kind === "codemode"
                                   ) {
-                                    selectComposerCommand(
-                                      `/${suggestion.kind} `,
-                                    );
+                                    void selectModeCommand(suggestion.kind);
                                   } else if (suggestion?.kind === "skill") {
                                     selectSkillCommand(suggestion.skill);
                                   }
@@ -10667,9 +10729,16 @@ export function ToolActivityGroupCard({
             const input = formatToolInput(tool.name, tool.input);
             const output = formatToolOutput(tool.name, tool.output);
             const detailPlugin = !plugin ? pluginForTool?.(tool) : undefined;
-            if (!input && !output && !detailPlugin) return null;
+            if (!input && !output && !detailPlugin && !tool.images?.length)
+              return null;
             return (
-              <section key={tool.id}>
+              <section
+                key={tool.id}
+                className={
+                  tool.parentToolCallId ? "tool-nested-call" : undefined
+                }
+                data-parent-tool-call={tool.parentToolCallId}
+              >
                 {detailPlugin ? (
                   <span className="tool-detail-plugin">
                     <ResourceAvatar
@@ -10685,6 +10754,19 @@ export function ToolActivityGroupCard({
                 <span>{summarizeToolDetail(tool, locale)}</span>
                 {input && <pre>{input}</pre>}
                 {output && <pre>{output}</pre>}
+                {tool.images?.map((image, index) => (
+                  <a
+                    key={index}
+                    href={`data:${image.mimeType};base64,${image.data}`}
+                    download={`generated-${tool.id}-${index}.${image.mimeType.split("/")[1]}`}
+                  >
+                    <img
+                      className="tool-result-image"
+                      alt={tool.name}
+                      src={`data:${image.mimeType};base64,${image.data}`}
+                    />
+                  </a>
+                ))}
               </section>
             );
           })}
@@ -10952,6 +11034,12 @@ export function Timeline({
     const id = entry.slice(separator + 1);
     if (separator < 0 || !id) return null;
     const turn = state.turns[state.entryTurnIds[entry] ?? ""];
+    if (kind === "plan") {
+      const plan = state.plans?.find((p) => p.planId === id);
+      return plan ? (
+        <PlanConfirmationCard key={entry} plan={plan} locale={locale} />
+      ) : null;
+    }
     if (kind === "user") {
       const message = state.userMessages[id];
       if (!message) return null;
@@ -11235,8 +11323,15 @@ export function Timeline({
               (entry) =>
                 entry.kind === "entry" && entry.entry.startsWith("user:"),
             );
+            const planEntries = entries.filter(
+              (entry) =>
+                entry.kind === "entry" && entry.entry.startsWith("plan:"),
+            );
             const executionEntries = entries.filter(
-              (entry) => entry !== finalEntry && !userEntries.includes(entry),
+              (entry) =>
+                entry !== finalEntry &&
+                !userEntries.includes(entry) &&
+                !planEntries.includes(entry),
             );
             return (
               <TimelineTurn
@@ -11269,6 +11364,7 @@ export function Timeline({
                   )}
                 </TurnExecutionDisclosure>
                 {finalEntry ? renderTimelineEntry(finalEntry) : null}
+                {planEntries.map(renderTimelineEntry)}
                 <TurnChangeSetCard
                   locale={locale}
                   onReview={onOpenTurnReview}

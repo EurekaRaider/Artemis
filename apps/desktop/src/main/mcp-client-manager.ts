@@ -1,3 +1,4 @@
+import { isExecutionMode, mcpToolExposure } from "@artemis/protocol";
 import { execFileSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
@@ -47,6 +48,7 @@ interface McpTool {
   name: string;
   description?: string | undefined;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
   annotations?:
     | {
         readOnlyHint?: boolean | undefined;
@@ -56,6 +58,7 @@ interface McpTool {
 }
 
 interface McpCallResult {
+  structuredContent?: Record<string, unknown>;
   content?: unknown[];
   isError?: boolean;
 }
@@ -85,7 +88,9 @@ export interface McpConnectionAuthentication {
 
 export interface McpExecutionScope {
   workspacePath: string;
-  mode: Extract<RunMode, "execute">;
+  mode: Extract<RunMode, "work" | "codemode">;
+  /** Host-approved, single-call access; never changes the server configuration. */
+  sandboxEscalation?: boolean;
 }
 
 export interface McpConnectOptions {
@@ -108,6 +113,7 @@ interface ActiveConnection {
   authentication?: McpConnectionAuthentication;
   client: McpConnection;
   tools: McpRuntimeTool[];
+  releaseAfterCall?: () => Promise<void>;
 }
 
 interface ResolvedWindowsStdioCommand {
@@ -294,7 +300,7 @@ function resolveMcpSandboxPolicy(
       platform,
       scope?.workspacePath ?? config.workspacePath,
     ),
-    mode: "execute",
+    mode: "work",
     network: config.allowNetwork ? "allow" : "deny",
     writablePaths: [canonicalExistingPath(platform, runtimeDirectory)],
     readOnlyPaths: [
@@ -946,11 +952,19 @@ function formatMcpResult(result: McpCallResult): McpToolCallResult {
     addText(`[Unsupported MCP content omitted: ${contentType(item)}]`);
   }
 
+  if (result.structuredContent)
+    transferBytes += Buffer.byteLength(
+      JSON.stringify(result.structuredContent),
+      "utf8",
+    );
   if (transferBytes > MAX_MCP_RESULT_TRANSFER_BYTES) {
     throw new Error("MCP tool output exceeds 2 MiB");
   }
   return {
     content,
+    ...(result.structuredContent
+      ? { structuredContent: result.structuredContent }
+      : {}),
     isError: Boolean(result.isError),
     metrics: {
       textBytes,
@@ -1229,7 +1243,8 @@ export class McpClientManager {
         const pluginReadOnlyPaths =
           await this.pluginRuntimeReadOnlyPaths(config);
         const buildLaunch = (sandboxCommand: SandboxCommand) => {
-          if (config.fullAccess) return buildDesktopUserLaunch(sandboxCommand);
+          if (config.fullAccess || scope?.sandboxEscalation)
+            return buildDesktopUserLaunch(sandboxCommand);
           const policy = resolveMcpSandboxPolicy(
             config,
             sandboxCommand,
@@ -1366,6 +1381,7 @@ export class McpClientManager {
                 ? {}
                 : { description: tool.description }),
               inputSchema: tool.inputSchema,
+              ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
               ...(tool.annotations === undefined
                 ? {}
                 : {
@@ -1567,8 +1583,12 @@ export class McpClientManager {
         transport: config.transport,
         piName: piToolName(config.id, tool.name),
         toolName: tool.name,
+        ...(mcpToolExposure(config, tool.name)
+          ? { exposure: mcpToolExposure(config, tool.name)! }
+          : {}),
         description: tool.description ?? `${config.name} MCP tool`,
         inputSchema: tool.inputSchema,
+        ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
         readOnly: Boolean(tool.annotations?.readOnlyHint),
         destructive: Boolean(tool.annotations?.destructiveHint),
       }));
@@ -1631,7 +1651,9 @@ export class McpClientManager {
     await Promise.all(
       scoped.map(async ([, connection]) => {
         try {
-          await (await connection).client.close();
+          const resolved = await connection;
+          if (resolved.releaseAfterCall) await resolved.releaseAfterCall();
+          else await resolved.client.close();
         } catch {
           // Failed scoped connections have no live transport to close.
         }
@@ -1652,52 +1674,88 @@ export class McpClientManager {
     toolName: string,
     argumentsValue: Record<string, unknown>,
     workspacePath?: string,
-    mode: Extract<RunMode, "execute"> = "execute",
+    mode: Extract<RunMode, "work" | "codemode"> = "work",
     privateMetadata?: Record<string, unknown>,
     signal?: AbortSignal,
+    sandboxEscalation = false,
   ): Promise<McpToolCallResult> {
+    if (!isExecutionMode(mode))
+      throw new Error(`${mode} mode rejects MCP calls.`);
     signal?.throwIfAborted();
     const active = this.active.get(serverId);
     if (!active) {
       throw new Error("MCP server is not connected");
     }
-    if (!active.tools.some((tool) => tool.toolName === toolName)) {
+    const advertised = active.tools.find((tool) => tool.toolName === toolName);
+    if (!advertised) {
       throw new Error("MCP tool is not advertised by the connected server");
     }
+    if (
+      sandboxEscalation &&
+      (active.config.transport !== "stdio" || !workspacePath)
+    )
+      throw new Error(
+        "Sandbox escalation requires a local stdio MCP server and task workspace.",
+      );
     const connection =
       active.config.transport === "stdio" && workspacePath
-        ? await this.scopedConnection(active, workspacePath, mode)
+        ? await this.scopedConnection(
+            active,
+            workspacePath,
+            mode,
+            sandboxEscalation,
+          )
         : active;
-    if (!connection.tools.some((tool) => tool.toolName === toolName)) {
-      throw new Error("MCP tool is not advertised by the scoped server");
+    try {
+      signal?.throwIfAborted();
+      if (sandboxEscalation && this.active.get(serverId) !== active)
+        throw new Error(
+          "MCP connection changed before sandbox escalation could execute.",
+        );
+      const scopedTool = connection.tools.find(
+        (tool) => tool.toolName === toolName,
+      );
+      if (!scopedTool)
+        throw new Error("MCP tool is not advertised by the scoped server");
+      if (
+        sandboxEscalation &&
+        (scopedTool.readOnly !== advertised.readOnly ||
+          scopedTool.destructive !== advertised.destructive)
+      )
+        throw new Error(
+          "MCP tool risk metadata changed before sandbox escalation could execute.",
+        );
+      const result = formatMcpResult(
+        await connection.client.callTool(
+          {
+            name: toolName,
+            arguments: argumentsValue,
+            ...(privateMetadata ? { _meta: privateMetadata } : {}),
+          },
+          signal,
+        ),
+      );
+      if (
+        this.active.get(serverId) === active &&
+        this.statuses.get(serverId)?.state === "failed"
+      ) {
+        this.publishStatus(serverId, {
+          config: structuredClone(active.config),
+          state: "connected",
+          tools: structuredClone(active.tools),
+        });
+      }
+      return result;
+    } finally {
+      await connection.releaseAfterCall?.();
     }
-    const result = formatMcpResult(
-      await connection.client.callTool(
-        {
-          name: toolName,
-          arguments: argumentsValue,
-          ...(privateMetadata ? { _meta: privateMetadata } : {}),
-        },
-        signal,
-      ),
-    );
-    if (
-      this.active.get(serverId) === active &&
-      this.statuses.get(serverId)?.state === "failed"
-    ) {
-      this.publishStatus(serverId, {
-        config: structuredClone(active.config),
-        state: "connected",
-        tools: structuredClone(active.tools),
-      });
-    }
-    return result;
   }
 
   private async scopedConnection(
     active: ActiveConnection,
     workspacePath: string,
-    mode: Extract<RunMode, "execute">,
+    mode: Extract<RunMode, "work" | "codemode">,
+    sandboxEscalation = false,
   ): Promise<ActiveConnection> {
     if (active.config.transport !== "stdio") return active;
     const normalizedWorkspace = resolve(workspacePath);
@@ -1710,11 +1768,11 @@ export class McpClientManager {
       this.platform === "win32"
         ? runtimeWorkspace.toLowerCase()
         : runtimeWorkspace;
-    if (comparableWorkspace === comparableRuntime) {
+    if (!sandboxEscalation && comparableWorkspace === comparableRuntime) {
       return active;
     }
 
-    const key = `${active.config.id}\0${comparableWorkspace}`;
+    const key = `${active.config.id}\0${comparableWorkspace}${sandboxEscalation ? `\0${randomUUID()}` : ""}`;
     const existing = this.scoped.get(key);
     if (existing) return existing;
 
@@ -1725,6 +1783,7 @@ export class McpClientManager {
         {
           workspacePath: normalizedWorkspace,
           mode,
+          ...(sandboxEscalation ? { sandboxEscalation: true } : {}),
         },
       );
       try {
@@ -1734,14 +1793,19 @@ export class McpClientManager {
           transport: active.config.transport,
           piName: piToolName(active.config.id, tool.name),
           toolName: tool.name,
+          ...(mcpToolExposure(active.config, tool.name)
+            ? { exposure: mcpToolExposure(active.config, tool.name)! }
+            : {}),
           description: tool.description ?? `${active.config.name} MCP tool`,
           inputSchema: tool.inputSchema,
+          ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
           readOnly: Boolean(tool.annotations?.readOnlyHint),
           destructive: Boolean(tool.annotations?.destructiveHint),
         }));
         client.onClose?.(() => {
           if (this.scoped.get(key) !== pending) return;
           this.scoped.delete(key);
+          if (sandboxEscalation) return;
           this.publishStatus(active.config.id, {
             config: structuredClone(active.config),
             state: "failed",
@@ -1750,6 +1814,7 @@ export class McpClientManager {
               "MCP workspace connection closed. The next tool call will reconnect.",
           });
         });
+        let releasePromise: Promise<void> | undefined;
         return {
           config: active.config,
           ...(active.authentication
@@ -1757,6 +1822,25 @@ export class McpClientManager {
             : {}),
           client,
           tools,
+          ...(sandboxEscalation
+            ? {
+                releaseAfterCall: () => {
+                  releasePromise ??= (async () => {
+                    try {
+                      await client.close();
+                      this.scoped.delete(key);
+                    } catch (error) {
+                      releasePromise = undefined;
+                      throw new Error(
+                        "Temporary MCP process cleanup failed; the tool may already have executed. Inspect its effects before retrying.",
+                        { cause: error },
+                      );
+                    }
+                  })();
+                  return releasePromise;
+                },
+              }
+            : {}),
         };
       } catch (error) {
         await client.close().catch(() => undefined);

@@ -29,7 +29,7 @@ async function fixture(command = "echo invoked") {
     projectId: "project",
     workspacePath: root,
     threadId: "thread",
-    mode: "execute" as const,
+    mode: "work" as const,
     remote: false,
   };
   const input = {
@@ -38,7 +38,7 @@ async function fixture(command = "echo invoked") {
     session_id: "thread",
     turn_id: "turn",
     cwd: root,
-    permission_mode: "execute",
+    permission_mode: "work",
     tool_name: "write",
   };
   return { root, service, context, input, config };
@@ -66,9 +66,9 @@ it("never starts a trusted command in Plan or Review, including IM tasks", async
   );
   for (const context of [
     { ...f.context, mode: "plan" as const },
-    { ...f.context, mode: "review" as const },
+    { ...f.context, mode: "plan" as const },
     { ...f.context, mode: "plan" as const, remote: true },
-    { ...f.context, mode: "review" as const, remote: true },
+    { ...f.context, mode: "plan" as const, remote: true },
   ])
     await f.service.run(context, f.input);
   expect(f.service.records()).toHaveLength(0);

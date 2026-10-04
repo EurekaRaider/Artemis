@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { appLocaleSchema } from "./schema.js";
+import { appLocaleSchema, runModeSchema } from "./schema.js";
 import {
   imGrantSecuritySchema,
   imScopeRevision,
@@ -154,7 +154,7 @@ export const executionGrantSchema = z
     // Accepted only for compatibility with saved grants; no usage cap is enforced.
     tokenBudget: z.number().int().min(1024).max(1000000).optional(),
     approval: z.enum(["ask", "automatic"]).default("ask"),
-    mode: z.enum(["plan", "review", "execute"]).default("plan"),
+    mode: runModeSchema.default("plan"),
     network: z.boolean().default(false),
     shell: z.boolean().default(false),
     groups: z.array(z.string().min(1).max(1024)).max(100).default([]),
@@ -757,7 +757,7 @@ export function requireImGrant(
     return {
       projectId,
       approval: "automatic",
-      mode: "execute",
+      mode: "work",
       network: true,
       shell: true,
       groups: [],

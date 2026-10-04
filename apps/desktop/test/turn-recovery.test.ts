@@ -27,7 +27,7 @@ async function fixture() {
   store.createThread({
     id: "task",
     title: "Task",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -39,7 +39,7 @@ async function fixture() {
     threadId: "task",
     turnId: "turn",
     text: "Finish the requested change",
-    mode: "execute" as const,
+    mode: "work" as const,
     memoryContext: "Project guidance stays separate from the user message.",
   };
   store.appendEventsAndUpdateThread(
@@ -57,7 +57,7 @@ async function fixture() {
       {
         eventId: randomUUID(),
         turnId: "turn",
-        payload: { type: "turn.started", mode: "execute" },
+        payload: { type: "turn.started", mode: "work" },
       },
     ],
     { status: "running" },

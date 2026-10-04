@@ -82,7 +82,7 @@ caching and upgrade persistent or resumed parent tasks to long caching. Child
 Agents, unknown models, Azure endpoints and compatible gateways remain short;
 Pi compaction and other one-shot calls that explicitly request `none` stay
 disabled. System Prompt, tools and model changes therefore create new keys
-without changing the Plan, Review or Execute tool sets.
+without changing the Plan, Work or Codemode tool sets.
 
 Provider usage is normalized before it reaches the protocol: uncached input,
 cache reads, cache writes and output add up to `totalTokens`. Optional reporting
@@ -99,17 +99,17 @@ The Agent Host exposes brokered filesystem tools together with Pi's built-in
 full local `bash` tool:
 
 - `read`: UTF-8 reads after lexical and real-path workspace validation.
-- `bash`: Execute-only direct Pi execution with the current desktop user's
+- `bash`: Work/Codemode-only direct Pi execution with the current desktop user's
   filesystem, environment, and network permissions after brokered model or user
-  approval. Plan/Review do not receive the tool.
-- `write`: pauses on a broker request. Plan/Review deny it immediately;
-  Execute creates an approval card. An approved write is performed by the main
+  approval. Plan do not receive the tool.
+- `write`: pauses on a broker request. Plan deny it immediately;
+  Work or Codemode creates an approval card. An approved write is performed by the main
   broker after validating the path again.
-- `office_document`: Execute-only create/write/read/modify/delete operations.
+- `office_document`: Work/Codemode-only create/write/read/modify/delete operations.
   Main validates the versioned request and workspace path, applies mode policy,
   then invokes portable PDF/OOXML parsers and generators. Delete is always
   offered as a high-risk, one-time approval.
-- MCP tools: available only in Execute and routed through the configured model
+- MCP tools: available only in Work or Codemode and routed through the configured model
   or policy approval path after the user enables the server. Local stdio
   servers use AppContainer on Windows or Seatbelt on macOS by default, can
   write the task workspace and private runtime directory, receive a minimal or
@@ -142,7 +142,7 @@ Executable Pi extensions stay disabled in the long-lived Agent Host through
 context files remain available. A trusted extension is a canonical file path
 plus SHA-256 hash, explicit enable/network settings, and a visible inventory.
 Only Pi tools are bridged; hooks, commands, flags, and shortcuts are reported as
-unsupported. Discovery is read-only and network-denied, and Execute-mode calls
+unsupported. Discovery is read-only and network-denied, and Work/Codemode calls
 require approval before a fresh sandbox process executes the tool.
 
 ## Persistence

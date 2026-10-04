@@ -15,6 +15,9 @@ interface PendingRequest {
 }
 
 export interface AgentProcessHandlers {
+  onCredentialChanged?(
+    message: Extract<AgentHostMessage, { type: "credentials.update" }>,
+  ): Promise<void>;
   onEvent(
     threadId: string,
     turnId: string | undefined,
@@ -205,6 +208,23 @@ export class AgentProcess {
     }
     if (message.type === "turn.telemetry") {
       this.handlers.onTurnTelemetry?.(message);
+      return;
+    }
+    if (message.type === "credentials.update") {
+      let ok = false;
+      try {
+        if (this.handlers.onCredentialChanged) {
+          await this.handlers.onCredentialChanged(message);
+          ok = true;
+        }
+      } catch {
+        /* Credentials never enter diagnostics or renderer events. */
+      }
+      this.post({
+        type: "credentials.resolve",
+        requestId: message.requestId,
+        ok,
+      });
       return;
     }
     if (message.type === "thread.session") {

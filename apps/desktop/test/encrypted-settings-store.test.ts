@@ -885,3 +885,31 @@ describe("EncryptedSettingsStore", () => {
     ).rejects.toThrow("invalid");
   });
 });
+
+it("persists OAuth rotation without overwriting a newer user credential", async () => {
+  const { store, filePath } = await createStore();
+  const old = {
+    type: "oauth" as const,
+    access: "old",
+    refresh: "rotate",
+    expires: 1,
+  };
+  const next = { ...old, access: "new", refresh: "rotated", expires: 2 };
+  await store.saveCredential("fixture", old);
+  await store.saveRefreshedCredential("fixture", old, next);
+  expect(
+    (
+      await new EncryptedSettingsStore(
+        filePath,
+        new FakeSafeStorage(),
+      ).runtimeConfiguration()
+    ).credentials.fixture,
+  ).toEqual(next);
+  await store.saveCredential("fixture", {
+    type: "api_key",
+    key: "user-change",
+  });
+  await expect(
+    store.saveRefreshedCredential("fixture", next, old),
+  ).rejects.toThrow("changed during refresh");
+});

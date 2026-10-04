@@ -74,7 +74,7 @@ function fixture(platform: "darwin" | "win32") {
   store.createThread({
     id: "task",
     title: "Research",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,

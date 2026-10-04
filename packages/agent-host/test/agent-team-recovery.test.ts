@@ -88,7 +88,7 @@ async function setup(timeout = 300_000) {
     host as unknown as { threads: Map<string, Thread> }
   ).threads.get("recovery")!;
   thread.currentTurnId = "turn";
-  thread.currentMode = "execute";
+  thread.currentMode = "work";
   thread.session.sendCustomMessage = async () => undefined;
   const call = (name: string, params: Record<string, unknown> = {}) =>
     thread.executeTools
@@ -247,7 +247,7 @@ it("lets the real parent turn recover from silent child tools, take over, write 
       summary: "Verified report.txt contains all three workstreams.",
     });
   };
-  await host.prompt("recovery", "turn-e2e", "Complete the reports", "execute");
+  await host.prompt("recovery", "turn-e2e", "Complete the reports", "work");
   expect(await readFile(join(workspace, "report.txt"), "utf8")).toContain(
     "all three workstreams",
   );

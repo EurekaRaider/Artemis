@@ -57,7 +57,7 @@ describe("private Computer Use MCP transport", () => {
     const context = {
       threadId: "thread",
       turnId: "turn",
-      mode: "execute" as const,
+      mode: "work" as const,
     };
     const call = (name: string, args: Record<string, unknown>) =>
       f.client.callTool({
@@ -114,7 +114,7 @@ describe("private Computer Use MCP transport", () => {
     ).rejects.toThrow(/host-approved/);
     const args = { target: "browser" };
     const grant = f.server.authorize(
-      { threadId: "thread", turnId: "turn", mode: "execute" },
+      { threadId: "thread", turnId: "turn", mode: "work" },
       "computer_open",
       args,
     );

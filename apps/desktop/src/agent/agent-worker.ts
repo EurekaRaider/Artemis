@@ -65,6 +65,10 @@ const broker: AgentBroker = {
   },
 };
 
+const credentialWrites = new Map<
+  string,
+  { resolve: () => void; reject: (error: Error) => void }
+>();
 const host = new ArtemisAgentHost(
   broker,
   {
@@ -78,6 +82,19 @@ const host = new ArtemisAgentHost(
   },
   {
     agentConcurrencyLimit: initialAgentConcurrencyLimit(),
+    onCredentialChanged(providerId, previous, credential) {
+      const requestId = randomUUID();
+      return new Promise<void>((resolve, reject) => {
+        credentialWrites.set(requestId, { resolve, reject });
+        send({
+          type: "credentials.update",
+          requestId,
+          providerId,
+          ...(previous ? { previous } : {}),
+          credential,
+        });
+      });
+    },
     onSessionFile(threadId, sessionFile) {
       send({ type: "thread.session", threadId, sessionFile });
     },
@@ -85,6 +102,18 @@ const host = new ArtemisAgentHost(
 );
 
 async function handle(command: AgentHostCommand): Promise<void> {
+  if (command.type === "credentials.resolve") {
+    const pending = credentialWrites.get(command.requestId);
+    credentialWrites.delete(command.requestId);
+    if (command.ok) pending?.resolve();
+    else
+      pending?.reject(
+        new Error(
+          "Credential refresh could not be saved. Reconnect the model provider.",
+        ),
+      );
+    return;
+  }
   if (command.type === "broker.resolve") {
     const pending = pendingBroker.get(command.requestId);
     if (pending) {

@@ -6,7 +6,7 @@ Hooks are explicitly trusted local command scripts attached to the existing Pi l
 
 1. Create `~/.artemis/hooks.json` for all local projects, or `<workspace>/.artemis/hooks.json` for one project. For managed worktrees, use that worktree's configuration.
 2. Put managed scripts in the sibling `hooks/` directory. Copy the [examples](../../examples/hooks/hooks.json), placing the three `.mjs` scripts in `.artemis/hooks/`. The examples require Node.js; the completion example assumes an npm project with a `test` script.
-3. Open **Settings → Hooks**. Project menus and installed plugin cards link to the same review surface. Execute tasks also show a pending-review notice above the composer.
+3. Open **Settings → Hooks**. Project menus and installed plugin cards link to the same review surface. Work and Codemode tasks also show a pending-review notice above the composer.
 4. Inspect the source, command, matcher, working directory, timeout, script contents and changes. Select individual hooks, choose their authorization scope, then click **Trust and enable**. Nothing is selected automatically.
 5. Unchanged trusted hooks run automatically. New, changed or untrusted hooks are skipped, without repeatedly prompting. Approval never replays past events.
 
@@ -14,7 +14,7 @@ User hooks apply to all local projects. Project hooks apply only to their projec
 
 Trust and bounded execution history are stored in the application data directory, not in the repository. Definition changes, managed script changes and plugin content changes invalidate approval. Arbitrary external script dependencies and interpreters are not content-locked: review them yourself. Symlinks in managed script trees are rejected. Script inspection is bounded to 30 text files of at most 64 KiB each; file hashes show the full monitored set.
 
-Plan and Review skip command hooks and continue the conversation normally. In Execute, local interactive tasks, IM direct and group chats, automations and their subagents use the same hook trust rules; IM tasks must still pass current conversation authorization checks. With no configured or trusted hooks, the prompt continues. A submission hook that blocks an initial prompt reports a failure reason. Switching between tasks does not end a session.
+Plan skips command hooks and continue the conversation normally. In Work or Codemode, local interactive tasks, IM direct and group chats, automations and their subagents use the same hook trust rules; IM tasks must still pass current conversation authorization checks. With no configured or trusted hooks, the prompt continues. A submission hook that blocks an initial prompt reports a failure reason. Switching between tasks does not end a session.
 
 ## Configuration and command protocol
 
@@ -49,7 +49,7 @@ Exit zero without output means success. Return JSON on stdout; diagnostics belon
 
 | Event                  | Supported output / behavior                                                                                                                                |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SessionStart`         | `hookSpecificOutput.additionalContext`; fires on first Execute use, resume, and after compaction                                                           |
+| `SessionStart`         | `hookSpecificOutput.additionalContext`; fires on first Work or Codemode use, resume, and after compaction                                                  |
 | `UserPromptSubmit`     | `decision: "block"` with `reason`, or additional context                                                                                                   |
 | `PreToolUse`           | `hookSpecificOutput.permissionDecision: "deny"`, or `"allow"` with `updatedInput`; rewritten arguments are validated and execution policy is checked again |
 | `PermissionRequest`    | `hookSpecificOutput.decision.behavior: "allow" / "deny"`; absent decision uses normal approval; hard restrictions remain in force                          |

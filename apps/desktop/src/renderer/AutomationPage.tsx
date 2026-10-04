@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { statusText } from "../shared/status-text.js";
 import { makeUiCopy, uiText } from "../shared/ui-text.js";
 import { UI_COPY } from "../shared/ui-copy.js";
@@ -326,7 +327,7 @@ function defaultDraft(projectId: string): AutomationDraft {
     projectId,
     name: "",
     prompt: "",
-    mode: "review",
+    mode: "plan",
     target: "local",
     preset: "daily",
     date: tomorrow.toPlainDate().toString(),
@@ -1096,13 +1097,12 @@ export function AutomationPage(props: {
                       setDraft({
                         ...draft,
                         mode,
-                        target:
-                          mode === "execute"
-                            ? "managed-worktree"
-                            : draft.target,
+                        target: isExecutionMode(mode)
+                          ? "managed-worktree"
+                          : draft.target,
                       });
                     }}
-                    options={(["plan", "execute", "review"] as const).map(
+                    options={(["plan", "work", "codemode"] as const).map(
                       (mode) => ({
                         label: uiText(props.locale, `App_copy.${mode}`),
                         value: mode,
@@ -1353,7 +1353,7 @@ export function AutomationPage(props: {
                     })}
                   </div>
                 )}
-                {draft.mode === "execute" && (
+                {isExecutionMode(draft.mode) && (
                   <InlineNotice className="automation-warning" tone="warning">
                     {t.executeWarning}
                   </InlineNotice>

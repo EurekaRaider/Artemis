@@ -1,12 +1,12 @@
 import type { RunMode } from "@artemis/protocol";
 
-export const RUN_MODE_ORDER = ["plan", "execute", "review"] as const;
+export const RUN_MODE_ORDER = ["plan", "work", "codemode"] as const;
 
 export type ParsedRunModeCommand =
   | { kind: "command"; mode: RunMode; prompt: string }
   | { kind: "multiple"; modes: RunMode[] };
 
-const RUN_MODE_COMMAND_PATTERN = /(?<!\S)\/(plan|execute|review)(?!\S)/giu;
+const RUN_MODE_COMMAND_PATTERN = /(?<!\S)\/(plan|work|codemode)(?!\S)/giu;
 
 export function parseRunModeCommand(
   prompt: string,

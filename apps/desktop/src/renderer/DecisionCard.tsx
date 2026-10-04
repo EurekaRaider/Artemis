@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type Ref } from "react";
 import type { AppLocale, UserInputOption } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { uiText } from "../shared/ui-text.js";
@@ -15,6 +15,9 @@ export function DecisionOptions({
   onSkip,
   placeholder,
   registerButton,
+  replyRef,
+  replyMaxLength = 2000,
+  optionAccessory,
 }: {
   options: readonly Pick<
     UserInputOption,
@@ -24,8 +27,11 @@ export function DecisionOptions({
   busy: boolean;
   onChoose: (index: number) => void;
   onReply: (text: string) => void;
-  onSkip: () => void;
+  onSkip?: (() => void) | undefined;
   placeholder?: string;
+  replyRef?: Ref<HTMLInputElement> | undefined;
+  replyMaxLength?: number | undefined;
+  optionAccessory?: ((index: number) => ReactNode) | undefined;
   registerButton?: (index: number, button: HTMLButtonElement | null) => void;
 }) {
   const [focused, setFocused] = useState(
@@ -41,42 +47,54 @@ export function DecisionOptions({
   return (
     <>
       <div className="decision-options" role="group">
-        {options.map((option, index) => (
-          <button
-            type="button"
-            className="user-input-option decision-option"
-            key={option.label}
-            title={option.label}
-            disabled={busy}
-            tabIndex={focused === index ? 0 : -1}
-            onFocus={() => setFocused(index)}
-            onClick={() => onChoose(index)}
-            onKeyDown={(event) => {
-              if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
-                return;
-              event.preventDefault();
-              event.stopPropagation();
-              const next = moveUserInputOptionFocus(
-                index,
-                options.length,
-                event.key as "ArrowUp" | "ArrowDown" | "Home" | "End",
-              );
-              buttons.current[next]?.focus();
-            }}
-            ref={(button) => {
-              buttons.current[index] = button;
-              registerButton?.(index, button);
-            }}
-          >
-            <span className="decision-option-number" aria-hidden="true">
-              {index + 1}.
-            </span>
-            <span className="decision-option-copy">
-              <strong>{option.label}</strong>
-              {option.description && <small>{option.description}</small>}
-            </span>
-          </button>
-        ))}
+        {options.map((option, index) => {
+          const button = (
+            <button
+              type="button"
+              className="user-input-option decision-option"
+              key={option.label}
+              title={option.label}
+              disabled={busy}
+              tabIndex={focused === index ? 0 : -1}
+              onFocus={() => setFocused(index)}
+              onClick={() => onChoose(index)}
+              onKeyDown={(event) => {
+                if (
+                  !["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
+                )
+                  return;
+                event.preventDefault();
+                event.stopPropagation();
+                const next = moveUserInputOptionFocus(
+                  index,
+                  options.length,
+                  event.key as "ArrowUp" | "ArrowDown" | "Home" | "End",
+                );
+                buttons.current[next]?.focus();
+              }}
+              ref={(button) => {
+                buttons.current[index] = button;
+                registerButton?.(index, button);
+              }}
+            >
+              <span className="decision-option-number" aria-hidden="true">
+                {index + 1}.
+              </span>
+              <span className="decision-option-copy">
+                <strong>{option.label}</strong>
+                {option.description && <small>{option.description}</small>}
+              </span>
+            </button>
+          );
+          return optionAccessory ? (
+            <div className="decision-option-row" key={option.label}>
+              {button}
+              {optionAccessory(index)}
+            </div>
+          ) : (
+            button
+          );
+        })}
       </div>
       <form
         className="decision-reply"
@@ -87,10 +105,11 @@ export function DecisionOptions({
         }}
       >
         <input
+          ref={replyRef}
           aria-label={other}
           placeholder={other}
           value={draft}
-          maxLength={2000}
+          maxLength={replyMaxLength}
           disabled={busy}
           onChange={(event) => setDraft(event.target.value)}
           onCompositionStart={() => {
@@ -107,14 +126,16 @@ export function DecisionOptions({
               event.preventDefault();
           }}
         />
-        <button
-          className="decision-skip"
-          type="button"
-          disabled={busy}
-          onClick={onSkip}
-        >
-          {uiText(locale, "DecisionCard.skip")}
-        </button>
+        {onSkip && (
+          <button
+            className="decision-skip"
+            type="button"
+            disabled={busy}
+            onClick={onSkip}
+          >
+            {uiText(locale, "DecisionCard.skip")}
+          </button>
+        )}
         <button
           className="decision-submit"
           type="submit"

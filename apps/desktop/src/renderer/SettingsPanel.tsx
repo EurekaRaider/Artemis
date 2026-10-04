@@ -1,3 +1,5 @@
+import { ProviderLogin } from "./ProviderLogin.js";
+import { modelAdvancedOptionsSchema } from "@artemis/protocol";
 import { AppearanceSettingsSection } from "./AppearanceSettingsSection.js";
 import { ComputerUseControls } from "./ComputerUseControls.js";
 import { HooksSettingsSection } from "./HooksSettingsSection.js";
@@ -233,6 +235,7 @@ export function SettingsPanel({
   const [providerHighestThinkingLevel, setProviderHighestThinkingLevel] =
     useState<ProviderThinkingLevel>("high");
   const [providerImages, setProviderImages] = useState(false);
+  const [providerAdvanced, setProviderAdvanced] = useState("{}");
   const [apiKey, setApiKey] = useState("");
   const [keyApiKey, setKeyApiKey] = useState("");
   const [busy, setBusy] = useState(false);
@@ -599,7 +602,17 @@ ${model.providerId} · ${model.modelId}`,
     const existingProvider = settings?.providers.find(
       (provider) => provider.id === editingProviderId,
     );
+    let advanced;
+    try {
+      advanced = modelAdvancedOptionsSchema.parse(JSON.parse(providerAdvanced));
+    } catch (error) {
+      await run(async () => {
+        throw error;
+      });
+      return;
+    }
     const editedModel: ProviderConnection["models"][number] = {
+      ...advanced,
       id: providerModelId.trim(),
       name: providerModelName.trim() || providerModelId.trim(),
       reasoning: providerReasoning,
@@ -649,6 +662,7 @@ ${model.providerId} · ${model.modelId}`,
   function resetProviderForm() {
     setEditingProviderId(undefined);
     setEditingProviderModelId(undefined);
+    setProviderAdvanced("{}");
     setProviderId("");
     setProviderName("");
     setBaseUrl("");
@@ -686,6 +700,17 @@ ${model.providerId} · ${model.modelId}`,
     );
     setProviderReasoning(model?.reasoning ?? false);
     setProviderHighestThinkingLevel(model?.highestThinkingLevel ?? "high");
+    setProviderAdvanced(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(model ?? {}).filter(
+            ([key]) => key in modelAdvancedOptionsSchema.shape,
+          ),
+        ),
+        null,
+        2,
+      ),
+    );
     setProviderImages(model?.input.includes("image") ?? false);
     setApiKey("");
   }
@@ -1206,6 +1231,13 @@ ${model.providerId} · ${model.modelId}`,
                           />
                         )}
                       </div>
+                      <ProviderLogin
+                        locale={locale}
+                        disabled={busy || !settings.encryptionAvailable}
+                        onComplete={async () =>
+                          setSettings(await window.artemis.getSettings())
+                        }
+                      />
                       <Button
                         className="management-text-action"
                         variant="quiet"
@@ -1510,6 +1542,13 @@ ${model.providerId} · ${model.modelId}`,
                         value={providerHighestThinkingLevel}
                       />
                     )}
+                    <TextAreaField
+                      label={uiText(locale, "Model.advanced")}
+                      value={providerAdvanced}
+                      onValueChange={setProviderAdvanced}
+                      disabled={busy}
+                      rows={5}
+                    />
                     <Button
                       disabled={
                         busy ||

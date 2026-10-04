@@ -13,3 +13,6 @@ export * from "./im-security.js";
 export * from "./text-tokens.js";
 export * from "./hooks.js";
 export * from "./computer-use.js";
+export * from "./plans.js";
+
+export * from "./mcp-exposure.js";

@@ -97,7 +97,7 @@ describe("main model stream idle timeout", () => {
       "thread-idle-timeout",
       "turn-stalled",
       "Wait for a response.",
-      "execute",
+      "work",
     );
     await promptStarted.promise;
     await vi.advanceTimersByTimeAsync(20);
@@ -181,7 +181,7 @@ describe("main model stream idle timeout", () => {
       "thread-idle-timeout",
       "turn-retry",
       "Wait for a response.",
-      "execute",
+      "work",
     );
     await started.promise;
     await vi.advanceTimersByTimeAsync(40);
@@ -235,7 +235,7 @@ describe("main model stream idle timeout", () => {
       "thread-idle-timeout",
       "turn-active",
       "Produce a streamed response.",
-      "execute",
+      "work",
     );
     await promptStarted.promise;
     await vi.advanceTimersByTimeAsync(60);
@@ -279,7 +279,7 @@ describe("main model stream idle timeout", () => {
       "thread-idle-timeout",
       "turn-tool",
       "Read the README.",
-      "execute",
+      "work",
     );
     await promptStarted.promise;
     await vi.advanceTimersByTimeAsync(40);
@@ -340,7 +340,7 @@ describe("main model stream idle timeout", () => {
       "thread-idle-timeout",
       "turn-parallel-tools",
       "Read both files.",
-      "execute",
+      "work",
     );
     await promptStarted.promise;
     await vi.advanceTimersByTimeAsync(50);

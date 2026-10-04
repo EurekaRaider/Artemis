@@ -36,7 +36,7 @@ vi.mock("../src/main/computer-use/native-driver.js", () => ({
 }));
 import { ComputerUseHost } from "../src/main/computer-use/host.js";
 
-const context = { threadId: "task", turnId: "turn", mode: "execute" as const };
+const context = { threadId: "task", turnId: "turn", mode: "work" as const };
 const action = (observation: ComputerObservation, foreground = false) => ({
   targetId: observation.target.id,
   observationId: observation.observationId,

@@ -318,6 +318,32 @@ describe("TextField and SearchField", () => {
 });
 
 describe("Select", () => {
+  it("preserves upward stylesheet placement while anchoring an open menu", async () => {
+    const { container } = render(
+      <div className="upward-select">
+        <style>{`
+          .upward-select [data-part="menu"] {
+            inset-block-start: auto;
+            inset-block-end: calc(100% + 4px);
+          }
+        `}</style>
+        <Select
+          label="Task mode"
+          value="alpha"
+          onValueChange={vi.fn()}
+          options={OPTIONS}
+        />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button"));
+    const menu = container.querySelector<HTMLElement>('[data-part="menu"]')!;
+    const placement = () => getComputedStyle(menu);
+    expect(placement().insetBlockStart).toBe("auto");
+    expect(placement().insetBlockEnd).toBe("calc(100% + 4px)");
+    fireEvent(window, new Event("resize"));
+    expect(placement().insetBlockStart).toBe("auto");
+    expect(screen.getAllByRole("option")).toHaveLength(OPTIONS.length);
+  });
   it("keeps expanded menus inside a clipping settings panel as it resizes", async () => {
     vi.stubGlobal("innerWidth", 1024);
     const observed: Element[] = [];

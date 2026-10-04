@@ -15,7 +15,7 @@ const CONNECTION_RETRY_MAX_DELAY_MILLISECONDS = 60_000;
 const NON_CONNECTION_FAILURE =
   /\b(?:400|401|403|404|409|422)\b|auth(?:entication|orization)?|invalid (?:request|json|schema)|protocol|quota|billing|insufficient[_ -]?quota|rate.?limit|too many requests|\b429\b/iu;
 const CONNECTION_FAILURE =
-  /\b(?:ECONNRESET|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET)\b|fetch failed|network.?error|connection.?(?:error|refused|lost|reset|closed)|socket (?:hang up|connection was closed)|temporary failure in name resolution|websocket.?(?:closed|error)/iu;
+  /\b(?:ECONNRESET|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET)\b|fetch failed|network.?error|connection.?(?:error|refused|lost|reset|closed)|socket (?:hang up|connection was closed)|temporary failure in name resolution|websocket.?(?:closed|error)|stream ended (?:without|before)|other side closed/iu;
 const SENSITIVE_FAILURE_URL = /https?:\/\/[^\s<>"']+/giu;
 const SENSITIVE_FAILURE_AUTHORIZATION =
   /\b(authorization|cookie|set-cookie)\b(\s*:\s*)[^\r\n]+/giu;
@@ -215,6 +215,7 @@ function recoveringStream(
   void (async () => {
     let emittedStart = false;
     let semanticOutput = false;
+    let partial: AssistantMessage | undefined;
     let attempt = 0;
     let reconnecting = false;
     let idleRetries = 0;
@@ -244,6 +245,8 @@ function recoveringStream(
                   recoveryOptions.idleTimeoutMs,
                 );
           for await (const event of events) {
+            if (options?.signal?.aborted) break;
+            if ("partial" in event) partial = event.partial;
             if (event.type === "start") {
               if (!emittedStart) {
                 emittedStart = true;
@@ -262,7 +265,11 @@ function recoveringStream(
                 attemptId: `${requestId}:${attempt}`,
               });
             }
-            semanticOutput = true;
+            if (
+              ("delta" in event && event.delta.length > 0) ||
+              event.type === "toolcall_end"
+            )
+              semanticOutput = true;
             output.push(event);
             if (event.type === "done") return;
           }
@@ -272,6 +279,10 @@ function recoveringStream(
             model,
             error instanceof Error ? error.message : String(error),
           );
+        } finally {
+          // Dispose the old transport before starting another attempt. Late
+          // events must never reach the accepted response or execute tools.
+          controller.abort();
         }
 
         if (options?.signal?.aborted) {
@@ -284,9 +295,13 @@ function recoveringStream(
           );
           return;
         }
+        terminal ??= terminalFailure(
+          model,
+          "Network error: stream ended before a terminal response event.",
+        );
         const message =
           terminal?.type === "error" ? terminal.error.errorMessage : undefined;
-        if (!terminal || (!stalled && !isConnectionFailure(message))) {
+        if (!stalled && !isConnectionFailure(message)) {
           output.push(
             terminal
               ? sanitizedTerminalFailure(terminal)
@@ -295,14 +310,17 @@ function recoveringStream(
           return;
         }
         if (semanticOutput) {
-          const attemptId = `${requestId}:unsafe`;
-          onUpdate(options?.sessionId, { phase: "interrupted", attemptId });
-          output.push(
-            terminalFailure(
-              model,
-              "ARTEMIS_STREAM_INTERRUPTED: Output had already begun, so automatic replay was stopped to avoid duplicate text or tool side effects. Confirm before continuing.",
-            ),
+          // Pi owns response replacement once any content has been emitted:
+          // it omits the failed assistant attempt from canonical context and
+          // emits auto_retry_start, which PiAdapter maps to message.superseded.
+          // Completed tool results in earlier messages remain committed.
+          const failure = terminalFailure(
+            model,
+            `Network error: ${sanitizeModelFailure(message ?? "Stream interrupted")}`,
           );
+          if (failure.type === "error" && partial)
+            failure.error.content = partial.content;
+          output.push(failure);
           return;
         }
 

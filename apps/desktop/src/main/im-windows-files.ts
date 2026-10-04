@@ -412,7 +412,7 @@ Set-Location -LiteralPath 'ArtemisWorkspace:\' -ErrorAction Stop`,
       {
         workspacePath: stage,
         workspaceAccess: "read",
-        mode: "execute",
+        mode: "work",
         network: input.network ? "allow" : "deny",
         readOnlyPaths: [stage],
         writablePaths:

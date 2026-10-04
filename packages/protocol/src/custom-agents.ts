@@ -1,3 +1,4 @@
+import { isExecutionMode } from "./schema.js";
 /**
  * Custom sub-agent definitions (D#152): user-level, reusable child-agent
  * definitions with project scoping, model/tool policy, and deterministic
@@ -162,7 +163,7 @@ export interface CapabilityContext {
  * denied before any executor or filesystem call runs.
  */
 export function runModeCapabilities(mode: RunMode): Set<CapabilityClass> {
-  if (mode === "execute") {
+  if (isExecutionMode(mode)) {
     return new Set<CapabilityClass>([
       "shell",
       "filesystem-write",

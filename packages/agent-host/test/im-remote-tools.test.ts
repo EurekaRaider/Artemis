@@ -13,15 +13,15 @@ import {
 
 describe("remote Pi tool boundary", () => {
   it("allows worker prerequisites while preserving read-only modes", () => {
-    expect(isRemoteToolAllowed("collaborate", "execute", true, "worker")).toBe(
+    expect(isRemoteToolAllowed("collaborate", "work", true, "worker")).toBe(
       true,
     );
-    expect(isRemoteToolAllowed("remote_shell", "execute", true, "worker")).toBe(
+    expect(isRemoteToolAllowed("remote_shell", "work", true, "worker")).toBe(
       true,
     );
-    expect(
-      isRemoteToolAllowed("im_participants", "execute", true, "worker"),
-    ).toBe(true);
+    expect(isRemoteToolAllowed("im_participants", "work", true, "worker")).toBe(
+      true,
+    );
     const prompts = remoteResourceOverrides({
       network: false,
       shell: true,
@@ -29,21 +29,21 @@ describe("remote Pi tool boundary", () => {
     }).appendSystemPromptOverride!([]);
     expect(JSON.stringify(prompts)).toContain("automatically returned");
     expect(JSON.stringify(prompts)).toContain("retainedWork");
-    for (const mode of ["plan", "review"] as const)
+    for (const mode of ["plan"] as const)
       expect(isRemoteToolAllowed("collaborate", mode, true, "worker")).toBe(
         false,
       );
   });
-  it("exposes only read-only IM discovery in Plan and Review", async () => {
+  it("exposes only read-only IM discovery in Plan", async () => {
     const calls: unknown[] = [];
     const tool = createRemoteTools(async (operation) => {
       calls.push(operation);
       return { complete: false, members: [] };
     }).find((t) => t.name === "im_participants");
     expect(tool).toBeDefined();
-    for (const mode of ["plan", "review", "execute"] as const)
+    for (const mode of ["plan", "review", "work"] as const)
       expect(isRemoteToolAllowed("im_participants", mode, false)).toBe(true);
-    for (const mode of ["plan", "review"] as const)
+    for (const mode of ["plan"] as const)
       expect(isRemoteToolAllowed("collaborate", mode, false)).toBe(false);
     await tool!.execute("discover", {} as never);
     expect(calls).toEqual([{ action: "participants" }]);
@@ -150,7 +150,7 @@ describe("remote Pi tool boundary", () => {
         threads.get("ordinary")!.executeTools.map((t) => t.name),
       ).not.toContain("collaborate");
       group.currentTurnId = "desktop-turn";
-      group.currentMode = "execute";
+      group.currentMode = "work";
       await group.executeTools
         .find((t) => t.name === "collaborate")!
         .execute("list", { action: "participants" });
@@ -289,7 +289,7 @@ describe("remote Pi tool boundary", () => {
         "collaborate",
       );
       thread.currentTurnId = "turn";
-      thread.currentMode = "execute";
+      thread.currentMode = "work";
       await thread.executeTools
         .find((t) => t.name === "remote_shell")!
         .execute("operation", { command: "pwd", timeoutSeconds: 5 });

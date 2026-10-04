@@ -4,16 +4,16 @@ import { ResourceArtwork } from "./resource-icons.js";
 export function CommandArtwork({
   command,
 }: {
-  command: "goal" | "compact" | "init" | "plan" | "execute" | "review";
+  command: "goal" | "compact" | "init" | "plan" | "work" | "codemode";
 }) {
   const gradientId = useId();
   const sharedIcon =
     command === "plan"
       ? "checklist"
-      : command === "execute"
+      : command === "work"
         ? "lightning"
-        : command === "review"
-          ? "file-search"
+        : command === "codemode"
+          ? "terminal"
           : undefined;
   return (
     <span className="resource-avatar" aria-hidden="true">

@@ -37,7 +37,7 @@ describe("IM trust boundary", () => {
       requireImGrant({ ...settings, grants: [] }, request, "private", 1000),
     ).toMatchObject({
       projectId: "private",
-      mode: "execute",
+      mode: "work",
       approval: "automatic",
       network: true,
       shell: true,
@@ -87,7 +87,7 @@ describe("IM trust boundary", () => {
   });
   it("requires an enabled, unexpired request for the authenticated destination", () => {
     expect(requireImGrant(settings, request, "project", 1000).mode).toBe(
-      "execute",
+      "work",
     );
     expect(() => requireImGrant(settings, request, "project", 2000)).toThrow();
     expect(() =>
@@ -102,7 +102,7 @@ describe("IM trust boundary", () => {
       ),
     ).toThrow();
     expect(requireImGrant(settings, request, "private", 1000).mode).toBe(
-      "execute",
+      "work",
     );
   });
   it("does not let a direct-message grant authorize group work", () => {

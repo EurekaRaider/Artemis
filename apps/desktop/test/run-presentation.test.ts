@@ -62,7 +62,7 @@ describe("deriveRunPresentation", () => {
     const events = [
       event("1", "turn-1", "2026-07-27T02:00:00.000Z", {
         type: "turn.started",
-        mode: "execute",
+        mode: "work",
       }),
       event("2", "turn-1", "2026-07-27T02:00:02.000Z", {
         type: "approval.requested",
@@ -88,7 +88,7 @@ describe("deriveRunPresentation", () => {
     const events = [
       event("1", "turn-1", "2026-07-27T02:00:00.000Z", {
         type: "turn.started",
-        mode: "execute",
+        mode: "work",
       }),
       event("2", "turn-1", "2026-07-27T02:00:02.000Z", {
         type: "user-input.requested",
@@ -219,7 +219,7 @@ describe("deriveRunPresentation multi-question aggregation (D#76 PR10C obligatio
     const events = [
       event("1", "turn-1", "2026-08-02T10:00:00.000Z", {
         type: "turn.started",
-        mode: "execute",
+        mode: "work",
       }),
       event("2", "turn-1", "2026-08-02T10:00:02.000Z", {
         type: "user-input.requested",
@@ -270,7 +270,7 @@ describe("deriveRunPresentation multi-question aggregation (D#76 PR10C obligatio
     const events = [
       event("1", "turn-1", "2026-08-02T10:00:00.000Z", {
         type: "turn.started",
-        mode: "execute",
+        mode: "work",
       }),
       event("2", "turn-1", "2026-08-02T10:00:01.000Z", {
         type: "user-input.requested",
@@ -307,7 +307,7 @@ describe("deriveRunPresentation multi-question aggregation (D#76 PR10C obligatio
     const events = [
       event("1", "turn-1", "2026-08-02T10:00:00.000Z", {
         type: "turn.started",
-        mode: "execute",
+        mode: "work",
       }),
       event("2", "turn-1", "2026-08-02T10:00:02.000Z", {
         type: "user-input.requested",

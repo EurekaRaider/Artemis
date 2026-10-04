@@ -18,7 +18,7 @@ Parsing failures retain the original and expose a failure state. No cloud upload
 automatic OCR, vector database, or extra agent loop is involved.
 
 `attachment_list`, `attachment_read` and `attachment_search` use the host broker
-and the current task's attachment scope in Plan, Review and Execute. IM scopes
+and the current task's attachment scope in Plan, Work and Codemode. IM scopes
 also include the current authorization context. Reads return bounded text,
 source locations and continuation offsets. PDF pages can be rendered on demand;
 image crops refer to original image coordinates. Original previews in the desktop

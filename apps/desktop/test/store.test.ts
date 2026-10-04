@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PROTOCOL_VERSION, reduceAgentEvents } from "@artemis/protocol";
 
-import { AppStore, CUSTOM_AGENTS_DATABASE_VERSION } from "../src/main/store.js";
+import { AppStore, CURRENT_DATABASE_VERSION } from "../src/main/store.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -56,7 +56,7 @@ describe("AppStore", () => {
     store.createThread({
       id: "queued",
       title: "Background task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "running",
       pinned: false,
@@ -66,7 +66,7 @@ describe("AppStore", () => {
     });
     store.appendEvent("start", "queued", "turn", {
       type: "turn.started",
-      mode: "execute",
+      mode: "work",
     });
     store.appendEvent("queue", "queued", "turn", {
       type: "turn.activity",
@@ -93,7 +93,7 @@ describe("AppStore", () => {
     ]);
     reopened.appendEvent("next-turn", "queued", "next-turn", {
       type: "turn.started",
-      mode: "execute",
+      mode: "work",
     });
     expect(snapshot().events.queued?.[0]?.payload.type).toBe("turn.started");
     reopened.close();
@@ -108,7 +108,7 @@ describe("AppStore", () => {
     first.createThread({
       id: "protocol-thread",
       title: "Protocol migration",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -146,7 +146,7 @@ describe("AppStore", () => {
         .get(),
     ).toEqual({ version: 3 });
     expect(persisted.prepare("PRAGMA user_version").get()).toEqual({
-      user_version: CUSTOM_AGENTS_DATABASE_VERSION,
+      user_version: CURRENT_DATABASE_VERSION,
     });
     persisted.close();
   });
@@ -159,7 +159,7 @@ describe("AppStore", () => {
     store.createThread({
       id: "model-thread",
       title: "Model conversation",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       modelSelection: {
@@ -195,7 +195,7 @@ describe("AppStore", () => {
     first.createThread({
       id: "scratch-thread",
       title: "Temporary conversation",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       modelSelection: {
@@ -282,7 +282,7 @@ describe("AppStore", () => {
       );
       INSERT INTO events VALUES (
         'event-1', 'thread-1', 0,
-        '{"protocolVersion":3,"eventId":"event-1","threadId":"thread-1","seq":0,"timestamp":"2026-08-18T00:00:00.000Z","payload":{"type":"turn.started","mode":"execute"}}',
+        '{"protocolVersion":3,"eventId":"event-1","threadId":"thread-1","seq":0,"timestamp":"2026-08-18T00:00:00.000Z","payload":{"type":"turn.started","mode":"work"}}',
         '2026-08-18T00:00:00.000Z'
       );
       PRAGMA user_version = 9;
@@ -295,7 +295,7 @@ describe("AppStore", () => {
     store.createThread({
       id: "scratch-thread",
       title: "Temporary conversation",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -330,7 +330,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Batch",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -354,10 +354,10 @@ describe("AppStore", () => {
         {
           eventId: "event-2",
           turnId: "turn-1",
-          payload: { type: "turn.started", mode: "execute" },
+          payload: { type: "turn.started", mode: "work" },
         },
       ],
-      { status: "running", mode: "execute" },
+      { status: "running", mode: "work" },
     );
 
     expect(result.events.map((event) => event.seq)).toEqual([0, 1]);
@@ -384,7 +384,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Private reasoning",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "running",
       pinned: false,
@@ -429,7 +429,7 @@ describe("AppStore", () => {
         id,
         projectId: "project-1",
         title,
-        mode: "execute",
+        mode: "work",
         target: "local",
         status: "idle",
         pinned: false,
@@ -657,16 +657,16 @@ describe("AppStore", () => {
     legacy.close();
 
     const store = new AppStore(databasePath);
-    expect(store.getThread("thread-code")?.mode).toBe("execute");
-    expect(store.getThread("thread-work")?.mode).toBe("execute");
+    expect(store.getThread("thread-code")?.mode).toBe("work");
+    expect(store.getThread("thread-work")?.mode).toBe("work");
     for (const threadId of ["thread-code", "thread-work"]) {
       expect(store.getThreadEvents(threadId)[0]).toMatchObject({
         protocolVersion: PROTOCOL_VERSION,
-        payload: { type: "turn.started", mode: "execute" },
+        payload: { type: "turn.started", mode: "work" },
       });
     }
     expect(store.getAutomation("automation-1")).toMatchObject({
-      mode: "execute",
+      mode: "work",
       enabled: false,
       authorizationState: "required",
     });
@@ -698,7 +698,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: project.id,
       title: "Keep this task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -759,7 +759,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Running task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "running",
       pinned: false,
@@ -799,7 +799,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: project.id,
       title: "Persist this task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -863,7 +863,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Approval task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -932,7 +932,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Source",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -944,7 +944,7 @@ describe("AppStore", () => {
       id: "thread-2",
       projectId: "project-1",
       title: "Fork",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -1000,7 +1000,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Review task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -1010,7 +1010,7 @@ describe("AppStore", () => {
     });
     store.appendEvent(randomUUID(), "thread-1", "turn-1", {
       type: "turn.started",
-      mode: "execute",
+      mode: "work",
     });
     store.appendEvent(randomUUID(), "thread-1", "turn-1", {
       type: "file.changed",
@@ -1019,7 +1019,7 @@ describe("AppStore", () => {
     });
     store.appendEvent(randomUUID(), "thread-1", "turn-2", {
       type: "turn.started",
-      mode: "execute",
+      mode: "work",
     });
     store.appendEvent(randomUUID(), "thread-1", "turn-2", {
       type: "file.changed",
@@ -1053,7 +1053,7 @@ describe("AppStore", () => {
         id: "thread-1",
         projectId: "project-1",
         title: "Managed task",
-        mode: "execute",
+        mode: "work",
         target: "managed-worktree",
         status: "idle",
         pinned: false,
@@ -1148,7 +1148,7 @@ describe("AppStore", () => {
         id: "thread-1",
         projectId: "project-1",
         title: "Managed task",
-        mode: "execute",
+        mode: "work",
         target: "managed-worktree",
         status: "idle",
         pinned: false,
@@ -1218,7 +1218,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Interrupted",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "waiting-approval",
       pinned: false,
@@ -1329,7 +1329,7 @@ describe("AppStore", () => {
         id: threadId,
         projectId: "project-1",
         title,
-        mode: "execute",
+        mode: "work",
         target: "local",
         status: "waiting-approval",
         pinned: false,
@@ -1471,7 +1471,7 @@ describe("AppStore", () => {
       id: "thread-partial",
       projectId: "project-1",
       title: "Partially answered multi",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "waiting-approval",
       pinned: false,
@@ -1596,7 +1596,7 @@ describe("AppStore", () => {
       id: "thread-interleaved",
       projectId: "project-1",
       title: "Interleaved multi timeouts",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "waiting-approval",
       pinned: false,
@@ -1702,7 +1702,7 @@ describe("AppStore", () => {
       id: "thread-1",
       projectId: "project-1",
       title: "Review task",
-      mode: "review",
+      mode: "plan",
       target: "local",
       status: "idle",
       pinned: false,
@@ -1822,7 +1822,7 @@ describe("AppStore", () => {
     store.createThread({
       id: "clock",
       title: "Clock",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -1882,7 +1882,7 @@ describe("AppStore", () => {
     store.createThread({
       id: "goal-thread",
       title: "Goal task",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -1948,7 +1948,7 @@ describe("AppStore", () => {
     store.createThread({
       id: "goal-edit-thread",
       title: "Goal edit",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,

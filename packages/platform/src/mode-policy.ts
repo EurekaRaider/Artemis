@@ -31,7 +31,10 @@ export function evaluateModePolicy(
   mode: RunMode,
   action: PolicyAction,
 ): PolicyDecision {
-  if (mode === "plan" || mode === "review") {
+  if (!["plan", "work", "codemode"].includes(mode)) {
+    return { outcome: "deny", reason: "Unknown run mode." };
+  }
+  if (mode === "plan") {
     if (action.kind !== "read") {
       return {
         outcome: "deny",

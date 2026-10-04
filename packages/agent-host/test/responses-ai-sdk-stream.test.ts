@@ -75,6 +75,105 @@ beforeEach(() => {
 });
 
 describe("streamOpenAIResponsesWithAiSdk", () => {
+  it("preserves tool-result images in the Responses model context", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "finish", finishReason: "stop", totalUsage: usage },
+      ]),
+    });
+    await Array.fromAsync(
+      streamOpenAIResponsesWithAiSdk(model, {
+        messages: [
+          {
+            role: "toolResult",
+            toolCallId: "image-1",
+            toolName: "generate_image",
+            content: [
+              { type: "text", text: "Generated" },
+              { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+            ],
+            isError: false,
+            timestamp: 1,
+          },
+        ],
+      }),
+    );
+    expect(
+      sdk.streamText.mock.calls[0]![0].messages[0].content[0].output,
+    ).toEqual({
+      type: "content",
+      value: [
+        { type: "text", text: "Generated" },
+        { type: "image-data", data: "aW1hZ2U=", mediaType: "image/png" },
+      ],
+    });
+  });
+
+  it("applies sampling precedence and checks UTF-8 request limits before sending", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "finish", finishReason: "stop", totalUsage: usage },
+      ]),
+    });
+    const fetch = vi.fn(async () => new Response("{}"));
+    await Array.fromAsync(
+      streamOpenAIResponsesWithAiSdk(
+        {
+          ...model,
+          samplingParams: { temperature: 0.8, top_p: 0.9 },
+          samplingParamsByThinkingLevel: { high: { temperature: 0.6 } },
+          inputLimits: { maxRequestBytes: 100 },
+        },
+        { messages: [] },
+        { fetch, reasoning: "high", samplingParams: { temperature: 0.2 } },
+      ),
+    );
+    const providerFetch = (
+      sdk.createOpenAI.mock.calls[0] as unknown as [
+        { fetch: typeof globalThis.fetch },
+      ]
+    )[0].fetch;
+    await providerFetch(model.baseUrl, {
+      body: JSON.stringify({ input: "你好" }),
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(
+      JSON.parse(
+        (fetch.mock.calls[0] as unknown as [unknown, RequestInit])[1]
+          .body as string,
+      ),
+    ).toEqual({ input: "你好", temperature: 0.2, top_p: 0.9 });
+    await expect(
+      providerFetch(model.baseUrl, {
+        body: JSON.stringify({ input: "你好".repeat(30) }),
+      }),
+    ).rejects.toThrow("Model input limit exceeded");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("rejects truncated text and tool streams without a provider finish event", async () => {
+    for (const part of [
+      { type: "text-delta", id: "text", text: "Partial answer" },
+      {
+        type: "tool-call",
+        toolCallId: "write-1",
+        toolName: "write",
+        input: { path: "file.txt" },
+      },
+    ]) {
+      sdk.streamText.mockReturnValue({ fullStream: fullStream([part]) });
+      const events = await Array.fromAsync(
+        streamOpenAIResponsesWithAiSdk(model, { messages: [] }),
+      );
+      expect(events.at(-1)).toMatchObject({
+        type: "error",
+        error: {
+          errorMessage: expect.stringContaining("terminal response event"),
+        },
+      });
+      expect(events.some((event) => event.type === "done")).toBe(false);
+    }
+  });
   it("replays transcript prompt sections and tool removals for Responses", async () => {
     sdk.streamText.mockReturnValue({
       fullStream: fullStream([
@@ -206,6 +305,7 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
 
     expect(sdk.createOpenAI).toHaveBeenCalledWith({
       apiKey: "local-proxy",
+      fetch: expect.any(Function),
       baseURL: "http://127.0.0.1:11434/v1",
     });
     expect(sdk.responses).toHaveBeenCalledWith("muse-spark-1.1");
@@ -407,7 +507,7 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
     );
     const request = sdk.streamText.mock.calls[0]![0];
 
-    expect(request.tools.read).not.toHaveProperty("execute");
+    expect(request.tools.read).not.toHaveProperty("work");
     expect(request.providerOptions.openai).toMatchObject({
       reasoningEffort: "low",
       promptCacheKey: "tool-session",

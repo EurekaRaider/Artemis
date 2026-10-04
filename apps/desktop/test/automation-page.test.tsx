@@ -67,7 +67,7 @@ const automation: Automation = {
   projectId: project.id,
   name: "Daily review",
   prompt: "Review the sample workspace.",
-  mode: "review",
+  mode: "plan",
   target: "local",
   enabled: true,
   authorizationState: "not-required",

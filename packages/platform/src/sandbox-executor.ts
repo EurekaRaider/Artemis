@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { posix, resolve, win32 } from "node:path";
 
 import type { RunMode } from "@artemis/protocol";
@@ -48,7 +49,7 @@ function resolveSandboxPath(path: string): string {
 
 export function normalizeSandboxPolicy(policy: SandboxPolicy): SandboxPolicy {
   const workspacePath = resolveSandboxPath(policy.workspacePath);
-  const isWritableMode = policy.mode === "execute";
+  const isWritableMode = isExecutionMode(policy.mode);
   const writablePaths = [
     ...(policy.workspaceAccess === "read" ? [] : [workspacePath]),
     ...(policy.writablePaths ?? []).map(resolveSandboxPath),

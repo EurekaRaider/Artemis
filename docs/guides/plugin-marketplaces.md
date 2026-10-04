@@ -181,7 +181,14 @@ description: Use when the user requests a project review with actionable finding
 本地 stdio 默认使用原生沙箱；当前导入器设置 `allowNetwork: true`。
 每个服务的 full-access 兼容选项会授予
 桌面用户权限，需要单独明确选择；扩展的 **Full local access** 不改变 MCP 权限。
-Skill 不会绕过 Plan/Review 限制，启用服务也不等于授权所有业务操作。
+Skill 不会绕过 Plan 限制，启用服务也不等于授权所有业务操作。
+
+Work 与 Codemode 中，已发现的本地 MCP 工具可在沙箱拒绝后携带
+`sandbox_escalation: { justification }` 和新的 `model_approval` 请求单次桌面用户权限。
+模型须说明限制、必要性及安全重试依据；宿主按高风险审批，模型审批模式下只有
+明确匹配用户请求的操作和目标才能自动通过。该调用使用临时连接，完成后关闭；
+不更改服务设置或默认环境变量，也不复用原连接中的进程内句柄。
+远程服务的账号授权、Plan 限制与扩展信任不能借此绕过；失败不会自动触发提权或整段脚本重放。
 
 ## 5. 接入 Artemis Connector / OAuth
 

@@ -201,6 +201,10 @@ describe("visible model catalog", () => {
       "xiaomi-token-plan-ams/mimo-v2-pro",
       "xiaomi-token-plan-sgp/mimo-v2-pro",
       "groq/llama-3.3-70b-versatile",
+      "amazon-bedrock/anthropic.claude-sonnet-4",
+      "google-vertex/claude-opus-4",
+      "openrouter/openai/gpt-5",
+      "amazon-bedrock/us.amazon.nova-pro-v1:0",
     ]);
   });
 

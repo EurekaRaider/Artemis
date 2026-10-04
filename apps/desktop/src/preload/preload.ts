@@ -205,6 +205,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.worktreeRestoreSnapshot, worktreeId),
   handoffWorkspace: (threadId, destination) =>
     ipcRenderer.invoke(IPC.worktreeHandoff, threadId, destination),
+  acceptPlan: (input) => ipcRenderer.invoke(IPC.planAccept, input),
+  revisePlan: (input) => ipcRenderer.invoke(IPC.planRevise, input),
   startTurn: (input) => ipcRenderer.invoke(IPC.turnStart, input),
   reportTurnRendered: (turnId, renderedAt) =>
     ipcRenderer.send(IPC.turnRendered, turnId, renderedAt),
@@ -379,6 +381,13 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.settingsProviderDelete, providerId),
   deleteCredential: (providerId) =>
     ipcRenderer.invoke(IPC.settingsCredentialDelete, providerId),
+  providerLoginOptions: () => ipcRenderer.invoke(IPC.providerLoginOptions),
+  providerLoginStart: (providerId, type) =>
+    ipcRenderer.invoke(IPC.providerLoginStart, providerId, type),
+  providerLoginStatus: (id) => ipcRenderer.invoke(IPC.providerLoginStatus, id),
+  providerLoginAnswer: (id, promptId, value) =>
+    ipcRenderer.invoke(IPC.providerLoginAnswer, id, promptId, value),
+  providerLoginCancel: (id) => ipcRenderer.invoke(IPC.providerLoginCancel, id),
   importPiCredentials: () => ipcRenderer.invoke(IPC.settingsPiImport),
   saveGlobalAgents: (content) =>
     ipcRenderer.invoke(IPC.settingsGlobalAgentsSave, content),

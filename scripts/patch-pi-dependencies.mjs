@@ -1,43 +1,31 @@
-import { cp, readFile, realpath, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// Pi 1.0.0 ships an npm-shrinkwrap.json that npm 11 applies even over
-// root overrides and lockfile resolutions. Keep the installed SDK dependency
-// aligned with our audited lockfile using the pinned, integrity-checked copy.
+// Pi >= 1.0.1 no longer publishes a shrinkwrap. Verify npm's resolution
+// instead of rewriting installed packages after every install.
 export async function patchPiDependencies(root) {
-  const modules = join(root, "node_modules");
-  const source = join(modules, "brace-expansion");
-  const pi = join(modules, "@earendil-works", "pi-coding-agent");
-  const target = join(pi, "node_modules", "brace-expansion");
-  const manifest = async (path) =>
-    JSON.parse(await readFile(join(path, "package.json"), "utf8"));
-  const [sdk, fixed, installed] = await Promise.all([
-    manifest(pi),
-    manifest(source),
-    manifest(target),
-  ]);
+  const pi = join(root, "node_modules", "@earendil-works", "pi-coding-agent");
+  const manifestPath = join(pi, "package.json");
+  const sdk = JSON.parse(await readFile(manifestPath, "utf8"));
+  const resolve = createRequire(manifestPath);
+  const nested = join(pi, "node_modules", "brace-expansion", "package.json");
+  const installed = JSON.parse(
+    await readFile(nested, "utf8").catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+      return readFile(resolve.resolve("brace-expansion/package.json"), "utf8");
+    }),
+  );
   if (
-    sdk.version !== "1.0.0" ||
-    fixed.version !== "5.0.12" ||
-    fixed.name !== "brace-expansion" ||
-    installed.name !== fixed.name ||
-    !["5.0.9", "5.0.12"].includes(installed.version)
+    sdk.version !== "1.0.2" ||
+    installed.name !== "brace-expansion" ||
+    installed.version !== "5.0.12"
   ) {
     throw new Error(
-      "Review the Pi shrinkwrap security patch for these dependency versions.",
+      "Unexpected Pi dependency resolution; reinstall from the lockfile.",
     );
   }
-  if (installed.version === fixed.version) return;
-  // Refuse to replace a linked directory outside this installed Pi package.
-  if (
-    (await realpath(target)) !==
-    join(await realpath(pi), "node_modules", "brace-expansion")
-  ) {
-    throw new Error("Refusing to patch a linked Pi dependency.");
-  }
-  await rm(target, { recursive: true });
-  await cp(source, target, { recursive: true });
 }
 
 if (
@@ -45,5 +33,7 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   await patchPiDependencies(dirname(dirname(fileURLToPath(import.meta.url))));
-  console.log("Pi shrinkwrap dependency verified: brace-expansion 5.0.12.");
+  console.log(
+    "Pi 1.0.2 dependency resolution verified: brace-expansion 5.0.12.",
+  );
 }

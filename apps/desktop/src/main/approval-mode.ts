@@ -34,6 +34,7 @@ export type ApprovalOperation =
   | {
       kind: "extension.call";
       allowNetwork: boolean;
+      fullAccess?: boolean;
       modelApproval: ModelApprovalDecision;
     };
 
@@ -63,7 +64,7 @@ export function effectiveApprovalRisk(
             ? "low"
             : "medium"
       : operation.kind === "extension.call"
-        ? operation.allowNetwork
+        ? operation.fullAccess || operation.allowNetwork
           ? "high"
           : "medium"
         : operation.minimumRisk;

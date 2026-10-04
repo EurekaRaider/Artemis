@@ -38,7 +38,7 @@ describe("conversation deletion persistence", () => {
         id,
         projectId: "project-1",
         title,
-        mode: "execute",
+        mode: "work",
         target: "local",
         status: "idle",
         pinned: false,

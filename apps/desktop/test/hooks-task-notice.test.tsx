@@ -20,7 +20,7 @@ it.each([false, true])(
       <HookTaskNotice
         locale="zh-CN"
         projectId="project"
-        mode="execute"
+        mode="work"
         onReview={() => {}}
       />,
     );
@@ -31,7 +31,7 @@ it.each([false, true])(
     expect(screen.getByRole("button", { name: "审核钩子" })).toBeTruthy();
   },
 );
-it.each(["plan", "review"])(
+it.each(["plan"])(
   "keeps %s composer free of inapplicable hook reminders",
   async (mode) => {
     const listHooks = vi.fn().mockResolvedValue(catalog);
@@ -51,7 +51,7 @@ it.each(["plan", "review"])(
 it("does not show another project's hooks in a new temporary task", async () => {
   const listHooks = vi.fn().mockResolvedValue(catalog);
   stubWindowArtemis({ listHooks });
-  render(<HookTaskNotice locale="en" mode="execute" onReview={() => {}} />);
+  render(<HookTaskNotice locale="en" mode="work" onReview={() => {}} />);
   await waitFor(() => expect(listHooks).toHaveBeenCalled());
   expect(screen.queryByRole("status")).toBeNull();
 });

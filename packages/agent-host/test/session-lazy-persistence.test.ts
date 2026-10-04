@@ -151,7 +151,7 @@ describe("Pi session lazy persistence", () => {
       "persisted-thread",
       "turn-1",
       "Record this conversation",
-      "execute",
+      "work",
     );
 
     expect(sessionFile).toBeTruthy();
@@ -213,7 +213,7 @@ describe("Pi session lazy persistence", () => {
         "cancelled-thread",
         "turn-1",
         "Do not persist this incomplete turn",
-        "execute",
+        "work",
       ),
     ).rejects.toThrow("Cancelled before the assistant responded");
     expect(sessionFile).toBeUndefined();

@@ -6,6 +6,13 @@ export interface RuntimeCredentialInfo {
 }
 
 export class RuntimeCredentialStore {
+  constructor(
+    private readonly persist?: (
+      providerId: string,
+      previous: RuntimeCredential | undefined,
+      next: RuntimeCredential,
+    ) => Promise<void>,
+  ) {}
   private credentials = new Map<string, RuntimeCredential>();
   private readonly locks = new Map<string, Promise<void>>();
 
@@ -48,8 +55,13 @@ export class RuntimeCredentialStore {
 
     await previous.catch(() => {});
     try {
-      const next = await fn(await this.read(providerId));
-      if (next !== undefined) {
+      const current = await this.read(providerId);
+      const next = await fn(current);
+      if (
+        next !== undefined &&
+        JSON.stringify(next) !== JSON.stringify(current)
+      ) {
+        await this.persist?.(providerId, current, next);
         this.credentials.set(providerId, structuredClone(next));
       }
       return next ? structuredClone(next) : this.read(providerId);

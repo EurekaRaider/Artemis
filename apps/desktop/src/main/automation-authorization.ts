@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { createHash } from "node:crypto";
 import type {
   AutomationAuthorizationState,
@@ -64,7 +65,7 @@ export function automationMayAutoApprove(input: {
   requestTurnId: string;
 }): boolean {
   return (
-    input.automationMode === "execute" &&
+    isExecutionMode(input.automationMode) &&
     input.authorizationState === "authorized" &&
     input.linkedThreadId === input.requestThreadId &&
     input.activeTurnId === input.requestTurnId

@@ -105,7 +105,7 @@ describe("notification reading and sidebar", () => {
       <ThreadStatusIndicator
         thread={thread}
         locale="en"
-        events={[queued, event({ type: "turn.started", mode: "execute" })]}
+        events={[queued, event({ type: "turn.started", mode: "work" })]}
       />,
     );
     expect(container.querySelector(".status-dot.running")).toBeTruthy();
@@ -138,13 +138,13 @@ describe("notification reading and sidebar", () => {
   it("keeps a loaded history queue phase until a newer activity replaces it", () => {
     const thread = { status: "running" } as Thread;
     const historyState = {
-      ...createThreadViewState("thread", "execute"),
+      ...createThreadViewState("thread", "work"),
       lastSeq: 20,
       activity: { type: "turn.activity", phase: "queued" } as const,
     };
     const start = {
       seq: 10,
-      payload: { type: "turn.started", mode: "execute" },
+      payload: { type: "turn.started", mode: "work" },
     } as AgentEvent;
     const { container, rerender } = render(
       <ThreadStatusIndicator

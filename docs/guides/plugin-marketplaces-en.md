@@ -202,8 +202,19 @@ switch. Historical configurations are never enabled in bulk. Local stdio servers
 use the native sandbox by default. The current importer sets `allowNetwork: true`.
 The per-server full-access compatibility option grants desktop
 user permissions and is a separate explicit choice. Extension **Full local
-access** does not change MCP permissions. Skills do not bypass Plan/Review
+access** does not change MCP permissions. Skills do not bypass Plan
 restrictions, and enabling a server is not blanket consent for every action.
+
+In Work and Codemode, a discovered local MCP tool can request
+`sandbox_escalation: { justification }` with a fresh `model_approval` after a
+sandbox denial. The model explains the restriction, necessity, and retry safety;
+the host treats the call as high risk, so agent approval requires the exact
+action and target to match an explicit user request. The call uses a temporary
+connection that closes afterward, without changing server settings or the
+default environment. Do not reuse process-local handles from the original
+connection. Remote account authorization, Plan restrictions, and extension
+trust cannot be bypassed. Failures do not automatically escalate or replay an
+entire script.
 
 ## 5. Add an Artemis Connector / OAuth integration
 

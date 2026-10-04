@@ -121,7 +121,7 @@ async function main() {
   const context = {
     threadId: "fixture",
     turnId: "turn",
-    mode: "execute" as const,
+    mode: "work" as const,
   };
   let nativeFixture: ChildProcess | undefined;
   try {

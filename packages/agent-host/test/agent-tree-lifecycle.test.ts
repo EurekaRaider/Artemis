@@ -35,7 +35,7 @@ function execution(
     parentAgentId,
     depth,
     turnId: "turn-1",
-    mode: "execute" as const,
+    mode: "work" as const,
     label: agentId,
     role: agentId,
     task: `Task for ${agentId}`,
@@ -93,7 +93,7 @@ describe("agent tree lifecycle", () => {
     ]);
     Object.assign(hosted, {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       childAgents,
       team: {
         teamId: "team-1",
@@ -157,7 +157,7 @@ describe("agent tree lifecycle", () => {
     ]);
     Object.assign(hosted, {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       childAgents,
       team: {
         teamId: "team-waiver",

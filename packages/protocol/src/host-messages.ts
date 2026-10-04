@@ -43,6 +43,7 @@ export type RuntimeCredential =
     };
 
 export interface McpRuntimeTool {
+  exposure?: import("./mcp-exposure.js").McpExposure;
   serverId: string;
   serverName: string;
   transport: "stdio" | "streamable-http";
@@ -50,6 +51,8 @@ export interface McpRuntimeTool {
   toolName: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  namespace?: string;
   readOnly: boolean;
   destructive: boolean;
 }
@@ -73,12 +76,16 @@ export interface McpToolResultMetrics {
 }
 
 export interface McpToolCallResult {
+  structuredContent?: Record<string, unknown>;
   content: McpToolResultContent[];
   isError: boolean;
   metrics: McpToolResultMetrics;
 }
 
 export interface ExtensionRuntimeTool {
+  outputSchema?: Record<string, unknown>;
+  namespace?: { name: string; description?: string; instructions?: string };
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
   extensionId: string;
   extensionName: string;
   piName: string;
@@ -146,6 +153,7 @@ export interface TurnRecovery {
 }
 
 export type AgentHostCommand =
+  | { type: "credentials.resolve"; requestId: string; ok: boolean }
   | {
       type: "im.classify-control-intent";
       requestId: string;
@@ -329,7 +337,22 @@ export interface AttachmentOperation {
   maxTokens?: number;
 }
 
+export interface SandboxEscalationRequest {
+  /** Why this exact call needs desktop-user access and can safely be retried. */
+  justification: string;
+}
+
 export type BrokerExecutionRequest =
+  | {
+      kind: "plan.submit";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      mode: RunMode;
+      title: string;
+      markdown: string;
+      actionable: boolean;
+    }
   | {
       kind: "hook.run";
       approvalId: string;
@@ -489,6 +512,7 @@ export type BrokerExecutionRequest =
       transport: "stdio" | "streamable-http";
       toolName: string;
       arguments: Record<string, unknown>;
+      sandboxEscalation?: SandboxEscalationRequest;
       actorAgentId?: string;
       readOnly: boolean;
       destructive: boolean;
@@ -505,6 +529,7 @@ export type BrokerExecutionRequest =
       extensionName: string;
       toolName: string;
       arguments: Record<string, unknown>;
+      sandboxEscalation?: SandboxEscalationRequest;
       actorAgentId?: string;
       modelApproval: ModelApprovalDecision;
       mode: RunMode;
@@ -517,6 +542,13 @@ export interface AgentHostEvent {
 }
 
 export type AgentHostMessage =
+  | {
+      type: "credentials.update";
+      requestId: string;
+      providerId: string;
+      previous?: RuntimeCredential;
+      credential: RuntimeCredential;
+    }
   | {
       type: "response";
       requestId: string;

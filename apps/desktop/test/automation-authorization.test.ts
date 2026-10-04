@@ -8,7 +8,7 @@ import {
 const input = {
   projectId: "project-1",
   prompt: "Update dependencies and run tests.",
-  mode: "execute" as const,
+  mode: "work" as const,
   target: "managed-worktree" as const,
   schedule: {
     kind: "weekly" as const,
@@ -89,7 +89,7 @@ describe("automation authorization", () => {
   it("auto-approves only a linked active Execute automation turn", () => {
     expect(
       automationMayAutoApprove({
-        automationMode: "execute",
+        automationMode: "work",
         authorizationState: "authorized",
         linkedThreadId: "thread-1",
         requestThreadId: "thread-1",
@@ -99,7 +99,7 @@ describe("automation authorization", () => {
     ).toBe(true);
     expect(
       automationMayAutoApprove({
-        automationMode: "execute",
+        automationMode: "work",
         authorizationState: "authorized",
         linkedThreadId: "thread-1",
         requestThreadId: "manual-thread",

@@ -14,9 +14,10 @@ const executeSource = transformSync(main.slice(start, end), {
 
 function fixture() {
   let finishTrust!: (trusted: boolean) => void;
-  const thread = { mode: "execute", archived: false };
+  const thread = { mode: "work", archived: false };
   const grant = { metadata: { ticket: "private" }, dispose: vi.fn() };
   const scope = {
+    isExecutionMode: (mode: string) => mode === "work" || mode === "codemode",
     canRunLicensed: () => true,
     emitPayload: vi.fn(),
     agentProcess: { post: vi.fn() },
@@ -47,7 +48,7 @@ function fixture() {
   const request = {
     threadId: "task",
     turnId: "turn",
-    mode: "execute",
+    mode: "work",
     serverId: "builtin",
     toolName: "computer_act",
     arguments: { targetId: "desktop:fixture" },
@@ -88,7 +89,7 @@ describe("Computer Use broker execution", () => {
       "computer_act",
       f.request.arguments,
       "/workspace",
-      "execute",
+      "work",
       f.grant.metadata,
       expect.any(AbortSignal),
     );

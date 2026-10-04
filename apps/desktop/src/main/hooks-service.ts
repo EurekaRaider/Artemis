@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
@@ -22,7 +23,7 @@ export interface HookContext {
   projectId: string;
   workspacePath: string;
   threadId?: string;
-  mode?: "execute" | "plan" | "review";
+  mode?: "work" | "plan" | "codemode";
   remote?: boolean;
   isCurrent?(): boolean;
 }
@@ -563,7 +564,7 @@ export class HooksService {
     };
   }
   async run(context: HookContext, input: HookInvocation): Promise<HookResult> {
-    if (context.mode !== "execute" || context.isCurrent?.() === false)
+    if (!isExecutionMode(context.mode) || context.isCurrent?.() === false)
       return {};
     const hooks = (await this.list(context)).filter(
       (h) =>

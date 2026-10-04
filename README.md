@@ -78,7 +78,7 @@ npm run dev
 
 1. Open **Settings → Providers & models**, configure a provider and select a model.
 2. Add a project folder, or start a **Temporary chat** for work without a project.
-3. Choose **Plan**, **Execute** or **Review**, then send your first task.
+3. Choose **Plan**, **Work** or **Codemode**, then send your first task.
 4. Open the **Resource Center** when you need document plugins, Skills or MCP.
 
 New tasks use your default model settings; existing tasks retain their own
@@ -249,7 +249,7 @@ Create and validate packages with the [English guide](docs/guides/visual-skins-e
 
 ### Lifecycle hooks
 
-Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Execute mode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan and Review skip hooks and continue normally. See the [English guide](docs/guides/hooks-en.md), [中文开发指南](docs/guides/hooks.md), and [examples](examples/hooks/hooks.json).
+Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Work and Codemode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan skips hooks and continues normally. See the [English guide](docs/guides/hooks-en.md), [中文开发指南](docs/guides/hooks.md), and [examples](examples/hooks/hooks.json).
 
 ### Parallel Agents
 
@@ -273,7 +273,7 @@ Artemis desktop to the same group or channel and authorizes their local project.
 
 | Context                 | Behavior                                                                                                                                     |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Private bot chat**    | Pair your account and start a Temporary chat or choose a local project. Owner chats use local Execute permissions and automatic approvals.   |
+| **Private bot chat**    | Pair your account and start a Temporary chat or choose a local project. Owner chats use local Work permissions and automatic approvals.   |
 | **Group collaboration** | Grant specific senders and peers access to projects, folders or files, with separate write, command and network permissions.                 |
 | **Bot delegation**      | Automatic handoff requires verified identity, owner permission and a successful round-trip probe.                                            |
 | **Ongoing tasks**       | Authorized follow-ups reuse conversations; delegated waits can survive restart. Cancellation remains pending until the peer acknowledges it. |
@@ -297,13 +297,15 @@ work, including when resuming a task.
 
 ## Execution permissions and trust boundary
 
-### Plan, Execute and Review
+### Plan, Work and Codemode
 
-| Mode        | Intended use                               | Execution boundary                                                       |
-| ----------- | ------------------------------------------ | ------------------------------------------------------------------------ |
-| **Plan**    | Investigate and prepare an approach.       | Read-only; no Shell, MCP or executable extensions.                       |
-| **Execute** | Edit files, run tools and carry out tasks. | Mode checks, operation approvals and surface-specific permissions apply. |
-| **Review**  | Inspect work and report findings.          | Read-only; writes are denied before execution.                           |
+| Mode | Intended use | Execution boundary |
+| --- | --- | --- |
+| **Plan** | Investigate, review, and submit a full plan for confirmation. | Read-only; no Shell, MCP or executable extensions. |
+| **Work** | Edit files, run tools and carry out tasks. Default for new tasks. | Existing operation approvals and surface permissions apply. |
+| **Codemode** | Orchestrate business tools with Pi scripts; call control tools directly. | Same permissions as Work. |
+
+The complete Plan stays in the conversation. The composer presents choices to execute in Work, choose Codemode, or add requirements. Waiting never automatically executes. Slash commands are `/plan`, `/work` and `/codemode`; old command aliases are removed. See [mode and Pi upgrade details](docs/guides/pi-upgrade-modes.md).
 
 Brokered tools check the requested operation against the user's intent. In
 **Approve for me**, low- and medium-risk operations can proceed automatically;
@@ -314,7 +316,7 @@ target or a human approval. Cancellation revokes outstanding interactions.
 
 | Surface                 | Permissions                                                                                                                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent Shell**         | Execute only, after brokered approval; runs with the desktop user's filesystem and network access.                                                                                                         |
+| **Agent Shell**         | Work and Codemode, after brokered approval; runs with the desktop user's filesystem and network access.                                                                                                         |
 | **Integrated Terminal** | User-opened shell with desktop-user permissions; no automatic administrator elevation.                                                                                                                     |
 | **Local stdio MCP**     | AppContainer on Windows or Seatbelt on macOS by default; workspace and private-runtime access, minimal environment and per-server network controls. Trusted servers can explicitly use compatibility mode. |
 | **Pi extensions**       | Require project and content-hash trust; use the native sandbox by default. **Full local access** affects extensions alone.                                                                                 |

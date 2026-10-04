@@ -13,29 +13,7 @@ import {
 } from "@earendil-works/pi-ai/providers/all";
 import { withArtemisBuiltinModels } from "@artemis/agent-host/builtin-models";
 
-const visibleProviderIds = new Set([
-  "anthropic",
-  "openai",
-  "openai-codex",
-  "google",
-  "xai",
-  "deepseek",
-  "zai",
-  "zai-coding-cn",
-  "kimi-coding",
-  "moonshotai",
-  "moonshotai-cn",
-  "mistral",
-  "minimax",
-  "minimax-cn",
-  "qwen-token-plan",
-  "qwen-token-plan-cn",
-  "xiaomi",
-  "xiaomi-token-plan-cn",
-  "xiaomi-token-plan-ams",
-  "xiaomi-token-plan-sgp",
-  "groq",
-]);
+const visibleProviderIds = new Set<string>(getBuiltinProviders());
 
 const thinkingLevels: ModelThinkingLevel[] = [
   "off",
@@ -57,9 +35,13 @@ const customThinkingLevels: Exclude<ThinkingLevel, "off">[] = [
 ];
 
 export function customModelThinkingLevels(
-  model: Pick<ProviderModel, "reasoning" | "highestThinkingLevel">,
+  model: Pick<
+    ProviderModel,
+    "reasoning" | "highestThinkingLevel" | "thinkingLevelMap"
+  >,
 ): ThinkingLevel[] {
   if (!model.reasoning) return ["off"];
+  if (model.thinkingLevelMap) return supportedThinkingLevels(model);
   const highestIndex = customThinkingLevels.indexOf(
     model.highestThinkingLevel ?? "high",
   );
@@ -68,7 +50,7 @@ export function customModelThinkingLevels(
 
 function supportedThinkingLevels(model: {
   reasoning: boolean;
-  thinkingLevelMap?: ThinkingLevelMap;
+  thinkingLevelMap?: ThinkingLevelMap | undefined;
 }): ModelThinkingLevel[] {
   if (!model.reasoning) return ["off"];
   return thinkingLevels.filter((level) => {

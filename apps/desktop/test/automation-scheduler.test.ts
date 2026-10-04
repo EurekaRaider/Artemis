@@ -36,7 +36,7 @@ function reviewAutomation(): Automation {
     projectId: "project-1",
     name: "Daily review",
     prompt: "Review the workspace.",
-    mode: "review",
+    mode: "plan",
     target: "local",
     schedule: {
       kind: "weekly",
@@ -70,7 +70,7 @@ describe("AutomationScheduler", () => {
           id: "thread-interval",
           projectId: "project-1",
           title: "Interval review",
-          mode: "review",
+          mode: "plan",
           target: "local",
           status: "idle",
           pinned: false,
@@ -116,7 +116,7 @@ describe("AutomationScheduler", () => {
           id: "thread-windowed",
           projectId: "project-1",
           title: "Windowed review",
-          mode: "review",
+          mode: "plan",
           target: "local",
           status: "idle",
           pinned: false,
@@ -150,7 +150,7 @@ describe("AutomationScheduler", () => {
           id: "thread-1",
           projectId: "project-1",
           title: "Scheduled review",
-          mode: "review",
+          mode: "plan",
           target: "local",
           status: "idle",
           pinned: false,
@@ -183,7 +183,7 @@ describe("AutomationScheduler", () => {
     const store = await storeWithProject();
     store.createAutomation({
       ...reviewAutomation(),
-      mode: "execute",
+      mode: "work",
       target: "managed-worktree",
       authorizationState: "required",
     });
@@ -225,7 +225,7 @@ describe("AutomationScheduler", () => {
           id: "thread-once",
           projectId: "project-1",
           title: "One time",
-          mode: "review",
+          mode: "plan",
           target: "local",
           status: "idle",
           pinned: false,

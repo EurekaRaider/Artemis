@@ -61,8 +61,8 @@ describe("Skill slash commands", () => {
       "compact",
       "init",
       "plan",
-      "execute",
-      "review",
+      "work",
+      "codemode",
       "skill:document-authoring",
       "skill:spreadsheet-analysis",
     ]);
@@ -73,12 +73,12 @@ describe("Skill slash commands", () => {
       slashCommandSuggestionsForPrompt("Draft a guide /", skills).map(
         (suggestion) => suggestion.kind,
       ),
-    ).toEqual(["plan", "execute", "review", "skill", "skill"]);
+    ).toEqual(["plan", "work", "codemode", "skill", "skill"]);
     expect(
-      slashCommandSuggestionsForPrompt("Draft /exe", skills).map(
+      slashCommandSuggestionsForPrompt("Draft /codem", skills).map(
         (suggestion) => suggestion.kind,
       ),
-    ).toEqual(["execute"]);
+    ).toEqual(["codemode"]);
   });
 
   it("extracts mode commands from any whitespace-delimited prompt position", () => {
@@ -87,14 +87,14 @@ describe("Skill slash commands", () => {
       mode: "plan",
       prompt: "Design the change",
     });
-    expect(parseRunModeCommand("Please /execute implement this")).toEqual({
+    expect(parseRunModeCommand("Please /work implement this")).toEqual({
       kind: "command",
-      mode: "execute",
+      mode: "work",
       prompt: "Please implement this",
     });
-    expect(parseRunModeCommand("Inspect the diff /review")).toEqual({
+    expect(parseRunModeCommand("Inspect the diff /plan")).toEqual({
       kind: "command",
-      mode: "review",
+      mode: "plan",
       prompt: "Inspect the diff",
     });
     expect(parseRunModeCommand("  /PLAN  ")).toEqual({
@@ -105,23 +105,30 @@ describe("Skill slash commands", () => {
   });
 
   it("rejects multiple mode commands and ignores command-like substrings", () => {
-    expect(parseRunModeCommand("/plan compare /review")).toEqual({
+    expect(parseRunModeCommand("/plan compare /work")).toEqual({
       kind: "multiple",
-      modes: ["plan", "review"],
+      modes: ["plan", "work"],
     });
-    expect(parseRunModeCommand("/execute implement /execute")).toEqual({
+    expect(parseRunModeCommand("/work implement /work")).toEqual({
       kind: "multiple",
-      modes: ["execute", "execute"],
+      modes: ["work", "work"],
     });
     expect(
       parseRunModeCommand("Explain /planning and https://x.test/review"),
     ).toBe(undefined);
   });
 
-  it("cycles task modes in their visible Plan, Execute, Review order", () => {
-    expect(nextRunMode("plan")).toBe("execute");
-    expect(nextRunMode("execute")).toBe("review");
-    expect(nextRunMode("review")).toBe("plan");
+  it("cycles task modes in their visible Plan, Work, Codemode order", () => {
+    expect(nextRunMode("plan")).toBe("work");
+    expect(nextRunMode("work")).toBe("codemode");
+    expect(nextRunMode("codemode")).toBe("plan");
+  });
+
+  it("does not recognize removed mode commands", () => {
+    expect(parseRunModeCommand("/execute do this")).toBeUndefined();
+    expect(parseRunModeCommand("/review changes")).toBeUndefined();
+    expect(slashCommandSuggestionsForPrompt("/exe", skills)).toEqual([]);
+    expect(slashCommandSuggestionsForPrompt("/review", skills)).toEqual([]);
   });
 
   it("filters the init command by its slash query", () => {

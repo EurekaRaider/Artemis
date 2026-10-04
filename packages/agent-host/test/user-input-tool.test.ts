@@ -18,7 +18,7 @@ interface InspectableTool {
 interface InspectableThread {
   delegatedTools: InspectableTool[];
   currentTurnId?: string;
-  currentMode?: "execute" | "plan" | "review";
+  currentMode?: "work" | "plan" | "review";
 }
 
 const cleanupPaths: string[] = [];

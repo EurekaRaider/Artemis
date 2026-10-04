@@ -46,7 +46,7 @@ export function buildRemoteShellLaunch(
   network: boolean,
   platform: NodeJS.Platform = process.platform,
   windowsHelper?: string,
-  mode: RunMode = "execute",
+  mode: RunMode = "work",
 ): SandboxLaunch {
   const env: Record<string, string> =
     platform === "win32"

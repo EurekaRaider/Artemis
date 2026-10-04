@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 import { watchFile, unwatchFile } from "node:fs";
 import {
@@ -260,7 +261,7 @@ export class OfficeSessionService {
     fromUi = false,
   ): Promise<ArtifactSnapshot> {
     // This precedes schema-dependent paths, storage, engine construction and recovery.
-    if (context.mode !== "execute")
+    if (!isExecutionMode(context.mode))
       throw new Error(`${context.mode} mode rejects Office sessions`);
     if (this.disposed) throw new Error("Office session host is closed");
     const request = artifactSessionRequestSchema.parse(input);
@@ -320,7 +321,7 @@ export class OfficeSessionService {
     input: ArtifactSessionRequest,
     context: OfficeSessionContext,
   ) {
-    if (context.mode !== "execute")
+    if (!isExecutionMode(context.mode))
       throw new Error(`${context.mode} mode rejects Office sessions`);
     if (input.operation !== "apply" && input.operation !== "save")
       throw new Error("The editor accepts only edit and save requests");
@@ -782,7 +783,7 @@ export class OfficeSessionService {
       {
         threadId: journal.threadId,
         workspacePath: journal.workspace,
-        mode: "execute",
+        mode: "work",
       },
       session.path,
     );

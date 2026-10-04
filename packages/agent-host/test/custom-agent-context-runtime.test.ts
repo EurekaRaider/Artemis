@@ -146,7 +146,7 @@ describe("custom agent budget through real child sessions", () => {
           }
         ).threads.get("task")!;
         thread.currentTurnId = "turn";
-        thread.currentMode = "execute";
+        thread.currentMode = "work";
         thread.turnCustomAgents = [definition];
         thread.session.sendCustomMessage = async () => undefined;
         await thread.executeTools

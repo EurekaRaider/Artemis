@@ -633,8 +633,8 @@ export function ComposerContextBar({
           onChange={onModeChange}
           options={[
             { value: "plan", label: t.plan },
-            { value: "execute", label: t.execute },
-            { value: "review", label: t.review },
+            { value: "work", label: t.work },
+            { value: "codemode", label: t.codemode },
           ]}
           size="compact"
           value={mode}

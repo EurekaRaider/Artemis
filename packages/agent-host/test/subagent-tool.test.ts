@@ -20,7 +20,7 @@ interface InspectableTool {
 
 interface InspectableThread {
   currentTurnId?: string;
-  currentMode?: "execute" | "plan" | "review";
+  currentMode?: "work" | "plan" | "review";
   childAgents: Map<string, { status: string }>;
   executeTools: InspectableTool[];
   resourceLoader: {
@@ -130,7 +130,7 @@ describe("sub-agent control tools", () => {
     };
     const thread = internals.threads.get("thread-wait")!;
     thread.currentTurnId = "turn-1";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     thread.session.sendCustomMessage = async () => undefined;
     internals.concurrency = {
       run: <T>() => new Promise<T>(() => undefined),
@@ -193,7 +193,7 @@ describe("sub-agent control tools", () => {
     };
     const thread = internals.threads.get("thread-handoff")!;
     thread.currentTurnId = "turn-1";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     internals.concurrency = {
       run: <T>() => new Promise<T>(() => undefined),
     };
@@ -346,7 +346,7 @@ describe("sub-agent control tools", () => {
       prompts.push(text);
     };
 
-    for (const mode of ["execute", "plan", "review"] as const) {
+    for (const mode of ["work", "plan", "codemode"] as const) {
       await host.prompt(
         "thread-ultra",
         `turn-${mode}`,
@@ -357,7 +357,7 @@ describe("sub-agent control tools", () => {
       expect(prompts.at(-1)).not.toContain(
         "proactively start three to five complementary direct children",
       );
-      if (mode !== "execute") {
+      if (mode === "plan") {
         const activeTools = thread.session.agent.state.tools.map(
           (tool) => tool.name,
         );
@@ -373,7 +373,7 @@ describe("sub-agent control tools", () => {
       "thread-ultra",
       "turn-standard",
       "Handle a normal task.",
-      "execute",
+      "work",
     );
     const standardSystemPrompt = thread.resourceLoader
       .getAppendSystemPrompt()
@@ -416,7 +416,7 @@ describe("sub-agent control tools", () => {
     };
     const thread = internals.threads.get("thread-1")!;
     thread.currentTurnId = "turn-1";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     internals.concurrency = {
       run: <T>() => new Promise<T>(() => undefined),
     };
@@ -616,7 +616,7 @@ describe("sub-agent control tools", () => {
       "thread-cancel",
       "turn-1",
       "Run a team review.",
-      "execute",
+      "work",
     );
     await firstStarted;
     const spawn = thread.executeTools.find(
@@ -647,7 +647,7 @@ describe("sub-agent control tools", () => {
       "thread-cancel",
       "turn-2",
       "Explain how the continue keyword affects loop ordering.",
-      "execute",
+      "work",
     );
     await unrelatedStarted;
     expect(prompts.at(-1)).not.toContain(
@@ -661,7 +661,7 @@ describe("sub-agent control tools", () => {
       "thread-cancel",
       "turn-3",
       "Continue the interrupted team work.",
-      "execute",
+      "work",
     );
     await secondStarted;
 

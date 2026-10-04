@@ -734,7 +734,7 @@ describe("user.input broker request boundary (review P1-2)", () => {
     header: "Scope",
     question: "Ship on Friday?",
     options: twoOptions,
-    mode: "execute",
+    mode: "work",
   };
 
   // Both malformed shapes below would be valid single-question requests if

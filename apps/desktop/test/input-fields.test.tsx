@@ -93,7 +93,7 @@ function savedAutomation(): Automation {
     projectId: "synthetic-project",
     name: "Synthetic sweep",
     prompt: "Run the synthetic sweep.",
-    mode: "review",
+    mode: "plan",
     target: "local",
     schedule: {
       // The UI "Every day" preset persists as the protocol's real weekly
@@ -187,6 +187,7 @@ function stubSettingsApi(
 ) {
   stubWindowArtemis({
     getSettings: () => Promise.resolve(snapshot),
+    providerLoginOptions: () => Promise.resolve([]),
     onUpdateStatus: () => () => {},
     setProfileAvatar: () => Promise.resolve(snapshot),
     ...overrides,

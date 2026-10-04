@@ -18,7 +18,7 @@ interface InspectableTool {
 interface InspectableThread {
   executeTools: InspectableTool[];
   currentTurnId?: string;
-  currentMode?: "execute" | "plan" | "review";
+  currentMode?: "work" | "plan" | "review";
   session: {
     prompt(text: string): Promise<void>;
     _emit(event: unknown): void;
@@ -171,7 +171,7 @@ describe("MCP task workspace propagation", () => {
     expect(thread).toBeDefined();
     if (thread) {
       thread.currentTurnId = "turn-1";
-      thread.currentMode = "execute";
+      thread.currentMode = "work";
     }
     const tool = await activateMcpTool(
       thread,
@@ -257,7 +257,7 @@ describe("MCP task workspace propagation", () => {
       "mcp-usage-thread",
       "turn-1",
       "Inspect the graph.",
-      "execute",
+      "work",
     );
 
     const usage = payloads.find((payload) => payload.type === "mcp.tool.used");
@@ -385,7 +385,7 @@ describe("MCP task workspace propagation", () => {
     ).threads.get("mcp-image-thread");
     if (thread) {
       thread.currentTurnId = "turn-1";
-      thread.currentMode = "execute";
+      thread.currentMode = "work";
     }
     const tool = await activateMcpTool(thread, "render", "renderer_render");
 
@@ -487,7 +487,7 @@ describe("MCP task workspace propagation", () => {
       ).threads.get("mcp-large-thread");
       if (thread) {
         thread.currentTurnId = "turn-1";
-        thread.currentMode = "execute";
+        thread.currentMode = "work";
       }
       const tool = await activateMcpTool(thread, "large", "large_read");
       const result = (await tool?.execute("mcp-call", {

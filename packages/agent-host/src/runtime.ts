@@ -1,4 +1,13 @@
+import { projectMcpTools } from "./project-mcp-overrides.js";
+import { registerVirtualModels } from "./virtual-models.js";
+import { contextEditingExtension } from "./context-editing.js";
+import { modelCapabilityTools } from "./model-capability-tools.js";
+import { isExecutionMode } from "@artemis/protocol";
 import { createHooksBridge } from "./hooks-bridge.js";
+import {
+  configureToolExposure,
+  codemodePolicyExtension,
+} from "./tool-exposure.js";
 import { withToolHistory } from "./tool-history.js";
 import type { CustomAgentTaskInvocation } from "@artemis/protocol";
 import { assertCustomAgentContext } from "./custom-agent-context.js";
@@ -41,6 +50,7 @@ import {
   ModelRuntime,
   SessionManager,
   createAgentSession,
+  createCodemodeExtension,
   defineTool,
   estimateTokens,
   formatSkillsForPrompt,
@@ -776,6 +786,20 @@ const modelApprovalParameter = Type.Object(
   { additionalProperties: false },
 );
 
+const sandboxEscalationParameter = Type.Optional(
+  Type.Object(
+    {
+      justification: Type.String({
+        minLength: 1,
+        maxLength: 2000,
+        description:
+          "Explain the observed local sandbox restriction, why desktop-user access is necessary for this exact user-authorized action, and why retrying this one call cannot duplicate uncertain side effects. This requests one unsandboxed call, not administrator/root access or a permanent permission change. Never use it for remote authorization errors or replay an entire Codemode script.",
+      }),
+    },
+    { additionalProperties: false },
+  ),
+);
+
 function modelApproval(decision: {
   risk: ModelApprovalDecision["risk"];
   explicit_user_request: boolean;
@@ -1361,13 +1385,14 @@ function createLazySessionManager(
 
 export class ArtemisAgentHost {
   private readonly threads = new Map<string, HostedThread>();
-  private readonly credentials = new RuntimeCredentialStore();
+  private readonly credentials: RuntimeCredentialStore;
   private readonly concurrency: AgentConcurrencyLimiter;
   private readonly shellRuntime: ArtemisShellRuntime;
   private readonly bashExecutions: ObservedBashRegistry;
   private readonly cancelledTurns = new Set<string>();
   private readonly parkedDelegationTurns = new Set<string>();
   private readonly userInputTails = new Map<string, Promise<void>>();
+  private registeredVirtualModels: Array<{ provider: string; id: string }> = [];
   private readonly registeredProviderIds = new Set<string>();
   private readonly providerAdmissionBlockedUntil = new Map<string, number>();
   private readonly promptCache = new PromptCacheController();
@@ -1479,8 +1504,12 @@ export class ArtemisAgentHost {
       agentDir?: string;
       modelStreamIdleTimeoutMs?: number;
       onSessionFile?: (threadId: string, path: string) => void;
+      onCredentialChanged?: ConstructorParameters<
+        typeof RuntimeCredentialStore
+      >[0];
     } = {},
   ) {
+    this.credentials = new RuntimeCredentialStore(options.onCredentialChanged);
     this.shellRuntime = new ArtemisShellRuntime();
     this.bashExecutions = new ObservedBashRegistry(this.shellRuntime);
     this.agentDir = options.agentDir ?? getAgentDir();
@@ -1620,6 +1649,9 @@ export class ArtemisAgentHost {
       return;
     }
     const modelRuntime = await this.getModelRuntime();
+    for (const model of this.registeredVirtualModels)
+      modelRuntime.unregisterVirtualModel(model.provider, model.id);
+    this.registeredVirtualModels = [];
     const nextProviderIds = new Set(providers.map((provider) => provider.id));
     for (const providerId of this.registeredProviderIds) {
       if (!nextProviderIds.has(providerId)) {
@@ -1638,6 +1670,10 @@ export class ArtemisAgentHost {
       );
       this.registeredProviderIds.add(provider.id);
     }
+    this.registeredVirtualModels = registerVirtualModels(
+      modelRuntime,
+      providers,
+    );
     const selection = resolvedConfiguration.selection;
     if (selection) {
       const catalogModel = modelRuntime.getModel(
@@ -1689,10 +1725,18 @@ export class ArtemisAgentHost {
     const refreshedMcp = await hosted.refreshMcpTools();
     if (!refreshedMcp) await hosted.resourceLoader.reload();
     hosted.session.setActiveToolsByName(
-      (hosted.currentMode === "execute"
+      (isExecutionMode(hosted.currentMode)
         ? hosted.executeTools
         : hosted.delegatedTools
-      ).map((tool) => tool.name),
+      )
+        .map((tool) => tool.name)
+        .concat(
+          hosted.currentMode === "codemode"
+            ? ["codemode"]
+            : hosted.currentMode === "plan"
+              ? ["submit_plan"]
+              : [],
+        ),
     );
     this.configureSessionCompaction(hosted.session);
     this.emitContextUsage(hosted, false);
@@ -1743,8 +1787,19 @@ export class ArtemisAgentHost {
     if (!contextWindow) {
       return;
     }
+    const configured = this.configuration.providers
+      ?.find((p) => p.id === session.model?.provider)
+      ?.models.find((m) => m.id === session.model?.id);
+    const defaults = compactionSettingsForContextWindow(contextWindow);
     session.settingsManager.applyOverrides({
-      compaction: compactionSettingsForContextWindow(contextWindow),
+      compaction: {
+        enabled: configured?.compaction?.enabled ?? defaults.enabled,
+        reserveTokens:
+          configured?.compaction?.reserveTokens ?? defaults.reserveTokens,
+        keepRecentTokens:
+          configured?.compaction?.keepRecentTokens ?? defaults.keepRecentTokens,
+      },
+      cacheWarming: configured?.cacheWarming ?? "off",
     });
   }
 
@@ -3794,7 +3849,7 @@ export class ArtemisAgentHost {
       name: "local_file_read",
       label: "Read local file",
       description:
-        "Read a UTF-8 file at an absolute path with the current desktop user's permissions in Execute mode. Use this only for an exact path outside the active workspace, and classify whether the user explicitly requested that path.",
+        "Read a UTF-8 file at an absolute path with the current desktop user's permissions in Work or Codemode mode. Use this only for an exact path outside the active workspace, and classify whether the user explicitly requested that path.",
       parameters: Type.Object(
         {
           path: Type.String({
@@ -3806,8 +3861,10 @@ export class ArtemisAgentHost {
       ),
       execute: async (_toolCallId, params) => {
         const hosted = this.threads.get(request.threadId);
-        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
-          throw new Error("Local file access requires an active Execute turn.");
+        if (!hosted?.currentTurnId || !isExecutionMode(hosted.currentMode)) {
+          throw new Error(
+            "Local file access requires an active Work or Codemode turn.",
+          );
         }
         const result = await this.broker.request({
           kind: "local.file.read",
@@ -3837,7 +3894,7 @@ export class ArtemisAgentHost {
       name: "local_file_write",
       label: "Write local file",
       description:
-        "Write a complete UTF-8 file at an absolute path with the current desktop user's permissions in Execute mode. Use this only for an exact path outside the active workspace, and classify whether the user explicitly requested that write.",
+        "Write a complete UTF-8 file at an absolute path with the current desktop user's permissions in Work or Codemode mode. Use this only for an exact path outside the active workspace, and classify whether the user explicitly requested that write.",
       parameters: Type.Object(
         {
           path: Type.String({
@@ -3850,8 +3907,10 @@ export class ArtemisAgentHost {
       ),
       execute: async (_toolCallId, params) => {
         const hosted = this.threads.get(request.threadId);
-        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
-          throw new Error("Local file access requires an active Execute turn.");
+        if (!hosted?.currentTurnId || !isExecutionMode(hosted.currentMode)) {
+          throw new Error(
+            "Local file access requires an active Work or Codemode turn.",
+          );
         }
         const result = await this.broker.request({
           kind: "local.file.write",
@@ -4484,6 +4543,47 @@ export class ArtemisAgentHost {
       },
     });
 
+    let submittedPlanTurn: string | undefined;
+    const submitPlanTool = defineTool({
+      name: "submit_plan",
+      label: "Submit complete plan",
+      description:
+        "Submit the complete final plan for user confirmation and end this Plan turn. Include objective, steps, interfaces, acceptance criteria, assumptions and defaults. For a review, put findings first. Set actionable=false only when there is nothing to execute.",
+      parameters: Type.Object({
+        title: Type.String({ minLength: 1, maxLength: 200 }),
+        markdown: Type.String({ minLength: 1, maxLength: 100000 }),
+        actionable: Type.Optional(Type.Boolean()),
+      }),
+      execute: async (_id, params) => {
+        const hosted = this.threads.get(request.threadId);
+        if (hosted?.currentMode !== "plan" || !hosted.currentTurnId)
+          throw new Error("submit_plan requires the main Agent in Plan mode.");
+        const result = await this.broker.request({
+          kind: "plan.submit",
+          approvalId: randomUUID(),
+          threadId: request.threadId,
+          turnId: hosted.currentTurnId,
+          mode: "plan",
+          title: params.title,
+          markdown: params.markdown,
+          actionable: params.actionable ?? true,
+        });
+        if (!result.approved)
+          throw new Error(result.error ?? "Plan submission failed");
+        submittedPlanTurn = hosted.currentTurnId;
+        hosted.adapter?.stopAfterTools();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Plan saved. Waiting for the user's explicit choice.",
+            },
+          ],
+          details: result.data,
+        };
+      },
+    });
+
     const updatePlanTool = defineTool({
       name: "update_plan",
       label: "Update task steps",
@@ -4587,8 +4687,10 @@ export class ArtemisAgentHost {
       ),
       execute: async (_toolCallId, params) => {
         const hosted = this.threads.get(request.threadId);
-        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
-          throw new Error("Goal creation requires an active Execute turn.");
+        if (!hosted?.currentTurnId || !isExecutionMode(hosted.currentMode)) {
+          throw new Error(
+            "Goal creation requires an active Work or Codemode turn.",
+          );
         }
         const result = await this.broker.request({
           kind: "goal.create",
@@ -4631,8 +4733,10 @@ export class ArtemisAgentHost {
       ),
       execute: async (_toolCallId, params) => {
         const hosted = this.threads.get(request.threadId);
-        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
-          throw new Error("Goal updates require an active Execute turn.");
+        if (!hosted?.currentTurnId || !isExecutionMode(hosted.currentMode)) {
+          throw new Error(
+            "Goal updates require an active Work or Codemode turn.",
+          );
         }
         if (params.status === "blocked" && !params.blocker?.trim()) {
           throw new Error(
@@ -4685,9 +4789,9 @@ export class ArtemisAgentHost {
       ),
       execute: async (_toolCallId, params) => {
         const hosted = this.threads.get(request.threadId);
-        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
+        if (!hosted?.currentTurnId || !isExecutionMode(hosted.currentMode)) {
           throw new Error(
-            "Reusable memory can be saved only during an active Execute turn.",
+            "Reusable memory can be saved only during an active Work or Codemode turn.",
           );
         }
         const title = params.title.trim();
@@ -5275,7 +5379,10 @@ export class ArtemisAgentHost {
         ),
     });
 
-    let configuredMcpTools = this.configuration.mcpTools ?? [];
+    let configuredMcpTools = await projectMcpTools(
+      request.workspacePath,
+      this.configuration.mcpTools ?? [],
+    );
     const mcpToolByPiName = new Map(
       configuredMcpTools.map((tool) => [tool.piName, tool] as const),
     );
@@ -5284,11 +5391,23 @@ export class ArtemisAgentHost {
         defineTool({
           name: tool.piName,
           label: `${tool.serverName}: ${tool.toolName}`,
+          ...(tool.outputSchema
+            ? { outputSchema: tool.outputSchema as TSchema }
+            : {}),
+          namespace: {
+            name: tool.namespace ?? tool.serverId,
+            description: tool.serverName,
+          },
+          annotations: {
+            readOnlyHint: tool.readOnly,
+            destructiveHint: tool.destructive,
+          },
           description: `${tool.description} Provide the MCP arguments plus a risk assessment for this exact call.`,
           parameters: Type.Object(
             {
               arguments: tool.inputSchema as TSchema,
               model_approval: modelApprovalParameter,
+              sandbox_escalation: sandboxEscalationParameter,
             },
             { additionalProperties: false },
           ),
@@ -5333,6 +5452,9 @@ export class ArtemisAgentHost {
               transport: tool.transport,
               toolName: tool.toolName,
               arguments: parameters.arguments as Record<string, unknown>,
+              ...(parameters.sandbox_escalation
+                ? { sandboxEscalation: parameters.sandbox_escalation }
+                : {}),
               ...(actorAgentId ? { actorAgentId } : {}),
               readOnly: tool.readOnly,
               destructive: tool.destructive,
@@ -5361,6 +5483,12 @@ export class ArtemisAgentHost {
             );
             return {
               content: prepared.content,
+              ...(data?.structuredContent
+                ? {
+                    structuredContent:
+                      data.structuredContent as import("@earendil-works/pi-ai").JsonValue,
+                  }
+                : {}),
               details: {
                 serverId: tool.serverId,
                 toolName: tool.toolName,
@@ -5467,11 +5595,17 @@ export class ArtemisAgentHost {
         defineTool({
           name: tool.piName,
           label: `${tool.extensionName}: ${tool.label}`,
+          ...(tool.outputSchema
+            ? { outputSchema: tool.outputSchema as TSchema }
+            : {}),
+          ...(tool.namespace ? { namespace: tool.namespace } : {}),
+          ...(tool.annotations ? { annotations: tool.annotations } : {}),
           description: `${tool.description} Provide the extension arguments plus a risk assessment for this exact call.`,
           parameters: Type.Object(
             {
               arguments: tool.inputSchema as TSchema,
               model_approval: modelApprovalParameter,
+              sandbox_escalation: sandboxEscalationParameter,
             },
             { additionalProperties: false },
           ),
@@ -5492,6 +5626,9 @@ export class ArtemisAgentHost {
               extensionName: tool.extensionName,
               toolName: tool.toolName,
               arguments: parameters.arguments as Record<string, unknown>,
+              ...(parameters.sandbox_escalation
+                ? { sandboxEscalation: parameters.sandbox_escalation }
+                : {}),
               modelApproval: modelApproval(parameters.model_approval),
               mode: hosted.currentMode ?? "plan",
             });
@@ -5501,7 +5638,12 @@ export class ArtemisAgentHost {
               );
             }
             const data = result.data as
-              { output?: string; isError?: boolean } | undefined;
+              | {
+                  output?: string;
+                  isError?: boolean;
+                  structuredContent?: import("@earendil-works/pi-ai").JsonValue;
+                }
+              | undefined;
             if (data?.isError) {
               throw new Error(
                 data.output ?? "Extension tool returned an error.",
@@ -5509,6 +5651,9 @@ export class ArtemisAgentHost {
             }
             return {
               content: [{ type: "text", text: data?.output ?? "" }],
+              ...(data?.structuredContent === undefined
+                ? {}
+                : { structuredContent: data.structuredContent }),
               details: {
                 extensionId: tool.extensionId,
                 toolName: tool.toolName,
@@ -5675,6 +5820,7 @@ export class ArtemisAgentHost {
                 `${input.turnId}:child:${agentId}`,
               );
               const childToolNames = new Map<string, string>();
+              const childTextParts = new Map<string, string>();
               const emitActivityUpdate = () => {
                 const activityDelta = pendingActivity;
                 pendingActivity = "";
@@ -5744,7 +5890,11 @@ export class ArtemisAgentHost {
                   cwd: request.workspacePath,
                   agentDir: this.agentDir,
                   noExtensions: true,
-                  extensionFactories: [childHooksBridge.factory],
+                  extensionFactories: [
+                    childHooksBridge.factory,
+                    codemodePolicyExtension(() => input.mode),
+                    createCodemodeExtension({ mode: "only", models: false }),
+                  ],
                   ...childOverrides,
                   ...(request.remoteExecution
                     ? remoteResourceOverrides(request.remoteExecution)
@@ -5788,7 +5938,7 @@ export class ArtemisAgentHost {
                   ? createRemoteChildTools(
                       invokeRemoteOperation,
                       (path) =>
-                        input.mode === "execute" &&
+                        isExecutionMode(input.mode) &&
                         writePathAllowed(
                           child.writePaths,
                           normalizedWritePaths(request.workspacePath, [
@@ -5914,7 +6064,7 @@ export class ArtemisAgentHost {
                     : {}),
                   resourceLoader: childResourceLoader,
                   noTools: "builtin",
-                  customTools: guardedChildTools,
+                  customTools: guardedChildTools.map(configureToolExposure),
                   tools: guardedChildTools.map((tool) => tool.name),
                 });
                 if (request.remoteExecution)
@@ -5938,41 +6088,58 @@ export class ArtemisAgentHost {
                   priorTopLevelUserTurns: 0,
                 });
                 this.configureSessionCompaction(child.session);
-                child.session.agent.state.tools =
-                  child.session.agent.state.tools.filter(
-                    (tool) =>
-                      childRemoteTools.some(
-                        (candidate) => candidate.name === tool.name,
-                      ) ||
-                      tool.name.startsWith("attachment_") ||
-                      tool.name === "read" ||
-                      tool.name === "web_search" ||
-                      tool.name === "spawn_agent" ||
-                      tool.name === "list_agents" ||
-                      tool.name === "wait_agent" ||
-                      tool.name === "wait_team" ||
-                      tool.name === "send_message" ||
-                      tool.name === "finish_subteam" ||
-                      (input.mode === "execute" &&
-                        (tool.name === "shell" ||
-                          tool.name === "shell_wait" ||
-                          tool.name === "shell_cancel" ||
-                          tool.name === "write" ||
-                          tool.name === "office_document")) ||
-                      (input.mode === "execute" &&
-                        tool.name === "load_workspace_dependencies") ||
-                      (input.mode === "execute" &&
-                        childMcpTools.some(
+                child.session.setActiveToolsByName([
+                  ...child.session.agent.state.tools
+                    .filter(
+                      (tool) =>
+                        childRemoteTools.some(
                           (candidate) => candidate.name === tool.name,
-                        )),
-                  );
+                        ) ||
+                        tool.name.startsWith("attachment_") ||
+                        tool.name === "read" ||
+                        tool.name === "web_search" ||
+                        tool.name === "spawn_agent" ||
+                        tool.name === "list_agents" ||
+                        tool.name === "wait_agent" ||
+                        tool.name === "wait_team" ||
+                        tool.name === "send_message" ||
+                        tool.name === "finish_subteam" ||
+                        (isExecutionMode(input.mode) &&
+                          (tool.name === "shell" ||
+                            tool.name === "shell_wait" ||
+                            tool.name === "shell_cancel" ||
+                            tool.name === "write" ||
+                            tool.name === "office_document")) ||
+                        (isExecutionMode(input.mode) &&
+                          tool.name === "load_workspace_dependencies") ||
+                        (isExecutionMode(input.mode) &&
+                          childMcpTools.some(
+                            (candidate) => candidate.name === tool.name,
+                          )),
+                    )
+                    .map((tool) => tool.name),
+                  ...(input.mode === "codemode" ? ["codemode"] : []),
+                ]);
                 unsubscribe = child.session.subscribe((event) => {
                   for (const payload of childAdapter.adapt(event as never)) {
+                    if (payload.type === "message.superseded") {
+                      for (const id of childTextParts.keys())
+                        if (id.startsWith(`${payload.messageId}:`))
+                          childTextParts.delete(id);
+                      child.output = [...childTextParts.values()]
+                        .join("")
+                        .slice(-60 * 1024);
+                    }
                     if (payload.type === "message.part.delta") {
                       if (payload.partType === "text") {
-                        child.output = `${child.output}${payload.delta}`.slice(
-                          -60 * 1024,
+                        childTextParts.set(
+                          payload.partId,
+                          (childTextParts.get(payload.partId) ?? "") +
+                            payload.delta,
                         );
+                        child.output = [...childTextParts.values()]
+                          .join("")
+                          .slice(-60 * 1024);
                       }
                       scheduleActivityUpdate(payload.delta);
                     } else if (payload.type === "tool.started") {
@@ -6256,7 +6423,16 @@ export class ArtemisAgentHost {
       cwd: request.workspacePath,
       agentDir: this.agentDir,
       noExtensions: true,
-      extensionFactories: [hooksBridge.factory],
+      extensionFactories: [
+        hooksBridge.factory,
+        contextEditingExtension(
+          () => this.threads.get(request.threadId)?.currentMode,
+        ),
+        codemodePolicyExtension(
+          () => this.threads.get(request.threadId)?.currentMode,
+        ),
+        createCodemodeExtension({ mode: "only", models: false }),
+      ],
       ...createResourceOverrides(() => {
         const opened = this.threads.get(request.threadId);
         const threadSelection = opened?.selection ?? selection;
@@ -6277,7 +6453,12 @@ export class ArtemisAgentHost {
         : {}),
     });
     await resourceLoader.reload();
+    const modelTools = modelCapabilityTools(
+      modelRuntime,
+      () => this.threads.get(request.threadId)?.currentMode,
+    );
     const customTools = [
+      ...modelTools,
       ...attachmentTools,
       ...remoteTools,
       readTool,
@@ -6289,6 +6470,7 @@ export class ArtemisAgentHost {
       officeDocumentTool,
       loadWorkspaceDependenciesTool,
       updatePlanTool,
+      submitPlanTool,
       getGoalTool,
       createGoalTool,
       updateGoalTool,
@@ -6310,7 +6492,7 @@ export class ArtemisAgentHost {
       ...mcpDiscoveryTools,
       ...mcpTools,
       ...extensionTools,
-    ];
+    ].map(configureToolExposure);
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
@@ -6322,7 +6504,10 @@ export class ArtemisAgentHost {
       noTools: "builtin",
       customTools,
     });
-    session.setActiveToolsByName(customTools.map((tool) => tool.name));
+    session.setActiveToolsByName([
+      ...customTools.map((tool) => tool.name),
+      "edit_context",
+    ]);
     const previousFinishTurn = session.agent.finishTurn;
     session.agent.finishTurn = async (context, signal) => {
       const decision =
@@ -6335,6 +6520,14 @@ export class ArtemisAgentHost {
       }
       const hosted = this.threads.get(request.threadId);
       const turn = hosted?.currentTurnId;
+      if (hosted && turn && submittedPlanTurn === turn) {
+        const queue = session.clearQueue();
+        hosted.recoveredQueueMessages.push(
+          ...queue.steering,
+          ...queue.followUp,
+        );
+        return { action: "end" };
+      }
       const key = `${request.threadId}\0${turn}`;
       if (this.parkedDelegationTurns.has(key) || this.cancelledTurns.has(key)) {
         if (hosted && session.pendingMessageCount > 0) {
@@ -6363,8 +6556,9 @@ export class ArtemisAgentHost {
           .filter(
             (tool) =>
               !(
-                tool.serverId === this.configuration.computerUseServerId &&
-                tool.toolName === "computer_open"
+                tool.exposure === "direct" ||
+                (tool.serverId === this.configuration.computerUseServerId &&
+                  tool.toolName === "computer_open")
               ),
           )
           .map((tool) => tool.piName),
@@ -6471,10 +6665,12 @@ export class ArtemisAgentHost {
     const executeTools = session.agent.state.tools.filter(
       (tool) =>
         remoteTools.some((candidate) => candidate.name === tool.name) ||
+        tool.name === "edit_context" ||
         tool.name === "read" ||
         tool.name === "web_search" ||
         tool.name.startsWith("attachment_") ||
         tool.name === "local_file_read" ||
+        modelTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "local_file_write" ||
         tool.name === "request_user_input" ||
         tool.name === "shell" ||
@@ -6514,7 +6710,10 @@ export class ArtemisAgentHost {
       session,
       resourceLoader,
       refreshMcpTools: async () => {
-        const next = this.configuration.mcpTools ?? [];
+        const next = await projectMcpTools(
+          request.workspacePath,
+          this.configuration.mcpTools ?? [],
+        );
         if (JSON.stringify(next) === JSON.stringify(configuredMcpTools))
           return false;
         const oldNames = new Set(configuredMcpTools.map((tool) => tool.piName));
@@ -6531,7 +6730,7 @@ export class ArtemisAgentHost {
           0,
           customTools.length,
           ...customTools.filter((tool) => !oldNames.has(tool.name)),
-          ...mcpTools,
+          ...mcpTools.map(configureToolExposure),
         );
         await session.reload();
         hosted.mcpDirectToolNames = directMcpNames();
@@ -6593,7 +6792,7 @@ export class ArtemisAgentHost {
       hosted.executeTools = hosted.executeTools.filter((tool) =>
         isRemoteToolAllowed(
           tool.name,
-          "execute",
+          "work",
           request.remoteExecution!.shell,
           request.remoteExecution!.collaborationRole,
         ),
@@ -6734,8 +6933,17 @@ export class ArtemisAgentHost {
       recovery ? `${turnId}:recovery:${recovery.attemptId}` : turnId,
     );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
-    hosted.session.agent.state.tools =
-      mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
+    hosted.session.setActiveToolsByName([
+      ...(isExecutionMode(mode)
+        ? hosted.executeTools
+        : hosted.delegatedTools
+      ).map((tool) => tool.name),
+      ...(mode === "plan"
+        ? ["submit_plan"]
+        : mode === "codemode"
+          ? ["codemode"]
+          : []),
+    ]);
 
     let explicitDispatchNote: string | undefined;
     if (customAgentTasks?.length) {

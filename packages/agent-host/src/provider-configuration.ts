@@ -1,3 +1,4 @@
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ProviderConnection, ProviderModel } from "@artemis/protocol";
 
 import { streamOpenAIResponsesWithAiSdk } from "./responses-ai-sdk-stream.js";
@@ -36,17 +37,45 @@ export function toPiProviderConfig(
       ? { streamSimple: streamOpenAIResponsesWithAiSdk }
       : {}),
     ...(!hasCredential ? { apiKey: "ollama" } : {}),
-    models: provider.models.map((model) => ({
-      id: model.id,
-      name: model.name,
-      reasoning: model.reasoning,
-      ...(model.reasoning
-        ? { thinkingLevelMap: customThinkingLevelMap(model) }
-        : {}),
-      input: [...model.input],
-      contextWindow: model.contextWindow,
-      maxTokens: model.maxTokens,
-      cost: { ...zeroCost },
-    })),
+    models: provider.models
+      .filter((model) => !model.virtualRoutes)
+      .map((model) => ({
+        id: model.id,
+        name: model.name,
+        reasoning: model.reasoning,
+        ...(model.reasoning
+          ? {
+              thinkingLevelMap:
+                model.thinkingLevelMap ?? customThinkingLevelMap(model),
+            }
+          : {}),
+        input: [...model.input],
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+        cost: { ...zeroCost },
+        ...(model.samplingParams
+          ? { samplingParams: model.samplingParams }
+          : {}),
+        ...(model.samplingParamsByThinkingLevel
+          ? {
+              samplingParamsByThinkingLevel:
+                model.samplingParamsByThinkingLevel,
+            }
+          : {}),
+        ...(model.promptCache
+          ? {
+              promptCache: JSON.parse(
+                JSON.stringify(model.promptCache),
+              ) as NonNullable<Model<Api>["promptCache"]>,
+            }
+          : {}),
+        ...(model.inputLimits
+          ? {
+              inputLimits: JSON.parse(
+                JSON.stringify(model.inputLimits),
+              ) as NonNullable<Model<Api>["inputLimits"]>,
+            }
+          : {}),
+      })),
   };
 }

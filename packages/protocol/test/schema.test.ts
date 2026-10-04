@@ -146,7 +146,7 @@ describe("approval schemas", () => {
     expect(
       threadCommandSchema.safeParse({
         type: "thread.create",
-        mode: "execute",
+        mode: "work",
         target: "local",
       }).success,
     ).toBe(true);
@@ -617,9 +617,9 @@ describe("child-agent schemas", () => {
 
 describe("provider and language schemas", () => {
   it("supports Execute as a first-class run mode and rejects legacy modes", () => {
-    expect(runModeSchema.safeParse("execute").success).toBe(true);
+    expect(runModeSchema.safeParse("work").success).toBe(true);
     expect(runModeSchema.safeParse("code").success).toBe(false);
-    expect(runModeSchema.safeParse("work").success).toBe(false);
+    expect(runModeSchema.safeParse("unknown").success).toBe(false);
   });
 
   it("accepts context usage snapshots and validates configurable context windows", () => {

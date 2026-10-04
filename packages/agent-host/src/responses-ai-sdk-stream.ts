@@ -111,7 +111,20 @@ function toModelMessages(context: Context): ModelMessage[] {
             toolName: message.toolName,
             output: message.isError
               ? { type: "error-text", value: text }
-              : { type: "text", value: text },
+              : message.content.some((content) => content.type === "image")
+                ? {
+                    type: "content",
+                    value: message.content.map((content) =>
+                      content.type === "text"
+                        ? { type: "text" as const, text: content.text }
+                        : {
+                            type: "image-data" as const,
+                            data: content.data,
+                            mediaType: content.mimeType,
+                          },
+                    ),
+                  }
+                : { type: "text", value: text },
           },
         ],
       },
@@ -238,7 +251,38 @@ export function streamOpenAIResponsesWithAiSdk(
     try {
       outputStream.push({ type: "start", partial: output });
       const headers = requestHeaders(options?.headers);
+      const samplingParams = {
+        ...model.samplingParams,
+        ...model.samplingParamsByThinkingLevel?.[options?.reasoning ?? "off"],
+        ...options?.samplingParams,
+      };
       const openai = createOpenAI({
+        fetch: async (request, init) => {
+          if (
+            init?.body &&
+            typeof init.body === "string" &&
+            Object.keys(samplingParams).length
+          ) {
+            init = {
+              ...init,
+              body: JSON.stringify({
+                ...JSON.parse(init.body),
+                ...samplingParams,
+              }),
+            };
+          }
+          const limit = model.inputLimits?.maxRequestBytes;
+          if (
+            limit &&
+            typeof init?.body === "string" &&
+            Buffer.byteLength(init.body, "utf8") > limit
+          ) {
+            throw new Error(
+              `Model input limit exceeded: request body exceeds ${limit} bytes.`,
+            );
+          }
+          return (options?.fetch ?? globalThis.fetch)(request, init);
+        },
         baseURL: model.baseUrl,
         apiKey: options?.apiKey ?? "ollama",
         ...(headers ? { headers } : {}),
@@ -256,7 +300,15 @@ export function streamOpenAIResponsesWithAiSdk(
       const openaiOptions = {
         forceReasoning: model.reasoning,
         ...(model.reasoning
-          ? { reasoningEffort: options?.reasoning ?? "none" }
+          ? {
+              reasoningEffort: (model.thinkingLevelMap?.[
+                options?.reasoning ?? "off"
+              ] ??
+                options?.reasoning ??
+                "none") as NonNullable<
+                OpenAILanguageModelResponsesOptions["reasoningEffort"]
+              >,
+            }
           : {}),
         ...(options?.sessionId && explicitCache
           ? {
@@ -465,6 +517,12 @@ export function streamOpenAIResponsesWithAiSdk(
           output.responseModel = part.response.modelId;
           applyUsage(model, output, part.usage, cache);
         } else if (part.type === "finish") {
+          // AI SDK emits a synthetic "other" finish on graceful transport EOF.
+          // A provider terminal event is still required before committing output.
+          if (part.finishReason === "other")
+            throw new Error(
+              "Network error: stream ended before a terminal response event.",
+            );
           finalReason = stopReason(part.finishReason);
           applyUsage(model, output, part.totalUsage, cache);
         } else if (part.type === "abort") {
@@ -474,6 +532,11 @@ export function streamOpenAIResponsesWithAiSdk(
         }
       }
 
+      if (finalReason === undefined) {
+        throw new Error(
+          "Network error: stream ended before a terminal response event.",
+        );
+      }
       for (const state of textBlocks.values()) {
         const block = output.content[state.contentIndex];
         if (!state.ended && block?.type === "text") {
@@ -507,11 +570,7 @@ export function streamOpenAIResponsesWithAiSdk(
       if (!hasUsableContent) {
         throw new Error("The model returned no assistant content.");
       }
-      output.stopReason =
-        finalReason ??
-        (output.content.some((part) => part.type === "toolCall")
-          ? "toolUse"
-          : "stop");
+      output.stopReason = finalReason;
       if (output.stopReason === "error") {
         throw new Error("The model reported an unsuccessful finish reason.");
       }

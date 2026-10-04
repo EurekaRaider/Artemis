@@ -9,7 +9,7 @@ const request = {
   turnId: "turn",
   serverId: "builtin",
   toolName: "computer_act",
-  mode: "execute",
+  mode: "work",
   arguments: { targetId: "desktop:app" },
   destructive: true,
   readOnly: false,
@@ -24,7 +24,7 @@ function fixture() {
   return {
     serverId: "builtin",
     config: { id: "builtin", enabled: true } as McpServerConfig,
-    thread: { id: "task", mode: "execute", archived: false } as Thread,
+    thread: { id: "task", mode: "work", archived: false } as Thread,
     activeTurnId: "turn",
     isTrustedServer: vi.fn(async () => true),
     host: { taskApproval: vi.fn(() => "grant-id" as string | undefined) },
@@ -38,7 +38,7 @@ describe("scoped Computer Use model approval", () => {
     expect(f.host.taskApproval).toHaveBeenCalledWith(
       "computer_act",
       request.arguments,
-      { threadId: "task", turnId: "turn", mode: "execute" },
+      { threadId: "task", turnId: "turn", mode: "work" },
     );
   });
   it("retains the destructive risk floor even when the model says low risk", async () => {
@@ -60,7 +60,7 @@ describe("scoped Computer Use model approval", () => {
     { serverId: "spoof" },
     { actorAgentId: "child" },
     { mode: "plan" },
-    { mode: "review" },
+    { mode: "plan" },
     { threadId: "another" },
     { turnId: "old" },
     { toolName: "other" },

@@ -252,7 +252,7 @@ it("keeps task receipts in the initiating desktop language after the language ch
       ),
   ).toBe(true);
 });
-async function groupFixture(mode: "plan" | "execute" = "plan") {
+async function groupFixture(mode: "plan" | "work" = "plan") {
   const f = await fixture("feishu");
   const members = [];
   for (const [name, channel] of [
@@ -413,12 +413,12 @@ describe("IM desktop and Gateway loop", () => {
       await f.send("/new update my project");
       expect(f.threads[0]).toMatchObject({
         projectId: "project",
-        mode: "execute",
+        mode: "work",
       });
       expect(f.service.profile(f.threads[0]!.id)).toBeUndefined();
       expect(f.starts[0]).not.toContain("IM provenance");
       expect(() =>
-        f.service.authorizeThread(f.threads[0]!.id, "execute"),
+        f.service.authorizeThread(f.threads[0]!.id, "work"),
       ).not.toThrow();
       await f.send("/stop");
       await f.service.save({
@@ -431,11 +431,11 @@ describe("IM desktop and Gateway loop", () => {
       db.close();
       await f.send("/new complete a temporary task");
       const temporary = f.threads.at(-1)!;
-      expect(temporary).toMatchObject({ projectId: null, mode: "execute" });
+      expect(temporary).toMatchObject({ projectId: null, mode: "work" });
       expect(f.service.profile(temporary.id)).toBeUndefined();
       expect(f.starts.at(-1)).not.toContain("advisory only");
       expect(() =>
-        f.service.authorizeThread(temporary.id, "execute"),
+        f.service.authorizeThread(temporary.id, "work"),
       ).not.toThrow();
     },
   );
@@ -454,7 +454,7 @@ describe("IM desktop and Gateway loop", () => {
           ...settings,
           grants: settings.grants.map((grant) => ({
             ...grant,
-            mode: "execute",
+            mode: "work",
             shell: true,
             groups: ["space:group"],
           })),
@@ -747,7 +747,7 @@ describe("IM desktop and Gateway loop", () => {
     await f.send("/stop");
     await f.service.prepareLocalTurn(id, "desktop-turn");
     expect(f.service.profile(id)).toBeUndefined();
-    expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
+    expect(() => f.service.authorizeThread(id, "work")).not.toThrow();
     const release = f.service.reserveStart(id, "plan", false);
     try {
       await f.send(`/continue ${id}`);
@@ -1126,7 +1126,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(1);
     expect(f.threads[0]).toMatchObject({
       projectId: null,
-      mode: "execute",
+      mode: "work",
       title: "企业微信 · quick advice",
     });
     const deliveries = () =>
@@ -1137,9 +1137,9 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(1);
     expect(f.queued).toHaveLength(1);
     expect(f.queued[0]).toBe("more context");
-    // Temporary chats use the same Execute mode and tools as local tasks.
+    // Temporary chats use the same Work or Codemode mode and tools as local tasks.
     expect(() =>
-      f.service.authorizeThread(f.threads[0]!.id, "execute"),
+      f.service.authorizeThread(f.threads[0]!.id, "work"),
     ).not.toThrow();
     expect(f.service.profile(f.threads[0]!.id)).toBeUndefined();
     // /tasks lists the ad-hoc task for its owner chat.
@@ -1169,7 +1169,7 @@ describe("IM desktop and Gateway loop", () => {
     // 初始未设置默认项目：普通消息落临时会话，不卡在引导。
     await f.send("/new ambiguous");
     expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "execute" });
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "work" });
     // 群聊没有临时会话语义：未配置空间时走群引导，不会静默落临时任务。
     f.gateway.router.ingest({
       version: 1 as const,
@@ -1211,7 +1211,7 @@ describe("IM desktop and Gateway loop", () => {
     // 哨兵默认：即使多个项目已授权，普通消息仍进临时会话。
     await f.send("/new sentinel default");
     expect(f.threads).toHaveLength(1);
-    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "execute" });
+    expect(f.threads[0]).toMatchObject({ projectId: null, mode: "work" });
     // /project 显式选择后，普通消息回到所选项目。
     await f.send("/project project");
     await f.send("project follow-up");
@@ -1531,7 +1531,7 @@ describe("IM desktop and Gateway loop", () => {
     const f = await fixture("slack");
     await f.send("Initial task");
     const id = f.threads[0]!.id;
-    expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
+    expect(() => f.service.authorizeThread(id, "work")).not.toThrow();
     const previousRevision =
       f.service.status().settings.grants[0]!.security!.revision;
     await f.service.save({
@@ -1552,7 +1552,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.service.status().settings.grants[0]!.security!.revision).not.toBe(
       previousRevision,
     );
-    expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
+    expect(() => f.service.authorizeThread(id, "work")).not.toThrow();
     expect(f.threads[0]!.status).toBe("running");
     await f.send("/stop");
     await f.send(`/continue ${id}`);
@@ -1606,7 +1606,7 @@ describe("IM desktop and Gateway loop", () => {
       db.prepare(
         "UPDATE im_state SET value=? WHERE namespace='bindings' AND id=?",
       ).run(JSON.stringify(binding), id);
-      expect(() => f.service.authorizeThread(id, "execute")).not.toThrow();
+      expect(() => f.service.authorizeThread(id, "work")).not.toThrow();
       expect(f.service.profile(id)).toBeUndefined();
       expect(
         JSON.parse(
@@ -1677,7 +1677,7 @@ describe("IM desktop and Gateway loop", () => {
     const original = await f.ops.create(
       "private-task",
       "project",
-      "execute",
+      "work",
       "Private work",
     );
     await f.send(`/continue ${original.id}`);

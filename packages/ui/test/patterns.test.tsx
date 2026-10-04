@@ -75,7 +75,7 @@ describe("Agent patterns", () => {
           { label: "Plan", value: "plan" },
           {
             label: "Execute",
-            value: "execute",
+            value: "work",
           },
         ]}
         statusLabel="Ready"
@@ -85,7 +85,7 @@ describe("Agent patterns", () => {
     const modes = screen.getAllByRole("radio");
     expect(modes.map((mode) => mode.textContent)).toEqual(["Plan", "Execute"]);
     await user.click(modes[1]!);
-    expect(onValueChange).toHaveBeenCalledWith("execute");
+    expect(onValueChange).toHaveBeenCalledWith("work");
     expect(modes[0]?.getAttribute("aria-checked")).toBe("true");
 
     rerender(
@@ -96,7 +96,7 @@ describe("Agent patterns", () => {
           { label: "Plan", value: "plan" },
           {
             label: "Execute",
-            value: "execute",
+            value: "work",
           },
         ]}
         state="busy"
@@ -110,7 +110,7 @@ describe("Agent patterns", () => {
 
   it("implements roving radio keyboard navigation and skips disabled modes", () => {
     function KeyboardModes() {
-      const [value, setValue] = useState<"plan" | "execute" | "review">("plan");
+      const [value, setValue] = useState<"plan" | "work" | "review">("plan");
       return (
         <RunModeControl
           label="Run mode"
@@ -120,7 +120,7 @@ describe("Agent patterns", () => {
             {
               disabled: true,
               label: "Execute",
-              value: "execute",
+              value: "work",
             },
             {
               label: "Review",

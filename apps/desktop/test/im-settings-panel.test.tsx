@@ -2026,7 +2026,7 @@ describe("single project authorization editor", () => {
         grants: [
           {
             projectId: "test-project",
-            mode: "execute",
+            mode: "work",
             approval: "automatic",
             groups: ["space:saved"],
             expiresAt: Date.now() + 600000,
