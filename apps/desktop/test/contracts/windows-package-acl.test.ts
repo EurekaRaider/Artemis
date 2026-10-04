@@ -130,6 +130,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     const setup = readFileSync(sandboxSetupPath, "utf8");
 
     expect(helper).not.toContain("$needsClassicAncestorAccess");
+    expect(helper).toContain("if ($isAdministrator -or");
     expect(helper).toContain("& $setupPath -PathsBase64 $pathsBase64");
     expect(helper).toContain("Test-AppContainerAncestorAccess");
     expect(helper).toContain(

@@ -1560,9 +1560,16 @@ function Initialize-ClassicAppContainerAncestors {
         ($missingTraverse | ConvertTo-Json -Compress)
       )
     )
-    if ([System.Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0) {
-      # Services cannot display UAC. Use their existing permissions and fail
-      # closed if the narrow ancestor metadata grant cannot be installed.
+    $principal = [System.Security.Principal.WindowsPrincipal]::new(
+      [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    )
+    $isAdministrator = $principal.IsInRole(
+      [System.Security.Principal.WindowsBuiltInRole]::Administrator
+    )
+    if ($isAdministrator -or [System.Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0) {
+      # Already-elevated hosts need no UAC prompt. Services use only their
+      # existing permissions and fail closed if those are insufficient.
+      Write-SandboxDiagnostic 'installing ancestor metadata access directly'
       & $setupPath -PathsBase64 $pathsBase64
     } else {
       $escapedSetupPath = $setupPath.Replace("'", "''")
@@ -1628,6 +1635,7 @@ if (-not $useClassicAppContainer) {
   }
 }
 if ($useClassicAppContainer) {
+  Write-SandboxDiagnostic 'checking classic ancestor metadata access'
   Initialize-ClassicAppContainerAncestors
   Write-SandboxDiagnostic 'falling back to classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
