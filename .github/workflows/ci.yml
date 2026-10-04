@@ -43,6 +43,11 @@ jobs:
         if: matrix.platform == 'windows-x64'
         shell: powershell
         run: ./scripts/release/test-windows-update-recovery.ps1
+      - name: Check Windows design runtime sandbox before the full suite
+        if: matrix.platform == 'windows-x64'
+        run: |
+          npm run build:core
+          npx vitest run --root apps/desktop --no-file-parallelism test/main/design/design-plugin-runtime-worker-sandbox.test.ts -t "allows reads and writes"
       - name: Run portable CI checks
         run: npm run verify:ci
         env:

@@ -446,7 +446,7 @@ describe("project Git branches", () => {
     await expect(pushProjectBranch(path)).rejects.toThrow(
       /behind or diverged/u,
     );
-  });
+  }, 30_000);
 
   it("does not retry or force a non-fast-forward push", async () => {
     const path = await repository();

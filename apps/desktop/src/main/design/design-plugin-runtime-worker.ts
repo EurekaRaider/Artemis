@@ -191,7 +191,9 @@ export class PluginRuntimeWorker {
     });
     this.child.stdin?.on("error", (error) => this.failAll(error));
     this.child.stderr?.on("data", (chunk: Buffer) => {
-      this.stderrTail = (this.stderrTail + chunk.toString("utf8")).slice(-400);
+      this.stderrTail = (this.stderrTail + chunk.toString("utf8")).slice(
+        -8_192,
+      );
     });
     this.child.stdout?.on("data", (chunk: Buffer) => {
       try {
@@ -205,7 +207,11 @@ export class PluginRuntimeWorker {
     this.child.stdout?.on("close", () => {
       this.stdoutClosed = true;
       if (!this.disposed) {
-        this.failAll(new Error("Runtime stdout closed before completion."));
+        this.failAll(
+          new Error(
+            `Runtime stdout closed before completion.${this.stderrTail ? ` Stderr: ${this.stderrTail}` : ""}`,
+          ),
+        );
       }
     });
     this.child.on("exit", (code, signal) => {
@@ -289,6 +295,7 @@ export class PluginRuntimeWorker {
           cwd,
           env: {
             SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
+            ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1",
             NODE_OPTIONS: "",
             ELECTRON_RUN_AS_NODE: "1",
             TEMP: cwd,
