@@ -28,7 +28,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { createServer, type AddressInfo } from "node:net";
+import { connect, createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -317,23 +317,45 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
   }, 120_000);
 
   it("③ denies network access to a 127.0.0.1 listener", async () => {
-    const server = createServer((socket) => socket.end());
+    let acceptedConnections = 0;
+    const server = createServer((socket) => {
+      acceptedConnections += 1;
+      socket.end();
+    });
     await new Promise<void>((resolve) =>
       server.listen(0, "127.0.0.1", resolve),
     );
     const port = (server.address() as AddressInfo).port;
     const worker = probeWorker(await freshScratch("net"));
+    const hostConnect = () =>
+      new Promise<void>((resolve, reject) => {
+        const socket = connect(port, "127.0.0.1");
+        socket.once("error", reject);
+        socket.once("end", resolve);
+        socket.setTimeout(3_000, () =>
+          socket.destroy(new Error("Host listener is unreachable")),
+        );
+      });
     try {
+      await hostConnect();
+      expect(acceptedConnections).toBe(1);
       await worker.start();
       const result = await worker.invoke("net_probe", {
         host: "127.0.0.1",
         port,
       });
-      // The listener is up, so a "failed" here can only be the sandbox.
+      // AppContainer may drop the connection instead of returning EACCES.
+      // Controls before and after prove the listener stayed reachable, and
+      // the accept count proves the sandbox never reached it.
       expect(result.status).toBe("failed");
       expect(result.error ?? "").toMatch(
-        /EPERM|EACCES|operation not permitted/i,
+        process.platform === "win32"
+          ? /EPERM|EACCES|ETIMEDOUT|operation not permitted/i
+          : /EPERM|EACCES|operation not permitted/i,
       );
+      expect(acceptedConnections).toBe(1);
+      await hostConnect();
+      expect(acceptedConnections).toBe(2);
     } finally {
       worker.dispose();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -492,8 +514,10 @@ describeDarwin("design-plugin runtime process ownership (real spawn)", () => {
       await worker.start();
       const pid = worker.childPid();
       await worker.invoke("crash", {}).catch(() => undefined);
-      expect(await until(5000, () => !alive(pid))).toBe(true);
-      expect(worker.isDisposed()).toBe(true);
+      // OS exit visibility can precede delivery of Node's exit event.
+      expect(await until(5000, () => !alive(pid) && worker.isDisposed())).toBe(
+        true,
+      );
       await expect(worker.invoke("spawn_child", {})).rejects.toThrow(
         /disposed|not ready/,
       );
