@@ -10256,22 +10256,13 @@ function registerIpc(): void {
     IPC.designPanelSendConsume,
     async (_event, credential: string) => {
       if (!panelSendEntry) throw new Error("Send entry unavailable.");
-      const consumed = panelSendEntry.consumeCredential(credential);
-      return {
-        threadId: consumed.threadId,
-        candidateText: consumed.candidateText,
-        submissionId: credential.split(".")[0] ?? "",
-      };
-    },
-  );
-  // （历史 S4 直连 IPC 的 export/handoff 处理器已删除：面板统一走 port
-  // request handlers（designPanelHost.setRequestHandlers），那里有完整的
-  // documentId 校验与安全读取；重复保留两条路径只会留下第二攻击面。）
-  ipcMain.handle(
-    IPC.designPanelSendConsume,
-    async (_event, credential: string) => {
       try {
-        return panelSendEntry?.consumeCredential(credential);
+        const consumed = panelSendEntry.consumeCredential(credential);
+        return {
+          threadId: consumed.threadId,
+          candidateText: consumed.candidateText,
+          submissionId: credential.split(".")[0] ?? "",
+        };
       } catch (error) {
         throw new Error(
           `Send credential refused: ${
@@ -10281,13 +10272,22 @@ function registerIpc(): void {
       }
     },
   );
+  // （历史 S4 直连 IPC 的 export/handoff 处理器已删除：面板统一走 port
+  // request handlers（designPanelHost.setRequestHandlers），那里有完整的
+  // documentId 校验与安全读取；重复保留两条路径只会留下第二攻击面。）
   // P2-10：「加入输入框」走 staged 语义（accepted → cancelled），不再把
   // 未发送的草稿推进 dispatching。
   ipcMain.handle(
     IPC.designPanelSendStage,
     async (_event, credential: string) => {
+      if (!panelSendEntry) throw new Error("Send entry unavailable.");
       try {
-        return panelSendEntry?.stageCredential(credential);
+        const staged = panelSendEntry.stageCredential(credential);
+        return {
+          threadId: staged.threadId,
+          candidateText: staged.candidateText,
+          submissionId: credential.split(".")[0] ?? "",
+        };
       } catch (error) {
         throw new Error(
           `Send credential refused: ${
