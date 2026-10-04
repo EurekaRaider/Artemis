@@ -3,11 +3,14 @@
 // typed API surface over the pack's IPC methods and a copy bundle; the flow —
 // status polling, download progress, version list, update check, offline
 // import — is identical across packs by design.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AppLocale, CapabilityPackStatus } from "@artemis/protocol";
 import { Button, Icon } from "@artemis/ui/actions";
 import { Dialog, InlineNotice } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
+// 弹窗样式随组件加载：资源中心等主窗口入口也会打开它，不能依赖 Office
+// 工作台的懒加载块。
+import "./capability-pack.css";
 
 export interface CapabilityPackCopy {
   runtime: string;
@@ -72,6 +75,23 @@ export function CapabilityPackPanel({
   const checking = status?.updateCheck === "checking";
   const operationBusy =
     busy || checking || Boolean(status && status.phase !== "idle");
+  // 打开弹窗时的初始焦点应落在主操作（下载/导入离线包），而不是第一个
+  // 可聚焦元素——离线场景下那是「关闭」，系统蓝焦点环会压在黑色主按钮
+  // 旁边。主按钮在 status 加载前是 disabled，等它转可用后再聚焦；只在
+  // 打开后的一小段时间内做这次接管，用户已自行操作时不抢焦点。
+  const primaryActionsRef = useRef<HTMLDivElement>(null);
+  const primaryFocused = useRef(false);
+  const openedAt = useRef(Date.now());
+  useEffect(() => {
+    if (primaryFocused.current || hasInstallation) return;
+    const button = primaryActionsRef.current?.querySelector<HTMLButtonElement>(
+      "button[data-variant='primary']",
+    );
+    if (!button || button.disabled) return;
+    primaryFocused.current = true;
+    if (Date.now() - openedAt.current > 1500) return;
+    button.focus({ preventScroll: true });
+  });
   useEffect(() => {
     let active = true;
     const refresh = () =>
@@ -124,7 +144,9 @@ export function CapabilityPackPanel({
           {title}
         </h2>
         <p>{hasInstallation ? copy.manageDescription : copy.shared}</p>
-        {!status?.activeVersion ? (
+        {/* 「设计模式保持隐藏」只在已装未激活的修复/回滚语境有信息量；
+            未安装分支已有 shared+unavailable 两行说明，再叠一行只是噪音。 */}
+        {hasInstallation && !status?.activeVersion ? (
           <p className="office-capability-hint">{copy.lite}</p>
         ) : null}
         {error || status?.error ? (
@@ -247,7 +269,7 @@ export function CapabilityPackPanel({
             {status && !status.availableVersion ? (
               <p className="office-capability-hint">{copy.unavailable}</p>
             ) : null}
-            <div className="office-actions">
+            <div className="office-actions" ref={primaryActionsRef}>
               {status?.availableVersion ? (
                 <Button
                   variant="primary"

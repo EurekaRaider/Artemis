@@ -368,70 +368,9 @@
     var(--artemis-color-focus-ring);
   outline-offset: calc(-1 * var(--artemis-border-width-default));
 }
-.office-capability {
-  display: grid;
-  gap: var(--artemis-space-4);
-  padding: var(--artemis-space-3);
-}
-.office-capability h2,
-.office-capability p {
-  margin: 0;
-}
-.office-capability h2 {
-  display: flex;
-  align-items: center;
-  gap: var(--artemis-space-3);
-}
-.office-capability p {
-  line-height: 1.6;
-}
-.office-capability-hint {
-  color: var(--artemis-color-text-secondary);
-  font-size: var(--artemis-typography-label-size);
-}
-.office-version,
-.office-capability-footer,
-.office-capability-progress {
-  display: grid;
-  gap: var(--artemis-space-3);
-}
-.office-version {
-  padding: var(--artemis-space-4);
-  border: var(--artemis-border-width-default) solid
-    var(--artemis-color-border-subtle);
-  border-radius: var(--artemis-radius-panel);
-}
-.office-actions,
-.office-version-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--artemis-space-3);
-}
-.office-version-info {
-  display: grid;
-  gap: var(--artemis-space-1);
-  flex: 1;
-}
-.office-actions [data-part="label"] {
-  white-space: nowrap;
-}
-.office-capability-footer {
-  padding-block-start: var(--artemis-space-4);
-  border-block-start: var(--artemis-border-width-default) solid
-    var(--artemis-color-border-subtle);
-}
-.office-capability-progress progress {
-  inline-size: 100%;
-}
-.office-capability-maintenance summary {
-  cursor: pointer;
-  color: var(--artemis-color-text-secondary);
-  font-size: var(--artemis-typography-label-size);
-}
-.office-capability-maintenance[open] > :not(summary) {
-  margin-block-start: var(--artemis-space-3);
-}
+/* 能力包弹窗（.office-capability 系列）样式已移至 capability-pack.css：
+ * 该弹窗也会在资源中心等主窗口入口打开，样式必须随组件加载而不是随
+ * Office 工作台懒加载块。 */
 @container (max-width: 480px) {
   .office-header {
     padding-inline: var(--artemis-space-3);
