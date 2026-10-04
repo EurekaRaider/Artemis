@@ -2,20 +2,20 @@
 
 ## 本次采集
 
-2026 年 9 月 19 日，在 macOS arm64 上从 Artemis **1.6.0** 的本地生产构建
-重新采集了 README 使用的 **19 张界面截图**。截图来自真实 Electron Renderer，
-覆盖当前工作区、插件市场、安装确认、消息接入和群协作界面。
+2026 年 10 月 4 日，在 macOS arm64 上从 Artemis **1.7.0** 的本地生产构建
+重新采集了 README 使用的 **20 张界面截图**。截图来自真实 Electron Renderer，
+覆盖干净的问候语首页、当前工作区、插件市场、安装确认、消息接入和群协作界面。
 
 所有截图均为 **1440 × 850 CSS 像素、100% 缩放的完整应用视口**。
 [主清单](../assets/images/manifest.json)记录采集时间、源码 HEAD、工作区说明、
 主进程与 preload 构建摘要、Renderer 入口摘要、图片尺寸和 SHA-256。
 [环境面板清单](../assets/images/environment-manifest.json)保留同次采集的两张面板截图。
-本次 HEAD 为 `458101125146fc1d9ebecbc56158413aa22b2b8b`，构建包含采集时的本地改动，
+本次 HEAD 为 `f878837df15157766e4b79b382abfbad5b2b9796`，构建包含采集时的本地改动，
 不代表这个提交本身或签名发行包的验收结果。
 
-采集流程：打开隔离的 Field Notes 任务 → 切换主题与语言 → 打开 Review、Files、
+采集流程：打开隔离的 Field Notes 任务 → 切换主题与语言 → 新建空白任务并收起侧栏采集问候语首图 → 打开 Review、Files、
 Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插件和安装确认 →
-查看用量与定时任务 → 打开群对话，检查真实渲染结果。
+查看用量与定时任务 → 通过现有宿主导航事件选择合成群对话，检查真实渲染结果。
 
 ## 演示数据与隐私
 
@@ -36,6 +36,7 @@ Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插�
 
 | 截图                                                         | 展示内容                                        |
 | ------------------------------------------------------------ | ----------------------------------------------- |
+| [问候语首页](../assets/images/welcome-dark.png)              | README 首图，无会话内容、收起侧栏的深色欢迎界面 |
 | [浅色工作区](../assets/images/workspace-light.png)           | 项目、持久任务、Markdown 与输入区               |
 | [深色工作区](../assets/images/workspace-dark.png)            | 同一任务的深色主题                              |
 | [中文工作区](../assets/images/workspace-zh-CN.png)           | 中文导航与任务操作                              |

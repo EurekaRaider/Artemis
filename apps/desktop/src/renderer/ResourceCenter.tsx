@@ -1,3 +1,4 @@
+import designPluginIcon from "./assets/design-plugin-icon.png";
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { OfficeCapabilityPanel } from "./OfficeCapabilityPanel.js";
@@ -1783,7 +1784,7 @@ export function ResourceCenter({
         <div className="plugin-market-card-heading">
           <ResourceAvatar
             brandColor="#6d5ae6"
-            iconKey="code"
+            iconDataUrl={designPluginIcon}
             kind="plugin"
             name={locale.startsWith("zh") ? "设计插件" : "Design"}
           />
@@ -1828,7 +1829,6 @@ export function ResourceCenter({
                   <Button
                     variant="primary"
                     size="compact"
-                    icon={<ArtemisIcon name="download" />}
                     onClick={() =>
                       void window.artemis
                         .installDesignCapability()
@@ -1865,9 +1865,7 @@ export function ResourceCenter({
               </>
             ) : (
               <Button
-                variant="primary"
-                size="compact"
-                icon={<ArtemisIcon name="download" />}
+                variant="secondary"
                 onClick={() => {
                   if (status?.availableVersion) {
                     void window.artemis

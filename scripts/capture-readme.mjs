@@ -354,6 +354,16 @@ try {
     .first()
     .click();
   await capture("workspace-dark");
+  await page
+    .getByRole("button", { name: "New task: Field Notes", exact: true })
+    .press("Enter");
+  await page.locator(".sidebar-collapse").click();
+  await capture("welcome-dark");
+  await page.locator(".rail-brand").click();
+  await page
+    .getByText("Build a searchable research library", { exact: true })
+    .first()
+    .click();
   await page.locator(".environment-trigger").click();
   await capture("environment-panel-dark", { keepEnvironment: true });
   await page.evaluate(() => window.artemis.setTheme("light"));
@@ -594,6 +604,58 @@ try {
     .click();
   await page.locator(".im-group-bot-authorization").waitFor();
   await capture("im-spaces");
+  const verifyGroupButtons = async () => {
+    const buttons = await page
+      .locator(".im-group-bot-actions button")
+      .evaluateAll((nodes) =>
+        nodes.map((button) => {
+          const rect = button.getBoundingClientRect();
+          return {
+            text: button.textContent.trim(),
+            width: rect.width,
+            height: rect.height,
+            right: rect.right,
+            viewport: innerWidth,
+            noWrap: getComputedStyle(button).whiteSpace === "nowrap",
+            fits: button.scrollWidth <= button.clientWidth + 1,
+          };
+        }),
+      );
+    assert.equal(buttons.length, 3);
+    for (const button of buttons)
+      assert(
+        button.noWrap &&
+          button.fits &&
+          button.height >= 30 &&
+          button.right <= button.viewport,
+        JSON.stringify(button),
+      );
+    return buttons;
+  };
+  const wideButtons = await verifyGroupButtons();
+  if (process.env.ARTEMIS_UI_FIX_QA === "1") {
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().startsWith("file:"))
+        .setContentSize(1000, 750),
+    );
+    await page.waitForTimeout(300);
+    const narrowButtons = await verifyGroupButtons();
+    await page.screenshot({
+      path: "/tmp/artemis-open-source-audit/group-buttons-narrow.png",
+      scale: "css",
+    });
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().startsWith("file:"))
+        .setContentSize(1440, 850),
+    );
+    await page.waitForTimeout(300);
+    console.log(
+      "Group button layout:",
+      JSON.stringify({ wideButtons, narrowButtons }),
+    );
+  }
   await page.keyboard.press("Escape");
   await page.locator(".im-group-dialog").waitFor({ state: "detached" });
   await page.locator(".settings-header").getByRole("button").click();
@@ -604,6 +666,13 @@ try {
   ]) {
     await page.locator(`.sidebar-nav [data-nav-view="${view}"]`).click();
     await page.waitForTimeout(600);
+    if (view === "resources") {
+      const install = page
+        .locator(".design-pack-card")
+        .getByRole("button", { name: "Install", exact: true });
+      assert.equal(await install.locator("svg").count(), 0);
+      await page.locator(".design-pack-card img").waitFor();
+    }
     await capture(name);
     if (view === "resources") {
       await page

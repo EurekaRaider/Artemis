@@ -314,11 +314,11 @@
 .im-group-bot-actions {
   display: grid;
   gap: 6px;
-  max-inline-size: 160px;
+  inline-size: max-content;
 }
 .im-group-bot-actions button {
   justify-content: flex-start;
-  white-space: normal;
+  white-space: nowrap;
 }
 .im-group-bot-authorization > [data-artemis-component="inline-notice"] {
   grid-column: 1 / -1;

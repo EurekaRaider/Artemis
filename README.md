@@ -28,7 +28,7 @@ A local-first desktop agent for coding, research and everyday work.
 
 <p align="center"><sub>Artemis desktop · persistent project conversation · dark theme</sub></p>
 
-![Artemis dark workspace with a research task, Markdown response and project sidebar](docs/assets/images/workspace-dark.png)
+![Artemis welcome screen with a greeting and a clean task composer](docs/assets/images/welcome-dark.png)
 
 <p align="center">
   <strong>Local-first</strong>&nbsp;&nbsp;·&nbsp;&nbsp;

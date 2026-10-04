@@ -704,7 +704,7 @@ export function GroupCollaborationPanel({
         <div className="im-group-bot-actions">
           <Button
             variant="primary"
-            size="compact"
+            size="comfortable"
             icon={<ShieldCheck weight="duotone" aria-hidden="true" />}
             disabled={disabled}
             onClick={() =>
@@ -733,7 +733,7 @@ export function GroupCollaborationPanel({
           {saved && (
             <>
               <Button
-                size="compact"
+                size="comfortable"
                 icon={<ArrowsLeftRight aria-hidden="true" />}
                 disabled={disabled}
                 onClick={() =>
@@ -744,7 +744,7 @@ export function GroupCollaborationPanel({
               </Button>
               {saved.nativeGroup?.enabled && (
                 <Button
-                  size="compact"
+                  size="comfortable"
                   icon={<Pause aria-hidden="true" />}
                   disabled={disabled}
                   onClick={() =>
