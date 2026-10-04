@@ -18332,13 +18332,30 @@ function createMainWindow(): BrowserWindow {
             .getChildWindows()
             .find((child) => !child.isDestroyed() && child.isVisible());
           if (menu && !menu.webContents.isLoadingMainFrame()) {
-            const selected = await menu.webContents.executeJavaScript(`(() => {
+            const point = await menu.webContents.executeJavaScript(`(() => {
               const entry = document.querySelector('button[data-kind="file"]');
-              if (!entry) return false;
-              entry.click();
-              return true;
+              if (!entry) return null;
+              const rect = entry.getBoundingClientRect();
+              return { x: Math.round(rect.x + rect.width / 2),
+                y: Math.round(rect.y + rect.height / 2) };
             })()`);
-            if (selected) return;
+            if (point) {
+              // Selection destroys the menu. Send native input after the
+              // evaluation returns so its promise cannot die with the page.
+              menu.webContents.sendInputEvent({
+                type: "mouseDown",
+                ...point,
+                button: "left",
+                clickCount: 1,
+              });
+              menu.webContents.sendInputEvent({
+                type: "mouseUp",
+                ...point,
+                button: "left",
+                clickCount: 1,
+              });
+              return;
+            }
           }
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
