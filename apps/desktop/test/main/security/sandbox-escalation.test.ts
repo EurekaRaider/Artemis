@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { McpServerConfig } from "../../../src/shared/api.js";
 import {
@@ -19,7 +20,7 @@ const config: McpServerConfig = {
   args: [],
   env: {},
   envVars: [],
-  workspacePath: "/workspace",
+  workspacePath: resolve("/workspace"),
   allowNetwork: false,
 };
 
@@ -204,7 +205,7 @@ describe("single-call sandbox escalation", () => {
         );
         expect(result.content).toEqual([{ type: "text", text: "elevated" }]);
         expect(scopes[1]).toMatchObject({
-          workspacePath: "/workspace",
+          workspacePath: resolve("/workspace"),
           mode,
           sandboxEscalation: true,
         });

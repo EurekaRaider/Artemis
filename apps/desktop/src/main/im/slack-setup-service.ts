@@ -181,6 +181,14 @@ export class SlackSetupService {
   async status(id?: string): Promise<ImSlackSetupStatus> {
     await this.initialize();
     if (this.state) this.checkOwner(id);
+    // Do not publish an actionable state while its background operation is
+    // still saving: submit/start would otherwise discard the immediate reply.
+    if (
+      this.running &&
+      this.state?.status !== "authorizing" &&
+      this.state?.status !== "configuring"
+    )
+      await this.running;
     return this.publicStatus();
   }
   private launch(work: (signal: AbortSignal) => Promise<void>) {

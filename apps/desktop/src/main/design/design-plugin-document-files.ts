@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open, realpath, rm } from "node:fs/promises";
+import { lstat, open, realpath, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { readWorkspaceFileBytes } from "./design-plugin-project-files.js";
 
@@ -75,8 +75,17 @@ export async function deleteDesignDocument(
   const root = await realpath(dataRoot);
   // Refuse a planted ledger symlink before deleting anything. Never fall
   // back to an unchecked appendFile on a runtime-controlled path.
+  const ledgerPath = join(root, "design-documents.jsonl");
+  const existing = await lstat(ledgerPath).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    },
+  );
+  if (existing && (!existing.isFile() || existing.isSymbolicLink()))
+    throw new Error("Document ledger is not a regular file.");
   const ledger = await open(
-    join(root, "design-documents.jsonl"),
+    ledgerPath,
     constants.O_WRONLY |
       constants.O_APPEND |
       constants.O_CREAT |
@@ -84,8 +93,19 @@ export async function deleteDesignDocument(
     0o600,
   );
   try {
-    if (!(await ledger.stat()).isFile())
-      throw new Error("Document ledger is not a file.");
+    // O_NOFOLLOW is unavailable on Windows. Verify the opened identity against
+    // the path before deleting the document or appending to the ledger.
+    const opened = await ledger.stat();
+    const current = await lstat(ledgerPath);
+    if (
+      !opened.isFile() ||
+      !current.isFile() ||
+      current.isSymbolicLink() ||
+      current.dev !== opened.dev ||
+      current.ino !== opened.ino ||
+      (await realpath(ledgerPath)) !== ledgerPath
+    )
+      throw new Error("Document ledger changed or is unsafe.");
     await resolveDesignDocumentDirectory(dataRoot, documentId);
     await rm(directory, { recursive: true, force: true });
     await ledger.writeFile(

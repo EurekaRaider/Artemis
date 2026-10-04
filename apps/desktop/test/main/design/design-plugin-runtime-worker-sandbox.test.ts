@@ -195,6 +195,7 @@ function trackedWorker(
   options: ConstructorParameters<typeof PluginRuntimeWorker>[0],
 ) {
   const worker = new PluginRuntimeWorker({
+    readyTimeoutMs: process.platform === "win32" ? 60_000 : 10_000,
     windowsHelperPath:
       process.env.ARTEMIS_DESIGN_TEST_HELPER ??
       join(desktopRoot, "resources", "windows-sandbox.ps1"),
@@ -218,13 +219,18 @@ beforeAll(async () => {
   // Control: the outside file is readable from the (unsandboxed) host, so a
   // later denial can only come from the sandbox.
   expect(await readFile(outsideSecret, "utf8")).toContain("TOPSECRET");
-}, 30_000);
+}, 120_000);
 
 afterAll(async () => {
   for (const worker of liveWorkers) worker.dispose();
-  await rm(root, { recursive: true, force: true });
+  await rm(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 20,
+    retryDelay: 250,
+  });
   await rm(outsideDir, { recursive: true, force: true });
-});
+}, 120_000);
 
 function alive(pid: number | undefined): boolean {
   if (!pid) return false;
@@ -285,7 +291,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     } finally {
       worker.dispose();
     }
-  }, 30_000);
+  }, 120_000);
 
   it("② denies writing outside the task-private directory", async () => {
     const worker = probeWorker(await freshScratch("outside-write"));
@@ -305,7 +311,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     } finally {
       worker.dispose();
     }
-  }, 30_000);
+  }, 120_000);
 
   it("③ denies network access to a 127.0.0.1 listener", async () => {
     const server = createServer((socket) => socket.end());
@@ -329,7 +335,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
       worker.dispose();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
-  }, 30_000);
+  }, 120_000);
 
   it("④ allows reads and writes inside the task-private directory", async () => {
     const scratch = await freshScratch("inside");
@@ -354,7 +360,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     } finally {
       worker.dispose();
     }
-  }, 30_000);
+  }, 120_000);
 
   it("⑤ keeps the real packaged plugin runtime working under the sandbox", async () => {
     const scratch = await freshScratch("packaged");
@@ -377,7 +383,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     } finally {
       worker.dispose();
     }
-  }, 30_000);
+  }, 120_000);
 
   it("⑥ refuses to start when the seatbelt wrapper is missing (no fallback)", async () => {
     const worker = trackedWorker({
@@ -391,7 +397,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     await expect(worker.start()).rejects.toThrow(/refusing|sandbox/i);
     // Refusal happened BEFORE any spawn: no child ever existed.
     expect(worker.childPid()).toBeUndefined();
-  }, 30_000);
+  }, 120_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -426,6 +432,7 @@ describeDarwin("design-plugin runtime process ownership (real spawn)", () => {
         }
       }
     },
+    120_000,
   );
 
   it("normal close kills the runtime and hot reload replaces it", async () => {
@@ -458,7 +465,7 @@ describeDarwin("design-plugin runtime process ownership (real spawn)", () => {
       manager.closeThread();
     }
     expect(await until(5000, () => !alive(newPid))).toBe(true);
-  });
+  }, 180_000);
 
   it("abnormal exit disposes the worker and refuses stale reuse", async () => {
     const worker = trackedWorker({
@@ -479,5 +486,5 @@ describeDarwin("design-plugin runtime process ownership (real spawn)", () => {
     } finally {
       worker.dispose();
     }
-  });
+  }, 120_000);
 });

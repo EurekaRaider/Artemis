@@ -233,14 +233,16 @@ export class PluginRuntimeWorker {
       }),
     );
 
-    const timeoutMs = this.options.readyTimeoutMs ?? 10_000;
+    const timeoutMs =
+      this.options.readyTimeoutMs ??
+      (process.platform === "win32" ? 60_000 : 10_000);
     const handshake = new Promise<ReadyMessage>((resolve, reject) => {
       this.readyWaiters.push({ resolve, reject });
     });
     const timeout = setTimeout(() => {
       this.failAll(
         new Error(
-          `Runtime ${this.options.pluginId} did not complete the ready handshake in ${timeoutMs}ms.`,
+          `Runtime ${this.options.pluginId} did not complete the ready handshake in ${timeoutMs}ms.${this.stderrTail ? ` stderr: ${this.stderrTail}` : ""}`,
         ),
       );
     }, timeoutMs);

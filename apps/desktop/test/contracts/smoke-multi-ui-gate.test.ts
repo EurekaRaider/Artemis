@@ -70,11 +70,10 @@ describe("smoke multi-question UI sentinel gate (D#76 PR10C review, severe 1)", 
       activationPoint,
       "main.ts 缺少 prepareSmokeView 激活点",
     ).toBeGreaterThan(-1);
-    // The view gate normalizes ARTEMIS_SMOKE_VIEW just before the
-    // activation ternary; the window below measures ~735 source characters
-    // today and stays bounded by the surrounding smoke-setup block.
+    // Anchor at the view normalization rather than a character budget, so
+    // unrelated smoke drivers cannot move the guard out of the scan.
     const gateRegion = mainSource.slice(
-      Math.max(0, activationPoint - 1_600),
+      mainSource.lastIndexOf("const rawSmokeView", activationPoint),
       activationPoint,
     );
     expect(

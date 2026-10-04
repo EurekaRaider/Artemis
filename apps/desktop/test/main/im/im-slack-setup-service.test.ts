@@ -217,6 +217,43 @@ describe("local Slack CLI setup transaction", () => {
     expect(manifest.display_information.name).toBe("Renamed bot");
     expect(manifest.features.bot_user.display_name).toBe("Renamed bot");
   });
+  it("publishes the authorization challenge only after its save completes", async () => {
+    const f = await fixture();
+    const internal = f.service as unknown as {
+      save(): Promise<void>;
+      state?: { status: string };
+    };
+    const save = internal.save.bind(internal);
+    let release!: () => void;
+    const pendingSave = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let savingChallenge = false;
+    vi.spyOn(internal, "save").mockImplementation(async () => {
+      if (internal.state?.status === "awaiting-code") {
+        savingChallenge = true;
+        await pendingSave;
+      }
+      await save();
+    });
+    try {
+      await f.service.start("Personal");
+      await vi.waitFor(() => expect(savingChallenge).toBe(true));
+      let published = false;
+      const status = f.service.status().then((value) => {
+        published = true;
+        return value;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(published).toBe(false);
+      release();
+      const challenge = await status;
+      await f.service.submit(challenge.sessionId!, "ABC123xy");
+      await waitForState(f.service, "connected");
+    } finally {
+      release();
+    }
+  });
   it("hands credentials to Gateway once and returns only public status", async () => {
     const f = await fixture();
     await authorize(f.service);

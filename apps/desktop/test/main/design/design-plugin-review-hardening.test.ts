@@ -158,6 +158,7 @@ describe("P1-3 symlink escapes are denied (readProjectFileForPreview)", () => {
 
 describe("P2-9/P2-10 send-entry credentials and turn binding", () => {
   let store: AppStore;
+  afterAll(() => store?.close());
   let threadId: string;
 
   beforeAll(() => {
@@ -365,6 +366,7 @@ describe("P2-12 plugin operation ledger state machine", () => {
 
 describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
   let store: AppStore;
+  afterAll(() => store?.close());
   let dispatch: ReturnType<typeof createDispatchPluginTool>;
   let threadId: string;
   let planThreadId: string;
