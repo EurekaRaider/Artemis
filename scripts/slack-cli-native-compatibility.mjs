@@ -93,6 +93,8 @@ export async function verifySlackCliCompatibility(runtime) {
       const probe = await exec(
         windowsPowerShell,
         [
+          "-NoProfile",
+          "-NonInteractive",
           "-Command",
           `${slackHookCommand(runtime, "manifest")} --source=fixture`,
         ],

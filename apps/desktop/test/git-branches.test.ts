@@ -473,7 +473,7 @@ describe("project Git branches", () => {
     expect(stale.behind).toBe(0);
 
     await expect(pushProjectBranch(path)).rejects.toThrow(
-      /rejected|fetch first/u,
+      /rejected|fetch first|failed to push some refs/u,
     );
     expect((await git(remote, "rev-parse", "refs/heads/main")).trim()).toBe(
       remoteHead,

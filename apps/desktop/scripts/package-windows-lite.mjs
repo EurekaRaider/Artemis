@@ -52,6 +52,12 @@ await run(
   process.env,
   workspaceRoot,
 );
+await run(
+  process.execPath,
+  [npmCli, "run", "build:ui-libraries"],
+  process.env,
+  workspaceRoot,
+);
 await run(process.execPath, [npmCli, "run", "verify:bundled-plugins"]);
 await run(process.execPath, [npmCli, "run", "build"], packageEnvironment);
 

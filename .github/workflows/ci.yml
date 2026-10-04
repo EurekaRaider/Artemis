@@ -217,6 +217,7 @@ jobs:
       - run: npm ci
       - run: npm run build:core
       - run: node scripts/benchmark-history.mjs
+      - run: node --expose-gc scripts/benchmark-streaming.mjs
       - uses: actions/upload-artifact@v6
         with:
           name: performance-${{ matrix.platform }}

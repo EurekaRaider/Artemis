@@ -74,3 +74,6 @@ try {
   Remove-Item Env:ARTEMIS_RECOVERY_PROBE -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $root -Recurse -Force
 }
+# The rejected-update scenarios intentionally leave a nonzero native exit code.
+# Only reach success after every scenario assertion and cleanup has completed.
+exit 0

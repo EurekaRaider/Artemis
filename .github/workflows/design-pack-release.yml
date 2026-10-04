@@ -28,7 +28,7 @@ jobs:
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: actions/setup-node@v7
         with:
-          node-version: 26.9.0
+          node-version: 26
       - run: npm ci
       - run: npm run build:core
       - name: Build and sign the design pack
@@ -57,7 +57,7 @@ jobs:
           VERSION="${VERSION#artemis-design-v}"
           gh release create "artemis-design-v$VERSION" \
             --repo EurekaRaider/ArtemisRelease \
-            --title "artemis-design v$VERSION" \
+            --title "artemis-design v$VERSION" --latest=false \
             --notes "Design plugin capability pack $VERSION (signed)." \
             "artifacts/design-pack/$VERSION/artemis-design-darwin-arm64.zip" \
             "artifacts/design-pack/$VERSION/artemis-design-win32-x64.zip" \
