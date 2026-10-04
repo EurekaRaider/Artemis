@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { spawn } from "node:child_process";
 import { PluginRuntimeWorker } from "../src/main/design-plugin-runtime-worker.js";
 import { encodeFrame } from "../src/main/design-plugin-runtime-protocol.js";
+
+const describeDarwin = process.platform === "darwin" ? describe : describe.skip;
 
 let dir: string;
 const entry = join(
@@ -41,7 +42,7 @@ function worker(
   });
 }
 
-describe("PluginRuntimeWorker lifecycle (S0 stdio protocol)", () => {
+describeDarwin("PluginRuntimeWorker lifecycle (S0 stdio protocol)", () => {
   it("handshakes, appends a note, lists it back, and disposes cleanly", async () => {
     const runtime = worker();
     const ready = await runtime.start();
@@ -136,7 +137,48 @@ describe("PluginRuntimeWorker lifecycle (S0 stdio protocol)", () => {
       readyTimeoutMs: 800,
     });
     await expect(runtime.start()).rejects.toThrow(/handshake/i);
-    runtime.dispose();
+    try {
+      expect(runtime.isDisposed()).toBe(true);
+    } finally {
+      runtime.dispose();
+    }
+  });
+
+  it("terminates timed-out work before it can make a late write", async () => {
+    const stub = join(dir, "late-write.mjs");
+    const marker = join(dir, "late-write.txt");
+    await writeFile(
+      stub,
+      `
+      import { writeFileSync } from 'node:fs';
+      let input = Buffer.alloc(0);
+      process.stdin.on('data', chunk => {
+        input = Buffer.concat([input, chunk]);
+        while (input.length >= 4 && input.length >= 4 + input.readUInt32BE(0)) {
+          const length = input.readUInt32BE(0);
+          const msg = JSON.parse(input.subarray(4, 4 + length));
+          input = input.subarray(4 + length);
+          if (msg.type === 'hello') {
+            const body = Buffer.from(JSON.stringify({type: 'ready', protocolVersion: 1, pluginId: msg.pluginId}));
+            const header = Buffer.alloc(4); header.writeUInt32BE(body.length);
+            process.stdout.write(Buffer.concat([header, body]));
+          } else setTimeout(() => writeFileSync('late-write.txt', 'unexpected'), 400);
+        }
+      });
+    `,
+    );
+    const runtime = worker({ entry: stub, invokeTimeoutMs: 40 });
+    try {
+      await runtime.start();
+      await expect(runtime.invoke("late_write", {})).rejects.toThrow(
+        /timed out/,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 550));
+      expect(await readFile(marker, "utf8").catch(() => null)).toBeNull();
+      expect(runtime.isDisposed()).toBe(true);
+    } finally {
+      runtime.dispose();
+    }
   });
 });
 
@@ -153,9 +195,4 @@ describe("FrameDecoder (protocol edge cases)", () => {
     const parsed = JSON.parse(frame.subarray(4, 4 + length).toString("utf8"));
     expect(parsed.type).toBe("hello");
   });
-});
-
-// 确保测试结束后不留孤儿进程。
-process.on("exit", () => {
-  spawn("pkill", ["-f", "silent.mjs"]);
 });

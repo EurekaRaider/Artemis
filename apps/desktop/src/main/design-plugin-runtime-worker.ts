@@ -10,15 +10,14 @@
 //     the same helper/profile family the MCP stdio servers use. Writes are
 //     confined to the task-private scratch directory; reads cover the
 //     scratch, the plugin runtime directory that ships the entry, and the
-//     interpreter's own install roots; network is fully denied; process
-//     spawning stays allowed (profile parity with MCP stdio servers).
+//     interpreter's own install roots; network and child-process creation
+//     are denied. The bundled design runtime only needs in-process tools.
 //   - Sandbox failure REFUSES the launch. There is no unsandboxed fallback
 //     path on any platform: platforms without a wired sandbox throw, and a
 //     missing/unusable sandbox-exec wrapper throws before any spawn.
 //   - The child is spawned as its own process-group leader (detached) and
-//     dispose() SIGKILLs the whole group, so runtime-spawned grandchildren
-//     cannot outlive the worker — including on the crash path, where the
-//     child's exit handler reaps the remaining group immediately.
+//     dispose() SIGKILLs that group. Forking is denied because descendants
+//     could otherwise detach into a new group and evade teardown.
 //
 // S0 scope: single in-flight request per runtime, host-side timeout, no
 // generation/revision negotiation yet (those land with S2 trust wiring).
@@ -28,7 +27,6 @@ import { randomUUID } from "node:crypto";
 import { accessSync, constants, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
 import { buildSeatbeltLaunch, type SandboxLaunch } from "@artemis/platform";
 
@@ -129,6 +127,7 @@ export class PluginRuntimeWorker {
   private child: ChildProcess | undefined;
   private decoder = new FrameDecoder();
   private ready: ReadyMessage | undefined;
+  private starting: Promise<ReadyMessage> | undefined;
   private readyWaiters: {
     resolve: (ready: ReadyMessage) => void;
     reject: (error: Error) => void;
@@ -152,6 +151,15 @@ export class PluginRuntimeWorker {
   async start(): Promise<ReadyMessage> {
     if (this.disposed) throw new Error("Worker already disposed.");
     if (this.ready) return this.ready;
+    this.starting ??= this.spawnAndHandshake().catch((error: unknown) => {
+      const failure = error instanceof Error ? error : new Error(String(error));
+      this.failAll(failure);
+      throw failure;
+    });
+    return this.starting;
+  }
+
+  private async spawnAndHandshake(): Promise<ReadyMessage> {
     // Throws (refuses) on unsupported platforms and when the sandbox
     // wrapper is unavailable — the runtime never spawns unsandboxed.
     const launch = this.buildSandboxedLaunch();
@@ -176,6 +184,7 @@ export class PluginRuntimeWorker {
         new Error(`Runtime process failed to start: ${error.message}`),
       );
     });
+    this.child.stdin?.on("error", (error) => this.failAll(error));
     this.child.stderr?.on("data", (chunk: Buffer) => {
       this.stderrTail = (this.stderrTail + chunk.toString("utf8")).slice(-400);
     });
@@ -223,12 +232,18 @@ export class PluginRuntimeWorker {
     const handshake = new Promise<ReadyMessage>((resolve, reject) => {
       this.readyWaiters.push({ resolve, reject });
     });
-    const timeout = delay(timeoutMs).then(() => {
-      throw new Error(
-        `Runtime ${this.options.pluginId} did not complete the ready handshake in ${timeoutMs}ms.`,
+    const timeout = setTimeout(() => {
+      this.failAll(
+        new Error(
+          `Runtime ${this.options.pluginId} did not complete the ready handshake in ${timeoutMs}ms.`,
+        ),
       );
-    });
-    return Promise.race([handshake, timeout]);
+    }, timeoutMs);
+    try {
+      return await handshake;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /**
@@ -237,8 +252,7 @@ export class PluginRuntimeWorker {
    * darwin: Seatbelt via the packaged @artemis/platform helper — the same
    * profile family the MCP stdio servers run under. Writable surface is
    * exactly the task-private scratch (cwd); the plugin runtime directory
-   * and interpreter roots are read-only; network is denied; (allow
-   * process*) in the packaged profile keeps process spawning working.
+   * and interpreter roots are read-only; network and process forks are denied.
    *
    * Every other platform refuses: Windows AppContainer infrastructure
    * exists in the repo but is not wired into the design-plugin chain yet
@@ -283,6 +297,10 @@ export class PluginRuntimeWorker {
         readOnlyPaths: darwinRuntimeReadRoots(this.options.entry),
       },
     );
+    // Scope this restriction to design plugins; MCP servers keep their own
+    // policy. A detached helper would escape kill(-pid), so this runtime
+    // contract permits only the host-owned process and its in-process tools.
+    launch.args[1] += "\n(deny process-fork)\n";
     // buildSeatbeltLaunch hardcodes the system wrapper; the override only
     // redirects to a different sandbox-exec-compatible wrapper for
     // diagnostics — the profile is always applied.
@@ -301,8 +319,7 @@ export class PluginRuntimeWorker {
     const timeoutMs = this.options.invokeTimeoutMs ?? 30_000;
     const promise = new Promise<ToolResultMessage>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pending.delete(requestId);
-        reject(new Error(`Runtime invoke "${toolName}" timed out.`));
+        this.failAll(new Error(`Runtime invoke "${toolName}" timed out.`));
       }, timeoutMs);
       this.pending.set(requestId, { resolve, reject, timer });
     });
@@ -319,18 +336,7 @@ export class PluginRuntimeWorker {
 
   /** Kill the whole process tree and reject everything in flight. */
   dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    for (const pending of this.pending.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error("Runtime disposed."));
-    }
-    this.pending.clear();
-    // SIGKILL on the process GROUP: the runtime has no shutdown work worth
-    // coordinating in S0, and a bare child.kill() only reaps the direct
-    // child — runtime-spawned grandchildren would survive task close,
-    // plugin unload, and crashes.
-    this.killProcessTree();
+    this.failAll(new Error("Runtime disposed."));
   }
 
   isDisposed(): boolean {
@@ -411,6 +417,7 @@ export class PluginRuntimeWorker {
   }
 
   private handleMessage(message: RuntimeToHostMessage) {
+    if (this.disposed) return;
     if (message.type === "ready") {
       if (this.ready) return;
       this.ready = message;
@@ -433,6 +440,10 @@ export class PluginRuntimeWorker {
   }
 
   private failAll(error: Error): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.ready = undefined;
+    this.killProcessTree();
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(error);

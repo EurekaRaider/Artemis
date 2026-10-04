@@ -1690,7 +1690,13 @@ export function App() {
   // OD queueOnly 语义的落点：面板批注发送后自动触发发送。effect 在
   // prompt state 落地后消费此标记并调用 sendPrompt（空闲直发、运行中
   // 走 followUpTurn 排队）；置 null 表示没有待自动发送的文本。
-  const designPanelAutoSendText = useRef<string | null>(null);
+  const designPanelAutoSendText = useRef<{
+    draftKey: string;
+    text: string;
+  } | null>(null);
+  const designPanelCredentials = useRef(
+    new Map<string, { text: string; credential: string }>(),
+  );
   const pendingAttachmentReads = useRef(new PromptAttachmentReadQueues());
   const updateActiveComposerDraft = useCallback(
     (update: (current: ComposerDraft) => ComposerDraft) => {
@@ -5425,6 +5431,14 @@ export function App() {
 
   const clearSubmittedPrompt = useCallback(
     (submittedPrompt: string) => {
+      const pending = designPanelCredentials.current.get(
+        activeComposerDraftKey,
+      );
+      designPanelCredentials.current.delete(activeComposerDraftKey);
+      if (pending)
+        void window.artemis
+          .discardDesignPanelCandidate(pending.credential)
+          .catch(() => undefined);
       setPromptHistory((current) =>
         addPromptHistoryEntry(current, submittedPrompt),
       );
@@ -5433,7 +5447,12 @@ export function App() {
       setSelectedComposerSkillNames([]);
       setCustomAgentTasks([]);
     },
-    [setPrompt, setSelectedComposerSkillNames, setCustomAgentTasks],
+    [
+      activeComposerDraftKey,
+      setPrompt,
+      setSelectedComposerSkillNames,
+      setCustomAgentTasks,
+    ],
   );
 
   const recordPromptSubmission = useCallback(
@@ -5497,6 +5516,19 @@ export function App() {
       return;
     }
     const rawPrompt = prompt.trim();
+    const panelCandidate = designPanelCredentials.current.get(
+      activeComposerDraftKey,
+    );
+    const designPanelCredential =
+      panelCandidate?.text === rawPrompt
+        ? panelCandidate.credential
+        : undefined;
+    if (panelCandidate && !designPanelCredential) {
+      designPanelCredentials.current.delete(activeComposerDraftKey);
+      void window.artemis
+        .discardDesignPanelCandidate(panelCandidate.credential)
+        .catch(() => undefined);
+    }
     const runModeCommand = parseRunModeCommand(rawPrompt);
     if (runModeCommand && runModeCommand.kind === "multiple") {
       setToast({ error: true, message: t.multipleModeCommands });
@@ -5674,6 +5706,7 @@ export function App() {
           return;
         }
         await window.artemis.followUpTurn({
+          ...(designPanelCredential ? { designPanelCredential } : {}),
           threadId: currentThread.id,
           text,
           ...(pendingAttachments.length
@@ -5687,6 +5720,7 @@ export function App() {
         return;
       }
       const result = await window.artemis.startTurn({
+        ...(designPanelCredential ? { designPanelCredential } : {}),
         threadId: currentThread.id,
         text,
         mode: submittedMode,
@@ -5714,6 +5748,16 @@ export function App() {
       draftAttachments.current.set(activeComposerDraftKey, []);
       setAttachments([]);
     } catch (error) {
+      if (
+        panelCandidate &&
+        designPanelCredentials.current.get(activeComposerDraftKey) ===
+          panelCandidate
+      ) {
+        designPanelCredentials.current.delete(activeComposerDraftKey);
+        void window.artemis
+          .discardDesignPanelCandidate(panelCandidate.credential)
+          .catch(() => undefined);
+      }
       if (createdThread) {
         const createdDraftKey = conversationDraftKey(
           createdThread.projectId,
@@ -5774,10 +5818,23 @@ export function App() {
   // setPrompt 真正落地再触发；期间文本被用户改动则放弃自动发送。
   useEffect(() => {
     const pending = designPanelAutoSendText.current;
-    if (pending == null || prompt.trim() !== pending) return;
+    if (pending == null || pending.draftKey !== activeComposerDraftKey) return;
+    if (prompt.trim() !== pending.text) {
+      designPanelAutoSendText.current = null;
+      const candidate = designPanelCredentials.current.get(
+        activeComposerDraftKey,
+      );
+      designPanelCredentials.current.delete(activeComposerDraftKey);
+      if (candidate)
+        void window.artemis
+          .discardDesignPanelCandidate(candidate.credential)
+          .catch(() => undefined);
+      return;
+    }
+    if (busy || retiredGroup) return;
     designPanelAutoSendText.current = null;
     void sendPrompt();
-  }, [prompt, sendPrompt]);
+  }, [activeComposerDraftKey, busy, prompt, retiredGroup, sendPrompt]);
 
   const updateActiveGoal = useCallback(
     async (action: "pause" | "resume" | "clear") => {
@@ -9766,28 +9823,46 @@ ${model.providerId} · ${model.modelId}`}
                                     if (!trimmed || !activeThreadId) return;
                                     void (async () => {
                                       try {
-                                        // OD 对齐：入账（一次性凭据）。autoSend
-                                        // =false = 标记工具条的「加入输入框」：
-                                        // staged 语义（提交取消、文本进可编辑
-                                        // composer，凭据即时作废）；默认自动触
-                                        // 发发送（空闲直发、运行中 followUpTurn
-                                        // 排队）——发送才消费凭据进
-                                        // dispatching，由 turn.started 绑定
-                                        // turn。批注与页面不入账（ledger 审计
-                                        // 文本）：页面作为附件，批注在发送时拼
-                                        // 进消息体（OD 式）。
+                                        // Keep the credential with this draft until the host
+                                        // accepts the actual startTurn/followUpTurn request.
                                         const accepted =
                                           await window.artemis.acceptDesignPanelCandidate(
                                             activeThreadId,
                                             trimmed,
                                           );
+                                        if (
+                                          activeThreadIdRef.current !==
+                                          activeThreadId
+                                        ) {
+                                          await window.artemis.discardDesignPanelCandidate(
+                                            accepted.credential,
+                                          );
+                                          return;
+                                        }
+                                        const previous =
+                                          designPanelCredentials.current.get(
+                                            activeComposerDraftKey,
+                                          );
+                                        designPanelCredentials.current.delete(
+                                          activeComposerDraftKey,
+                                        );
+                                        if (previous)
+                                          await window.artemis
+                                            .discardDesignPanelCandidate(
+                                              previous.credential,
+                                            )
+                                            .catch(() => undefined);
                                         if (autoSend === false) {
                                           await window.artemis.stageDesignPanelSend(
                                             accepted.credential,
                                           );
                                         } else {
-                                          await window.artemis.consumeDesignPanelSend(
-                                            accepted.credential,
+                                          designPanelCredentials.current.set(
+                                            activeComposerDraftKey,
+                                            {
+                                              text: trimmed,
+                                              credential: accepted.credential,
+                                            },
                                           );
                                         }
                                         if (document?.html.trim()) {
@@ -9854,8 +9929,10 @@ ${model.providerId} · ${model.modelId}`}
                                         );
                                         setPrompt(trimmed);
                                         if (autoSend !== false) {
-                                          designPanelAutoSendText.current =
-                                            trimmed;
+                                          designPanelAutoSendText.current = {
+                                            draftKey: activeComposerDraftKey,
+                                            text: trimmed,
+                                          };
                                         }
                                         window.requestAnimationFrame(() =>
                                           promptInput.current?.focus(),

@@ -131,6 +131,12 @@ export class ThreadRuntimeManager {
       );
     }
     const live = await this.ensureRuntime(input);
+    if (
+      this.closedThreads.has(this.options.threadId) ||
+      live.worker.isDisposed()
+    ) {
+      throw new Error("Thread runtime closed before dispatch.");
+    }
     this.touch(live);
     return new Promise<unknown>((resolve, reject) => {
       live.queue.push({
@@ -155,7 +161,11 @@ export class ThreadRuntimeManager {
     // the second caller gets a live whose worker is not ready yet and
     // invoke() rejects with "Worker not ready".
     const pending = this.pendingEnsures.get(key);
-    if (pending) return pending;
+    if (pending) {
+      const live = await pending;
+      if (live.contentHash === input.contentHash) return live;
+      return this.ensureRuntime(input);
+    }
     const promise = this.doEnsureRuntime(input).finally(() => {
       this.pendingEnsures.delete(key);
     });
@@ -170,6 +180,9 @@ export class ThreadRuntimeManager {
     pluginId: string;
     contentHash: string;
   }): Promise<LiveRuntime> {
+    if (this.closedThreads.has(this.options.threadId)) {
+      throw new Error("Thread runtime is closed.");
+    }
     const key = this.key(input.pluginId);
     const existing = this.runtimes.get(key);
     if (existing && !existing.worker.isDisposed()) {
@@ -194,6 +207,9 @@ export class ThreadRuntimeManager {
       this.options.threadId,
     );
     await mkdir(scratch, { recursive: true });
+    if (this.closedThreads.has(this.options.threadId)) {
+      throw new Error("Thread runtime closed during startup.");
+    }
 
     const worker = new PluginRuntimeWorker({
       entry: input.entry,
@@ -214,7 +230,18 @@ export class ThreadRuntimeManager {
       lastUsedAt: Date.now(),
     };
     this.runtimes.set(key, live);
-    await worker.start();
+    try {
+      await worker.start();
+      if (
+        this.closedThreads.has(this.options.threadId) ||
+        worker.isDisposed()
+      ) {
+        throw new Error("Thread runtime closed during startup.");
+      }
+    } catch (error) {
+      this.disposeRuntime(live);
+      throw error;
+    }
     live.childPid = worker.childPid();
     return live;
   }
@@ -237,7 +264,8 @@ export class ThreadRuntimeManager {
       }
     } finally {
       live.draining = false;
-      this.scheduleIdleReap(live);
+      if (live.worker.isDisposed()) this.disposeRuntime(live);
+      else this.scheduleIdleReap(live);
     }
   }
 
@@ -263,9 +291,14 @@ export class ThreadRuntimeManager {
 
   private disposeRuntime(live: LiveRuntime): void {
     const key = this.key(live.pluginId);
-    this.runtimes.delete(key);
+    if (this.runtimes.get(key) === live) this.runtimes.delete(key);
     if (live.idleTimer) clearTimeout(live.idleTimer);
     live.worker.dispose();
+    for (const pending of live.queue.splice(0)) {
+      pending.reject(
+        new Error("Thread runtime disposed before queued invocation."),
+      );
+    }
   }
 
   /** Thread closed or archived: kill every runtime tree and refuse reuse. */
@@ -282,7 +315,9 @@ export class ThreadRuntimeManager {
   /** Test/telemetry access: is a live worker present for this binding? */
   hasRuntime(pluginId: string, contentHash: string): boolean {
     const live = this.runtimes.get(this.key(pluginId));
-    return !!live && !live.worker.isDisposed();
+    return (
+      !!live && live.contentHash === contentHash && !live.worker.isDisposed()
+    );
   }
 
   childPidOf(pluginId: string, contentHash: string): number | undefined {

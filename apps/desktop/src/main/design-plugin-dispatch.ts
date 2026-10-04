@@ -65,14 +65,19 @@ export interface DispatchPluginToolStore {
     requestDigest: string;
     state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
     resultRef?: string;
+    result?: unknown;
     error?: string;
   }): void;
   /** PR#245 P2-12：执行前读取既有操作，做重放判定。 */
   readPluginOperation(operationId: string):
     | {
+        threadId: string;
+        pluginId: string;
+        toolName: string;
         state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
         requestDigest: string;
         resultRef?: string;
+        result?: unknown;
         error?: string;
       }
     | undefined;
@@ -166,7 +171,7 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     input: DispatchPluginToolInput,
   ): Promise<{ status: string; result?: unknown; error?: string }> {
     const store = host.store;
-    const thread = store.getThread(input.threadId) as
+    let thread = store.getThread(input.threadId) as
       | {
           mode?: "execute" | "plan" | "review";
           typeBinding?: {
@@ -189,6 +194,9 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         "no-type-binding",
         "thread has no type binding",
       );
+    }
+    if (thread.archived) {
+      return refuse(store, input, "plugin-unavailable", "thread is archived");
     }
 
     // Step 0: the plugin itself must still be installed. A surviving bound
@@ -231,10 +239,33 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       );
     }
 
+    // Hashing and availability checks yield. Re-read the current task before
+    // starting a worker so an archive, mode change or rebind cannot race them.
+    const current = store.getThread(input.threadId) as
+      typeof thread | undefined;
+    if (
+      !current ||
+      current.archived ||
+      current.typeBinding?.contentHash !== binding.contentHash ||
+      current.typeBinding?.bindingRevision !== binding.bindingRevision
+    ) {
+      return refuse(
+        store,
+        input,
+        "plugin-unavailable",
+        "thread or plugin binding changed during dispatch",
+      );
+    }
+    thread = current;
+
     // Trust chain step 2: unrevoked grant for this installation+thread.
     const grants = store.listPluginGrants(input.threadId);
     const matching = grants.filter(
-      (grant) => grant.installation_id === binding.installationId,
+      (grant) =>
+        grant.installation_id === binding.installationId &&
+        grant.plugin_id === binding.pluginId &&
+        grant.content_hash === binding.contentHash &&
+        grant.grant_revision === binding.bindingRevision,
     );
     if (matching.length === 0) {
       return refuse(
@@ -289,7 +320,12 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     // 调用方按非 succeeded 处理；digest 冲突（同 ID 不同参数）拒绝。
     const prior = store.readPluginOperation(operationId);
     if (prior) {
-      if (prior.requestDigest !== requestDigest) {
+      if (
+        prior.requestDigest !== requestDigest ||
+        prior.threadId !== input.threadId ||
+        prior.pluginId !== binding.pluginId ||
+        prior.toolName !== input.toolName
+      ) {
         return refuse(
           store,
           input,
@@ -298,7 +334,13 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         );
       }
       if (prior.state === "succeeded") {
-        return { status: "succeeded", result: undefined };
+        return prior.result === undefined
+          ? {
+              status: "failed",
+              error:
+                "Stored operation result is unavailable; the operation was not repeated.",
+            }
+          : { status: "succeeded", result: prior.result };
       }
       return {
         status: prior.state,
@@ -359,16 +401,18 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         return { status: "failed", error: runtimeError };
       }
 
-      store.recordPluginOperation({
-        operationId,
-        threadId: input.threadId,
-        pluginId: binding.pluginId,
-        toolName: input.toolName,
-        requestDigest,
-        state: "succeeded",
-        resultRef: `op://${operationId}`,
-      });
-
+      const commitOperation = () => {
+        store.recordPluginOperation({
+          operationId,
+          threadId: input.threadId,
+          pluginId: binding.pluginId,
+          toolName: input.toolName,
+          requestDigest,
+          state: "succeeded",
+          resultRef: `op://${operationId}`,
+          result,
+        });
+      };
       // State commit for artifact-writing tools (CAS + atomic).
       if (declared.effect === "artifact-write") {
         const head = store.readPluginStateHead({
@@ -380,33 +424,37 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         if (head && head.stateRevision === nextStateRevision) {
           throw new Error("State revision collision; refusing.");
         }
-        commitPluginStateChange(store, {
-          threadId: input.threadId,
-          pluginId: binding.pluginId,
-          expectedStateRevision: head?.stateRevision ?? "none",
-          bindingRevision: binding.bindingRevision,
-          stateSchemaVersion: 1,
-          nextStateRevision,
-          snapshot: {
-            files: [
-              {
-                path: "design-documents.jsonl",
-                hash: actualHash,
+        commitPluginStateChange(
+          store,
+          {
+            threadId: input.threadId,
+            pluginId: binding.pluginId,
+            expectedStateRevision: head?.stateRevision ?? "none",
+            bindingRevision: binding.bindingRevision,
+            stateSchemaVersion: 1,
+            nextStateRevision,
+            snapshot: {
+              files: [
+                {
+                  path: "design-documents.jsonl",
+                  hash: actualHash,
+                },
+              ],
+              createdByOperationId: operationId,
+              packageRevision: binding.contentHash,
+            },
+            event: {
+              streamId: `thread/${input.threadId}/${binding.pluginId}`,
+              schemaVersion: 1,
+              payload: {
+                kind: "tool-succeeded",
+                operationId,
+                toolName: input.toolName,
               },
-            ],
-            createdByOperationId: operationId,
-            packageRevision: binding.contentHash,
-          },
-          event: {
-            streamId: `thread/${input.threadId}/${binding.pluginId}`,
-            schemaVersion: 1,
-            payload: {
-              kind: "tool-succeeded",
-              operationId,
-              toolName: input.toolName,
             },
           },
-        });
+          commitOperation,
+        );
         try {
           host.onArtifactWrite?.({
             threadId: input.threadId,
@@ -415,19 +463,23 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         } catch {
           // Panel refresh is best-effort; never fail the tool result for it.
         }
+      } else {
+        store.commitPluginStateTransaction(() => {
+          store.appendPluginEvent({
+            eventId: randomUUID(),
+            streamId: `thread/${input.threadId}/${binding.pluginId}`,
+            threadId: input.threadId,
+            schemaVersion: 1,
+            payload: {
+              kind: "tool-succeeded",
+              operationId,
+              toolName: input.toolName,
+            },
+          });
+          commitOperation();
+        });
       }
 
-      store.appendPluginEvent({
-        eventId: randomUUID(),
-        streamId: `thread/${input.threadId}/${binding.pluginId}`,
-        threadId: input.threadId,
-        schemaVersion: 1,
-        payload: {
-          kind: "tool-succeeded",
-          operationId,
-          toolName: input.toolName,
-        },
-      });
       return { status: "succeeded", result };
     } catch (error) {
       const isSandboxRefusal = error instanceof SandboxUnavailableError;

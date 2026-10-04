@@ -103,6 +103,7 @@ export interface PluginStateTransactionStore {
 export function commitPluginStateChange(
   store: PluginStateTransactionStore,
   input: PluginStateChangeInput,
+  commitOperation?: () => void,
 ): PluginStateChangeResult {
   return store.commitPluginStateTransaction(() => {
     if (input.nextStateRevision === input.expectedStateRevision) {
@@ -153,6 +154,7 @@ export function commitPluginStateChange(
       schemaVersion: input.event.schemaVersion,
       payload: input.event.payload,
     });
+    commitOperation?.();
     return { snapshotId, eventId, stateRevision: input.nextStateRevision };
   });
 }

@@ -87,6 +87,8 @@ export interface CreateThreadInput {
 }
 
 export interface StartTurnInput {
+  /** A panel candidate is consumed only when this exact submission is dispatched. */
+  designPanelCredential?: string;
   customAgentTasks?: CustomAgentTaskInvocation[];
   threadId: string;
   text: string;
@@ -169,6 +171,7 @@ export interface SaveAutomationInput {
 }
 
 export interface QueueTurnInput {
+  designPanelCredential?: string;
   threadId: string;
   text: string;
   attachments?: PromptAttachment[];

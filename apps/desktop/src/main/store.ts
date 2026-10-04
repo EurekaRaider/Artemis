@@ -201,7 +201,7 @@ export const CUSTOM_AGENTS_DATABASE_VERSION = 13;
 // S1 design plugins: grants/state heads/snapshots/ledger tables plus thread
 // type-binding snapshot columns. Threads created for plugin project types
 // freeze their binding and restricted profile at creation time (§6.1).
-export const DESIGN_PLUGIN_DATABASE_VERSION = 14;
+export const DESIGN_PLUGIN_DATABASE_VERSION = 15;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -404,6 +404,7 @@ interface PluginOperationRow {
   request_digest: string;
   state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
   result_ref: string | null;
+  result_json: string | null;
   error: string | null;
   cancelled_at: string | null;
   created_at: string;
@@ -620,6 +621,7 @@ const DESIGN_PLUGIN_TABLES_DDL = `
           'prepared','running','succeeded','failed','cancelled'
         )),
         result_ref TEXT,
+        result_json TEXT,
         error TEXT,
         cancelled_at TEXT,
         created_at TEXT NOT NULL,
@@ -1091,6 +1093,14 @@ export class AppStore {
       COMMIT;
     `);
     this.database.exec(DESIGN_PLUGIN_TABLES_DDL);
+    const operationColumns = this.database
+      .prepare("PRAGMA table_info(plugin_operations)")
+      .all() as Array<{ name: string }>;
+    if (!operationColumns.some((column) => column.name === "result_json")) {
+      this.database.exec(
+        "ALTER TABLE plugin_operations ADD COLUMN result_json TEXT",
+      );
+    }
     this.advanceDatabaseVersion(DESIGN_PLUGIN_DATABASE_VERSION);
   }
 
@@ -1595,6 +1605,7 @@ export class AppStore {
     requestDigest: string;
     state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
     resultRef?: string;
+    result?: unknown;
     error?: string;
   }): void {
     const existing = this.database
@@ -1602,7 +1613,12 @@ export class AppStore {
       .get(operation.operationId) as PluginOperationRow | undefined;
     const now = new Date().toISOString();
     if (existing) {
-      if (existing.request_digest !== operation.requestDigest) {
+      if (
+        existing.request_digest !== operation.requestDigest ||
+        existing.thread_id !== operation.threadId ||
+        existing.plugin_id !== operation.pluginId ||
+        existing.tool_name !== operation.toolName
+      ) {
         throw new Error(
           `Operation ${operation.operationId} replayed with a different request digest; refusing.`,
         );
@@ -1617,13 +1633,17 @@ export class AppStore {
       this.database
         .prepare(
           `UPDATE plugin_operations
-           SET state = ?, result_ref = COALESCE(?, result_ref), error = ?,
+           SET state = ?, result_ref = COALESCE(?, result_ref),
+               result_json = ?, error = ?,
                updated_at = ?
            WHERE operation_id = ?`,
         )
         .run(
           operation.state,
           operation.resultRef ?? null,
+          operation.result === undefined
+            ? null
+            : JSON.stringify(operation.result),
           operation.error ?? null,
           now,
           operation.operationId,
@@ -1634,8 +1654,8 @@ export class AppStore {
       .prepare(
         `INSERT INTO plugin_operations (
           operation_id, thread_id, plugin_id, tool_name, request_digest,
-          state, result_ref, error, cancelled_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+          state, result_ref, result_json, error, cancelled_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       )
       .run(
         operation.operationId,
@@ -1645,6 +1665,9 @@ export class AppStore {
         operation.requestDigest,
         operation.state,
         operation.resultRef ?? null,
+        operation.result === undefined
+          ? null
+          : JSON.stringify(operation.result),
         operation.error ?? null,
         now,
         now,
@@ -1664,6 +1687,7 @@ export class AppStore {
         requestDigest: string;
         state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
         resultRef?: string;
+        result?: unknown;
         error?: string;
       }
     | undefined {
@@ -1680,6 +1704,7 @@ export class AppStore {
       state: row.state as
         "prepared" | "running" | "succeeded" | "failed" | "cancelled",
       ...(row.result_ref ? { resultRef: row.result_ref } : {}),
+      ...(row.result_json ? { result: JSON.parse(row.result_json) } : {}),
       ...(row.error ? { error: row.error } : {}),
     };
   }

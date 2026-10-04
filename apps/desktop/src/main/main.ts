@@ -1,3 +1,12 @@
+import { createDesignHandoffHandler } from "./design-plugin-handoff.js";
+import {
+  deleteDesignDocument,
+  readDesignDocumentLedger,
+  readDesignDocumentVersionBytes,
+  requireDesignDocumentId,
+  resolveDesignDocumentDirectory,
+  resolveHeadVersionEntry,
+} from "./design-plugin-document-files.js";
 import { DesignPanelHost } from "./design-plugin-panel-host.js";
 import {
   closeWorkspaceTabMenu,
@@ -2867,9 +2876,6 @@ function applyPayloadSideEffects(
     case "turn.started":
       if (payload.mode !== "execute")
         computerUseHost?.clearTask(threadId, "Task left Execute mode");
-      // P2-10：把该线程在途的 dispatching 提交绑定到刚启动的 turn
-      //（composer 单飞行：此刻仍 dispatching 的行就是触发本 turn 的提交）。
-      panelSendEntry?.bindStartedTurn(threadId, turnId);
       if (!threadAlreadyUpdated) {
         store.updateThread(threadId, {
           mode: payload.mode,
@@ -2913,7 +2919,11 @@ function applyPayloadSideEffects(
     case "turn.completed":
       store.updateThread(threadId, { status: "idle" });
       // P2-10：只结算绑定到该 turn 的提交；其他 turn 或未发送的草稿不动。
-      panelSendEntry?.reconcileTurnOutcome(threadId, "completed", turnId);
+      panelSendEntry?.reconcileTurnOutcome(
+        threadId,
+        payload.reason === "cancelled" ? "cancelled" : "completed",
+        turnId,
+      );
       {
         const completion = store.completeAutomationRunForThread(threadId);
         publishAutomationRun(completion?.run);
@@ -3451,6 +3461,7 @@ function prepareRecoverableQueuePayload(
     return { ...payload, ...queue };
   }
   if (payload.type === "queue.recovered") {
+    if (turnId) panelSendEntry?.recoverInterruptedSubmissions(threadId, turnId);
     if (payload.items) {
       recoverableTurnQueues.discard(threadId);
       return payload;
@@ -6441,6 +6452,14 @@ async function startTaskTurnUnchecked(
   if (!thread) {
     throw new Error(`Thread not found: ${input.threadId}`);
   }
+  if (input.designPanelCredential) {
+    if (!panelSendEntry) throw new Error("Send entry unavailable.");
+    panelSendEntry.validateForThread(
+      input.designPanelCredential,
+      thread.id,
+      thread.typeBinding?.bindingRevision ?? "unbound-preview",
+    );
+  }
   if (thread.archived) {
     throw new Error("Archived tasks cannot start a turn.");
   }
@@ -6778,7 +6797,17 @@ async function startTaskTurnUnchecked(
       };
     }
   }
+  let panelSubmissionId: string | undefined;
   try {
+    if (input.designPanelCredential) {
+      panelSubmissionId = panelSendEntry!.consumeForTurn(
+        input.designPanelCredential,
+        thread.id,
+        store.getThread(thread.id)?.typeBinding?.bindingRevision ??
+          "unbound-preview",
+        turnId,
+      ).submissionId;
+    }
     if (
       options.delegationContinuationId &&
       !imService?.canResumeDelegation(options.delegationContinuationId)
@@ -6809,6 +6838,8 @@ async function startTaskTurnUnchecked(
       return { turnId, thread: store.getThread(thread.id) ?? thread };
     }
   } catch (error) {
+    if (panelSubmissionId)
+      panelSendEntry?.markOutcome(panelSubmissionId, "failed");
     for (const invocation of invocations) {
       store.transitionCustomAgentInvocation(
         thread.id,
@@ -7071,6 +7102,18 @@ async function queueTurn(
   }
   const command = parseThreadCommand({ type, ...input });
   const thread = store.getThread(command.threadId);
+  if (input.designPanelCredential) {
+    if (!thread || !panelSendEntry) throw new Error("Send entry unavailable.");
+    panelSendEntry.validateForThread(
+      input.designPanelCredential,
+      thread.id,
+      thread.typeBinding?.bindingRevision ?? "unbound-preview",
+    );
+    if (compactingThreads.has(thread.id))
+      throw new Error(
+        "Wait for context compaction before sending the design candidate.",
+      );
+  }
   if (thread && command.attachments?.length)
     command.attachments = await attachmentStore().bind(
       attachmentScope(thread.id),
@@ -7107,7 +7150,17 @@ async function queueTurn(
     command.attachments,
     appendPromptFiles(command.text, command.attachments),
   );
+  let panelSubmissionId: string | undefined;
   try {
+    if (input.designPanelCredential) {
+      panelSubmissionId = panelSendEntry!.consumeForTurn(
+        input.designPanelCredential,
+        thread.id,
+        store.getThread(thread.id)?.typeBinding?.bindingRevision ??
+          "unbound-preview",
+        turnId,
+      ).submissionId;
+    }
     await agentProcess.request({
       type,
       requestId: randomUUID(),
@@ -7119,6 +7172,8 @@ async function queueTurn(
     });
   } catch (error) {
     recoverableTurnQueues.remove(thread.id, recoverableId);
+    if (panelSubmissionId)
+      panelSendEntry?.markOutcome(panelSubmissionId, "failed");
     throw error;
   }
   for (const attachment of command.attachments ?? []) {
@@ -7159,6 +7214,7 @@ async function controlTurnQueue(
     throw new Error("Task has no active turn.");
   }
 
+  const queuedTurnId = activeTurns.get(thread.id);
   const result = await agentProcess.request<{
     steering: string[];
     followUp: string[];
@@ -7168,6 +7224,7 @@ async function controlTurnQueue(
     threadId: thread.id,
   });
   if (type === "turn.queue.clear") {
+    panelSendEntry?.recoverInterruptedSubmissions(thread.id, queuedTurnId);
     recoverableTurnQueues.discard(thread.id);
   }
   return result;
@@ -7198,6 +7255,7 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
     throw new Error("Task has no active turn.");
   }
 
+  const queuedTurnId = activeTurns.get(thread.id);
   const rollback = recoverableTurnQueues.replaceFollowUp(
     thread.id,
     command.expectedFollowUp,
@@ -7212,6 +7270,7 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
       expectedFollowUp: rollback.runtimeExpectedFollowUp,
       followUp: rollback.runtimeFollowUp,
     });
+    panelSendEntry?.recoverInterruptedSubmissions(thread.id, queuedTurnId);
   } catch (error) {
     recoverableTurnQueues.rollbackFollowUp(rollback);
     throw error;
@@ -10409,9 +10468,7 @@ function registerIpc(): void {
     );
     let ledger: Array<Record<string, string>> = [];
     try {
-      ledger = (
-        await readFile(join(dataRoot, "design-documents.jsonl"), "utf8")
-      )
+      ledger = (await readDesignDocumentLedger(dataRoot))
         .split("\n")
         .filter(Boolean)
         .map((line) => JSON.parse(line) as Record<string, string>);
@@ -10447,7 +10504,11 @@ function registerIpc(): void {
     const documents: unknown[] = [];
     for (const entry of byId.values()) {
       if (!entry.name) continue;
-      const docDir = join(dataRoot, "documents", entry.id);
+      const docDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        entry.id,
+      ).catch(() => undefined);
+      if (!docDir) continue;
       const versionFiles = (await readdir(docDir).catch(() => []))
         .filter((file) => /^v\d+-/.test(file))
         .sort(
@@ -10458,8 +10519,15 @@ function registerIpc(): void {
       const head = versionFiles.at(-1);
       // HEAD 标记（恢复指针）优先：内容 <seq>-<rev>，指向恢复来源版本
       const marker = (
-        await readFile(join(docDir, "HEAD"), "utf8").catch(() => "")
-      ).trim();
+        await readDesignDocumentVersionBytes(
+          dataRoot,
+          docDir,
+          "HEAD",
+          1024,
+        ).catch(() => Buffer.alloc(0))
+      )
+        .toString("utf8")
+        .trim();
       const markerSeq = marker.split("-")[0] ?? "";
       const markerRev = marker.split("-")[1] ?? "";
       const headEntry = versionFiles.find(
@@ -10552,91 +10620,12 @@ function registerIpc(): void {
     void pushDesignSnapshot(threadId, panelId);
   });
 
-  // S4: panel-originated requests (export / versions) run as host actions.
-  // P1-4：documentId 由面板传入并直接拼进主进程文件路径。只放行运行时
-  // 生成的 id 形态（uuid：小写十六进制+连字符），杜绝 ../ 与分隔符穿越；
-  // 版本文件读取再经 realpath 归属校验（documents/<id>/ 目录内被预埋符号
-  // 链接同样拒绝）。
-  const DESIGN_DOCUMENT_ID_PATTERN = /^[0-9a-f][0-9a-f-]{7,63}$/;
-  function requireDesignDocumentId(raw: unknown): string {
-    const id = typeof raw === "string" ? raw.trim() : "";
-    if (!DESIGN_DOCUMENT_ID_PATTERN.test(id))
-      throw new Error("Invalid design document id.");
-    return id;
-  }
-
-  /** 文档版本文件的安全读取：真实路径必须落在其 documents/<id>/ 目录内。 */
-  async function readDesignDocumentVersionBytes(
-    documentDir: string,
-    entry: string,
-  ): Promise<Buffer> {
-    const dirReal = await realpath(documentDir).catch(() => undefined);
-    const real = await realpath(join(documentDir, entry)).catch(
-      () => undefined,
-    );
-    if (!dirReal || !real || !real.startsWith(dirReal + sep))
-      throw new Error("Document version path escapes its directory.");
-    let handle: Awaited<ReturnType<typeof open>> | undefined;
-    try {
-      handle = await open(
-        real,
-        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
-      ).catch(() => undefined);
-      if (!handle) throw new Error("Document version file is unreadable.");
-      const metadata = await handle.stat();
-      if (!metadata.isFile() || metadata.size > 8 * 1024 * 1024)
-        throw new Error("Document version file is unreadable.");
-      const bytes = Buffer.alloc(metadata.size + 1);
-      let bytesRead = 0;
-      while (bytesRead < bytes.length) {
-        const chunk = await handle.read(
-          bytes,
-          bytesRead,
-          bytes.length - bytesRead,
-          bytesRead,
-        );
-        if (!chunk.bytesRead) break;
-        bytesRead += chunk.bytesRead;
-      }
-      if (bytesRead > metadata.size)
-        throw new Error("Document version file changed while reading.");
-      if (
-        (await realpath(join(documentDir, entry)).catch(() => undefined)) !==
-        real
-      )
-        throw new Error("Document version file changed while reading.");
-      return bytes.subarray(0, bytesRead);
-    } finally {
-      await handle?.close().catch(() => undefined);
-    }
-  }
-
   /**
    * P2-13：统一 HEAD 语义。runtime 的撤销只回拨 HEAD 指针（append-only 版
    * 本目录不动），数值序最后一个是「被撤销掉的未来」。预览/导出/截图/恢
    * 复兜底一律按 HEAD 选版本，无指针时回退数值序最后（runtime headVersion
    * 同构）。
    */
-  async function resolveHeadVersionEntry(
-    documentDir: string,
-    entries: string[],
-  ): Promise<string | undefined> {
-    const sequence = (entry: string): number =>
-      Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
-    const versionFiles = entries
-      .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-      .sort((a, b) => sequence(a) - sequence(b));
-    if (versionFiles.length === 0) return undefined;
-    const marker = (
-      await readFile(join(documentDir, "HEAD"), "utf8").catch(() => null)
-    )?.trim();
-    if (!marker) return versionFiles.at(-1);
-    const [seq, rev] = marker.split("-");
-    return (
-      versionFiles.find((entry) => entry === `v${seq}-${rev}.html`) ??
-      versionFiles.at(-1)
-    );
-  }
 
   /** 导出文件名：优先账本显示名（customer.html），回退版本文件名。 */
   async function readDesignDocumentName(
@@ -10645,10 +10634,7 @@ function registerIpc(): void {
     fallback: string,
   ): Promise<string> {
     try {
-      const ledgerText = await readFile(
-        join(dataRoot, "design-documents.jsonl"),
-        "utf8",
-      );
+      const ledgerText = await readDesignDocumentLedger(dataRoot);
       let deleted = false;
       for (const line of ledgerText.split("\n")) {
         if (!line.trim()) continue;
@@ -10731,14 +10717,21 @@ function registerIpc(): void {
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", documentId);
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
       const entries = await readdir(documentDir).catch(() => []);
       // 指定 revision 时精确匹配；默认导出 HEAD 当前版本（P2-13）。
       const source = input.revision
         ? entries.find((entry) => entry.endsWith(`-${input.revision}.html`))
-        : await resolveHeadVersionEntry(documentDir, entries);
+        : await resolveHeadVersionEntry(dataRoot, documentDir, entries);
       if (!source) throw new Error("No version file for the document.");
-      const bytes = await readDesignDocumentVersionBytes(documentDir, source);
+      const bytes = await readDesignDocumentVersionBytes(
+        dataRoot,
+        documentDir,
+        source,
+      );
       const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
       // P2-16：真实下载——保存对话框由用户选目的地，取消则如实返回
       //（此前只写进宿主私有目录就弹「已下载」）。
@@ -10783,18 +10776,22 @@ function registerIpc(): void {
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", documentId);
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
       const entries = await readdir(documentDir).catch(() => []);
       // P2-13：按 HEAD 指针选版本（撤销后预览跟随回拨，不再显示被撤销内容）。
-      const source = await resolveHeadVersionEntry(documentDir, entries);
+      const source = await resolveHeadVersionEntry(
+        dataRoot,
+        documentDir,
+        entries,
+      );
       if (!source) return undefined;
       // 显示名取账本的文档名（customer.html），而非版本文件名（v2-xxx.html）。
       let displayName = documentId;
       try {
-        const ledgerText = await readFile(
-          join(dataRoot, "design-documents.jsonl"),
-          "utf8",
-        );
+        const ledgerText = await readDesignDocumentLedger(dataRoot);
         for (const line of ledgerText.split("\n")) {
           if (!line.trim()) continue;
           const record = JSON.parse(line) as {
@@ -10811,7 +10808,7 @@ function registerIpc(): void {
       }
       return {
         html: (
-          await readDesignDocumentVersionBytes(documentDir, source)
+          await readDesignDocumentVersionBytes(dataRoot, documentDir, source)
         ).toString("utf8"),
         name: displayName,
       };
@@ -10844,146 +10841,7 @@ function registerIpc(): void {
         projectName: project?.name ?? "设计任务",
       };
     },
-    handoff: async (input) => {
-      const documentId = requireDesignDocumentId(input.documentId);
-      // §10.3 幂等创建编码任务。handoffId 从 (threadId, documentId) 确定性
-      // 派生：同一文档重复点交接永远命中同一 operationId 与同一目标任务。
-      const handoffId = createHash("sha256")
-        .update(`handoff:${input.threadId}:${documentId}`)
-        .digest("hex")
-        .slice(0, 32);
-      const source = store?.getThread(input.threadId);
-      if (!store || !source?.typeBinding) {
-        throw new Error("Source thread has no plugin binding.");
-      }
-      const operationId = `handoff:${handoffId}`;
-      // P2-15：重放判定前置——已存在的交接直接返回已有任务（并补齐缺失
-      // 的目标），不再依赖「插入失败」当去重信号（那会在 createThread 上
-      // 撞 UNIQUE 约束）。
-      const prior = store.readPluginOperation(operationId);
-      if (prior) {
-        if (prior.requestDigest !== documentId) {
-          throw new Error("Handoff id collision; refusing.");
-        }
-        if (!store.getThreadGoal(handoffId)) {
-          store.setThreadGoal(
-            handoffId,
-            `按冻结设计实现（材料见 ${join(app.getPath("userData"), "design-handoffs", handoffId)}）。`,
-            undefined,
-          );
-        }
-        return { threadId: handoffId, created: false };
-      }
-      // P2-15：冻结设计材料——选定文档的 HEAD 版本 HTML + 账本里的名称与
-      // 需求备注，作为编码任务的初始材料落盘（keyed by 确定性 handoffId，
-      // 重放覆盖写，不产生孤儿累积）。
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      const documentDir = join(dataRoot, "documents", documentId);
-      const headEntry = await resolveHeadVersionEntry(
-        documentDir,
-        await readdir(documentDir).catch(() => []),
-      );
-      if (!headEntry) throw new Error("No version file for the document.");
-      const headHtml = (
-        await readDesignDocumentVersionBytes(documentDir, headEntry)
-      ).toString("utf8");
-      let documentName = documentId;
-      let documentBrief = "";
-      try {
-        const ledgerText = await readFile(
-          join(dataRoot, "design-documents.jsonl"),
-          "utf8",
-        );
-        for (const line of ledgerText.split("\n")) {
-          if (!line.trim()) continue;
-          const record = JSON.parse(line) as {
-            id?: string;
-            name?: string;
-            brief?: string;
-          };
-          if (record.id === documentId) {
-            if (record.name) documentName = record.name;
-            if (typeof record.brief === "string") documentBrief = record.brief;
-            break;
-          }
-        }
-      } catch {
-        /* 账本缺失时回退到 documentId，brief 留空 */
-      }
-      const handoffRoot = join(
-        app.getPath("userData"),
-        "design-handoffs",
-        handoffId,
-      );
-      await mkdir(handoffRoot, { recursive: true });
-      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(headEntry)?.[1] ?? "";
-      const designPath = join(handoffRoot, headEntry);
-      const materialPath = join(handoffRoot, "material.md");
-      await writeFile(designPath, headHtml);
-      await writeFile(
-        materialPath,
-        [
-          `# 设计交接材料`,
-          ``,
-          `- 文档：${documentName}（${documentId}）`,
-          `- 冻结版本：${headEntry}`,
-          `- 源设计任务：${input.threadId}`,
-          `- 设计稿：${designPath}`,
-          ``,
-          `## 需求备注`,
-          ``,
-          documentBrief || "（源任务未填写需求备注）",
-          ``,
-        ].join("\n"),
-      );
-      const now = new Date().toISOString();
-      const hostStore = store;
-      // P2-15：事务化创建——账本记录、建任务、事件要么一起落库，要么都不。
-      hostStore.commitPluginStateTransaction(() => {
-        hostStore.recordPluginOperation({
-          operationId,
-          threadId: input.threadId,
-          pluginId: source.typeBinding!.pluginId,
-          toolName: "handoff",
-          requestDigest: documentId,
-          state: "succeeded",
-          resultRef: handoffId,
-        });
-        hostStore.createThread({
-          id: handoffId,
-          ...(source.projectId ? { projectId: source.projectId } : {}),
-          title: `[设计交接] ${documentName}（${headEntry}）`,
-          mode: "execute",
-          target: source.target,
-          status: "idle",
-          pinned: false,
-          archived: false,
-          createdAt: now,
-          updatedAt: now,
-        });
-        hostStore.appendPluginEvent({
-          eventId: randomUUID(),
-          streamId: `thread/${input.threadId}/handoff`,
-          threadId: input.threadId,
-          schemaVersion: 1,
-          payload: {
-            kind: "handoff-created",
-            documentId,
-            handoffThreadId: handoffId,
-          },
-        });
-      });
-      // 目标独立开事务（setThreadGoal 自带 BEGIN IMMEDIATE，不能嵌套）。
-      store.setThreadGoal(
-        handoffId,
-        `按冻结设计实现：${designPath}；需求与版本说明：${materialPath}。`,
-        undefined,
-      );
-      return { threadId: handoffId, created: true };
-    },
+    handoff: createDesignHandoffHandler(() => store, app.getPath("userData")),
     restoreDocument: async (input) => {
       if (!store || !pluginDispatch) {
         return { ok: false, error: "Restore unavailable." };
@@ -11006,7 +10864,10 @@ function registerIpc(): void {
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", documentId);
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
       const versionSequence = (entry: string): number =>
         Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const entries = (await readdir(documentDir).catch(() => []))
@@ -11049,6 +10910,7 @@ function registerIpc(): void {
       if (!restoredFile) {
         // 兜底：恢复后 HEAD 已推进，按 HEAD 选新当前版本（P2-13）。
         restoredFile = await resolveHeadVersionEntry(
+          dataRoot,
           documentDir,
           await readdir(documentDir).catch(() => []),
         );
@@ -11057,7 +10919,11 @@ function registerIpc(): void {
         return { ok: false, error: "恢复目标不存在。" };
       }
       const restoredHtml = (
-        await readDesignDocumentVersionBytes(documentDir, restoredFile)
+        await readDesignDocumentVersionBytes(
+          dataRoot,
+          documentDir,
+          restoredFile,
+        )
       ).toString("utf8");
       store.appendPluginEvent({
         eventId: randomUUID(),
@@ -11085,8 +10951,12 @@ function registerIpc(): void {
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", documentId);
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
       const source = await resolveHeadVersionEntry(
+        dataRoot,
         documentDir,
         await readdir(documentDir).catch(() => []),
       );
@@ -11140,38 +11010,7 @@ function registerIpc(): void {
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentsRoot = join(dataRoot, "documents");
-      const documentDir = join(documentsRoot, documentId);
-      // 归属校验：真实路径必须仍在该任务 documents 根下（防目录内预埋
-      // 符号链接把 rm 引到别处）。
-      const documentsRootReal = await realpath(documentsRoot).catch(
-        () => undefined,
-      );
-      const documentDirReal = await realpath(documentDir).catch(
-        () => undefined,
-      );
-      if (!documentDirReal || !documentsRootReal) {
-        return { ok: false, error: "文档不存在或已被删除。" };
-      }
-      if (
-        documentDirReal !== documentsRootReal &&
-        !documentDirReal.startsWith(documentsRootReal + sep)
-      ) {
-        return { ok: false, error: "文档目录越界，拒绝删除。" };
-      }
-      await rm(documentDirReal, { recursive: true, force: true });
-      // 账本墓碑：get_snapshot 据此不再列出该文档（重放/重启后仍消失）。
-      const ledgerPath = join(dataRoot, "design-documents.jsonl");
-      const tombstone = `${JSON.stringify({
-        id: documentId,
-        deleted: true,
-        deletedAt: new Date().toISOString(),
-      })}\n`;
-      await appendFile(ledgerPath, tombstone).catch(async () => {
-        await writeFile(ledgerPath, tombstone, { flag: "wx" }).catch(
-          () => undefined,
-        );
-      });
+      await deleteDesignDocument(dataRoot, documentId);
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/delete`,

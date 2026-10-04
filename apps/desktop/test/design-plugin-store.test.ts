@@ -180,6 +180,34 @@ describe("AppStore S1 migration from version 13", () => {
 });
 
 describe("AppStore converged prompt-submission ledger", () => {
+  it("migrates version 14 operations and persists complete results across restart", () => {
+    const path = join(directory, "operations-v14.sqlite");
+    const seed = new AppStore(path);
+    seed.database.exec(
+      "ALTER TABLE plugin_operations DROP COLUMN result_json; PRAGMA user_version = 14;",
+    );
+    seed.close();
+    const migrated = new AppStore(path);
+    const operation = {
+      operationId: randomUUID(),
+      threadId: "thread",
+      pluginId: "plugin",
+      toolName: "create",
+      requestDigest: "same",
+      state: "succeeded" as const,
+      result: { output: "document", version: 2 },
+    };
+    migrated.recordPluginOperation(operation);
+    migrated.close();
+    const reopened = new AppStore(path);
+    expect(reopened.readPluginOperation(operation.operationId)?.result).toEqual(
+      operation.result,
+    );
+    expect(() =>
+      reopened.recordPluginOperation({ ...operation, threadId: "other" }),
+    ).toThrow(/different request digest/);
+    reopened.close();
+  });
   it("accept is idempotent and rejects payload corruption", () => {
     const store = new AppStore(join(directory, "ledger.sqlite"));
     const submissionId = randomUUID();

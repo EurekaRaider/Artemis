@@ -203,11 +203,9 @@ export class PanelSendEntryService {
     };
   }
 
-  /** Renderer confirmed the composer actually submitted the turn. */
-  markRunning(
-    submissionId: string,
-    turnId: string | undefined,
-  ): SubmissionLedgerRecord {
+  /** The host accepted this submission for a specific turn. */
+  markRunning(submissionId: string, turnId: string): SubmissionLedgerRecord {
+    if (!turnId) throw new Error("A submission requires an explicit turn id.");
     const record = this.store.getPromptSubmission(submissionId);
     if (!record)
       throw new SendEntryCredentialError("unknown", "no such submission");
@@ -223,23 +221,41 @@ export class PanelSendEntryService {
     return record;
   }
 
-  /**
-   * P2-10: bind the thread's in-flight dispatching submission to the turn
-   * that just started (the composer is single-flight: a dispatching row at
-   * turn.started is the submission that triggered this turn).
-   */
-  bindStartedTurn(threadId: string, turnId: string | undefined): void {
-    if (!turnId) return;
-    for (const record of this.store.listPromptSubmissions(threadId)) {
-      if (record.state === "dispatching" && !record.turnId) {
-        this.store.transitionPromptSubmission(
-          record.submissionId,
-          "running",
-          "turn-started",
-          turnId,
-        );
-      }
+  validateForThread(
+    credential: string,
+    threadId: string,
+    bindingRevision: string,
+  ): void {
+    const { record } = this.requireIssuedCredential(credential);
+    if (
+      record.threadId !== threadId ||
+      record.bindingRevision !== bindingRevision
+    ) {
+      throw new SendEntryCredentialError(
+        "wrong-state",
+        "candidate task or binding changed",
+      );
     }
+    if (record.state !== "accepted")
+      throw new SendEntryCredentialError(
+        "wrong-state",
+        "candidate was already submitted",
+      );
+  }
+
+  /** Consume only at the host's actual dispatch boundary, with an explicit
+   * task, binding and turn. A turn-start event must never sweep other rows. */
+  consumeForTurn(
+    credential: string,
+    threadId: string,
+    bindingRevision: string,
+    turnId: string,
+  ): SubmissionLedgerRecord {
+    this.validateForThread(credential, threadId, bindingRevision);
+    if (!turnId) throw new Error("A submission requires an explicit turn id.");
+    const { submissionId } = this.requireIssuedCredential(credential);
+    this.consumeCredential(credential);
+    return this.markRunning(submissionId, turnId);
   }
 
   /** User discarded the card: accepted → cancelled, credential voided. */
@@ -264,13 +280,22 @@ export class PanelSendEntryService {
    */
   reconcileTurnOutcome(
     threadId: string,
-    outcome: "completed" | "failed",
+    outcome: "completed" | "failed" | "cancelled",
     turnId?: string,
   ): void {
     if (!turnId) return;
     for (const record of this.store.listPromptSubmissions(threadId)) {
       if (record.turnId !== turnId) continue;
-      if (outcome === "failed") {
+      if (outcome === "cancelled") {
+        if (record.state === "running") {
+          this.store.transitionPromptSubmission(
+            record.submissionId,
+            "cancelled",
+            "turn-cancelled",
+          );
+        }
+        continue;
+      } else if (outcome === "failed") {
         // dispatching/running both allow -> failed directly.
         if (record.state === "dispatching" || record.state === "running") {
           this.store.transitionPromptSubmission(
@@ -309,9 +334,10 @@ export class PanelSendEntryService {
    * blindly re-dispatched). Accepted rows stay accepted so their cards can
    * reappear via candidate re-emit.
    */
-  recoverInterruptedSubmissions(threadId: string): number {
+  recoverInterruptedSubmissions(threadId: string, turnId?: string): number {
     let recovered = 0;
     for (const record of this.store.listPromptSubmissions(threadId)) {
+      if (turnId && record.turnId !== turnId) continue;
       if (record.state === "dispatching" || record.state === "running") {
         this.store.transitionPromptSubmission(
           record.submissionId,
